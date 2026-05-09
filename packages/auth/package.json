@@ -1,0 +1,22 @@
+{
+  "name": "@buildops/auth",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.48.1"
+  },
+  "devDependencies": {
+    "@buildops/config": "workspace:*",
+    "next": "^15.3.1",
+    "typescript": "^5.7.2"
+  }
+}
