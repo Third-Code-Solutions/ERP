@@ -17,7 +17,9 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "drizzle-orm": ["../../node_modules/.pnpm/drizzle-orm@0.40.1_gel@2.2.0_postgres@3.4.9/node_modules/drizzle-orm"],
+      "drizzle-orm/*": ["../../node_modules/.pnpm/drizzle-orm@0.40.1_gel@2.2.0_postgres@3.4.9/node_modules/drizzle-orm/*"]
     },
     "plugins": [
       {

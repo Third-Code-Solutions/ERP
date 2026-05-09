@@ -5,6 +5,7 @@ import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
 import { documents, projects, users } from '@buildops/database/schema'
 import { and, eq, desc } from 'drizzle-orm'
+import { UploadButton } from '@/components/documents/upload-button'
 
 export const metadata: Metadata = { title: 'Documents' }
 
@@ -114,6 +115,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
         <p style={{ fontSize: '0.875rem', color: 'var(--color-neutral-500)', margin: 0 }}>
           {docs.length} file{docs.length !== 1 ? 's' : ''}
         </p>
+        <UploadButton projectId={id} />
       </div>
 
       {docs.length === 0 ? (
@@ -129,7 +131,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
         >
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>No documents uploaded yet.</p>
           <p style={{ fontSize: '0.8125rem' }}>
-            File upload is coming in Phase 2.{' '}
+            Use the Upload button above to add DXFs, PDFs, or images.{' '}
             <Link href="/documents" style={{ color: 'var(--color-navy-700)' }}>View all documents</Link>
           </p>
         </div>
@@ -196,7 +198,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
           color: 'var(--color-navy-700)',
         }}
       >
-        DXF file upload, in-browser preview, and version history are coming in Phase 2.
+        DXF uploads trigger automatic scope extraction. In-browser preview and version history are coming in Phase 3.
       </div>
     </div>
   )
