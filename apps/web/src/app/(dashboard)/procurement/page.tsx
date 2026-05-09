@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
 import { purchaseOrders, vendors, users } from '@buildops/database/schema'
-import { eq, desc, count, sql } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
+import { AddVendorForm } from '@/components/procurement/add-vendor-form'
 
 export const metadata: Metadata = { title: 'Procurement' }
 
@@ -65,9 +66,7 @@ export default async function ProcurementPage() {
             <h2 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-neutral-700)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Vendors ({vendorList.length})
             </h2>
-            <Link href="/purchase-orders" style={{ fontSize: '0.8125rem', color: 'var(--color-navy-700)' }}>
-              View all POs →
-            </Link>
+            <AddVendorForm />
           </div>
 
           {vendorList.length === 0 ? (
@@ -167,20 +166,6 @@ export default async function ProcurementPage() {
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: '24px',
-          background: 'var(--color-navy-50)',
-          border: '1px solid var(--color-navy-100)',
-          borderRadius: '8px',
-          padding: '16px 20px',
-          fontSize: '0.8125rem',
-          color: 'var(--color-navy-700)',
-          maxWidth: '1100px',
-        }}
-      >
-        PO generation from approved BOMs, delivery tracking, and vendor performance are coming in Phase 3.
-      </div>
     </div>
   )
 }
