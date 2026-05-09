@@ -143,9 +143,12 @@ export default async function PurchaseOrdersPage() {
               {rows.map((row) => (
                 <tr key={row.id}>
                   <td>
-                    <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-navy-700)' }}>
+                    <Link
+                      href={`/purchase-orders/${row.id}`}
+                      style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-navy-700)', textDecoration: 'none' }}
+                    >
                       {row.po_number}
-                    </span>
+                    </Link>
                   </td>
                   <td>
                     {row.project_id ? (

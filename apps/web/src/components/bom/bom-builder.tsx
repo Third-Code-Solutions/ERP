@@ -1,7 +1,9 @@
 'use client'
 
 import { useTransition, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { addBomLineItem, deleteBomLineItem, approveBom, createBom } from '@/app/(dashboard)/projects/[id]/bom/actions'
+import { createPoFromBom, createInvoice } from '@/app/(dashboard)/procurement/actions'
 
 interface BomLineItem {
   id: string
@@ -54,6 +56,12 @@ export function BomBuilder({ projectId, bom }: BomBuilderProps) {
     markup: '30',
   })
   const [formError, setFormError] = useState('')
+  const router = useRouter()
+  const [showPoForm, setShowPoForm] = useState(false)
+  const [poForm, setPoForm] = useState({ deliveryDate: '' })
+  const [showInvoiceForm, setShowInvoiceForm] = useState(false)
+  const [invoiceForm, setInvoiceForm] = useState({ billingPercent: '30', dueDate: '' })
+  const [procurementError, setProcurementError] = useState('')
 
   function handleCreate() {
     startTransition(async () => {
@@ -72,6 +80,40 @@ export function BomBuilder({ projectId, bom }: BomBuilderProps) {
     if (!bom) return
     startTransition(async () => {
       await deleteBomLineItem(itemId, bom.id, projectId)
+    })
+  }
+
+  async function handleGeneratePO(e: React.FormEvent) {
+    e.preventDefault()
+    if (!bom) return
+    setProcurementError('')
+    startTransition(async () => {
+      const result = await createPoFromBom(bom.id, projectId, null, poForm.deliveryDate || null)
+      if ('error' in result) {
+        setProcurementError(result.error)
+      } else {
+        router.push(`/purchase-orders/${result.id}`)
+      }
+    })
+  }
+
+  async function handleCreateInvoice(e: React.FormEvent) {
+    e.preventDefault()
+    if (!bom) return
+    setProcurementError('')
+    const billingPercent = parseFloat(invoiceForm.billingPercent)
+    if (isNaN(billingPercent) || billingPercent <= 0 || billingPercent > 100) {
+      setProcurementError('Billing % must be between 1 and 100')
+      return
+    }
+    const billingPercentBps = Math.round(billingPercent * 100)
+    startTransition(async () => {
+      const result = await createInvoice(projectId, bom.id, billingPercentBps, invoiceForm.dueDate || null)
+      if ('error' in result) {
+        setProcurementError(result.error)
+      } else {
+        router.push(`/invoices/${result.id}`)
+      }
     })
   }
 
@@ -198,6 +240,40 @@ export function BomBuilder({ projectId, bom }: BomBuilderProps) {
               </button>
             </>
           )}
+          {!isEditable && bom.status !== 'archived' && (
+            <>
+              <button
+                onClick={() => { setShowPoForm((v) => !v); setShowInvoiceForm(false); setProcurementError('') }}
+                style={{
+                  background: 'white',
+                  color: 'var(--color-navy-700)',
+                  border: '1px solid var(--color-navy-700)',
+                  borderRadius: '6px',
+                  padding: '6px 14px',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Generate PO
+              </button>
+              <button
+                onClick={() => { setShowInvoiceForm((v) => !v); setShowPoForm(false); setProcurementError('') }}
+                style={{
+                  background: 'var(--color-navy-700)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '6px 14px',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Create Invoice
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -292,6 +368,115 @@ export function BomBuilder({ projectId, bom }: BomBuilderProps) {
               style={{ background: 'var(--color-navy-700)', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', fontSize: '0.8rem', fontWeight: 600, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1 }}
             >
               {isPending ? 'Adding…' : 'Add Line'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Generate PO form */}
+      {showPoForm && !isEditable && bom.status !== 'archived' && (
+        <form
+          onSubmit={handleGeneratePO}
+          style={{
+            background: 'var(--color-neutral-50)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '16px',
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-neutral-500)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Delivery Date (optional)
+            </label>
+            <input
+              type="date"
+              value={poForm.deliveryDate}
+              onChange={(e) => setPoForm({ deliveryDate: e.target.value })}
+              style={{ padding: '6px 8px', border: '1px solid var(--color-border)', borderRadius: '4px', fontSize: '0.8125rem', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {procurementError && <span style={{ fontSize: '0.8rem', color: '#ef4444' }}>{procurementError}</span>}
+            <button
+              type="button"
+              onClick={() => { setShowPoForm(false); setProcurementError('') }}
+              style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: '4px', padding: '6px 12px', fontSize: '0.8rem', cursor: 'pointer', color: 'var(--color-neutral-600)' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              style={{ background: 'var(--color-navy-700)', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 14px', fontSize: '0.8rem', fontWeight: 600, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1 }}
+            >
+              {isPending ? 'Creating PO…' : 'Create Purchase Order'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Create invoice form */}
+      {showInvoiceForm && !isEditable && bom.status !== 'archived' && (
+        <form
+          onSubmit={handleCreateInvoice}
+          style={{
+            background: 'var(--color-neutral-50)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '16px',
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-neutral-500)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Billing % *
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              step="0.01"
+              placeholder="30"
+              value={invoiceForm.billingPercent}
+              onChange={(e) => setInvoiceForm((f) => ({ ...f, billingPercent: e.target.value }))}
+              style={{ width: '90px', padding: '6px 8px', border: '1px solid var(--color-border)', borderRadius: '4px', fontSize: '0.8125rem', fontFamily: 'var(--font-mono)', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-neutral-500)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Due Date (optional)
+            </label>
+            <input
+              type="date"
+              value={invoiceForm.dueDate}
+              onChange={(e) => setInvoiceForm((f) => ({ ...f, dueDate: e.target.value }))}
+              style={{ padding: '6px 8px', border: '1px solid var(--color-border)', borderRadius: '4px', fontSize: '0.8125rem', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {procurementError && <span style={{ fontSize: '0.8rem', color: '#ef4444' }}>{procurementError}</span>}
+            <button
+              type="button"
+              onClick={() => { setShowInvoiceForm(false); setProcurementError('') }}
+              style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: '4px', padding: '6px 12px', fontSize: '0.8rem', cursor: 'pointer', color: 'var(--color-neutral-600)' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              style={{ background: 'var(--color-navy-700)', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 14px', fontSize: '0.8rem', fontWeight: 600, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1 }}
+            >
+              {isPending ? 'Creating…' : 'Create Invoice'}
             </button>
           </div>
         </form>
