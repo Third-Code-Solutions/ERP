@@ -6,6 +6,7 @@ import { db } from '@buildops/database'
 import { opportunities, projects, users } from '@buildops/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { OpportunityPanel } from '@/components/opportunities/opportunity-panel'
+import { ProjectChat } from '@/components/ai/project-chat'
 
 export const metadata: Metadata = { title: 'Project' }
 
@@ -233,6 +234,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           </dl>
         </div>
       </div>
+      <ProjectChat projectId={id} />
     </div>
   )
 }

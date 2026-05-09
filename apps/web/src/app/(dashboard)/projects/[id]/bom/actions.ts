@@ -6,6 +6,7 @@ import { db } from '@buildops/database'
 import { boms, bomLineItems, users } from '@buildops/database/schema'
 import { eq, and, max } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
+import { inngest } from '@/lib/inngest'
 
 export async function createBom(projectId: string): Promise<{ id: string } | { error: string }> {
   const user = await getUser()
@@ -139,6 +140,12 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
     entityId: bomId,
     action: 'approve',
     diff: { status: 'approved' },
+  })
+
+  // Trigger async embedding of BOM line items for RAG retrieval
+  await inngest.send({
+    name: 'bom/approved',
+    data: { bomId, projectId, tenantId: userRow.tenant_id },
   })
 
   revalidatePath(`/projects/${projectId}/bom`)
