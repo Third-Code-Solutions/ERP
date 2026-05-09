@@ -1,0 +1,129 @@
+import { describe, it, expect } from 'vitest'
+import {
+  STAGE_PROBABILITY,
+  STAGE_TRANSITIONS,
+  createOpportunitySchema,
+  stageTransitionSchema,
+} from '../opportunities'
+
+describe('STAGE_PROBABILITY', () => {
+  it('assigns 0% to closed_lost', () => {
+    expect(STAGE_PROBABILITY.closed_lost).toBe(0)
+  })
+
+  it('assigns 100% to closed_won', () => {
+    expect(STAGE_PROBABILITY.closed_won).toBe(100)
+  })
+
+  it('has all stages with valid probability range', () => {
+    for (const [stage, prob] of Object.entries(STAGE_PROBABILITY)) {
+      expect(prob, `${stage} probability out of range`).toBeGreaterThanOrEqual(0)
+      expect(prob, `${stage} probability out of range`).toBeLessThanOrEqual(100)
+    }
+  })
+
+  it('probabilities increase through pipeline stages', () => {
+    const { opportunity_creation, scoping, bom_submission, negotiation } = STAGE_PROBABILITY
+    expect(opportunity_creation).toBeLessThan(scoping)
+    expect(scoping).toBeLessThan(bom_submission)
+    expect(bom_submission).toBeLessThan(negotiation)
+  })
+})
+
+describe('STAGE_TRANSITIONS', () => {
+  it('terminal stages have no valid transitions', () => {
+    expect(STAGE_TRANSITIONS.closed_won).toHaveLength(0)
+    expect(STAGE_TRANSITIONS.closed_lost).toHaveLength(0)
+  })
+
+  it('every stage can progress to closed_lost', () => {
+    const activeStages = [
+      'opportunity_creation',
+      'scoping',
+      'bom_submission',
+      'resubmission',
+      'negotiation',
+    ] as const
+
+    for (const stage of activeStages) {
+      expect(STAGE_TRANSITIONS[stage]).toContain('closed_lost')
+    }
+  })
+
+  it('negotiation can close won', () => {
+    expect(STAGE_TRANSITIONS.negotiation).toContain('closed_won')
+  })
+
+  it('opportunity_creation advances to scoping', () => {
+    expect(STAGE_TRANSITIONS.opportunity_creation).toContain('scoping')
+  })
+})
+
+describe('createOpportunitySchema', () => {
+  it('requires project_id as UUID', () => {
+    const result = createOpportunitySchema.safeParse({ project_id: 'not-a-uuid' })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts a valid opportunity input', () => {
+    const result = createOpportunitySchema.safeParse({
+      project_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      tcv_cents: 5000000000,
+      gp_cents: 1000000000,
+      probability: 40,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('clamps probability to 0-100', () => {
+    const high = createOpportunitySchema.safeParse({
+      project_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      probability: 150,
+    })
+    expect(high.success).toBe(false)
+
+    const negative = createOpportunitySchema.safeParse({
+      project_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      probability: -1,
+    })
+    expect(negative.success).toBe(false)
+  })
+
+  it('defaults probability to 0', () => {
+    const result = createOpportunitySchema.safeParse({
+      project_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.probability).toBe(0)
+    }
+  })
+
+  it('rejects negative monetary values', () => {
+    const result = createOpportunitySchema.safeParse({
+      project_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      tcv_cents: -1,
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('stageTransitionSchema', () => {
+  it('accepts valid stage', () => {
+    const result = stageTransitionSchema.safeParse({ new_stage: 'scoping' })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects invalid stage', () => {
+    const result = stageTransitionSchema.safeParse({ new_stage: 'invalid_stage' })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts optional reason', () => {
+    const result = stageTransitionSchema.safeParse({
+      new_stage: 'closed_won',
+      reason: 'Contract signed',
+    })
+    expect(result.success).toBe(true)
+  })
+})

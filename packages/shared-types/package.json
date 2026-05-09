@@ -1,0 +1,25 @@
+{
+  "name": "@buildops/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./bom": "./src/bom/index.ts",
+    "./projects": "./src/projects.ts",
+    "./opportunities": "./src/opportunities.ts",
+    "./common": "./src/common.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@buildops/config": "workspace:*",
+    "typescript": "^5.7.2",
+    "vitest": "^3.1.2"
+  }
+}
