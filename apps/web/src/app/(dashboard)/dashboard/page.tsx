@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import { getUser } from '@buildops/auth'
-import { getDashboardKpis, getStageDistribution, getRepScorecards } from '@/lib/dashboard-queries'
+import { getDashboardKpis, getStageDistribution, getRepScorecards, getAlerts } from '@/lib/dashboard-queries'
 import { KpiCards } from '@/components/dashboard/kpi-cards'
 import { RepScorecardTable } from '@/components/dashboard/rep-scorecard'
 import { StageDistributionTable } from '@/components/dashboard/stage-distribution'
+import { AlertsPanel } from '@/components/dashboard/alerts-panel'
 import { db } from '@buildops/database'
 import { users } from '@buildops/database/schema'
 import { eq } from 'drizzle-orm'
@@ -30,10 +31,11 @@ export default async function DashboardPage() {
     )
   }
 
-  const [kpis, stages, reps] = await Promise.all([
+  const [kpis, stages, reps, alerts] = await Promise.all([
     getDashboardKpis(tenantId),
     getStageDistribution(tenantId),
     getRepScorecards(tenantId),
+    getAlerts(tenantId),
   ])
 
   return (
@@ -45,9 +47,9 @@ export default async function DashboardPage() {
 
       <KpiCards kpis={kpis} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px' }}>
         <StageDistributionTable rows={stages} />
-        <div /> {/* Right rail placeholder for alerts — Iteration 8 */}
+        <AlertsPanel alerts={alerts} />
       </div>
 
       <RepScorecardTable reps={reps} />

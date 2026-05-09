@@ -1,6 +1,6 @@
 import { db } from '@buildops/database'
-import { opportunities, users } from '@buildops/database/schema'
-import { eq, and, inArray, sum, count, sql } from 'drizzle-orm'
+import { invoices, opportunities, projects, users } from '@buildops/database/schema'
+import { eq, and, inArray, lt, sum, count, sql } from 'drizzle-orm'
 
 export interface KpiData {
   activeTcv: number
@@ -29,6 +29,14 @@ export interface StageRow {
   count: number
   tcvCents: number
   gpCents: number
+}
+
+export interface Alert {
+  type: 'low_margin' | 'stalled_deal' | 'overdue_invoice'
+  severity: 'warning' | 'danger'
+  label: string
+  detail: string
+  href: string
 }
 
 const ACTIVE_STAGES = [
@@ -178,5 +186,99 @@ export async function getRepScorecards(tenantId: string): Promise<RepScorecard[]
       activeCount: Number(ar.activeCount ?? 0),
       weightedTcv: Number(ar.weighted ?? 0),
     }
+  })
+}
+
+const LOW_MARGIN_THRESHOLD_BPS = 1500 // 15%
+const STALLED_DAYS = 30
+
+export async function getAlerts(tenantId: string): Promise<Alert[]> {
+  const alerts: Alert[] = []
+
+  // Low-margin active opportunities (GP margin < 15%)
+  const activeOpps = await db
+    .select({
+      id: opportunities.id,
+      project_id: opportunities.project_id,
+      stage: opportunities.stage,
+      tcv_cents: opportunities.tcv_cents,
+      gp_cents: opportunities.gp_cents,
+      updated_at: opportunities.updated_at,
+      project_name: projects.name,
+    })
+    .from(opportunities)
+    .leftJoin(projects, eq(opportunities.project_id, projects.id))
+    .where(
+      and(
+        eq(opportunities.tenant_id, tenantId),
+        inArray(opportunities.stage, [...ACTIVE_STAGES])
+      )
+    )
+
+  for (const opp of activeOpps) {
+    const tcv = opp.tcv_cents
+    const gp = opp.gp_cents
+    if (tcv > 0) {
+      const marginBps = Math.round((gp / tcv) * 10000)
+      if (marginBps < LOW_MARGIN_THRESHOLD_BPS) {
+        alerts.push({
+          type: 'low_margin',
+          severity: marginBps < 1000 ? 'danger' : 'warning',
+          label: opp.project_name ?? 'Unknown project',
+          detail: `GP margin ${(marginBps / 100).toFixed(1)}% — below 15% threshold`,
+          href: `/projects/${opp.project_id}`,
+        })
+      }
+    }
+
+    // Stalled deal
+    const daysSinceUpdate = Math.floor(
+      (Date.now() - new Date(opp.updated_at).getTime()) / (1000 * 60 * 60 * 24)
+    )
+    if (daysSinceUpdate >= STALLED_DAYS) {
+      alerts.push({
+        type: 'stalled_deal',
+        severity: 'warning',
+        label: opp.project_name ?? 'Unknown project',
+        detail: `No activity for ${daysSinceUpdate} days in ${opp.stage.replace(/_/g, ' ')}`,
+        href: `/projects/${opp.project_id}`,
+      })
+    }
+  }
+
+  // Overdue invoices
+  const overdueInvoices = await db
+    .select({
+      id: invoices.id,
+      project_id: invoices.project_id,
+      invoice_number: invoices.invoice_number,
+      due_date: invoices.due_date,
+      net_amount_cents: invoices.net_amount_cents,
+      project_name: projects.name,
+    })
+    .from(invoices)
+    .leftJoin(projects, eq(invoices.project_id, projects.id))
+    .where(
+      and(
+        eq(invoices.tenant_id, tenantId),
+        eq(invoices.status, 'overdue'),
+        lt(invoices.due_date, new Date())
+      )
+    )
+
+  for (const inv of overdueInvoices) {
+    alerts.push({
+      type: 'overdue_invoice',
+      severity: 'danger',
+      label: inv.project_name ?? 'Unknown project',
+      detail: `${inv.invoice_number} — ₱${((inv.net_amount_cents ?? 0) / 100).toLocaleString()} overdue`,
+      href: `/projects/${inv.project_id}/billing`,
+    })
+  }
+
+  // Sort: danger first, then by type
+  return alerts.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity === 'danger' ? -1 : 1
+    return 0
   })
 }
