@@ -39,6 +39,7 @@ function formatBytes(bytes: number): string {
 
 const TABS = [
   { label: 'Overview', href: '' },
+  { label: 'Scope', href: '/scope' },
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },

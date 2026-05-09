@@ -34,6 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TABS = [
   { label: 'Overview', href: '' },
+  { label: 'Scope', href: '/scope' },
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },
@@ -159,8 +160,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           )}
 
           {/* Quick links to tabs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
             {[
+              { label: 'Scope', href: `/projects/${id}/scope`, icon: '◈' },
               { label: 'Bill of Materials', href: `/projects/${id}/bom`, icon: '≡' },
               { label: 'Documents', href: `/projects/${id}/documents`, icon: '◼' },
               { label: 'Billing', href: `/projects/${id}/billing`, icon: '◇' },

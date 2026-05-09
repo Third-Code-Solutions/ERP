@@ -11,6 +11,7 @@ export const metadata: Metadata = { title: 'BOM' }
 
 const TABS = [
   { label: 'Overview', href: '' },
+  { label: 'Scope', href: '/scope' },
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },
