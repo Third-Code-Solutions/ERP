@@ -61,9 +61,14 @@ export const parseCadDrawing = inngest.createFunction(
     }
 
     const result = await step.run('call-cad-parser', async () => {
+      const sharedSecret = process.env.PARSER_SHARED_SECRET
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (sharedSecret) headers.Authorization = `Bearer ${sharedSecret}`
       const res = await fetch(`${parserUrl}/parse`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           document_id: documentId,
           project_id: projectId,

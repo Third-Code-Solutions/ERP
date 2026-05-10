@@ -6,10 +6,16 @@ import { db } from '@buildops/database'
 import { users } from '@buildops/database/schema'
 import { eq } from 'drizzle-orm'
 
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB per upload (PRD F2.1)
+
 const SignSchema = z.object({
   projectId: z.string().uuid(),
   fileName: z.string().min(1).max(255),
   mimeType: z.string().max(255).optional(),
+  // Required so the server can reject oversized uploads BEFORE issuing
+  // a signed URL (the complete endpoint also checks, but a malicious caller
+  // could skip /complete and stash a 1GB blob in the bucket otherwise).
+  sizeBytes: z.number().int().positive().max(MAX_UPLOAD_BYTES),
 })
 
 export async function POST(req: NextRequest) {

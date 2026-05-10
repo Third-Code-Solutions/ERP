@@ -267,9 +267,14 @@ async function callDwgWorker(args: DwgWorkerCallArgs): Promise<DwgWorkerResponse
   const timer = setTimeout(() => controller.abort(), WORKER_TIMEOUT_MS)
   try {
     const url = `${args.parserUrl.replace(/\/$/, '')}/parse`
+    const sharedSecret = process.env.PARSER_SHARED_SECRET
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (sharedSecret) headers.Authorization = `Bearer ${sharedSecret}`
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         document_id: args.documentId,
         project_id: args.projectId,

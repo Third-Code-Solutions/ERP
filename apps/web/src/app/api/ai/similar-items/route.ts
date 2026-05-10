@@ -5,6 +5,7 @@ import { users } from '@buildops/database/schema'
 import { eq } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { embedText, serializeEmbedding } from '@buildops/ai'
+import { writeAuditLog } from '@/lib/audit'
 
 export interface SimilarItem {
   description: string
@@ -60,6 +61,25 @@ export async function POST(req: NextRequest) {
     .map((r) => ({ ...r, score: typeof r.score === 'string' ? parseFloat(r.score) : r.score }))
     .filter((r) => r.score >= MIN_SCORE)
     .map((r) => parseChunkText(r.chunk_text, r.score))
+
+  // PRD F4 explicitly requires "All queries logged for audit". Best-effort —
+  // a logging hiccup must never fail the user's actual query.
+  try {
+    await writeAuditLog({
+      tenantId: userRow.tenant_id,
+      actorId: user.id,
+      entityType: 'ai_similar_items',
+      entityId: user.id, // no canonical entity for this query; use actor as anchor
+      action: 'query',
+      diff: {
+        query: description.slice(0, 500),
+        result_count: items.length,
+        top_score: items[0]?.score ?? null,
+      },
+    })
+  } catch (err) {
+    console.error('[ai/similar-items] audit log failed:', err)
+  }
 
   return NextResponse.json({ items })
 }

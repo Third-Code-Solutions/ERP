@@ -3,7 +3,16 @@ import { auditLog } from '@buildops/database/schema'
 import { computeHash, computeDiff } from '@buildops/shared-types'
 import { desc, eq } from 'drizzle-orm'
 
-export type AuditAction = 'create' | 'update' | 'delete' | 'approve' | 'lock' | 'unlock' | 'stage_change' | 'status_change'
+export type AuditAction =
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'approve'
+  | 'lock'
+  | 'unlock'
+  | 'stage_change'
+  | 'status_change'
+  | 'query'
 
 interface WriteAuditParams {
   tenantId: string
