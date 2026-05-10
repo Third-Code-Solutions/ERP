@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { Fragment, useState, useTransition } from 'react'
 import { formatCentsCompact } from '@buildops/shared-types'
 import { createOpportunity, transitionStage } from '@/app/(dashboard)/projects/[id]/opportunities/actions'
 
@@ -227,8 +227,8 @@ export function OpportunityPanel({ projectId, opportunities: initialOpps }: Oppo
                 const nextStages = VALID_TRANSITIONS[stage] ?? []
 
                 return (
-                  <>
-                    <tr key={opp.id}>
+                  <Fragment key={opp.id}>
+                    <tr>
                       <td>
                         <span className="stage-badge" style={{
                           color: STAGE_COLORS[stage] ?? 'inherit',
@@ -311,7 +311,7 @@ export function OpportunityPanel({ projectId, opportunities: initialOpps }: Oppo
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>
