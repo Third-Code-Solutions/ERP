@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, text, integer, bigint, timestamp, index } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { purchaseOrders } from './purchase-orders'
+import { users } from './users'
 
 export const poLineItems = pgTable(
   'po_line_items',
@@ -16,6 +17,11 @@ export const poLineItems = pgTable(
     unit_cost_cents: bigint('unit_cost_cents', { mode: 'number' }).notNull().default(0),
     line_total_cents: bigint('line_total_cents', { mode: 'number' }).notNull().default(0),
     notes: text('notes'),
+    // Partial-receipt tracking. received_qty == quantity → fully received.
+    // received_at/received_by are nullable until the first receive action.
+    received_qty: integer('received_qty').notNull().default(0),
+    received_at: timestamp('received_at', { withTimezone: true }),
+    received_by: uuid('received_by').references(() => users.id, { onDelete: 'set null' }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({

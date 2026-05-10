@@ -24,6 +24,10 @@ export const opportunities = pgTable(
     area_sqm: integer('area_sqm'),
     opportunity_type: text('opportunity_type'),
     remarks: text('remarks'),
+    // Captured when an opportunity transitions to closed_lost so reps and
+    // leadership can analyze loss patterns. Free-text on purpose; can be
+    // bucketed via UI dropdown later.
+    lost_reason: text('lost_reason'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -67,9 +67,24 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
 
 // ── Advance stage ─────────────────────────────────────────────────────────────
 
+/**
+ * Advance an opportunity to the next stage.
+ *
+ * Signature:
+ *   advanceOpportunityStage(opportunityId: string, nextStage: string, lostReason?: string)
+ *
+ * `lostReason` is optional and only persisted when `nextStage === 'closed_lost'`.
+ * It is written to `opportunities.lost_reason` and recorded in the audit log diff
+ * so leadership can analyze loss patterns over time.
+ *
+ * Examples:
+ *   await advanceOpportunityStage(id, 'negotiation')
+ *   await advanceOpportunityStage(id, 'closed_lost', 'Lost to incumbent on price')
+ */
 export async function advanceOpportunityStage(
   opportunityId: string,
-  nextStage: string
+  nextStage: string,
+  lostReason?: string
 ): Promise<{ error?: string }> {
   const user = await getUser()
   if (!user) return { error: 'Unauthorized' }
@@ -83,6 +98,7 @@ export async function advanceOpportunityStage(
       stage: opportunities.stage,
       tcv_cents: opportunities.tcv_cents,
       project_id: opportunities.project_id,
+      lost_reason: opportunities.lost_reason,
     })
     .from(opportunities)
     .where(and(eq(opportunities.id, opportunityId), eq(opportunities.tenant_id, userRow.tenant_id)))
@@ -97,15 +113,48 @@ export async function advanceOpportunityStage(
   const newProbability = STAGE_PROBABILITY[nextStage as OpportunityStage] ?? 0
   const newWeightedTcv = Math.round(opp.tcv_cents * newProbability / 100)
 
+  // Only capture lost_reason on transitions into closed_lost. Trim and treat
+  // empty strings as undefined so we don't overwrite an existing reason with
+  // whitespace, and don't leak unrelated text on non-loss transitions.
+  const isClosingLost = nextStage === 'closed_lost'
+  const trimmedReason =
+    typeof lostReason === 'string' && lostReason.trim().length > 0
+      ? lostReason.trim()
+      : undefined
+  const reasonToPersist = isClosingLost ? trimmedReason ?? null : undefined
+
+  const updateValues: {
+    stage: OpportunityStage
+    probability: number
+    weighted_tcv_cents: number
+    updated_at: Date
+    lost_reason?: string | null
+  } = {
+    stage: nextStage as OpportunityStage,
+    probability: newProbability,
+    weighted_tcv_cents: newWeightedTcv,
+    updated_at: new Date(),
+  }
+  if (isClosingLost) {
+    updateValues.lost_reason = reasonToPersist ?? null
+  }
+
   await db
     .update(opportunities)
-    .set({
-      stage: nextStage as OpportunityStage,
-      probability: newProbability,
-      weighted_tcv_cents: newWeightedTcv,
-      updated_at: new Date(),
-    })
+    .set(updateValues)
     .where(and(eq(opportunities.id, opportunityId), eq(opportunities.tenant_id, userRow.tenant_id)))
+
+  const auditDiff: Record<string, unknown> = {
+    from: opp.stage,
+    to: nextStage,
+    probability: newProbability,
+  }
+  if (isClosingLost) {
+    auditDiff.lost_reason = {
+      from: opp.lost_reason ?? null,
+      to: reasonToPersist ?? null,
+    }
+  }
 
   await writeAuditLog({
     tenantId: userRow.tenant_id,
@@ -113,7 +162,7 @@ export async function advanceOpportunityStage(
     entityType: 'opportunity',
     entityId: opportunityId,
     action: 'stage_change',
-    diff: { from: opp.stage, to: nextStage, probability: newProbability },
+    diff: auditDiff,
   })
 
   revalidatePath('/pipeline/coverage')

@@ -3,10 +3,11 @@ import { z } from 'zod'
 import { getUser } from '@buildops/auth'
 import { createSupabaseAdminClient } from '@buildops/auth/server'
 import { db } from '@buildops/database'
-import { users } from '@buildops/database/schema'
-import { eq } from 'drizzle-orm'
+import { documents, users } from '@buildops/database/schema'
+import { and, eq, sum } from 'drizzle-orm'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB per upload (PRD F2.1)
+const PROJECT_QUOTA_BYTES = 500 * 1024 * 1024 // 500 MB per project (PRD F2.1)
 
 const SignSchema = z.object({
   projectId: z.string().uuid(),
@@ -46,7 +47,35 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { projectId, fileName } = parsed.data
+  const { projectId, fileName, sizeBytes } = parsed.data
+
+  // Per-project quota check (PRD F2.1: 500 MB per project). Sum existing
+  // documents.size_bytes for this (tenant, project) and reject before issuing
+  // a signed URL. Without this check a caller could fill the bucket by
+  // looping through small uploads.
+  const [quotaRow] = await db
+    .select({ total: sum(documents.size_bytes) })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.tenant_id, userRow.tenant_id),
+        eq(documents.project_id, projectId)
+      )
+    )
+
+  // drizzle's sum() returns string | null (Postgres NUMERIC); coerce safely.
+  const currentBytes = quotaRow?.total ? Number(quotaRow.total) : 0
+  if (currentBytes + sizeBytes > PROJECT_QUOTA_BYTES) {
+    return NextResponse.json(
+      {
+        error: 'Project storage quota exceeded',
+        current_bytes: currentBytes,
+        requested_bytes: sizeBytes,
+        quota_bytes: PROJECT_QUOTA_BYTES,
+      },
+      { status: 413 }
+    )
+  }
 
   // Sanitize filename (storage path is server-controlled to prevent traversal)
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200)

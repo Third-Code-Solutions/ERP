@@ -6,6 +6,7 @@ import { db } from '@buildops/database'
 import { poLineItems, projects, purchaseOrders, users, vendors } from '@buildops/database/schema'
 import { and, asc, eq } from 'drizzle-orm'
 import { PoStatusActions } from './po-status-actions'
+import { ReceiveLineForm } from '@/components/procurement/receive-line-form'
 
 export const metadata: Metadata = { title: 'Purchase Order' }
 
@@ -242,7 +243,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)' }}>
-                {['#', 'Code', 'Description', 'Qty', 'Unit', 'Unit Cost', 'Line Total'].map((h, i) => (
+                {['#', 'Code', 'Description', 'Qty', 'Unit', 'Unit Cost', 'Line Total', 'Received'].map((h, i) => (
                   <th
                     key={h}
                     style={{
@@ -285,6 +286,14 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                   <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: 'var(--color-neutral-900)' }}>
                     {formatPHP(line.line_total_cents)}
                   </td>
+                  <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                    <ReceiveLineForm
+                      lineId={line.id}
+                      quantity={line.quantity}
+                      receivedQty={line.received_qty}
+                      disabled={po.status === 'cancelled'}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -296,6 +305,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                 <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--color-neutral-900)' }}>
                   {formatPHP(lines.reduce((s, l) => s + l.line_total_cents, 0))}
                 </td>
+                <td style={{ padding: '12px 16px' }} />
               </tr>
             </tfoot>
           </table>

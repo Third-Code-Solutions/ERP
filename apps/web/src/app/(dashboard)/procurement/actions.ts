@@ -297,6 +297,121 @@ export async function advancePoStatus(
   return {}
 }
 
+// ── PO line item receive ──────────────────────────────────────────────────────
+
+export async function receivePoLineItem(
+  formData: FormData
+): Promise<{ error?: string }> {
+  const user = await getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
+  if (!userRow?.tenant_id) return { error: 'No tenant' }
+
+  const lineId = str(formData.get('line_id'))
+  if (!lineId) return { error: 'Line item is required' }
+
+  const rawQty = formData.get('received_qty')
+  const parsedQty = typeof rawQty === 'string' ? Number(rawQty) : NaN
+  if (!Number.isInteger(parsedQty) || parsedQty < 0) {
+    return { error: 'Received qty must be a non-negative integer' }
+  }
+
+  // Load line and verify tenant via PO
+  const [line] = await db
+    .select({
+      id: poLineItems.id,
+      po_id: poLineItems.po_id,
+      tenant_id: poLineItems.tenant_id,
+      quantity: poLineItems.quantity,
+      received_qty: poLineItems.received_qty,
+    })
+    .from(poLineItems)
+    .where(eq(poLineItems.id, lineId))
+
+  if (!line) return { error: 'Line item not found' }
+  if (line.tenant_id !== userRow.tenant_id) return { error: 'Line item not found' }
+
+  if (parsedQty > line.quantity) {
+    return { error: `Received qty cannot exceed ordered quantity (${line.quantity})` }
+  }
+
+  // Verify parent PO and check status
+  const [po] = await db
+    .select({
+      id: purchaseOrders.id,
+      tenant_id: purchaseOrders.tenant_id,
+      status: purchaseOrders.status,
+      project_id: purchaseOrders.project_id,
+    })
+    .from(purchaseOrders)
+    .where(and(eq(purchaseOrders.id, line.po_id), eq(purchaseOrders.tenant_id, userRow.tenant_id)))
+
+  if (!po) return { error: 'Purchase order not found' }
+  if (po.status === 'cancelled') return { error: 'Cannot receive on a cancelled PO' }
+
+  const now = new Date()
+  const oldQty = line.received_qty
+
+  await db
+    .update(poLineItems)
+    .set({
+      received_qty: parsedQty,
+      received_at: now,
+      received_by: user.id,
+    })
+    .where(and(eq(poLineItems.id, lineId), eq(poLineItems.tenant_id, userRow.tenant_id)))
+
+  await writeAuditLog({
+    tenantId: userRow.tenant_id,
+    actorId: user.id,
+    entityType: 'po_line_item',
+    entityId: lineId,
+    action: 'update',
+    diff: {
+      received_qty: { old: oldQty, new: parsedQty },
+      po_id: line.po_id,
+    },
+  })
+
+  // Auto-flip parent PO status if all lines now fully received
+  const allLines = await db
+    .select({
+      id: poLineItems.id,
+      quantity: poLineItems.quantity,
+      received_qty: poLineItems.received_qty,
+    })
+    .from(poLineItems)
+    .where(and(eq(poLineItems.po_id, line.po_id), eq(poLineItems.tenant_id, userRow.tenant_id)))
+
+  const allFullyReceived =
+    allLines.length > 0 && allLines.every((l) => l.received_qty >= l.quantity)
+
+  if (allFullyReceived && po.status !== 'delivered') {
+    await db
+      .update(purchaseOrders)
+      .set({
+        status: 'delivered' as typeof purchaseOrders.$inferSelect.status,
+        updated_at: now,
+      })
+      .where(and(eq(purchaseOrders.id, line.po_id), eq(purchaseOrders.tenant_id, userRow.tenant_id)))
+
+    await writeAuditLog({
+      tenantId: userRow.tenant_id,
+      actorId: user.id,
+      entityType: 'purchase_order',
+      entityId: line.po_id,
+      action: 'status_change',
+      diff: { from: po.status, to: 'delivered', reason: 'all lines fully received' },
+    })
+  }
+
+  revalidatePath(`/purchase-orders/${line.po_id}`)
+  revalidatePath('/purchase-orders')
+  if (po.project_id) revalidatePath(`/projects/${po.project_id}`)
+  return {}
+}
+
 // ── Invoice creation ──────────────────────────────────────────────────────────
 
 export async function createInvoice(
