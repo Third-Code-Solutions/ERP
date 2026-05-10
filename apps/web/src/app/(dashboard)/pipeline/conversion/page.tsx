@@ -5,6 +5,7 @@ import { db } from '@buildops/database'
 import { opportunities, projects, users } from '@buildops/database/schema'
 import { and, eq, inArray, desc } from 'drizzle-orm'
 import { formatCentsCompact } from '@buildops/shared-types'
+import { StageAdvanceButton } from '@/components/pipeline/stage-advance-button'
 
 export const metadata: Metadata = { title: 'Conversion Pipeline' }
 
@@ -118,6 +119,7 @@ export default async function ConversionPage() {
                 <th className="numeric">GP %</th>
                 <th className="numeric">Weighted TCV</th>
                 <th>Est. Close</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -161,6 +163,9 @@ export default async function ConversionPage() {
                       {opp.closing_date
                         ? new Date(opp.closing_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
                         : '—'}
+                    </td>
+                    <td>
+                      <StageAdvanceButton opportunityId={opp.id} currentStage={opp.stage} />
                     </td>
                   </tr>
                 )

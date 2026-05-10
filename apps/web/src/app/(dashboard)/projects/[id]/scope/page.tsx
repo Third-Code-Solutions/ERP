@@ -3,8 +3,10 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
-import { projects, scopeItems, users } from '@buildops/database/schema'
+import { documents, projects, scopeItems, users } from '@buildops/database/schema'
 import { and, asc, eq } from 'drizzle-orm'
+import { AddScopeItemForm, DeleteScopeItemButton, EditableUnitCost } from '@/components/scope/scope-item-controls'
+import { CadDropZone } from '@/components/cad/cad-dropzone'
 
 export const metadata: Metadata = { title: 'Scope' }
 
@@ -14,6 +16,7 @@ const TABS = [
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },
+  { label: 'Audit', href: '/audit' },
 ]
 
 const UNIT_LABELS: Record<string, string> = {
@@ -49,12 +52,62 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
     .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, userRow.tenant_id)))
     .orderBy(asc(scopeItems.sort_order), asc(scopeItems.description))
 
+  // Map documents → file names so each item can be attributed to its source upload
+  const projectDocuments = await db
+    .select({
+      id: documents.id,
+      file_name: documents.file_name,
+      created_at: documents.created_at,
+    })
+    .from(documents)
+    .where(and(eq(documents.project_id, id), eq(documents.tenant_id, userRow.tenant_id)))
+
+  const docNameById = new Map(projectDocuments.map((d) => [d.id, d.file_name]))
+  const docCreatedById = new Map(projectDocuments.map((d) => [d.id, d.created_at]))
+
+  // Parse `document:<uuid>` from the notes field; items without it are manual
+  const DOC_NOTE_RE = /document:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
+  function sourceDocId(notes: string | null): string | null {
+    if (!notes) return null
+    const m = DOC_NOTE_RE.exec(notes)
+    return m?.[1] ?? null
+  }
+
+  // Bucket scope items by source document so multiple drawings in the same
+  // project render as their own visible sections.
+  type Bucket = {
+    docId: string | null
+    docName: string
+    docCreatedAt: Date | null
+    rows: typeof items
+  }
+  const buckets = new Map<string, Bucket>()
+  for (const item of items) {
+    const docId = sourceDocId(item.notes)
+    const key = docId ?? '__manual__'
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        docId,
+        docName: docId ? docNameById.get(docId) ?? `Document ${docId.slice(0, 8)}` : 'Manual entries',
+        docCreatedAt: docId ? docCreatedById.get(docId) ?? null : null,
+        rows: [],
+      })
+    }
+    buckets.get(key)!.rows.push(item)
+  }
+  const orderedBuckets = Array.from(buckets.values()).sort((a, b) => {
+    if (a.docId === null) return 1
+    if (b.docId === null) return -1
+    const ta = a.docCreatedAt ? new Date(a.docCreatedAt).getTime() : 0
+    const tb = b.docCreatedAt ? new Date(b.docCreatedAt).getTime() : 0
+    return tb - ta
+  })
+
   const baseHref = `/projects/${id}`
 
-  // Group by unit type for display
+  // Whole-project rollup for the KPI bar
   const equipment = items.filter((i) => i.unit === 'unit' || i.unit === 'set')
   const areas = items.filter((i) => i.unit === 'sqm' || i.unit === 'lm')
-  const annotations = items.filter((i) => !['unit', 'set', 'sqm', 'lm'].includes(i.unit))
 
   const totalLineCents = items.reduce((sum, i) => sum + i.line_total_cents, 0)
 
@@ -146,14 +199,16 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
             {totalLineCents > 0 ? formatPHP(totalLineCents) : '—'}
           </div>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <AddScopeItemForm projectId={id} />
           <Link
             href={`/projects/${id}/bom`}
             style={{
               display: 'inline-block',
               padding: '8px 16px',
-              background: 'var(--color-navy-700)',
-              color: 'white',
+              background: 'none',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-navy-700)',
               borderRadius: '6px',
               fontSize: '0.875rem',
               fontWeight: 500,
@@ -166,48 +221,96 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
       </div>
 
       {items.length === 0 ? (
-        <div
-          style={{
-            background: 'white',
-            border: '1px solid var(--color-border)',
-            borderRadius: '8px',
-            padding: '48px 24px',
-            textAlign: 'center',
-          }}
-        >
-          <p style={{ fontSize: '0.875rem', color: 'var(--color-neutral-500)', margin: '0 0 8px 0' }}>
-            No scope items yet.
-          </p>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-400)', margin: 0 }}>
-            Upload a DXF drawing in the{' '}
+        <div>
+          <CadDropZone projectId={id} />
+          <p
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--color-neutral-400)',
+              textAlign: 'center',
+              margin: '12px 0 0',
+            }}
+          >
+            Or manage all uploads in the{' '}
             <Link href={`/projects/${id}/documents`} style={{ color: 'var(--color-navy-700)' }}>
               Documents tab
-            </Link>{' '}
-            to auto-extract scope items.
+            </Link>
+            .
           </p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {[
-            { label: 'Equipment & Units', rows: equipment },
-            { label: 'Areas & Lengths', rows: areas },
-            { label: 'Annotations', rows: annotations },
-          ]
-            .filter(({ rows }) => rows.length > 0)
-            .map(({ label, rows }) => (
-              <div key={label}>
-                <h3
+          <CadDropZone
+            projectId={id}
+            compact
+            title="Drop another CAD drawing"
+            subtitle="Each upload becomes its own section below — existing files stay untouched."
+          />
+          {orderedBuckets.map((bucket) => {
+            const rows = bucket.rows
+            const dateStr = bucket.docCreatedAt
+              ? new Date(bucket.docCreatedAt).toLocaleDateString('en-PH', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })
+              : null
+            return (
+              <div key={bucket.docId ?? '__manual__'}>
+                <div
                   style={{
-                    fontSize: '0.8125rem',
-                    fontWeight: 600,
-                    color: 'var(--color-neutral-500)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    margin: '0 0 8px 0',
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    justifyContent: 'space-between',
+                    margin: '0 0 8px',
+                    gap: 12,
+                    flexWrap: 'wrap',
                   }}
                 >
-                  {label}
-                </h3>
+                  <h3
+                    style={{
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                      color: 'var(--color-neutral-900)',
+                      letterSpacing: '-0.005em',
+                      margin: 0,
+                      display: 'inline-flex',
+                      alignItems: 'baseline',
+                      gap: 8,
+                    }}
+                  >
+                    {bucket.docId ? (
+                      <Link
+                        href={`/projects/${id}/documents`}
+                        style={{
+                          color: 'var(--color-navy-700)',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        {bucket.docName}
+                      </Link>
+                    ) : (
+                      <span>{bucket.docName}</span>
+                    )}
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        color: 'var(--color-neutral-500)',
+                        background: 'var(--color-neutral-100)',
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                      }}
+                    >
+                      {rows.length} item{rows.length === 1 ? '' : 's'}
+                    </span>
+                  </h3>
+                  {dateStr ? (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-400)' }}>
+                      Uploaded {dateStr}
+                    </span>
+                  ) : null}
+                </div>
                 <div
                   style={{
                     background: 'white',
@@ -237,6 +340,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
                         <th style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 600, color: 'var(--color-neutral-600)', fontSize: '0.8125rem' }}>
                           Line Total
                         </th>
+                        <th style={{ padding: '10px 8px', width: '36px' }} />
                       </tr>
                     </thead>
                     <tbody>
@@ -259,11 +363,18 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
                           <td style={{ padding: '10px 16px', color: 'var(--color-neutral-500)' }}>
                             {UNIT_LABELS[item.unit] ?? item.unit}
                           </td>
-                          <td style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--color-neutral-700)', fontFamily: 'JetBrains Mono, monospace' }}>
-                            {item.unit_cost_cents > 0 ? formatPHP(item.unit_cost_cents) : '—'}
+                          <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                            <EditableUnitCost
+                              projectId={id}
+                              itemId={item.id}
+                              unitCostCents={item.unit_cost_cents}
+                            />
                           </td>
                           <td style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--color-neutral-900)', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace' }}>
                             {item.line_total_cents > 0 ? formatPHP(item.line_total_cents) : '—'}
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                            <DeleteScopeItemButton projectId={id} itemId={item.id} />
                           </td>
                         </tr>
                       ))}
@@ -271,7 +382,8 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
                   </table>
                 </div>
               </div>
-            ))}
+            )
+          })}
         </div>
       )}
     </div>

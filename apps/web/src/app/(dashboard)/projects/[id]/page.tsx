@@ -3,12 +3,24 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
-import { opportunities, projects, users } from '@buildops/database/schema'
-import { and, eq } from 'drizzle-orm'
+import { boms, invoices, opportunities, projects, purchaseOrders, users } from '@buildops/database/schema'
+import { and, desc, eq, inArray, sum } from 'drizzle-orm'
 import { OpportunityPanel } from '@/components/opportunities/opportunity-panel'
 import { ProjectChat } from '@/components/ai/project-chat'
+import { EditProjectForm } from '@/components/projects/edit-project-form'
+import {
+  IconLayers,
+  IconBom,
+  IconDocuments,
+  IconReceipt,
+  IconChevronRight,
+} from '@/components/ui/icons'
 
 export const metadata: Metadata = { title: 'Project' }
+
+function formatPHP(cents: number): string {
+  return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
 
 const TYPE_LABELS: Record<string, string> = {
   mep: 'MEP',
@@ -39,6 +51,7 @@ const TABS = [
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },
+  { label: 'Audit', href: '/audit' },
 ]
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -73,6 +86,40 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   const baseHref = `/projects/${id}`
 
+  const [latestBom] = await db
+    .select({ total_cost_cents: boms.total_cost_cents, tcv_cents: boms.tcv_cents, gp_cents: boms.gp_cents, status: boms.status })
+    .from(boms)
+    .where(and(eq(boms.project_id, id), eq(boms.tenant_id, userRow.tenant_id), inArray(boms.status, ['approved', 'locked'])))
+    .orderBy(desc(boms.version))
+    .limit(1)
+
+  const [poCommitted] = await db
+    .select({ total: sum(purchaseOrders.total_cents) })
+    .from(purchaseOrders)
+    .where(
+      and(
+        eq(purchaseOrders.project_id, id),
+        eq(purchaseOrders.tenant_id, userRow.tenant_id),
+        inArray(purchaseOrders.status, ['submitted', 'confirmed', 'partial_delivery', 'delivered'])
+      )
+    )
+
+  const [invoiceBilled] = await db
+    .select({ total: sum(invoices.net_amount_cents) })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.project_id, id),
+        eq(invoices.tenant_id, userRow.tenant_id),
+        inArray(invoices.status, ['issued', 'partial_payment', 'paid'])
+      )
+    )
+
+  const bomBudget = latestBom?.total_cost_cents ?? 0
+  const poSpend = Number(poCommitted?.total ?? 0)
+  const billed = Number(invoiceBilled?.total ?? 0)
+  const budgetVariance = bomBudget > 0 ? bomBudget - poSpend : null
+
   return (
     <div>
       {/* Header */}
@@ -96,19 +143,22 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               {project.total_sqm && <span>{project.total_sqm.toLocaleString()} sqm</span>}
             </div>
           </div>
-          <span
-            style={{
-              padding: '4px 12px',
-              borderRadius: '4px',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              color: STATUS_COLORS[project.status] ?? 'inherit',
-              background: 'var(--color-neutral-50)',
-              border: '1px solid var(--color-border)',
-            }}
-          >
-            {STATUS_LABELS[project.status] ?? project.status}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span
+              style={{
+                padding: '4px 12px',
+                borderRadius: '4px',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                color: STATUS_COLORS[project.status] ?? 'inherit',
+                background: 'var(--color-neutral-50)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {STATUS_LABELS[project.status] ?? project.status}
+            </span>
+            <EditProjectForm project={project} />
+          </div>
         </div>
       </div>
 
@@ -161,35 +211,128 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           )}
 
           {/* Quick links to tabs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 12,
+              marginBottom: 24,
+            }}
+          >
             {[
-              { label: 'Scope', href: `/projects/${id}/scope`, icon: '◈' },
-              { label: 'Bill of Materials', href: `/projects/${id}/bom`, icon: '≡' },
-              { label: 'Documents', href: `/projects/${id}/documents`, icon: '◼' },
-              { label: 'Billing', href: `/projects/${id}/billing`, icon: '◇' },
-            ].map(({ label, href: tabHref, icon }) => (
+              {
+                label: 'Scope',
+                hint: 'Rooms, areas, takeoff',
+                href: `/projects/${id}/scope`,
+                Icon: IconLayers,
+              },
+              {
+                label: 'Bill of Materials',
+                hint: 'Line items & costs',
+                href: `/projects/${id}/bom`,
+                Icon: IconBom,
+              },
+              {
+                label: 'Documents',
+                hint: 'DWG, DXF, PDFs, images',
+                href: `/projects/${id}/documents`,
+                Icon: IconDocuments,
+              },
+              {
+                label: 'Billing',
+                hint: 'Invoices & retention',
+                href: `/projects/${id}/billing`,
+                Icon: IconReceipt,
+              },
+            ].map(({ label, hint, href: tabHref, Icon }) => (
               <Link
                 key={label}
                 href={tabHref}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  padding: '20px',
-                  background: 'white',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '8px',
-                  textDecoration: 'none',
-                  color: 'var(--color-neutral-700)',
-                  textAlign: 'center',
-                  gap: '8px',
-                }}
+                className="quick-link-card"
               >
-                <span style={{ fontSize: '1.5rem', color: 'var(--color-navy-600)' }}>{icon}</span>
-                <span style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{label}</span>
+                <span className="quick-link-icon" aria-hidden>
+                  <Icon size={18} />
+                </span>
+                <div className="quick-link-body">
+                  <span className="quick-link-label">{label}</span>
+                  <span className="quick-link-hint">{hint}</span>
+                </div>
+                <span className="quick-link-chev" aria-hidden>
+                  <IconChevronRight size={14} />
+                </span>
               </Link>
             ))}
           </div>
+
+          {/* Financial health */}
+          {(latestBom || poSpend > 0 || billed > 0) && (
+            <div
+              style={{
+                background: 'white',
+                border: '1px solid var(--color-border)',
+                borderRadius: '8px',
+                padding: '20px',
+                marginBottom: '16px',
+              }}
+            >
+              <h3 style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-neutral-500)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 16px' }}>
+                Financial Health
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                {[
+                  {
+                    label: 'BOM Budget',
+                    value: bomBudget > 0 ? formatPHP(bomBudget) : '—',
+                    note: latestBom ? `BOM ${latestBom.status}` : 'No approved BOM',
+                    color: 'var(--color-neutral-900)',
+                  },
+                  {
+                    label: 'PO Committed',
+                    value: poSpend > 0 ? formatPHP(poSpend) : '—',
+                    note: 'Submitted + confirmed POs',
+                    color: 'var(--color-neutral-900)',
+                  },
+                  {
+                    label: 'Budget Variance',
+                    value: budgetVariance !== null ? formatPHP(Math.abs(budgetVariance)) : '—',
+                    note: budgetVariance === null ? 'No BOM yet' : budgetVariance >= 0 ? 'Under budget' : 'Over budget',
+                    color: budgetVariance === null ? 'var(--color-neutral-400)' : budgetVariance >= 0 ? '#10b981' : '#ef4444',
+                  },
+                  {
+                    label: 'Billed to Client',
+                    value: billed > 0 ? formatPHP(billed) : '—',
+                    note: 'Issued + paid invoices',
+                    color: 'var(--color-neutral-900)',
+                  },
+                ].map(({ label, value, note, color }) => (
+                  <div key={label}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-neutral-400)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: '1.125rem', fontWeight: 700, color, fontFamily: 'JetBrains Mono, monospace', marginBottom: '2px' }}>
+                      {value}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-neutral-400)' }}>{note}</div>
+                  </div>
+                ))}
+              </div>
+              {budgetVariance !== null && budgetVariance < 0 && (
+                <div
+                  style={{
+                    marginTop: '14px',
+                    padding: '10px 14px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '6px',
+                    fontSize: '0.8125rem',
+                    color: '#7f1d1d',
+                  }}
+                >
+                  PO spend exceeds BOM budget by {formatPHP(Math.abs(budgetVariance))}. Review procurement or revise the BOM.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Pipeline opportunities */}
           <OpportunityPanel projectId={id} opportunities={opps} />

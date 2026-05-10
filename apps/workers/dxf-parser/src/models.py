@@ -1,4 +1,9 @@
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+
+CadFormat = Literal["dxf", "dwg"]
 
 
 class ParseRequest(BaseModel):
@@ -6,6 +11,10 @@ class ParseRequest(BaseModel):
     project_id: str
     tenant_id: str
     storage_path: str
+    # The CAD format we received. DWG is converted to DXF before extraction.
+    # Defaults to 'dxf' for backward compatibility with the old event payload.
+    format: CadFormat = "dxf"
+    file_name: str | None = None
 
 
 class ScopeItem(BaseModel):
@@ -21,4 +30,8 @@ class ParseResult(BaseModel):
     document_id: str
     scope_items: list[ScopeItem]
     count: int
-    warnings: list[str]
+    warnings: list[str] = Field(default_factory=list)
+    # Format we actually parsed after any conversion. For DWG inputs this is
+    # still "dxf" because we converted before extraction.
+    parsed_format: CadFormat = "dxf"
+    source_format: CadFormat = "dxf"

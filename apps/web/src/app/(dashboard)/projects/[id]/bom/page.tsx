@@ -3,9 +3,12 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
-import { boms, bomLineItems, projects, users } from '@buildops/database/schema'
+import { boms, bomLineItems, projects, users, vendors } from '@buildops/database/schema'
 import { and, eq, desc, asc } from 'drizzle-orm'
 import { BomBuilder } from '@/components/bom/bom-builder'
+import { CadDropZone } from '@/components/cad/cad-dropzone'
+import { scopeItems } from '@buildops/database/schema'
+import { sql } from 'drizzle-orm'
 
 export const metadata: Metadata = { title: 'BOM' }
 
@@ -15,6 +18,7 @@ const TABS = [
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },
+  { label: 'Audit', href: '/audit' },
 ]
 
 export default async function ProjectBomPage({ params }: { params: Promise<{ id: string }> }) {
@@ -56,6 +60,20 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
       }
     : null
 
+  const vendorList = await db
+    .select({ id: vendors.id, name: vendors.name })
+    .from(vendors)
+    .where(eq(vendors.tenant_id, userRow.tenant_id))
+
+  // Status signals for the auto-extraction banner
+  const [scopeCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(scopeItems)
+    .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, userRow.tenant_id)))
+  const scopeCount = scopeCountRow?.count ?? 0
+  const ragActive = Boolean(process.env.OPENAI_API_KEY)
+  const dwgWorkerActive = Boolean(process.env.DXF_PARSER_URL)
+
   return (
     <div>
       {/* Breadcrumb + tabs */}
@@ -94,22 +112,143 @@ export default async function ProjectBomPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      <BomBuilder projectId={id} bom={bomWithLines} />
+      <BomBuilder projectId={id} bom={bomWithLines} vendors={vendorList} />
 
-      {/* Phase 2 notice */}
-      <div
-        style={{
-          marginTop: '24px',
-          background: 'var(--color-navy-50)',
-          border: '1px solid var(--color-navy-100)',
-          borderRadius: '8px',
-          padding: '16px 20px',
-          fontSize: '0.8125rem',
-          color: 'var(--color-navy-700)',
-        }}
-      >
-        DXF auto-extraction will pre-populate scope items here in Phase 2. AI unit-cost suggestions coming in Phase 4.
+      {/* Live auto-extraction panel */}
+      <div style={{ marginTop: 24 }}>
+        <div
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 12,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid var(--color-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div>
+              <h3
+                style={{
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  color: 'var(--color-neutral-900)',
+                  letterSpacing: '-0.005em',
+                  margin: 0,
+                }}
+              >
+                CAD auto-extraction
+              </h3>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: 'var(--color-neutral-500)',
+                  margin: '2px 0 0',
+                }}
+              >
+                Drop a DWG or DXF here to extract scope and draft a BOM.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <StatusPill
+                label="DXF parsing"
+                status="active"
+                detail="In-browser extractor"
+              />
+              <StatusPill
+                label="DWG conversion"
+                status={dwgWorkerActive ? 'active' : 'pending'}
+                detail={dwgWorkerActive ? 'Worker online' : 'Set DXF_PARSER_URL'}
+              />
+              <StatusPill
+                label="AI unit costs"
+                status={ragActive ? 'active' : 'pending'}
+                detail={ragActive ? 'pgvector + OpenAI' : 'Set OPENAI_API_KEY'}
+              />
+              {scopeCount > 0 ? (
+                <Link
+                  href={`/projects/${id}/scope`}
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--color-navy-700)',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                  }}
+                >
+                  {scopeCount} scope item{scopeCount === 1 ? '' : 's'} →
+                </Link>
+              ) : null}
+            </div>
+          </div>
+          <div style={{ padding: 18 }}>
+            <CadDropZone
+              projectId={id}
+              compact
+              title={
+                bomWithLines && bomWithLines.lineItems.length > 0
+                  ? 'Drop another CAD drawing'
+                  : 'Drop a DWG or DXF to pre-populate this BOM'
+              }
+              subtitle={
+                bomWithLines && bomWithLines.lineItems.length > 0
+                  ? 'Adds new scope items and a fresh draft BOM.'
+                  : 'Real-time scope extraction · auto-priced lines from past projects'
+              }
+            />
+          </div>
+        </div>
       </div>
     </div>
+  )
+}
+
+function StatusPill({
+  label,
+  status,
+  detail,
+}: {
+  label: string
+  status: 'active' | 'pending'
+  detail: string
+}) {
+  const isActive = status === 'active'
+  return (
+    <span
+      title={detail}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '4px 10px',
+        borderRadius: 999,
+        fontSize: 11.5,
+        fontWeight: 500,
+        background: isActive ? 'var(--color-success-soft)' : 'var(--color-neutral-100)',
+        color: isActive ? 'var(--color-success)' : 'var(--color-neutral-600)',
+        border: `1px solid ${isActive ? 'color-mix(in oklch, var(--color-success) 18%, transparent)' : 'var(--color-border)'}`,
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: isActive ? 'var(--color-success)' : 'var(--color-neutral-400)',
+        }}
+      />
+      <span>{label}</span>
+      <span style={{ color: isActive ? 'var(--color-success)' : 'var(--color-neutral-500)', opacity: 0.85 }}>
+        · {detail}
+      </span>
+    </span>
   )
 }

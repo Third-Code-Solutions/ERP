@@ -1,15 +1,18 @@
 import Link from 'next/link'
 import type { Alert } from '@/lib/dashboard-queries'
+import {
+  IconAlert,
+  IconClock,
+  IconArrowDownRight,
+  IconTrendingDown,
+  IconCheck,
+} from '@/components/ui/icons'
 
-const ALERT_ICONS: Record<Alert['type'], string> = {
-  low_margin: '▼',
-  stalled_deal: '⏸',
-  overdue_invoice: '!',
-}
-
-const SEVERITY_COLORS: Record<Alert['severity'], { bg: string; border: string; icon: string; text: string }> = {
-  danger: { bg: '#fef2f2', border: '#fecaca', icon: '#ef4444', text: '#7f1d1d' },
-  warning: { bg: '#fffbeb', border: '#fde68a', icon: '#d97706', text: '#78350f' },
+const ALERT_ICONS: Record<Alert['type'], (props: { size?: number }) => React.ReactElement> = {
+  low_margin: (p) => <IconTrendingDown {...p} />,
+  stalled_deal: (p) => <IconClock {...p} />,
+  overdue_invoice: (p) => <IconAlert {...p} />,
+  gp_erosion: (p) => <IconArrowDownRight {...p} />,
 }
 
 interface AlertsPanelProps {
@@ -17,102 +20,83 @@ interface AlertsPanelProps {
 }
 
 export function AlertsPanel({ alerts }: AlertsPanelProps) {
+  const danger = alerts.filter((a) => a.severity === 'danger')
+  const warning = alerts.filter((a) => a.severity === 'warning')
+
   return (
-    <div
-      style={{
-        background: 'white',
-        border: '1px solid var(--color-border)',
-        borderRadius: '8px',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          padding: '14px 20px',
-          borderBottom: alerts.length > 0 ? '1px solid var(--color-border)' : 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <h2 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-neutral-800)', margin: 0 }}>
-          Alerts
-        </h2>
-        {alerts.length > 0 && (
+    <div className="card" style={{ height: 'fit-content' }}>
+      <div className="card-header">
+        <div>
+          <h2 className="card-title">Risk Signals</h2>
+          <p className="card-subtitle">
+            {alerts.length === 0
+              ? 'All systems nominal'
+              : `${alerts.length} ${alerts.length === 1 ? 'item needs' : 'items need'} attention`}
+          </p>
+        </div>
+        {alerts.length > 0 ? (
           <span
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 20,
-              height: 20,
-              borderRadius: '50%',
-              background: alerts.some((a) => a.severity === 'danger') ? '#ef4444' : '#d97706',
-              color: 'white',
-              fontSize: '0.6875rem',
-              fontWeight: 700,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              fontWeight: 600,
+              padding: '2px 8px',
+              borderRadius: 999,
+              background: danger.length > 0 ? 'var(--color-danger-soft)' : 'var(--color-warning-soft)',
+              color: danger.length > 0 ? 'var(--color-danger)' : 'var(--color-warning)',
             }}
           >
             {alerts.length}
           </span>
-        )}
+        ) : null}
       </div>
 
       {alerts.length === 0 ? (
-        <div style={{ padding: '24px 20px', textAlign: 'center' }}>
-          <p style={{ fontSize: '0.875rem', color: 'var(--color-neutral-400)', margin: 0 }}>
-            No active alerts
+        <div className="alert-empty">
+          <div className="alert-empty-icon" aria-hidden>
+            <IconCheck size={18} />
+          </div>
+          <p className="alert-empty-title">No active alerts</p>
+          <p className="alert-empty-detail">
+            Margin, billing and procurement all within tolerance.
           </p>
         </div>
       ) : (
-        <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {alerts.map((alert, idx) => {
-            const colors = SEVERITY_COLORS[alert.severity]
-            return (
-              <Link
-                key={idx}
-                href={alert.href}
-                style={{
-                  display: 'flex',
-                  gap: '10px',
-                  padding: '10px 12px',
-                  borderRadius: '6px',
-                  background: colors.bg,
-                  border: `1px solid ${colors.border}`,
-                  textDecoration: 'none',
-                }}
-              >
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    background: colors.icon,
-                    color: 'white',
-                    fontSize: '0.625rem',
-                    fontWeight: 700,
-                    flexShrink: 0,
-                    marginTop: '1px',
-                  }}
-                >
-                  {ALERT_ICONS[alert.type]}
-                </span>
-                <div>
-                  <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: colors.text, marginBottom: '1px' }}>
-                    {alert.label}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: colors.text, opacity: 0.8 }}>
-                    {alert.detail}
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
+        <div className="alerts-list">
+          {danger.length > 0 ? (
+            <>
+              <div className="alert-group-label">Critical</div>
+              {danger.map((alert, idx) => (
+                <AlertRow key={`d-${idx}`} alert={alert} />
+              ))}
+            </>
+          ) : null}
+          {warning.length > 0 ? (
+            <>
+              <div className="alert-group-label">Warning</div>
+              {warning.map((alert, idx) => (
+                <AlertRow key={`w-${idx}`} alert={alert} />
+              ))}
+            </>
+          ) : null}
         </div>
       )}
     </div>
+  )
+}
+
+function AlertRow({ alert }: { alert: Alert }) {
+  const Icon = ALERT_ICONS[alert.type] ?? ((p: { size?: number }) => <IconAlert {...p} />)
+  const markerCls = alert.severity === 'danger' ? 'is-danger' : 'is-warning'
+  return (
+    <Link href={alert.href} className="alert-item">
+      <div className={`alert-marker ${markerCls}`} aria-hidden>
+        <Icon size={14} />
+      </div>
+      <div className="alert-body">
+        <p className="alert-title">{alert.label}</p>
+        <p className="alert-detail">{alert.detail}</p>
+      </div>
+    </Link>
   )
 }

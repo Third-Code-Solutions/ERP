@@ -1,50 +1,108 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { createSupabaseBrowserClient } from '@buildops/auth/client'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
+import {
+  IconChevronRight,
+  IconSearch,
+  IconBell,
+  IconChevronDown,
+} from '@/components/ui/icons'
 
 interface TopbarProps {
   user: User
 }
 
-export function Topbar({ user }: TopbarProps) {
-  const router = useRouter()
+const ROUTE_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  projects: 'Projects',
+  pipeline: 'Pipeline',
+  bom: 'BOM Builder',
+  invoices: 'Invoices',
+  'purchase-orders': 'Purchase Orders',
+  documents: 'Documents',
+  reports: 'Reports',
+  settings: 'Settings',
+  procurement: 'Procurement',
+  new: 'New',
+}
 
-  async function handleSignOut() {
-    const supabase = createSupabaseBrowserClient()
-    await supabase.auth.signOut()
-    router.push('/auth/login')
-    router.refresh()
-  }
+function humanize(segment: string): string {
+  return ROUTE_LABELS[segment] ?? segment.charAt(0).toUpperCase() + segment.slice(1)
+}
+
+export function Topbar({ user }: TopbarProps) {
+  const pathname = usePathname()
+  const segments = pathname.split('/').filter(Boolean)
+
+  const initials =
+    (user.email ?? '?')
+      .split('@')[0]
+      ?.split(/[._-]/)
+      .map((s) => s[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() ?? '?'
 
   return (
     <header className="app-topbar">
+      <nav aria-label="Breadcrumb" className="breadcrumb">
+        <Link href="/dashboard" className="breadcrumb-item">
+          BuildOps
+        </Link>
+        {segments.map((seg, idx) => {
+          const href = '/' + segments.slice(0, idx + 1).join('/')
+          const isLast = idx === segments.length - 1
+          const label = humanize(seg)
+          // UUIDs in path → just show truncated id
+          const display =
+            /^[0-9a-f]{8}-[0-9a-f]{4}/i.test(seg) ? seg.slice(0, 8) + '…' : label
+          return (
+            <span key={href} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span className="breadcrumb-sep" aria-hidden>
+                <IconChevronRight size={12} />
+              </span>
+              {isLast ? (
+                <span className="breadcrumb-current">{display}</span>
+              ) : (
+                <Link href={href} className="breadcrumb-item">
+                  {display}
+                </Link>
+              )}
+            </span>
+          )
+        })}
+      </nav>
+
       <div style={{ flex: 1 }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <span
-          style={{
-            fontSize: '0.8125rem',
-            color: 'var(--color-neutral-600)',
-          }}
-        >
-          {user.email}
-        </span>
+      <button
+        type="button"
+        className="search-trigger"
+        aria-label="Search"
+        title="Search (Cmd+K)"
+      >
+        <IconSearch size={14} />
+        <span>Search projects, deals, BOMs…</span>
+        <kbd>⌘K</kbd>
+      </button>
 
-        <button
-          onClick={handleSignOut}
-          style={{
-            fontSize: '0.8125rem',
-            color: 'var(--color-neutral-600)',
-            background: 'none',
-            border: '1px solid var(--color-border)',
-            borderRadius: '4px',
-            padding: '4px 10px',
-            cursor: 'pointer',
-          }}
-        >
-          Sign out
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button type="button" className="icon-btn" aria-label="Notifications" title="Notifications">
+          <IconBell size={16} />
+        </button>
+
+        <span className="topbar-divider" aria-hidden />
+
+        <button type="button" className="user-chip" aria-label="Account">
+          <span className="user-chip-avatar" aria-hidden>
+            {initials}
+          </span>
+          <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {user.email}
+          </span>
+          <IconChevronDown size={14} />
         </button>
       </div>
     </header>

@@ -16,7 +16,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="app-layout">
-      <Sidebar />
+      <Sidebar user={user} />
       <div className="app-main">
         <Topbar user={user} />
         <main className="app-content">{children}</main>

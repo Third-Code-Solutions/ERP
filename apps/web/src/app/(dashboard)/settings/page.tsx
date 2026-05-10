@@ -3,6 +3,7 @@ import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
 import { tenants, users } from '@buildops/database/schema'
 import { eq } from 'drizzle-orm'
+import { EditTenantForm } from '@/components/settings/edit-tenant-form'
 
 export const metadata: Metadata = { title: 'Settings' }
 
@@ -40,18 +41,21 @@ export default async function SettingsPage() {
             padding: '24px',
           }}
         >
-          <h2
-            style={{
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              color: 'var(--color-neutral-700)',
-              margin: '0 0 16px 0',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-            }}
-          >
-            Workspace
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h2
+              style={{
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                color: 'var(--color-neutral-700)',
+                margin: 0,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              Workspace
+            </h2>
+            {tenant && <EditTenantForm tenant={tenant} />}
+          </div>
           {tenant ? (
             <dl style={{ margin: 0 }}>
               {[

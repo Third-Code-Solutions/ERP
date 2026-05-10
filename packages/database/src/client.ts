@@ -8,7 +8,13 @@ if (!connectionString) {
   throw new Error('DATABASE_URL environment variable is required')
 }
 
-const queryClient = postgres(connectionString)
+// pgbouncer/transaction pooling does not support prepared statements.
+// Detect either an explicit ?pgbouncer=true flag or the Supabase pooler hostname.
+const isPooled =
+  /[?&]pgbouncer=true(?:&|$)/i.test(connectionString) ||
+  /\.pooler\.supabase\.com/i.test(connectionString)
+
+const queryClient = postgres(connectionString, isPooled ? { prepare: false } : {})
 
 export const db = drizzle(queryClient, { schema })
 

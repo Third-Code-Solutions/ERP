@@ -1,0 +1,8522 @@
+  0
+SECTION
+  2
+HEADER
+  9
+$ACADVER
+  1
+AC1027
+  9
+$INSUNITS
+ 70
+6
+  0
+ENDSEC
+  0
+SECTION
+  2
+TABLES
+  0
+TABLE
+  2
+LAYER
+ 70
+12
+  0
+LAYER
+  2
+HVAC-EQUIP
+ 70
+0
+ 62
+1
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+HVAC-AREAS
+ 70
+0
+ 62
+2
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+ELEC-PANELS
+ 70
+0
+ 62
+3
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+ELEC-LIGHTING
+ 70
+0
+ 62
+4
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+ELEC-OUTLETS
+ 70
+0
+ 62
+5
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+PLUMB-FIXTURES
+ 70
+0
+ 62
+6
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+PLUMB-AREAS
+ 70
+0
+ 62
+7
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+FIRE-SPRINKLER
+ 70
+0
+ 62
+1
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+FIRE-AREAS
+ 70
+0
+ 62
+2
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+DATA-CCTV
+ 70
+0
+ 62
+3
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+ROOM-LABELS
+ 70
+0
+ 62
+7
+  6
+CONTINUOUS
+  0
+LAYER
+  2
+0
+ 70
+0
+ 62
+7
+  6
+CONTINUOUS
+  0
+ENDTAB
+  0
+ENDSEC
+  0
+SECTION
+  2
+BLOCKS
+  0
+BLOCK
+  8
+0
+  2
+FCU-200
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+FCU-200
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+AHU-1000
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+AHU-1000
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+EXHAUST-FAN
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+EXHAUST-FAN
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+PANEL-MDB
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+PANEL-MDB
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+BREAKER-30A
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+BREAKER-30A
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+DOWNLIGHT-LED
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+DOWNLIGHT-LED
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+OUTLET-GPO
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+OUTLET-GPO
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+SPRINKLER-K57
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+SPRINKLER-K57
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+SMOKE-DETECTOR
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+SMOKE-DETECTOR
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+CCTV-DOME
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+CCTV-DOME
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+TOILET-WC
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+TOILET-WC
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+BLOCK
+  8
+0
+  2
+BASIN-LAV
+ 70
+0
+ 10
+0
+ 20
+0
+ 30
+0
+  3
+BASIN-LAV
+  1
+
+  0
+LINE
+  8
+0
+ 10
+0
+ 20
+0
+ 30
+0
+ 11
+1
+ 21
+0
+ 31
+0
+  0
+ENDBLK
+  8
+0
+  0
+ENDSEC
+  0
+SECTION
+  2
+ENTITIES
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+0
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+2
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+4
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+6
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+8
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+10
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+12
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+14
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+16
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+18
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+20
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+FCU-200
+ 10
+22
+ 20
+0
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+AHU-1000
+ 10
+0
+ 20
+4
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+AHU-1000
+ 10
+2
+ 20
+4
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+EXHAUST-FAN
+ 10
+0
+ 20
+8
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+EXHAUST-FAN
+ 10
+2
+ 20
+8
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+EXHAUST-FAN
+ 10
+4
+ 20
+8
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+EXHAUST-FAN
+ 10
+6
+ 20
+8
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+EXHAUST-FAN
+ 10
+8
+ 20
+8
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+HVAC-EQUIP
+  2
+EXHAUST-FAN
+ 10
+10
+ 20
+8
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+PANEL-MDB
+ 10
+0
+ 20
+12
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+PANEL-MDB
+ 10
+2
+ 20
+12
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+PANEL-MDB
+ 10
+4
+ 20
+12
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+0
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+2
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+4
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+6
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+8
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+10
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+12
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+14
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+16
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+18
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+20
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+22
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+24
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+26
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+28
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+30
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+32
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+34
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+36
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+38
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+40
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+42
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+44
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+46
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+48
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+50
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+52
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+54
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+56
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+58
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+60
+ 20
+16
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+0
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+2
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+4
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+6
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+8
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+10
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+12
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+14
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+16
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+18
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+20
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+22
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+24
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+26
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+28
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+30
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-PANELS
+  2
+BREAKER-30A
+ 10
+32
+ 20
+18
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+0
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+2
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+4
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+6
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+8
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+10
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+12
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+14
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+16
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+18
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+20
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+22
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+24
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+26
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+28
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+30
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+32
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+34
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+36
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+38
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+40
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+42
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+44
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+46
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+48
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+50
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+52
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+54
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+56
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+58
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+60
+ 20
+22
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+0
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+2
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+4
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+6
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+8
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+10
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+12
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+14
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+16
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+18
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+20
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+22
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+24
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+26
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+28
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+30
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+32
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+34
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+36
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+38
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+40
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+42
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+44
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+46
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+48
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+50
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+52
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+54
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+56
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+58
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+60
+ 20
+24
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+0
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+2
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+4
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+6
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+8
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+10
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+12
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+14
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+16
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+18
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+20
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+22
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+24
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+26
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+28
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+30
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+32
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+34
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+36
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+38
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+40
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+42
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+44
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+46
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-LIGHTING
+  2
+DOWNLIGHT-LED
+ 10
+48
+ 20
+26
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+0
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+2
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+4
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+6
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+8
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+10
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+12
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+14
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+16
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+18
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+20
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+22
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+24
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+26
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+28
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+30
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+32
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+34
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+36
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+38
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+40
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+42
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+44
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+46
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+48
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+50
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+52
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+54
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+56
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+58
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+60
+ 20
+30
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+0
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+2
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+4
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+6
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+8
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+10
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+12
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+14
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+16
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+18
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+20
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+22
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+24
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+26
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+28
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+30
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+32
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+34
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+36
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+38
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+40
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+42
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+44
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+46
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+48
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+50
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+52
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+54
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+56
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+58
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+60
+ 20
+32
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+0
+ 20
+34
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+ELEC-OUTLETS
+  2
+OUTLET-GPO
+ 10
+2
+ 20
+34
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+0
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+2
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+4
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+6
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+8
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+10
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+12
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+14
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+16
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+18
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+20
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+22
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+24
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+26
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+28
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+30
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+32
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+34
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+36
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+38
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+40
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+42
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+44
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+46
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+48
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+50
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+52
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+54
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+56
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+58
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+60
+ 20
+38
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+0
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+2
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+4
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+6
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+8
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+10
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+12
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+14
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+16
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+18
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+20
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+22
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+24
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+26
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+28
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+30
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+32
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+34
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+36
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+38
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+40
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+42
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+44
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+46
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+48
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+50
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+52
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+54
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+56
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+58
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+60
+ 20
+40
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+0
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+2
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+4
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+6
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+8
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+10
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+12
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+14
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+16
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+18
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+20
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+22
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+24
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+26
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+28
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+30
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+32
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+34
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+36
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+38
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+40
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+42
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+44
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+46
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+48
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+50
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+52
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+54
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+56
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SPRINKLER-K57
+ 10
+58
+ 20
+42
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+0
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+2
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+4
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+6
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+8
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+10
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+12
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+14
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+16
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+18
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+20
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+22
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+24
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+26
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+28
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+30
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+32
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+34
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+36
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+38
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+40
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+42
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+44
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+FIRE-SPRINKLER
+  2
+SMOKE-DETECTOR
+ 10
+46
+ 20
+46
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+0
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+2
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+4
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+6
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+8
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+10
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+12
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+14
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+16
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+18
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+20
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+22
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+24
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+DATA-CCTV
+  2
+CCTV-DOME
+ 10
+26
+ 20
+50
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+TOILET-WC
+ 10
+0
+ 20
+54
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+TOILET-WC
+ 10
+2
+ 20
+54
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+TOILET-WC
+ 10
+4
+ 20
+54
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+TOILET-WC
+ 10
+6
+ 20
+54
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+TOILET-WC
+ 10
+8
+ 20
+54
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+TOILET-WC
+ 10
+10
+ 20
+54
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+TOILET-WC
+ 10
+12
+ 20
+54
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+TOILET-WC
+ 10
+14
+ 20
+54
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+0
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+2
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+4
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+6
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+8
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+10
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+12
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+14
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+16
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+18
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+20
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+INSERT
+  8
+PLUMB-FIXTURES
+  2
+BASIN-LAV
+ 10
+22
+ 20
+58
+ 30
+0
+ 41
+1
+ 42
+1
+ 43
+1
+ 50
+0
+  0
+LWPOLYLINE
+  8
+HVAC-AREAS
+ 90
+4
+ 70
+1
+ 10
+0
+ 20
+100
+ 10
+8
+ 20
+100
+ 10
+8
+ 20
+106
+ 10
+0
+ 20
+106
+  0
+LWPOLYLINE
+  8
+HVAC-AREAS
+ 90
+4
+ 70
+1
+ 10
+10
+ 20
+100
+ 10
+22
+ 20
+100
+ 10
+22
+ 20
+110
+ 10
+10
+ 20
+110
+  0
+LWPOLYLINE
+  8
+HVAC-AREAS
+ 90
+4
+ 70
+1
+ 10
+24
+ 20
+100
+ 10
+38
+ 20
+100
+ 10
+38
+ 20
+109
+ 10
+24
+ 20
+109
+  0
+LWPOLYLINE
+  8
+HVAC-AREAS
+ 90
+4
+ 70
+1
+ 10
+40
+ 20
+100
+ 10
+45
+ 20
+100
+ 10
+45
+ 20
+104
+ 10
+40
+ 20
+104
+  0
+LWPOLYLINE
+  8
+HVAC-AREAS
+ 90
+4
+ 70
+1
+ 10
+47
+ 20
+100
+ 10
+53
+ 20
+100
+ 10
+53
+ 20
+104
+ 10
+47
+ 20
+104
+  0
+LWPOLYLINE
+  8
+PLUMB-AREAS
+ 90
+4
+ 70
+1
+ 10
+55
+ 20
+100
+ 10
+59
+ 20
+100
+ 10
+59
+ 20
+103
+ 10
+55
+ 20
+103
+  0
+LWPOLYLINE
+  8
+PLUMB-AREAS
+ 90
+4
+ 70
+1
+ 10
+61
+ 20
+100
+ 10
+64
+ 20
+100
+ 10
+64
+ 20
+104
+ 10
+61
+ 20
+104
+  0
+LWPOLYLINE
+  8
+PLUMB-AREAS
+ 90
+4
+ 70
+1
+ 10
+66
+ 20
+100
+ 10
+69
+ 20
+100
+ 10
+69
+ 20
+104
+ 10
+66
+ 20
+104
+  0
+LWPOLYLINE
+  8
+FIRE-AREAS
+ 90
+4
+ 70
+1
+ 10
+71
+ 20
+100
+ 10
+93
+ 20
+100
+ 10
+93
+ 20
+116
+ 10
+71
+ 20
+116
+  0
+LWPOLYLINE
+  8
+FIRE-AREAS
+ 90
+4
+ 70
+1
+ 10
+95
+ 20
+100
+ 10
+115
+ 20
+100
+ 10
+115
+ 20
+114
+ 10
+95
+ 20
+114
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+4
+ 20
+105
+ 30
+0
+ 40
+0.4
+  1
+Lobby
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+16
+ 20
+105
+ 30
+0
+ 40
+0.4
+  1
+Open Office West
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+31
+ 20
+105
+ 30
+0
+ 40
+0.4
+  1
+Open Office East
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+42.5
+ 20
+105
+ 30
+0
+ 40
+0.4
+  1
+Conference 1
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+50
+ 20
+105
+ 30
+0
+ 40
+0.4
+  1
+Conference 2
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+57
+ 20
+105
+ 30
+0
+ 40
+0.4
+  1
+Pantry
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+62.5
+ 20
+105
+ 30
+0
+ 40
+0.4
+  1
+Toilet (Male)
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+67.5
+ 20
+105
+ 30
+0
+ 40
+0.4
+  1
+Toilet (Female)
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+82
+ 20
+105
+ 30
+0
+ 40
+0.4
+  1
+Coverage Zone A
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+105
+ 20
+105
+ 30
+0
+ 40
+0.4
+  1
+Coverage Zone B
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+0
+ 20
+80
+ 30
+0
+ 40
+0.5
+  1
+Floor 12 — North Wing
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+0
+ 20
+81.5
+ 30
+0
+ 40
+0.5
+  1
+Tenant: Th/rd Code Construction
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+0
+ 20
+83
+ 30
+0
+ 40
+0.5
+  1
+Critical path: HVAC commissioning Apr 14
+ 50
+0
+  0
+TEXT
+  8
+ROOM-LABELS
+ 10
+0
+ 20
+84.5
+ 30
+0
+ 40
+0.5
+  1
+Riser room 12-A
+ 50
+0
+  0
+ENDSEC
+  0
+EOF

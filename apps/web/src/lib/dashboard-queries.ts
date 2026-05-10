@@ -1,6 +1,6 @@
 import { db } from '@buildops/database'
-import { invoices, opportunities, projects, users } from '@buildops/database/schema'
-import { eq, and, inArray, lt, sum, count, sql } from 'drizzle-orm'
+import { boms, invoices, opportunities, projects, purchaseOrders, users } from '@buildops/database/schema'
+import { eq, and, inArray, lt, sum, count, sql, desc } from 'drizzle-orm'
 
 export interface KpiData {
   activeTcv: number
@@ -32,7 +32,7 @@ export interface StageRow {
 }
 
 export interface Alert {
-  type: 'low_margin' | 'stalled_deal' | 'overdue_invoice'
+  type: 'low_margin' | 'stalled_deal' | 'overdue_invoice' | 'gp_erosion'
   severity: 'warning' | 'danger'
   label: string
   detail: string
@@ -274,6 +274,63 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
       detail: `${inv.invoice_number} — ₱${((inv.net_amount_cents ?? 0) / 100).toLocaleString()} overdue`,
       href: `/projects/${inv.project_id}/billing`,
     })
+  }
+
+  // GP erosion: active projects where PO committed cost exceeds BOM budget by >10%
+  const lockedBoms = await db
+    .select({
+      id: boms.id,
+      project_id: boms.project_id,
+      total_cost_cents: boms.total_cost_cents,
+      project_name: projects.name,
+    })
+    .from(boms)
+    .leftJoin(projects, eq(boms.project_id, projects.id))
+    .where(
+      and(
+        eq(boms.tenant_id, tenantId),
+        inArray(boms.status, ['approved', 'locked'])
+      )
+    )
+    .orderBy(desc(boms.created_at))
+
+  // Deduplicate to latest BOM per project
+  const latestBomByProject = new Map<string, typeof lockedBoms[number]>()
+  for (const b of lockedBoms) {
+    if (b.project_id && !latestBomByProject.has(b.project_id)) {
+      latestBomByProject.set(b.project_id, b)
+    }
+  }
+
+  const COMMITTED_STATUSES = ['submitted', 'confirmed', 'partial_delivery', 'delivered'] as const
+
+  for (const [projectId, bom] of latestBomByProject) {
+    if (bom.total_cost_cents === 0) continue
+
+    const [poSum] = await db
+      .select({ total: sum(purchaseOrders.total_cents) })
+      .from(purchaseOrders)
+      .where(
+        and(
+          eq(purchaseOrders.tenant_id, tenantId),
+          eq(purchaseOrders.project_id, projectId),
+          inArray(purchaseOrders.status, [...COMMITTED_STATUSES])
+        )
+      )
+
+    const committed = Number(poSum?.total ?? 0)
+    if (committed === 0) continue
+
+    const overrunPct = ((committed - bom.total_cost_cents) / bom.total_cost_cents) * 100
+    if (overrunPct > 10) {
+      alerts.push({
+        type: 'gp_erosion',
+        severity: overrunPct > 25 ? 'danger' : 'warning',
+        label: bom.project_name ?? 'Unknown project',
+        detail: `PO committed ${overrunPct.toFixed(0)}% over BOM budget`,
+        href: `/projects/${projectId}/bom`,
+      })
+    }
   }
 
   // Sort: danger first, then by type

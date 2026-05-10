@@ -6,6 +6,7 @@ import { db } from '@buildops/database'
 import { documents, projects, users } from '@buildops/database/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { UploadButton } from '@/components/documents/upload-button'
+import { DeleteDocumentButton } from '@/components/documents/delete-document-button'
 
 export const metadata: Metadata = { title: 'Documents' }
 
@@ -31,6 +32,20 @@ const DOC_TYPE_COLORS: Record<string, string> = {
   other: '#9ca3af',
 }
 
+// document_type 'dxf' covers both DXF and DWG drawings (the schema enum doesn't
+// have a 'dwg' value). Derive the actual label from the file extension.
+function classifyByFile(documentType: string, fileName: string): { label: string; color: string } {
+  if (documentType === 'dxf') {
+    const ext = fileName.split('.').pop()?.toLowerCase()
+    if (ext === 'dwg') return { label: 'DWG Drawing', color: '#7c3aed' }
+    return { label: 'DXF Drawing', color: '#6366f1' }
+  }
+  return {
+    label: DOC_TYPE_LABELS[documentType] ?? documentType,
+    color: DOC_TYPE_COLORS[documentType] ?? '#9ca3af',
+  }
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -43,6 +58,7 @@ const TABS = [
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },
+  { label: 'Audit', href: '/audit' },
 ]
 
 export default async function ProjectDocumentsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -132,7 +148,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
         >
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>No documents uploaded yet.</p>
           <p style={{ fontSize: '0.8125rem' }}>
-            Use the Upload button above to add DXFs, PDFs, or images.{' '}
+            Use the Upload button above to add DWG/DXF drawings, PDFs, or images.{' '}
             <Link href="/documents" style={{ color: 'var(--color-navy-700)' }}>View all documents</Link>
           </p>
         </div>
@@ -145,6 +161,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
                 <th>Type</th>
                 <th className="numeric">Size</th>
                 <th>Uploaded</th>
+                <th style={{ width: 56 }} aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -161,15 +178,20 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
                     )}
                   </td>
                   <td>
-                    <span
-                      className="stage-badge"
-                      style={{
-                        color: DOC_TYPE_COLORS[doc.document_type] ?? '#9ca3af',
-                        background: (DOC_TYPE_COLORS[doc.document_type] ?? '#9ca3af') + '18',
-                      }}
-                    >
-                      {DOC_TYPE_LABELS[doc.document_type] ?? doc.document_type}
-                    </span>
+                    {(() => {
+                      const cls = classifyByFile(doc.document_type, doc.file_name)
+                      return (
+                        <span
+                          className="stage-badge"
+                          style={{
+                            color: cls.color,
+                            background: cls.color + '18',
+                          }}
+                        >
+                          {cls.label}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
                     {formatBytes(doc.size_bytes)}
@@ -180,6 +202,13 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
                       month: 'short',
                       day: 'numeric',
                     })}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <DeleteDocumentButton
+                      documentId={doc.id}
+                      projectId={id}
+                      fileName={doc.file_name}
+                    />
                   </td>
                 </tr>
               ))}
@@ -199,7 +228,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
           color: 'var(--color-navy-700)',
         }}
       >
-        DXF uploads trigger automatic scope extraction. In-browser preview and version history are coming in Phase 3.
+        DWG is the primary CAD format. Upload a DWG or DXF and BuildOps automatically extracts scope items and drafts a BOM. DXF parses instantly in-browser. Binary DWG runs through the server-side libredwg converter when DXF_PARSER_URL is configured. In-browser preview and version history land in Phase 3.
       </div>
     </div>
   )

@@ -4,6 +4,7 @@ import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
 import { purchaseOrders, projects, vendors, users } from '@buildops/database/schema'
 import { eq, desc } from 'drizzle-orm'
+import { CreatePoForm } from '@/components/procurement/create-po-form'
 
 export const metadata: Metadata = { title: 'Purchase Orders' }
 
@@ -40,6 +41,11 @@ export default async function PurchaseOrdersPage() {
 
   if (!userRow?.tenant_id) return null
 
+  const [projectList, vendorList] = await Promise.all([
+    db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.tenant_id, userRow.tenant_id)).orderBy(projects.name),
+    db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq(vendors.tenant_id, userRow.tenant_id)).orderBy(vendors.name),
+  ])
+
   const rows = await db
     .select({
       id: purchaseOrders.id,
@@ -74,8 +80,11 @@ export default async function PurchaseOrdersPage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Purchase Orders</h1>
-        <p className="page-subtitle">{rows.length} PO{rows.length !== 1 ? 's' : ''} across all projects</p>
+        <div>
+          <h1 className="page-title">Purchase Orders</h1>
+          <p className="page-subtitle">{rows.length} PO{rows.length !== 1 ? 's' : ''} across all projects</p>
+        </div>
+        <CreatePoForm projects={projectList} vendors={vendorList} />
       </div>
 
       {/* KPI strip */}
@@ -117,11 +126,8 @@ export default async function PurchaseOrdersPage() {
           }}
         >
           <p style={{ fontSize: '0.875rem', marginBottom: '8px' }}>No purchase orders yet.</p>
-          <p style={{ fontSize: '0.8125rem' }}>
-            POs are generated from approved BOMs.{' '}
-            <Link href="/bom" style={{ color: 'var(--color-navy-700)' }}>
-              Go to BOM Builder
-            </Link>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-400)' }}>
+            Create a PO directly using the button above, or generate one from an approved BOM.
           </p>
         </div>
       ) : (

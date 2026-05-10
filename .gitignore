@@ -1,33 +1,152 @@
-# Dependencies
-node_modules
-.pnpm-store
-
-# Environment files — never commit secrets
+# =====================================================================
+# Secrets — NEVER commit
+# =====================================================================
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
+*.env
+!*.env.example
 
-# Next.js
-apps/web/.next
-apps/web/out
+# Service-account / key material
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+service-account*.json
+gcp-credentials*.json
+aws-credentials
+.aws/
+.gcloud/
+*.kubeconfig
+.npmrc
+.yarnrc
 
-# Turbo
-.turbo
+# 1Password / secret manager exports
+secrets.json
+secrets.yaml
+secrets.local.*
 
+# =====================================================================
+# Dependencies
+# =====================================================================
+node_modules/
+.pnpm-store/
+.yarn/cache
+.yarn/unplugged
+.yarn/install-state.gz
+jspm_packages/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.python-version
+
+# =====================================================================
 # Build outputs
-dist
-build
+# =====================================================================
+.next/
+out/
+build/
+dist/
 *.tsbuildinfo
+.turbo/
+.swc/
+.cache/
+.parcel-cache/
 
-# OS
-.DS_Store
-Thumbs.db
+# =====================================================================
+# Test / coverage artifacts
+# =====================================================================
+coverage/
+.nyc_output/
+playwright-report/
+playwright/.cache/
+test-results/
+*.lcov
 
+# =====================================================================
+# Drizzle / Supabase / Docker local state
+# =====================================================================
+# Drizzle Studio session
+drizzle/.drizzle/
+# Generated migration meta is committed; local junk is not
+.drizzle-kit/
+# Supabase CLI local state — never commit local credentials or volumes
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+supabase/.env.*
+!supabase/.env.example
+# Local Postgres data volumes
+supabase/volumes/
+# Generated declarations
+supabase/types.gen.ts
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# =====================================================================
 # Logs
+# =====================================================================
+logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
-# Editor
-.vscode
-.idea
+# =====================================================================
+# Editor / OS
+# =====================================================================
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =====================================================================
+# Local-only project artifacts
+# =====================================================================
+.claude/local/
+.claude/cache/
+.claude/sessions/
+.claude/projects/
+*.local
+.scratch/
+tmp/
+temp/
+
+# =====================================================================
+# Excel workbooks and large source data — keep out unless explicitly tracked
+# =====================================================================
+*.xlsx
+*.xls
+*.xlsm
+!source_data.xlsx
+!executive-dashboard.xlsx
+
+# Sentry / observability auth tokens
+.sentryclirc

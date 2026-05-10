@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
 import { bomLineItems, boms, poLineItems, purchaseOrders, users, vendors } from '@buildops/database/schema'
@@ -124,6 +123,23 @@ export async function createPoFromBom(
     )
   }
 
+  // Auto-lock BOM once a PO is generated
+  if (bom.status === 'approved') {
+    await db
+      .update(boms)
+      .set({ status: 'locked', updated_at: new Date() })
+      .where(and(eq(boms.id, bomId), eq(boms.tenant_id, userRow.tenant_id)))
+
+    await writeAuditLog({
+      tenantId: userRow.tenant_id,
+      actorId: user.id,
+      entityType: 'bom',
+      entityId: bomId,
+      action: 'lock',
+      diff: { reason: 'PO generated', po_id: poId },
+    })
+  }
+
   await writeAuditLog({
     tenantId: userRow.tenant_id,
     actorId: user.id,
@@ -147,6 +163,97 @@ const VALID_PO_TRANSITIONS: Record<string, string[]> = {
   partial_delivery: ['delivered', 'cancelled'],
   delivered: [],
   cancelled: [],
+}
+
+interface LineItemInput {
+  description: string
+  code?: string
+  unit?: string
+  quantity: number
+  unit_cost_cents: number
+}
+
+export async function createStandalonePo(
+  formData: FormData
+): Promise<{ id: string } | { error: string }> {
+  const user = await getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
+  if (!userRow?.tenant_id) return { error: 'No tenant' }
+
+  const projectId = str(formData.get('project_id'))
+  if (!projectId) return { error: 'Project is required' }
+
+  const vendorId = str(formData.get('vendor_id'))
+  const deliveryDate = str(formData.get('delivery_date'))
+  const notes = str(formData.get('notes'))
+
+  let lines: LineItemInput[] = []
+  try {
+    const raw = formData.get('line_items')
+    lines = raw ? (JSON.parse(String(raw)) as LineItemInput[]) : []
+  } catch {
+    return { error: 'Invalid line items' }
+  }
+
+  if (lines.length === 0) return { error: 'At least one line item is required' }
+
+  const subtotalCents = lines.reduce((s, l) => s + l.unit_cost_cents * l.quantity, 0)
+  const vatCents = Math.round(subtotalCents * 0.12)
+  const withholdingTaxCents = Math.round(subtotalCents * 0.02)
+  const totalCents = subtotalCents + vatCents - withholdingTaxCents
+
+  const [existing] = await db
+    .select({ max_po: max(purchaseOrders.po_number) })
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.tenant_id, userRow.tenant_id))
+
+  const [po] = await db
+    .insert(purchaseOrders)
+    .values({
+      tenant_id: userRow.tenant_id,
+      project_id: projectId,
+      vendor_id: vendorId ?? undefined,
+      created_by: user.id,
+      po_number: nextPoNumber(existing?.max_po ?? null),
+      status: 'draft',
+      subtotal_cents: subtotalCents,
+      vat_cents: vatCents,
+      withholding_tax_cents: withholdingTaxCents,
+      total_cents: totalCents,
+      delivery_date: deliveryDate ? new Date(deliveryDate) : undefined,
+      notes,
+    })
+    .returning({ id: purchaseOrders.id })
+
+  const poId = po!.id
+
+  await db.insert(poLineItems).values(
+    lines.map((l, idx) => ({
+      tenant_id: userRow.tenant_id,
+      po_id: poId,
+      sort_order: idx,
+      code: l.code || undefined,
+      description: l.description,
+      unit: l.unit || undefined,
+      quantity: l.quantity,
+      unit_cost_cents: l.unit_cost_cents,
+      line_total_cents: l.unit_cost_cents * l.quantity,
+    }))
+  )
+
+  await writeAuditLog({
+    tenantId: userRow.tenant_id,
+    actorId: user.id,
+    entityType: 'purchase_order',
+    entityId: poId,
+    action: 'create',
+    diff: { project_id: projectId, vendor_id: vendorId, subtotal_cents: subtotalCents },
+  })
+
+  revalidatePath('/purchase-orders')
+  return { id: poId }
 }
 
 export async function advancePoStatus(
