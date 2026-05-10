@@ -30,6 +30,8 @@ function isStage(value: string): value is OpportunityStage {
 export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvanceButtonProps) {
   const [isPending, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
+  const [lostPromptOpen, setLostPromptOpen] = useState(false)
+  const [lostReason, setLostReason] = useState('')
   const router = useRouter()
 
   if (!isStage(currentStage)) return null
@@ -42,12 +44,18 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
   const lostNext = transitions.includes('closed_lost') ? 'closed_lost' : null
   const forwardNexts = transitions.filter((s) => s !== 'closed_lost')
 
-  function advance(stage: OpportunityStage) {
+  function advance(stage: OpportunityStage, reason?: string) {
     setOpen(false)
+    setLostPromptOpen(false)
     startTransition(async () => {
-      await advanceOpportunityStage(opportunityId, stage)
+      await advanceOpportunityStage(opportunityId, stage, reason)
+      setLostReason('')
       router.refresh()
     })
+  }
+
+  function confirmLost() {
+    advance('closed_lost', lostReason.trim() || undefined)
   }
 
   // If only one forward path exists, render a single button (no menu).
@@ -91,7 +99,7 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
       )}
       {lostNext && (
         <button
-          onClick={() => advance(lostNext)}
+          onClick={() => setLostPromptOpen(true)}
           disabled={isPending}
           title="Close Lost"
           style={lostStyle(isPending)}
@@ -99,8 +107,92 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
           Lost
         </button>
       )}
+      {lostPromptOpen && (
+        <div role="dialog" aria-modal="true" style={lostDialogBackdrop} onClick={() => setLostPromptOpen(false)}>
+          <div style={lostDialog} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 600 }}>
+              Close as Lost
+            </h3>
+            <p style={{ margin: '0 0 12px', fontSize: '0.8125rem', color: 'var(--color-neutral-500)' }}>
+              Optional: capture why the deal was lost so we can analyze patterns later.
+            </p>
+            <textarea
+              autoFocus
+              value={lostReason}
+              onChange={(e) => setLostReason(e.target.value)}
+              placeholder="e.g. Lost on price; client picked competitor X"
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                fontSize: '0.875rem',
+                border: '1px solid var(--color-border)',
+                borderRadius: '6px',
+                resize: 'vertical',
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setLostPromptOpen(false)}
+                disabled={isPending}
+                style={{
+                  background: 'white',
+                  border: '1px solid var(--color-border)',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  fontSize: '0.8125rem',
+                  cursor: 'pointer',
+                  color: 'var(--color-neutral-700)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmLost}
+                disabled={isPending}
+                style={{
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  cursor: isPending ? 'not-allowed' : 'pointer',
+                  opacity: isPending ? 0.6 : 1,
+                }}
+              >
+                {isPending ? 'Saving…' : 'Mark as Lost'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+const lostDialogBackdrop: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0, 0, 0, 0.4)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 100,
+}
+
+const lostDialog: React.CSSProperties = {
+  background: 'white',
+  borderRadius: '8px',
+  padding: '20px',
+  width: '420px',
+  maxWidth: 'calc(100vw - 32px)',
+  boxShadow: '0 20px 40px rgba(0,0,0,0.18)',
 }
 
 function primaryStyle(isPending: boolean): React.CSSProperties {
