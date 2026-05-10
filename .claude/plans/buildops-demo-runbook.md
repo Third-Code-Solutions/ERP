@@ -11,11 +11,21 @@ Tenant:   BuildOps E2E Tenant
 
 ## Pre-meeting checklist (5 min)
 
-- [ ] Dev server running:
+- [ ] **Start dev server with a clean cache** (avoids the webpack stale-module bug):
   ```
-  cd apps/web && pnpm dev
+  cd apps/web && pnpm dev:fresh
   ```
-  Wait for `✓ Ready in N ms` then open http://localhost:3000
+  This deletes `.next/` and `.turbo/` first, then boots `next dev`. Wait
+  for `✓ Ready in N ms`. Always use `dev:fresh` before a demo — `pnpm dev`
+  alone can leave stale module factories that produce
+  `Cannot read properties of undefined (reading 'call')` errors after
+  recent file changes.
+- [ ] **Pre-warm the routes** so the first click in front of the client
+  doesn't show static-asset 404 flashes during compile:
+  ```
+  cd apps/web && pnpm demo:warm
+  ```
+  Should print 12/12 ✓ in under 10 seconds.
 - [ ] DXF parser worker running (only if you'll demo a binary `.dwg`):
   ```
   cd apps/workers/dxf-parser && ./run-local.sh
@@ -122,8 +132,10 @@ Talking points:
 | Dashboard empty | Re-run `seed-demo.sql` |
 | Login fails | Check `.env.local` has `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` |
 | Upload hangs | Kill the upload, refresh page; the partial isn't committed |
-| Page 500 | Hit refresh; if persistent, restart `pnpm dev` |
+| Page 500 | Hit refresh; if persistent, restart `pnpm dev:fresh` |
 | BOM page shows "no BOM" | The demo project has `version=1` approved BOM seeded — if missing, re-run seed |
+| `Cannot read properties of undefined (reading 'call')` runtime error | Webpack stale module factory. Stop the dev server, run `pnpm dev:fresh` to wipe `.next/` and restart. |
+| Static-asset 404 console flashes on first click | Normal during dev compile — gone on second visit. Run `pnpm demo:warm` after starting the server to pre-warm. |
 
 ## After demo: client trial access
 

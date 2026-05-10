@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:fresh": "rm -rf .next .turbo && next dev",
     "dev:turbo": "next dev --turbopack",
     "dev:worker": "../workers/dxf-parser/run-local.sh",
+    "demo:warm": "node scripts/warm-routes.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "echo 'lint: TS-only checks for now (next lint deprecated, eslint flat config not yet configured)' && tsc --noEmit",
