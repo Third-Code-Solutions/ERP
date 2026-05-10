@@ -124,6 +124,26 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           >
             Print / PDF
           </Link>
+          <Link
+            href={`/invoices/${id}/bir2307`}
+            target="_blank"
+            title="Generate BIR Form 2307 — Certificate of Creditable Tax Withheld at Source"
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              fontSize: '0.8125rem',
+              fontWeight: 500,
+              border: '1px solid var(--color-border)',
+              background: 'white',
+              color: 'var(--color-neutral-700)',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            BIR 2307
+          </Link>
         </div>
       </div>
 
