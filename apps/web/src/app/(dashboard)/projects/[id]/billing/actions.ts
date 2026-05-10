@@ -54,53 +54,83 @@ export async function createInvoice(
   const withholdingTaxCents = computeEWT(baseForTax)
   const netAmountCents = baseForTax + vatCents - withholdingTaxCents
 
-  // BIR-compliant continuous invoice numbering: INV-YYYYMM-NNN per tenant
+  // BIR-compliant continuous invoice numbering: INV-YYYYMM-NNN per tenant.
+  //
+  // Atomic sequence allocation: a SERIALIZABLE retry loop. Each attempt picks
+  // the next sequence number, INSERTs, and the unique constraint
+  // (tenant_id, invoice_number) — added in 20260510120000_harden_loop.sql —
+  // catches races where two concurrent calls compute the same seq. On a
+  // unique-violation we retry up to MAX_RETRIES times. A pure read-then-write
+  // pattern would silently double-allocate and BIR requires no gaps.
   const now = new Date()
   const prefix = `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}-`
-  const [lastInvoice] = await db
-    .select({ invoice_number: invoices.invoice_number })
-    .from(invoices)
-    .where(
-      and(
-        eq(invoices.tenant_id, userRow.tenant_id),
-        sql`${invoices.invoice_number} LIKE ${prefix + '%'}`
-      )
-    )
-    .orderBy(desc(invoices.invoice_number))
-    .limit(1)
-
-  let seq = 1
-  if (lastInvoice?.invoice_number) {
-    const parts = lastInvoice.invoice_number.split('-')
-    const last = parseInt(parts[parts.length - 1] ?? '0', 10)
-    seq = isNaN(last) ? 1 : last + 1
-  }
-  const invoiceNumber = `${prefix}${String(seq).padStart(3, '0')}`
-
   const dueDateStr = String(formData.get('due_date') ?? '').trim()
   const notes = String(formData.get('notes') ?? '').trim() || null
 
-  const [inserted] = await db
-    .insert(invoices)
-    .values({
-      tenant_id: userRow.tenant_id,
-      project_id: projectId,
-      created_by: user.id,
-      invoice_number: invoiceNumber,
-      status: 'draft',
-      billing_percent_bps: billingPctBps,
-      retention_bps: RETENTION_BPS,
-      subtotal_cents: subtotalCents,
-      retention_cents: retentionCents,
-      vat_cents: vatCents,
-      withholding_tax_cents: withholdingTaxCents,
-      net_amount_cents: netAmountCents,
-      due_date: dueDateStr ? new Date(dueDateStr) : null,
-      notes,
-    })
-    .returning({ id: invoices.id })
+  const MAX_RETRIES = 5
+  let inserted: { id: string } | undefined
+  let invoiceNumber = ''
 
-  if (!inserted) return { error: 'Failed to create invoice' }
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const [lastInvoice] = await db
+      .select({ invoice_number: invoices.invoice_number })
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.tenant_id, userRow.tenant_id),
+          sql`${invoices.invoice_number} LIKE ${prefix + '%'}`
+        )
+      )
+      .orderBy(desc(invoices.invoice_number))
+      .limit(1)
+
+    let seq = 1
+    if (lastInvoice?.invoice_number) {
+      const parts = lastInvoice.invoice_number.split('-')
+      const last = parseInt(parts[parts.length - 1] ?? '0', 10)
+      seq = isNaN(last) ? 1 : last + 1
+    }
+    // If the previous attempt already lost the race for `seq`, try `seq + 1`.
+    seq += attempt
+    const candidate = `${prefix}${String(seq).padStart(3, '0')}`
+
+    try {
+      const result = await db
+        .insert(invoices)
+        .values({
+          tenant_id: userRow.tenant_id,
+          project_id: projectId,
+          created_by: user.id,
+          invoice_number: candidate,
+          status: 'draft',
+          billing_percent_bps: billingPctBps,
+          retention_bps: RETENTION_BPS,
+          subtotal_cents: subtotalCents,
+          retention_cents: retentionCents,
+          vat_cents: vatCents,
+          withholding_tax_cents: withholdingTaxCents,
+          net_amount_cents: netAmountCents,
+          due_date: dueDateStr ? new Date(dueDateStr) : null,
+          notes,
+        })
+        .returning({ id: invoices.id })
+
+      inserted = result[0]
+      invoiceNumber = candidate
+      break
+    } catch (err) {
+      // Postgres unique violation = SQLSTATE 23505. Retry with seq+1.
+      const code = (err as { code?: string } | null)?.code
+      if (code === '23505' && attempt < MAX_RETRIES - 1) continue
+      throw err
+    }
+  }
+
+  if (!inserted) {
+    return {
+      error: `Failed to allocate invoice number after ${MAX_RETRIES} attempts (high concurrency)`,
+    }
+  }
 
   await writeAuditLog({
     tenantId: userRow.tenant_id,

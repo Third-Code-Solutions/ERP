@@ -2,6 +2,7 @@
 
 POST /parse
   Body: ParseRequest JSON (supports DXF and DWG via `format` field)
+  Header: Authorization: Bearer <PARSER_SHARED_SECRET> (when configured)
   Returns: ParseResult JSON
 
 GET /health
@@ -10,12 +11,14 @@ GET /health
 
 from __future__ import annotations
 
+import hmac
 import logging
 import sys
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.config import settings
 from src.db import write_scope_items
 from src.models import ParseRequest, ParseResult
 from src.parsers.dwg_converter import (
@@ -39,13 +42,35 @@ app.add_middleware(
 )
 
 
+def _check_auth(authorization: str | None) -> None:
+    """Verify the shared-secret bearer token when configured.
+
+    Local dev (no PARSER_SHARED_SECRET set) skips auth so run-local.sh keeps
+    working. Any deployment with the secret set rejects unauthenticated calls
+    before downloading the file or touching the DB.
+    """
+    expected = settings.parser_shared_secret
+    if not expected:
+        return
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    presented = authorization[len("Bearer "):]
+    if not hmac.compare_digest(presented, expected):
+        raise HTTPException(status_code=401, detail="Invalid bearer token")
+
+
 @app.get("/health")
 async def health() -> dict[str, object]:
     return {"status": "ok", "dwg_support": dwg_available()}
 
 
 @app.post("/parse", response_model=ParseResult)
-async def parse(req: ParseRequest) -> ParseResult:
+async def parse(
+    req: ParseRequest,
+    authorization: str | None = Header(default=None),
+) -> ParseResult:
+    _check_auth(authorization)
+
     # Resolve format from request, falling back to file extension if needed
     fmt = req.format
     if req.file_name:

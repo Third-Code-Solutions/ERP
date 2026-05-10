@@ -43,12 +43,13 @@ export const CAD_ACCEPT = '.dxf,.dwg,.pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls'
 async function signUpload(
   projectId: string,
   fileName: string,
-  mimeType: string
+  mimeType: string,
+  sizeBytes: number
 ): Promise<SignResponse> {
   const res = await fetch('/api/upload/sign', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ projectId, fileName, mimeType }),
+    body: JSON.stringify({ projectId, fileName, mimeType, sizeBytes }),
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
@@ -148,7 +149,8 @@ export function useCadUpload({
           const signed = await signUpload(
             projectId,
             file.name,
-            file.type || 'application/octet-stream'
+            file.type || 'application/octet-stream',
+            file.size
           )
 
           setPhase('uploading')

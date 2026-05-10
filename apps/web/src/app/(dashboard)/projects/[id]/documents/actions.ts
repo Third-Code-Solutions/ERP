@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { getUser } from '@buildops/auth'
 import { createSupabaseAdminClient } from '@buildops/auth/server'
 import { db } from '@buildops/database'
-import { documents, users } from '@buildops/database/schema'
-import { and, eq } from 'drizzle-orm'
+import { documents, scopeItems, users } from '@buildops/database/schema'
+import { and, eq, like } from 'drizzle-orm'
 
 export interface DeleteResult {
   ok: boolean
@@ -59,9 +59,25 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
     console.warn('[documents/delete] storage remove failed:', err)
   }
 
+  // Cascade-delete scope items that were auto-extracted from this document.
+  // We tag them with `document:<id>` in `notes` at extraction time
+  // (see lib/cad/parse-and-store.ts). Without this, scope rows orphan and
+  // continue to render under the document group on the Scope tab.
+  await db
+    .delete(scopeItems)
+    .where(
+      and(
+        eq(scopeItems.tenant_id, doc.tenant_id),
+        eq(scopeItems.project_id, doc.project_id),
+        like(scopeItems.notes, `%document:${doc.id}%`)
+      )
+    )
+
   await db.delete(documents).where(eq(documents.id, doc.id))
 
   revalidatePath(`/projects/${projectId}/documents`)
+  revalidatePath(`/projects/${projectId}/scope`)
+  revalidatePath(`/projects/${projectId}/bom`)
   revalidatePath(`/projects/${projectId}`)
   return { ok: true }
 }

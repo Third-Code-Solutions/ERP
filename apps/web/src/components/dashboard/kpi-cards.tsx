@@ -1,6 +1,6 @@
 import type { KpiData } from '@/lib/dashboard-queries'
 import { formatCents, formatCentsCompact } from '@buildops/shared-types'
-import { IconArrowUpRight, IconActivity } from '@/components/ui/icons'
+import { IconArrowUpRight, IconActivity, IconUser } from '@/components/ui/icons'
 
 interface KpiCardsProps {
   kpis: KpiData
@@ -75,6 +75,16 @@ export function KpiCards({ kpis }: KpiCardsProps) {
         badge={
           <span style={{ color: 'var(--color-neutral-400)', display: 'inline-flex' }}>
             <IconActivity size={12} />
+          </span>
+        }
+      />
+      <KpiCard
+        label="Coverage Leads"
+        value={kpis.coverageLeads.toLocaleString()}
+        sub={`${kpis.coverageLeads === 1 ? 'lead' : 'leads'} in opportunity_creation`}
+        badge={
+          <span style={{ color: 'var(--color-neutral-400)', display: 'inline-flex' }}>
+            <IconUser size={12} />
           </span>
         }
       />

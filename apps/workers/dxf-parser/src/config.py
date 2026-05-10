@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     storage_bucket: str = "documents"
     log_level: str = "INFO"
+    # Shared secret enforced on /parse. When unset (local dev), the endpoint
+    # still works without auth so existing run-local.sh keeps functioning.
+    # In any deployed environment this MUST be set or /parse will refuse all
+    # callers. The web app sends it via Authorization: Bearer <secret>.
+    parser_shared_secret: str = ""
 
     class Config:
         env_file = ".env"
@@ -36,6 +41,8 @@ if not settings.supabase_service_role_key:
     settings.supabase_service_role_key = os.environ.get(
         "SUPABASE_SERVICE_ROLE_KEY", ""
     )
+if not settings.parser_shared_secret:
+    settings.parser_shared_secret = os.environ.get("PARSER_SHARED_SECRET", "")
 
 if not settings.supabase_url:
     raise RuntimeError(

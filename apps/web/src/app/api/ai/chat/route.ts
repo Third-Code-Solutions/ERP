@@ -4,6 +4,7 @@ import { db } from '@buildops/database'
 import { boms, bomLineItems, invoices, projects, purchaseOrders, users } from '@buildops/database/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { getOpenAI } from '@buildops/ai'
+import { writeAuditLog } from '@/lib/audit'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -100,6 +101,27 @@ All monetary values are in Philippine Pesos (₱).
 Be concise and specific. When referencing numbers, always include the currency symbol.
 
 ${context ? `CURRENT PROJECT CONTEXT:\n${context}` : 'No specific project context provided.'}`
+
+  // PRD F4 requires audit logging on every AI query. Capture the latest user
+  // turn (truncated) and the project context so compliance can reconstruct
+  // what the model was asked. Best-effort — never fail the user request.
+  try {
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+    await writeAuditLog({
+      tenantId: userRow.tenant_id,
+      actorId: user.id,
+      entityType: 'ai_chat',
+      entityId: projectId ?? user.id,
+      action: 'query',
+      diff: {
+        project_id: projectId ?? null,
+        message_count: messages.length,
+        last_user_message: lastUser.slice(0, 1000),
+      },
+    })
+  } catch (err) {
+    console.error('[ai/chat] audit log failed:', err)
+  }
 
   const openai = getOpenAI()
 
