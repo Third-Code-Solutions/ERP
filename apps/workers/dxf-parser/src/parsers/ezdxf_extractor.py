@@ -39,14 +39,47 @@ BLOCK_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r"SINK|BASIN", re.IGNORECASE), "Basin/Sink", "unit"),
 ]
 
-# Layer name fragments → system label used to group scope items
+# Layer name fragments → system label. Order matters: more specific patterns
+# go first. Covers MEP, architectural, civil, structural, and landscape conventions
+# common in Philippine practice.
 LAYER_SYSTEMS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"HVAC|MECH|AIRCON|AC", re.IGNORECASE), "HVAC"),
-    (re.compile(r"ELEC|POWER|LIGHTING|LTG", re.IGNORECASE), "Electrical"),
-    (re.compile(r"PLUMB|SANIT|WATER|DRAIN", re.IGNORECASE), "Plumbing"),
-    (re.compile(r"FIRE|SPRINK|FP", re.IGNORECASE), "Fire Protection"),
-    (re.compile(r"DATA|IT|COMM|CCTV", re.IGNORECASE), "Data/Comms"),
+    # MEP — most specific
+    (re.compile(r"HVAC|MECH|AIRCON|AC[-_]", re.IGNORECASE), "HVAC"),
+    (re.compile(r"ELEC|POWER|LIGHTING|LTG|^E[-_]", re.IGNORECASE), "Electrical"),
+    (re.compile(r"PLUMB|SANIT|WATER|DRAIN|PIPE|^P[-_]", re.IGNORECASE), "Plumbing"),
+    (re.compile(r"FIRE|SPRINK|FP|^F[-_]", re.IGNORECASE), "Fire Protection"),
+    (re.compile(r"DATA|IT[-_]|COMM|CCTV|TEL", re.IGNORECASE), "Data/Comms"),
+    # Architectural
+    (re.compile(r"^A[-_]WALL|WALL", re.IGNORECASE), "Architecture — Walls"),
+    (re.compile(r"^A[-_]FLOR|FLOOR|FLR", re.IGNORECASE), "Architecture — Floor"),
+    (re.compile(r"^A[-_]DOOR|DOOR", re.IGNORECASE), "Architecture — Doors"),
+    (re.compile(r"^A[-_]GLAZ|WIN(D|DOW)", re.IGNORECASE), "Architecture — Windows"),
+    (re.compile(r"^A[-_]CEIL|CEIL", re.IGNORECASE), "Architecture — Ceiling"),
+    (re.compile(r"^A[-_]ROOF|ROOF", re.IGNORECASE), "Architecture — Roof"),
+    (re.compile(r"^A[-_]DETL|DETAIL", re.IGNORECASE), "Architecture — Details"),
+    (re.compile(r"^A[-_]", re.IGNORECASE), "Architecture"),
+    # Civil / site
+    (re.compile(r"^C[-_]TOPO|TOPO|CONTOUR", re.IGNORECASE), "Civil — Topography"),
+    (re.compile(r"^C[-_]ROAD|ROAD|PAVE", re.IGNORECASE), "Civil — Roads"),
+    (re.compile(r"^C[-_]SITE|SITE", re.IGNORECASE), "Civil — Site"),
+    (re.compile(r"^C[-_]", re.IGNORECASE), "Civil"),
+    # Structural
+    (re.compile(r"^S[-_]COLS|COLUMN", re.IGNORECASE), "Structural — Columns"),
+    (re.compile(r"^S[-_]BEAM|BEAM", re.IGNORECASE), "Structural — Beams"),
+    (re.compile(r"^S[-_]SLAB|SLAB", re.IGNORECASE), "Structural — Slab"),
+    (re.compile(r"^S[-_]FNDN|FOUND", re.IGNORECASE), "Structural — Foundation"),
+    (re.compile(r"^S[-_]", re.IGNORECASE), "Structural"),
+    # Landscape
+    (re.compile(r"LAND|TREE|PLANT|VEG|POND|GARDEN", re.IGNORECASE), "Landscape"),
+    # Annotations / dimensions / general
+    (re.compile(r"^G[-_]ANNO|ANNO", re.IGNORECASE), "Annotations"),
+    (re.compile(r"DIM[-_]?", re.IGNORECASE), "Dimensions"),
 ]
+
+# Annotation regex — captures area declarations baked into MTEXT/TEXT
+AREA_ANNOTATION = re.compile(
+    r"AREA[\s:=]+([\d,]+\.?\d*)\s*(SQM|SQ\.?\s?M|M2|SQ M)", re.IGNORECASE
+)
 
 
 @dataclass
@@ -54,17 +87,50 @@ class Extractor:
     warnings: list[str] = field(default_factory=list)
 
     def extract(self, dxf_bytes: bytes) -> list[ScopeItem]:
+        # ezdxf's strict reader handles libredwg r2010 output cleanly when
+        # given a file path. Stream-based parsing (StringIO/BytesIO) hits
+        # encoding edge cases, so we materialise to a temp file first.
+        import os
+        import tempfile
+
+        tmp_path = None
         try:
-            doc: Drawing = ezdxf.read(io.BytesIO(dxf_bytes))
-        except Exception as exc:
-            self.warnings.append(f"ezdxf read error: {exc}")
-            return []
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=".dxf"
+            ) as tmp:
+                tmp.write(dxf_bytes)
+                tmp_path = tmp.name
+
+            try:
+                doc: Drawing = ezdxf.readfile(tmp_path)
+            except Exception as strict_exc:
+                # Fall back to recover mode for malformed DXFs
+                try:
+                    from ezdxf import recover
+
+                    doc, auditor = recover.readfile(tmp_path)
+                    if auditor.has_errors:
+                        for err in auditor.errors[:3]:
+                            self.warnings.append(f"DXF audit: {err}")
+                except Exception as recover_exc:
+                    self.warnings.append(
+                        f"ezdxf read failed (strict={strict_exc}; recover={recover_exc})"
+                    )
+                    return []
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
         msp: Modelspace = doc.modelspace()
         items: list[ScopeItem] = []
 
         items.extend(self._extract_block_inserts(msp))
         items.extend(self._extract_polyline_areas(msp))
+        items.extend(self._extract_declared_areas(msp))
+        items.extend(self._extract_layer_rollup(msp))
         items.extend(self._extract_text_annotations(msp))
 
         return self._deduplicate(items)
@@ -74,7 +140,7 @@ class Extractor:
     # ------------------------------------------------------------------
 
     def _extract_block_inserts(self, msp: Modelspace) -> list[ScopeItem]:
-        counts: dict[str, dict] = {}  # description → {unit, layer, count}
+        counts: dict[str, dict] = {}
 
         for entity in msp:
             if entity.dxftype() not in ("INSERT",):
@@ -82,20 +148,50 @@ class Extractor:
 
             block_name: str = entity.dxf.name or ""
             layer: str = entity.dxf.layer or "0"
+            system = self._layer_system(layer)
 
+            matched = False
             for pattern, description, unit in BLOCK_PATTERNS:
                 if pattern.search(block_name):
-                    system = self._layer_system(layer)
                     key = f"{system}|{description}"
                     if key not in counts:
-                        counts[key] = {"description": description, "unit": unit, "system": system, "count": 0}
+                        counts[key] = {
+                            "description": description,
+                            "unit": unit,
+                            "system": system,
+                            "count": 0,
+                        }
                     counts[key]["count"] += 1
+                    matched = True
                     break
+
+            if not matched:
+                # Unmatched block — record it generically so the estimator sees it
+                cleaned = re.sub(r"[_\-]+", " ", block_name).strip().title()
+                if not cleaned:
+                    continue
+                # Truncate Sketchup-style noise like "Untitled_skp-2312370-_3D_"
+                cleaned = re.sub(r"\s*Untitled.*$", "", cleaned).strip()
+                if len(cleaned) > 60:
+                    cleaned = cleaned[:57] + "…"
+                key = f"{system}|block:{cleaned}"
+                if key not in counts:
+                    counts[key] = {
+                        "description": cleaned,
+                        "unit": "unit",
+                        "system": system,
+                        "count": 0,
+                    }
+                counts[key]["count"] += 1
 
         return [
             ScopeItem(
                 code=None,
-                description=f"{v['system']} — {v['description']}" if v["system"] else v["description"],
+                description=(
+                    f"{v['system']} — {v['description']}"
+                    if v["system"]
+                    else v["description"]
+                ),
                 unit=v["unit"],
                 quantity=v["count"],
                 unit_cost_cents=0,
@@ -147,6 +243,88 @@ class Extractor:
         return items
 
     # ------------------------------------------------------------------
+    # MTEXT/TEXT containing area declarations (e.g. "AREA : 1350 SQM")
+    # ------------------------------------------------------------------
+
+    def _extract_declared_areas(self, msp: Modelspace) -> list[ScopeItem]:
+        items: list[ScopeItem] = []
+        seen_label_for: dict[str, str] = {}
+        last_label: str | None = None
+
+        # First pass: collect all text content in document order so we can
+        # associate AREA values with the most recent label nearby.
+        for entity in msp:
+            if entity.dxftype() not in ("TEXT", "MTEXT"):
+                continue
+            try:
+                text: str = (
+                    entity.dxf.text
+                    if entity.dxftype() == "TEXT"
+                    else entity.plain_text() if hasattr(entity, "plain_text") else entity.plain_mtext()
+                )
+            except Exception:
+                continue
+            text = text.strip()
+
+            m = AREA_ANNOTATION.search(text)
+            if m:
+                value = float(m.group(1).replace(",", ""))
+                if value <= 0:
+                    continue
+                label = last_label or "Declared area"
+                # Avoid duplicating identical label+value pairs
+                key = f"{label}|{round(value)}"
+                if key in seen_label_for:
+                    continue
+                seen_label_for[key] = label
+                items.append(
+                    ScopeItem(
+                        code=None,
+                        description=f"Declared area — {label}",
+                        unit="sqm",
+                        quantity=round(value),
+                        unit_cost_cents=0,
+                        notes=f"From drawing annotation: {text[:60]}",
+                    )
+                )
+            elif 2 <= len(text) <= 40 and not text.upper().startswith("AREA"):
+                # Treat as a candidate label for the next AREA we encounter
+                last_label = text
+
+        return items
+
+    # ------------------------------------------------------------------
+    # Layer roll-up — entity counts per layer (always returns something useful)
+    # ------------------------------------------------------------------
+
+    def _extract_layer_rollup(self, msp: Modelspace) -> list[ScopeItem]:
+        # Skip annotation/dimension layers from the roll-up (they're noise)
+        SKIP_PATTERNS = re.compile(r"^(0|defpoints|dim|anno|hatch)", re.IGNORECASE)
+        counts: dict[str, int] = {}
+        for entity in msp:
+            layer = entity.dxf.layer or "0"
+            if SKIP_PATTERNS.match(layer):
+                continue
+            counts[layer] = counts.get(layer, 0) + 1
+
+        items: list[ScopeItem] = []
+        for layer, n in sorted(counts.items(), key=lambda kv: -kv[1]):
+            if n < 2:
+                continue
+            system = self._layer_system(layer) or "Unclassified"
+            items.append(
+                ScopeItem(
+                    code=None,
+                    description=f"{system} — Layer roll-up ({layer})",
+                    unit="entities",
+                    quantity=n,
+                    unit_cost_cents=0,
+                    notes=f"Layer: {layer}",
+                )
+            )
+        return items
+
+    # ------------------------------------------------------------------
     # TEXT / MTEXT → room labels and annotations
     # ------------------------------------------------------------------
 
@@ -157,9 +335,17 @@ class Extractor:
             if entity.dxftype() not in ("TEXT", "MTEXT"):
                 continue
             try:
-                text: str = entity.dxf.text if entity.dxftype() == "TEXT" else entity.plain_mtext()
+                text: str = (
+                    entity.dxf.text
+                    if entity.dxftype() == "TEXT"
+                    else entity.plain_text()
+                    if hasattr(entity, "plain_text")
+                    else entity.plain_mtext()
+                )
                 text = text.strip()
-                # Only capture short room-label style text (not dimension strings)
+                # Skip area declarations (handled by _extract_declared_areas)
+                if AREA_ANNOTATION.search(text):
+                    continue
                 if 2 <= len(text) <= 40 and not re.match(r"^[\d.]+$", text):
                     labels.add(text)
             except Exception:

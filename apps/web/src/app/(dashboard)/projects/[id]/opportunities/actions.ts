@@ -7,6 +7,7 @@ import { opportunities, users } from '@buildops/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { STAGE_PROBABILITY } from '@buildops/shared-types'
+import { weightedTCV } from '@buildops/shared-types/bom'
 import { writeAuditLog, computeDiff } from '@/lib/audit'
 
 const createOpportunitySchema = z.object({
@@ -16,7 +17,8 @@ const createOpportunitySchema = z.object({
     'resubmission', 'negotiation', 'closed_won', 'closed_lost',
   ]).default('opportunity_creation'),
   tcv_cents: z.coerce.number().int().min(0).default(0),
-  gp_cents: z.coerce.number().int().min(0).default(0),
+  // GP can legitimately be negative on a losing project. Don't clamp at 0.
+  gp_cents: z.coerce.number().int().default(0),
   area_sqm: z.coerce.number().int().positive().optional(),
   opportunity_type: z.string().max(100).optional(),
   closing_date: z.string().datetime({ offset: true }).optional(),
@@ -30,7 +32,7 @@ const transitionSchema = z.object({
     'resubmission', 'negotiation', 'closed_won', 'closed_lost',
   ]),
   tcv_cents: z.coerce.number().int().min(0).optional(),
-  gp_cents: z.coerce.number().int().min(0).optional(),
+  gp_cents: z.coerce.number().int().optional(),
   closing_date: z.string().datetime({ offset: true }).optional(),
 })
 
@@ -54,7 +56,7 @@ export async function createOpportunity(formData: FormData) {
   })
 
   const probability = STAGE_PROBABILITY[input.stage as keyof typeof STAGE_PROBABILITY] ?? 0
-  const weightedTcv = Math.round((input.tcv_cents * probability) / 100)
+  const weightedTcv = weightedTCV(input.tcv_cents, probability)
 
   const [inserted] = await db
     .insert(opportunities)
@@ -121,7 +123,7 @@ export async function transitionStage(formData: FormData) {
   const probability = STAGE_PROBABILITY[input.new_stage as keyof typeof STAGE_PROBABILITY] ?? existing.probability
   const newTcv = input.tcv_cents ?? existing.tcv_cents
   const newGp = input.gp_cents ?? existing.gp_cents
-  const weightedTcv = Math.round((newTcv * probability) / 100)
+  const weightedTcv = weightedTCV(newTcv, probability)
 
   const updateData = {
     stage: input.new_stage,

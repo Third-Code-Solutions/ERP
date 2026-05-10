@@ -19,12 +19,15 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
   return response.data.map((d) => d.embedding)
 }
 
+// pgvector wire format: `[1.0,2.0,...]`. Both JSON.stringify and the bracket
+// form parse identically with JSON.parse, so deserialize is forgiving.
 export function serializeEmbedding(vec: number[]): string {
-  return JSON.stringify(vec)
+  return `[${vec.join(',')}]`
 }
 
-export function deserializeEmbedding(raw: string | null): number[] | null {
-  if (!raw) return null
+export function deserializeEmbedding(raw: string | number[] | null): number[] | null {
+  if (raw == null) return null
+  if (Array.isArray(raw)) return raw
   try {
     return JSON.parse(raw) as number[]
   } catch {

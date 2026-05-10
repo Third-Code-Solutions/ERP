@@ -204,7 +204,7 @@ export default async function BomBuilderPage() {
           color: 'var(--color-navy-700)',
         }}
       >
-        DXF auto-extraction and AI-assisted BOM line suggestions are coming in Phase 2.
+        DWG and DXF auto-extraction is live. Open any project, drop a CAD drawing on the Scope or BOM tab, and a draft BOM is generated automatically with RAG-priced lines from past projects.
       </div>
     </div>
   )

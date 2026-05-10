@@ -108,11 +108,12 @@ apps/web/src/components/billing/invoice-pdf.tsx
 | Item | Priority |
 |------|----------|
 | Replace in-memory rate limiter with Upstash Redis | High (before GA) |
-| Add loading.tsx skeleton files for all dashboard routes | Medium |
-| Add Playwright E2E tests for critical user journeys | High |
+| Add loading.tsx skeleton files for all dashboard routes | ✅ Done |
+| Add Playwright E2E tests for critical user journeys | ✅ Done (e2e/ directory, 7 spec files) |
 | Add vitest integration tests (with real Supabase test instance) | High |
+| GitHub Actions CI workflow (typecheck, lint, test, build, e2e, secret scan) | ✅ Done (.github/workflows/ci.yml) |
 | Drizzle migration CI check (no schema drift) | Medium |
-| Supabase Realtime subscription for dashboard auto-refresh | Medium |
+| Supabase Realtime subscription for dashboard auto-refresh | ✅ Done (DashboardRealtimeRefresher component) |
 | pgvector migration for embeddings table | Phase 4 |
 | MFA enforcement for Owner/Admin roles | Before GA |
 

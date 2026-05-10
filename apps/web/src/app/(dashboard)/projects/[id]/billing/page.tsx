@@ -5,6 +5,7 @@ import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
 import { boms, invoices, projects, users } from '@buildops/database/schema'
 import { and, desc, eq } from 'drizzle-orm'
+import { CreateInvoiceForm } from '@/components/billing/create-invoice-form'
 
 export const metadata: Metadata = { title: 'Billing' }
 
@@ -14,6 +15,7 @@ const TABS = [
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },
+  { label: 'Audit', href: '/audit' },
 ]
 
 const STATUS_LABELS: Record<string, string> = {
@@ -173,6 +175,7 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
           <h2 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-neutral-800)', margin: 0 }}>
             Invoices
           </h2>
+          <CreateInvoiceForm projectId={id} tcvCents={contractValue} />
         </div>
 
         {projectInvoices.length === 0 ? (
@@ -192,7 +195,7 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)' }}>
-                {['Invoice #', 'Status', 'Billing %', 'Subtotal', 'Retention', 'VAT', 'Net Amount', 'Due Date'].map((h) => (
+                {['Invoice #', 'Status', 'Billing %', 'Subtotal', 'Retention', 'VAT', 'Net Amount', 'Due Date', ''].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -214,8 +217,10 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
                   key={inv.id}
                   style={{ borderBottom: idx < projectInvoices.length - 1 ? '1px solid var(--color-border)' : 'none' }}
                 >
-                  <td style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--color-neutral-800)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8125rem' }}>
-                    {inv.invoice_number}
+                  <td style={{ padding: '12px 16px', fontWeight: 600, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8125rem' }}>
+                    <Link href={`/invoices/${inv.id}`} style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}>
+                      {inv.invoice_number}
+                    </Link>
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span
@@ -251,6 +256,15 @@ export default async function ProjectBillingPage({ params }: { params: Promise<{
                     {inv.due_date
                       ? new Date(inv.due_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
                       : '—'}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <Link
+                      href={`/invoices/${inv.id}/print`}
+                      target="_blank"
+                      style={{ fontSize: '0.75rem', color: 'var(--color-neutral-400)', textDecoration: 'none' }}
+                    >
+                      Print
+                    </Link>
                   </td>
                 </tr>
               ))}

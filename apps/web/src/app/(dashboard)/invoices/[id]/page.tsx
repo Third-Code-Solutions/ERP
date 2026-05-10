@@ -105,6 +105,25 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             {STATUS_LABELS[inv.status] ?? inv.status}
           </span>
           <InvoiceStatusActions invoiceId={id} currentStatus={inv.status} />
+          <Link
+            href={`/invoices/${id}/print`}
+            target="_blank"
+            style={{
+              padding: '7px 14px',
+              borderRadius: '6px',
+              fontSize: '0.8125rem',
+              fontWeight: 500,
+              border: '1px solid var(--color-border)',
+              background: 'white',
+              color: 'var(--color-neutral-700)',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            Print / PDF
+          </Link>
         </div>
       </div>
 

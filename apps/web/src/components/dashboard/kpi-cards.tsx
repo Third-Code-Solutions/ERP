@@ -1,5 +1,6 @@
 import type { KpiData } from '@/lib/dashboard-queries'
 import { formatCents, formatCentsCompact } from '@buildops/shared-types'
+import { IconArrowUpRight, IconActivity } from '@/components/ui/icons'
 
 interface KpiCardsProps {
   kpis: KpiData
@@ -9,82 +10,73 @@ interface KpiCardProps {
   label: string
   value: string
   sub?: string
+  feature?: boolean
+  fillPct?: number
+  badge?: React.ReactNode
 }
 
-function KpiCard({ label, value, sub }: KpiCardProps) {
+function KpiCard({ label, value, sub, feature = false, fillPct, badge }: KpiCardProps) {
   return (
-    <div className="kpi-card">
-      <p
-        style={{
-          fontSize: '0.6875rem',
-          fontWeight: 600,
-          color: 'var(--color-neutral-500)',
-          margin: '0 0 8px 0',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-        }}
-      >
-        {label}
+    <div className={`kpi-card${feature ? ' is-feature' : ''}`}>
+      <p className="kpi-card-label">
+        <span>{label}</span>
+        {badge ?? null}
       </p>
-      <p
-        style={{
-          fontSize: '1.375rem',
-          fontWeight: 700,
-          color: 'var(--color-neutral-900)',
-          margin: '0 0 4px 0',
-          fontFamily: 'var(--font-mono)',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {value}
-      </p>
-      {sub && (
-        <p style={{ fontSize: '0.75rem', color: 'var(--color-neutral-400)', margin: 0 }}>
-          {sub}
-        </p>
-      )}
+      <p className="kpi-card-value">{value}</p>
+      {sub ? <p className="kpi-card-sub">{sub}</p> : null}
+      {typeof fillPct === 'number' ? (
+        <div className="kpi-card-bar" aria-hidden>
+          <div
+            className="kpi-card-bar-fill"
+            style={{ width: `${Math.min(100, Math.max(0, fillPct))}%` }}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }
 
 export function KpiCards({ kpis }: KpiCardsProps) {
-  const gpMargin =
-    kpis.activeTcv > 0
-      ? ((kpis.activeGp / kpis.activeTcv) * 100).toFixed(1) + '% GP'
-      : '—'
+  const gpMarginPct = kpis.activeTcv > 0 ? (kpis.activeGp / kpis.activeTcv) * 100 : 0
+  const weightedRatio =
+    kpis.activeTcv > 0 ? (kpis.weightedPipeline / kpis.activeTcv) * 100 : 0
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(5, 1fr)',
-        gap: '16px',
-        marginBottom: '32px',
-      }}
-    >
+    <div className="kpi-grid">
       <KpiCard
-        label="Active TCV"
+        feature
+        label="Active Pipeline TCV"
         value={formatCentsCompact(kpis.activeTcv)}
-        sub={formatCents(kpis.activeTcv)}
+        sub={`${formatCents(kpis.activeTcv)} across ${kpis.activeDeals} deals`}
+        fillPct={Math.min(100, weightedRatio)}
+        badge={
+          <span className="delta is-up">
+            <IconArrowUpRight size={11} />
+            Live
+          </span>
+        }
       />
       <KpiCard
         label="Active GP"
         value={formatCentsCompact(kpis.activeGp)}
-        sub={gpMargin}
+        sub={`${gpMarginPct.toFixed(1)}% blended margin`}
+        fillPct={Math.min(100, gpMarginPct * 2)}
       />
       <KpiCard
-        label="Closed Won"
+        label="Weighted Pipeline"
+        value={formatCentsCompact(kpis.weightedPipeline)}
+        sub={`${weightedRatio.toFixed(0)}% of active TCV`}
+        fillPct={Math.min(100, weightedRatio)}
+      />
+      <KpiCard
+        label="Closed Won (YTD)"
         value={formatCentsCompact(kpis.closedWonTcv)}
         sub={formatCents(kpis.closedWonTcv)}
-      />
-      <KpiCard
-        label="Active Deals"
-        value={String(kpis.activeDeals)}
-        sub={`${formatCentsCompact(kpis.weightedPipeline)} weighted`}
-      />
-      <KpiCard
-        label="Coverage Leads"
-        value={String(kpis.coverageLeads)}
+        badge={
+          <span style={{ color: 'var(--color-neutral-400)', display: 'inline-flex' }}>
+            <IconActivity size={12} />
+          </span>
+        }
       />
     </div>
   )

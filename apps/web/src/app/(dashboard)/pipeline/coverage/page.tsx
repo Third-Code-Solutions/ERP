@@ -5,6 +5,7 @@ import { db } from '@buildops/database'
 import { opportunities, projects, users } from '@buildops/database/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { formatCentsCompact } from '@buildops/shared-types'
+import { AddOpportunityForm } from '@/components/pipeline/add-opportunity-form'
 
 export const metadata: Metadata = { title: 'Coverage Pipeline' }
 
@@ -15,29 +16,36 @@ export default async function CoveragePage() {
   const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
   if (!userRow?.tenant_id) return null
 
-  const leads = await db
-    .select({
-      id: opportunities.id,
-      stage: opportunities.stage,
-      tcv_cents: opportunities.tcv_cents,
-      gp_cents: opportunities.gp_cents,
-      area_sqm: opportunities.area_sqm,
-      opportunity_type: opportunities.opportunity_type,
-      closing_date: opportunities.closing_date,
-      created_at: opportunities.created_at,
-      project_name: projects.name,
-      project_client: projects.client,
-      project_id: projects.id,
-    })
-    .from(opportunities)
-    .leftJoin(projects, eq(opportunities.project_id, projects.id))
-    .where(
-      and(
-        eq(opportunities.tenant_id, userRow.tenant_id),
-        eq(opportunities.stage, 'opportunity_creation')
+  const [leads, projectList] = await Promise.all([
+    db
+      .select({
+        id: opportunities.id,
+        stage: opportunities.stage,
+        tcv_cents: opportunities.tcv_cents,
+        gp_cents: opportunities.gp_cents,
+        area_sqm: opportunities.area_sqm,
+        opportunity_type: opportunities.opportunity_type,
+        closing_date: opportunities.closing_date,
+        created_at: opportunities.created_at,
+        project_name: projects.name,
+        project_client: projects.client,
+        project_id: projects.id,
+      })
+      .from(opportunities)
+      .leftJoin(projects, eq(opportunities.project_id, projects.id))
+      .where(
+        and(
+          eq(opportunities.tenant_id, userRow.tenant_id),
+          eq(opportunities.stage, 'opportunity_creation')
+        )
       )
-    )
-    .orderBy(desc(opportunities.created_at))
+      .orderBy(desc(opportunities.created_at)),
+    db
+      .select({ id: projects.id, name: projects.name, client: projects.client })
+      .from(projects)
+      .where(eq(projects.tenant_id, userRow.tenant_id))
+      .orderBy(projects.name),
+  ])
 
   return (
     <div>
@@ -46,6 +54,7 @@ export default async function CoveragePage() {
           <h1 className="page-title">Coverage</h1>
           <p className="page-subtitle">{leads.length} lead{leads.length !== 1 ? 's' : ''} in pipeline</p>
         </div>
+        <AddOpportunityForm projects={projectList} />
       </div>
 
       {/* Stage tab navigation */}
@@ -83,7 +92,7 @@ export default async function CoveragePage() {
             color: 'var(--color-neutral-400)',
           }}
         >
-          <p style={{ fontSize: '0.875rem' }}>No leads in coverage. Create a project and opportunity to begin tracking.</p>
+          <p style={{ fontSize: '0.875rem', margin: '0 0 16px' }}>No leads in coverage yet.</p>
         </div>
       ) : (
         <div style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>

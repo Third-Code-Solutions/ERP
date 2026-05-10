@@ -28,9 +28,15 @@ interface Bom {
   lineItems: BomLineItem[]
 }
 
+interface Vendor {
+  id: string
+  name: string
+}
+
 interface BomBuilderProps {
   projectId: string
   bom: Bom | null
+  vendors?: Vendor[]
 }
 
 function formatPHP(cents: number): string {
@@ -44,7 +50,7 @@ const STATUS_COLORS: Record<string, string> = {
   archived: '#6b7280',
 }
 
-export function BomBuilder({ projectId, bom }: BomBuilderProps) {
+export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
   const [isPending, startTransition] = useTransition()
   const [showAddForm, setShowAddForm] = useState(false)
   const [form, setForm] = useState({
@@ -58,7 +64,7 @@ export function BomBuilder({ projectId, bom }: BomBuilderProps) {
   const [formError, setFormError] = useState('')
   const router = useRouter()
   const [showPoForm, setShowPoForm] = useState(false)
-  const [poForm, setPoForm] = useState({ deliveryDate: '' })
+  const [poForm, setPoForm] = useState({ vendorId: '', deliveryDate: '' })
   const [showInvoiceForm, setShowInvoiceForm] = useState(false)
   const [invoiceForm, setInvoiceForm] = useState({ billingPercent: '30', dueDate: '' })
   const [procurementError, setProcurementError] = useState('')
@@ -124,7 +130,7 @@ export function BomBuilder({ projectId, bom }: BomBuilderProps) {
     if (!bom) return
     setProcurementError('')
     startTransition(async () => {
-      const result = await createPoFromBom(bom.id, projectId, null, poForm.deliveryDate || null)
+      const result = await createPoFromBom(bom.id, projectId, poForm.vendorId || null, poForm.deliveryDate || null)
       if ('error' in result) {
         setProcurementError(result.error)
       } else {
@@ -479,6 +485,23 @@ export function BomBuilder({ projectId, bom }: BomBuilderProps) {
             flexWrap: 'wrap',
           }}
         >
+          {vendors.length > 0 && (
+            <div>
+              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-neutral-500)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Vendor (optional)
+              </label>
+              <select
+                value={poForm.vendorId}
+                onChange={(e) => setPoForm((p) => ({ ...p, vendorId: e.target.value }))}
+                style={{ padding: '6px 8px', border: '1px solid var(--color-border)', borderRadius: '4px', fontSize: '0.8125rem', minWidth: '160px' }}
+              >
+                <option value="">— No vendor —</option>
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-neutral-500)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Delivery Date (optional)
@@ -486,7 +509,7 @@ export function BomBuilder({ projectId, bom }: BomBuilderProps) {
             <input
               type="date"
               value={poForm.deliveryDate}
-              onChange={(e) => setPoForm({ deliveryDate: e.target.value })}
+              onChange={(e) => setPoForm((p) => ({ ...p, deliveryDate: e.target.value }))}
               style={{ padding: '6px 8px', border: '1px solid var(--color-border)', borderRadius: '4px', fontSize: '0.8125rem', boxSizing: 'border-box' }}
             />
           </div>

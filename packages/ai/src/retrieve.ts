@@ -6,7 +6,9 @@ export interface StoredEmbedding {
   entity_id: string
   chunk_index: number
   chunk_text: string
-  embedding: string | null
+  // Drizzle returns number[] for pgvector columns via the custom type;
+  // legacy text columns still work via deserializeEmbedding.
+  embedding: number[] | string | null
   metadata?: Record<string, unknown>
 }
 
@@ -18,6 +20,11 @@ export interface RetrievalResult {
   metadata?: Record<string, unknown>
 }
 
+/**
+ * In-memory similarity search. Use this only for tiny candidate sets
+ * (e.g. ranking already-prefiltered results from a SQL query). For full-corpus
+ * retrieval, prefer SQL with the pgvector `<=>` operator and an HNSW index.
+ */
 export async function findSimilar(
   query: string,
   candidates: StoredEmbedding[],
@@ -28,7 +35,6 @@ export async function findSimilar(
   const queryVec = await embedText(query)
 
   const results: RetrievalResult[] = []
-
   for (const c of candidates) {
     const vec = deserializeEmbedding(c.embedding)
     if (!vec) continue

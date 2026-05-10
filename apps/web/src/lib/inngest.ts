@@ -2,49 +2,156 @@ import { Inngest } from 'inngest'
 
 export const inngest = new Inngest({ id: 'buildops' })
 
-// Triggered when a document is uploaded to Supabase Storage.
-// The DXF parser worker picks this up and writes scope_items rows.
-export const parseDxf = inngest.createFunction(
+// =============================================================================
+// CAD parse pipeline
+// =============================================================================
+//
+// Flow:
+//   1. /api/upload accepts a .dxf or .dwg file → emits `document/cad.uploaded`
+//   2. parseCadDrawing fn calls the Python worker; worker converts DWG→DXF if
+//      needed, runs ezdxf extraction, writes scope_items rows.
+//   3. On success, the parser fn emits `cad/parsed` with the extracted count.
+//   4. calcDraftBomFromScope fn loads the new scope items, runs pgvector
+//      similarity search against historical embedded BOM line items, and
+//      writes a draft BOM with calculated unit costs and totals.
+// =============================================================================
+
+interface CadEventData {
+  documentId: string
+  projectId: string
+  tenantId: string
+  storagePath: string
+  format: 'dxf' | 'dwg'
+  fileName?: string
+}
+
+interface ParsedEventData {
+  documentId: string
+  projectId: string
+  tenantId: string
+  scopeItemsCreated: number
+  sourceFormat: 'dxf' | 'dwg'
+}
+
+type Step = { run: <T>(name: string, fn: () => Promise<T>) => Promise<T>; sendEvent?: (id: string, payload: { name: string; data: unknown }) => Promise<unknown> }
+
+export const parseCadDrawing = inngest.createFunction(
   {
-    id: 'parse-dxf',
-    name: 'Parse DXF Drawing',
-    triggers: [{ event: 'document/dxf.uploaded' as const }],
+    id: 'parse-cad-drawing',
+    name: 'Parse CAD Drawing (DXF or DWG)',
+    triggers: [
+      { event: 'document/cad.uploaded' as const },
+      // Backward compat with the old event name
+      { event: 'document/dxf.uploaded' as const },
+    ],
   },
-  async ({ event, step }: { event: { data: { documentId: string; projectId: string; tenantId: string; storagePath: string } }; step: { run: <T>(name: string, fn: () => Promise<T>) => Promise<T> } }) => {
-    const { documentId, projectId, tenantId, storagePath } = event.data as {
-      documentId: string
-      projectId: string
-      tenantId: string
-      storagePath: string
-    }
+  async ({
+    event,
+    step,
+  }: {
+    event: { data: CadEventData }
+    step: Step
+  }) => {
+    const { documentId, projectId, tenantId, storagePath, format, fileName } = event.data
+    const cadFormat = format ?? 'dxf'
 
     const parserUrl = process.env.DXF_PARSER_URL
     if (!parserUrl) {
-      return { skipped: true, reason: 'DXF_PARSER_URL not configured' }
+      return { skipped: true, reason: 'DXF_PARSER_URL not configured', format: cadFormat }
     }
 
-    const result = await step.run('call-dxf-parser', async () => {
+    const result = await step.run('call-cad-parser', async () => {
       const res = await fetch(`${parserUrl}/parse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId, projectId, tenantId, storagePath }),
+        body: JSON.stringify({
+          document_id: documentId,
+          project_id: projectId,
+          tenant_id: tenantId,
+          storage_path: storagePath,
+          format: cadFormat,
+          file_name: fileName,
+        }),
       })
-      if (!res.ok) throw new Error(`DXF parser returned ${res.status}`)
-      return res.json()
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '')
+        throw new Error(`CAD parser returned ${res.status}: ${detail}`)
+      }
+      return res.json() as Promise<{ count?: number; source_format?: 'dxf' | 'dwg' }>
     })
 
-    return { parsed: true, scopeItemsCreated: (result as { count?: number }).count ?? 0 }
+    const scopeItemsCreated = result.count ?? 0
+
+    if (scopeItemsCreated > 0) {
+      await step.run('emit-cad-parsed', async () => {
+        await inngest.send({
+          name: 'cad/parsed',
+          data: {
+            documentId,
+            projectId,
+            tenantId,
+            scopeItemsCreated,
+            sourceFormat: result.source_format ?? cadFormat,
+          },
+        })
+      })
+    }
+
+    return { parsed: true, scopeItemsCreated, format: cadFormat }
   }
 )
 
-// Triggered when a BOM is approved. Embeds all line items for RAG retrieval.
+// =============================================================================
+// Auto-BOM: calculate draft BOM from parsed scope items
+// =============================================================================
+//
+// Implementation lives in @/lib/cad/auto-bom so the same logic powers both
+// the queued path (this Inngest function) and the inline path
+// (apps/web/src/app/api/upload/complete).
+
+export const calcDraftBomFromScope = inngest.createFunction(
+  {
+    id: 'calc-draft-bom-from-scope',
+    name: 'Calculate Draft BOM From Parsed Scope',
+    triggers: [{ event: 'cad/parsed' as const }],
+  },
+  async ({
+    event,
+    step,
+  }: {
+    event: { data: ParsedEventData }
+    step: Step
+  }) => {
+    const { documentId, projectId, tenantId } = event.data
+
+    const result = await step.run('build-draft-bom', async () => {
+      const { calcDraftBomFromScope: calcImpl } = await import(
+        '@/lib/cad/auto-bom'
+      )
+      return calcImpl({ tenantId, projectId, documentId })
+    })
+
+    return { drafted: true, ...result }
+  }
+)
+
+// =============================================================================
+// Embedding refresh: triggered when a BOM is approved
+// =============================================================================
+
 export const embedBomLineItems = inngest.createFunction(
   {
     id: 'embed-bom-line-items',
     name: 'Embed BOM Line Items',
     triggers: [{ event: 'bom/approved' as const }],
   },
-  async ({ event, step }: { event: { data: { bomId: string; projectId: string; tenantId: string } }; step: { run: <T>(name: string, fn: () => Promise<T>) => Promise<T> } }) => {
+  async ({
+    event,
+    step,
+  }: {
+    event: { data: { bomId: string; projectId: string; tenantId: string } }
+    step: Step
+  }) => {
     const { bomId, tenantId } = event.data
 
     const apiKey = process.env.OPENAI_API_KEY
@@ -56,7 +163,7 @@ export const embedBomLineItems = inngest.createFunction(
       const { db } = await import('@buildops/database')
       const { bomLineItems, embeddings } = await import('@buildops/database/schema')
       const { eq, and } = await import('drizzle-orm')
-      const { embedBatch, serializeEmbedding } = await import('@buildops/ai')
+      const { embedBatch } = await import('@buildops/ai')
 
       const lines = await db
         .select()
@@ -88,7 +195,7 @@ export const embedBomLineItems = inngest.createFunction(
           entity_id: bomId,
           chunk_index: idx,
           chunk_text: texts[idx]!,
-          embedding: serializeEmbedding(vectors[idx]!),
+          embedding: vectors[idx]!,
           model: 'text-embedding-3-small',
         }))
       )
@@ -99,3 +206,6 @@ export const embedBomLineItems = inngest.createFunction(
     return { embedded: count }
   }
 )
+
+// Backward-compat alias so older imports don't break
+export const parseDxf = parseCadDrawing
