@@ -1,12 +1,68 @@
 import { getOpenAI, EMBEDDING_MODEL } from './openai'
 
+const EMBEDDING_CACHE_MAX_ENTRIES = 200
+
+// Map preserves insertion order, so the oldest key is the first one returned
+// by keys().next(). That gives FIFO eviction without a real LRU implementation.
+const embeddingCache = new Map<string, number[]>()
+let embeddingCacheHits = 0
+let embeddingCacheMisses = 0
+
+function buildCacheKey(text: string): string {
+  return text.trim().slice(0, 1000)
+}
+
+function readCache(key: string): number[] | undefined {
+  return embeddingCache.get(key)
+}
+
+function writeCache(key: string, value: number[]): void {
+  if (embeddingCache.size >= EMBEDDING_CACHE_MAX_ENTRIES) {
+    const oldestKey = embeddingCache.keys().next().value
+    if (oldestKey !== undefined) {
+      embeddingCache.delete(oldestKey)
+    }
+  }
+  embeddingCache.set(key, value)
+}
+
 export async function embedText(text: string): Promise<number[]> {
+  const cacheKey = buildCacheKey(text)
+  const cached = readCache(cacheKey)
+  if (cached) {
+    embeddingCacheHits += 1
+    return cached
+  }
+
+  embeddingCacheMisses += 1
   const openai = getOpenAI()
   const response = await openai.embeddings.create({
     model: EMBEDDING_MODEL,
     input: text.trim().slice(0, 8000),
   })
-  return response.data[0]!.embedding
+  const embedding = response.data[0]!.embedding
+  writeCache(cacheKey, embedding)
+  return embedding
+}
+
+export function clearEmbeddingCache(): void {
+  embeddingCache.clear()
+  embeddingCacheHits = 0
+  embeddingCacheMisses = 0
+}
+
+export interface EmbeddingCacheStats {
+  size: number
+  hits: number
+  misses: number
+}
+
+export function getEmbeddingCacheStats(): EmbeddingCacheStats {
+  return {
+    size: embeddingCache.size,
+    hits: embeddingCacheHits,
+    misses: embeddingCacheMisses,
+  }
 }
 
 export async function embedBatch(texts: string[]): Promise<number[][]> {

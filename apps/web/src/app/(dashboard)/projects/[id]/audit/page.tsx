@@ -14,6 +14,7 @@ const TABS = [
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },
+  { label: 'Comments', href: '/comments' },
   { label: 'Audit', href: '/audit' },
 ]
 

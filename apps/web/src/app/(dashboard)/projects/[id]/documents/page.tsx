@@ -4,9 +4,10 @@ import Link from 'next/link'
 import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
 import { documents, projects, users } from '@buildops/database/schema'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq, desc, sum } from 'drizzle-orm'
 import { UploadButton } from '@/components/documents/upload-button'
 import { DeleteDocumentButton } from '@/components/documents/delete-document-button'
+import { QuotaBar } from '@/components/documents/quota-bar'
 
 export const metadata: Metadata = { title: 'Documents' }
 
@@ -58,6 +59,7 @@ const TABS = [
   { label: 'BOM', href: '/bom' },
   { label: 'Documents', href: '/documents' },
   { label: 'Billing', href: '/billing' },
+  { label: 'Comments', href: '/comments' },
   { label: 'Audit', href: '/audit' },
 ]
 
@@ -89,6 +91,14 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
     .from(documents)
     .where(and(eq(documents.project_id, id), eq(documents.tenant_id, userRow.tenant_id)))
     .orderBy(desc(documents.created_at))
+
+  // Server-side total of documents.size_bytes for this (tenant, project) so
+  // the QuotaBar reflects authoritative usage, not what's currently rendered.
+  const [quotaRow] = await db
+    .select({ total: sum(documents.size_bytes) })
+    .from(documents)
+    .where(and(eq(documents.project_id, id), eq(documents.tenant_id, userRow.tenant_id)))
+  const usedBytes = quotaRow?.total ? Number(quotaRow.total) : 0
 
   return (
     <div>
@@ -127,6 +137,8 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
           })}
         </div>
       </div>
+
+      <QuotaBar usedBytes={usedBytes} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <p style={{ fontSize: '0.875rem', color: 'var(--color-neutral-500)', margin: 0 }}>

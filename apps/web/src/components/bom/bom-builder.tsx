@@ -14,6 +14,92 @@ interface BomLineItem {
   unit_cost_cents: number
   markup_bps: number
   line_total_cents: number
+  notes?: string | null
+}
+
+type LineSource = 'rag' | 'catalog' | 'manual' | 'unpriced' | 'unknown'
+
+function classifyLineSource(item: BomLineItem): LineSource {
+  const notes = (item.notes ?? '').trim()
+  if (item.unit_cost_cents === 0 || notes.startsWith('No catalog')) return 'unpriced'
+  if (notes.startsWith('Cost from RAG')) return 'rag'
+  if (
+    notes.startsWith('Cost from Catalog') ||
+    notes.startsWith('Cost from PH industry catalog')
+  )
+    return 'catalog'
+  if (notes.startsWith('Manual')) return 'manual'
+  return 'unknown'
+}
+
+function SourceBadge({ item }: { item: BomLineItem }) {
+  const source = classifyLineSource(item)
+  const tooltip = (item.notes ?? '').trim() || 'No provenance recorded'
+
+  const config: Record<
+    LineSource,
+    { label: string; bg: string; fg: string; border: string }
+  > = {
+    rag: {
+      label: 'RAG',
+      bg: 'var(--color-success-soft)',
+      fg: 'var(--color-success)',
+      border: 'color-mix(in oklch, var(--color-success) 22%, transparent)',
+    },
+    catalog: {
+      label: 'CAT',
+      bg: 'var(--color-info-soft)',
+      fg: 'var(--color-info)',
+      border: 'color-mix(in oklch, var(--color-info) 22%, transparent)',
+    },
+    manual: {
+      label: 'M',
+      bg: 'var(--color-neutral-100)',
+      fg: 'var(--color-neutral-700)',
+      border: 'var(--color-border)',
+    },
+    unpriced: {
+      label: '!',
+      bg: 'var(--color-warning-soft)',
+      fg: 'var(--color-warning)',
+      border: 'color-mix(in oklch, var(--color-warning) 22%, transparent)',
+    },
+    unknown: {
+      label: '—',
+      bg: 'var(--color-neutral-100)',
+      fg: 'var(--color-neutral-500)',
+      border: 'var(--color-border)',
+    },
+  }
+
+  const { label, bg, fg, border } = config[source]
+
+  return (
+    <span
+      title={tooltip}
+      aria-label={`Pricing source: ${tooltip}`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 28,
+        padding: '1px 6px',
+        marginRight: 8,
+        borderRadius: 4,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: '0.03em',
+        lineHeight: 1.4,
+        background: bg,
+        color: fg,
+        border: `1px solid ${border}`,
+        fontFamily: 'var(--font-mono)',
+        verticalAlign: 'baseline',
+      }}
+    >
+      {label}
+    </span>
+  )
 }
 
 interface Bom {
@@ -632,6 +718,7 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
                     {item.code ?? '—'}
                   </td>
                   <td style={{ fontSize: '0.875rem', color: 'var(--color-neutral-900)' }}>
+                    <SourceBadge item={item} />
                     {item.description}
                   </td>
                   <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
