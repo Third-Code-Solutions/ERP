@@ -12,11 +12,20 @@
 //      npx playwright test --project=chromium --workers=1 e2e/smoke-console.spec.ts
 import { test, expect, type BrowserContext } from '@playwright/test'
 
+const SEEDED_PROJECT = '11111111-1111-4111-8111-111111111111' // Somnus
+
 const ROUTES = [
   '/dashboard',
   '/projects',
   '/projects?q=somnus',
   '/projects?status=active&sort=name&order=asc',
+  `/projects/${SEEDED_PROJECT}`,
+  `/projects/${SEEDED_PROJECT}/scope`,
+  `/projects/${SEEDED_PROJECT}/bom`,
+  `/projects/${SEEDED_PROJECT}/documents`,
+  `/projects/${SEEDED_PROJECT}/billing`,
+  `/projects/${SEEDED_PROJECT}/comments`,
+  `/projects/${SEEDED_PROJECT}/audit`,
   '/pipeline/coverage',
   '/pipeline/conversion',
   '/procurement',
@@ -115,8 +124,19 @@ test('visits every major route without console errors', async ({ page, context }
     expect(status, `${route} returned ${status}`).toBeGreaterThanOrEqual(200)
     expect(status, `${route} returned ${status}`).toBeLessThan(400)
     await page.waitForTimeout(800)
-    const h1Count = await page.locator('h1').count()
-    expect(h1Count, `${route} did not render any h1`).toBeGreaterThan(0)
+
+    // Did the Next.js dev error overlay appear? `nextjs-portal` is always
+    // present (it hosts the dev-tools button), so we look for actual error
+    // text inside it via the body. The "Cannot read properties of undefined
+    // (reading 'call')" family of stale-cache errors renders an overlay with
+    // "Runtime Error" / "Build Error" / "Unhandled Runtime Error" headings.
+    const bodyText = (await page.textContent('body').catch(() => null)) ?? ''
+    const errorOverlay = /Runtime Error|Build Error|Unhandled Runtime Error|Cannot read properties of undefined/.test(bodyText)
+    expect(errorOverlay, `${route} showed a Next.js error overlay:\n${bodyText.slice(0, 500)}`).toBe(false)
+
+    // Sanity: page rendered substantive content (not a blank/error page).
+    // Empty content usually means the route component threw mid-render.
+    expect(bodyText.length, `${route} rendered <100 chars of body text`).toBeGreaterThan(100)
   }
 
   if (consoleErrors.length > 0) {
