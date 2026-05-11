@@ -38,7 +38,6 @@ export function LoginForm() {
     <form
       onSubmit={handleSubmit}
       method="post"
-      action="javascript:void(0)"
       noValidate
       style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
     >
