@@ -13,6 +13,7 @@
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
+    "verify:workflow-action-refs": "node scripts/verify-workflow-action-refs.mjs",
     "clean": "turbo clean && find . -name 'node_modules' -type d -not -path './.git/*' -exec rm -rf {} + 2>/dev/null; find . -name '.next' -type d -exec rm -rf {} + 2>/dev/null; true"
   },
   "devDependencies": {
