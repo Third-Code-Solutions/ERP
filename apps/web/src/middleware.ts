@@ -39,25 +39,30 @@ function generateNonce(): string {
 
 function buildCSP(nonce: string): string {
   // In dev we must allow eval + inline scripts for HMR/Fast Refresh.
-  // In prod the nonce path is strict.
+  // In prod the nonce path is strict and uses 'strict-dynamic' so the
+  // nonced framework bootstrap can chain-load route chunks without each
+  // needing its own nonce. http: + https: are CSP3 fallbacks ignored by
+  // browsers that honor 'strict-dynamic'.
   const isDev = process.env.NODE_ENV !== 'production'
   const scriptSrc = isDev
     ? `script-src 'self' 'unsafe-eval' 'unsafe-inline' 'nonce-${nonce}'`
-    : `script-src 'self' 'nonce-${nonce}'`
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: 'unsafe-inline'`
 
   return [
     "default-src 'self'",
     scriptSrc,
-    // 'self' covers next/font self-hosted fonts. fonts.googleapis.com is allowed
-    // for any external <link> that slips in (e.g. browser extensions); the CSP
-    // is informational rather than restrictive on style sources here.
+    // Next.js / next-themes inject inline <style> tags without a nonce. Keep
+    // 'unsafe-inline' on style-src — modern browsers do not yet treat it as
+    // unsafe in the way they treat inline scripts.
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://api.openai.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://api.openai.com https://vitals.vercel-insights.com",
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
     "upgrade-insecure-requests",
   ].join('; ')
 }
@@ -69,9 +74,24 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
   const nonce = generateNonce()
+  const csp = buildCSP(nonce)
 
-  // Supabase session refresh (must happen before auth checks)
-  let supabaseResponse = NextResponse.next({ request })
+  // Propagate nonce + CSP through REQUEST headers. Next.js inspects the
+  // Content-Security-Policy request header during render and applies the
+  // nonce to its own inline framework scripts. Without this, the rendered
+  // <script nonce=…> never matches the CSP nonce in the response header
+  // and the browser blocks every Next.js bootstrap script.
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+  requestHeaders.set('Content-Security-Policy', csp)
+
+  // Supabase session refresh (must happen before auth checks). The response
+  // we return is rebuilt whenever Supabase writes refreshed auth cookies, so
+  // we route every NextResponse.next() through this factory to guarantee the
+  // modified request headers (including the nonce) survive each rebuild.
+  let supabaseResponse = NextResponse.next({
+    request: { headers: requestHeaders },
+  })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -85,7 +105,9 @@ export async function middleware(request: NextRequest) {
           for (const { name, value } of cookiesToSet) {
             request.cookies.set(name, value)
           }
-          supabaseResponse = NextResponse.next({ request })
+          supabaseResponse = NextResponse.next({
+            request: { headers: requestHeaders },
+          })
           for (const { name, value, options } of cookiesToSet) {
             supabaseResponse.cookies.set(name, value, options)
           }
@@ -123,11 +145,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
-  // Attach nonce to request headers so server components can read it
+  // Security headers on every rendered response
   supabaseResponse.headers.set('x-nonce', nonce)
-
-  // Security headers on every response
-  supabaseResponse.headers.set('Content-Security-Policy', buildCSP(nonce))
+  supabaseResponse.headers.set('Content-Security-Policy', csp)
   supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff')
   supabaseResponse.headers.set('X-Frame-Options', 'DENY')
   supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
