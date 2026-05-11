@@ -77,7 +77,7 @@ export function SignupForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} method="post" action="javascript:void(0)" noValidate>
+    <form onSubmit={handleSubmit} method="post" noValidate>
       <div style={{ marginBottom: '16px' }}>
         <label htmlFor="email" style={labelStyle}>
           Email address
