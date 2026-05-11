@@ -115,8 +115,10 @@ lerna-debug.log*
 # =====================================================================
 # Editor / OS
 # =====================================================================
-.vscode/
+# Track shared VS Code/Cursor workspace defaults; ignore the rest of .vscode/
+.vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 !.vscode/settings.json.example
 .idea/
 *.swp
@@ -138,6 +140,9 @@ Desktop.ini
 .scratch/
 tmp/
 temp/
+
+# Downloaded CI helper (e.g. rhysd/actionlint install script)
+/actionlint
 
 # =====================================================================
 # Excel workbooks and large source data — keep out unless explicitly tracked

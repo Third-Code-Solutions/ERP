@@ -1,0 +1,8 @@
+{
+  "github-actions.use-enterprise": false,
+  "github-actions.remote-name": "origin",
+  "files.associations": {
+    "**/.github/workflows/*.yml": "github-actions-workflow",
+    "**/.github/workflows/*.yaml": "github-actions-workflow"
+  }
+}
