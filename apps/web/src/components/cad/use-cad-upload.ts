@@ -13,12 +13,13 @@ export interface CadUploadResult {
     | 'no-items'
     | 'ai-not-configured'
     | 'too-large'
+    | 'parse-failed'
     | 'error'
   scopeItemsCreated: number
   warnings: string[]
   layerCount: number
   entityCount: number
-  detectedFormat: 'dxf' | 'dwg' | 'pdf' | 'image' | 'unknown'
+  detectedFormat: 'dxf' | 'dwg' | 'pdf' | 'image' | 'spreadsheet' | 'csv' | 'docx' | 'unknown'
   dwgVersion: string | null
   extensionMismatch: boolean
   message: string
@@ -46,7 +47,10 @@ interface SignResponse {
 }
 
 export const MAX_CAD_SIZE_BYTES = 100 * 1024 * 1024
-export const CAD_ACCEPT = '.dxf,.dwg,.pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls'
+// Every format the BOM intake supports. CAD goes through the DXF/DWG parser;
+// everything else goes through the AI-vision scope extractor.
+export const CAD_ACCEPT =
+  '.dxf,.dwg,.pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.xlsx,.xls,.csv,.docx,.doc'
 
 async function signUpload(
   projectId: string,
@@ -230,6 +234,12 @@ function fmtLabel(detected: CadUploadResult['detectedFormat']): string {
       return 'PDF'
     case 'image':
       return 'Image'
+    case 'spreadsheet':
+      return 'Spreadsheet'
+    case 'csv':
+      return 'CSV'
+    case 'docx':
+      return 'Word doc'
     case 'dxf':
     default:
       return 'DXF'

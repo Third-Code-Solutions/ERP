@@ -25,17 +25,40 @@ const MAX_SIZE_BYTES = 100 * 1024 * 1024
 
 type DocumentType = 'dxf' | 'pdf' | 'image' | 'contract' | 'bom' | 'invoice' | 'po' | 'other'
 type CadFormat = 'dxf' | 'dwg'
+// ExtractorKind decides which scope extractor runs for a given upload. It is
+// independent of the persisted document_type enum so we can route new formats
+// (xlsx, csv, docx) without touching the live Postgres enum / running a
+// migration. document_type for these is just 'other'.
+type ExtractorKind = 'pdf' | 'image' | 'spreadsheet' | 'csv' | 'docx'
 
 function classify(
   fileName: string,
   mimeType: string
-): { docType: DocumentType; cadFormat: CadFormat | null } {
-  const ext = fileName.split('.').pop()?.toLowerCase()
-  if (ext === 'dxf') return { docType: 'dxf', cadFormat: 'dxf' }
-  if (ext === 'dwg') return { docType: 'dxf', cadFormat: 'dwg' }
-  if (ext === 'pdf' || mimeType === 'application/pdf') return { docType: 'pdf', cadFormat: null }
-  if (mimeType.startsWith('image/')) return { docType: 'image', cadFormat: null }
-  return { docType: 'other', cadFormat: null }
+): {
+  docType: DocumentType
+  cadFormat: CadFormat | null
+  extractorKind: ExtractorKind | null
+} {
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
+
+  if (ext === 'dxf') return { docType: 'dxf', cadFormat: 'dxf', extractorKind: null }
+  if (ext === 'dwg') return { docType: 'dxf', cadFormat: 'dwg', extractorKind: null }
+  if (ext === 'pdf' || mimeType === 'application/pdf')
+    return { docType: 'pdf', cadFormat: null, extractorKind: 'pdf' }
+  if (mimeType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'].includes(ext))
+    return { docType: 'image', cadFormat: null, extractorKind: 'image' }
+  if (ext === 'xlsx' || ext === 'xls' || mimeType.includes('spreadsheet'))
+    return { docType: 'other', cadFormat: null, extractorKind: 'spreadsheet' }
+  if (ext === 'csv' || mimeType === 'text/csv')
+    return { docType: 'other', cadFormat: null, extractorKind: 'csv' }
+  if (
+    ext === 'docx' ||
+    ext === 'doc' ||
+    mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  )
+    return { docType: 'other', cadFormat: null, extractorKind: 'docx' }
+
+  return { docType: 'other', cadFormat: null, extractorKind: null }
 }
 
 export async function POST(req: NextRequest) {
@@ -77,7 +100,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'File exceeds 100 MB limit' }, { status: 413 })
   }
 
-  const { docType, cadFormat } = classify(fileName, mimeType)
+  const { docType, cadFormat, extractorKind } = classify(fileName, mimeType)
 
   let docId: string
   try {
@@ -127,7 +150,15 @@ export async function POST(req: NextRequest) {
         warnings: string[]
         layerCount: number
         entityCount: number
-        detectedFormat: 'dxf' | 'dwg' | 'pdf' | 'image' | 'unknown'
+        detectedFormat:
+          | 'dxf'
+          | 'dwg'
+          | 'pdf'
+          | 'image'
+          | 'spreadsheet'
+          | 'csv'
+          | 'docx'
+          | 'unknown'
         dwgVersion: string | null
         extensionMismatch: boolean
         message: string
@@ -194,7 +225,7 @@ export async function POST(req: NextRequest) {
       console.error('[upload/complete] inline CAD parse failed:', err)
       cadParseWarning = `CAD parse failed: ${message}`
     }
-  } else if (docType === 'pdf' || docType === 'image') {
+  } else if (extractorKind) {
     try {
       const visual: VisualExtractResult = await extractScopeFromVisual({
         tenantId: userRow.tenant_id,
@@ -203,7 +234,7 @@ export async function POST(req: NextRequest) {
         storagePath,
         fileName,
         mimeType,
-        kind: docType,
+        kind: extractorKind,
       })
 
       cadParseQueued = visual.status === 'extracted'
