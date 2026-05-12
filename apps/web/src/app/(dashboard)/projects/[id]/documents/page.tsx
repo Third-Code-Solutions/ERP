@@ -8,6 +8,7 @@ import { and, eq, desc, sum } from 'drizzle-orm'
 import { UploadButton } from '@/components/documents/upload-button'
 import { DeleteDocumentButton } from '@/components/documents/delete-document-button'
 import { QuotaBar } from '@/components/documents/quota-bar'
+import { IconDownload, IconExternalLink } from '@/components/ui/icons'
 
 export const metadata: Metadata = { title: 'Documents' }
 
@@ -173,16 +174,26 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
                 <th>Type</th>
                 <th className="numeric">Size</th>
                 <th>Uploaded</th>
-                <th style={{ width: 56 }} aria-label="Actions" />
+                <th style={{ width: 130 }} aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
               {docs.map((doc) => (
                 <tr key={doc.id}>
                   <td>
-                    <span style={{ fontWeight: 500, color: 'var(--color-neutral-900)' }}>
+                    <a
+                      href={`/api/documents/${doc.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontWeight: 500,
+                        color: 'var(--color-navy-700)',
+                        textDecoration: 'none',
+                      }}
+                      title="Open in new tab"
+                    >
                       {doc.file_name}
-                    </span>
+                    </a>
                     {doc.description && (
                       <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-neutral-400)', marginTop: '2px' }}>
                         {doc.description}
@@ -215,7 +226,43 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
                       day: 'numeric',
                     })}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <a
+                      href={`/api/documents/${doc.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open in new tab"
+                      aria-label={`Open ${doc.file_name} in new tab`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 30,
+                        height: 30,
+                        borderRadius: 6,
+                        color: 'var(--color-neutral-500)',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <IconExternalLink size={16} />
+                    </a>
+                    <a
+                      href={`/api/documents/${doc.id}?download=1`}
+                      title="Download"
+                      aria-label={`Download ${doc.file_name}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 30,
+                        height: 30,
+                        borderRadius: 6,
+                        color: 'var(--color-neutral-500)',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <IconDownload size={16} />
+                    </a>
                     <DeleteDocumentButton
                       documentId={doc.id}
                       projectId={id}

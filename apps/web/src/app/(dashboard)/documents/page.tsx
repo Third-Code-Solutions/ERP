@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
 import { documents, projects, users } from '@buildops/database/schema'
-import { and, eq, desc } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
+import { IconDownload, IconExternalLink } from '@/components/ui/icons'
 
 export const metadata: Metadata = { title: 'Documents' }
 
@@ -117,15 +118,26 @@ export default async function DocumentsPage() {
                 <th>Project</th>
                 <th className="numeric">Size</th>
                 <th>Uploaded</th>
+                <th style={{ width: 90 }} aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
               {docs.map((doc) => (
                 <tr key={doc.id}>
                   <td>
-                    <span style={{ fontWeight: 500, color: 'var(--color-neutral-900)' }}>
+                    <a
+                      href={`/api/documents/${doc.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontWeight: 500,
+                        color: 'var(--color-navy-700)',
+                        textDecoration: 'none',
+                      }}
+                      title="Open in new tab"
+                    >
                       {doc.file_name}
-                    </span>
+                    </a>
                     {doc.description && (
                       <span
                         style={{
@@ -175,6 +187,44 @@ export default async function DocumentsPage() {
                       month: 'short',
                       day: 'numeric',
                     })}
+                  </td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <a
+                      href={`/api/documents/${doc.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open in new tab"
+                      aria-label={`Open ${doc.file_name} in new tab`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 30,
+                        height: 30,
+                        borderRadius: 6,
+                        color: 'var(--color-neutral-500)',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <IconExternalLink size={16} />
+                    </a>
+                    <a
+                      href={`/api/documents/${doc.id}?download=1`}
+                      title="Download"
+                      aria-label={`Download ${doc.file_name}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 30,
+                        height: 30,
+                        borderRadius: 6,
+                        color: 'var(--color-neutral-500)',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <IconDownload size={16} />
+                    </a>
                   </td>
                 </tr>
               ))}

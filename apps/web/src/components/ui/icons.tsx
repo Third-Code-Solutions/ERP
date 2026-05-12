@@ -192,6 +192,18 @@ export const IconUpload = (p: IconProps) => (
   </Svg>
 )
 
+export const IconDownload = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 4v12M6 10l6 6 6-6M4 20h16" />
+  </Svg>
+)
+
+export const IconExternalLink = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M14 4h6v6M20 4 10 14M14 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V12a2 2 0 0 1 2-2h6" />
+  </Svg>
+)
+
 export const IconLayers = (p: IconProps) => (
   <Svg {...p}>
     <path d="m12 3 9 5-9 5-9-5 9-5Z" />
