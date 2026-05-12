@@ -14,13 +14,21 @@ interface StageAdvanceButtonProps {
 }
 
 const STAGE_LABELS: Record<OpportunityStage, string> = {
+  // Legacy
   opportunity_creation: 'Opportunity Creation',
   scoping: 'Scoping',
-  bom_submission: 'BOM Submission',
   resubmission: 'Resubmission',
-  negotiation: 'Negotiation',
   closed_won: 'Closed Won',
   closed_lost: 'Closed Lost',
+  // ABI Ops 8-stage canonical
+  lead: 'Lead',
+  site_survey: 'Site Survey',
+  design: 'Design',
+  bom_submission: 'BOM Submission',
+  negotiation: 'Negotiation',
+  contract: 'Contract',
+  won: 'Won',
+  lost: 'Lost',
 }
 
 function isStage(value: string): value is OpportunityStage {
@@ -39,10 +47,15 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
   const transitions = STAGE_TRANSITIONS[currentStage]
   if (transitions.length === 0) return null
 
-  // Split into "forward" (won/scoping/etc.) and "lost" so we can render the
+  // Split into "forward" (won/contract/etc.) and "lost" so we can render the
   // primary advance path as a button and lost as a quieter secondary action.
-  const lostNext = transitions.includes('closed_lost') ? 'closed_lost' : null
-  const forwardNexts = transitions.filter((s) => s !== 'closed_lost')
+  // Accepts both legacy (closed_lost) and ABI canonical (lost) names.
+  const lostNext: OpportunityStage | null = transitions.includes('lost')
+    ? 'lost'
+    : transitions.includes('closed_lost')
+      ? 'closed_lost'
+      : null
+  const forwardNexts = transitions.filter((s) => s !== 'closed_lost' && s !== 'lost')
 
   function advance(stage: OpportunityStage, reason?: string) {
     setOpen(false)
@@ -55,7 +68,8 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
   }
 
   function confirmLost() {
-    advance('closed_lost', lostReason.trim() || undefined)
+    if (!lostNext) return
+    advance(lostNext, lostReason.trim() || undefined)
   }
 
   // If only one forward path exists, render a single button (no menu).

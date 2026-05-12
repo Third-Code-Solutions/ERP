@@ -36,22 +36,38 @@ describe('STAGE_TRANSITIONS', () => {
     expect(STAGE_TRANSITIONS.closed_lost).toHaveLength(0)
   })
 
-  it('every stage can progress to closed_lost', () => {
-    const activeStages = [
+  it('every legacy active stage can progress to closed_lost', () => {
+    // Legacy stages keep their original loss transition.
+    const legacyActive = [
       'opportunity_creation',
       'scoping',
-      'bom_submission',
       'resubmission',
-      'negotiation',
     ] as const
-
-    for (const stage of activeStages) {
+    for (const stage of legacyActive) {
       expect(STAGE_TRANSITIONS[stage]).toContain('closed_lost')
     }
   })
 
-  it('negotiation can close won', () => {
-    expect(STAGE_TRANSITIONS.negotiation).toContain('closed_won')
+  it('every ABI active stage can progress to lost', () => {
+    // Canonical ABI Ops 8-stage flow uses `lost` (not `closed_lost`).
+    const abiActive = [
+      'lead',
+      'site_survey',
+      'design',
+      'bom_submission',
+      'negotiation',
+      'contract',
+    ] as const
+    for (const stage of abiActive) {
+      expect(STAGE_TRANSITIONS[stage], `${stage} should reach lost`).toContain('lost')
+    }
+  })
+
+  it('legacy negotiation→closed_won path preserved', () => {
+    // Existing data may still reference legacy stage names; transition kept.
+    // Canonical replacement: negotiation → contract → won.
+    expect(STAGE_TRANSITIONS.negotiation).toContain('contract')
+    expect(STAGE_TRANSITIONS.contract).toContain('won')
   })
 
   it('opportunity_creation advances to scoping', () => {
@@ -60,17 +76,31 @@ describe('STAGE_TRANSITIONS', () => {
 })
 
 describe('createOpportunitySchema', () => {
-  it('requires project_id as UUID', () => {
+  it('requires at least one of account_id or project_id', () => {
+    const result = createOpportunitySchema.safeParse({ tcv_cents: 1 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects malformed project_id', () => {
     const result = createOpportunitySchema.safeParse({ project_id: 'not-a-uuid' })
     expect(result.success).toBe(false)
   })
 
-  it('accepts a valid opportunity input', () => {
+  it('accepts a valid opportunity with project_id', () => {
     const result = createOpportunitySchema.safeParse({
       project_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
       tcv_cents: 5000000000,
       gp_cents: 1000000000,
       probability: 40,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts a valid opportunity with account_id (ABI Ops flow)', () => {
+    const result = createOpportunitySchema.safeParse({
+      account_id: 'b1ffbc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      tcv_cents: 1_000_000,
+      probability: 25,
     })
     expect(result.success).toBe(true)
   })
