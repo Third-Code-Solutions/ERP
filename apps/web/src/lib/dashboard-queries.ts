@@ -1,6 +1,6 @@
 import { db } from '@buildops/database'
 import { boms, invoices, opportunities, projects, purchaseOrders, users } from '@buildops/database/schema'
-import { eq, and, inArray, lt, sum, count, sql, desc } from 'drizzle-orm'
+import { eq, and, inArray, lt, gte, lte, sum, count, sql, desc } from 'drizzle-orm'
 
 export interface KpiData {
   activeTcv: number
@@ -46,6 +46,34 @@ const ACTIVE_STAGES = [
   'resubmission',
   'negotiation',
 ] as const
+
+// Canonical ABI Ops 8-stage flow (REFACTOR.md M1 US-002). Pairs of
+// adjacent stages drive conversion-rate computation in the dashboard.
+export const ABI_STAGES = [
+  'lead',
+  'site_survey',
+  'design',
+  'bom_submission',
+  'negotiation',
+  'contract',
+  'won',
+] as const
+
+export type AbiStage = (typeof ABI_STAGES)[number]
+
+export interface ConversionRateRow {
+  fromStage: AbiStage
+  toStage: AbiStage
+  fromCount: number
+  toCount: number
+  ratePct: number
+}
+
+export interface MonthlyForecastData {
+  months: string[] // ISO YYYY-MM
+  byRep: Record<string, number[]> // weighted_tcv_cents per month
+  repLabels: Record<string, string>
+}
 
 export async function getDashboardKpis(tenantId: string): Promise<KpiData> {
   const [activeResult] = await db
@@ -338,4 +366,185 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
     if (a.severity !== b.severity) return a.severity === 'danger' ? -1 : 1
     return 0
   })
+}
+
+// -----------------------------------------------------------------------------
+// US-004 — Conversion rates between ABI Ops stages.
+//
+// Rate for pair (A → B) = count(stage at or beyond B) / count(stage at or
+// beyond A) * 100. "At or beyond" uses the canonical ABI_STAGES order so a
+// "won" deal counts as having passed every prior stage. Closed-lost rows
+// are excluded — the analysis is about progression, not loss attribution.
+// -----------------------------------------------------------------------------
+
+export async function getConversionRates(tenantId: string): Promise<ConversionRateRow[]> {
+  const rows = await db
+    .select({ stage: opportunities.stage, count: count() })
+    .from(opportunities)
+    .where(eq(opportunities.tenant_id, tenantId))
+    .groupBy(opportunities.stage)
+
+  // Map of how many opps are currently sitting AT each stage.
+  const atStage = new Map<string, number>()
+  for (const r of rows) atStage.set(r.stage, Number(r.count))
+
+  // "At or beyond" count for stage X = sum of counts at X and later.
+  const atOrBeyond = new Map<AbiStage, number>()
+  for (let i = 0; i < ABI_STAGES.length; i += 1) {
+    const fromStage = ABI_STAGES[i] as AbiStage
+    let acc = 0
+    for (let j = i; j < ABI_STAGES.length; j += 1) {
+      acc += atStage.get(ABI_STAGES[j] as string) ?? 0
+    }
+    atOrBeyond.set(fromStage, acc)
+  }
+
+  const result: ConversionRateRow[] = []
+  for (let i = 0; i < ABI_STAGES.length - 1; i += 1) {
+    const fromStage = ABI_STAGES[i] as AbiStage
+    const toStage = ABI_STAGES[i + 1] as AbiStage
+    const fromCount = atOrBeyond.get(fromStage) ?? 0
+    const toCount = atOrBeyond.get(toStage) ?? 0
+    const ratePct = fromCount > 0 ? Math.round((toCount / fromCount) * 1000) / 10 : 0
+    result.push({ fromStage, toStage, fromCount, toCount, ratePct })
+  }
+  return result
+}
+
+// -----------------------------------------------------------------------------
+// US-004 — Monthly forecast (weighted_tcv per rep per closing-month).
+//
+// Buckets weighted pipeline into the next `monthsAhead` months keyed on
+// `closing_date`. Closed-won and closed-lost rows are excluded.
+// -----------------------------------------------------------------------------
+
+export async function getMonthlyForecast(
+  tenantId: string,
+  monthsAhead = 6
+): Promise<MonthlyForecastData> {
+  const now = new Date()
+  const startMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const endMonth = new Date(
+    Date.UTC(startMonth.getUTCFullYear(), startMonth.getUTCMonth() + monthsAhead, 1)
+  )
+
+  const months: string[] = []
+  for (let i = 0; i < monthsAhead; i += 1) {
+    const d = new Date(Date.UTC(startMonth.getUTCFullYear(), startMonth.getUTCMonth() + i, 1))
+    months.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
+  }
+
+  const TERMINAL = new Set(['closed_won', 'closed_lost', 'won', 'lost'])
+  const rows = await db
+    .select({
+      repId: opportunities.rep_id,
+      stage: opportunities.stage,
+      closingDate: opportunities.closing_date,
+      weighted: opportunities.weighted_tcv_cents,
+    })
+    .from(opportunities)
+    .where(
+      and(
+        eq(opportunities.tenant_id, tenantId),
+        gte(opportunities.closing_date, startMonth),
+        lt(opportunities.closing_date, endMonth)
+      )
+    )
+
+  const byRep: Record<string, number[]> = {}
+  for (const row of rows) {
+    if (!row.closingDate) continue
+    if (TERMINAL.has(row.stage)) continue
+    const repId = row.repId ?? 'unassigned'
+    const d = new Date(row.closingDate)
+    const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+    const idx = months.indexOf(monthKey)
+    if (idx < 0) continue
+    const series = byRep[repId] ?? new Array<number>(monthsAhead).fill(0)
+    series[idx] = (series[idx] ?? 0) + Number(row.weighted ?? 0)
+    byRep[repId] = series
+  }
+
+  const repIds = Object.keys(byRep).filter((id) => id !== 'unassigned')
+  const repLabels: Record<string, string> = {}
+  if (repIds.length > 0) {
+    const repUsers = await db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(inArray(users.id, repIds))
+    for (const u of repUsers) repLabels[u.id] = u.email
+  }
+  if (byRep['unassigned']) repLabels['unassigned'] = 'Unassigned'
+
+  return { months, byRep, repLabels }
+}
+
+// -----------------------------------------------------------------------------
+// CSV export — rows for the opportunities pipeline, filtered by closing-
+// date window and optional stage. Returns plain row records ready to be
+// streamed as CSV from the route handler.
+// -----------------------------------------------------------------------------
+
+export interface OpportunityExportRow {
+  id: string
+  account_name: string
+  project_name: string
+  stage: string
+  tcv_php: string
+  gp_php: string
+  probability: number
+  weighted_tcv_php: string
+  closing_date: string
+  rep_email: string
+}
+
+export async function getOpportunitiesForExport(args: {
+  tenantId: string
+  since?: Date
+  until?: Date
+  stage?: string
+}): Promise<OpportunityExportRow[]> {
+  const conditions = [eq(opportunities.tenant_id, args.tenantId)]
+  if (args.since) conditions.push(gte(opportunities.closing_date, args.since))
+  if (args.until) conditions.push(lte(opportunities.closing_date, args.until))
+  if (args.stage) {
+    conditions.push(
+      eq(
+        opportunities.stage,
+        // Cast — stage is enum-typed but value comes from URL/string.
+        args.stage as never
+      )
+    )
+  }
+
+  const rows = await db
+    .select({
+      id: opportunities.id,
+      stage: opportunities.stage,
+      tcv: opportunities.tcv_cents,
+      gp: opportunities.gp_cents,
+      probability: opportunities.probability,
+      weighted: opportunities.weighted_tcv_cents,
+      closingDate: opportunities.closing_date,
+      repEmail: users.email,
+      projectName: projects.name,
+      projectClient: projects.client,
+    })
+    .from(opportunities)
+    .leftJoin(projects, eq(opportunities.project_id, projects.id))
+    .leftJoin(users, eq(opportunities.rep_id, users.id))
+    .where(and(...conditions))
+
+  return rows.map((r) => ({
+    id: r.id,
+    account_name: r.projectClient ?? '',
+    project_name: r.projectName ?? '',
+    stage: r.stage,
+    tcv_php: ((r.tcv ?? 0) / 100).toFixed(2),
+    gp_php: ((r.gp ?? 0) / 100).toFixed(2),
+    probability: Number(r.probability ?? 0),
+    weighted_tcv_php: ((r.weighted ?? 0) / 100).toFixed(2),
+    closing_date: r.closingDate ? new Date(r.closingDate).toISOString().slice(0, 10) : '',
+    rep_email: r.repEmail ?? '',
+  }))
 }

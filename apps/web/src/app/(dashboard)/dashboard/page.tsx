@@ -5,12 +5,18 @@ import {
   getStageDistribution,
   getRepScorecards,
   getAlerts,
+  getConversionRates,
+  getMonthlyForecast,
 } from '@/lib/dashboard-queries'
 import { KpiCards } from '@/components/dashboard/kpi-cards'
 import { RepScorecardTable } from '@/components/dashboard/rep-scorecard'
 import { StageDistributionTable } from '@/components/dashboard/stage-distribution'
 import { AlertsPanel } from '@/components/dashboard/alerts-panel'
 import { DashboardRealtimeRefresher } from '@/components/dashboard/realtime-refresher'
+import { ConversionRateTable } from '@/components/dashboard/conversion-rate-table'
+import { ForecastChart } from '@/components/dashboard/forecast-chart'
+import { ExportCsvButton } from '@/components/dashboard/export-csv-button'
+import { CloseDateFilter } from '@/components/dashboard/close-date-filter'
 import { db } from '@buildops/database'
 import { users } from '@buildops/database/schema'
 import { eq } from 'drizzle-orm'
@@ -39,12 +45,18 @@ function firstName(email: string | undefined): string {
   return part.charAt(0).toUpperCase() + part.slice(1) || 'there'
 }
 
-export default async function DashboardPage() {
+interface DashboardPageProps {
+  // Next 15 App Router: searchParams arrives as a Promise.
+  searchParams?: Promise<{ since?: string; until?: string; stage?: string }>
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const user = await getUser()
   if (!user) return null
 
   const tenantId = await getTenantId(user.id)
   const renderedAt = new Date()
+  const resolvedSearch = (await searchParams) ?? {}
 
   if (!tenantId) {
     return (
@@ -58,11 +70,13 @@ export default async function DashboardPage() {
     )
   }
 
-  const [kpis, stages, reps, alerts] = await Promise.all([
+  const [kpis, stages, reps, alerts, conversionRates, forecast] = await Promise.all([
     getDashboardKpis(tenantId),
     getStageDistribution(tenantId),
     getRepScorecards(tenantId),
     getAlerts(tenantId),
+    getConversionRates(tenantId),
+    getMonthlyForecast(tenantId, 6),
   ])
 
   const fmt = new Intl.DateTimeFormat('en-PH', {
@@ -77,6 +91,10 @@ export default async function DashboardPage() {
     minute: '2-digit',
     timeZone: 'Asia/Manila',
   })
+
+  // Reference search params so a future stage-filter widget can drive the
+  // dashboard; for now they only flow into ExportCsvButton via the URL.
+  void resolvedSearch
 
   return (
     <>
@@ -114,6 +132,45 @@ export default async function DashboardPage() {
       </div>
 
       <RepScorecardTable reps={reps} />
+
+      <section
+        aria-labelledby="pipeline-analytics-heading"
+        style={{ marginTop: 32 }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 12,
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+          }}
+        >
+          <h2
+            id="pipeline-analytics-heading"
+            style={{ fontSize: 16, fontWeight: 600, margin: 0 }}
+          >
+            Pipeline analytics
+          </h2>
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+            }}
+          >
+            <CloseDateFilter />
+            <ExportCsvButton />
+          </div>
+        </div>
+
+        <div className="section-grid-2">
+          <ConversionRateTable rows={conversionRates} />
+          <ForecastChart data={forecast} />
+        </div>
+      </section>
     </>
   )
 }

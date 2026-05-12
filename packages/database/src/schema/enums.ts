@@ -112,13 +112,24 @@ export const documentTypeEnum = pgEnum('document_type', [
   'other',
 ])
 
+// PO status. Legacy values (submitted/confirmed/delivered) retained for
+// back-compat. New ABI 3-step flow per REFACTOR.md US-Pre-003:
+// draft → pending_pm_approval → pending_commercial_approval →
+// pending_scm_issuance → issued → partial_delivered → fully_delivered.
 export const purchaseOrderStatusEnum = pgEnum('purchase_order_status', [
+  // Legacy
   'draft',
   'submitted',
   'confirmed',
   'partial_delivery',
   'delivered',
   'cancelled',
+  // ABI 3-step approval flow
+  'pending_pm_approval',
+  'pending_commercial_approval',
+  'pending_scm_issuance',
+  'issued',
+  'fully_delivered',
 ])
 
 export const invoiceStatusEnum = pgEnum('invoice_status', [
