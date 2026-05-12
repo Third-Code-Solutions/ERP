@@ -55,14 +55,28 @@ export const kycArtifactTypeEnum = pgEnum('kyc_artifact_type', [
   'other',
 ])
 
+// ABI Ops pipeline stages per REFACTOR.md M1 US-002.
+// Legacy stages (opportunity_creation, scoping, resubmission, closed_won,
+// closed_lost) retained for back-compat — PG enums cannot DROP values.
+// New ABI stages: lead, site_survey, design, contract, won, lost.
+// Canonical 8-stage flow: lead → site_survey → design → bom_submission →
+// negotiation → contract → won (with lost reachable from any).
 export const opportunityStageEnum = pgEnum('opportunity_stage', [
+  // Legacy
   'opportunity_creation',
   'scoping',
-  'bom_submission',
   'resubmission',
-  'negotiation',
   'closed_won',
   'closed_lost',
+  // ABI Ops 8-stage flow
+  'lead',
+  'site_survey',
+  'design',
+  'bom_submission',
+  'negotiation',
+  'contract',
+  'won',
+  'lost',
 ])
 
 export const projectStatusEnum = pgEnum('project_status', [

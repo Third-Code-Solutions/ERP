@@ -1,37 +1,100 @@
 import { z } from 'zod'
 
+// Stage values include legacy + ABI Ops canonical. Legacy values map to
+// their ABI equivalents via STAGE_LEGACY_MAP below.
 export const opportunityStageValues = [
+  // Legacy
   'opportunity_creation',
   'scoping',
-  'bom_submission',
   'resubmission',
-  'negotiation',
   'closed_won',
   'closed_lost',
+  // ABI Ops 8-stage canonical
+  'lead',
+  'site_survey',
+  'design',
+  'bom_submission',
+  'negotiation',
+  'contract',
+  'won',
+  'lost',
 ] as const
 
 export type OpportunityStage = typeof opportunityStageValues[number]
 
-// Stage probability mapping (0-100 integer)
-export const STAGE_PROBABILITY: Record<OpportunityStage, number> = {
-  opportunity_creation: 10,
-  scoping: 25,
-  bom_submission: 40,
-  resubmission: 50,
-  negotiation: 75,
-  closed_won: 100,
-  closed_lost: 0,
+// The 8 canonical ABI Ops stages (UI-facing).
+export const ABI_STAGES = [
+  'lead',
+  'site_survey',
+  'design',
+  'bom_submission',
+  'negotiation',
+  'contract',
+  'won',
+  'lost',
+] as const satisfies readonly OpportunityStage[]
+
+export type AbiStage = (typeof ABI_STAGES)[number]
+
+// Map legacy stage values onto their ABI equivalent so dashboards/Kanban
+// can group consistently.
+export const STAGE_LEGACY_MAP: Record<OpportunityStage, AbiStage> = {
+  opportunity_creation: 'lead',
+  scoping: 'site_survey',
+  resubmission: 'negotiation',
+  closed_won: 'won',
+  closed_lost: 'lost',
+  lead: 'lead',
+  site_survey: 'site_survey',
+  design: 'design',
+  bom_submission: 'bom_submission',
+  negotiation: 'negotiation',
+  contract: 'contract',
+  won: 'won',
+  lost: 'lost',
 }
 
-// Valid stage transitions
+// Stage probability mapping (0-100 integer). Legacy values inherit the
+// probability of their canonical equivalent so weighted_tcv_cents math is
+// consistent across both taxonomies.
+export const STAGE_PROBABILITY: Record<OpportunityStage, number> = {
+  // Legacy
+  opportunity_creation: 10,
+  scoping: 25,
+  resubmission: 50,
+  closed_won: 100,
+  closed_lost: 0,
+  // ABI canonical
+  lead: 10,
+  site_survey: 25,
+  design: 40,
+  bom_submission: 55,
+  negotiation: 75,
+  contract: 90,
+  won: 100,
+  lost: 0,
+}
+
+// Valid stage transitions.
+// Legacy chain preserved verbatim. ABI canonical chain:
+//   lead → site_survey → design → bom_submission → negotiation →
+//   contract → won. `lost` is reachable from anything except won.
 export const STAGE_TRANSITIONS: Record<OpportunityStage, OpportunityStage[]> = {
-  opportunity_creation: ['scoping', 'closed_lost'],
-  scoping: ['bom_submission', 'closed_lost'],
-  bom_submission: ['resubmission', 'negotiation', 'closed_lost'],
-  resubmission: ['bom_submission', 'negotiation', 'closed_lost'],
-  negotiation: ['closed_won', 'closed_lost', 'resubmission'],
+  // Legacy
+  opportunity_creation: ['scoping', 'lead', 'closed_lost', 'lost'],
+  scoping: ['bom_submission', 'site_survey', 'closed_lost', 'lost'],
+  resubmission: ['bom_submission', 'negotiation', 'closed_lost', 'lost'],
   closed_won: [],
   closed_lost: [],
+  // ABI canonical
+  lead: ['site_survey', 'lost'],
+  site_survey: ['design', 'lost'],
+  design: ['bom_submission', 'lost'],
+  bom_submission: ['negotiation', 'lost'],
+  negotiation: ['contract', 'bom_submission', 'lost'],
+  contract: ['won', 'lost'],
+  won: [],
+  lost: [],
 }
 
 export const createOpportunitySchema = z
