@@ -1,18 +1,31 @@
 @import "tailwindcss";
 
 :root {
-  /* Brand palette — BuildOps navy, refined */
-  --color-navy-950: #08152b;
-  --color-navy-900: #0f2444;
-  --color-navy-800: #163260;
-  --color-navy-700: #1f3864;
-  --color-navy-600: #2a4a84;
-  --color-navy-500: #3a5fa0;
-  --color-navy-400: #6082c0;
-  --color-navy-300: #94aedf;
-  --color-navy-200: #c8d6ee;
-  --color-navy-100: #dce8f8;
-  --color-navy-50: #eef4fc;
+  /* Brand palette — ABI Ops navy (anchor #0F2D4A per REFACTOR §5.1) */
+  --color-navy-950: #061421;
+  --color-navy-900: #08203a;
+  --color-navy-800: #0c2945;
+  --color-navy-700: #0f2d4a;
+  --color-navy-600: #1a3e62;
+  --color-navy-500: #2b5481;
+  --color-navy-400: #4c75a4;
+  --color-navy-300: #7d9dc6;
+  --color-navy-200: #b6c8e0;
+  --color-navy-100: #d6e0ee;
+  --color-navy-50: #eaf0f8;
+
+  /* Accent — ABI Ops gold (anchor #E07B2A per REFACTOR §5.1) */
+  --color-gold-950: #2a1305;
+  --color-gold-900: #4a210a;
+  --color-gold-800: #6e3210;
+  --color-gold-700: #97481a;
+  --color-gold-600: #c46224;
+  --color-gold-500: #e07b2a;
+  --color-gold-400: #ea9755;
+  --color-gold-300: #f4b585;
+  --color-gold-200: #fad1b3;
+  --color-gold-100: #fde6d4;
+  --color-gold-50: #fef4ea;
 
   /* Neutral scale (cool-tinted for editorial feel) */
   --color-neutral-950: #0a0a0a;
@@ -56,6 +69,11 @@
   --sidebar-width: 232px;
   --topbar-height: 56px;
   --content-max: 1480px;
+
+  /* Radii — REFACTOR §5.1: 4px inputs / 6px buttons / 8px cards */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
 
   /* Motion */
   --duration-fast: 120ms;

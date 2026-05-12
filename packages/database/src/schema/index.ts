@@ -14,3 +14,7 @@ export * from './invoices'
 export * from './audit-log'
 export * from './embeddings'
 export * from './project-comments'
+// ABI Ops refactor — Phase 0 (REFACTOR.md M1)
+export * from './accounts'
+export * from './contacts'
+export * from './account-kyc'

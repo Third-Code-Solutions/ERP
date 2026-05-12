@@ -45,7 +45,25 @@ export async function requireUser() {
   return user
 }
 
-export type AppRole = 'owner' | 'admin' | 'estimator' | 'sales' | 'pm' | 'viewer'
+// ABI Ops role taxonomy per REFACTOR.md §2.
+// Legacy values (owner/estimator/pm) retained for back-compat — they map
+// onto the new ABI roles via ROLE_RANK below.
+export type AppRole =
+  // Legacy
+  | 'owner'
+  | 'estimator'
+  | 'pm'
+  // ABI Ops
+  | 'admin'
+  | 'sales'
+  | 'commercial'
+  | 'design'
+  | 'sd_pm_pe'
+  | 'finance'
+  | 'procurement'
+  | 'safety'
+  | 'cx'
+  | 'viewer'
 
 export interface UserProfile {
   user: User
@@ -92,18 +110,103 @@ export async function requireUserProfile(): Promise<UserProfile> {
   return profile
 }
 
+// Privilege ladder. Higher = more authority. Legacy roles map onto their
+// ABI Ops equivalents so old data keeps working unchanged.
 const ROLE_RANK: Record<AppRole, number> = {
+  // Viewer — read-only
   viewer: 0,
-  pm: 1,
-  estimator: 1,
+  // Operator roles — equal authority within their domain
   sales: 1,
+  commercial: 1,
+  design: 1,
+  sd_pm_pe: 1,
+  finance: 1,
+  procurement: 1,
+  safety: 1,
+  cx: 1,
+  // Legacy operators
+  estimator: 1,
+  pm: 1,
+  // Admin — workspace-wide write
   admin: 2,
+  // Legacy "owner" was the highest role; keep it above admin.
   owner: 3,
 }
 
 /** True when `role` has at least the privileges of `minRole`. */
 export function hasRole(role: AppRole, minRole: AppRole): boolean {
   return ROLE_RANK[role] >= ROLE_RANK[minRole]
+}
+
+/**
+ * The set of ABI Ops roles permitted to perform the given capability.
+ * Mirrors the permission matrix in REFACTOR.md §2. Use in server actions
+ * and route guards. Returns true if the role is in the allow-list.
+ */
+export type AbiCapability =
+  | 'account.create'
+  | 'account.kyc_review'
+  | 'opportunity.create'
+  | 'opportunity.advance_stage'
+  | 'pprf.submit'
+  | 'site_inspection.submit'
+  | 'design.upload'
+  | 'bom.generate'
+  | 'bom.edit'
+  | 'bom.approve_internal'
+  | 'rfq.dispatch'
+  | 'kyc.create_ar_code'
+  | 'precon.manage_checklist'
+  | 'po.create'
+  | 'po.approve'
+  | 'po.issue'
+  | 'sd.daily_tasks'
+  | 'punchlist.manage'
+  | 'warranty.manage'
+  | 'admin.rate_card'
+  | 'admin.users'
+  | 'admin.system_config'
+
+const CAPABILITY_ROLES: Record<AbiCapability, AppRole[]> = {
+  // CRM
+  'account.create': ['admin', 'owner', 'sales'],
+  'account.kyc_review': ['admin', 'owner', 'finance'],
+  'opportunity.create': ['admin', 'owner', 'sales'],
+  'opportunity.advance_stage': ['admin', 'owner', 'sales'],
+  // Proposal
+  'pprf.submit': ['admin', 'owner', 'sales'],
+  'site_inspection.submit': ['admin', 'owner', 'commercial'],
+  'design.upload': ['admin', 'owner', 'design'],
+  // BOM
+  'bom.generate': ['admin', 'owner', 'commercial', 'estimator'],
+  'bom.edit': ['admin', 'owner', 'commercial', 'estimator'],
+  'bom.approve_internal': ['admin', 'owner', 'commercial'],
+  'rfq.dispatch': ['admin', 'owner', 'procurement'],
+  // Finance
+  'kyc.create_ar_code': ['admin', 'owner', 'finance'],
+  // Pre-Con
+  'precon.manage_checklist': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm'],
+  'po.create': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm', 'procurement'],
+  'po.approve': ['admin', 'owner', 'commercial'],
+  'po.issue': ['admin', 'owner', 'procurement'],
+  // Construction
+  'sd.daily_tasks': ['admin', 'owner', 'sd_pm_pe', 'pm', 'safety'],
+  'punchlist.manage': ['admin', 'owner', 'sd_pm_pe', 'pm', 'cx'],
+  'warranty.manage': ['admin', 'owner', 'cx'],
+  // Admin
+  'admin.rate_card': ['admin', 'owner', 'commercial'],
+  'admin.users': ['admin', 'owner'],
+  'admin.system_config': ['admin', 'owner'],
+}
+
+export function can(role: AppRole, capability: AbiCapability): boolean {
+  return CAPABILITY_ROLES[capability].includes(role)
+}
+
+export function requireCapability(profile: UserProfile, capability: AbiCapability): void {
+  if (!can(profile.role, capability)) {
+    throw new Error(`Forbidden: role "${profile.role}" lacks capability "${capability}"`)
+  }
 }
 
 export function createSupabaseAdminClient() {

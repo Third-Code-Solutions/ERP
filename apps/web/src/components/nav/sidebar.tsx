@@ -79,11 +79,11 @@ export function Sidebar({ user }: SidebarProps) {
     <nav className="sidebar" aria-label="Main navigation">
       <div className="sidebar-brand">
         <div className="sidebar-brand-mark" aria-hidden>
-          B
+          A
         </div>
         <div className="sidebar-brand-text">
-          <span className="sidebar-brand-name">BuildOps</span>
-          <span className="sidebar-brand-org">Th/rd Code Construction</span>
+          <span className="sidebar-brand-name">ABI Ops</span>
+          <span className="sidebar-brand-org">Actuate Builders Inc.</span>
         </div>
       </div>
 

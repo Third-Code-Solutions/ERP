@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm'
 import { opportunityStageEnum } from './enums'
 import { tenants } from './tenants'
 import { projects } from './projects'
+import { accounts } from './accounts'
 import { users } from './users'
 
 export const opportunities = pgTable(
@@ -10,7 +11,12 @@ export const opportunities = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenant_id: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
-    project_id: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+    // REFACTOR.md M1: opportunities are owned by an Account. `project_id`
+    // remains for back-compat and is auto-populated on Won (US-005). Both
+    // are nullable individually but at least one must be present (enforced
+    // in business logic + a CHECK constraint in SQL migration).
+    account_id: uuid('account_id').references(() => accounts.id, { onDelete: 'cascade' }),
+    project_id: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
     rep_id: uuid('rep_id').references(() => users.id, { onDelete: 'set null' }),
     stage: opportunityStageEnum('stage').notNull().default('opportunity_creation'),
     // All monetary values in integer cents (PHP centavos)
@@ -33,10 +39,18 @@ export const opportunities = pgTable(
   },
   (table) => ({
     tenantIdx: index('idx_opportunities_tenant_id').on(table.tenant_id),
+    accountIdx: index('idx_opportunities_account_id').on(table.account_id),
     projectIdx: index('idx_opportunities_project_id').on(table.project_id),
     repIdx: index('idx_opportunities_rep_id').on(table.rep_id),
     tenantStageIdx: index('idx_opportunities_tenant_stage').on(table.tenant_id, table.stage),
     probCheck: check('prob_range', sql`${table.probability} >= 0 AND ${table.probability} <= 100`),
+    // At least one of account_id or project_id must be present — once the
+    // Account model is fully adopted (Phase 1) every new opp will have
+    // account_id; legacy rows have project_id only.
+    accountOrProjectCheck: check(
+      'opp_account_or_project',
+      sql`${table.account_id} IS NOT NULL OR ${table.project_id} IS NOT NULL`
+    ),
   })
 )
 
