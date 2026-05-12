@@ -6,6 +6,10 @@ import { documents, users } from '@buildops/database/schema'
 import { eq } from 'drizzle-orm'
 import { inngest } from '@/lib/inngest'
 import { parseAndStoreCad } from '@/lib/cad/parse-and-store'
+import {
+  extractScopeFromVisual,
+  type VisualExtractResult,
+} from '@/lib/vision/extract-from-visual'
 
 const CompleteSchema = z.object({
   storagePath: z.string().min(1),
@@ -105,11 +109,15 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Unified CAD parsing pipeline. Both .dxf and .dwg flow through the inline
-  // parser first — magic-byte detection determines the actual format on disk
-  // (filename extensions can lie). For real binary DWG files the inline path
-  // returns a "binary-dwg-pending" status and we additionally queue the
-  // background Python-worker pipeline if Inngest is wired up.
+  // Unified extraction pipeline.
+  //
+  //   - DXF/DWG  → parseAndStoreCad (magic-byte routed, optional Python worker)
+  //   - PDF      → OpenAI Responses API with input_file
+  //   - image/*  → OpenAI Responses API with input_image
+  //
+  // All three branches produce the same `cadResult` payload shape so the upload
+  // hook (use-cad-upload.ts) renders the same success copy: "N scope items
+  // extracted · draft BOM ₱X TCV (M% GP)".
   let cadParseQueued = false
   let cadParseWarning: string | undefined
   let cadResult:
@@ -119,7 +127,7 @@ export async function POST(req: NextRequest) {
         warnings: string[]
         layerCount: number
         entityCount: number
-        detectedFormat: 'dxf' | 'dwg' | 'unknown'
+        detectedFormat: 'dxf' | 'dwg' | 'pdf' | 'image' | 'unknown'
         dwgVersion: string | null
         extensionMismatch: boolean
         message: string
@@ -185,6 +193,40 @@ export async function POST(req: NextRequest) {
       const message = err instanceof Error ? err.message : String(err)
       console.error('[upload/complete] inline CAD parse failed:', err)
       cadParseWarning = `CAD parse failed: ${message}`
+    }
+  } else if (docType === 'pdf' || docType === 'image') {
+    try {
+      const visual: VisualExtractResult = await extractScopeFromVisual({
+        tenantId: userRow.tenant_id,
+        projectId,
+        documentId: docId,
+        storagePath,
+        fileName,
+        mimeType,
+        kind: docType,
+      })
+
+      cadParseQueued = visual.status === 'extracted'
+      cadResult = {
+        status: visual.status,
+        scopeItemsCreated: visual.scopeItemsCreated,
+        warnings: visual.warnings,
+        layerCount: 0,
+        entityCount: 0,
+        detectedFormat: visual.detectedKind,
+        dwgVersion: null,
+        extensionMismatch: false,
+        message: visual.message,
+        bomId: visual.bom?.bomId ?? null,
+        bomTcvCents: visual.bom?.totalTcvCents ?? 0,
+        bomCostCents: visual.bom?.totalCostCents ?? 0,
+        bomGpMarginBps: visual.bom?.gpMarginBps ?? 0,
+        ragMatches: visual.bom?.ragMatches ?? 0,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[upload/complete] visual extraction failed:', err)
+      cadParseWarning = `Vision extraction failed: ${message}`
     }
   }
 

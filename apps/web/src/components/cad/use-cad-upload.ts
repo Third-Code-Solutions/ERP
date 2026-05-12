@@ -5,12 +5,20 @@ import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@buildops/auth/client'
 
 export interface CadUploadResult {
-  status: 'extracted' | 'binary-dwg-pending' | 'unknown-format' | 'download-failed'
+  status:
+    | 'extracted'
+    | 'binary-dwg-pending'
+    | 'unknown-format'
+    | 'download-failed'
+    | 'no-items'
+    | 'ai-not-configured'
+    | 'too-large'
+    | 'error'
   scopeItemsCreated: number
   warnings: string[]
   layerCount: number
   entityCount: number
-  detectedFormat: 'dxf' | 'dwg' | 'unknown'
+  detectedFormat: 'dxf' | 'dwg' | 'pdf' | 'image' | 'unknown'
   dwgVersion: string | null
   extensionMismatch: boolean
   message: string
@@ -214,14 +222,28 @@ function formatCompactPhp(cents: number): string {
   return `₱${value.toFixed(0)}`
 }
 
+function fmtLabel(detected: CadUploadResult['detectedFormat']): string {
+  switch (detected) {
+    case 'dwg':
+      return 'DWG'
+    case 'pdf':
+      return 'PDF'
+    case 'image':
+      return 'Image'
+    case 'dxf':
+    default:
+      return 'DXF'
+  }
+}
+
 export function formatCompletionProgress(completed: CompleteResponse): string {
   if (completed.cadResult) {
     const r = completed.cadResult
-    const fmtLabel = r.detectedFormat === 'dwg' ? 'DWG' : 'DXF'
+    const label = fmtLabel(r.detectedFormat)
 
     if (r.status === 'extracted') {
       const parts = [
-        `${fmtLabel}: ${r.scopeItemsCreated} scope item${r.scopeItemsCreated === 1 ? '' : 's'} extracted`,
+        `${label}: ${r.scopeItemsCreated} scope item${r.scopeItemsCreated === 1 ? '' : 's'} extracted`,
       ]
       if (r.bomId) {
         const margin = (r.bomGpMarginBps / 100).toFixed(1)
@@ -241,6 +263,10 @@ export function formatCompletionProgress(completed: CompleteResponse): string {
       // or actively converting.
       return r.message || `DWG${r.dwgVersion ? ` (${r.dwgVersion})` : ''} stored.`
     }
+    // Vision branches (no-items / ai-not-configured / too-large / error) ship
+    // a human-readable, actionable message in r.message — surface it directly
+    // so the user knows whether to re-upload, configure AI, or contact ops.
+    if (r.message) return r.message
     if (r.status === 'unknown-format') return 'File stored.'
     return ''
   }

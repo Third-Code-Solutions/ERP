@@ -106,13 +106,27 @@ export function CadDropZone({
     }
   }
 
-  // "binary-dwg-pending" is a successful upload in a different terminal state
-  // (the file is stored, the doc row exists; the worker just hasn't run yet).
-  // Treat it as a soft, neutral result — not a green "Done" or a red error.
-  const isPendingDwg = lastResult?.cadResult?.status === 'binary-dwg-pending'
-  const showSuccess = phase === 'done' && !error && !isPendingDwg
-  const showError = phase === 'error' || (phase === 'done' && Boolean(error))
-  const showPending = phase === 'done' && isPendingDwg && !error
+  // Some result statuses are "stored, but extraction did not produce items":
+  //   - binary-dwg-pending  → DWG awaiting the Python converter worker
+  //   - no-items            → vision saw nothing scope-like in the PDF/image
+  //   - ai-not-configured   → OPENAI_API_KEY not set on the server
+  //   - too-large           → file exceeded the inline AI extraction budget
+  //   - error               → vision call threw (rate limit, model outage, …)
+  // None of these are "green done" — they each ship a specific actionable
+  // message in cadResult.message that the progress line already renders.
+  const cadResultStatus = lastResult?.cadResult?.status
+  const NEUTRAL_STATUSES = new Set([
+    'binary-dwg-pending',
+    'no-items',
+    'ai-not-configured',
+    'too-large',
+    'unknown-format',
+  ])
+  const isPendingResult = cadResultStatus ? NEUTRAL_STATUSES.has(cadResultStatus) : false
+  const isErrorResult = cadResultStatus === 'error' || cadResultStatus === 'download-failed'
+  const showSuccess = phase === 'done' && !error && !isPendingResult && !isErrorResult
+  const showError = phase === 'error' || (phase === 'done' && (Boolean(error) || isErrorResult))
+  const showPending = phase === 'done' && isPendingResult && !error
   const showProgress = isPending || phase === 'preparing' || phase === 'uploading' || phase === 'finalizing'
 
   const borderColor = isDragging
