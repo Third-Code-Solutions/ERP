@@ -18,3 +18,19 @@ export * from './project-comments'
 export * from './accounts'
 export * from './contacts'
 export * from './account-kyc'
+// Phase 2 (M2 Proposal)
+export * from './pprf'
+export * from './site-inspections'
+export * from './design'
+// Phase 3 (M3 BOM Engine — extras)
+export * from './bom-extras'
+// Phase 4 (M4 Pre-Construction)
+export * from './pre-con'
+// Phase 5 (M5 Construction)
+export * from './construction'
+// Phase 6 (M6 Post-Construction)
+export * from './post-construction'
+// Phase 7 (M7 Warranty + CX)
+export * from './warranty'
+// Phase 8 (Cross-cutting)
+export * from './notifications'
