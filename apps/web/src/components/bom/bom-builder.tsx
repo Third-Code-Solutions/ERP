@@ -2,8 +2,18 @@
 
 import { useTransition, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { addBomLineItem, deleteBomLineItem, approveBom, createBom } from '@/app/(dashboard)/projects/[id]/bom/actions'
+import {
+  addBomLineItem,
+  deleteBomLineItem,
+  approveBom,
+  createBom,
+  fetchProjectForecastTcv,
+} from '@/app/(dashboard)/projects/[id]/bom/actions'
 import { createPoFromBom, createInvoice } from '@/app/(dashboard)/procurement/actions'
+import { SupplierSwitcherPanel } from '@/components/bom/supplier-switcher-panel'
+import { VarianceBanner } from '@/components/bom/variance-banner'
+import { JustificationDialog } from '@/components/bom/justification-dialog'
+import { BomLineRow, isLineFlagged } from '@/components/bom/bom-line-row'
 
 interface BomLineItem {
   id: string
@@ -172,6 +182,45 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
   const [procurementError, setProcurementError] = useState('')
   const [aiSuggestions, setAiSuggestions] = useState<{ description: string; unit_cost_cents: number; markup_bps: number; unit: string | null; score: number }[]>([])
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false)
+  // US-011 — supplier switcher / variance / justification state.
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
+  const [forecastTcvCents, setForecastTcvCents] = useState<number | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+  const [justification, setJustification] = useState<{
+    lineItemId: string
+    fieldChanged: string
+    before: unknown
+    after: unknown
+  } | null>(null)
+
+  // Responsive: side panel becomes a bottom drawer below 900px.
+  useEffect(() => {
+    function update() {
+      setIsMobile(window.innerWidth < 900)
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  // Pull the linked opportunity's forecast TCV for the variance banner.
+  useEffect(() => {
+    let cancelled = false
+    fetchProjectForecastTcv(projectId)
+      .then((res) => {
+        if (cancelled) return
+        setForecastTcvCents(res.tcvCents)
+      })
+      .catch(() => {
+        if (!cancelled) setForecastTcvCents(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [projectId])
+
+  const selectedLine = bom?.lineItems.find((l) => l.id === selectedLineId) ?? null
+  const hasFlaggedLines = (bom?.lineItems ?? []).some(isLineFlagged)
 
   const fetchSuggestions = useCallback(async (description: string) => {
     if (!description.trim() || description.length < 5) {
@@ -329,7 +378,19 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
   const isEditable = bom.status === 'draft'
 
   return (
-    <div>
+    <div
+      style={{
+        display: 'flex',
+        gap: 16,
+        alignItems: 'flex-start',
+        // On mobile the panel collapses to a bottom drawer, so we stack normally.
+        flexDirection: isMobile ? 'column' : 'row',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* US-011: forecast vs BOM variance banner */}
+      <VarianceBanner bomTcvCents={bom.tcv_cents} forecastTcvCents={forecastTcvCents} />
+
       {/* BOM header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -367,20 +428,29 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
               </button>
               <button
                 onClick={handleApprove}
-                disabled={isPending || bom.lineItems.length === 0}
+                disabled={isPending || bom.lineItems.length === 0 || hasFlaggedLines}
+                title={
+                  hasFlaggedLines
+                    ? 'Resolve flagged lines (missing unit cost) before submitting for client approval'
+                    : undefined
+                }
                 style={{
-                  background: '#10b981',
-                  color: 'white',
+                  background: hasFlaggedLines ? 'var(--color-neutral-200)' : '#10b981',
+                  color: hasFlaggedLines ? 'var(--color-neutral-500)' : 'white',
                   border: 'none',
                   borderRadius: '6px',
                   padding: '6px 14px',
                   fontSize: '0.8125rem',
                   fontWeight: 600,
-                  cursor: isPending || bom.lineItems.length === 0 ? 'not-allowed' : 'pointer',
-                  opacity: isPending || bom.lineItems.length === 0 ? 0.6 : 1,
+                  cursor:
+                    isPending || bom.lineItems.length === 0 || hasFlaggedLines
+                      ? 'not-allowed'
+                      : 'pointer',
+                  opacity:
+                    isPending || bom.lineItems.length === 0 || hasFlaggedLines ? 0.6 : 1,
                 }}
               >
-                Approve BOM
+                Submit for Client Approval
               </button>
             </>
           )}
@@ -719,6 +789,7 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
               <tr>
                 <th>Code</th>
                 <th>Description</th>
+                <th>Vendor</th>
                 <th className="numeric">Unit</th>
                 <th className="numeric">Qty</th>
                 <th className="numeric">Unit Cost</th>
@@ -729,55 +800,21 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
             </thead>
             <tbody>
               {bom.lineItems.map((item) => (
-                <tr key={item.id}>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--color-neutral-400)' }}>
-                    {item.code ?? '—'}
-                  </td>
-                  <td style={{ fontSize: '0.875rem', color: 'var(--color-neutral-900)' }}>
-                    <SourceBadge item={item} />
-                    {item.description}
-                  </td>
-                  <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-                    {item.unit ?? '—'}
-                  </td>
-                  <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-                    {item.quantity.toLocaleString()}
-                  </td>
-                  <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-                    {formatPHP(item.unit_cost_cents)}
-                  </td>
-                  <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-neutral-500)' }}>
-                    {(item.markup_bps / 100).toFixed(0)}%
-                  </td>
-                  <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600 }}>
-                    {formatPHP(item.line_total_cents)}
-                  </td>
-                  {isEditable && (
-                    <td>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        disabled={isPending}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: isPending ? 'not-allowed' : 'pointer',
-                          color: '#ef4444',
-                          fontSize: '0.875rem',
-                          padding: '2px 6px',
-                          opacity: isPending ? 0.5 : 1,
-                        }}
-                        aria-label="Delete line item"
-                      >
-                        ×
-                      </button>
-                    </td>
-                  )}
-                </tr>
+                <BomLineRow
+                  key={item.id}
+                  item={item}
+                  isSelected={selectedLineId === item.id}
+                  isEditable={isEditable}
+                  isPending={isPending}
+                  onSelect={() => setSelectedLineId(item.id)}
+                  onDelete={() => handleDelete(item.id)}
+                  sourceBadge={<SourceBadge item={item} />}
+                />
               ))}
             </tbody>
             <tfoot>
               <tr style={{ background: 'var(--color-neutral-50)' }}>
-                <td colSpan={isEditable ? 6 : 5} style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-neutral-600)', padding: '10px 12px', textAlign: 'right' }}>
+                <td colSpan={isEditable ? 7 : 6} style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-neutral-600)', padding: '10px 12px', textAlign: 'right' }}>
                   Total
                 </td>
                 <td className="numeric" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-neutral-900)' }}>
@@ -788,6 +825,38 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
             </tfoot>
           </table>
         </div>
+      )}
+      </div>
+
+      {/* US-011 — right-side supplier switcher panel (drawer on mobile) */}
+      <SupplierSwitcherPanel
+        projectId={projectId}
+        selected={
+          selectedLine
+            ? {
+                id: selectedLine.id,
+                code: selectedLine.code,
+                description: selectedLine.description,
+                unit: selectedLine.unit,
+                quantity: selectedLine.quantity,
+                unit_cost_cents: selectedLine.unit_cost_cents,
+                notes: selectedLine.notes ?? null,
+              }
+            : null
+        }
+        onClose={() => setSelectedLineId(null)}
+      />
+
+      {justification && (
+        <JustificationDialog
+          lineItemId={justification.lineItemId}
+          projectId={projectId}
+          fieldChanged={justification.fieldChanged}
+          before={justification.before}
+          after={justification.after}
+          open
+          onClose={() => setJustification(null)}
+        />
       )}
     </div>
   )

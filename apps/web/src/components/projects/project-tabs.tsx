@@ -1,0 +1,88 @@
+'use client'
+
+/**
+ * ProjectTabs — horizontal scrollable tab strip rendered at the top of
+ * every /projects/[id] sub-route via the project layout. Uses
+ * usePathname() to derive the active tab so the strip is purely client.
+ *
+ * Pattern mirrors components/proposal/sub-nav.tsx (proposal-subnav) but
+ * with project-specific slugs and a navy-bottom underline for active.
+ */
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+
+interface ProjectTabsProps {
+  projectId: string
+}
+
+const ITEMS = [
+  { slug: '', label: 'Overview' },
+  { slug: 'scope', label: 'Scope' },
+  { slug: 'bom', label: 'BOM' },
+  { slug: 'checklist', label: 'Checklist' },
+  { slug: 'permits', label: 'Permits' },
+  { slug: 'progress', label: 'Progress' },
+  { slug: 'vos', label: 'VOs' },
+  { slug: 'documents', label: 'Documents' },
+  { slug: 'billing', label: 'Billing' },
+  { slug: 'turnover', label: 'Turnover' },
+  { slug: 'coc', label: 'COC' },
+  { slug: 'comments', label: 'Comments' },
+  { slug: 'audit', label: 'Audit' },
+] as const
+
+export function ProjectTabs({ projectId }: ProjectTabsProps) {
+  const pathname = usePathname()
+  const base = `/projects/${projectId}`
+
+  return (
+    <nav className="project-tabs" aria-label="Project sections">
+      {ITEMS.map((item) => {
+        const href = item.slug ? `${base}/${item.slug}` : base
+        const active = item.slug
+          ? pathname?.startsWith(href) ?? false
+          : pathname === base
+        return (
+          <Link
+            key={item.slug || 'overview'}
+            href={href}
+            className={`project-tabs-tab${active ? ' is-active' : ''}`}
+          >
+            {item.label}
+          </Link>
+        )
+      })}
+
+      <style>{`
+        .project-tabs {
+          display: flex;
+          gap: 4px;
+          border-bottom: 1px solid var(--color-border);
+          margin-bottom: 20px;
+          overflow-x: auto;
+          scrollbar-width: thin;
+        }
+        .project-tabs::-webkit-scrollbar { height: 4px; }
+        .project-tabs::-webkit-scrollbar-thumb { background: var(--color-neutral-200); border-radius: 2px; }
+        .project-tabs-tab {
+          padding: 9px 14px;
+          font-size: 0.8125rem;
+          font-weight: 500;
+          color: var(--color-neutral-600);
+          text-decoration: none;
+          border-bottom: 2px solid transparent;
+          transition: color var(--duration-fast), border-color var(--duration-fast);
+          white-space: nowrap;
+          margin-bottom: -1px;
+        }
+        .project-tabs-tab:hover { color: var(--color-neutral-900); }
+        .project-tabs-tab.is-active {
+          color: var(--color-navy-700);
+          border-bottom-color: var(--color-navy-700);
+          font-weight: 600;
+        }
+      `}</style>
+    </nav>
+  )
+}

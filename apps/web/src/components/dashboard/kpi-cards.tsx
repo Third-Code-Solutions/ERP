@@ -16,13 +16,19 @@ interface KpiCardProps {
 }
 
 function KpiCard({ label, value, sub, feature = false, fillPct, badge }: KpiCardProps) {
+  const labelId = `kpi-${label.replace(/\s+/g, '-').toLowerCase()}`
   return (
-    <div className={`kpi-card${feature ? ' is-feature' : ''}`}>
-      <p className="kpi-card-label">
+    <article
+      className={`kpi-card${feature ? ' is-feature' : ''}`}
+      aria-labelledby={labelId}
+    >
+      <h3 className="kpi-card-label" id={labelId}>
         <span>{label}</span>
         {badge ?? null}
+      </h3>
+      <p className="kpi-card-value" aria-describedby={labelId}>
+        {value}
       </p>
-      <p className="kpi-card-value">{value}</p>
       {sub ? <p className="kpi-card-sub">{sub}</p> : null}
       {typeof fillPct === 'number' ? (
         <div className="kpi-card-bar" aria-hidden>
@@ -32,7 +38,7 @@ function KpiCard({ label, value, sub, feature = false, fillPct, badge }: KpiCard
           />
         </div>
       ) : null}
-    </div>
+    </article>
   )
 }
 
@@ -42,7 +48,10 @@ export function KpiCards({ kpis }: KpiCardsProps) {
     kpis.activeTcv > 0 ? (kpis.weightedPipeline / kpis.activeTcv) * 100 : 0
 
   return (
-    <div className="kpi-grid">
+    <section className="kpi-grid" aria-labelledby="kpi-section-heading">
+      <h2 id="kpi-section-heading" className="sr-only">
+        Key performance indicators
+      </h2>
       <KpiCard
         feature
         label="Active Pipeline TCV"
@@ -51,7 +60,9 @@ export function KpiCards({ kpis }: KpiCardsProps) {
         fillPct={Math.min(100, weightedRatio)}
         badge={
           <span className="delta is-up">
-            <IconArrowUpRight size={11} />
+            <span aria-hidden style={{ display: 'inline-flex' }}>
+              <IconArrowUpRight size={11} />
+            </span>
             Live
           </span>
         }
@@ -73,7 +84,7 @@ export function KpiCards({ kpis }: KpiCardsProps) {
         value={formatCentsCompact(kpis.closedWonTcv)}
         sub={formatCents(kpis.closedWonTcv)}
         badge={
-          <span style={{ color: 'var(--color-neutral-400)', display: 'inline-flex' }}>
+          <span aria-hidden style={{ color: 'var(--color-neutral-400)', display: 'inline-flex' }}>
             <IconActivity size={12} />
           </span>
         }
@@ -83,11 +94,11 @@ export function KpiCards({ kpis }: KpiCardsProps) {
         value={kpis.coverageLeads.toLocaleString()}
         sub={`${kpis.coverageLeads === 1 ? 'lead' : 'leads'} in opportunity_creation`}
         badge={
-          <span style={{ color: 'var(--color-neutral-400)', display: 'inline-flex' }}>
+          <span aria-hidden style={{ color: 'var(--color-neutral-400)', display: 'inline-flex' }}>
             <IconUser size={12} />
           </span>
         }
       />
-    </div>
+    </section>
   )
 }

@@ -9,7 +9,16 @@
  * Live verification: set DOCUSEAL_API_URL + DOCUSEAL_API_TOKEN, restart,
  * call createSubmission() — a real DocuSeal submission_id comes back.
  * The webhook handler at /api/webhooks/docuseal records `submission.completed`.
+ *
+ * `createSigningSession` is the unified wrapper: it prefers the canvas
+ * sign infrastructure (zero env vars, in-app signing) and falls through
+ * to DocuSeal when DOCUSEAL_API_URL + DOCUSEAL_API_TOKEN are both set.
  */
+
+import {
+  createCanvasSignSession,
+  type SignableEntityType,
+} from './canvas-sign'
 
 interface CreateSubmissionInput {
   templateId: string
@@ -76,4 +85,94 @@ export interface DocuSealWebhookPayload {
   event: 'submission.completed' | 'submission.opened' | 'submission.expired'
   submission_id: string
   documents?: { url: string; name?: string }[]
+}
+
+interface CreateSigningSessionInput {
+  tenantId: string
+  entityType: SignableEntityType
+  entityId: string
+  signerEmail?: string
+  signerName?: string
+}
+
+interface SigningSessionResult {
+  url: string
+  /** One-shot token — display once. Audit log holds traceability afterwards. */
+  token: string
+  is_dev_stub: boolean
+  mechanism: 'canvas' | 'docuseal'
+}
+
+/**
+ * Unified signing-session factory. Use this from any place that needs to
+ * send a document for client signature.
+ *
+ * Routing:
+ *   - If DOCUSEAL_API_URL AND DOCUSEAL_API_TOKEN are set → DocuSeal path.
+ *   - Otherwise → canvas-sign path (in-app, zero infra).
+ *
+ * Both branches return the public URL the operator should hand to the
+ * signer. The `token` is the one-shot value embedded in that URL — for
+ * canvas-sign it is the raw token (URL stores SHA-256 hash only); for
+ * DocuSeal it is the submission slug.
+ */
+export async function createSigningSession(
+  input: CreateSigningSessionInput,
+): Promise<SigningSessionResult> {
+  const docusealConfigured =
+    Boolean(process.env.DOCUSEAL_API_URL) &&
+    Boolean(process.env.DOCUSEAL_API_TOKEN)
+
+  if (docusealConfigured) {
+    const templateId = templateIdFor(input.entityType)
+    const submitter: { email: string; name?: string; role: string } = {
+      email: input.signerEmail ?? 'client@unknown.local',
+      role: 'client',
+    }
+    if (input.signerName) submitter.name = input.signerName
+
+    const submission = await createDocuSealSubmission({
+      templateId,
+      submitters: [submitter],
+      metadata: {
+        entity_type: input.entityType,
+        entity_id: input.entityId,
+        tenant_id: input.tenantId,
+      },
+      sendEmail: false,
+    })
+    return {
+      url: submission.url,
+      token: submission.slug,
+      is_dev_stub: submission.is_dev_stub,
+      mechanism: 'docuseal',
+    }
+  }
+
+  const session = await createCanvasSignSession({
+    tenantId: input.tenantId,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    signerEmail: input.signerEmail,
+    signerName: input.signerName,
+  })
+  return {
+    url: session.url,
+    token: session.token,
+    is_dev_stub: isDev(),
+    mechanism: 'canvas',
+  }
+}
+
+function templateIdFor(entityType: SignableEntityType): string {
+  switch (entityType) {
+    case 'bom':
+      return process.env.DOCUSEAL_BOM_TEMPLATE_ID ?? 'bom-default'
+    case 'contract':
+      return process.env.DOCUSEAL_CONTRACT_TEMPLATE_ID ?? 'contract-default'
+    case 'variation_order':
+      return process.env.DOCUSEAL_VO_TEMPLATE_ID ?? 'vo-default'
+    case 'coc':
+      return process.env.DOCUSEAL_COC_TEMPLATE_ID ?? 'coc-default'
+  }
 }

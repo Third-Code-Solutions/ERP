@@ -87,6 +87,15 @@ To unschedule:
 SELECT cron.unschedule('sla-checker');
 ```
 
+### Preferred path: Inngest crons
+
+The same cron logic ships as Inngest functions at
+`apps/web/src/lib/inngest-{sla,permits,warranty}.ts`. These run via the
+Inngest connection already configured for the Next.js app — no
+additional deploy step. The Deno functions here remain a fallback for
+orgs that don't use Inngest, or for cases where you want cron scheduling
+baked into Supabase via pg_cron.
+
 ## Manual invocation
 
 Useful while debugging. Returns `{ processed, errors, ... }`:

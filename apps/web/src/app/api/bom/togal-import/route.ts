@@ -46,6 +46,16 @@ interface ImportPreviewResponse {
 const MAX_FILE_BYTES = 25 * 1024 * 1024 // 25MB
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // If the caller passes ?commit=true we route them to the dedicated commit
+  // endpoint. The wizard uses togal-commit directly with a JSON body, but
+  // older callers / curl users may still POST multipart here with the flag
+  // expecting an end-to-end import. A 307 preserves the original method/body.
+  const url = new URL(req.url)
+  if (url.searchParams.get('commit') === 'true') {
+    const target = new URL('/api/bom/togal-commit', url.origin)
+    return NextResponse.redirect(target, 307)
+  }
+
   let profile
   try {
     profile = await requireUserProfile()

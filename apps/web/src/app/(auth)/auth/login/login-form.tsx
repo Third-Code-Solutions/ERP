@@ -34,11 +34,13 @@ export function LoginForm() {
     })
   }
 
+  const hasError = Boolean(error)
   return (
     <form
       onSubmit={handleSubmit}
       method="post"
       noValidate
+      aria-label="Sign in"
       style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
     >
       <div>
@@ -59,7 +61,11 @@ export function LoginForm() {
           name="email"
           type="email"
           autoComplete="email"
+          inputMode="email"
           required
+          aria-required="true"
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? 'login-error' : undefined}
           style={{
             width: '100%',
             padding: '8px 12px',
@@ -92,6 +98,9 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
+          aria-required="true"
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? 'login-error' : undefined}
           style={{
             width: '100%',
             padding: '8px 12px',
@@ -106,7 +115,9 @@ export function LoginForm() {
 
       {error && (
         <p
+          id="login-error"
           role="alert"
+          aria-live="assertive"
           style={{
             color: 'var(--color-danger)',
             fontSize: '0.8125rem',
@@ -120,6 +131,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isPending}
+        aria-busy={isPending || undefined}
         style={{
           background: 'var(--color-navy-700)',
           color: 'white',

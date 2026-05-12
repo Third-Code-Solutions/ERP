@@ -56,10 +56,12 @@ export function StageDistributionTable({ rows }: StageDistributionTableProps) {
   const totalGp = sortedRows.reduce((acc, r) => acc + r.gpCents, 0)
 
   return (
-    <div className="card">
+    <section className="card" aria-labelledby="pipeline-stages-heading">
       <div className="card-header">
         <div>
-          <h2 className="card-title">Pipeline Stages</h2>
+          <h2 className="card-title" id="pipeline-stages-heading">
+            Pipeline Stages
+          </h2>
           <p className="card-subtitle">
             {totalDeals} {totalDeals === 1 ? 'deal' : 'deals'} · {formatCentsCompact(totalTcv)} TCV ·{' '}
             {formatCentsCompact(totalGp)} GP
@@ -122,26 +124,40 @@ export function StageDistributionTable({ rows }: StageDistributionTableProps) {
 
           <div style={{ overflowX: 'auto' }}>
             <table className="data-table">
+              <caption className="sr-only">
+                Pipeline distribution by stage, showing deal count, total contract
+                value, gross profit, and gross-profit percentage for each stage.
+              </caption>
               <thead>
                 <tr>
-                  <th>Stage</th>
-                  <th className="numeric">Deals</th>
-                  <th className="numeric">TCV</th>
-                  <th className="numeric">GP</th>
-                  <th className="numeric">GP %</th>
+                  <th scope="col">Stage</th>
+                  <th scope="col" className="numeric">
+                    Deals
+                  </th>
+                  <th scope="col" className="numeric">
+                    TCV
+                  </th>
+                  <th scope="col" className="numeric">
+                    GP
+                  </th>
+                  <th scope="col" className="numeric">
+                    GP %
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {sortedRows.map((row) => {
                   const gpPct = row.tcvCents > 0 ? (row.gpCents / row.tcvCents) * 100 : 0
+                  const stageLabel = STAGE_LABELS[row.stage] ?? row.stage
                   return (
                     <tr key={row.stage}>
-                      <td>
+                      <th scope="row" style={{ fontWeight: 'normal', textAlign: 'left' }}>
                         <span className={`stage-badge stage-${row.stage}`}>
                           <span className="stage-badge-dot" aria-hidden />
-                          {STAGE_LABELS[row.stage] ?? row.stage}
+                          <span className="sr-only">Stage: </span>
+                          {stageLabel}
                         </span>
-                      </td>
+                      </th>
                       <td className="numeric">{row.count}</td>
                       <td className="currency">{formatCentsCompact(row.tcvCents)}</td>
                       <td className="currency">{formatCentsCompact(row.gpCents)}</td>
@@ -154,6 +170,6 @@ export function StageDistributionTable({ rows }: StageDistributionTableProps) {
           </div>
         </>
       )}
-    </div>
+    </section>
   )
 }

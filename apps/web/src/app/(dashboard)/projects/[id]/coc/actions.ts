@@ -29,7 +29,7 @@ import {
 } from '@buildops/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/abi/notifications'
-import { createDocuSealSubmission } from '@/lib/abi/integrations/docuseal'
+import { createSigningSession } from '@/lib/abi/integrations/docuseal'
 
 const DEFAULT_WARRANTY_DAYS = 365
 
@@ -111,7 +111,7 @@ export async function draftCoc(
 
 export async function sendCocForSignature(
   projectId: string
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; url?: string }> {
   const profile = await requireUserProfile()
   const forbid = guard(profile.role, 'punchlist.manage')
   if (forbid) return { error: forbid }
@@ -175,21 +175,20 @@ export async function sendCocForSignature(
     if (acct?.name && !primary?.email) signerName = `${acct.name} representative`
   }
 
-  const submission = await createDocuSealSubmission({
-    templateId: 'coc-default',
-    submitters: [{ email: signerEmail, name: signerName, role: 'client' }],
-    metadata: {
-      project_id: projectId,
-      coc_id: coc.id,
-      tenant_id: profile.tenantId,
-    },
+  const session = await createSigningSession({
+    tenantId: profile.tenantId,
+    entityType: 'coc',
+    entityId: coc.id,
+    signerEmail,
+    signerName,
   })
 
   await db
     .update(certificatesOfCompletion)
     .set({
       status: 'pending_signature',
-      docuseal_submission_id: submission.submission_id,
+      docuseal_submission_id:
+        session.mechanism === 'docuseal' ? session.token : null,
     })
     .where(eq(certificatesOfCompletion.id, coc.id))
 
@@ -201,12 +200,14 @@ export async function sendCocForSignature(
     action: 'status_change',
     diff: {
       status: { before: 'draft', after: 'pending_signature' },
-      docuseal_submission_id: submission.submission_id,
+      signing_url: session.url,
+      mechanism: session.mechanism,
+      is_dev_stub: session.is_dev_stub,
     },
   })
 
   revalidatePath(`/projects/${projectId}/coc`)
-  return {}
+  return { url: session.url }
 }
 
 // Webhook path. The DocuSeal webhook handler (Track 4) calls this once
