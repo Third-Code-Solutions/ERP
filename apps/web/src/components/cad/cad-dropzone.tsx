@@ -14,7 +14,14 @@ interface CadDropZoneProps {
   subtitle?: string
 }
 
-const ACCEPTED_EXTENSIONS = new Set(['dxf', 'dwg', 'pdf', 'jpg', 'jpeg', 'png', 'webp', 'xlsx', 'xls'])
+const ACCEPTED_EXTENSIONS = new Set([
+  'dxf', 'dwg',
+  'pdf',
+  'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic',
+  'xlsx', 'xls',
+  'csv',
+  'docx', 'doc',
+])
 
 function extOf(name: string): string {
   const idx = name.lastIndexOf('.')
@@ -24,8 +31,8 @@ function extOf(name: string): string {
 export function CadDropZone({
   projectId,
   compact = false,
-  title = 'Drop a DWG or DXF drawing to auto-extract scope',
-  subtitle = 'DWG is the primary CAD format. DXF parses instantly in your browser. Up to 100 MB.',
+  title = 'Drop a CAD drawing, PDF, image, spreadsheet, CSV, or Word doc to auto-extract scope',
+  subtitle = 'DWG/DXF parse from the drawing. PDF, image, XLSX, CSV, and DOCX are analyzed by AI and categorized. Up to 100 MB.',
 }: CadDropZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -123,7 +130,10 @@ export function CadDropZone({
     'unknown-format',
   ])
   const isPendingResult = cadResultStatus ? NEUTRAL_STATUSES.has(cadResultStatus) : false
-  const isErrorResult = cadResultStatus === 'error' || cadResultStatus === 'download-failed'
+  const isErrorResult =
+    cadResultStatus === 'error' ||
+    cadResultStatus === 'download-failed' ||
+    cadResultStatus === 'parse-failed'
   const showSuccess = phase === 'done' && !error && !isPendingResult && !isErrorResult
   const showError = phase === 'error' || (phase === 'done' && (Boolean(error) || isErrorResult))
   const showPending = phase === 'done' && isPendingResult && !error
