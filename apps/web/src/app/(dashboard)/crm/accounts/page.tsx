@@ -1,0 +1,110 @@
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { and, desc, eq, sql } from 'drizzle-orm'
+import { requireUserProfile } from '@buildops/auth'
+import { db } from '@buildops/database'
+import { accounts, opportunities } from '@buildops/database/schema'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = { title: 'Accounts' }
+
+const KYC_BADGE: Record<string, string> = {
+  pending: 'stage-badge stage-resubmission',
+  approved: 'stage-badge stage-closed_won',
+  flagged: 'stage-badge stage-negotiation',
+  rejected: 'stage-badge stage-closed_lost',
+  not_required: 'stage-badge stage-opportunity_creation',
+}
+
+export default async function AccountsListPage() {
+  const profile = await requireUserProfile()
+
+  const rows = await db
+    .select({
+      id: accounts.id,
+      name: accounts.name,
+      industry: accounts.industry,
+      kyc_status: accounts.kyc_status,
+      primary_email: accounts.primary_email,
+      primary_phone: accounts.primary_phone,
+      created_at: accounts.created_at,
+      opp_count: sql<number>`COUNT(${opportunities.id})::int`,
+    })
+    .from(accounts)
+    .leftJoin(opportunities, eq(opportunities.account_id, accounts.id))
+    .where(eq(accounts.tenant_id, profile.tenantId))
+    .groupBy(accounts.id)
+    .orderBy(desc(accounts.created_at))
+    .limit(200)
+
+  return (
+    <div>
+      <div className="page-header">
+        <div className="page-toolbar">
+          <div>
+            <p className="page-eyebrow">CRM</p>
+            <h1 className="page-title">Accounts</h1>
+            <p className="page-subtitle">
+              Client companies with KYC review status and linked opportunities.
+            </p>
+          </div>
+          <Link href="/crm/accounts/new" className="user-chip" style={{ borderColor: 'var(--color-navy-700)' }}>
+            <span style={{ fontWeight: 600, color: 'var(--color-navy-700)' }}>+ New account</span>
+          </Link>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <h2 className="card-title">{rows.length} account{rows.length === 1 ? '' : 's'}</h2>
+        </div>
+        {rows.length === 0 ? (
+          <div className="card-empty">No accounts yet. Create your first to start the pipeline.</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Industry</th>
+                <th>KYC</th>
+                <th>Opportunities</th>
+                <th>Primary contact</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <Link href={`/crm/accounts/${r.id}`} className="row-leader" style={{ textDecoration: 'none', color: 'inherit' }}>
+                      <div className="avatar-pill">{r.name.slice(0, 2).toUpperCase()}</div>
+                      <strong style={{ fontWeight: 500 }}>{r.name}</strong>
+                    </Link>
+                  </td>
+                  <td className="muted">{r.industry.replace(/_/g, ' ')}</td>
+                  <td>
+                    <span className={KYC_BADGE[r.kyc_status] ?? 'stage-badge'}>
+                      <span className="stage-badge-dot" />
+                      {r.kyc_status}
+                    </span>
+                  </td>
+                  <td className="numeric">{r.opp_count}</td>
+                  <td className="muted">
+                    {r.primary_email || r.primary_phone || '—'}
+                  </td>
+                  <td className="muted">
+                    {new Date(r.created_at).toLocaleDateString('en-PH', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}

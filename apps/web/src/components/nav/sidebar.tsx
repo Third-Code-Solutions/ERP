@@ -9,6 +9,8 @@ import {
   IconProjects,
   IconPipeline,
   IconBom,
+  IconBuilding,
+  IconUser,
   IconInvoice,
   IconPurchaseOrder,
   IconDocuments,
@@ -25,8 +27,10 @@ interface NavItem {
 
 const PRIMARY_NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', Icon: IconDashboard },
-  { href: '/projects', label: 'Projects', Icon: IconProjects },
+  { href: '/crm/accounts', label: 'Accounts', Icon: IconBuilding },
+  { href: '/crm/kyc-queue', label: 'KYC Queue', Icon: IconUser },
   { href: '/pipeline', label: 'Pipeline', Icon: IconPipeline },
+  { href: '/projects', label: 'Projects', Icon: IconProjects },
   { href: '/bom', label: 'BOM Builder', Icon: IconBom },
 ]
 
