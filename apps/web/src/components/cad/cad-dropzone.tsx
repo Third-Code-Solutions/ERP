@@ -122,6 +122,7 @@ export function CadDropZone({
   // None of these are "green done" — they each ship a specific actionable
   // message in cadResult.message that the progress line already renders.
   const cadResultStatus = lastResult?.cadResult?.status
+  const cadResultFormat = lastResult?.cadResult?.detectedFormat
   const NEUTRAL_STATUSES = new Set([
     'binary-dwg-pending',
     'no-items',
@@ -134,6 +135,32 @@ export function CadDropZone({
     cadResultStatus === 'error' ||
     cadResultStatus === 'download-failed' ||
     cadResultStatus === 'parse-failed'
+
+  // Format-aware headline for neutral statuses so an image upload doesn't
+  // show "DWG awaiting converter". Each branch describes what actually
+  // happened; the subtitle (cadResult.message) carries the actionable detail.
+  const pendingHeadline = (() => {
+    if (cadResultStatus === 'binary-dwg-pending') return 'Uploaded — DWG awaiting converter'
+    const formatLabel =
+      cadResultFormat === 'pdf'
+        ? 'PDF'
+        : cadResultFormat === 'image'
+          ? 'Image'
+          : cadResultFormat === 'spreadsheet'
+            ? 'Spreadsheet'
+            : cadResultFormat === 'csv'
+              ? 'CSV'
+              : cadResultFormat === 'docx'
+                ? 'Word doc'
+                : 'File'
+    if (cadResultStatus === 'no-items') return `${formatLabel} stored — no scope items detected`
+    if (cadResultStatus === 'ai-not-configured')
+      return `${formatLabel} stored — AI extraction not configured`
+    if (cadResultStatus === 'too-large')
+      return `${formatLabel} stored — too large for inline AI extraction`
+    if (cadResultStatus === 'unknown-format') return 'Uploaded — file stored'
+    return 'Uploaded'
+  })()
   const showSuccess = phase === 'done' && !error && !isPendingResult && !isErrorResult
   const showError = phase === 'error' || (phase === 'done' && (Boolean(error) || isErrorResult))
   const showPending = phase === 'done' && isPendingResult && !error
@@ -274,7 +301,7 @@ export function CadDropZone({
             : showError
               ? 'Upload error'
               : showPending
-                ? 'Uploaded — DWG awaiting converter'
+                ? pendingHeadline
                 : isDragging
                   ? 'Drop to upload'
                   : title}

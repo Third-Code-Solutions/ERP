@@ -91,9 +91,49 @@ interface ExtractedScopeItem {
 
 const SYSTEM_PROMPT = `You are a senior estimator for Philippine construction (MEP, fit-out, interior
 build-outs). You will be given source material — image, PDF, spreadsheet, CSV, or word document —
-that may be a Bill of Materials, scope list, takeoff worksheet, priced quote, specification, or
-hand-drawn plan. Extract every distinct LINE ITEM that is clearly a material, equipment, fixture,
-or labor item required for the project.
+that may be:
+  (a) a priced Bill of Materials / takeoff worksheet / quote / specification, OR
+  (b) an architectural / MEP floor plan or layout drawing (rooms labeled with dimensions,
+      partitions, doors, plumbing fixtures, lighting fixtures, FF&E symbols, equipment blocks).
+
+Your job in BOTH cases is the same: produce a useful, priced LINE-ITEM list a Philippine fit-out
+estimator can immediately load into a Bill of Materials. Never return an empty list just because
+the source isn't a tidy table — a labeled floor plan is enough to derive real scope.
+
+FLOOR PLAN MODE (use this when the source is a drawing, not a table):
+- Identify every labeled room / zone (Office, Meeting, Lobby, Entrance, Reception, WC, Kitchenette,
+  IT Room, Server Room, Breakout, Storage, Stairs, Lift Lobby, Shower, Pantry, etc.).
+- Estimate floor area in square meters for each room. Use any dimension annotations you can read
+  (1600, 1200, 800 etc. are mm; convert: e.g. 1600 mm = 1.6 m). When you cannot read precise
+  dimensions, estimate from relative size on the plan and label the line "(area estimated)" in notes.
+- For each room, generate the standard fit-out package the room implies. Typical defaults:
+    * vinyl plank flooring OR ceramic tile (WC/wet areas/kitchenette) — sqm of floor
+    * suspended ceiling 600×600 mineral fibre — sqm of floor
+    * latex paint 2 coats on partition walls — derive sqm from perimeter × 2.7 m height
+    * drywall partition single-side 12 mm board — sqm where new partitions are drawn
+    * LED panel light 600×600 — 1 per ~9 sqm in offices, 1 per ~6 sqm in meeting/circulation
+    * universal duplex outlet — 4 per office, 2 per meeting/WC/kitchenette, 1 per circulation node
+    * data outlet (RJ45) — 1 per workstation visible
+- WC / Toilet rooms — count the visible plumbing symbols (water closet, urinal, lavatory faucet,
+  floor drain, mirror, partition cubicles). Each becomes a line item. Add tile flooring + tile wall
+  to ceiling height.
+- IT / Server rooms — server rack (42U), precision air conditioning unit, raised flooring, FM200
+  suppression nozzle, dedicated power panel.
+- Kitchenette / pantry — base cabinet (linear m), wall cabinet (linear m), stainless sink, faucet,
+  water dispenser power outlet.
+- Office / open plan workstations — count desks visible; each implies workstation modular furniture,
+  task chair, data outlet, duplex outlet. Group meeting tables separately as conference furniture.
+- Stairs / lift control — handrail (linear m of stair), fire-rated door, emergency exit light.
+- Doors — count every door symbol; each is a flush door + frame + hardware set.
+
+When in floor-plan mode, ALWAYS include a "Labor / Services" line for general construction labor
+(allowance 15% of the material total). When the plan covers many rooms, prefer fewer aggregated
+lines (e.g. one "Suspended ceiling, mineral fibre 600×600 — XXX sqm" line that sums all rooms)
+over hundreds of micro-rows. Aim for 25–60 line items total for a typical office floor plan.
+
+BOM / TABLE MODE (the priced takeoff path, unchanged):
+Extract every distinct LINE ITEM that is clearly a material, equipment, fixture, or labor item
+required for the project.
 
 For each item return:
 - description: canonical material / equipment / labor name. Expand abbreviations (e.g. "FCU" → "Fan Coil Unit, 1.5 TR", "GI" → "Galvanized Iron", "MCB" → "Miniature Circuit Breaker, 32A").
@@ -137,9 +177,12 @@ heavier gauge, larger capacity). Be CONSERVATIVE — for the estimator, a small 
 is recoverable, but an inflated estimate loses bids. When in doubt, choose the lower end.
 
 Rules:
-- Do NOT invent items. If the source doesn't contain BOM/scope content (logo, cover page, signature page), return an empty items array.
-- Header rows, subtotals, section dividers, page totals, and blank rows are NOT items.
-- Items may repeat across pages; keep each occurrence only if it represents a different location / sub-system. Otherwise dedupe.
+- A labeled floor plan IS scope-bearing content — use FLOOR PLAN MODE above. Only return an empty
+  items array when the source is genuinely scope-free (logo, cover page, signature page, brand book).
+- In table mode: header rows, subtotals, section dividers, page totals, and blank rows are NOT items.
+- Items may repeat across pages; keep each occurrence only if it represents a different location /
+  sub-system. Otherwise dedupe.
+- Put any room labels you used to derive a line in notes (e.g. "Office B01-GF-123, B01-GF-134").
 - Output strict JSON matching the schema; never wrap output in markdown.`
 
 const SCOPE_JSON_SCHEMA = {
