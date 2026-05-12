@@ -28,6 +28,7 @@ export interface CadUploadResult {
   bomCostCents: number
   bomGpMarginBps: number
   ragMatches: number
+  aiEstimateMatches: number
 }
 
 export interface CompleteResponse {
@@ -261,6 +262,9 @@ export function formatCompletionProgress(completed: CompleteResponse): string {
       }
       if (r.ragMatches > 0) {
         parts.push(`${r.ragMatches} RAG match${r.ragMatches === 1 ? '' : 'es'}`)
+      }
+      if (r.aiEstimateMatches > 0) {
+        parts.push(`${r.aiEstimateMatches} AI-estimated price${r.aiEstimateMatches === 1 ? '' : 's'}`)
       }
       if (r.extensionMismatch) {
         parts.push('(content was DXF despite extension)')

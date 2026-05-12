@@ -17,7 +17,7 @@ interface BomLineItem {
   notes?: string | null
 }
 
-type LineSource = 'rag' | 'catalog' | 'manual' | 'unpriced' | 'unknown'
+type LineSource = 'rag' | 'catalog' | 'ai-estimate' | 'shown' | 'manual' | 'unpriced' | 'unknown'
 
 function classifyLineSource(item: BomLineItem): LineSource {
   const notes = (item.notes ?? '').trim()
@@ -28,6 +28,8 @@ function classifyLineSource(item: BomLineItem): LineSource {
     notes.startsWith('Cost from PH industry catalog')
   )
     return 'catalog'
+  if (notes.startsWith('Cost from AI estimate')) return 'ai-estimate'
+  if (notes.startsWith('Price from source document')) return 'shown'
   if (notes.startsWith('Manual')) return 'manual'
   return 'unknown'
 }
@@ -51,6 +53,20 @@ function SourceBadge({ item }: { item: BomLineItem }) {
       bg: 'var(--color-info-soft)',
       fg: 'var(--color-info)',
       border: 'color-mix(in oklch, var(--color-info) 22%, transparent)',
+    },
+    'ai-estimate': {
+      // Orange/amber so estimators immediately see "this needs a vendor quote".
+      label: 'AI',
+      bg: 'color-mix(in oklch, var(--color-warning) 12%, transparent)',
+      fg: 'var(--color-warning)',
+      border: 'color-mix(in oklch, var(--color-warning) 35%, transparent)',
+    },
+    shown: {
+      // Price was printed in the uploaded source document — highest confidence.
+      label: 'SRC',
+      bg: 'var(--color-info-soft)',
+      fg: 'var(--color-info)',
+      border: 'color-mix(in oklch, var(--color-info) 30%, transparent)',
     },
     manual: {
       label: 'M',

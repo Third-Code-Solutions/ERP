@@ -34,6 +34,7 @@ export interface AutoBomResult {
   gpMarginBps: number
   ragMatches: number
   catalogMatches: number
+  aiEstimateMatches: number
   unpriced: number
   reason?: string
 }
@@ -73,6 +74,7 @@ export async function calcDraftBomFromScope(
       unit: scopeItems.unit,
       quantity: scopeItems.quantity,
       unit_cost_cents: scopeItems.unit_cost_cents,
+      notes: scopeItems.notes,
     })
     .from(scopeItems)
     .where(
@@ -94,6 +96,7 @@ export async function calcDraftBomFromScope(
       gpMarginBps: 0,
       ragMatches: 0,
       catalogMatches: 0,
+      aiEstimateMatches: 0,
       unpriced: 0,
       reason: 'No scope items found for this document',
     }
@@ -105,9 +108,10 @@ export async function calcDraftBomFromScope(
   let totalTcvCents = 0
   let ragMatches = 0
   let catalogMatches = 0
+  let aiEstimateMatches = 0
   let unpriced = 0
 
-  type PriceSource = 'rag' | 'catalog' | 'manual' | 'none'
+  type PriceSource = 'rag' | 'catalog' | 'manual' | 'ai-estimate' | 'none'
 
   const calculatedLines: Array<{
     description: string
@@ -129,8 +133,27 @@ export async function calcDraftBomFromScope(
     let markupBps = DEFAULT_MARKUP_BPS
     let score = 0
     let unit: string | null = item.unit ?? null
-    let source: PriceSource = unitCostCents > 0 ? 'manual' : 'none'
+
+    // The vision extractor writes `price_source:ai_estimated` (or
+    // `:shown_in_source`) into scope.notes when it pre-populates a unit_cost.
+    // Treat those distinctly from a human "Manual" entry so the BOM badge can
+    // tell the estimator "this number came from a 2026 PH-market guess, verify".
+    const notes = item.notes ?? ''
+    const isAiEstimated = notes.includes('price_source:ai_estimated')
+    const isShownInSource = notes.includes('price_source:shown_in_source')
+
+    let source: PriceSource
+    if (unitCostCents > 0 && isAiEstimated) source = 'ai-estimate'
+    else if (unitCostCents > 0) source = 'manual'
+    else source = 'none'
+
     let sourceLabel: string | null = null
+    if (source === 'ai-estimate') {
+      sourceLabel = 'AI estimate (PH 2026 market)'
+      aiEstimateMatches += 1
+    } else if (source === 'manual' && isShownInSource) {
+      sourceLabel = 'Price from source document'
+    }
 
     // 1) RAG lookup against historical approved BOMs
     if (useRag && ai && unitCostCents === 0) {
@@ -252,9 +275,11 @@ export async function calcDraftBomFromScope(
               ? `Cost from RAG (${line.sourceLabel ?? 'similarity match'}) — verify`
               : line.source === 'catalog'
                 ? `Cost from ${line.sourceLabel ?? 'PH industry catalog'} — verify with vendor quote`
-                : line.source === 'manual'
-                  ? 'Manual unit cost'
-                  : 'No catalog or historical match — estimator must fill in unit cost',
+                : line.source === 'ai-estimate'
+                  ? `Cost from ${line.sourceLabel ?? 'AI estimate'} — verify with vendor quote`
+                  : line.source === 'manual'
+                    ? line.sourceLabel ?? 'Manual unit cost'
+                    : 'No catalog or historical match — estimator must fill in unit cost',
         }))
       )
     }
@@ -271,6 +296,7 @@ export async function calcDraftBomFromScope(
     gpMarginBps,
     ragMatches,
     catalogMatches,
+    aiEstimateMatches,
     unpriced,
   }
 }

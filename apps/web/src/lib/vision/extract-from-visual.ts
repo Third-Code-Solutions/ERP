@@ -77,25 +77,64 @@ interface ExtractedScopeItem {
   description: string
   unit: string | null
   quantity: number
+  // The literal price shown in the source document, if any. Null when the
+  // source has no price next to the line (a CAD drawing, photo, spec sheet…).
   unit_cost_php: number | null
+  // Realistic Philippine 2026 market estimate produced by the model. Used as
+  // the unit cost when unit_cost_php is null so the BOM is immediately useful
+  // instead of being a wall of ₱0.00. Set to 0 when the item is too generic
+  // for the model to estimate honestly (e.g. "miscellaneous accessory").
+  estimated_unit_cost_php: number
   category: string | null
   notes: string | null
 }
 
-const SYSTEM_PROMPT = `You are an estimating expert for Philippine construction (MEP, fit-out, interior build-outs).
-You will be given source material — image, PDF, spreadsheet, CSV, or word document — that may be a Bill
-of Materials, scope list, takeoff worksheet, priced quote, specification, or hand-drawn plan. Extract
-every distinct LINE ITEM that is clearly a material, equipment, fixture, or labor item required for the
-project.
+const SYSTEM_PROMPT = `You are a senior estimator for Philippine construction (MEP, fit-out, interior
+build-outs). You will be given source material — image, PDF, spreadsheet, CSV, or word document —
+that may be a Bill of Materials, scope list, takeoff worksheet, priced quote, specification, or
+hand-drawn plan. Extract every distinct LINE ITEM that is clearly a material, equipment, fixture,
+or labor item required for the project.
 
 For each item return:
-- description: canonical material / equipment / labor name. Expand abbreviations (e.g. "FCU" → "Fan Coil Unit", "GI" → "Galvanized Iron", "MCB" → "Miniature Circuit Breaker").
+- description: canonical material / equipment / labor name. Expand abbreviations (e.g. "FCU" → "Fan Coil Unit, 1.5 TR", "GI" → "Galvanized Iron", "MCB" → "Miniature Circuit Breaker, 32A").
 - quantity: integer count. If a range is given, use the higher end. If unclear, use 1.
 - unit: short unit like "pc","set","lot","m","sqm","cbm","kg","hr","ls". Use null when unknown.
 - code: any SKU / item code shown alongside the line. Use null when none.
-- unit_cost_php: ONLY when a unit price in Philippine Pesos is clearly shown alongside the line. Use null otherwise.
-- category: ONE of these top-level construction divisions — "Mechanical" (HVAC, ducting, refrigeration), "Electrical" (panels, wiring, lighting, controls), "Plumbing" (pipes, fittings, fixtures, drainage), "Fire Protection" (sprinklers, detectors, alarms), "Civil / Structural" (concrete, rebar, formwork, steel), "Architectural / Finishes" (drywall, paint, ceiling, flooring, doors, glazing), "Furniture / Equipment" (FF&E, appliances), "Labor / Services" (manhours, installation, hauling), or "Other". Always pick exactly one.
+- unit_cost_php: ONLY when a unit price in Philippine Pesos is clearly shown alongside the line in the source. Use null otherwise. NEVER guess this field — it represents ground truth from the document.
+- estimated_unit_cost_php: a REALISTIC Philippine 2026 contractor unit cost in PHP for this item, including typical supply + installation labor where applicable. Always populate this field with your best honest estimate; set 0 ONLY when the item is too generic / unfamiliar to estimate responsibly (e.g. "miscellaneous accessory", "as required"). See pricing anchors below.
+- category: ONE of — "Mechanical" (HVAC, ducting, refrigeration), "Electrical" (panels, wiring, lighting, controls), "Plumbing" (pipes, fittings, fixtures, drainage), "Fire Protection" (sprinklers, detectors, alarms), "Civil / Structural" (concrete, rebar, formwork, steel), "Architectural / Finishes" (drywall, paint, ceiling, flooring, doors, glazing), "Furniture / Equipment" (FF&E, appliances), "Labor / Services" (manhours, installation, hauling), or "Other". Always pick exactly one.
 - notes: brief estimator-facing note (assumption, source row/page, alternative). Use null when not useful.
+
+Pricing anchors (Philippine 2026, supply + install, Manila/Cebu wholesale-to-contractor):
+- Fan coil unit, 1.5 TR — ₱45,000–₱75,000 pc
+- Air handling unit, 5 TR — ₱220,000–₱340,000 pc
+- VRF indoor unit — ₱55,000–₱95,000 pc
+- Distribution panel (12-way, plug-in MCB) — ₱8,000–₱22,000 pc
+- MCB, 1P 16/20/32 A — ₱180–₱520 pc
+- LED downlight 9–12 W — ₱350–₱1,200 pc
+- LED panel light 600×600 — ₱950–₱2,400 pc
+- Universal duplex outlet w/ plate — ₱180–₱520 pc
+- THHN wire 3.5 mm² (per meter) — ₱32–₱58 m
+- PVC conduit 20 mm (per 3 m length) — ₱120–₱220 pc
+- GI pipe 4" Sch 40 (6 m length) — ₱3,200–₱5,500 pc
+- PPR pipe ½"–1" (per m) — ₱45–₱140 m
+- Lavatory faucet, single hole — ₱950–₱3,200 pc
+- Water closet, 1.6 GPF — ₱5,400–₱18,500 pc
+- Sprinkler head, pendant — ₱220–₱650 pc
+- Smoke detector, photoelectric — ₱950–₱2,800 pc
+- Fire alarm panel, 4-zone — ₱14,000–₱45,000 pc
+- Drywall partition, single-side 12 mm board — ₱720–₱1,250 sqm
+- Suspended ceiling, mineral fibre 600×600 — ₱650–₱1,150 sqm
+- Vinyl plank flooring, 4 mm — ₱950–₱1,850 sqm
+- Latex paint, 2 coats — ₱85–₱180 sqm
+- Concrete works, 3000 psi (supply + pour) — ₱5,800–₱9,200 cbm
+- Rebar deformed 12–16 mm — ₱58–₱82 kg
+- Skilled labor (electrician/plumber, day rate) — ₱950–₱1,800 hr (8-hr day basis)
+- Helper / utility labor — ₱520–₱780 hr
+
+Use these as midpoint anchors; adjust for clearly indicated specifications (premium brand,
+heavier gauge, larger capacity). Be CONSERVATIVE — for the estimator, a small under-estimate
+is recoverable, but an inflated estimate loses bids. When in doubt, choose the lower end.
 
 Rules:
 - Do NOT invent items. If the source doesn't contain BOM/scope content (logo, cover page, signature page), return an empty items array.
@@ -119,6 +158,7 @@ const SCOPE_JSON_SCHEMA = {
           'unit',
           'quantity',
           'unit_cost_php',
+          'estimated_unit_cost_php',
           'category',
           'notes',
         ],
@@ -128,6 +168,7 @@ const SCOPE_JSON_SCHEMA = {
           unit: { type: ['string', 'null'] },
           quantity: { type: 'number' },
           unit_cost_php: { type: ['number', 'null'] },
+          estimated_unit_cost_php: { type: 'number' },
           category: { type: ['string', 'null'] },
           notes: { type: ['string', 'null'] },
         },
@@ -135,6 +176,14 @@ const SCOPE_JSON_SCHEMA = {
     },
   },
 } as const
+
+// Turn a PHP-as-float into integer centavos when the value is a sane positive
+// number. Returns null for null/undefined/NaN/non-positive so callers can
+// distinguish "no price" from "explicit zero".
+function positivePhpToCents(value: number | null | undefined): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null
+  return Math.round(value * 100)
+}
 
 function notConfigured(kind: VisualKind): VisualExtractResult {
   return {
@@ -450,8 +499,11 @@ export async function extractScopeFromVisual(
     }
   }
 
+  let aiEstimatedCount = 0
+  let shownCount = 0
   const rows = extracted.map((item, idx) => {
-    const description = (item.description ?? '').toString().trim().slice(0, 1000) || 'Unspecified item'
+    const description =
+      (item.description ?? '').toString().trim().slice(0, 1000) || 'Unspecified item'
     const code = item.code ? String(item.code).trim().slice(0, 50) || null : null
     const unitRaw = item.unit ? String(item.unit).trim().slice(0, 20) : ''
     const unit = unitRaw.length > 0 ? unitRaw : 'pc'
@@ -459,17 +511,35 @@ export async function extractScopeFromVisual(
       typeof item.quantity === 'number' && Number.isFinite(item.quantity) && item.quantity > 0
         ? Math.max(1, Math.round(item.quantity))
         : 1
-    const unitCostCents =
-      typeof item.unit_cost_php === 'number' &&
-      Number.isFinite(item.unit_cost_php) &&
-      item.unit_cost_php > 0
-        ? Math.round(item.unit_cost_php * 100)
-        : 0
+
+    const shownCents = positivePhpToCents(item.unit_cost_php)
+    const estimatedCents = positivePhpToCents(item.estimated_unit_cost_php)
+
+    // Prefer the price actually printed in the source. Fall back to the AI's
+    // PH-market estimate so the BOM has a usable starting number instead of
+    // ₱0.00. Notes encode the provenance so auto-bom.ts can badge the line
+    // correctly downstream.
+    let unitCostCents: number
+    let priceSource: 'shown_in_source' | 'ai_estimated' | 'none'
+    if (shownCents !== null) {
+      unitCostCents = shownCents
+      priceSource = 'shown_in_source'
+      shownCount += 1
+    } else if (estimatedCents !== null) {
+      unitCostCents = estimatedCents
+      priceSource = 'ai_estimated'
+      aiEstimatedCount += 1
+    } else {
+      unitCostCents = 0
+      priceSource = 'none'
+    }
+
     const category = item.category ? String(item.category).trim().slice(0, 60) : ''
     const noteFragment = item.notes ? String(item.notes).trim().slice(0, 300) : ''
 
     const noteParts = [`auto-extracted (vision/${kind}); document:${documentId}`]
     if (category) noteParts.push(`category:${category}`)
+    noteParts.push(`price_source:${priceSource}`)
     if (noteFragment) noteParts.push(noteFragment)
 
     return {
@@ -485,6 +555,15 @@ export async function extractScopeFromVisual(
       notes: noteParts.join('; '),
     }
   })
+
+  if (aiEstimatedCount > 0) {
+    warnings.push(
+      `${aiEstimatedCount} of ${rows.length} line${rows.length === 1 ? '' : 's'} priced via AI market estimate — review before sending to the client.`
+    )
+  }
+  if (shownCount === 0 && aiEstimatedCount === 0) {
+    warnings.push('No prices shown in source and AI could not estimate — review unit costs manually.')
+  }
 
   for (let i = 0; i < rows.length; i += SCOPE_BATCH_SIZE) {
     await db.insert(scopeItems).values(rows.slice(i, i + SCOPE_BATCH_SIZE))
