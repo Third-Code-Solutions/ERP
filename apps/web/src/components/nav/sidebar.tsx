@@ -15,6 +15,9 @@ import {
   IconPurchaseOrder,
   IconDocuments,
   IconReports,
+  IconLayers,
+  IconCheck,
+  IconActivity,
   IconSettings,
   IconLogout,
 } from '@/components/ui/icons'
@@ -35,8 +38,11 @@ const PRIMARY_NAV: NavItem[] = [
 ]
 
 const OPS_NAV: NavItem[] = [
-  { href: '/invoices', label: 'Invoices', Icon: IconInvoice },
+  { href: '/permits', label: 'Permits', Icon: IconLayers },
   { href: '/purchase-orders', label: 'Purchase Orders', Icon: IconPurchaseOrder },
+  { href: '/invoices', label: 'Invoices', Icon: IconInvoice },
+  { href: '/punchlist', label: 'Punchlist', Icon: IconCheck },
+  { href: '/warranty', label: 'Warranty', Icon: IconActivity },
   { href: '/documents', label: 'Documents', Icon: IconDocuments },
   { href: '/reports', label: 'Reports', Icon: IconReports },
 ]
