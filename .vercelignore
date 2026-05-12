@@ -1,0 +1,10 @@
+apps/workers
+supabase/functions
+docs
+.github
+e2e
+test-results
+playwright-report
+*.md
+!apps/web/REFACTOR.md
+.env*
