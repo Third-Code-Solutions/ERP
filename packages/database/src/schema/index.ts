@@ -34,3 +34,5 @@ export * from './post-construction'
 export * from './warranty'
 // Phase 8 (Cross-cutting)
 export * from './notifications'
+// Phase 9 (Canvas-based in-app signing — DocuSeal alternative)
+export * from './signature-sessions'
