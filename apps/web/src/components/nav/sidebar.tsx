@@ -32,9 +32,10 @@ const PRIMARY_NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', Icon: IconDashboard },
   { href: '/crm/accounts', label: 'Accounts', Icon: IconBuilding },
   { href: '/crm/kyc-queue', label: 'KYC Queue', Icon: IconUser },
-  { href: '/pipeline', label: 'Pipeline', Icon: IconPipeline },
+  { href: '/pipeline/board', label: 'Pipeline', Icon: IconPipeline },
   { href: '/projects', label: 'Projects', Icon: IconProjects },
   { href: '/bom', label: 'BOM Builder', Icon: IconBom },
+  { href: '/tasks', label: 'My Tasks', Icon: IconCheck },
 ]
 
 const OPS_NAV: NavItem[] = [
@@ -43,8 +44,13 @@ const OPS_NAV: NavItem[] = [
   { href: '/invoices', label: 'Invoices', Icon: IconInvoice },
   { href: '/punchlist', label: 'Punchlist', Icon: IconCheck },
   { href: '/warranty', label: 'Warranty', Icon: IconActivity },
+  { href: '/warranty/cnps', label: 'CNPS', Icon: IconActivity },
   { href: '/documents', label: 'Documents', Icon: IconDocuments },
   { href: '/reports', label: 'Reports', Icon: IconReports },
+]
+
+const ADMIN_NAV: NavItem[] = [
+  { href: '/admin', label: 'Admin', Icon: IconSettings },
 ]
 
 interface SidebarProps {
@@ -105,6 +111,11 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="sidebar-section">
         <div className="sidebar-section-label">Operations</div>
         {OPS_NAV.map(renderItem)}
+      </div>
+
+      <div className="sidebar-section">
+        <div className="sidebar-section-label">Admin</div>
+        {ADMIN_NAV.map(renderItem)}
       </div>
 
       <div className="sidebar-footer">

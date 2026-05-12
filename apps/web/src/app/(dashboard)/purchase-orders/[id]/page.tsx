@@ -1,11 +1,13 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@buildops/auth'
+import { alias } from 'drizzle-orm/pg-core'
+import { getUser, getUserProfile } from '@buildops/auth'
 import { db } from '@buildops/database'
 import { poLineItems, projects, purchaseOrders, users, vendors } from '@buildops/database/schema'
 import { and, asc, eq } from 'drizzle-orm'
 import { PoStatusActions } from './po-status-actions'
+import { ApprovalTimeline } from '@/components/procurement/approval-timeline'
 import { ReceiveLineForm } from '@/components/procurement/receive-line-form'
 
 export const metadata: Metadata = { title: 'Purchase Order' }
@@ -17,6 +19,13 @@ const STATUS_LABELS: Record<string, string> = {
   partial_delivery: 'Partial Delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
+  // ABI 3-step approval flow
+  pending_pm_approval: 'Pending PM Approval',
+  pending_commercial_approval: 'Pending Commercial Approval',
+  pending_scm_issuance: 'Pending SCM Issuance',
+  issued: 'Issued',
+  partial_delivered: 'Partial Delivered',
+  fully_delivered: 'Fully Delivered',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -26,6 +35,12 @@ const STATUS_COLORS: Record<string, string> = {
   partial_delivery: '#f59e0b',
   delivered: '#10b981',
   cancelled: '#ef4444',
+  pending_pm_approval: '#f59e0b',
+  pending_commercial_approval: '#f59e0b',
+  pending_scm_issuance: '#E07B2A',
+  issued: '#3b82f6',
+  partial_delivered: '#f59e0b',
+  fully_delivered: '#10b981',
 }
 
 function formatPHP(cents: number): string {
@@ -37,8 +52,16 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
   const user = await getUser()
   if (!user) return null
 
+  // Profile gives us the role for client-side button gating. We still rely on
+  // server actions to do the authoritative permission check.
+  const profile = await getUserProfile()
   const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
   if (!userRow?.tenant_id) return notFound()
+
+  // Self-joins on users for approver/issuer names. Each step gets its own alias.
+  const pmUser = alias(users, 'pm_user')
+  const commercialUser = alias(users, 'commercial_user')
+  const scmUser = alias(users, 'scm_user')
 
   const [po] = await db
     .select({
@@ -59,10 +82,20 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
       vendor_email: vendors.email,
       vendor_phone: vendors.phone,
       vendor_tin: vendors.bir_tin,
+      pm_approved_at: purchaseOrders.pm_approved_at,
+      commercial_approved_at: purchaseOrders.commercial_approved_at,
+      scm_issued_at: purchaseOrders.scm_issued_at,
+      supplier_email_sent_at: purchaseOrders.supplier_email_sent_at,
+      pm_approver_name: pmUser.full_name,
+      commercial_approver_name: commercialUser.full_name,
+      scm_issuer_name: scmUser.full_name,
     })
     .from(purchaseOrders)
     .leftJoin(projects, eq(purchaseOrders.project_id, projects.id))
     .leftJoin(vendors, eq(purchaseOrders.vendor_id, vendors.id))
+    .leftJoin(pmUser, eq(purchaseOrders.pm_approved_by, pmUser.id))
+    .leftJoin(commercialUser, eq(purchaseOrders.commercial_approved_by, commercialUser.id))
+    .leftJoin(scmUser, eq(purchaseOrders.scm_issued_by, scmUser.id))
     .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.tenant_id, userRow.tenant_id)))
 
   if (!po) return notFound()
@@ -113,7 +146,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           >
             {STATUS_LABELS[po.status] ?? po.status}
           </span>
-          <PoStatusActions poId={id} currentStatus={po.status} />
+          <PoStatusActions poId={id} currentStatus={po.status} viewerRole={profile?.role ?? null} />
           <Link
             href={`/purchase-orders/${id}/print`}
             target="_blank"
@@ -134,6 +167,20 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
             Print / PDF
           </Link>
         </div>
+      </div>
+
+      {/* ABI 3-step approval timeline */}
+      <div style={{ marginBottom: '16px' }}>
+        <ApprovalTimeline
+          status={po.status}
+          pmApprovedAt={po.pm_approved_at}
+          pmApproverName={po.pm_approver_name}
+          commercialApprovedAt={po.commercial_approved_at}
+          commercialApproverName={po.commercial_approver_name}
+          scmIssuedAt={po.scm_issued_at}
+          scmIssuerName={po.scm_issuer_name}
+          supplierEmailSentAt={po.supplier_email_sent_at}
+        />
       </div>
 
       {/* Two-column meta + vendor */}

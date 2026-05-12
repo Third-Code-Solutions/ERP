@@ -3,10 +3,32 @@
 import { revalidatePath } from 'next/cache'
 import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
-import { opportunities, projects, users } from '@buildops/database/schema'
+import { accounts, opportunities, projects, users } from '@buildops/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
-import { STAGE_PROBABILITY, STAGE_TRANSITIONS, type OpportunityStage } from '@buildops/shared-types'
+import { startSlaClock, stopSlaClock } from '@/lib/abi/sla-clock'
+import {
+  ABI_STAGES,
+  STAGE_PROBABILITY,
+  STAGE_TRANSITIONS,
+  STAGE_LEGACY_MAP,
+  type AbiStage,
+  type OpportunityStage,
+} from '@buildops/shared-types'
+
+// Stages beyond which KYC must be approved. `lead` + `site_survey` are
+// allowed pre-KYC so reps can initial-triage; everything past needs
+// Finance sign-off.
+const KYC_GATED_STAGES: ReadonlySet<OpportunityStage> = new Set<OpportunityStage>([
+  'design',
+  'bom_submission',
+  'negotiation',
+  'contract',
+  'won',
+  // Legacy equivalents
+  'resubmission',
+  'closed_won',
+])
 
 // ── Create opportunity ────────────────────────────────────────────────────────
 
@@ -65,6 +87,111 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
   return {}
 }
 
+// ── Create opportunity for an account (ABI Ops flow) ──────────────────────────
+
+/**
+ * Create an Opportunity owned by an Account (REFACTOR.md M1 US-002).
+ *
+ * Requires `account_id`; `project_id` is optional and only persisted when the
+ * caller wants to pre-link an existing project. The opp is created at the
+ * canonical `lead` stage. Accounts whose KYC has not yet been approved can
+ * still produce a Lead — the KYC gate only kicks in when advancing past
+ * `site_survey`.
+ */
+export async function createOpportunityForAccount(formData: FormData): Promise<{ error?: string }> {
+  const user = await getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
+  if (!userRow?.tenant_id) return { error: 'No tenant' }
+
+  const accountId = formData.get('account_id')
+  if (typeof accountId !== 'string' || !accountId) return { error: 'Account is required' }
+
+  const [account] = await db
+    .select({ id: accounts.id, kyc_status: accounts.kyc_status, name: accounts.name })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.tenant_id, userRow.tenant_id)))
+
+  if (!account) return { error: 'Account not found' }
+
+  const stageRaw = parseStr(formData.get('stage')) ?? 'lead'
+  if (!ABI_STAGES.includes(stageRaw as AbiStage)) {
+    return { error: `Invalid stage: ${stageRaw}` }
+  }
+  const stage = stageRaw as AbiStage
+
+  // KYC gate: only `lead` is permitted unless KYC is approved or not_required.
+  const kycOk = account.kyc_status === 'approved' || account.kyc_status === 'not_required'
+  if (stage !== 'lead' && !kycOk) {
+    return { error: 'Account KYC must be Approved before this stage' }
+  }
+
+  const projectIdRaw = formData.get('project_id')
+  let projectId: string | undefined
+  if (typeof projectIdRaw === 'string' && projectIdRaw) {
+    const [project] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectIdRaw), eq(projects.tenant_id, userRow.tenant_id)))
+    if (!project) return { error: 'Project not found' }
+    projectId = project.id
+  }
+
+  const tcvCents = parseCents(formData.get('tcv'))
+  const gpCents = parseCents(formData.get('gp'))
+  const probability = STAGE_PROBABILITY[stage] ?? 10
+  const weightedTcvCents = Math.round((tcvCents * probability) / 100)
+
+  const [opp] = await db
+    .insert(opportunities)
+    .values({
+      tenant_id: userRow.tenant_id,
+      account_id: accountId,
+      project_id: projectId,
+      rep_id: user.id,
+      stage,
+      tcv_cents: tcvCents,
+      gp_cents: gpCents,
+      probability,
+      weighted_tcv_cents: weightedTcvCents,
+      closing_date: parseDate(formData.get('closing_date')),
+      area_sqm: parseIntOpt(formData.get('area_sqm')),
+      opportunity_type: parseStr(formData.get('opportunity_type')),
+      remarks: parseStr(formData.get('remarks')),
+    })
+    .returning({ id: opportunities.id })
+
+  if (!opp) return { error: 'Failed to create opportunity' }
+
+  await writeAuditLog({
+    tenantId: userRow.tenant_id,
+    actorId: user.id,
+    entityType: 'opportunity',
+    entityId: opp.id,
+    action: 'create',
+    diff: { stage, account_id: accountId, project_id: projectId ?? null, tcv_cents: tcvCents },
+  })
+
+  // Start SLA clock on the initial stage so leadership can see stalled leads.
+  try {
+    await startSlaClock({
+      tenantId: userRow.tenant_id,
+      entityType: 'opportunity',
+      entityId: opp.id,
+      label: 'opp.stage_response',
+    })
+  } catch {
+    // SLA failure is non-fatal — opp is created either way.
+  }
+
+  revalidatePath('/pipeline/board')
+  revalidatePath('/pipeline/coverage')
+  revalidatePath('/pipeline/conversion')
+  revalidatePath('/')
+  return {}
+}
+
 // ── Advance stage ─────────────────────────────────────────────────────────────
 
 /**
@@ -84,7 +211,7 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
 export async function advanceOpportunityStage(
   opportunityId: string,
   nextStage: string,
-  lostReason?: string
+  reason?: string
 ): Promise<{ error?: string }> {
   const user = await getUser()
   if (!user) return { error: 'Unauthorized' }
@@ -98,6 +225,7 @@ export async function advanceOpportunityStage(
       stage: opportunities.stage,
       tcv_cents: opportunities.tcv_cents,
       project_id: opportunities.project_id,
+      account_id: opportunities.account_id,
       lost_reason: opportunities.lost_reason,
     })
     .from(opportunities)
@@ -110,17 +238,43 @@ export async function advanceOpportunityStage(
     return { error: `Cannot move from ${opp.stage} to ${nextStage}` }
   }
 
-  const newProbability = STAGE_PROBABILITY[nextStage as OpportunityStage] ?? 0
+  // ── KYC gate (defense in depth — mirrors UI check). ─────────────────────────
+  // Advancing past Site Survey requires the linked Account to have an
+  // approved (or not-required) KYC status.
+  const nextStageTyped = nextStage as OpportunityStage
+  if (KYC_GATED_STAGES.has(nextStageTyped) && opp.account_id) {
+    const [account] = await db
+      .select({ kyc_status: accounts.kyc_status })
+      .from(accounts)
+      .where(and(eq(accounts.id, opp.account_id), eq(accounts.tenant_id, userRow.tenant_id)))
+    const kycOk = account?.kyc_status === 'approved' || account?.kyc_status === 'not_required'
+    if (!kycOk) {
+      return { error: 'Account KYC must be Approved before this stage' }
+    }
+  }
+
+  // ── Regression detection (US-002 AC5). ─────────────────────────────────────
+  // If the new stage sits earlier in the ABI flow than the current stage,
+  // require a reason.
+  const trimmedReason =
+    typeof reason === 'string' && reason.trim().length > 0 ? reason.trim() : undefined
+  const currentAbi: AbiStage = STAGE_LEGACY_MAP[opp.stage as OpportunityStage] ?? 'lead'
+  const nextAbi: AbiStage | undefined = STAGE_LEGACY_MAP[nextStageTyped]
+  const isRegression =
+    !!nextAbi &&
+    ABI_STAGES.indexOf(nextAbi) < ABI_STAGES.indexOf(currentAbi) &&
+    nextAbi !== 'lost'
+  if (isRegression && !trimmedReason) {
+    return { error: 'reason_required' }
+  }
+
+  const newProbability = STAGE_PROBABILITY[nextStageTyped] ?? 0
   const newWeightedTcv = Math.round(opp.tcv_cents * newProbability / 100)
 
-  // Only capture lost_reason on transitions into closed_lost. Trim and treat
-  // empty strings as undefined so we don't overwrite an existing reason with
-  // whitespace, and don't leak unrelated text on non-loss transitions.
-  const isClosingLost = nextStage === 'closed_lost'
-  const trimmedReason =
-    typeof lostReason === 'string' && lostReason.trim().length > 0
-      ? lostReason.trim()
-      : undefined
+  // Capture reason in lost_reason column on close-lost transitions; for
+  // regressions we still record it in the audit diff (below) without
+  // overwriting the lost_reason field.
+  const isClosingLost = nextStage === 'closed_lost' || nextStage === 'lost'
   const reasonToPersist = isClosingLost ? trimmedReason ?? null : undefined
 
   const updateValues: {
@@ -130,7 +284,7 @@ export async function advanceOpportunityStage(
     updated_at: Date
     lost_reason?: string | null
   } = {
-    stage: nextStage as OpportunityStage,
+    stage: nextStageTyped,
     probability: newProbability,
     weighted_tcv_cents: newWeightedTcv,
     updated_at: new Date(),
@@ -155,6 +309,9 @@ export async function advanceOpportunityStage(
       to: reasonToPersist ?? null,
     }
   }
+  if (isRegression && trimmedReason) {
+    auditDiff.regression_reason = trimmedReason
+  }
 
   await writeAuditLog({
     tenantId: userRow.tenant_id,
@@ -165,6 +322,45 @@ export async function advanceOpportunityStage(
     diff: auditDiff,
   })
 
+  // SLA clock — stop the previous stage's clock and start a new one for the
+  // new stage (terminal stages don't need a new clock).
+  try {
+    await stopSlaClock({
+      tenantId: userRow.tenant_id,
+      entityType: 'opportunity',
+      entityId: opportunityId,
+      label: 'opp.stage_response',
+    })
+    const terminal = nextStageTyped === 'won' || nextStageTyped === 'lost' ||
+      nextStageTyped === 'closed_won' || nextStageTyped === 'closed_lost'
+    if (!terminal) {
+      await startSlaClock({
+        tenantId: userRow.tenant_id,
+        entityType: 'opportunity',
+        entityId: opportunityId,
+        label: 'opp.stage_response',
+      })
+    }
+  } catch {
+    // Non-fatal — stage update has already been persisted.
+  }
+
+  // Won-trigger auto-conversion (REFACTOR.md M1 US-005).
+  // Creates a project if one isn't already linked, seeds the 12-item Pre-Con
+  // checklist, and notifies SD-PM-PE. Best-effort: failures here don't roll
+  // back the stage change — they surface as audit-log gaps the operator
+  // can re-trigger from the project detail page.
+  if (nextStageTyped === 'won' || nextStageTyped === 'closed_won') {
+    try {
+      const { convertOpportunityToProject } = await import('@/lib/abi/won-conversion')
+      await convertOpportunityToProject(opportunityId, user.id)
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[won-conversion] failed:', err instanceof Error ? err.message : err)
+    }
+  }
+
+  revalidatePath('/pipeline/board')
   revalidatePath('/pipeline/coverage')
   revalidatePath('/pipeline/conversion')
   revalidatePath('/')
