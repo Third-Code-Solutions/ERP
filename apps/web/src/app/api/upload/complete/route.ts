@@ -167,6 +167,7 @@ export async function POST(req: NextRequest) {
         bomCostCents: number
         bomGpMarginBps: number
         ragMatches: number
+        aiEstimateMatches: number
       }
     | undefined
 
@@ -195,6 +196,7 @@ export async function POST(req: NextRequest) {
         bomCostCents: result.bom?.totalCostCents ?? 0,
         bomGpMarginBps: result.bom?.gpMarginBps ?? 0,
         ragMatches: result.bom?.ragMatches ?? 0,
+        aiEstimateMatches: result.bom?.aiEstimateMatches ?? 0,
       }
 
       // Real binary DWG with no inline worker reachable: best-effort fan-out
@@ -253,6 +255,7 @@ export async function POST(req: NextRequest) {
         bomCostCents: visual.bom?.totalCostCents ?? 0,
         bomGpMarginBps: visual.bom?.gpMarginBps ?? 0,
         ragMatches: visual.bom?.ragMatches ?? 0,
+        aiEstimateMatches: visual.bom?.aiEstimateMatches ?? 0,
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
