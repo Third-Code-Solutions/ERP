@@ -24,7 +24,7 @@ import {
 } from '@buildops/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/abi/notifications'
-import { createDocuSealSubmission } from '@/lib/abi/integrations/docuseal'
+import { createSigningSession } from '@/lib/abi/integrations/docuseal'
 
 export type VoChangeType = 'client_initiated' | 'site_condition' | 'design_error'
 export type VoStatus =
@@ -215,24 +215,19 @@ export async function submitVoForClientSignature(
     if (creator?.email) signerEmail = creator.email
   }
 
-  const submission = await createDocuSealSubmission({
-    templateId: process.env.DOCUSEAL_VO_TEMPLATE_ID ?? 'vo-default',
-    submitters: [{ email: signerEmail, role: 'client' }],
-    metadata: {
-      entity_type: 'vo',
-      entity_id: voId,
-      vo_number: vo.vo_number,
-      project_id: vo.project_id,
-      tenant_id: ctx.tenantId,
-    },
-    sendEmail: false,
+  const session = await createSigningSession({
+    tenantId: ctx.tenantId,
+    entityType: 'variation_order',
+    entityId: voId,
+    signerEmail,
   })
 
   await db
     .update(variationOrders)
     .set({
       status: 'pending_client_signature',
-      docuseal_submission_id: submission.submission_id,
+      docuseal_submission_id:
+        session.mechanism === 'docuseal' ? session.token : null,
     })
     .where(eq(variationOrders.id, voId))
 
@@ -245,13 +240,15 @@ export async function submitVoForClientSignature(
     diff: {
       from: 'pending_commercial_pricing',
       to: 'pending_client_signature',
-      docuseal_submission_id: submission.submission_id,
+      signing_url: session.url,
+      mechanism: session.mechanism,
+      is_dev_stub: session.is_dev_stub,
     },
   })
 
   revalidatePath(`/projects/${vo.project_id}/vos`)
   revalidatePath(`/projects/${vo.project_id}/vos/${voId}`)
-  return { url: submission.url }
+  return { url: session.url }
 }
 
 export async function recordVoSigned(

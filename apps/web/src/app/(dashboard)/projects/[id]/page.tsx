@@ -45,16 +45,6 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'var(--color-danger)',
 }
 
-const TABS = [
-  { label: 'Overview', href: '' },
-  { label: 'Scope', href: '/scope' },
-  { label: 'BOM', href: '/bom' },
-  { label: 'Documents', href: '/documents' },
-  { label: 'Billing', href: '/billing' },
-  { label: 'Comments', href: '/comments' },
-  { label: 'Audit', href: '/audit' },
-]
-
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const user = await getUser()
@@ -84,8 +74,6 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     })
     .from(opportunities)
     .where(and(eq(opportunities.project_id, id), eq(opportunities.tenant_id, userRow.tenant_id)))
-
-  const baseHref = `/projects/${id}`
 
   const [latestBom] = await db
     .select({ total_cost_cents: boms.total_cost_cents, tcv_cents: boms.tcv_cents, gp_cents: boms.gp_cents, status: boms.status })
@@ -163,30 +151,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      {/* Tab navigation */}
-      <div style={{ display: 'flex', gap: '2px', marginBottom: '24px', borderBottom: '1px solid var(--color-border)' }}>
-        {TABS.map(({ label, href }) => {
-          const fullHref = baseHref + href
-          const isActive = href === '' // Overview is default
-          return (
-            <Link
-              key={label}
-              href={fullHref}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.875rem',
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? 'var(--color-navy-700)' : 'var(--color-neutral-500)',
-                textDecoration: 'none',
-                borderBottom: isActive ? '2px solid var(--color-navy-700)' : '2px solid transparent',
-                marginBottom: '-1px',
-              }}
-            >
-              {label}
-            </Link>
-          )
-        })}
-      </div>
+      {/* Tab navigation is provided by /projects/[id]/layout.tsx */}
 
       {/* Overview content */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px' }}>

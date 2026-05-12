@@ -44,6 +44,8 @@ export function SignupForm() {
   if (success) {
     return (
       <div
+        role="status"
+        aria-live="polite"
         style={{
           background: 'var(--color-green-50, #f0fdf4)',
           border: '1px solid var(--color-green-200, #bbf7d0)',
@@ -76,8 +78,12 @@ export function SignupForm() {
     marginBottom: '6px',
   }
 
+  const hasError = Boolean(error)
+  const errorId = 'signup-error'
+  const passwordHintId = 'signup-password-hint'
+
   return (
-    <form onSubmit={handleSubmit} method="post" noValidate>
+    <form onSubmit={handleSubmit} method="post" noValidate aria-label="Create account">
       <div style={{ marginBottom: '16px' }}>
         <label htmlFor="email" style={labelStyle}>
           Email address
@@ -87,7 +93,11 @@ export function SignupForm() {
           name="email"
           type="email"
           autoComplete="email"
+          inputMode="email"
           required
+          aria-required="true"
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? errorId : undefined}
           style={inputStyle}
           placeholder="you@company.com"
         />
@@ -103,10 +113,24 @@ export function SignupForm() {
           type="password"
           autoComplete="new-password"
           required
+          aria-required="true"
           minLength={12}
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? `${passwordHintId} ${errorId}` : passwordHintId}
           style={inputStyle}
           placeholder="12+ characters"
         />
+        <p
+          id={passwordHintId}
+          style={{
+            fontSize: '0.75rem',
+            color: 'var(--color-neutral-500)',
+            marginTop: '6px',
+            marginBottom: 0,
+          }}
+        >
+          Use at least 12 characters.
+        </p>
       </div>
 
       <div style={{ marginBottom: '24px' }}>
@@ -119,6 +143,9 @@ export function SignupForm() {
           type="password"
           autoComplete="new-password"
           required
+          aria-required="true"
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? errorId : undefined}
           style={inputStyle}
           placeholder="Repeat password"
         />
@@ -126,7 +153,9 @@ export function SignupForm() {
 
       {error && (
         <div
+          id={errorId}
           role="alert"
+          aria-live="assertive"
           style={{
             background: '#fef2f2',
             border: '1px solid #fecaca',
@@ -144,6 +173,7 @@ export function SignupForm() {
       <button
         type="submit"
         disabled={isPending}
+        aria-busy={isPending || undefined}
         style={{
           width: '100%',
           padding: '10px 16px',

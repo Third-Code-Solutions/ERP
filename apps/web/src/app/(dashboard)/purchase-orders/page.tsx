@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getUser } from '@buildops/auth'
 import { db } from '@buildops/database'
-import { purchaseOrders, projects, vendors, users } from '@buildops/database/schema'
-import { eq, desc } from 'drizzle-orm'
+import { purchaseOrders, projects, vendors, users, boms } from '@buildops/database/schema'
+import { eq, desc, and, inArray } from 'drizzle-orm'
 import { CreatePoForm } from '@/components/procurement/create-po-form'
+import { GeneratePosTrigger } from '@/components/procurement/generate-pos-trigger'
 
 export const metadata: Metadata = { title: 'Purchase Orders' }
 
@@ -41,10 +42,30 @@ export default async function PurchaseOrdersPage() {
 
   if (!userRow?.tenant_id) return null
 
-  const [projectList, vendorList] = await Promise.all([
+  const [projectList, vendorList, eligibleBomRows] = await Promise.all([
     db.select({ id: projects.id, name: projects.name }).from(projects).where(eq(projects.tenant_id, userRow.tenant_id)).orderBy(projects.name),
     db.select({ id: vendors.id, name: vendors.name }).from(vendors).where(eq(vendors.tenant_id, userRow.tenant_id)).orderBy(vendors.name),
+    db
+      .select({
+        id: boms.id,
+        version: boms.version,
+        status: boms.status,
+        total_cost_cents: boms.total_cost_cents,
+        project_name: projects.name,
+      })
+      .from(boms)
+      .leftJoin(projects, eq(boms.project_id, projects.id))
+      .where(and(eq(boms.tenant_id, userRow.tenant_id), inArray(boms.status, ['approved', 'locked'])))
+      .orderBy(desc(boms.created_at)),
   ])
+
+  const eligibleBoms = eligibleBomRows.map((b) => ({
+    id: b.id,
+    version: b.version,
+    status: b.status,
+    total_cost_cents: b.total_cost_cents,
+    project_name: b.project_name ?? '—',
+  }))
 
   const rows = await db
     .select({
@@ -84,7 +105,10 @@ export default async function PurchaseOrdersPage() {
           <h1 className="page-title">Purchase Orders</h1>
           <p className="page-subtitle">{rows.length} PO{rows.length !== 1 ? 's' : ''} across all projects</p>
         </div>
-        <CreatePoForm projects={projectList} vendors={vendorList} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <GeneratePosTrigger boms={eligibleBoms} />
+          <CreatePoForm projects={projectList} vendors={vendorList} />
+        </div>
       </div>
 
       {/* KPI strip */}

@@ -13,7 +13,7 @@ import {
 } from '@buildops/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyExternalEmail } from '@/lib/abi/notifications'
-import { createDocuSealSubmission } from '@/lib/abi/integrations/docuseal'
+import { createSigningSession } from '@/lib/abi/integrations/docuseal'
 
 const PORTAL_TOKEN_BYTES = 32
 const PORTAL_VALIDITY_HOURS = 48
@@ -78,28 +78,27 @@ export async function mintBomPortalToken(
     return { error: 'Cannot mint a portal token for an archived BOM' }
   }
 
-  const token = randomBytes(PORTAL_TOKEN_BYTES).toString('hex')
-  const tokenHash = createHash('sha256').update(token).digest('hex')
+  // Legacy back-compat: keep the bom_portal_tokens row populated so the
+  // existing /portal/bom/[token] flow keeps working for in-flight links.
+  // The NEW signing URL comes from createSigningSession (canvas or DocuSeal).
+  const legacyToken = randomBytes(PORTAL_TOKEN_BYTES).toString('hex')
+  const legacyTokenHash = createHash('sha256').update(legacyToken).digest('hex')
   const expiresAt = new Date(Date.now() + PORTAL_VALIDITY_HOURS * 60 * 60 * 1000)
 
-  let submission
+  let session
   try {
-    submission = await createDocuSealSubmission({
-      templateId: 'bom-default',
-      submitters: [{ email: input.client_email, role: 'client' }],
-      metadata: {
-        bom_id: input.bom_id,
-        project_id: row.project_id,
-        tenant_id: profile.tenantId,
-      },
-      sendEmail: false,
+    session = await createSigningSession({
+      tenantId: profile.tenantId,
+      entityType: 'bom',
+      entityId: input.bom_id,
+      signerEmail: input.client_email,
     })
   } catch (err) {
     return {
       error:
         err instanceof Error
-          ? `DocuSeal: ${err.message}`
-          : 'DocuSeal submission failed',
+          ? `Signing session: ${err.message}`
+          : 'Signing session creation failed',
     }
   }
 
@@ -108,14 +107,18 @@ export async function mintBomPortalToken(
     .values({
       tenant_id: profile.tenantId,
       bom_id: input.bom_id,
-      token_hash: tokenHash,
+      token_hash: legacyTokenHash,
       expires_at: expiresAt,
-      docuseal_submission_id: submission.submission_id,
-      docuseal_slug: submission.slug,
+      docuseal_submission_id:
+        session.mechanism === 'docuseal' ? session.token : null,
+      docuseal_slug:
+        session.mechanism === 'docuseal' ? session.token : null,
     })
     .returning({ id: bomPortalTokens.id })
 
-  const portalUrl = `${siteUrl()}/portal/bom/${token}`
+  // The new signing URL is what the client should actually use. The legacy
+  // /portal/bom/[token] route stays available for backwards compatibility.
+  const portalUrl = session.url
 
   await notifyExternalEmail({
     tenantId: profile.tenantId,
@@ -145,13 +148,14 @@ export async function mintBomPortalToken(
       bom_id: input.bom_id,
       client_email: input.client_email,
       expires_at: expiresAt.toISOString(),
-      docuseal_submission_id: submission.submission_id,
-      is_dev_stub: submission.is_dev_stub,
+      portal_url: portalUrl,
+      mechanism: session.mechanism,
+      is_dev_stub: session.is_dev_stub,
     },
   })
 
   return {
-    token,
+    token: session.token,
     portal_url: portalUrl,
     expires_at: expiresAt.toISOString(),
   }

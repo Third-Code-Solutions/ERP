@@ -40,6 +40,7 @@ const PRIMARY_NAV: NavItem[] = [
 
 const OPS_NAV: NavItem[] = [
   { href: '/permits', label: 'Permits', Icon: IconLayers },
+  { href: '/procurement/rfqs', label: 'RFQs', Icon: IconPurchaseOrder },
   { href: '/purchase-orders', label: 'Purchase Orders', Icon: IconPurchaseOrder },
   { href: '/invoices', label: 'Invoices', Icon: IconInvoice },
   { href: '/punchlist', label: 'Punchlist', Icon: IconCheck },

@@ -80,29 +80,46 @@ export function Topbar({ user }: TopbarProps) {
       <button
         type="button"
         className="search-trigger"
-        aria-label="Search"
+        aria-label="Open global search (keyboard shortcut Command K)"
+        aria-keyshortcuts="Meta+K"
         title="Search (Cmd+K)"
       >
-        <IconSearch size={14} />
+        <span aria-hidden style={{ display: 'inline-flex' }}>
+          <IconSearch size={14} />
+        </span>
         <span>Search projects, deals, BOMs…</span>
-        <kbd>⌘K</kbd>
+        <kbd aria-hidden>⌘K</kbd>
       </button>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button type="button" className="icon-btn" aria-label="Notifications" title="Notifications">
-          <IconBell size={16} />
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="View notifications"
+          title="Notifications"
+        >
+          <span aria-hidden style={{ display: 'inline-flex' }}>
+            <IconBell size={16} />
+          </span>
         </button>
 
         <span className="topbar-divider" aria-hidden />
 
-        <button type="button" className="user-chip" aria-label="Account">
+        <button
+          type="button"
+          className="user-chip"
+          aria-label={`Account menu for ${user.email ?? 'current user'}`}
+          aria-haspopup="menu"
+        >
           <span className="user-chip-avatar" aria-hidden>
             {initials}
           </span>
           <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {user.email}
           </span>
-          <IconChevronDown size={14} />
+          <span aria-hidden style={{ display: 'inline-flex' }}>
+            <IconChevronDown size={14} />
+          </span>
         </button>
       </div>
     </header>

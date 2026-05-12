@@ -6,6 +6,7 @@ import { z } from 'zod'
 import {
   requireUserProfile,
   can,
+  createSupabaseAdminClient,
   type AbiCapability,
   type AppRole,
 } from '@buildops/auth'
@@ -20,11 +21,20 @@ import {
   changeRequests,
   opportunities,
   documents,
+  accounts,
+  projects,
+  tenants,
+  users,
 } from '@buildops/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { startSlaClock } from '@/lib/abi/sla-clock'
 import { notifyRoles } from '@/lib/abi/notifications'
 import { inngest } from '@/lib/inngest'
+import {
+  buildInspectionReportHtml,
+  type InspectionPhotoInput,
+  type InspectionRfiInput,
+} from '@/lib/pdf/site-inspection-report'
 
 // REFACTOR.md M2 US-006..US-009 — Proposal Workflow server actions.
 //
@@ -151,6 +161,151 @@ const submitInspectionSchema = z.object({
   photo_document_ids: z.string().optional().default('[]'),
 }).merge(inspectionPayloadSchema)
 
+// US-007 #5 — Render the inspection report to HTML, upload to Storage, and
+// (when the opportunity has a project_id) insert a documents row + link
+// pdf_document_id on the inspection. Errors here never roll back the
+// inspection submission — the caller catches and logs a warning.
+//
+// Why this lives next to the action: it's tightly coupled to the
+// submitInspection flow and only ever called from there. Extracting to a
+// dedicated module would just add an import without changing reuse.
+async function persistInspectionReport(args: {
+  tenantId: string
+  actorId: string
+  inspectionId: string
+  opportunityId: string
+  payload: Record<string, unknown>
+  photoDocumentIds: string[]
+}): Promise<void> {
+  // Resolve the joined context the builder needs. Same shape as the
+  // /print/inspection page so the archived HTML matches the live view.
+  const [oppRow] = await db
+    .select({ project_id: opportunities.project_id, account_id: opportunities.account_id })
+    .from(opportunities)
+    .where(eq(opportunities.id, args.opportunityId))
+    .limit(1)
+
+  const [projectRow] = oppRow?.project_id
+    ? await db
+        .select({
+          id: projects.id,
+          name: projects.name,
+          client: projects.client,
+          location: projects.location,
+        })
+        .from(projects)
+        .where(eq(projects.id, oppRow.project_id))
+        .limit(1)
+    : [null]
+
+  const [accountRow] = oppRow?.account_id
+    ? await db
+        .select({
+          id: accounts.id,
+          name: accounts.name,
+          billing_address: accounts.billing_address,
+        })
+        .from(accounts)
+        .where(eq(accounts.id, oppRow.account_id))
+        .limit(1)
+    : [null]
+
+  const [tenantRow] = await db
+    .select({
+      name: tenants.name,
+      bir_tin: tenants.bir_tin,
+      pcab_license: tenants.pcab_license,
+    })
+    .from(tenants)
+    .where(eq(tenants.id, args.tenantId))
+    .limit(1)
+
+  const [inspectorRow] = await db
+    .select({ full_name: users.full_name, email: users.email })
+    .from(users)
+    .where(eq(users.id, args.actorId))
+    .limit(1)
+
+  // Photos archive — we only need (document_id, caption) for the builder.
+  // Captions don't exist on first submission yet; pull whatever's there.
+  const photoRows: InspectionPhotoInput[] = args.photoDocumentIds.map((doc, i) => ({
+    id: `${args.inspectionId}-photo-${i}`,
+    document_id: doc,
+    caption: null,
+  }))
+
+  // RFIs are added post-submission via addInspectionRfi, so at this point
+  // there are none. The builder handles the empty case cleanly.
+  const rfiRows: InspectionRfiInput[] = []
+
+  const now = new Date()
+  const html = buildInspectionReportHtml({
+    inspection: {
+      id: args.inspectionId,
+      opportunity_id: args.opportunityId,
+      payload: args.payload,
+      submitted_at: now,
+      created_at: now,
+    },
+    photos: photoRows,
+    rfis: rfiRows,
+    project: projectRow ?? null,
+    account: accountRow ?? null,
+    brand: {
+      tenant_name: tenantRow?.name ?? null,
+      bir_tin: tenantRow?.bir_tin ?? null,
+      pcab_license: tenantRow?.pcab_license ?? null,
+      inspector_name: inspectorRow?.full_name ?? inspectorRow?.email ?? null,
+    },
+  })
+
+  // Storage path. Use project_id when we have it (groups archived reports
+  // under the project the same way other docs are organised); fall back
+  // to opportunity_id so the file still lands in a deterministic location
+  // for pre-Won inspections.
+  const folderId = oppRow?.project_id ?? args.opportunityId
+  const ts = Date.now()
+  const storagePath = `${args.tenantId}/${folderId}/inspection-report-${ts}.html`
+  const fileName = `inspection-report-${args.inspectionId.slice(0, 8)}-${ts}.html`
+  const bytes = Buffer.from(html, 'utf-8')
+
+  const admin = createSupabaseAdminClient()
+  const { error: uploadErr } = await admin.storage
+    .from('documents')
+    .upload(storagePath, bytes, { contentType: 'text/html; charset=utf-8', upsert: false })
+  if (uploadErr) {
+    throw new Error(`storage upload: ${uploadErr.message}`)
+  }
+
+  // documents.project_id is NOT NULL. If the opportunity has no project
+  // yet (pre-Won), we keep the file in Storage but skip the documents row
+  // and the pdf_document_id link. The /print and /api endpoints still
+  // render the report on demand from the DB row.
+  if (!oppRow?.project_id) return
+
+  const [doc] = await db
+    .insert(documents)
+    .values({
+      tenant_id: args.tenantId,
+      project_id: oppRow.project_id,
+      uploaded_by: args.actorId,
+      document_type: 'other',
+      file_name: fileName,
+      storage_path: storagePath,
+      mime_type: 'text/html; charset=utf-8',
+      size_bytes: bytes.length,
+      description: `Site Inspection Report (auto-generated) for inspection ${args.inspectionId}`,
+    })
+    .returning({ id: documents.id })
+
+  if (!doc) return
+
+  await db
+    .update(siteInspections)
+    .set({ pdf_document_id: doc.id, updated_at: new Date() })
+    .where(eq(siteInspections.id, args.inspectionId))
+}
+
 export async function submitInspection(formData: FormData): Promise<{ error?: string; id?: string }> {
   const profile = await requireUserProfile()
   const forbid = guard(profile.role, 'site_inspection.submit')
@@ -225,6 +380,28 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
         }))
       )
     }
+  }
+
+  // US-007 #5 — Auto-generate the report HTML and archive it as a document
+  // so it lands in the Document Vault. We deliberately don't render PDF
+  // server-side (no Puppeteer); the saved HTML is print-clean via @page
+  // CSS and converts via "Print → Save as PDF". Storage failures don't
+  // roll back the inspection — we just log a warning and continue.
+  if (inserted) {
+    await persistInspectionReport({
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      inspectionId: inserted.id,
+      opportunityId: opportunity_id,
+      payload,
+      photoDocumentIds: photoIds,
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'unknown error'
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[site-inspection] report archival failed for ${inserted.id}: ${message}`
+      )
+    })
   }
 
   await writeAuditLog({

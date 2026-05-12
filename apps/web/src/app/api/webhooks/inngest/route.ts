@@ -13,6 +13,9 @@ import {
   dispatchCnpsSurveys,
   onCnpsSurveyScheduled,
 } from '@/lib/inngest-warranty'
+import { slaChecker } from '@/lib/inngest-sla'
+import { permitStalenessChecker } from '@/lib/inngest-permits'
+import { onBomInternalApproved } from '@/lib/inngest-rfq'
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -27,5 +30,11 @@ export const { GET, POST, PUT } = serve({
     // ABI Ops M7 — CNPS survey dispatch
     dispatchCnpsSurveys,
     onCnpsSurveyScheduled,
+    // ABI Ops cross-cutting — SLA breach detector + permit staleness
+    // (replaces the Deno edge functions; both paths kept for ops flexibility)
+    slaChecker,
+    permitStalenessChecker,
+    // ABI Ops M3 — auto-create RFQ on BOM internal approval
+    onBomInternalApproved,
   ],
 })
