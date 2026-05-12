@@ -1,12 +1,58 @@
 import { pgEnum } from 'drizzle-orm/pg-core'
 
+// ABI Ops role taxonomy. Legacy values (owner/estimator/pm) are retained
+// for back-compat — Postgres enums cannot drop values without table rewrites.
+// New ABI Ops roles per REFACTOR.md §2 sit alongside them.
 export const roleEnum = pgEnum('role', [
+  // Legacy (retained for back-compat; new users get the ABI roles)
   'owner',
-  'admin',
   'estimator',
-  'sales',
   'pm',
+  // ABI Ops roles
+  'admin',
+  'sales',
+  'commercial',
+  'design',
+  'sd_pm_pe',
+  'finance',
+  'procurement',
+  'safety',
+  'cx',
   'viewer',
+])
+
+// KYC review status for Account onboarding (REFACTOR M1 US-001..US-003)
+export const kycStatusEnum = pgEnum('kyc_status', [
+  'pending',
+  'approved',
+  'flagged',
+  'rejected',
+  'not_required',
+])
+
+// Industry classification on Account record
+export const accountIndustryEnum = pgEnum('account_industry', [
+  'retail',
+  'office',
+  'food_and_beverage',
+  'healthcare',
+  'hospitality',
+  'industrial',
+  'residential',
+  'mixed_use',
+  'other',
+])
+
+// KYC artifact type — one row per required document
+export const kycArtifactTypeEnum = pgEnum('kyc_artifact_type', [
+  'afs_year_1',
+  'afs_year_2',
+  'afs_year_3',
+  'bir_2303',
+  'vat_certificate',
+  'top_suppliers',
+  'top_clients',
+  'other',
 ])
 
 export const opportunityStageEnum = pgEnum('opportunity_stage', [

@@ -20,10 +20,10 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | BuildOps',
-    default: 'BuildOps',
+    template: '%s | ABI Ops',
+    default: 'ABI Ops',
   },
-  description: 'Construction ERP for Philippine contractors',
+  description: 'Unified fit-out operations platform for Actuate Builders Inc.',
 }
 
 // Reading the per-request nonce from headers() opts the entire route tree
