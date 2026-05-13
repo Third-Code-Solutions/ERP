@@ -5,13 +5,18 @@ import { requireUserProfile } from '@buildops/auth'
 import { db } from '@buildops/database'
 import { projects } from '@buildops/database/schema'
 import { SCurveChart } from '@/components/progress/s-curve-chart'
+import { GanttChart } from '@/components/progress/gantt-chart'
+import { ProgressViewToggle } from '@/components/progress/progress-view-toggle'
 import { MasterScheduleImport } from '@/components/progress/master-schedule-import'
 import { WeeklyUpdateForm } from '@/components/progress/weekly-update-form'
 import { loadProgressContext } from './actions'
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ view?: string }>
 }
+
+type ProgressView = 'curve' | 'gantt'
 
 interface MasterTask {
   name: string
@@ -58,8 +63,13 @@ function deriveProjectPlannedCurve(tasks: MasterTask[]): number[] {
   return result
 }
 
-export default async function ProjectProgressPage({ params }: PageProps) {
+export default async function ProjectProgressPage({
+  params,
+  searchParams,
+}: PageProps) {
   const { id } = await params
+  const { view: viewParam } = await searchParams
+  const view: ProgressView = viewParam === 'gantt' ? 'gantt' : 'curve'
   const profile = await requireUserProfile()
 
   const [project] = await db
@@ -79,6 +89,17 @@ export default async function ProjectProgressPage({ params }: PageProps) {
   const latestUpdate = updates[updates.length - 1] ?? null
   const latestPct =
     (latestUpdate?.percent_by_category as PercentByCategory | null) ?? null
+
+  // v1: apply the latest overall_pct uniformly to every Gantt task. A future
+  // pass with a task_id link would let us drive this per-task.
+  const ganttActualPct = latestPct?.overall_pct
+  const ganttTasks = tasks.map((t) => ({
+    name: t.name,
+    start_date: t.start_date,
+    finish_date: t.finish_date,
+    predecessor_index: t.predecessor_index ?? undefined,
+    actual_pct: typeof ganttActualPct === 'number' ? ganttActualPct : undefined,
+  }))
 
   return (
     <div>
@@ -104,11 +125,29 @@ export default async function ProjectProgressPage({ params }: PageProps) {
       <div className="section-grid-2" style={{ gridTemplateColumns: '2fr 1fr' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="card">
-            <div className="card-header">
-              <h2 className="card-title">S-Curve</h2>
+            <div
+              className="card-header"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <h2 className="card-title">
+                {view === 'gantt' ? 'Gantt timeline' : 'S-Curve'}
+              </h2>
+              <ProgressViewToggle
+                view={view}
+                baseHref={`/projects/${id}/progress`}
+              />
             </div>
             <div style={{ padding: 16 }}>
-              <SCurveChart planned={planned} actual={actual} />
+              {view === 'gantt' ? (
+                <GanttChart tasks={ganttTasks} />
+              ) : (
+                <SCurveChart planned={planned} actual={actual} />
+              )}
             </div>
           </div>
 

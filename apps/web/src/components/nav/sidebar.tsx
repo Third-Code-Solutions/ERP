@@ -20,6 +20,8 @@ import {
   IconActivity,
   IconSettings,
   IconLogout,
+  IconUpload,
+  IconReceipt,
 } from '@/components/ui/icons'
 
 interface NavItem {
@@ -41,8 +43,10 @@ const PRIMARY_NAV: NavItem[] = [
 const OPS_NAV: NavItem[] = [
   { href: '/permits', label: 'Permits', Icon: IconLayers },
   { href: '/procurement/rfqs', label: 'RFQs', Icon: IconPurchaseOrder },
+  { href: '/procurement/deliveries', label: 'Deliveries', Icon: IconUpload },
   { href: '/purchase-orders', label: 'Purchase Orders', Icon: IconPurchaseOrder },
   { href: '/invoices', label: 'Invoices', Icon: IconInvoice },
+  { href: '/claims', label: 'Claims', Icon: IconReceipt },
   { href: '/punchlist', label: 'Punchlist', Icon: IconCheck },
   { href: '/warranty', label: 'Warranty', Icon: IconActivity },
   { href: '/warranty/cnps', label: 'CNPS', Icon: IconActivity },
