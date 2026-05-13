@@ -38,7 +38,12 @@ const ROLE_TONE: Record<string, string> = {
   viewer: 'stage-badge stage-opportunity_creation',
 }
 
-export default async function UsersListPage() {
+interface UsersListProps {
+  searchParams: Promise<{ created?: string }>
+}
+
+export default async function UsersListPage({ searchParams }: UsersListProps) {
+  const { created } = await searchParams
   const profile = await requireUserProfile()
   if (!can(profile.role, 'admin.users')) {
     redirect('/admin?error=forbidden')
@@ -86,6 +91,26 @@ export default async function UsersListPage() {
           </Link>
         </div>
       </div>
+
+      {created && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            background: 'var(--color-success-soft)',
+            border:
+              '1px solid color-mix(in oklch, var(--color-success) 22%, transparent)',
+            color: 'var(--color-success)',
+            padding: '12px 14px',
+            borderRadius: 'var(--radius-md, 6px)',
+            fontSize: 13.5,
+            marginBottom: 16,
+          }}
+        >
+          User <strong>{decodeURIComponent(created)}</strong> created. Share the
+          credentials securely — the initial password is only known to you.
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header">

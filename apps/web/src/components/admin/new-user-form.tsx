@@ -53,6 +53,7 @@ export function NewUserForm() {
     e.preventDefault()
     const formEl = e.currentTarget
     const formData = new FormData(formEl)
+    const email = String(formData.get('email') ?? '')
     setError(null)
     startTransition(async () => {
       try {
@@ -65,7 +66,12 @@ export function NewUserForm() {
           setError('Unexpected response from server — no userId returned.')
           return
         }
-        router.push(`/admin/users/${res.userId}?created=1`)
+        // Route to the LIST page with a flash param. The detail page
+        // is gated behind a separate "Manage →" link from the list —
+        // avoiding the redirect-then-render race that was causing the
+        // RSC render error on this freshly-created user.
+        const flash = encodeURIComponent(email)
+        router.push(`/admin/users?created=${flash}`)
         router.refresh()
       } catch (err) {
         // Network failure or unexpected throw — surface to the user.
