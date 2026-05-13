@@ -42,43 +42,76 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
   const [showDelete, setShowDelete] = useState(false)
   const [pending, startTransition] = useTransition()
 
-  function handleRole(formData: FormData) {
+  function handleRole(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
     setRoleError(null)
     setRoleOk(false)
     startTransition(async () => {
-      const res = await updateUserRole(formData)
-      if (res.error) {
-        setRoleError(res.error)
-        return
+      try {
+        const res = await updateUserRole(formData)
+        if (res?.error) {
+          setRoleError(res.error)
+          return
+        }
+        setRoleOk(true)
+        router.refresh()
+      } catch (err) {
+        setRoleError(
+          err instanceof Error
+            ? `Network error: ${err.message}`
+            : 'Could not save role.'
+        )
       }
-      setRoleOk(true)
-      router.refresh()
     })
   }
 
-  function handlePassword(formData: FormData) {
+  function handlePassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = e.currentTarget
+    const formData = new FormData(form)
     setPwdError(null)
     setPwdOk(false)
     startTransition(async () => {
-      const res = await resetUserPassword(formData)
-      if (res.error) {
-        setPwdError(res.error)
-        return
+      try {
+        const res = await resetUserPassword(formData)
+        if (res?.error) {
+          setPwdError(res.error)
+          return
+        }
+        setPwdOk(true)
+        form.reset()
+      } catch (err) {
+        setPwdError(
+          err instanceof Error
+            ? `Network error: ${err.message}`
+            : 'Could not reset password.'
+        )
       }
-      setPwdOk(true)
-      const form = document.getElementById('reset-pwd-form') as HTMLFormElement | null
-      form?.reset()
     })
   }
 
-  function handleDelete(formData: FormData) {
+  function handleDelete(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
     setDelError(null)
     startTransition(async () => {
-      const res = await deleteUser(formData)
-      if (res.error) {
-        setDelError(res.error)
+      try {
+        const res = await deleteUser(formData)
+        if (res?.error) {
+          setDelError(res.error)
+          return
+        }
+        // Client-side navigate now that the server action returned ok.
+        router.push('/admin/users')
+        router.refresh()
+      } catch (err) {
+        setDelError(
+          err instanceof Error
+            ? `Network error: ${err.message}`
+            : 'Could not delete user.'
+        )
       }
-      // deleteUser redirects on success
     })
   }
 
@@ -87,7 +120,7 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
       {/* Role */}
       <section>
         <h3 style={sectionHead}>Role</h3>
-        <form action={handleRole} style={{ display: 'flex', gap: 8 }}>
+        <form onSubmit={handleRole} style={{ display: 'flex', gap: 8 }}>
           <input type="hidden" name="user_id" value={userId} />
           <select
             name="role"
@@ -130,7 +163,7 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
         </p>
         <form
           id="reset-pwd-form"
-          action={handlePassword}
+          onSubmit={handlePassword}
           style={{ display: 'flex', gap: 8 }}
         >
           <input type="hidden" name="user_id" value={userId} />
@@ -184,7 +217,7 @@ export function ManageUserPanel({ userId, currentRole, email, isSelf }: Props) {
             Delete this user
           </button>
         ) : (
-          <form action={handleDelete} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <form onSubmit={handleDelete} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input type="hidden" name="user_id" value={userId} />
             <p style={{ fontSize: 13, color: 'var(--color-neutral-700)', margin: 0 }}>
               This removes the auth account and the workspace user row. Audit-logged.

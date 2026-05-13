@@ -49,16 +49,34 @@ export function NewUserForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [pwd, setPwd] = useState('')
 
-  function onSubmit(formData: FormData) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const formEl = e.currentTarget
+    const formData = new FormData(formEl)
     setError(null)
     startTransition(async () => {
-      const res = await createUser(formData)
-      if (res.error) {
-        setError(res.error)
-        return
+      try {
+        const res = await createUser(formData)
+        if (res?.error) {
+          setError(res.error)
+          return
+        }
+        if (!res?.userId) {
+          setError('Unexpected response from server — no userId returned.')
+          return
+        }
+        router.push(`/admin/users/${res.userId}?created=1`)
+        router.refresh()
+      } catch (err) {
+        // Network failure or unexpected throw — surface to the user.
+        // eslint-disable-next-line no-console
+        console.error('createUser failed', err)
+        setError(
+          err instanceof Error
+            ? `Network error: ${err.message}`
+            : 'Could not reach the server. Please try again.'
+        )
       }
-      router.push(`/admin/users/${res.userId}?created=1`)
-      router.refresh()
     })
   }
 
@@ -80,7 +98,7 @@ export function NewUserForm() {
   }
 
   return (
-    <form action={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
         <label htmlFor="full_name" style={labelStyle}>
           Full name *
