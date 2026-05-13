@@ -159,6 +159,7 @@ export async function middleware(request: NextRequest) {
 
 function isProtectedRoute(pathname: string): boolean {
   const protectedPrefixes = [
+    '/dashboard',
     '/projects',
     '/pipeline',
     '/bom',
@@ -168,6 +169,14 @@ function isProtectedRoute(pathname: string): boolean {
     '/reports',
     '/settings',
     '/procurement',
+    // ABI Ops modules added across the refactor
+    '/crm',
+    '/admin',
+    '/tasks',
+    '/permits',
+    '/punchlist',
+    '/warranty',
+    '/claims',
   ]
   return protectedPrefixes.some((prefix) => pathname.startsWith(prefix))
 }
