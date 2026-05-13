@@ -81,8 +81,12 @@ export async function middleware(request: NextRequest) {
   // nonce to its own inline framework scripts. Without this, the rendered
   // <script nonce=…> never matches the CSP nonce in the response header
   // and the browser blocks every Next.js bootstrap script.
+  //
+  // We also forward the pathname so the (dashboard) layout can run a
+  // role-aware path-level RBAC gate via canViewPath().
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
+  requestHeaders.set('x-pathname', pathname)
   requestHeaders.set('Content-Security-Policy', csp)
 
   // Supabase session refresh (must happen before auth checks). The response
