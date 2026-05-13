@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createSupabaseBrowserClient } from '@buildops/auth/client'
 
 export function LoginForm() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -35,25 +37,17 @@ export function LoginForm() {
   }
 
   const hasError = Boolean(error)
+
   return (
     <form
       onSubmit={handleSubmit}
       method="post"
       noValidate
       aria-label="Sign in"
-      style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+      className="auth-form"
     >
-      <div>
-        <label
-          htmlFor="email"
-          style={{
-            display: 'block',
-            fontSize: '0.875rem',
-            fontWeight: 500,
-            marginBottom: '6px',
-            color: 'var(--color-neutral-700)',
-          }}
-        >
+      <div className="auth-field">
+        <label htmlFor="email" className="auth-label">
           Email
         </label>
         <input
@@ -66,86 +60,99 @@ export function LoginForm() {
           aria-required="true"
           aria-invalid={hasError || undefined}
           aria-describedby={hasError ? 'login-error' : undefined}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            border: '1px solid var(--color-border)',
-            borderRadius: '6px',
-            fontSize: '0.875rem',
-            outline: 'none',
-            boxSizing: 'border-box',
-          }}
+          className="auth-input"
           placeholder="you@company.com"
+          autoFocus
         />
       </div>
 
-      <div>
-        <label
-          htmlFor="password"
-          style={{
-            display: 'block',
-            fontSize: '0.875rem',
-            fontWeight: 500,
-            marginBottom: '6px',
-            color: 'var(--color-neutral-700)',
-          }}
-        >
-          Password
-        </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          aria-required="true"
-          aria-invalid={hasError || undefined}
-          aria-describedby={hasError ? 'login-error' : undefined}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            border: '1px solid var(--color-border)',
-            borderRadius: '6px',
-            fontSize: '0.875rem',
-            outline: 'none',
-            boxSizing: 'border-box',
-          }}
-        />
+      <div className="auth-field">
+        <div className="auth-label-row">
+          <label htmlFor="password" className="auth-label">
+            Password
+          </label>
+          <Link href="#" className="auth-link auth-link-muted">
+            Forgot password?
+          </Link>
+        </div>
+        <div className="auth-input-with-action">
+          <input
+            id="password"
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="current-password"
+            required
+            aria-required="true"
+            aria-invalid={hasError || undefined}
+            aria-describedby={hasError ? 'login-error' : undefined}
+            className="auth-input"
+            placeholder="••••••••"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((s) => !s)}
+            className="auth-input-toggle"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-pressed={showPassword}
+            tabIndex={-1}
+          >
+            {showPassword ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M2 2l20 20M6.7 6.7C4 8.3 2 12 2 12s3 6 10 6c1.6 0 3-.3 4.3-.8M9.9 4.2A10 10 0 0 1 12 4c7 0 10 6 10 6s-1 2-3 3.8M9.9 9.9A3 3 0 0 0 14.1 14.1"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                />
+                <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.6" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
+
+      <label className="auth-remember">
+        <input type="checkbox" name="remember" defaultChecked className="auth-checkbox" />
+        <span>Keep me signed in for 7 days</span>
+      </label>
 
       {error && (
-        <p
+        <div
           id="login-error"
           role="alert"
           aria-live="assertive"
-          style={{
-            color: 'var(--color-danger)',
-            fontSize: '0.8125rem',
-            margin: 0,
-          }}
+          className="auth-error"
         >
-          {error}
-        </p>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }}>
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M12 8v5M12 16v.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          <span>{error}</span>
+        </div>
       )}
 
       <button
         type="submit"
         disabled={isPending}
         aria-busy={isPending || undefined}
-        style={{
-          background: 'var(--color-navy-700)',
-          color: 'white',
-          padding: '10px',
-          borderRadius: '6px',
-          border: 'none',
-          fontSize: '0.875rem',
-          fontWeight: 600,
-          cursor: isPending ? 'not-allowed' : 'pointer',
-          opacity: isPending ? 0.7 : 1,
-          transition: 'opacity 150ms',
-        }}
+        className="auth-submit"
       >
-        {isPending ? 'Signing in…' : 'Sign in'}
+        {isPending ? (
+          <>
+            <span className="auth-spinner" aria-hidden="true" />
+            <span>Signing in…</span>
+          </>
+        ) : (
+          <span>Sign in</span>
+        )}
       </button>
     </form>
   )

@@ -1,35 +1,27 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { LoginForm } from './login-form'
 
-export const metadata: Metadata = { title: 'Sign In' }
+export const metadata: Metadata = { title: 'Sign in' }
 
 export default function LoginPage() {
   return (
-    <div
-      style={{
-        background: 'white',
-        borderRadius: '12px',
-        border: '1px solid var(--color-border)',
-        padding: '40px',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
-      }}
-    >
-      <div style={{ marginBottom: '32px' }}>
-        <h1
-          style={{
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            color: 'var(--color-navy-800)',
-            margin: 0,
-          }}
-        >
-          BuildOps
-        </h1>
-        <p style={{ color: 'var(--color-neutral-500)', marginTop: '4px', fontSize: '0.875rem' }}>
-          Sign in to your workspace
+    <>
+      <header className="auth-form-header">
+        <h1 className="auth-form-title">Sign in</h1>
+        <p className="auth-form-sub">
+          Welcome back. Enter your details to continue.
         </p>
-      </div>
+      </header>
+
       <LoginForm />
-    </div>
+
+      <p className="auth-form-altline">
+        New to ABI Ops?{' '}
+        <Link href="/auth/signup" className="auth-link auth-link-strong">
+          Create an account
+        </Link>
+      </p>
+    </>
   )
 }
