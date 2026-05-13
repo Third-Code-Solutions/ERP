@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createSupabaseBrowserClient } from '@buildops/auth/client'
+import type { AppRole } from '@buildops/auth'
 import {
   IconDashboard,
   IconProjects,
@@ -23,77 +24,57 @@ import {
   IconUpload,
   IconReceipt,
 } from '@/components/ui/icons'
-
-interface NavItem {
-  href: string
-  label: string
-  Icon: (props: { size?: number; className?: string }) => React.ReactElement
-}
-
-const PRIMARY_NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', Icon: IconDashboard },
-  { href: '/crm/accounts', label: 'Accounts', Icon: IconBuilding },
-  { href: '/crm/kyc-queue', label: 'KYC Queue', Icon: IconUser },
-  { href: '/pipeline/board', label: 'Pipeline', Icon: IconPipeline },
-  { href: '/projects', label: 'Projects', Icon: IconProjects },
-  { href: '/bom', label: 'BOM Builder', Icon: IconBom },
-  { href: '/tasks', label: 'My Tasks', Icon: IconCheck },
-]
-
-const OPS_NAV: NavItem[] = [
-  { href: '/permits', label: 'Permits', Icon: IconLayers },
-  { href: '/procurement/rfqs', label: 'RFQs', Icon: IconPurchaseOrder },
-  { href: '/procurement/deliveries', label: 'Deliveries', Icon: IconUpload },
-  { href: '/purchase-orders', label: 'Purchase Orders', Icon: IconPurchaseOrder },
-  { href: '/invoices', label: 'Invoices', Icon: IconInvoice },
-  { href: '/claims', label: 'Claims', Icon: IconReceipt },
-  { href: '/punchlist', label: 'Punchlist', Icon: IconCheck },
-  { href: '/warranty', label: 'Warranty', Icon: IconActivity },
-  { href: '/warranty/cnps', label: 'CNPS', Icon: IconActivity },
-  { href: '/documents', label: 'Documents', Icon: IconDocuments },
-  { href: '/reports', label: 'Reports', Icon: IconReports },
-]
-
-const ADMIN_NAV: NavItem[] = [
-  { href: '/admin', label: 'Admin', Icon: IconSettings },
-]
+import {
+  visibleNavSections,
+  roleLabel,
+  type NavIconKey,
+} from '@/lib/abi/nav-config'
 
 interface SidebarProps {
   user: User
+  role: AppRole
+  fullName?: string | null
 }
 
-export function Sidebar({ user }: SidebarProps) {
+const ICONS: Record<NavIconKey, (props: { size?: number; className?: string }) => React.ReactElement> = {
+  Dashboard: IconDashboard,
+  Projects: IconProjects,
+  Pipeline: IconPipeline,
+  Bom: IconBom,
+  Building: IconBuilding,
+  User: IconUser,
+  Invoice: IconInvoice,
+  PurchaseOrder: IconPurchaseOrder,
+  Documents: IconDocuments,
+  Reports: IconReports,
+  Layers: IconLayers,
+  Check: IconCheck,
+  Activity: IconActivity,
+  Settings: IconSettings,
+  Upload: IconUpload,
+  Receipt: IconReceipt,
+}
+
+export function Sidebar({ user, role, fullName }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const sections = visibleNavSections(role)
+  const displayName = fullName?.trim() || user.email?.split('@')[0] || 'User'
 
-  const initials = (user.email ?? '?')
-    .split('@')[0]
-    ?.split(/[._-]/)
-    .map((s) => s[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() ?? '?'
+  const initials =
+    (fullName?.trim() || user.email || '?')
+      .split(/[\s@._-]+/)
+      .filter(Boolean)
+      .map((s) => s[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || '?'
 
   async function handleSignOut() {
     const supabase = createSupabaseBrowserClient()
     await supabase.auth.signOut()
     router.push('/auth/login')
     router.refresh()
-  }
-
-  function renderItem({ href, label, Icon }: NavItem) {
-    const isActive = pathname === href || pathname.startsWith(href + '/')
-    return (
-      <Link
-        key={href}
-        href={href}
-        className={`sidebar-item ${isActive ? 'active' : ''}`}
-        aria-current={isActive ? 'page' : undefined}
-      >
-        <Icon size={16} className="sidebar-icon" />
-        <span>{label}</span>
-      </Link>
-    )
   }
 
   return (
@@ -108,39 +89,51 @@ export function Sidebar({ user }: SidebarProps) {
         </div>
       </div>
 
-      <div className="sidebar-section">
-        <div className="sidebar-section-label">Workspace</div>
-        {PRIMARY_NAV.map(renderItem)}
-      </div>
-
-      <div className="sidebar-section">
-        <div className="sidebar-section-label">Operations</div>
-        {OPS_NAV.map(renderItem)}
-      </div>
-
-      <div className="sidebar-section">
-        <div className="sidebar-section-label">Admin</div>
-        {ADMIN_NAV.map(renderItem)}
-      </div>
+      {sections.map((section) => (
+        <div className="sidebar-section" key={section.label}>
+          <div className="sidebar-section-label">{section.label}</div>
+          {section.items.map((item) => {
+            const Icon = ICONS[item.iconKey] ?? IconActivity
+            const isActive =
+              pathname === item.href || pathname.startsWith(item.href + '/')
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`sidebar-item ${isActive ? 'active' : ''}`}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon size={16} className="sidebar-icon" />
+                <span>{item.label}</span>
+              </Link>
+            )
+          })}
+        </div>
+      ))}
 
       <div className="sidebar-footer">
         <div className="sidebar-section" style={{ padding: 0, marginBottom: 8 }}>
           <Link
             href="/settings"
             className={`sidebar-item ${pathname.startsWith('/settings') ? 'active' : ''}`}
+            aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
           >
             <IconSettings size={16} className="sidebar-icon" />
             <span>Settings</span>
           </Link>
         </div>
 
-        <div className="sidebar-user">
+        <div className="sidebar-user" aria-label="Signed-in user">
           <div className="sidebar-user-avatar" aria-hidden>
             {initials}
           </div>
           <div className="sidebar-user-meta">
-            <div className="sidebar-user-name">{user.email}</div>
-            <div className="sidebar-user-role">Owner</div>
+            <div className="sidebar-user-name" title={user.email ?? ''}>
+              {displayName}
+            </div>
+            <div className="sidebar-user-role" title={role}>
+              {roleLabel(role)}
+            </div>
           </div>
           <button
             type="button"
