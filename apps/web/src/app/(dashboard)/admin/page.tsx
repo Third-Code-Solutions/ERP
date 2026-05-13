@@ -39,8 +39,9 @@ const CARDS: AdminCard[] = [
   },
   {
     href: '/admin/users',
-    title: 'Users (placeholder)',
-    subtitle: 'Coming soon — manage seat assignments and roles.',
+    title: 'Users',
+    subtitle:
+      'Create workspace accounts, assign roles, reset passwords. All changes audit-logged.',
     capability: 'admin.users',
   },
 ]
