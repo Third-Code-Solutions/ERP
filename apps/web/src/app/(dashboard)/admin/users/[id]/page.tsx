@@ -42,6 +42,11 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
     redirect('/admin?error=forbidden')
   }
 
+  // Validate id looks like a UUID; otherwise notFound rather than letting
+  // the DB throw a malformed-uuid error during render.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(id)) notFound()
+
   const [user] = await db
     .select()
     .from(usersTable)
@@ -50,20 +55,41 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
 
   if (!user) notFound()
 
-  const audit = await db
-    .select({
-      id: auditLog.id,
-      action: auditLog.action,
-      diff: auditLog.diff,
-      created_at: auditLog.created_at,
-      actor_id: auditLog.actor_id,
-    })
-    .from(auditLog)
-    .where(
-      and(eq(auditLog.tenant_id, profile.tenantId), eq(auditLog.entity_id, id))
-    )
-    .orderBy(desc(auditLog.created_at))
-    .limit(20)
+  // Audit fetch is best-effort — if it throws (FK trouble, weird diff
+  // column, anything), we still render the rest of the page.
+  let audit: Array<{
+    id: string
+    action: string
+    diff: unknown
+    created_at: Date
+    actor_id: string | null
+  }> = []
+  try {
+    const raw = await db
+      .select({
+        id: auditLog.id,
+        action: auditLog.action,
+        diff: auditLog.diff,
+        created_at: auditLog.created_at,
+        actor_id: auditLog.actor_id,
+      })
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.tenant_id, profile.tenantId), eq(auditLog.entity_id, id))
+      )
+      .orderBy(desc(auditLog.created_at))
+      .limit(20)
+    audit = raw.map((r) => ({
+      id: String(r.id), // bigserial → string-safe key for React
+      action: r.action,
+      diff: r.diff,
+      created_at: r.created_at instanceof Date ? r.created_at : new Date(r.created_at as unknown as string),
+      actor_id: r.actor_id,
+    }))
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[admin/users/[id]] audit fetch failed (non-fatal):', err)
+  }
 
   const isSelf = user.id === profile.user.id
   const initials =
@@ -206,7 +232,7 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
                           wordBreak: 'break-word',
                         }}
                       >
-                        {JSON.stringify(e.diff, null, 2)}
+                        {safeStringify(e.diff)}
                       </pre>
                     )}
                   </li>
@@ -252,6 +278,21 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
       </div>
     </div>
   )
+}
+
+// JSON.stringify can throw on circular refs or BigInt values. Use a
+// defensive fallback so a rogue audit diff never crashes the page.
+function safeStringify(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  try {
+    return JSON.stringify(
+      value,
+      (_k, v) => (typeof v === 'bigint' ? v.toString() : v),
+      2
+    )
+  } catch {
+    return String(value)
+  }
 }
 
 function Meta({
