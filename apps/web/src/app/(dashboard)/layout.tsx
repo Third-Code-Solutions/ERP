@@ -39,7 +39,12 @@ export default async function DashboardLayout({
         fullName={profile.fullName}
       />
       <div className="app-main">
-        <Topbar user={profile.user} />
+        <Topbar
+          user={profile.user}
+          role={profile.role}
+          fullName={profile.fullName}
+          tenantId={profile.tenantId}
+        />
         <main id="main-content" className="app-content">
           {children}
         </main>
