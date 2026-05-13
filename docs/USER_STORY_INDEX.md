@@ -121,3 +121,18 @@ moving parts.
 When a new story lands, add it to the table for its module and mark
 status. Stories that span multiple modules go in
 **Cross-Cutting Integrations**.
+
+---
+
+## Rework alignment delta (2026-05-13)
+
+| Track | Module | Route | Status |
+|---|---|---|---|
+| A | Delivery workflow | /procurement/deliveries | Live |
+| A | Progress claims | /claims | Live |
+| B | Gantt view | /projects/[id]/progress?view=gantt | Live |
+| C | Weekly report | /projects/[id]/reports | Live |
+| E | Customer portal | /portal/project/[token]/* | Live |
+
+See [`REWORK_ALIGNMENT.md`](./REWORK_ALIGNMENT.md) for the full
+Rework-feature → schema → route mapping.

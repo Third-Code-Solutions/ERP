@@ -23,12 +23,14 @@ const ITEMS = [
   { slug: 'checklist', label: 'Checklist' },
   { slug: 'permits', label: 'Permits' },
   { slug: 'progress', label: 'Progress' },
+  { slug: 'reports', label: 'Reports' },
   { slug: 'vos', label: 'VOs' },
   { slug: 'documents', label: 'Documents' },
   { slug: 'billing', label: 'Billing' },
   { slug: 'turnover', label: 'Turnover' },
   { slug: 'coc', label: 'COC' },
   { slug: 'comments', label: 'Comments' },
+  { slug: 'access', label: 'Access' },
   { slug: 'audit', label: 'Audit' },
 ] as const
 
