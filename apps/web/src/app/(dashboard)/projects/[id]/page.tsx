@@ -7,6 +7,7 @@ import { boms, invoices, opportunities, projects, purchaseOrders, users } from '
 import { and, desc, eq, inArray, sum } from 'drizzle-orm'
 import { OpportunityPanel } from '@/components/opportunities/opportunity-panel'
 import { ProjectChat } from '@/components/ai/project-chat'
+import { CortexEntityPanel } from '@/components/cortex/cortex-entity-panel'
 import { EditProjectForm } from '@/components/projects/edit-project-form'
 import {
   IconLayers,
@@ -305,13 +306,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
 
         {/* Right metadata rail */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: 'fit-content' }}>
         <div
           style={{
             background: 'white',
             border: '1px solid var(--color-border)',
             borderRadius: '8px',
             padding: '20px',
-            height: 'fit-content',
           }}
         >
           <h3 style={{ fontSize: '0.875rem', fontWeight: 600, margin: '0 0 16px 0', color: 'var(--color-neutral-700)' }}>
@@ -341,6 +342,8 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               </div>
             ))}
           </dl>
+        </div>
+          <CortexEntityPanel refTable="projects" refId={id} />
         </div>
       </div>
       <ProjectChat projectId={id} />
