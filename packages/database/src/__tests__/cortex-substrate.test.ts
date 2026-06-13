@@ -151,6 +151,48 @@ suite('Cortex substrate', () => {
     expect(r.edge).toBeGreaterThanOrEqual(1)
   })
 
+  it('mirrors execution-core entities (bom, purchase_order, invoice) with edges', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA, userA } = await seedTwoTenants(tx)
+      const proj = (
+        (await tx.unsafe(
+          `insert into projects(tenant_id, name, client) values('${tenantA}','Exec Proj','C') returning id`
+        )) as Rows
+      )[0].id
+      const bom = (
+        (await tx.unsafe(
+          `insert into boms(tenant_id, project_id, created_by, label) values('${tenantA}','${proj}','${userA}','BOM A') returning id`
+        )) as Rows
+      )[0].id
+      const po = (
+        (await tx.unsafe(
+          `insert into purchase_orders(tenant_id, project_id, created_by, po_number) values('${tenantA}','${proj}','${userA}','PO-001') returning id`
+        )) as Rows
+      )[0].id
+      const inv = (
+        (await tx.unsafe(
+          `insert into invoices(tenant_id, project_id, created_by, invoice_number) values('${tenantA}','${proj}','${userA}','INV-001') returning id`
+        )) as Rows
+      )[0].id
+      const counts = (await tx.unsafe(
+        `select
+           (select count(*)::int from cortex_nodes where tenant_id='${tenantA}' and ref_table='boms' and ref_id='${bom}' and valid_to is null) as bom_node,
+           (select count(*)::int from cortex_nodes where tenant_id='${tenantA}' and ref_table='purchase_orders' and ref_id='${po}' and valid_to is null) as po_node,
+           (select count(*)::int from cortex_nodes where tenant_id='${tenantA}' and ref_table='invoices' and ref_id='${inv}' and valid_to is null) as inv_node,
+           (select count(*)::int from cortex_edges e join cortex_nodes s on s.id=e.src_id
+              where e.tenant_id='${tenantA}' and e.edge_type='bills' and s.ref_table='invoices' and s.ref_id='${inv}') as inv_bills,
+           (select count(*)::int from cortex_edges e join cortex_nodes s on s.id=e.src_id
+              where e.tenant_id='${tenantA}' and e.edge_type='part_of' and s.ref_table='boms' and s.ref_id='${bom}') as bom_partof`
+      )) as Rows
+      return counts[0]
+    })
+    expect(r.bom_node).toBe(1)
+    expect(r.po_node).toBe(1)
+    expect(r.inv_node).toBe(1)
+    expect(r.inv_bills).toBeGreaterThanOrEqual(1)
+    expect(r.bom_partof).toBeGreaterThanOrEqual(1)
+  })
+
   it('cortex nodes are tenant-isolated for the authenticated role', async () => {
     const visible = await inRollback(sql, async (tx) => {
       const { tenantA, tenantB, userA } = await seedTwoTenants(tx)
