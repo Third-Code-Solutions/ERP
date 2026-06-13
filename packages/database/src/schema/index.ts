@@ -41,3 +41,5 @@ export * from './deliveries'
 export * from './progress-claims'
 export * from './weekly-reports'
 export * from './customer-portal-sessions'
+// Cortex AI Brain — graph substrate (BUILDOPS_IMPLEMENTATION_PROMPT §5, Appendix B)
+export * from './cortex'
