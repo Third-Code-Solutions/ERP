@@ -18,6 +18,7 @@ import {
   seedTwoTenants,
 } from './_db-harness'
 import { getCortexNodeByRef, searchCortexNodes } from '../cortex/graph'
+import { cortexDescribeEntity, getCortexContextPack } from '../cortex/retrieve'
 
 // Seeded demo tenant (see CLAUDE.md / seed). Used for read-only API assertions.
 const DEMO_TENANT = '2b2b039c-b066-412b-af4c-564f2af6097e'
@@ -267,5 +268,33 @@ suite('Cortex substrate', () => {
     // A non-existent ref resolves to null (no cross-tenant or phantom hits).
     const miss = await getCortexNodeByRef(DEMO_TENANT, 'projects', ZERO_UUID)
     expect(miss).toBeNull()
+  })
+
+  it('retrieval builds a source-grounded, tenant-scoped context pack', async () => {
+    const rows = (await sql.unsafe(
+      `select id from projects where tenant_id='${DEMO_TENANT}' limit 1`
+    )) as Rows
+    if (rows.length === 0) return
+    const projectId = rows[0].id as string
+
+    const pack = await getCortexContextPack(DEMO_TENANT, 'projects', projectId)
+    expect(pack).not.toBeNull()
+    // The entity itself is always the first citation.
+    expect(pack!.citations[0]!.refTable).toBe('projects')
+    expect(pack!.citations[0]!.refId).toBe(projectId)
+    // Every citation carries a resolvable ERP pointer (no unsourced claims).
+    expect(pack!.citations.every((c) => c.nodeId && c.refTable && c.refId)).toBe(true)
+
+    const answer = await cortexDescribeEntity(DEMO_TENANT, 'projects', projectId)
+    expect(answer.found).toBe(true)
+    expect(answer.summary.length).toBeGreaterThan(0)
+    expect(answer.citations.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('retrieval returns an explicit "not found" answer for an unknown entity', async () => {
+    const answer = await cortexDescribeEntity(DEMO_TENANT, 'projects', ZERO_UUID)
+    expect(answer.found).toBe(false)
+    expect(answer.summary).toBe('')
+    expect(answer.citations).toEqual([])
   })
 })
