@@ -12,8 +12,10 @@
 A derived, RLS-scoped, hash-chained projection of the ERP. Canonical data stays
 in the ERP tables; the graph mirrors them via `ref_table`/`ref_id`. Kept live by
 `AFTER` triggers. Entities mirrored today:
-`projects`, `accounts`, `users` (employee), `opportunities`, `documents`
-(`cortex_mirror_{project,account,user,opportunity,document}`). See ADR-007.
+`projects`, `accounts`, `users` (employee), `opportunities`, `documents`,
+`boms`, `purchase_orders`, `invoices`, `daily_tasks`
+(`cortex_mirror_{project,account,user,opportunity,document,bom,purchase_order,invoice,daily_task}`).
+See ADR-007.
 
 ## How a row enters the graph
 
