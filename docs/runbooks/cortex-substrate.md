@@ -1,0 +1,79 @@
+# Runbook: Cortex Graph Substrate
+
+**Owner:** Platform / AI
+**Tables:** `cortex_nodes`, `cortex_edges`, `cortex_provenance`
+**Source of record:** `packages/database/src/schema/cortex.ts` (Drizzle) +
+`packages/database/src/sql/cortex-substrate.sql` (RLS, functions, triggers, backfill).
+
+---
+
+## What it is
+
+A derived, RLS-scoped, hash-chained projection of the ERP. Canonical data stays
+in the ERP tables; the graph mirrors them via `ref_table`/`ref_id`. Kept live by
+`AFTER` triggers. Entities mirrored today:
+`projects`, `accounts`, `users` (employee), `opportunities`, `documents`
+(`cortex_mirror_{project,account,user,opportunity,document}`). See ADR-007.
+
+## How a row enters the graph
+
+ERP mutation → mirror trigger → `cortex_upsert_node()` (+ derived
+`cortex_upsert_edge()`) → `cortex_provenance_append()` (hash-chained).
+Mirror triggers are **defensive**: a failure logs `WARNING` and never breaks the
+ERP write.
+
+## Operations
+
+**Rebuild / reconcile the graph (idempotent, additive):**
+Re-run the backfill section of `cortex-substrate.sql` (the three `DO` blocks).
+`cortex_upsert_*` updates existing current nodes and inserts missing ones; it
+never deletes. Safe to run anytime.
+
+**Verify provenance chain integrity (per tenant):**
+```sql
+with chain as (
+  select tenant_id, id, prev_hash, hash,
+    lag(hash) over (partition by tenant_id order by id) as prior_hash,
+    row_number() over (partition by tenant_id order by id) as rn
+  from cortex_provenance
+)
+select tenant_id, count(*) as breaks from chain
+where (rn = 1 and prev_hash <> 'genesis')
+   or (rn > 1 and prev_hash is distinct from prior_hash)
+group by tenant_id having count(*) > 0;
+```
+Zero rows = intact. Any row = tampering/gap → SEV-1, investigate.
+
+**Check mirror health:** mirror failures emit `WARNING 'cortex_mirror_* failed …'`.
+Grep Postgres logs. A graph row count far below the ERP row count for a type
+signals systematic mirror failure → reconcile + investigate the trigger.
+
+**Run the proof suite:**
+```bash
+corepack pnpm --filter @buildops/database test
+```
+
+## Security invariants (do not regress)
+
+- RLS on all three tables (`auth_tenant_id()`); `anon` sees nothing.
+- `cortex_*` functions have `EXECUTE` revoked from `anon/authenticated/public`.
+  New `cortex_*` functions MUST be revoked too (the `7b` `DO` block re-revokes
+  all `cortex\_%` functions — re-run after adding any).
+- Provenance is append-only (RLS update/delete = `false`).
+
+## Adding a new entity to the graph
+
+1. Add the node type to `cortex_node_type` (enum) if missing.
+2. Write `cortex_mirror_<entity>()` (copy an existing one; keep the defensive
+   `EXCEPTION` wrapper) + `AFTER INSERT/UPDATE/DELETE` trigger.
+3. Add derived edges from its FKs via `cortex_upsert_edge(... 'canonical' ...)`.
+4. Add a backfill `DO` block.
+5. Re-run the `7b` revoke block.
+6. Extend `cortex-substrate.test.ts`.
+
+## Known follow-ups (pre-existing, not from this slice)
+
+- `vector` extension lives in `public` (advisor `0014`) — move to `extensions`.
+- Pre-existing functions (`auth_tenant_id`, `jsonb_diff`, `audit_log_trigger`)
+  have mutable `search_path` (advisor `0011`).
+- Auth leaked-password protection disabled (dashboard toggle).
