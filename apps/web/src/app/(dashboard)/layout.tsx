@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { getUserProfile } from '@buildops/auth'
 import { Sidebar } from '@/components/nav/sidebar'
 import { Topbar } from '@/components/nav/topbar'
+import { AccountNotProvisioned } from '@/components/auth/account-not-provisioned'
 import { canViewPath } from '@/lib/abi/nav-config'
 
 export default async function DashboardLayout({
@@ -12,8 +13,13 @@ export default async function DashboardLayout({
 }) {
   const profile = await getUserProfile()
 
+  // Middleware already redirects unauthenticated users to /auth/login before
+  // this layout runs, so a null profile here means: session is valid but the
+  // user has no public.users row. We must NOT redirect to /auth/login — the
+  // middleware would bounce the authenticated user straight back here, causing
+  // an infinite redirect loop. Render a terminal screen with a sign-out path.
   if (!profile) {
-    redirect('/auth/login')
+    return <AccountNotProvisioned />
   }
 
   // Defense-in-depth: even if a user types a forbidden URL, the layout
