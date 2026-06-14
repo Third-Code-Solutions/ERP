@@ -17,8 +17,15 @@ import {
   becomeAuthenticated,
   seedTwoTenants,
 } from './_db-harness'
-import { getCortexNodeByRef, searchCortexNodes } from '../cortex/graph'
-import { cortexDescribeEntity, getCortexContextPack } from '../cortex/retrieve'
+import { getCortexNodeByRef, searchCortexNodes, cortexSemanticSearch } from '../cortex/graph'
+import { cortexDescribeEntity, getCortexContextPack, cortexEmbeddingText } from '../cortex/retrieve'
+
+/** Build a 1536-dim one-hot vector literal for pgvector. */
+function oneHotVector(index: number): string {
+  const arr = new Array(1536).fill(0)
+  arr[index] = 1
+  return `[${arr.join(',')}]`
+}
 
 // Seeded demo tenant (see CLAUDE.md / seed). Used for read-only API assertions.
 const DEMO_TENANT = '2b2b039c-b066-412b-af4c-564f2af6097e'
@@ -296,5 +303,67 @@ suite('Cortex substrate', () => {
     expect(answer.found).toBe(false)
     expect(answer.summary).toBe('')
     expect(answer.citations).toEqual([])
+  })
+
+  it('builds deterministic embedding text from a node', () => {
+    const text = cortexEmbeddingText({
+      node_type: 'invoice',
+      title: 'INV-001',
+      summary: 'Status: issued',
+    })
+    expect(text).toBe('invoice — INV-001 — Status: issued')
+    // Stable across calls (re-embedding correctness depends on this).
+    expect(cortexEmbeddingText({ node_type: 'project', title: 'P', summary: null })).toBe(
+      'project — P'
+    )
+  })
+
+  it('pgvector cosine search ranks nearest first and stays tenant-scoped', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA, tenantB } = await seedTwoTenants(tx)
+      const near = oneHotVector(0) // query target
+      const far = oneHotVector(5)
+      // Two embedded nodes in A (one near, one far) + one in B (must be excluded).
+      const aNear = (
+        (await tx.unsafe(
+          `insert into cortex_nodes(tenant_id, node_type, ref_table, ref_id, title, embedding)
+           values('${tenantA}','project','projects', gen_random_uuid(), 'A_NEAR', '${near}'::vector) returning id`
+        )) as Rows
+      )[0].id
+      await tx.unsafe(
+        `insert into cortex_nodes(tenant_id, node_type, ref_table, ref_id, title, embedding)
+         values('${tenantA}','project','projects', gen_random_uuid(), 'A_FAR', '${far}'::vector)`
+      )
+      await tx.unsafe(
+        `insert into cortex_nodes(tenant_id, node_type, ref_table, ref_id, title, embedding)
+         values('${tenantB}','project','projects', gen_random_uuid(), 'B_NEAR', '${near}'::vector)`
+      )
+      // Same query the helper runs: cosine distance, tenant-scoped, nearest first.
+      const rows = (await tx.unsafe(
+        `select id, title, (embedding <=> '${near}'::vector) as d
+           from cortex_nodes
+          where tenant_id='${tenantA}' and valid_to is null and embedding is not null
+          order by d asc`
+      )) as Rows
+      return {
+        count: rows.length as number,
+        firstId: rows[0].id as string,
+        firstTitle: rows[0].title as string,
+        sawTenantB: rows.some((x: { title: string }) => x.title === 'B_NEAR'),
+        aNear,
+      }
+    })
+    expect(r.count).toBe(2) // only tenant A's two nodes
+    expect(r.firstId).toBe(r.aNear) // exact match ranks first (distance 0)
+    expect(r.firstTitle).toBe('A_NEAR')
+    expect(r.sawTenantB).toBe(false)
+  })
+
+  it('semantic search helper executes against the live graph (read-only)', async () => {
+    const hits = await cortexSemanticSearch(DEMO_TENANT, new Array(1536).fill(0).map((_, i) => (i === 0 ? 1 : 0)), {
+      limit: 5,
+    })
+    expect(Array.isArray(hits)).toBe(true)
+    expect(hits.every((h) => h.node.tenant_id === DEMO_TENANT)).toBe(true)
   })
 })

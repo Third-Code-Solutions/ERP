@@ -41,6 +41,20 @@ export interface CortexAnswer {
   citations: Citation[]
 }
 
+/**
+ * Deterministic text used to embed a node for semantic search. Keep stable —
+ * changing it means re-embedding the whole graph. Includes the type so a query
+ * like "unpaid invoice" lands near invoice nodes.
+ */
+export function cortexEmbeddingText(
+  node: Pick<CortexNode, 'node_type' | 'title' | 'summary'>
+): string {
+  return [node.node_type, node.title ?? '', node.summary ?? '']
+    .filter(Boolean)
+    .join(' — ')
+    .slice(0, 8000)
+}
+
 function toCitation(node: Pick<CortexNode, 'id' | 'node_type' | 'ref_table' | 'ref_id' | 'title'>): Citation {
   return {
     nodeId: node.id,
