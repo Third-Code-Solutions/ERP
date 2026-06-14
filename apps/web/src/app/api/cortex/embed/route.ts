@@ -1,0 +1,55 @@
+import { NextResponse, type NextRequest } from 'next/server'
+import { getUserProfile } from '@buildops/auth'
+import {
+  getUnembeddedCortexNodes,
+  setCortexNodeEmbedding,
+  cortexEmbeddingText,
+} from '@buildops/database'
+import { embedBatch } from '@buildops/ai'
+import { canonicalRole } from '@/lib/abi/nav-config'
+
+const BATCH_SIZE = 64
+
+/**
+ * POST /api/cortex/embed
+ *
+ * Admin-only. Embeds a batch of the tenant's un-embedded graph nodes so they
+ * become available to semantic search. Tenant-scoped throughout (the caller's
+ * session tenant), so it can only ever embed its own graph. Call repeatedly
+ * until `remaining` is 0 (a cron/Inngest job can drive this).
+ *
+ * Returns 503 when the embedding provider isn't configured (no OPENAI key) so
+ * the rest of the app is unaffected.
+ */
+export async function POST(_req: NextRequest) {
+  const profile = await getUserProfile()
+  if (!profile) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  // Embedding the whole-tenant graph is an admin operation.
+  if (canonicalRole(profile.role) !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const nodes = await getUnembeddedCortexNodes(profile.tenantId, BATCH_SIZE)
+  if (nodes.length === 0) {
+    return NextResponse.json({ embedded: 0, remaining: 0 })
+  }
+
+  try {
+    const vectors = await embedBatch(nodes.map((n) => cortexEmbeddingText(n)))
+    await Promise.all(
+      nodes.map((n, i) => {
+        const vec = vectors[i]
+        if (!vec) return Promise.resolve()
+        return setCortexNodeEmbedding(profile.tenantId, n.id, vec)
+      })
+    )
+  } catch {
+    return NextResponse.json({ error: 'Embedding provider unavailable' }, { status: 503 })
+  }
+
+  // If we filled a whole batch there are probably more waiting.
+  const remaining = nodes.length === BATCH_SIZE ? 1 : 0
+  return NextResponse.json({ embedded: nodes.length, remaining })
+}

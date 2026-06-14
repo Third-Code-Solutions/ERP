@@ -80,6 +80,9 @@ create index if not exists idx_cortex_nodes_ref on cortex_nodes(tenant_id, ref_t
 -- One CURRENT node per ERP row (bi-temporal history allowed via valid_to).
 create unique index if not exists ux_cortex_nodes_current
   on cortex_nodes(tenant_id, ref_table, ref_id) where valid_to is null;
+-- HNSW index for cosine semantic search (Cortex hybrid retrieval, vector arm).
+create index if not exists idx_cortex_nodes_embedding
+  on cortex_nodes using hnsw (embedding vector_cosine_ops);
 
 create table if not exists cortex_edges (
   id            uuid primary key default gen_random_uuid(),

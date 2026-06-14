@@ -55,6 +55,21 @@ signals systematic mirror failure → reconcile + investigate the trigger.
 corepack pnpm --filter @buildops/database test
 ```
 
+## Semantic search (hybrid retrieval, vector arm)
+
+`cortex_nodes.embedding` (1536-dim, `text-embedding-3-small`) backs cosine
+search via an HNSW index (`idx_cortex_nodes_embedding`, `vector_cosine_ops`).
+
+- Search: `cortexSemanticSearch(tenantId, embedding, { nodeType?, limit })` —
+  tenant-scoped, only nodes with an embedding, nearest first.
+- Embedding text: `cortexEmbeddingText(node)` — deterministic; changing it means
+  re-embedding the whole graph.
+- Population: `POST /api/cortex/embed` (admin-only) embeds a batch of the
+  tenant's un-embedded nodes via `@buildops/ai` `embedBatch`. Call until
+  `remaining` is 0 (drive from a cron/Inngest job). Returns 503 if no embedding
+  provider key is configured — the rest of the app is unaffected. New/updated
+  nodes land with `embedding = NULL`, so re-run periodically to keep fresh.
+
 ## Security invariants (do not regress)
 
 - RLS on all three tables (`auth_tenant_id()`); `anon` sees nothing.

@@ -11,7 +11,7 @@
  * Herald, …) build on: an agent answer can only ever include nodes the caller
  * may read, because retrieval is tenant-scoped at the source.
  */
-import { and, eq, ilike, isNull, desc } from 'drizzle-orm'
+import { and, eq, ilike, isNull, isNotNull, desc, sql, type SQL } from 'drizzle-orm'
 import { db } from '../client'
 import {
   cortexNodes,
@@ -123,6 +123,80 @@ export async function getCortexNeighbors(
     }))
 
   return [...map(outgoing, 'out'), ...map(incoming, 'in')]
+}
+
+export interface SemanticHit {
+  node: CortexNode
+  distance: number
+}
+
+/** Current nodes for a tenant that still lack an embedding (population queue). */
+export async function getUnembeddedCortexNodes(
+  tenantId: string,
+  limit = 100
+): Promise<CortexNode[]> {
+  return db
+    .select()
+    .from(cortexNodes)
+    .where(
+      and(
+        eq(cortexNodes.tenant_id, tenantId),
+        isNull(cortexNodes.valid_to),
+        isNull(cortexNodes.embedding)
+      )
+    )
+    .orderBy(desc(cortexNodes.recorded_at))
+    .limit(limit)
+}
+
+/** Format a JS vector for pgvector's text wire format. */
+function toVectorLiteral(embedding: number[]): string {
+  return `[${embedding.join(',')}]`
+}
+
+/**
+ * Write (or refresh) a node's embedding. Tenant-scoped so a caller can only
+ * touch their own tenant's nodes even though Drizzle runs as `postgres`.
+ */
+export async function setCortexNodeEmbedding(
+  tenantId: string,
+  nodeId: string,
+  embedding: number[]
+): Promise<void> {
+  await db
+    .update(cortexNodes)
+    .set({ embedding, last_verified_at: new Date() })
+    .where(and(eq(cortexNodes.tenant_id, tenantId), eq(cortexNodes.id, nodeId)))
+}
+
+/**
+ * Semantic (vector) search over the graph — pgvector cosine distance, ascending
+ * (nearest first). Tenant-scoped; only current nodes that actually have an
+ * embedding participate. This is the vector arm of Cortex hybrid retrieval.
+ */
+export async function cortexSemanticSearch(
+  tenantId: string,
+  embedding: number[],
+  opts: { nodeType?: CortexNode['node_type']; limit?: number } = {}
+): Promise<SemanticHit[]> {
+  const vec = toVectorLiteral(embedding)
+  const distance = sql<number>`${cortexNodes.embedding} <=> ${vec}::vector`
+
+  const filters: (SQL | undefined)[] = [
+    eq(cortexNodes.tenant_id, tenantId),
+    isNull(cortexNodes.valid_to),
+    isNotNull(cortexNodes.embedding),
+  ]
+  if (opts.nodeType) filters.push(eq(cortexNodes.node_type, opts.nodeType))
+
+  const rows = await db
+    .select({ node: cortexNodes, distance })
+    .from(cortexNodes)
+    .where(and(...filters))
+    .orderBy(distance)
+    .limit(opts.limit ?? 10)
+
+  return rows.map((r) => ({ node: r.node, distance: Number(r.distance) }))
 }
 
 /** Provenance trail for a node/edge/answer, newest first (audit-grade). */
