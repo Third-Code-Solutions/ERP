@@ -16,6 +16,7 @@ import {
   getCortexNeighbors,
   getCortexProvenance,
   searchCortexNodesByTerms,
+  searchCortexNodes,
   type CortexNeighbor,
 } from './graph'
 import type { CortexNode, CortexProvenance } from '../schema/cortex'
@@ -54,18 +55,27 @@ export async function cortexKeywordAnswer(
 ): Promise<{ answer: string; citations: Citation[] }> {
   const terms = question.toLowerCase().split(/[^a-z0-9₱]+/i).filter(Boolean)
   const hits = await searchCortexNodesByTerms(tenantId, terms, 8)
-  if (hits.length === 0) {
+
+  // Never come up empty: for broad/meta questions (e.g. "what changed recently",
+  // "overview") keyword match misses, so fall back to the most recent records.
+  const matched = hits.length > 0
+  const used = matched ? hits : await searchCortexNodes(tenantId, { limit: 8 })
+
+  if (used.length === 0) {
     return {
-      answer:
-        "I don't have anything matching that in your knowledge graph yet. Try a project, account, BOM, PO or invoice name.",
+      answer: 'Your knowledge graph is empty for now — create a project, account or BOM and it will appear here.',
       citations: [],
     }
   }
-  const lines = hits.map(
+
+  const lines = used.map(
     (h) => `• [${h.node_type}] ${h.title ?? '(untitled)'}${h.summary ? ` — ${h.summary}` : ''}`
   )
-  const answer = `Here's what I found in your knowledge graph:\n\n${lines.join('\n')}\n\nCited ${hits.length} record${hits.length === 1 ? '' : 's'} — open any from the graph to dig in.`
-  return { answer, citations: hits.map(toCitation) }
+  const intro = matched
+    ? "Here's what I found in your knowledge graph:"
+    : 'Here are the most recently updated records in your knowledge graph:'
+  const answer = `${intro}\n\n${lines.join('\n')}\n\nCited ${used.length} record${used.length === 1 ? '' : 's'} — open any from the graph to dig in.`
+  return { answer, citations: used.map(toCitation) }
 }
 
 /**

@@ -2,12 +2,14 @@ import { NextRequest } from 'next/server'
 import { getUserProfile } from '@buildops/auth'
 import {
   searchCortexNodes,
+  searchCortexNodesByTerms,
+  cortexSemanticSearch,
   getCortexGraphStats,
   createCortexConversation,
   appendCortexMessage,
   cortexKeywordAnswer,
 } from '@buildops/database'
-import { getOpenAI } from '@buildops/ai'
+import { getOpenAI, embedText } from '@buildops/ai'
 import { writeAuditLog } from '@/lib/audit'
 
 export const runtime = 'nodejs'
@@ -51,29 +53,53 @@ export async function POST(req: NextRequest) {
     console.error('[cortex/chat] persist user turn failed:', err)
   }
 
-  // Ground the agent in the tenant's graph: high-level shape + a recent sample.
-  const [stats, recent] = await Promise.all([
+  // Ground the agent in the tenant's graph: high-level shape, a recent sample,
+  // and records that match the question's keywords.
+  const terms = lastUserMessage.toLowerCase().split(/[^a-z0-9₱]+/i).filter(Boolean)
+  const [stats, recent, matches] = await Promise.all([
     getCortexGraphStats(profile.tenantId),
-    searchCortexNodes(profile.tenantId, { limit: 60 }),
+    searchCortexNodes(profile.tenantId, { limit: 40 }),
+    searchCortexNodesByTerms(profile.tenantId, terms, 12),
   ])
 
   const shape = stats.byType.map((t) => `${t.nodeType}:${t.count}`).join(', ')
-  const records = recent
-    .map((n) => `- [${n.node_type}] ${n.title ?? '(untitled)'}${n.summary ? ` — ${n.summary}` : ''}`)
-    .join('\n')
+  const fmt = (n: { node_type: string; title: string | null; summary: string | null }) =>
+    `- [${n.node_type}] ${n.title ?? '(untitled)'}${n.summary ? ` — ${n.summary}` : ''}`
+  const relevant = matches.map(fmt).join('\n')
+  const records = recent.map(fmt).join('\n')
+
+  // Semantic retrieval — only contributes once nodes are embedded. Guarded so a
+  // missing key / unindexed graph never breaks the chat.
+  let semantic = ''
+  try {
+    if (process.env.OPENAI_API_KEY && lastUserMessage) {
+      const qEmbedding = await embedText(lastUserMessage)
+      const hits = await cortexSemanticSearch(profile.tenantId, qEmbedding, { limit: 8 })
+      semantic = hits.map((h) => fmt(h.node)).join('\n')
+    }
+  } catch (err) {
+    console.error('[cortex/chat] semantic retrieval skipped:', err)
+  }
 
   const systemPrompt = `You are Cortex, the AI Brain for BuildOps, a construction ERP for Philippine MEP contractors.
-You can see the user's company knowledge graph (a permissioned mirror of every ERP record). You must answer ONLY from the GRAPH CONTEXT below.
+You see the user's company knowledge graph — a permissioned, live mirror of every ERP record (projects, accounts, opportunities, BOMs, purchase orders, invoices, documents, people, tasks). Answer using the records below.
 
-Rules:
-- Cite the specific records you used, by [type] and title, e.g. "(BOM A, Project Acme)".
-- Money is in Philippine Pesos (₱).
-- If the answer is not supported by the graph context, say "I don't have that in the graph yet" — do not guess.
-- Be concise and specific.
+How to answer:
+- Be genuinely helpful. For broad questions like "what changed recently", "what's new", "give me an overview", "what's active" — summarise the MOST RECENTLY UPDATED RECORDS below (they are ordered newest-first).
+- For specific questions, use the RELEVANT RECORDS that match the question.
+- Always cite the records you used by [type] and title, e.g. "(BOM A · Acme Tower)".
+- Money is in Philippine Pesos (₱). Be concise and specific.
+- Only say "I don't have that in the graph yet" if NONE of the records below are relevant — never guess beyond them.
 
 GRAPH SHAPE (counts by record type): ${shape || 'empty'}
 
-GRAPH CONTEXT (most recent records):
+SEMANTICALLY RELATED RECORDS (closest in meaning):
+${semantic || '(semantic index not built yet)'}
+
+RELEVANT RECORDS (match the question keywords):
+${relevant || '(none matched by keyword)'}
+
+MOST RECENTLY UPDATED RECORDS (newest first):
 ${records || '(no records visible)'}`
 
   // Audit every AI query (PRD §11 / F4). Best-effort — never block the user.

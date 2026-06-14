@@ -385,10 +385,12 @@ suite('Cortex substrate', () => {
         expect(ans.answer.length).toBeGreaterThan(0)
       }
     }
-    // nonsense → no fabricated records, honest fallback
-    const none = await cortexKeywordAnswer(DEMO_TENANT, 'zzqx_nonexistent_term_xyz')
-    expect(none.citations).toEqual([])
-    expect(none.answer.toLowerCase()).toContain("don't have")
+    // nonsense / broad term: never empty-handed — falls back to recent records
+    // (and only ever cites real records, never fabricates).
+    const broad = await cortexKeywordAnswer(DEMO_TENANT, 'zzqx_nonexistent_term_xyz')
+    expect(broad.citations.every((c) => c.refTable && c.refId)).toBe(true)
+    // demo graph is non-empty → recent fallback returns cited records
+    expect(broad.answer.length).toBeGreaterThan(0)
   })
 
   it('graph stats are tenant-scoped and internally consistent', async () => {

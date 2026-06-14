@@ -4,6 +4,8 @@ import { getCortexGraphStats } from '@buildops/database'
 import { AccountNotProvisioned } from '@/components/auth/account-not-provisioned'
 import { CortexGraphView } from '@/components/cortex/cortex-graph-view'
 import { CortexAgent } from '@/components/cortex/cortex-agent'
+import { CortexIndexButton } from '@/components/cortex/cortex-index-button'
+import { canonicalRole } from '@/lib/abi/nav-config'
 
 export const metadata: Metadata = { title: 'Cortex — AI Brain' }
 
@@ -32,6 +34,7 @@ export default async function CortexPage() {
             linked into one permissioned, source-cited knowledge graph.
           </p>
         </div>
+        {canonicalRole(profile.role) === 'admin' && <CortexIndexButton />}
       </header>
 
       <div className="cortex-kpis">
