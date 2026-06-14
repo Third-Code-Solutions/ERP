@@ -59,10 +59,13 @@ corepack pnpm --filter @buildops/database test
 
 Sidebar → **Cortex** (Workspace section, visible to all roles). Page: `/cortex`
 (`app/(dashboard)/cortex/page.tsx`). Two halves:
-- **Knowledge Graph** (`components/cortex/cortex-explorer.tsx`) — Obsidian-like:
-  typed node index (filter by record type) + a focused node's local graph (SVG
-  radial of its machine-derived connections) + a source-grounded summary. Pulls
-  connections from `GET /api/cortex/entity/...`.
+- **Knowledge Graph** (`components/cortex/cortex-graph-canvas.tsx` +
+  `cortex-graph-view.tsx`) — Obsidian / conducting.ai-style interactive
+  force-directed graph: canvas + `d3-force` physics, wheel-zoom, drag-pan,
+  node-drag, hover-highlights a node's neighborhood, click opens a detail drawer
+  (reuses `CortexEntityPanel`). Whole graph from `GET /api/cortex/graph`
+  (tenant-scoped, capped 1500 nodes for speed); node colour = record type, size
+  = degree; respects `prefers-reduced-motion`.
 - **BuildOps Agent** (`components/cortex/cortex-agent.tsx`) — graph-grounded chat
   → `POST /api/cortex/chat` (Atlas). Tenant-scoped context, cites records, has an
   "I don't have that in the graph" path, audit-logged (`cortex_chat`). Streams.

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { getUserProfile } from '@buildops/auth'
-import { getCortexGraphStats, searchCortexNodes } from '@buildops/database'
+import { getCortexGraphStats } from '@buildops/database'
 import { AccountNotProvisioned } from '@/components/auth/account-not-provisioned'
-import { CortexExplorer, type CortexNodeLite } from '@/components/cortex/cortex-explorer'
+import { CortexGraphView } from '@/components/cortex/cortex-graph-view'
 import { CortexAgent } from '@/components/cortex/cortex-agent'
 
 export const metadata: Metadata = { title: 'Cortex — AI Brain' }
@@ -11,18 +11,7 @@ export default async function CortexPage() {
   const profile = await getUserProfile()
   if (!profile) return <AccountNotProvisioned />
 
-  const [stats, nodes] = await Promise.all([
-    getCortexGraphStats(profile.tenantId),
-    searchCortexNodes(profile.tenantId, { limit: 250 }),
-  ])
-
-  const nodeList: CortexNodeLite[] = nodes.map((n) => ({
-    id: n.id,
-    nodeType: n.node_type,
-    refTable: n.ref_table,
-    refId: n.ref_id,
-    title: n.title,
-  }))
+  const stats = await getCortexGraphStats(profile.tenantId)
 
   const kpis = [
     { label: 'Records', value: stats.nodes },
@@ -57,12 +46,12 @@ export default async function CortexPage() {
       <div className="cortex-layout">
         <div className="cortex-layout__graph">
           <h2 className="cortex-section-title">Knowledge Graph</h2>
-          {nodeList.length === 0 ? (
+          {stats.nodes === 0 ? (
             <p className="cortex-empty-note">
               The graph is empty for now. As records are created they mirror in automatically.
             </p>
           ) : (
-            <CortexExplorer nodes={nodeList} />
+            <CortexGraphView />
           )}
         </div>
         <div className="cortex-layout__agent">
