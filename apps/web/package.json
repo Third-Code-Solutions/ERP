@@ -27,6 +27,7 @@
     "@supabase/supabase-js": "^2.48.1",
     "@tailwindcss/postcss": "^4.3.0",
     "ai": "^6.0.177",
+    "d3-force": "^3.0.0",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "drizzle-orm": "^0.40.1",
@@ -45,6 +46,7 @@
   "devDependencies": {
     "@buildops/config": "workspace:*",
     "@playwright/test": "^1.49.0",
+    "@types/d3-force": "^3.0.10",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

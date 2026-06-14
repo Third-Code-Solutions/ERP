@@ -130,6 +130,50 @@ export interface SemanticHit {
   distance: number
 }
 
+export interface CortexGraphData {
+  nodes: { id: string; type: string; title: string | null; refTable: string; refId: string }[]
+  links: { source: string; target: string; type: string }[]
+}
+
+/**
+ * Whole-graph fetch for the interactive visualization. Tenant-scoped and
+ * capped for performance: at most `nodeLimit` current nodes, and only edges
+ * whose endpoints are both in that node set (no dangling links).
+ */
+export async function getCortexGraph(
+  tenantId: string,
+  nodeLimit = 1500
+): Promise<CortexGraphData> {
+  const nodeRows = await db
+    .select({
+      id: cortexNodes.id,
+      type: cortexNodes.node_type,
+      title: cortexNodes.title,
+      refTable: cortexNodes.ref_table,
+      refId: cortexNodes.ref_id,
+    })
+    .from(cortexNodes)
+    .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to)))
+    .orderBy(desc(cortexNodes.recorded_at))
+    .limit(nodeLimit)
+
+  const ids = new Set(nodeRows.map((n) => n.id))
+
+  const edgeRows = await db
+    .select({
+      source: cortexEdges.src_id,
+      target: cortexEdges.dst_id,
+      type: cortexEdges.edge_type,
+    })
+    .from(cortexEdges)
+    .where(and(eq(cortexEdges.tenant_id, tenantId), isNull(cortexEdges.valid_to)))
+    .limit(nodeLimit * 8)
+
+  const links = edgeRows.filter((e) => ids.has(e.source) && ids.has(e.target))
+
+  return { nodes: nodeRows, links }
+}
+
 export interface CortexGraphStats {
   nodes: number
   edges: number
