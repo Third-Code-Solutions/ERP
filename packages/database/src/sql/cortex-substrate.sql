@@ -707,7 +707,7 @@ alter type cortex_node_type add value if not exists 'weekly_report';
 create or replace function cortex_mirror_generic() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
-  j jsonb; v_tenant uuid; v_id uuid; v_title text; v_summary text; v_node uuid;
+  j jsonb; j_clean jsonb; v_tenant uuid; v_id uuid; v_title text; v_summary text; v_node uuid;
   nt cortex_node_type; v_fk uuid; v_creator uuid;
 begin
   begin
@@ -730,7 +730,12 @@ begin
     else
       v_summary := null;
     end if;
-    v_node := cortex_upsert_node(v_tenant, nt, TG_TABLE_NAME, v_id, v_title, v_summary, j, auth.uid(), TG_TABLE_NAME || ':' || lower(tg_op));
+    -- redaction denylist: secrets, raw PII, large blobs (defense-in-depth)
+    j_clean := j
+      - 'token_hash' - 'response_token_hash' - 'signer_ip' - 'signer_user_agent'
+      - 'signer_email' - 'signer_name' - 'bir_tin' - 'payload' - 'snapshot'
+      - 'tasks' - 'mentions' - 'percent_by_category' - 'line_items' - 'body';
+    v_node := cortex_upsert_node(v_tenant, nt, TG_TABLE_NAME, v_id, v_title, v_summary, j_clean, auth.uid(), TG_TABLE_NAME || ':' || lower(tg_op));
     v_fk := nullif(j->>'project_id','')::uuid;
     if v_fk is not null then perform cortex_upsert_edge(v_tenant, v_node, cortex_node_current(v_tenant,'projects',v_fk), 'part_of','canonical',1, auth.uid()); end if;
     v_fk := nullif(j->>'account_id','')::uuid;
