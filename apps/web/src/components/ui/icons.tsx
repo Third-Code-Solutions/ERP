@@ -179,6 +179,17 @@ export const IconActivity = (p: IconProps) => (
   </Svg>
 )
 
+export const IconCortex = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="2.5" />
+    <circle cx="5" cy="6" r="1.5" />
+    <circle cx="19" cy="6" r="1.5" />
+    <circle cx="6" cy="18" r="1.5" />
+    <circle cx="18" cy="18" r="1.5" />
+    <path d="M10.1 10.6 6.4 7.2M13.9 10.6l3.7-3.4M10.2 13.6 7 16.8M13.8 13.6 17 16.8" />
+  </Svg>
+)
+
 export const IconUser = (p: IconProps) => (
   <Svg {...p}>
     <circle cx="12" cy="8" r="4" />

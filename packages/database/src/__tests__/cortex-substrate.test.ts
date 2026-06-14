@@ -17,7 +17,12 @@ import {
   becomeAuthenticated,
   seedTwoTenants,
 } from './_db-harness'
-import { getCortexNodeByRef, searchCortexNodes, cortexSemanticSearch } from '../cortex/graph'
+import {
+  getCortexNodeByRef,
+  searchCortexNodes,
+  cortexSemanticSearch,
+  getCortexGraphStats,
+} from '../cortex/graph'
 import { cortexDescribeEntity, getCortexContextPack, cortexEmbeddingText } from '../cortex/retrieve'
 
 /** Build a 1536-dim one-hot vector literal for pgvector. */
@@ -357,6 +362,16 @@ suite('Cortex substrate', () => {
     expect(r.firstId).toBe(r.aNear) // exact match ranks first (distance 0)
     expect(r.firstTitle).toBe('A_NEAR')
     expect(r.sawTenantB).toBe(false)
+  })
+
+  it('graph stats are tenant-scoped and internally consistent', async () => {
+    const stats = await getCortexGraphStats(DEMO_TENANT)
+    expect(typeof stats.nodes).toBe('number')
+    expect(stats.nodes).toBeGreaterThanOrEqual(0)
+    expect(Array.isArray(stats.byType)).toBe(true)
+    // Per-type counts never exceed the total node count.
+    const sum = stats.byType.reduce((acc, t) => acc + t.count, 0)
+    expect(sum).toBe(stats.nodes)
   })
 
   it('semantic search helper executes against the live graph (read-only)', async () => {

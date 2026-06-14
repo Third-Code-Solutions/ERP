@@ -130,6 +130,44 @@ export interface SemanticHit {
   distance: number
 }
 
+export interface CortexGraphStats {
+  nodes: number
+  edges: number
+  provenance: number
+  byType: { nodeType: string; count: number }[]
+}
+
+/** High-level counts for a tenant's graph — powers the Cortex dashboard. */
+export async function getCortexGraphStats(tenantId: string): Promise<CortexGraphStats> {
+  const [nodeRows, edgeRows, provRows, typeRows] = await Promise.all([
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(cortexNodes)
+      .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to))),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(cortexEdges)
+      .where(and(eq(cortexEdges.tenant_id, tenantId), isNull(cortexEdges.valid_to))),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(cortexProvenance)
+      .where(eq(cortexProvenance.tenant_id, tenantId)),
+    db
+      .select({ nodeType: cortexNodes.node_type, count: sql<number>`count(*)::int` })
+      .from(cortexNodes)
+      .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to)))
+      .groupBy(cortexNodes.node_type)
+      .orderBy(desc(sql`count(*)`)),
+  ])
+
+  return {
+    nodes: Number(nodeRows[0]?.n ?? 0),
+    edges: Number(edgeRows[0]?.n ?? 0),
+    provenance: Number(provRows[0]?.n ?? 0),
+    byType: typeRows.map((r) => ({ nodeType: r.nodeType, count: Number(r.count) })),
+  }
+}
+
 /** Current nodes for a tenant that still lack an embedding (population queue). */
 export async function getUnembeddedCortexNodes(
   tenantId: string,

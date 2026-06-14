@@ -45,6 +45,7 @@ export type NavIconKey =
   | 'Settings'
   | 'Upload'
   | 'Receipt'
+  | 'Cortex'
 
 export interface NavSection {
   label: string
@@ -129,6 +130,12 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Workspace',
     items: [
       { href: '/dashboard', label: 'Dashboard', iconKey: 'Dashboard' },
+      {
+        href: '/cortex',
+        label: 'Cortex',
+        iconKey: 'Cortex',
+        description: 'AI Brain — knowledge graph + agent',
+      },
       {
         href: '/crm/accounts',
         label: 'Accounts',

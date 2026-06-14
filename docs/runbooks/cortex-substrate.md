@@ -55,6 +55,22 @@ signals systematic mirror failure → reconcile + investigate the trigger.
 corepack pnpm --filter @buildops/database test
 ```
 
+## Dashboard surface (where users find it)
+
+Sidebar → **Cortex** (Workspace section, visible to all roles). Page: `/cortex`
+(`app/(dashboard)/cortex/page.tsx`). Two halves:
+- **Knowledge Graph** (`components/cortex/cortex-explorer.tsx`) — Obsidian-like:
+  typed node index (filter by record type) + a focused node's local graph (SVG
+  radial of its machine-derived connections) + a source-grounded summary. Pulls
+  connections from `GET /api/cortex/entity/...`.
+- **BuildOps Agent** (`components/cortex/cortex-agent.tsx`) — graph-grounded chat
+  → `POST /api/cortex/chat` (Atlas). Tenant-scoped context, cites records, has an
+  "I don't have that in the graph" path, audit-logged (`cortex_chat`). Streams.
+  Per-project chat (`components/ai/project-chat.tsx` → `/api/ai/chat`) still
+  exists for project-scoped questions.
+
+Graph counts for the page come from `getCortexGraphStats(tenantId)`.
+
 ## Semantic search (hybrid retrieval, vector arm)
 
 `cortex_nodes.embedding` (1536-dim, `text-embedding-3-small`) backs cosine
