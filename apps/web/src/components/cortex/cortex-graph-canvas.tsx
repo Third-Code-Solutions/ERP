@@ -12,7 +12,6 @@ import {
   type Simulation,
   type SimulationNodeDatum,
 } from 'd3-force'
-import { cortexColor } from '@/lib/cortex/href'
 
 export interface RawNode {
   id: string
@@ -72,6 +71,28 @@ function radius(n: GraphNode): number {
   return 2.6 + Math.sqrt(n.degree) * 1.7
 }
 
+// Bright palette tuned for the dark "AI brain" canvas (conducting.ai-style).
+const NODE_COLOR: Record<string, string> = {
+  project: '#6ea8ff',
+  account: '#22d3ee',
+  employee: '#c084fc',
+  opportunity: '#fbbf24',
+  document: '#94a3b8',
+  bom: '#4ade80',
+  purchase_order: '#e879f9',
+  invoice: '#fb7185',
+  task: '#38bdf8',
+}
+const nodeColor = (t: string): string => NODE_COLOR[t] ?? '#94a3b8'
+
+function withAlpha(hex: string, a: number): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r},${g},${b},${a})`
+}
+
 /**
  * High-performance interactive knowledge graph (canvas + d3-force).
  * Data-driven: parent controls which types are visible, search highlight,
@@ -125,58 +146,59 @@ export function CortexGraphCanvas({
     ctx.translate(cam.x, cam.y)
     ctx.scale(cam.k, cam.k)
 
-    // edges
-    ctx.lineWidth = 0.6 / cam.k
+    // edges — luminous on dark
+    ctx.lineWidth = 0.7 / cam.k
     for (const l of linksRef.current) {
       const s = l.source as GraphNode
       const t = l.target as GraphNode
       if (s.x == null || s.y == null || t.x == null || t.y == null) continue
       const active = hover != null && (s.id === hover || t.id === hover)
       ctx.strokeStyle = active
-        ? 'rgba(31,56,100,0.55)'
+        ? 'rgba(186,230,253,0.55)'
         : hover != null
-          ? 'rgba(100,116,139,0.06)'
-          : 'rgba(100,116,139,0.16)'
+          ? 'rgba(148,163,184,0.05)'
+          : 'rgba(148,163,184,0.16)'
       ctx.beginPath()
       ctx.moveTo(s.x, s.y)
       ctx.lineTo(t.x, t.y)
       ctx.stroke()
     }
 
-    // nodes
-    const showLabels = cam.k > 1.35
+    // nodes — glow halo + bright core, conducting.ai style
+    const showLabels = cam.k > 1.1
     for (const n of nodesRef.current) {
       if (n.x == null || n.y == null) continue
       const r = radius(n)
+      const col = nodeColor(n.type)
       const isHover = n.id === hover
       const isNeighbor = neighbors != null && neighbors.has(n.id)
       const matches = q !== '' && (n.title ?? '').toLowerCase().includes(q)
-      const dimByHover = hover != null && !isHover && !isNeighbor
-      const dimByQuery = q !== '' && !matches
-      ctx.globalAlpha = dimByHover || dimByQuery ? 0.18 : 1
+      const dim = (hover != null && !isHover && !isNeighbor) || (q !== '' && !matches)
+      const focus = isHover || matches
 
-      if (matches) {
-        ctx.beginPath()
-        ctx.arc(n.x, n.y, r + 3 / cam.k, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(180,83,9,0.18)'
-        ctx.fill()
-      }
+      // glow halo
+      ctx.beginPath()
+      ctx.arc(n.x, n.y, r * (focus ? 2.8 : 2.1), 0, Math.PI * 2)
+      ctx.fillStyle = withAlpha(col, dim ? 0.04 : focus ? 0.32 : 0.16)
+      ctx.fill()
 
+      // core
+      ctx.globalAlpha = dim ? 0.28 : 1
       ctx.beginPath()
       ctx.arc(n.x, n.y, r, 0, Math.PI * 2)
-      ctx.fillStyle = cortexColor(n.type)
+      ctx.fillStyle = col
       ctx.fill()
-      if (isHover || matches) {
+      if (focus) {
         ctx.lineWidth = 1.4 / cam.k
-        ctx.strokeStyle = '#fff'
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)'
         ctx.stroke()
       }
 
-      if ((showLabels || isHover || isNeighbor || matches) && n.title) {
-        ctx.globalAlpha = dimByHover || dimByQuery ? 0.3 : 0.92
-        ctx.fillStyle = '#0f172a'
-        ctx.font = `${10 / cam.k}px Inter, system-ui, sans-serif`
-        ctx.fillText(n.title.slice(0, 30), n.x + r + 1.5 / cam.k, n.y + 3 / cam.k)
+      if ((showLabels || focus || isNeighbor) && n.title) {
+        ctx.globalAlpha = dim ? 0.3 : 0.95
+        ctx.fillStyle = focus ? '#f8fafc' : '#cbd5e1'
+        ctx.font = `${focus ? 600 : 400} ${10 / cam.k}px Inter, system-ui, sans-serif`
+        ctx.fillText(n.title.slice(0, 30), n.x + r + 2 / cam.k, n.y + 3 / cam.k)
       }
       ctx.globalAlpha = 1
     }
@@ -483,7 +505,7 @@ export function CortexGraphCanvas({
       />
       {tooltip && (
         <div className="cortex-graph-tip" style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}>
-          <span className="cortex-dot" style={{ background: cortexColor(tooltip.type) }} aria-hidden />
+          <span className="cortex-dot" style={{ background: nodeColor(tooltip.type) }} aria-hidden />
           <strong>{tooltip.title}</strong>
           <span className="cortex-graph-tip__meta">{tooltip.degree} link{tooltip.degree === 1 ? '' : 's'}</span>
         </div>

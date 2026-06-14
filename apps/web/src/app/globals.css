@@ -1700,28 +1700,28 @@ a { color: inherit; }
 .cortex-graphview { position: relative; }
 .cortex-graphwrap {
   position: relative; width: 100%; height: 560px; overflow: hidden;
-  border: 1px solid var(--color-border); border-radius: var(--radius-lg, 8px);
+  border: 1px solid #1e293b; border-radius: var(--radius-lg, 8px);
   background:
-    radial-gradient(circle, var(--color-neutral-200) 0.5px, transparent 0.5px) 0 0 / 18px 18px,
-    var(--color-neutral-50);
+    radial-gradient(circle, rgba(148,163,184,0.10) 0.6px, transparent 0.6px) 0 0 / 22px 22px,
+    radial-gradient(1200px 620px at 32% 18%, #0c1a33, #060b18 72%);
 }
 .cortex-graphcanvas { display: block; width: 100%; height: 100%; }
 .cortex-graph-overlay {
   position: absolute; inset: 0; display: grid; place-items: center;
-  color: var(--color-neutral-400); font-size: 0.875rem; pointer-events: none;
+  color: #94a3b8; font-size: 0.875rem; pointer-events: none;
 }
 .cortex-graph-meta {
-  position: absolute; left: 12px; bottom: 12px; font-size: 0.6875rem; color: var(--color-neutral-500);
-  background: rgba(255,255,255,0.85); padding: 3px 8px; border-radius: 6px; pointer-events: none;
-  font-variant-numeric: tabular-nums;
+  position: absolute; left: 12px; bottom: 12px; font-size: 0.6875rem; color: #cbd5e1;
+  background: rgba(15,23,42,0.6); padding: 3px 8px; border-radius: 6px; pointer-events: none;
+  font-variant-numeric: tabular-nums; backdrop-filter: blur(4px);
 }
 .cortex-graph-zoom { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
 .cortex-graph-zoom button {
-  width: 28px; height: 28px; border: 1px solid var(--color-border); background: white; border-radius: 6px;
-  cursor: pointer; font-size: 1.05rem; line-height: 1; color: var(--color-neutral-700);
-  display: grid; place-items: center;
+  width: 28px; height: 28px; border: 1px solid rgba(148,163,184,0.25); background: rgba(15,23,42,0.6); border-radius: 6px;
+  cursor: pointer; font-size: 1.05rem; line-height: 1; color: #e2e8f0;
+  display: grid; place-items: center; backdrop-filter: blur(4px);
 }
-.cortex-graph-zoom button:hover { background: var(--color-neutral-50); }
+.cortex-graph-zoom button:hover { background: rgba(30,41,59,0.85); }
 .cortex-graph-drawer {
   position: absolute; top: 0; right: 0; height: 100%; width: 300px; background: white;
   border-left: 1px solid var(--color-border); box-shadow: -10px 0 28px rgba(0,0,0,0.07);
@@ -1775,8 +1775,9 @@ a { color: inherit; }
 .cortex-graph-tip__meta { opacity: 0.6; font-variant-numeric: tabular-nums; }
 .cortex-graph-zoom button:last-child { font-size: 0.85rem; }
 .cortex-graph-hint {
-  position: absolute; left: 12px; top: 12px; font-size: 0.6875rem; color: var(--color-neutral-500);
-  background: rgba(255,255,255,0.85); padding: 3px 8px; border-radius: 6px; pointer-events: none;
+  position: absolute; left: 12px; top: 12px; font-size: 0.6875rem; color: #cbd5e1;
+  background: rgba(15,23,42,0.6); padding: 3px 8px; border-radius: 6px; pointer-events: none;
+  backdrop-filter: blur(4px);
 }
 .cortex-open-record {
   width: 100%; margin-top: 10px; cursor: pointer; font-size: 0.8125rem; font-weight: 600;
@@ -1809,3 +1810,7 @@ a { color: inherit; }
 .cortex-agent__history-row.is-active { background: var(--color-info-soft); }
 .cortex-agent__history-title { font-size: 0.8125rem; color: var(--color-neutral-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cortex-agent__history-time { font-size: 0.6875rem; color: var(--color-neutral-400); white-space: nowrap; }
+
+/* Cortex — build semantic index control */
+.cortex-index-ctl { display: flex; align-items: center; gap: 8px; }
+.cortex-index-ctl__err { font-size: 0.6875rem; color: var(--color-danger); }
