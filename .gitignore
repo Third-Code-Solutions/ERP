@@ -156,3 +156,6 @@ temp/
 # Sentry / observability auth tokens
 .sentryclirc
 .vercel
+
+# Obsidian vault config (do not track)
+.obsidian/
