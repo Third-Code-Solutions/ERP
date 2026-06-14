@@ -11,7 +11,7 @@
  * Herald, …) build on: an agent answer can only ever include nodes the caller
  * may read, because retrieval is tenant-scoped at the source.
  */
-import { and, eq, ilike, isNull, isNotNull, desc, sql, type SQL } from 'drizzle-orm'
+import { and, or, eq, ilike, isNull, isNotNull, desc, sql, type SQL } from 'drizzle-orm'
 import { db } from '../client'
 import {
   cortexNodes,
@@ -123,6 +123,27 @@ export async function getCortexNeighbors(
     }))
 
   return [...map(outgoing, 'out'), ...map(incoming, 'in')]
+}
+
+/** Keyword search over titles + summaries — the no-embedding retrieval arm. */
+export async function searchCortexNodesByTerms(
+  tenantId: string,
+  terms: string[],
+  limit = 8
+): Promise<CortexNode[]> {
+  const cleaned = terms.filter((t) => t.length >= 3).slice(0, 8)
+  if (cleaned.length === 0) return []
+  const termConds = cleaned.map((t) =>
+    or(ilike(cortexNodes.title, `%${t}%`), ilike(cortexNodes.summary, `%${t}%`))
+  )
+  return db
+    .select()
+    .from(cortexNodes)
+    .where(
+      and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to), or(...termConds))
+    )
+    .orderBy(desc(cortexNodes.recorded_at))
+    .limit(limit)
 }
 
 export interface SemanticHit {

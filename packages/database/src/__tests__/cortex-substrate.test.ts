@@ -23,7 +23,12 @@ import {
   cortexSemanticSearch,
   getCortexGraphStats,
 } from '../cortex/graph'
-import { cortexDescribeEntity, getCortexContextPack, cortexEmbeddingText } from '../cortex/retrieve'
+import {
+  cortexDescribeEntity,
+  getCortexContextPack,
+  cortexEmbeddingText,
+  cortexKeywordAnswer,
+} from '../cortex/retrieve'
 
 /** Build a 1536-dim one-hot vector literal for pgvector. */
 function oneHotVector(index: number): string {
@@ -362,6 +367,28 @@ suite('Cortex substrate', () => {
     expect(r.firstId).toBe(r.aNear) // exact match ranks first (distance 0)
     expect(r.firstTitle).toBe('A_NEAR')
     expect(r.sawTenantB).toBe(false)
+  })
+
+  it('agent keyword answer is grounded + cited (real term) and honest (nonsense)', async () => {
+    // pull a real word from a demo node title to query with
+    const rows = (await sql.unsafe(
+      `select title from cortex_nodes where tenant_id='${DEMO_TENANT}' and title is not null and length(title) > 4 limit 1`
+    )) as Rows
+    if (rows.length > 0) {
+      const word = String(rows[0].title)
+        .split(/[^a-z0-9]+/i)
+        .find((w: string) => w.length >= 4)
+      if (word) {
+        const ans = await cortexKeywordAnswer(DEMO_TENANT, word)
+        expect(ans.citations.length).toBeGreaterThanOrEqual(1)
+        expect(ans.citations.every((c) => c.refTable && c.refId)).toBe(true)
+        expect(ans.answer.length).toBeGreaterThan(0)
+      }
+    }
+    // nonsense → no fabricated records, honest fallback
+    const none = await cortexKeywordAnswer(DEMO_TENANT, 'zzqx_nonexistent_term_xyz')
+    expect(none.citations).toEqual([])
+    expect(none.answer.toLowerCase()).toContain("don't have")
   })
 
   it('graph stats are tenant-scoped and internally consistent', async () => {
