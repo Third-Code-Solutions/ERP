@@ -61,6 +61,21 @@ export const cortexNodeTypeEnum = pgEnum('cortex_node_type', [
   'document',
   'change_order',
   'audit_event',
+  // Whole-ERP coverage (generic mirror)
+  'contact',
+  'permit',
+  'claim',
+  'ticket',
+  'delivery',
+  'rfq',
+  'contract',
+  'certificate',
+  'punchlist',
+  'inspection',
+  'design',
+  'change_request',
+  'material',
+  'weekly_report',
 ])
 
 // Edge type catalog — Appendix B.

@@ -211,6 +211,39 @@ suite('Cortex substrate', () => {
     expect(r.bom_partof).toBeGreaterThanOrEqual(1)
   })
 
+  it('generic mirror covers arbitrary business tables (vendor, scope_item) with edges', async () => {
+    const r = await inRollback(sql, async (tx) => {
+      const { tenantA } = await seedTwoTenants(tx)
+      const proj = (
+        (await tx.unsafe(
+          `insert into projects(tenant_id, name, client) values('${tenantA}','GenProj','C') returning id`
+        )) as Rows
+      )[0].id
+      await tx.unsafe(`insert into vendors(tenant_id, name) values('${tenantA}','Acme Supply')`)
+      const scope = (
+        (await tx.unsafe(
+          `insert into scope_items(tenant_id, project_id, description, unit, quantity, unit_cost_cents, line_total_cents)
+           values('${tenantA}','${proj}','Ductwork run','m',1,0,0) returning id`
+        )) as Rows
+      )[0].id
+      const v = (await tx.unsafe(
+        `select count(*)::int as n, max(title) as title from cortex_nodes where tenant_id='${tenantA}' and ref_table='vendors' and valid_to is null`
+      )) as Rows
+      const s = (await tx.unsafe(
+        `select count(*)::int as n from cortex_nodes where tenant_id='${tenantA}' and ref_table='scope_items' and ref_id='${scope}' and valid_to is null`
+      )) as Rows
+      const e = (await tx.unsafe(
+        `select count(*)::int as n from cortex_edges ed join cortex_nodes src on src.id=ed.src_id
+           where ed.tenant_id='${tenantA}' and ed.edge_type='part_of' and src.ref_table='scope_items' and src.ref_id='${scope}'`
+      )) as Rows
+      return { vN: v[0].n as number, vT: v[0].title as string, sN: s[0].n as number, sE: e[0].n as number }
+    })
+    expect(r.vN).toBe(1)
+    expect(r.vT).toBe('Acme Supply')
+    expect(r.sN).toBe(1)
+    expect(r.sE).toBeGreaterThanOrEqual(1) // scope_item part_of its project
+  })
+
   it('cortex nodes are tenant-isolated for the authenticated role', async () => {
     const visible = await inRollback(sql, async (tx) => {
       const { tenantA, tenantB, userA } = await seedTwoTenants(tx)
