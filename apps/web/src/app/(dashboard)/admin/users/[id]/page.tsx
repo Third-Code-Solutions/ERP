@@ -93,9 +93,10 @@ export default async function UserDetailPage({ params, searchParams }: PageProps
 
   const isSelf = user.id === profile.user.id
   const initials =
-    user.full_name
+    (user.full_name ?? '')
       .split(/\s+/)
       .map((p) => p[0])
+      .filter(Boolean)
       .join('')
       .slice(0, 2)
       .toUpperCase() || 'U'

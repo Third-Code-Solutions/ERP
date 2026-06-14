@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getUserProfile } from '@buildops/auth'
 import { getCortexGraph } from '@buildops/database'
+import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 
 /**
  * GET /api/cortex/graph
@@ -13,7 +14,9 @@ export async function GET(_req: NextRequest) {
   if (!profile) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const graph = await getCortexGraph(profile.tenantId)
+  // RBAC: only the node types this role may see (admin/owner = unrestricted).
+  const scope = cortexNodeTypeScope(profile.role)
+  const graph = await getCortexGraph(profile.tenantId, 1500, scope)
   return NextResponse.json(graph, {
     headers: { 'Cache-Control': 'private, max-age=15' },
   })

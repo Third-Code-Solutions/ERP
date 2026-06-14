@@ -22,6 +22,7 @@ import {
   searchCortexNodes,
   cortexSemanticSearch,
   getCortexGraphStats,
+  getCortexNeighbors,
 } from '../cortex/graph'
 import {
   cortexDescribeEntity,
@@ -424,6 +425,31 @@ suite('Cortex substrate', () => {
     expect(broad.citations.every((c) => c.refTable && c.refId)).toBe(true)
     // demo graph is non-empty → recent fallback returns cited records
     expect(broad.answer.length).toBeGreaterThan(0)
+  })
+
+  it('node-type scope filters retrieval (RBAC enforced at the source)', async () => {
+    const onlyProjects = await searchCortexNodes(DEMO_TENANT, { nodeTypes: ['project'], limit: 50 })
+    expect(onlyProjects.every((n) => n.node_type === 'project')).toBe(true)
+    // empty scope = role sees nothing
+    const none = await searchCortexNodes(DEMO_TENANT, { nodeTypes: [], limit: 50 })
+    expect(none.length).toBe(0)
+    // null scope = unrestricted (admin) — at least as many as a single-type slice
+    const unscoped = await searchCortexNodes(DEMO_TENANT, { nodeTypes: null, limit: 200 })
+    expect(unscoped.length).toBeGreaterThanOrEqual(onlyProjects.length)
+  })
+
+  it('getCortexNeighbors respects node-type scope (no forbidden-type leak)', async () => {
+    const rows = (await sql.unsafe(
+      `select src_id from cortex_edges where tenant_id='${DEMO_TENANT}' and valid_to is null limit 1`
+    )) as Rows
+    if (rows.length === 0) return
+    const nodeId = rows[0].src_id as string
+    // scoped to a single type → every returned neighbor is that type
+    const scoped = await getCortexNeighbors(DEMO_TENANT, nodeId, { nodeTypes: ['project'] })
+    expect(scoped.every((n) => n.node.node_type === 'project')).toBe(true)
+    // empty scope → no neighbors at all
+    const none = await getCortexNeighbors(DEMO_TENANT, nodeId, { nodeTypes: [] })
+    expect(none.length).toBe(0)
   })
 
   it('graph stats are tenant-scoped and internally consistent', async () => {

@@ -11,6 +11,8 @@ import {
 } from '@buildops/database'
 import { getOpenAI, embedText } from '@buildops/ai'
 import { writeAuditLog } from '@/lib/audit'
+import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
+import { roleLabel } from '@/lib/abi/nav-config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -53,13 +55,19 @@ export async function POST(req: NextRequest) {
     console.error('[cortex/chat] persist user turn failed:', err)
   }
 
+  // RBAC: Cortex obeys the SAME role permissions as the human. `scope` is the
+  // set of node types this role may see (null = unrestricted for admin/owner).
+  // It is applied to EVERY retrieval below, so the agent can never surface a
+  // record the user couldn't open in the UI (spec §7).
+  const scope = cortexNodeTypeScope(profile.role)
+
   // Ground the agent in the tenant's graph: high-level shape, a recent sample,
   // and records that match the question's keywords.
   const terms = lastUserMessage.toLowerCase().split(/[^a-z0-9₱]+/i).filter(Boolean)
   const [stats, recent, matches] = await Promise.all([
-    getCortexGraphStats(profile.tenantId),
-    searchCortexNodes(profile.tenantId, { limit: 40 }),
-    searchCortexNodesByTerms(profile.tenantId, terms, 12),
+    getCortexGraphStats(profile.tenantId, scope),
+    searchCortexNodes(profile.tenantId, { limit: 40, nodeTypes: scope }),
+    searchCortexNodesByTerms(profile.tenantId, terms, 12, scope),
   ])
 
   const shape = stats.byType.map((t) => `${t.nodeType}:${t.count}`).join(', ')
@@ -74,7 +82,7 @@ export async function POST(req: NextRequest) {
   try {
     if (process.env.OPENAI_API_KEY && lastUserMessage) {
       const qEmbedding = await embedText(lastUserMessage)
-      const hits = await cortexSemanticSearch(profile.tenantId, qEmbedding, { limit: 8 })
+      const hits = await cortexSemanticSearch(profile.tenantId, qEmbedding, { limit: 8, nodeTypes: scope })
       semantic = hits.map((h) => fmt(h.node)).join('\n')
     }
   } catch (err) {
@@ -82,7 +90,13 @@ export async function POST(req: NextRequest) {
   }
 
   const systemPrompt = `You are Cortex, the AI Brain for BuildOps, a construction ERP for Philippine MEP contractors.
-You see the user's company knowledge graph — a permissioned, live mirror of every ERP record (projects, accounts, opportunities, BOMs, purchase orders, invoices, documents, people, tasks). Answer using the records below.
+You see the user's company knowledge graph — a permissioned, live mirror of ERP records. Answer using the records below.
+
+ACCESS: You are answering a "${roleLabel(profile.role)}" user. ${
+    scope
+      ? `Their role may ONLY see these record types: ${scope.join(', ')}. The records below are already filtered to that permission — never invent, infer, or reference any record or record type outside the lists below. If asked about something their role cannot access (e.g. a Sales user asking about invoices), say you don't have access to that.`
+      : 'This is an admin/owner with full access to every record type.'
+  }
 
 How to answer:
 - Be genuinely helpful. For broad questions like "what changed recently", "what's new", "give me an overview", "what's active" — summarise the MOST RECENTLY UPDATED RECORDS below (they are ordered newest-first).
@@ -124,7 +138,7 @@ ${records || '(no records visible)'}`
   // Deterministic, always-available grounded answer (keyword match over the
   // graph). The agent's fallback when no LLM is configured or it fails — and
   // its cited records are persisted with the assistant turn either way.
-  const grounded = await cortexKeywordAnswer(profile.tenantId, lastUserMessage)
+  const grounded = await cortexKeywordAnswer(profile.tenantId, lastUserMessage, scope)
 
   type ChatChunk = { choices: { delta?: { content?: string | null } }[] }
   let llmStream: AsyncIterable<ChatChunk> | null = null
