@@ -5,6 +5,7 @@ import {
   getCortexGraphStats,
   createCortexConversation,
   appendCortexMessage,
+  cortexKeywordAnswer,
 } from '@buildops/database'
 import { getOpenAI } from '@buildops/ai'
 import { writeAuditLog } from '@/lib/audit'
@@ -23,13 +24,6 @@ export const maxDuration = 30
 export async function POST(req: NextRequest) {
   const profile = await getUserProfile()
   if (!profile) return new Response('Unauthorized', { status: 401 })
-
-  if (!process.env.OPENAI_API_KEY) {
-    return new Response(JSON.stringify({ error: 'AI not configured' }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
 
   const { messages, conversationId: incomingConvId } = (await req.json()) as {
     messages: { role: 'user' | 'assistant'; content: string }[]
@@ -101,31 +95,62 @@ ${records || '(no records visible)'}`
     console.error('[cortex/chat] audit log failed:', err)
   }
 
-  const openai = getOpenAI()
-  const stream = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [{ role: 'system', content: systemPrompt }, ...messages],
-    stream: true,
-    max_tokens: 800,
-  })
+  // Deterministic, always-available grounded answer (keyword match over the
+  // graph). The agent's fallback when no LLM is configured or it fails — and
+  // its cited records are persisted with the assistant turn either way.
+  const grounded = await cortexKeywordAnswer(profile.tenantId, lastUserMessage)
+
+  type ChatChunk = { choices: { delta?: { content?: string | null } }[] }
+  let llmStream: AsyncIterable<ChatChunk> | null = null
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const openai = getOpenAI()
+      llmStream = (await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        stream: true,
+        max_tokens: 800,
+      })) as AsyncIterable<ChatChunk>
+    } catch (err) {
+      console.error('[cortex/chat] LLM unavailable, using grounded fallback:', err)
+      llmStream = null
+    }
+  }
 
   const encoder = new TextEncoder()
   const convId = conversationId
   const readable = new ReadableStream({
     async start(controller) {
       let assistant = ''
-      for await (const chunk of stream) {
-        const text = chunk.choices[0]?.delta?.content ?? ''
-        if (text) {
-          assistant += text
-          controller.enqueue(encoder.encode(text))
+      if (llmStream) {
+        try {
+          for await (const chunk of llmStream) {
+            const text = chunk.choices[0]?.delta?.content ?? ''
+            if (text) {
+              assistant += text
+              controller.enqueue(encoder.encode(text))
+            }
+          }
+        } catch (err) {
+          console.error('[cortex/chat] LLM stream failed mid-flight:', err)
         }
       }
+      // No LLM (or it failed) → stream the deterministic grounded answer.
+      if (!assistant) {
+        assistant = grounded.answer
+        controller.enqueue(encoder.encode(assistant))
+      }
       controller.close()
-      // Store the assistant turn into the agent's memory.
+      // Store the assistant turn + the records it cited into the agent's memory.
       if (assistant && convId) {
         try {
-          await appendCortexMessage(profile.tenantId, convId, 'assistant', assistant)
+          await appendCortexMessage(
+            profile.tenantId,
+            convId,
+            'assistant',
+            assistant,
+            grounded.citations
+          )
         } catch (err) {
           console.error('[cortex/chat] persist assistant turn failed:', err)
         }

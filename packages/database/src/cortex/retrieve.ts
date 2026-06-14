@@ -15,6 +15,7 @@ import {
   getCortexNodeByRef,
   getCortexNeighbors,
   getCortexProvenance,
+  searchCortexNodesByTerms,
   type CortexNeighbor,
 } from './graph'
 import type { CortexNode, CortexProvenance } from '../schema/cortex'
@@ -39,6 +40,32 @@ export interface CortexAnswer {
   /** Deterministic, citation-backed summary. Empty when `found` is false. */
   summary: string
   citations: Citation[]
+}
+
+/**
+ * Deterministic, grounded answer to a free-text question — no LLM required.
+ * Keyword-matches the tenant's graph and returns a cited record list. This is
+ * the agent's always-available fallback: it works with zero external services,
+ * is always source-grounded, and never hallucinates.
+ */
+export async function cortexKeywordAnswer(
+  tenantId: string,
+  question: string
+): Promise<{ answer: string; citations: Citation[] }> {
+  const terms = question.toLowerCase().split(/[^a-z0-9₱]+/i).filter(Boolean)
+  const hits = await searchCortexNodesByTerms(tenantId, terms, 8)
+  if (hits.length === 0) {
+    return {
+      answer:
+        "I don't have anything matching that in your knowledge graph yet. Try a project, account, BOM, PO or invoice name.",
+      citations: [],
+    }
+  }
+  const lines = hits.map(
+    (h) => `• [${h.node_type}] ${h.title ?? '(untitled)'}${h.summary ? ` — ${h.summary}` : ''}`
+  )
+  const answer = `Here's what I found in your knowledge graph:\n\n${lines.join('\n')}\n\nCited ${hits.length} record${hits.length === 1 ? '' : 's'} — open any from the graph to dig in.`
+  return { answer, citations: hits.map(toCitation) }
 }
 
 /**
