@@ -683,3 +683,113 @@ do $$ declare f record; begin
            where n.nspname='public' and p.proname like 'cortex\_%'
   loop execute format('revoke execute on function %s from anon, authenticated, public', f.sig); end loop;
 end $$;
+
+-- =============================================================================
+-- 11. Whole-ERP coverage — generic mirror for every top-level business entity.
+--     One trigger fn (full row → node attributes; FK-derived edges), attached
+--     to each tenant-scoped table. Enum expanded with the new node types.
+-- =============================================================================
+alter type cortex_node_type add value if not exists 'contact';
+alter type cortex_node_type add value if not exists 'permit';
+alter type cortex_node_type add value if not exists 'claim';
+alter type cortex_node_type add value if not exists 'ticket';
+alter type cortex_node_type add value if not exists 'delivery';
+alter type cortex_node_type add value if not exists 'rfq';
+alter type cortex_node_type add value if not exists 'contract';
+alter type cortex_node_type add value if not exists 'certificate';
+alter type cortex_node_type add value if not exists 'punchlist';
+alter type cortex_node_type add value if not exists 'inspection';
+alter type cortex_node_type add value if not exists 'design';
+alter type cortex_node_type add value if not exists 'change_request';
+alter type cortex_node_type add value if not exists 'material';
+alter type cortex_node_type add value if not exists 'weekly_report';
+
+create or replace function cortex_mirror_generic() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  j jsonb; v_tenant uuid; v_id uuid; v_title text; v_summary text; v_node uuid;
+  nt cortex_node_type; v_fk uuid; v_creator uuid;
+begin
+  begin
+    nt := TG_ARGV[0]::cortex_node_type;
+    if tg_op = 'DELETE' then j := to_jsonb(OLD); else j := to_jsonb(NEW); end if;
+    v_tenant := nullif(j->>'tenant_id','')::uuid;
+    v_id := nullif(j->>'id','')::uuid;
+    if v_tenant is null or v_id is null then return coalesce(NEW, OLD); end if;
+    if tg_op = 'DELETE' then
+      perform cortex_close_node(v_tenant, TG_TABLE_NAME, v_id, auth.uid(), TG_TABLE_NAME || ':delete');
+      return OLD;
+    end if;
+    if TG_ARGV[1] <> '' and nullif(j->>TG_ARGV[1],'') is not null then
+      v_title := j->>TG_ARGV[1];
+    else
+      v_title := initcap(replace(TG_ARGV[0], '_', ' ')) || ' ' || left(v_id::text, 8);
+    end if;
+    if TG_ARGV[2] <> '' and nullif(j->>TG_ARGV[2],'') is not null then
+      v_summary := initcap(replace(TG_ARGV[2], '_', ' ')) || ': ' || (j->>TG_ARGV[2]);
+    else
+      v_summary := null;
+    end if;
+    v_node := cortex_upsert_node(v_tenant, nt, TG_TABLE_NAME, v_id, v_title, v_summary, j, auth.uid(), TG_TABLE_NAME || ':' || lower(tg_op));
+    v_fk := nullif(j->>'project_id','')::uuid;
+    if v_fk is not null then perform cortex_upsert_edge(v_tenant, v_node, cortex_node_current(v_tenant,'projects',v_fk), 'part_of','canonical',1, auth.uid()); end if;
+    v_fk := nullif(j->>'account_id','')::uuid;
+    if v_fk is not null then perform cortex_upsert_edge(v_tenant, v_node, cortex_node_current(v_tenant,'accounts',v_fk), 'part_of','canonical',1, auth.uid()); end if;
+    v_fk := nullif(j->>'opportunity_id','')::uuid;
+    if v_fk is not null then perform cortex_upsert_edge(v_tenant, v_node, cortex_node_current(v_tenant,'opportunities',v_fk), 'part_of','canonical',1, auth.uid()); end if;
+    v_fk := nullif(j->>'bom_id','')::uuid;
+    if v_fk is not null then perform cortex_upsert_edge(v_tenant, v_node, cortex_node_current(v_tenant,'boms',v_fk), 'derived_from','canonical',1, auth.uid()); end if;
+    v_fk := nullif(j->>'vendor_id','')::uuid;
+    if v_fk is not null then perform cortex_upsert_edge(v_tenant, cortex_node_current(v_tenant,'vendors',v_fk), v_node, 'supplies','canonical',1, auth.uid()); end if;
+    v_creator := coalesce(nullif(j->>'created_by',''), nullif(j->>'uploaded_by',''), nullif(j->>'submitted_by',''))::uuid;
+    if v_creator is not null then perform cortex_upsert_edge(v_tenant, cortex_node_current(v_tenant,'users',v_creator), v_node, 'owns','canonical',1, auth.uid()); end if;
+  exception when others then
+    raise warning 'cortex_mirror_generic(%) failed: %', TG_TABLE_NAME, sqlerrm;
+  end;
+  return coalesce(NEW, OLD);
+end $$;
+
+-- Attach to every top-level business entity (table, node_type, title_col, summary_col).
+do $$
+declare r record;
+begin
+  for r in
+    select * from (values
+      ('vendors','vendor','name',''),
+      ('scope_items','scope_item','description',''),
+      ('contacts','contact','full_name','role_title'),
+      ('permits','permit','permit_type','status'),
+      ('variation_orders','change_order','vo_number','status'),
+      ('progress_claims','claim','claim_number','status'),
+      ('warranty_tickets','ticket','ticket_number','status'),
+      ('delivery_schedules','delivery','','status'),
+      ('rfqs','rfq','','status'),
+      ('contracts','contract','','status'),
+      ('certificates_of_completion','certificate','','status'),
+      ('punchlist_items','punchlist','description','status'),
+      ('site_inspections','inspection','','status'),
+      ('design_files','design','name','file_type'),
+      ('change_requests','change_request','description','priority'),
+      ('master_schedules','schedule_event','name',''),
+      ('material_items','material','description','category'),
+      ('weekly_reports','weekly_report','',''),
+      ('pre_con_checklist_items','task','title','status')
+    ) as t(tbl, nodetype, titlecol, statuscol)
+  loop
+    execute format('drop trigger if exists cortex_mirror_g on %I', r.tbl);
+    execute format(
+      'create trigger cortex_mirror_g after insert or update or delete on %I for each row execute function cortex_mirror_generic(%L,%L,%L)',
+      r.tbl, r.nodetype, r.titlecol, r.statuscol
+    );
+  end loop;
+end $$;
+
+-- Backfill existing rows (no-op self-update fires the mirror trigger).
+-- Run once: update <each table> set tenant_id = tenant_id;
+
+-- Re-lock the RPC surface (covers cortex_mirror_generic).
+do $$ declare f record; begin
+  for f in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+           where n.nspname='public' and p.proname like 'cortex\_%'
+  loop execute format('revoke execute on function %s from anon, authenticated, public', f.sig); end loop;
+end $$;

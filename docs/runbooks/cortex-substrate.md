@@ -10,11 +10,23 @@
 ## What it is
 
 A derived, RLS-scoped, hash-chained projection of the ERP. Canonical data stays
-in the ERP tables; the graph mirrors them via `ref_table`/`ref_id`. Kept live by
-`AFTER` triggers. Entities mirrored today:
-`projects`, `accounts`, `users` (employee), `opportunities`, `documents`,
-`boms`, `purchase_orders`, `invoices`, `daily_tasks`
-(`cortex_mirror_{project,account,user,opportunity,document,bom,purchase_order,invoice,daily_task}`).
+in the ERP tables; the graph mirrors them via `ref_table`/`ref_id`. Kept live by `AFTER` triggers — **whole-ERP coverage**:
+- Curated mirrors (`cortex_mirror_{project,account,user,opportunity,document,bom,purchase_order,invoice,daily_task}`).
+- **Generic mirror** (`cortex_mirror_generic()` trigger `cortex_mirror_g`) on every
+  other top-level business table: vendors, scope_items, contacts, permits,
+  variation_orders, progress_claims, warranty_tickets, delivery_schedules, rfqs,
+  contracts, certificates, punchlist_items, site_inspections, design_files,
+  change_requests, master_schedules, material_items, weekly_reports,
+  pre_con_checklist_items. The trigger takes args `(node_type, title_col,
+  summary_col)`, stores the **full row** in `attributes`, and derives edges from
+  any `project_id / account_id / opportunity_id / bom_id / vendor_id / created_by`.
+  Adding a new table = one `create trigger … execute function
+  cortex_mirror_generic('type','title_col','status_col')` + (if new) an enum value.
+  Backfill = `update <table> set tenant_id = tenant_id` (no-op fires the trigger).
+- Excluded by design (reachable via parent): line-items, *_photos, *_documents
+  joins, *_tokens/sessions, *_messages, *_versions, sla_logs, notifications.
+
+The agent reads `cortex_nodes` across ALL node types, so it fetches the whole DB.
 See ADR-007.
 
 ## How a row enters the graph
