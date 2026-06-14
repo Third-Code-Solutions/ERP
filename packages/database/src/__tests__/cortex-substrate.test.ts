@@ -374,6 +374,37 @@ suite('Cortex substrate', () => {
     expect(sum).toBe(stats.nodes)
   })
 
+  it('agent memory (conversations + messages) is tenant-isolated', async () => {
+    const seen = await inRollback(sql, async (tx) => {
+      const { tenantA, tenantB, userA, userB } = await seedTwoTenants(tx)
+      const cA = (
+        (await tx.unsafe(
+          `insert into cortex_conversations(tenant_id, user_id, title) values('${tenantA}','${userA}','A chat') returning id`
+        )) as Rows
+      )[0].id
+      const cB = (
+        (await tx.unsafe(
+          `insert into cortex_conversations(tenant_id, user_id, title) values('${tenantB}','${userB}','B chat') returning id`
+        )) as Rows
+      )[0].id
+      await tx.unsafe(
+        `insert into cortex_messages(tenant_id, conversation_id, role, content) values('${tenantA}','${cA}','user','hello from A')`
+      )
+      await tx.unsafe(
+        `insert into cortex_messages(tenant_id, conversation_id, role, content) values('${tenantB}','${cB}','user','secret from B')`
+      )
+      await becomeAuthenticated(tx, userA)
+      const convos = (await tx.unsafe(
+        `select count(*)::int as n from cortex_conversations where title in ('A chat','B chat')`
+      )) as Rows
+      const msgs = (await tx.unsafe(`select count(*)::int as n from cortex_messages`)) as Rows
+      await tx.unsafe(`reset role`)
+      return { convos: convos[0].n as number, msgs: msgs[0].n as number }
+    })
+    expect(seen.convos).toBe(1) // only A's conversation
+    expect(seen.msgs).toBe(1) // only A's message — B's is invisible
+  })
+
   it('semantic search helper executes against the live graph (read-only)', async () => {
     const hits = await cortexSemanticSearch(DEMO_TENANT, new Array(1536).fill(0).map((_, i) => (i === 0 ? 1 : 0)), {
       limit: 5,

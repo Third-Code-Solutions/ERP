@@ -69,8 +69,17 @@ Sidebar → **Cortex** (Workspace section, visible to all roles). Page: `/cortex
 - **BuildOps Agent** (`components/cortex/cortex-agent.tsx`) — graph-grounded chat
   → `POST /api/cortex/chat` (Atlas). Tenant-scoped context, cites records, has an
   "I don't have that in the graph" path, audit-logged (`cortex_chat`). Streams.
-  Per-project chat (`components/ai/project-chat.tsx` → `/api/ai/chat`) still
-  exists for project-scoped questions.
+  **Persistent memory**: every turn is stored in the user's DB
+  (`cortex_conversations` / `cortex_messages`, tenant + user scoped, RLS). The
+  route resolves/creates a thread, stores the user turn, then the assistant turn
+  on stream end, and returns `X-Conversation-Id`. History APIs:
+  `GET /api/cortex/conversations` (list) and `GET /api/cortex/conversations/:id`
+  (messages, ownership-checked). Store: `cortex/chat-store.ts`. Per-project chat
+  (`components/ai/project-chat.tsx` → `/api/ai/chat`) still exists too.
+- **Navigation**: graph nodes deep-link to the real ERP record via
+  `lib/cortex/href.ts` (project → /projects/{id}, account → /crm/accounts/{id},
+  BOM/invoice/PO/document/task → their module/project tab). Double-click a node
+  or use "Open record →" in the drawer.
 
 Graph counts for the page come from `getCortexGraphStats(tenantId)`.
 

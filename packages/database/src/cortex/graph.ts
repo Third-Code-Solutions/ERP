@@ -130,8 +130,17 @@ export interface SemanticHit {
   distance: number
 }
 
+export interface CortexGraphNode {
+  id: string
+  type: string
+  title: string | null
+  refTable: string
+  refId: string
+  /** project this record belongs to (from attributes) — drives deep-linking. */
+  projectId: string | null
+}
 export interface CortexGraphData {
-  nodes: { id: string; type: string; title: string | null; refTable: string; refId: string }[]
+  nodes: CortexGraphNode[]
   links: { source: string; target: string; type: string }[]
 }
 
@@ -151,6 +160,7 @@ export async function getCortexGraph(
       title: cortexNodes.title,
       refTable: cortexNodes.ref_table,
       refId: cortexNodes.ref_id,
+      projectId: sql<string | null>`${cortexNodes.attributes} ->> 'project_id'`,
     })
     .from(cortexNodes)
     .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to)))

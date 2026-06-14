@@ -1,6 +1,11 @@
 import { NextRequest } from 'next/server'
 import { getUserProfile } from '@buildops/auth'
-import { searchCortexNodes, getCortexGraphStats } from '@buildops/database'
+import {
+  searchCortexNodes,
+  getCortexGraphStats,
+  createCortexConversation,
+  appendCortexMessage,
+} from '@buildops/database'
 import { getOpenAI } from '@buildops/ai'
 import { writeAuditLog } from '@/lib/audit'
 
@@ -26,8 +31,30 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  const { messages } = (await req.json()) as {
+  const { messages, conversationId: incomingConvId } = (await req.json()) as {
     messages: { role: 'user' | 'assistant'; content: string }[]
+    conversationId?: string
+  }
+
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+
+  // Persist into the user's DB (the agent's memory). Resolve/create the thread,
+  // store the incoming user turn now; the assistant turn is stored once the
+  // stream completes. Best-effort — never block the chat on a write.
+  let conversationId = incomingConvId ?? null
+  try {
+    if (!conversationId) {
+      conversationId = await createCortexConversation(
+        profile.tenantId,
+        profile.user.id,
+        lastUserMessage.slice(0, 80) || 'New conversation'
+      )
+    }
+    if (lastUserMessage) {
+      await appendCortexMessage(profile.tenantId, conversationId, 'user', lastUserMessage)
+    }
+  } catch (err) {
+    console.error('[cortex/chat] persist user turn failed:', err)
   }
 
   // Ground the agent in the tenant's graph: high-level shape + a recent sample.
@@ -83,15 +110,30 @@ ${records || '(no records visible)'}`
   })
 
   const encoder = new TextEncoder()
+  const convId = conversationId
   const readable = new ReadableStream({
     async start(controller) {
+      let assistant = ''
       for await (const chunk of stream) {
         const text = chunk.choices[0]?.delta?.content ?? ''
-        if (text) controller.enqueue(encoder.encode(text))
+        if (text) {
+          assistant += text
+          controller.enqueue(encoder.encode(text))
+        }
       }
       controller.close()
+      // Store the assistant turn into the agent's memory.
+      if (assistant && convId) {
+        try {
+          await appendCortexMessage(profile.tenantId, convId, 'assistant', assistant)
+        } catch (err) {
+          console.error('[cortex/chat] persist assistant turn failed:', err)
+        }
+      }
     },
   })
 
-  return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+  const headers: Record<string, string> = { 'Content-Type': 'text/plain; charset=utf-8' }
+  if (convId) headers['X-Conversation-Id'] = convId
+  return new Response(readable, { headers })
 }
