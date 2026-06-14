@@ -6,6 +6,7 @@ import { CortexGraphView } from '@/components/cortex/cortex-graph-view'
 import { CortexAgent } from '@/components/cortex/cortex-agent'
 import { CortexIndexButton } from '@/components/cortex/cortex-index-button'
 import { canonicalRole } from '@/lib/abi/nav-config'
+import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 
 export const metadata: Metadata = { title: 'Cortex — AI Brain' }
 
@@ -13,7 +14,8 @@ export default async function CortexPage() {
   const profile = await getUserProfile()
   if (!profile) return <AccountNotProvisioned />
 
-  const stats = await getCortexGraphStats(profile.tenantId)
+  // RBAC: KPIs reflect only what this role may see (admin/owner = everything).
+  const stats = await getCortexGraphStats(profile.tenantId, cortexNodeTypeScope(profile.role))
 
   const kpis = [
     { label: 'Records', value: stats.nodes },

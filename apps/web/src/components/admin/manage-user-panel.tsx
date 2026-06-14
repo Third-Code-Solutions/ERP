@@ -3,11 +3,11 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ASSIGNABLE_ROLES,
   updateUserRole,
   resetUserPassword,
   deleteUser,
 } from '@/app/(dashboard)/admin/users/actions'
+import { ASSIGNABLE_ROLES } from '@/app/(dashboard)/admin/users/roles'
 
 interface Props {
   userId: string

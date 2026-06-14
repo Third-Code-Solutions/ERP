@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createUser, ASSIGNABLE_ROLES } from '@/app/(dashboard)/admin/users/actions'
+import { createUser } from '@/app/(dashboard)/admin/users/actions'
+import { ASSIGNABLE_ROLES } from '@/app/(dashboard)/admin/users/roles'
 
 const ROLE_GROUPS: Array<{ heading: string; roles: readonly string[] }> = [
   {

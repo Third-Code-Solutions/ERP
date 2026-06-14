@@ -51,15 +51,16 @@ export interface CortexAnswer {
  */
 export async function cortexKeywordAnswer(
   tenantId: string,
-  question: string
+  question: string,
+  nodeTypes?: string[] | null
 ): Promise<{ answer: string; citations: Citation[] }> {
   const terms = question.toLowerCase().split(/[^a-z0-9₱]+/i).filter(Boolean)
-  const hits = await searchCortexNodesByTerms(tenantId, terms, 8)
+  const hits = await searchCortexNodesByTerms(tenantId, terms, 8, nodeTypes)
 
   // Never come up empty: for broad/meta questions (e.g. "what changed recently",
   // "overview") keyword match misses, so fall back to the most recent records.
   const matched = hits.length > 0
-  const used = matched ? hits : await searchCortexNodes(tenantId, { limit: 8 })
+  const used = matched ? hits : await searchCortexNodes(tenantId, { limit: 8, nodeTypes })
 
   if (used.length === 0) {
     return {
@@ -110,13 +111,15 @@ export async function getCortexContextPack(
   tenantId: string,
   refTable: string,
   refId: string,
-  opts: { neighborLimit?: number; provenanceLimit?: number } = {}
+  opts: { neighborLimit?: number; provenanceLimit?: number; nodeTypes?: string[] | null } = {}
 ): Promise<ContextPack | null> {
   const node = await getCortexNodeByRef(tenantId, refTable, refId)
   if (!node) return null
 
   const [neighbors, provenance] = await Promise.all([
-    getCortexNeighbors(tenantId, node.id, { limit: opts.neighborLimit ?? 50 }),
+    // RBAC: neighbors are filtered to the caller's visible node types, so an
+    // in-scope record never leaks a forbidden-type connection.
+    getCortexNeighbors(tenantId, node.id, { limit: opts.neighborLimit ?? 50, nodeTypes: opts.nodeTypes }),
     getCortexProvenance(tenantId, 'node', node.id, opts.provenanceLimit ?? 10),
   ])
 
@@ -171,9 +174,10 @@ export function describeContextPack(pack: ContextPack): string {
 export async function cortexDescribeEntity(
   tenantId: string,
   refTable: string,
-  refId: string
+  refId: string,
+  nodeTypes?: string[] | null
 ): Promise<CortexAnswer> {
-  const pack = await getCortexContextPack(tenantId, refTable, refId)
+  const pack = await getCortexContextPack(tenantId, refTable, refId, { nodeTypes })
   if (!pack) {
     return {
       found: false,

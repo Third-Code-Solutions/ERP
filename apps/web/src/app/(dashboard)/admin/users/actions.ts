@@ -12,24 +12,7 @@ import {
 import { db } from '@buildops/database'
 import { users as usersTable } from '@buildops/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-
-// All ABI Ops roles (canonical + legacy retained for back-compat).
-export const ASSIGNABLE_ROLES = [
-  'admin',
-  'sales',
-  'commercial',
-  'design',
-  'sd_pm_pe',
-  'finance',
-  'procurement',
-  'safety',
-  'cx',
-  'viewer',
-  // Legacy values — assignable but de-prioritised in UI.
-  'owner',
-  'estimator',
-  'pm',
-] as const
+import { ASSIGNABLE_ROLES } from './roles'
 
 const createUserSchema = z.object({
   email: z.string().email().max(255),

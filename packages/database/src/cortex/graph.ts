@@ -11,7 +11,7 @@
  * Herald, …) build on: an agent answer can only ever include nodes the caller
  * may read, because retrieval is tenant-scoped at the source.
  */
-import { and, or, eq, ilike, isNull, isNotNull, desc, sql, type SQL } from 'drizzle-orm'
+import { and, or, eq, inArray, ilike, isNull, isNotNull, desc, sql, type SQL } from 'drizzle-orm'
 import { db } from '../client'
 import {
   cortexNodes,
@@ -54,13 +54,21 @@ export async function getCortexNodeByRef(
   return rows[0] ?? null
 }
 
+/** Build an RBAC node-type filter, or undefined for "no restriction". */
+function typeScopeFilter(nodeTypes?: string[] | null): SQL | undefined {
+  if (!nodeTypes) return undefined
+  if (nodeTypes.length === 0) return sql`false` // role sees nothing
+  return inArray(cortexNodes.node_type, nodeTypes as CortexNode['node_type'][])
+}
+
 /** List current nodes for a tenant, optionally filtered by type and title text. */
 export async function searchCortexNodes(
   tenantId: string,
-  opts: { nodeType?: CortexNode['node_type']; query?: string; limit?: number } = {}
+  opts: { nodeType?: CortexNode['node_type']; nodeTypes?: string[] | null; query?: string; limit?: number } = {}
 ): Promise<CortexNode[]> {
-  const filters = [eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to)]
+  const filters: (SQL | undefined)[] = [eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to)]
   if (opts.nodeType) filters.push(eq(cortexNodes.node_type, opts.nodeType))
+  filters.push(typeScopeFilter(opts.nodeTypes))
   if (opts.query) filters.push(ilike(cortexNodes.title, `%${opts.query}%`))
   return db
     .select()
@@ -77,9 +85,16 @@ export async function searchCortexNodes(
 export async function getCortexNeighbors(
   tenantId: string,
   nodeId: string,
-  opts: { limit?: number } = {}
+  opts: { limit?: number; nodeTypes?: string[] | null } = {}
 ): Promise<CortexNeighbor[]> {
   const limit = opts.limit ?? DEFAULT_LIMIT
+  // RBAC: the joined neighbor node must be a type the caller may see, else a
+  // user could read forbidden records via an in-scope record's connections.
+  const scope = opts.nodeTypes
+    ? opts.nodeTypes.length === 0
+      ? sql`false`
+      : inArray(cortexNodes.node_type, opts.nodeTypes as CortexNode['node_type'][])
+    : undefined
 
   const outgoing = await db
     .select({ edge: cortexEdges, node: cortexNodes })
@@ -90,7 +105,8 @@ export async function getCortexNeighbors(
         eq(cortexEdges.tenant_id, tenantId),
         eq(cortexEdges.src_id, nodeId),
         isNull(cortexEdges.valid_to),
-        isNull(cortexNodes.valid_to)
+        isNull(cortexNodes.valid_to),
+        scope
       )
     )
     .limit(limit)
@@ -104,7 +120,8 @@ export async function getCortexNeighbors(
         eq(cortexEdges.tenant_id, tenantId),
         eq(cortexEdges.dst_id, nodeId),
         isNull(cortexEdges.valid_to),
-        isNull(cortexNodes.valid_to)
+        isNull(cortexNodes.valid_to),
+        scope
       )
     )
     .limit(limit)
@@ -129,7 +146,8 @@ export async function getCortexNeighbors(
 export async function searchCortexNodesByTerms(
   tenantId: string,
   terms: string[],
-  limit = 8
+  limit = 8,
+  nodeTypes?: string[] | null
 ): Promise<CortexNode[]> {
   const cleaned = terms.filter((t) => t.length >= 3).slice(0, 8)
   if (cleaned.length === 0) return []
@@ -140,7 +158,12 @@ export async function searchCortexNodesByTerms(
     .select()
     .from(cortexNodes)
     .where(
-      and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to), or(...termConds))
+      and(
+        eq(cortexNodes.tenant_id, tenantId),
+        isNull(cortexNodes.valid_to),
+        typeScopeFilter(nodeTypes),
+        or(...termConds)
+      )
     )
     .orderBy(desc(cortexNodes.recorded_at))
     .limit(limit)
@@ -172,7 +195,8 @@ export interface CortexGraphData {
  */
 export async function getCortexGraph(
   tenantId: string,
-  nodeLimit = 1500
+  nodeLimit = 1500,
+  nodeTypes?: string[] | null
 ): Promise<CortexGraphData> {
   const nodeRows = await db
     .select({
@@ -184,7 +208,7 @@ export async function getCortexGraph(
       projectId: sql<string | null>`${cortexNodes.attributes} ->> 'project_id'`,
     })
     .from(cortexNodes)
-    .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to)))
+    .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to), typeScopeFilter(nodeTypes)))
     .orderBy(desc(cortexNodes.recorded_at))
     .limit(nodeLimit)
 
@@ -213,12 +237,16 @@ export interface CortexGraphStats {
 }
 
 /** High-level counts for a tenant's graph — powers the Cortex dashboard. */
-export async function getCortexGraphStats(tenantId: string): Promise<CortexGraphStats> {
+export async function getCortexGraphStats(
+  tenantId: string,
+  nodeTypes?: string[] | null
+): Promise<CortexGraphStats> {
+  const scope = typeScopeFilter(nodeTypes)
   const [nodeRows, edgeRows, provRows, typeRows] = await Promise.all([
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(cortexNodes)
-      .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to))),
+      .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to), scope)),
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(cortexEdges)
@@ -230,7 +258,7 @@ export async function getCortexGraphStats(tenantId: string): Promise<CortexGraph
     db
       .select({ nodeType: cortexNodes.node_type, count: sql<number>`count(*)::int` })
       .from(cortexNodes)
-      .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to)))
+      .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to), scope))
       .groupBy(cortexNodes.node_type)
       .orderBy(desc(sql`count(*)`)),
   ])
@@ -290,7 +318,7 @@ export async function setCortexNodeEmbedding(
 export async function cortexSemanticSearch(
   tenantId: string,
   embedding: number[],
-  opts: { nodeType?: CortexNode['node_type']; limit?: number } = {}
+  opts: { nodeType?: CortexNode['node_type']; nodeTypes?: string[] | null; limit?: number } = {}
 ): Promise<SemanticHit[]> {
   const vec = toVectorLiteral(embedding)
   const distance = sql<number>`${cortexNodes.embedding} <=> ${vec}::vector`
@@ -299,6 +327,7 @@ export async function cortexSemanticSearch(
     eq(cortexNodes.tenant_id, tenantId),
     isNull(cortexNodes.valid_to),
     isNotNull(cortexNodes.embedding),
+    typeScopeFilter(opts.nodeTypes),
   ]
   if (opts.nodeType) filters.push(eq(cortexNodes.node_type, opts.nodeType))
 
