@@ -1,0 +1,98 @@
+/**
+ * BuildOps Agent memory store (tenant-scoped). Persists every conversation in
+ * the user's DB so the AI Brain remembers. Drizzle runs as `postgres` (RLS
+ * bypassed), so every query filters tenant_id explicitly, and reads also check
+ * user ownership — a user only ever sees their own threads.
+ */
+import { and, asc, desc, eq } from 'drizzle-orm'
+import { db } from '../client'
+import {
+  cortexConversations,
+  cortexMessages,
+  type CortexConversation,
+  type CortexMessage,
+} from '../schema/cortex-chat'
+
+type Role = CortexMessage['role']
+
+export async function createCortexConversation(
+  tenantId: string,
+  userId: string,
+  title: string | null
+): Promise<string> {
+  const [row] = await db
+    .insert(cortexConversations)
+    .values({ tenant_id: tenantId, user_id: userId, title })
+    .returning({ id: cortexConversations.id })
+  return row!.id
+}
+
+export async function appendCortexMessage(
+  tenantId: string,
+  conversationId: string,
+  role: Role,
+  content: string,
+  citations?: unknown
+): Promise<void> {
+  await db.insert(cortexMessages).values({
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    role,
+    content,
+    citations: (citations as object) ?? null,
+  })
+  await db
+    .update(cortexConversations)
+    .set({ updated_at: new Date() })
+    .where(and(eq(cortexConversations.tenant_id, tenantId), eq(cortexConversations.id, conversationId)))
+}
+
+export async function listCortexConversations(
+  tenantId: string,
+  userId: string,
+  limit = 20
+): Promise<Pick<CortexConversation, 'id' | 'title' | 'created_at' | 'updated_at'>[]> {
+  return db
+    .select({
+      id: cortexConversations.id,
+      title: cortexConversations.title,
+      created_at: cortexConversations.created_at,
+      updated_at: cortexConversations.updated_at,
+    })
+    .from(cortexConversations)
+    .where(and(eq(cortexConversations.tenant_id, tenantId), eq(cortexConversations.user_id, userId)))
+    .orderBy(desc(cortexConversations.updated_at))
+    .limit(limit)
+}
+
+/** Messages for a conversation the user owns, oldest first; null if not owned. */
+export async function getCortexConversationMessages(
+  tenantId: string,
+  userId: string,
+  conversationId: string
+): Promise<Pick<CortexMessage, 'role' | 'content' | 'citations' | 'created_at'>[] | null> {
+  const [owned] = await db
+    .select({ id: cortexConversations.id })
+    .from(cortexConversations)
+    .where(
+      and(
+        eq(cortexConversations.tenant_id, tenantId),
+        eq(cortexConversations.id, conversationId),
+        eq(cortexConversations.user_id, userId)
+      )
+    )
+  if (!owned) return null
+
+  return db
+    .select({
+      role: cortexMessages.role,
+      content: cortexMessages.content,
+      citations: cortexMessages.citations,
+      created_at: cortexMessages.created_at,
+    })
+    .from(cortexMessages)
+    .where(
+      and(eq(cortexMessages.tenant_id, tenantId), eq(cortexMessages.conversation_id, conversationId))
+    )
+    .orderBy(asc(cortexMessages.created_at))
+}
