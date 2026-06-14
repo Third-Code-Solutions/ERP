@@ -8,6 +8,7 @@ import { and, desc, eq, inArray, sum } from 'drizzle-orm'
 import { OpportunityPanel } from '@/components/opportunities/opportunity-panel'
 import { ProjectChat } from '@/components/ai/project-chat'
 import { CortexEntityPanel } from '@/components/cortex/cortex-entity-panel'
+import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 import { EditProjectForm } from '@/components/projects/edit-project-form'
 import {
   IconLayers,
@@ -90,7 +91,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       and(
         eq(purchaseOrders.project_id, id),
         eq(purchaseOrders.tenant_id, userRow.tenant_id),
-        inArray(purchaseOrders.status, ['submitted', 'confirmed', 'partial_delivery', 'delivered'])
+        inArray(purchaseOrders.status, [...COMMITTED_PO_STATUSES])
       )
     )
 

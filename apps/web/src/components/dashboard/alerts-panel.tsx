@@ -13,6 +13,7 @@ const ALERT_ICONS: Record<Alert['type'], (props: { size?: number }) => React.Rea
   stalled_deal: (p) => <IconClock {...p} />,
   overdue_invoice: (p) => <IconAlert {...p} />,
   gp_erosion: (p) => <IconArrowDownRight {...p} />,
+  gp_erosion_actual: (p) => <IconArrowDownRight {...p} />,
 }
 
 interface AlertsPanelProps {

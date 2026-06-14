@@ -41,6 +41,8 @@ export * from './deliveries'
 export * from './progress-claims'
 export * from './weekly-reports'
 export * from './customer-portal-sessions'
+// Phase 3 — Cost Tracking (F3.2)
+export * from './cost-entries'
 // Cortex AI Brain — graph substrate (BUILDOPS_IMPLEMENTATION_PROMPT §5, Appendix B)
 export * from './cortex'
 // Cortex AI Brain — agent memory (persisted conversations)

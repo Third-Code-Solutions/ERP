@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./bom": "./src/bom/index.ts",
+    "./cost": "./src/cost/index.ts",
     "./projects": "./src/projects.ts",
     "./opportunities": "./src/opportunities.ts",
     "./accounts": "./src/accounts.ts",

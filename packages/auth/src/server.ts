@@ -166,6 +166,8 @@ export type AbiCapability =
   | 'admin.rate_card'
   | 'admin.users'
   | 'admin.system_config'
+  // Phase 3 — Cost Tracking (F3.2)
+  | 'cost.record'
 
 const CAPABILITY_ROLES: Record<AbiCapability, AppRole[]> = {
   // CRM
@@ -197,6 +199,8 @@ const CAPABILITY_ROLES: Record<AbiCapability, AppRole[]> = {
   'admin.rate_card': ['admin', 'owner', 'commercial'],
   'admin.users': ['admin', 'owner'],
   'admin.system_config': ['admin', 'owner'],
+  // Cost Tracking — site PMs, commercial and finance record actual spend.
+  'cost.record': ['admin', 'owner', 'sd_pm_pe', 'pm', 'commercial', 'finance'],
 }
 
 export function can(role: AppRole, capability: AbiCapability): boolean {
