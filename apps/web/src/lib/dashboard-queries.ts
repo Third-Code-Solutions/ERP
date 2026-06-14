@@ -1,6 +1,8 @@
 import { db } from '@buildops/database'
-import { boms, invoices, opportunities, projects, purchaseOrders, users } from '@buildops/database/schema'
+import { boms, costEntries, invoices, opportunities, projects, purchaseOrders, users } from '@buildops/database/schema'
 import { eq, and, inArray, lt, gte, lte, sum, count, sql, desc } from 'drizzle-orm'
+import { computeProjectCostSnapshot } from '@buildops/shared-types/cost'
+import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 
 export interface KpiData {
   activeTcv: number
@@ -32,7 +34,7 @@ export interface StageRow {
 }
 
 export interface Alert {
-  type: 'low_margin' | 'stalled_deal' | 'overdue_invoice' | 'gp_erosion'
+  type: 'low_margin' | 'stalled_deal' | 'overdue_invoice' | 'gp_erosion' | 'gp_erosion_actual'
   severity: 'warning' | 'danger'
   label: string
   detail: string
@@ -310,6 +312,8 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
       id: boms.id,
       project_id: boms.project_id,
       total_cost_cents: boms.total_cost_cents,
+      tcv_cents: boms.tcv_cents,
+      gp_cents: boms.gp_cents,
       project_name: projects.name,
     })
     .from(boms)
@@ -330,10 +334,8 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
     }
   }
 
-  const COMMITTED_STATUSES = ['submitted', 'confirmed', 'partial_delivery', 'delivered'] as const
-
   for (const [projectId, bom] of latestBomByProject) {
-    if (bom.total_cost_cents === 0) continue
+    if (bom.total_cost_cents === 0 && (bom.tcv_cents ?? 0) === 0) continue
 
     const [poSum] = await db
       .select({ total: sum(purchaseOrders.total_cents) })
@@ -342,22 +344,49 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
         and(
           eq(purchaseOrders.tenant_id, tenantId),
           eq(purchaseOrders.project_id, projectId),
-          inArray(purchaseOrders.status, [...COMMITTED_STATUSES])
+          inArray(purchaseOrders.status, [...COMMITTED_PO_STATUSES])
         )
       )
-
     const committed = Number(poSum?.total ?? 0)
-    if (committed === 0) continue
 
-    const overrunPct = ((committed - bom.total_cost_cents) / bom.total_cost_cents) * 100
-    if (overrunPct > 10) {
-      alerts.push({
-        type: 'gp_erosion',
-        severity: overrunPct > 25 ? 'danger' : 'warning',
-        label: bom.project_name ?? 'Unknown project',
-        detail: `PO committed ${overrunPct.toFixed(0)}% over BOM budget`,
-        href: `/projects/${projectId}/bom`,
+    const [costSum] = await db
+      .select({ total: sum(costEntries.amount_cents) })
+      .from(costEntries)
+      .where(and(eq(costEntries.tenant_id, tenantId), eq(costEntries.project_id, projectId)))
+    const actual = Number(costSum?.total ?? 0)
+
+    // PO committed overrun vs BOM budget (commitment-side signal).
+    if (bom.total_cost_cents > 0 && committed > 0) {
+      const overrunPct = ((committed - bom.total_cost_cents) / bom.total_cost_cents) * 100
+      if (overrunPct > 10) {
+        alerts.push({
+          type: 'gp_erosion',
+          severity: overrunPct > 25 ? 'danger' : 'warning',
+          label: bom.project_name ?? 'Unknown project',
+          detail: `PO committed ${overrunPct.toFixed(0)}% over BOM budget`,
+          href: `/projects/${projectId}/bom`,
+        })
+      }
+    }
+
+    // Actual-spend GP erosion (execution-side signal — recorded cost entries).
+    if (actual > 0) {
+      const snap = computeProjectCostSnapshot({
+        budgetCents: bom.total_cost_cents,
+        committedCents: committed,
+        actualCents: actual,
+        bomTcvCents: bom.tcv_cents ?? 0,
+        bomGpCents: bom.gp_cents ?? 0,
       })
+      if (snap.severity !== 'none') {
+        alerts.push({
+          type: 'gp_erosion_actual',
+          severity: snap.severity === 'danger' ? 'danger' : 'warning',
+          label: bom.project_name ?? 'Unknown project',
+          detail: `Actual spend eroding GP by ${(snap.gpErosionBps / 100).toFixed(0)}%`,
+          href: `/projects/${projectId}/cost`,
+        })
+      }
     }
   }
 

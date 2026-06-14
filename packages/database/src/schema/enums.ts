@@ -140,3 +140,19 @@ export const invoiceStatusEnum = pgEnum('invoice_status', [
   'overdue',
   'cancelled',
 ])
+
+// Phase 3 — Cost Tracking (F3.2). Actual cost incurred per project.
+export const costCategoryEnum = pgEnum('cost_category', [
+  'material',
+  'labour',
+  'subcontractor',
+  'equipment',
+  'overhead',
+  'other',
+])
+
+export const costSourceEnum = pgEnum('cost_source', [
+  'manual',
+  'po_derived',
+  'import',
+])

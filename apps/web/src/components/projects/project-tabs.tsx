@@ -20,6 +20,7 @@ const ITEMS = [
   { slug: '', label: 'Overview' },
   { slug: 'scope', label: 'Scope' },
   { slug: 'bom', label: 'BOM' },
+  { slug: 'cost', label: 'Cost' },
   { slug: 'checklist', label: 'Checklist' },
   { slug: 'permits', label: 'Permits' },
   { slug: 'progress', label: 'Progress' },

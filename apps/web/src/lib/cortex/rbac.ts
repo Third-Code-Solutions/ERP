@@ -19,6 +19,7 @@ const NODE_TYPE_PATH: Record<string, string> = {
   schedule_event: '/projects',
   weekly_report: '/projects',
   contract: '/projects',
+  cost_line: '/projects',
   // Sales / proposal
   opportunity: '/pipeline/board',
   inspection: '/pipeline/board',
