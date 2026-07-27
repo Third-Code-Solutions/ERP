@@ -56,6 +56,8 @@ reach through each other's internals.
 - Attribute Git commits and provider actions to the explicitly authorized
   release identity. A provider-level `BLOCKED` deployment is not a build and
   cannot be presented as a release.
+- Preserve one exact release SHA across GitHub refs, Vercel metadata, Railway
+  metadata, and database migration evidence.
 - Prove hosted identity and tenant boundaries through no-write failure paths
   before enabling a migrated transaction. Snapshot affected records and audit
   state before/after.

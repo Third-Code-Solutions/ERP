@@ -196,6 +196,10 @@ matches the repository migration contract:
   Hosted and clean-local definitions for all five repaired functions have
   identical MD5 fingerprints; affected business/audit row counts were
   unchanged across the release.
+- Source commit `42010b9adce6ae89286449edfc1e27c9ffe1eda7` is published
+  to both release refs as `kurtgav <kurtgavin.design@gmail.com>`. Vercel
+  production and preview are READY; Railway deployed the exact SHA
+  successfully and reports database/Redis readiness.
 - The production database catalog and migration ledger were verified.
 - The deployed Railway API passed live `/health` and `/ready` checks against
   the configured PostgreSQL and Redis dependencies.

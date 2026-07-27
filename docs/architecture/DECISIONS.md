@@ -232,3 +232,7 @@ PostgreSQL/Redis CI gate.
 Reason: production data must never become a test fixture. Native disposable
 evidence shortens the feedback loop and exposed real migration/function
 defects, while the pinned CI lane remains authoritative for platform parity.
+
+Outcome: the lane found four production-relevant function defects before
+release. Clean-local and hosted function fingerprints match after the
+forward-only migration release; the production feature flag remains disabled.

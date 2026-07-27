@@ -720,3 +720,23 @@ Rollback and unresolved:
   remains required before Project-write activation.
 - `ERP_PROJECT_WRITES_VIA_API=false`; no tenant allowlist or provider
   environment changed.
+
+Release evidence:
+
+- Source commit `42010b9adce6ae89286449edfc1e27c9ffe1eda7`
+  authored by `kurtgav <kurtgavin.design@gmail.com>`.
+- GitHub refs `main` and `agent-02/third-code-erp-landing` both resolve to the
+  exact source commit.
+- Vercel production deployment `dpl_Hc4nUrodLQy98fextJvaowQLMU6J` — READY,
+  canonical aliases attached, creator `kurtgav`, exact source commit.
+- Vercel preview deployment `dpl_Cei1wPguAotpuJLaE4YoJUiFzxoR` — READY,
+  creator `kurtgav`, exact source commit.
+- Vercel canonical landing, `/api/health`, and `/api/ready` — 200. Build error
+  filter and 15-minute runtime error scan — clean.
+- Railway deployment `9e72f2c2-4e55-4878-ab4e-ace21b3fb0b7` — SUCCESS,
+  running, exact source commit, commit author `kurtgav`. CLI session is
+  `Kurt Gavin <kurtgavin.design@gmail.com>`.
+- Railway `/health` and `/ready` — 200; database and Redis both `ok`.
+- GitHub Actions run `30300165903` — billing/spending-limit failure before
+  runner steps; Actionlint has zero steps and seven dependent jobs were
+  skipped.
