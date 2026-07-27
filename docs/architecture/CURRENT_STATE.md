@@ -73,7 +73,9 @@ matches the repository migration contract:
 - Optimistic concurrency through `expectedUpdatedAt`.
 - One PostgreSQL transaction for actor attribution and the official write.
 - Existing Next Server Action contract and cache refresh behavior.
-- Safe rollback to the legacy write path with one disabled-by-default flag.
+- Tenant-scoped canary selection requiring an exact-disabled-by-default flag
+  plus an explicit database-derived tenant allowlist.
+- Safe rollback to the legacy write path when either gate does not match.
 
 ## Hosted release status
 
@@ -150,6 +152,10 @@ matches the repository migration contract:
 15. Database test harnesses now require an explicitly injected
     `DATABASE_URL`; normal unit-test commands cannot auto-load a hosted
     application `.env.local`.
+16. Local Docker cannot run until firmware virtualization and Windows Virtual
+    Machine Platform are enabled. The current host reports
+    `HCS_E_HYPERV_NOT_INSTALLED`; this blocks local disposable PostgreSQL/Redis
+    parity but does not justify using production as a test database.
 
 ## Verification coverage
 
@@ -161,8 +167,9 @@ matches the repository migration contract:
 - Nest HTTP tests cover the preserved success contract and strict rejection of
   attacker-controlled fields. Four HTTP tests include real
   `ProjectsModule` middleware registration.
-- Sixty-seven Web unit tests include exact feature-flag selection, legacy
-  write/audit rollback behavior, Nest-only routing when enabled, and
+- Sixty-seven Web unit tests include exact feature-flag selection,
+  tenant-allowlist fail-closed behavior, database-derived tenant routing,
+  legacy write/audit rollback behavior, Nest-only routing when enabled, and
   Next-to-Nest correlation forwarding.
 - API and web TypeScript checks pass for the new slice.
 - API production compilation passes.

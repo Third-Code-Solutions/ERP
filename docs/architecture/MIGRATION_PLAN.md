@@ -61,6 +61,9 @@ Production entry status:
 - Complete: local rollback-selection rehearsal proves exact `false` uses the
   legacy write/audit path and exact `true` uses Nest only. Provider-level
   enable/rollback remains deferred; the hosted flag was never enabled.
+- Complete in source: tenant-scoped canary selection requires exact `true` and
+  an explicit matching tenant allowlist. Empty, malformed, non-matching, and
+  mixed-wildcard values fail closed. Deployment and provider drill remain.
 - Complete: one authorized, same-tenant Nest Project update against designated
   demo data, followed by exact-value restoration through a second Nest
   transaction. Both 200 responses correlated to safe Railway command logs;

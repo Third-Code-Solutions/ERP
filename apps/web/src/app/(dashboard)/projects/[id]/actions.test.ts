@@ -112,6 +112,7 @@ describe('Project update migration switch', () => {
     expect(mocks.update).toHaveBeenCalledOnce()
     expect(mocks.writeAuditLog).toHaveBeenCalledOnce()
     expect(mocks.updateProjectThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.projectWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
   })
 
   it('routes only through Nest when flag is true', async () => {
@@ -124,5 +125,6 @@ describe('Project update migration switch', () => {
     expect(mocks.updateProjectThroughCoreApi).toHaveBeenCalledOnce()
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.projectWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
   })
 })
