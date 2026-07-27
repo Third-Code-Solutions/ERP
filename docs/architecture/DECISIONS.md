@@ -192,3 +192,18 @@ Server Action. Tests exercise both branches without a hosted write.
 
 Reason: fail-closed parsing makes a misconfigured rollback return to the
 known legacy path instead of silently enabling a migrated transaction.
+
+## D-026 — Hosted transaction proof uses reversible demo data
+
+Decision: after no-write authorization boundaries pass, a migrated command
+requires one controlled hosted transaction against explicitly designated demo
+data. Capture the complete mutable record and tenant audit tail immediately
+before the command, change one non-critical field through Nest, verify the
+committed result and audit chain, then restore the exact business values
+through a second authorized Nest transaction. Append-only audit history and
+the expected `updated_at` advance are retained.
+
+Reason: compilation and denial paths do not prove that the deployed
+transaction authority can commit, attribute, correlate, and recover a real
+ERP command. Reversible demo data provides that evidence without enabling the
+Web migration flag or directly editing the database.

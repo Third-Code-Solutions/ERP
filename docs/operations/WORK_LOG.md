@@ -502,3 +502,65 @@ Rollback and unresolved:
   had zero steps; seven dependent jobs were skipped.
 - Successful hosted mutation/audit attribution, reconciliation, clean CI, and
   provider-level enable/rollback remain required before activation.
+
+## 2026-07-28 — M1 controlled hosted transaction and restoration
+
+Completed:
+
+- Verified the selected record was designated demo data and captured its full
+  mutable-field baseline plus the same-tenant audit tail before writing.
+- Confirmed the requested `kurtgav` identity remains the Git/provider release
+  identity. No matching application Auth user exists, so no membership was
+  fabricated; the transaction used an existing authorized demo-tenant owner.
+- Generated and consumed a one-time Supabase magic link without reading or
+  changing a password. The resulting one-hour authenticated session resolved
+  to the expected existing owner.
+- Sent one direct PATCH to the deployed Nest Project command. Only the nullable
+  notes field received a unique temporary marker; the optimistic timestamp
+  matched the captured baseline.
+- Verified the 200 response, caller UUID echo, same-tenant result, committed
+  value, actor attribution, exact `notes` plus `updated_at` audit diff, and
+  predecessor hash.
+- Restored every original business value through a second authorized Nest
+  PATCH using the first result's optimistic timestamp.
+- Independently reconciled the final hosted state through the connected
+  Supabase project: business fields equal the baseline, exactly two Project
+  audit rows were added, both actors/actions/diff keys are correct, marker
+  transitions round-trip, and the tenant hash chain is continuous.
+- Revoked the temporary refresh session, cleared the one-hour access JWT and
+  all credentials from the in-memory execution kernel, and kept
+  `ERP_PROJECT_WRITES_VIA_API=false`.
+
+Changed files:
+
+- the six architecture/operations memory files only
+
+Validation:
+
+- Railway `/health` and `/ready` before the transaction — 200.
+- Controlled update — 200; UUID
+  `a51faa1d-87d7-4274-9d8c-ab36d5019cbb` echoed.
+- Exact-value restoration — 200; UUID
+  `95e83e6a-7fe3-4059-84e7-c0dba0431c65` echoed.
+- Railway application logs — both UUIDs, `project.update`, 200,
+  `succeeded`; safe fields only.
+- Supabase reconciliation — original notes restored; two new Project audit
+  rows; actor, action, diff, round trip, predecessor hashes, and full tenant
+  chain valid.
+- Root lint and typecheck — pass.
+- Root tests — 244 pass; 128 database cases remain skipped without the
+  explicitly disposable `DATABASE_URL`.
+- Root production build — pass; Nest compiled and Next generated all 77 pages.
+- Post-proof frontend, Web Analytics, Railway `/health`, and Railway `/ready`
+  checks — 200.
+
+Rollback and unresolved:
+
+- Business rollback is complete. The intended append-only audit evidence and
+  expected `updated_at` advances remain.
+- No schema, storage, source-runtime, provider-environment, or feature-flag
+  mutation occurred.
+- GitHub Actions still cannot start runners because of organization
+  billing/spending limits.
+- Clean disposable PostgreSQL/Redis CI and the provider-level
+  enable/rollback drill remain required before activation.
