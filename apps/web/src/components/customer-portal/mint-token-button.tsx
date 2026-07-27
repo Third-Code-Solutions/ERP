@@ -48,7 +48,7 @@ export function MintTokenButton({ projectId }: MintTokenButtonProps) {
       <h3 style={titleStyle}>Mint a new client link</h3>
       <p style={subtitleStyle}>
         Send the resulting URL to your client. They&rsquo;ll see live project status without
-        an ABI login. The link is read-only and expires after the period you set.
+        a workspace login. The link is read-only and expires after the period you set.
       </p>
 
       <form onSubmit={handleSubmit} style={formStyle}>

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-// Stage values include legacy + ABI Ops canonical. Legacy values map to
-// their ABI equivalents via STAGE_LEGACY_MAP below.
+// Stage values include legacy + Third Code ERP canonical. Legacy values map to
+// their current equivalents via STAGE_LEGACY_MAP below.
 export const opportunityStageValues = [
   // Legacy
   'opportunity_creation',
@@ -9,7 +9,7 @@ export const opportunityStageValues = [
   'resubmission',
   'closed_won',
   'closed_lost',
-  // ABI Ops 8-stage canonical
+  // Third Code ERP 8-stage canonical
   'lead',
   'site_survey',
   'design',
@@ -22,8 +22,8 @@ export const opportunityStageValues = [
 
 export type OpportunityStage = typeof opportunityStageValues[number]
 
-// The 8 canonical ABI Ops stages (UI-facing).
-export const ABI_STAGES = [
+// The 8 canonical Third Code ERP stages (UI-facing).
+export const PIPELINE_STAGES = [
   'lead',
   'site_survey',
   'design',
@@ -34,11 +34,11 @@ export const ABI_STAGES = [
   'lost',
 ] as const satisfies readonly OpportunityStage[]
 
-export type AbiStage = (typeof ABI_STAGES)[number]
+export type PipelineStage = (typeof PIPELINE_STAGES)[number]
 
-// Map legacy stage values onto their ABI equivalent so dashboards/Kanban
+// Map legacy stage values onto their canonical equivalent so dashboards/Kanban
 // can group consistently.
-export const STAGE_LEGACY_MAP: Record<OpportunityStage, AbiStage> = {
+export const STAGE_LEGACY_MAP: Record<OpportunityStage, PipelineStage> = {
   opportunity_creation: 'lead',
   scoping: 'site_survey',
   resubmission: 'negotiation',
@@ -64,7 +64,7 @@ export const STAGE_PROBABILITY: Record<OpportunityStage, number> = {
   resubmission: 50,
   closed_won: 100,
   closed_lost: 0,
-  // ABI canonical
+  // Current canonical
   lead: 10,
   site_survey: 25,
   design: 40,
@@ -76,7 +76,7 @@ export const STAGE_PROBABILITY: Record<OpportunityStage, number> = {
 }
 
 // Valid stage transitions.
-// Legacy chain preserved verbatim. ABI canonical chain:
+// Legacy chain preserved verbatim. Current canonical chain:
 //   lead → site_survey → design → bom_submission → negotiation →
 //   contract → won. `lost` is reachable from anything except won.
 export const STAGE_TRANSITIONS: Record<OpportunityStage, OpportunityStage[]> = {
@@ -86,7 +86,7 @@ export const STAGE_TRANSITIONS: Record<OpportunityStage, OpportunityStage[]> = {
   resubmission: ['bom_submission', 'negotiation', 'closed_lost', 'lost'],
   closed_won: [],
   closed_lost: [],
-  // ABI canonical
+  // Current canonical
   lead: ['site_survey', 'lost'],
   site_survey: ['design', 'lost'],
   design: ['bom_submission', 'lost'],
@@ -99,7 +99,7 @@ export const STAGE_TRANSITIONS: Record<OpportunityStage, OpportunityStage[]> = {
 
 export const createOpportunitySchema = z
   .object({
-    // ABI Ops Phase 0: at least one of account_id or project_id must be
+    // Third Code ERP Phase 0: at least one of account_id or project_id must be
     // present. New opps coming through the M1 flow will use account_id;
     // legacy code paths can still pass project_id only.
     account_id: z.string().uuid().optional(),

@@ -32,7 +32,7 @@ from src.storage import download_file
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("cad-parser")
 
-app = FastAPI(title="BuildOps CAD Parser", version="0.2.0")
+app = FastAPI(title="Third Code ERP CAD Parser", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,

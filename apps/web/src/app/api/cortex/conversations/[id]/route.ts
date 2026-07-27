@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import { getUserProfile } from '@buildops/auth'
-import { getCortexConversationMessages } from '@buildops/database'
+import { getUserProfile } from '@third-code-erp/auth'
+import { getCortexConversationMessages } from '@third-code-erp/database'
 
 /**
  * GET /api/cortex/conversations/:id — messages for one of the user's threads.

@@ -1,11 +1,14 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { materialItems } from '@buildops/database/schema'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import {
+  materialItems,
+  unitsOfMeasure,
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 
 const materialItemSchema = z.object({
@@ -50,6 +53,32 @@ export async function upsertMaterialItem(
   const input = parsed.data
 
   try {
+    const baseUomId = await db.transaction(async (tx) => {
+      const [existingUom] = await tx
+        .select({ id: unitsOfMeasure.id })
+        .from(unitsOfMeasure)
+        .where(
+          and(
+            eq(unitsOfMeasure.tenant_id, profile.tenantId),
+            sql`lower(${unitsOfMeasure.code}) = lower(${input.unit})`
+          )
+        )
+        .limit(1)
+      if (existingUom) return existingUom.id
+
+      const [createdUom] = await tx
+        .insert(unitsOfMeasure)
+        .values({
+          tenant_id: profile.tenantId,
+          code: input.unit,
+          name: input.unit,
+          created_by: profile.user.id,
+        })
+        .returning({ id: unitsOfMeasure.id })
+      if (!createdUom) throw new Error('Could not create the item UOM')
+      return createdUom.id
+    })
+
     if (input.id) {
       const [existing] = await db
         .select({ id: materialItems.id })
@@ -70,6 +99,7 @@ export async function upsertMaterialItem(
           description: input.description,
           category: input.category,
           unit: input.unit,
+          base_uom_id: baseUomId,
           wastage_bps: input.wastage_bps,
           is_active: input.is_active ?? true,
           updated_at: new Date(),
@@ -98,8 +128,10 @@ export async function upsertMaterialItem(
           description: input.description,
           category: input.category,
           unit: input.unit,
+          base_uom_id: baseUomId,
           wastage_bps: input.wastage_bps,
           is_active: input.is_active ?? true,
+          created_by: profile.user.id,
         })
         .returning({ id: materialItems.id })
 

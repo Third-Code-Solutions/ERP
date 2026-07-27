@@ -35,7 +35,7 @@ export default async function PortalBomPage({
     return <PortalStatus title="Link not found" body="This portal link doesn't match any active BOM." />
   }
   if (result.state === 'expired') {
-    return <PortalStatus title="Link expired" body="This portal link has expired. Please ask your ABI contact to send a new one." />
+    return <PortalStatus title="Link expired" body="This portal link has expired. Please ask your project contact to send a new one." />
   }
   if (result.state === 'used') {
     return <PortalStatus title="Already signed" body="This BOM has already been signed and locked." tone="positive" />

@@ -1,7 +1,7 @@
-import { db } from '@buildops/database'
-import { auditLog } from '@buildops/database/schema'
-import { computeHash, computeDiff } from '@buildops/shared-types'
-import { desc, eq } from 'drizzle-orm'
+import { db } from '@third-code-erp/database'
+import { auditLog } from '@third-code-erp/database/schema'
+import { computeHash, computeDiff } from '@third-code-erp/shared-types'
+import { desc, eq, sql } from 'drizzle-orm'
 
 export type AuditAction =
   | 'create'
@@ -16,7 +16,7 @@ export type AuditAction =
 
 interface WriteAuditParams {
   tenantId: string
-  actorId: string
+  actorId: string | null
   entityType: string
   entityId: string
   action: AuditAction
@@ -37,37 +37,41 @@ export async function writeAuditLog(params: WriteAuditParams): Promise<void> {
     userAgent,
   } = params
 
-  // Get the previous hash for this tenant's chain
-  const [lastEntry] = await db
-    .select({ hash: auditLog.hash })
-    .from(auditLog)
-    .where(eq(auditLog.tenant_id, tenantId))
-    .orderBy(desc(auditLog.id))
-    .limit(1)
+  await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${'audit_log:' + tenantId}, 0))`
+    )
 
-  const prevHash = lastEntry?.hash ?? 'genesis'
+    const [lastEntry] = await tx
+      .select({ hash: auditLog.hash })
+      .from(auditLog)
+      .where(eq(auditLog.tenant_id, tenantId))
+      .orderBy(desc(auditLog.id))
+      .limit(1)
 
-  const now = new Date()
-  const hash = await computeHash(prevHash, {
-    entity_type: entityType,
-    entity_id: entityId,
-    action,
-    diff,
-    created_at: now.toISOString(),
-  })
+    const prevHash = lastEntry?.hash ?? 'genesis'
+    const now = new Date()
+    const hash = await computeHash(prevHash, {
+      entity_type: entityType,
+      entity_id: entityId,
+      action,
+      diff,
+      created_at: now.toISOString(),
+    })
 
-  await db.insert(auditLog).values({
-    tenant_id: tenantId,
-    actor_id: actorId,
-    entity_type: entityType,
-    entity_id: entityId,
-    action,
-    diff,
-    prev_hash: prevHash,
-    hash,
-    ip_address: ipAddress,
-    user_agent: userAgent,
-    created_at: now,
+    await tx.insert(auditLog).values({
+      tenant_id: tenantId,
+      actor_id: actorId,
+      entity_type: entityType,
+      entity_id: entityId,
+      action,
+      diff,
+      prev_hash: prevHash,
+      hash,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      created_at: now,
+    })
   })
 }
 

@@ -2,14 +2,14 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   certificatesOfCompletion,
   documents,
   projects,
   turnoverPackages,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { draftCoc, sendCocForSignature } from './actions'
 
 export const metadata: Metadata = { title: 'Certificate of Completion' }

@@ -21,32 +21,12 @@
  * in-depth layer (the supabase-js / PostgREST surface). App-level tenant
  * filtering is covered separately by integration tests.
  */
-import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
-import { readFileSync } from 'node:fs'
 import postgres from 'postgres'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-
-/** Read DATABASE_URL from the environment or a repo-local env file. */
+/** Use only an explicitly injected disposable-database URL. */
 function loadDatabaseUrl(): string | undefined {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL
-  const candidates = [
-    '../../../../.env.local',
-    '../../../../apps/web/.env.local',
-    '../../../../.env',
-  ]
-  for (const rel of candidates) {
-    try {
-      const txt = readFileSync(resolve(__dirname, rel), 'utf8')
-      const m = txt.match(/^\s*DATABASE_URL\s*=\s*(.+)\s*$/m)
-      if (m?.[1]) return m[1].trim().replace(/^["']|["']$/g, '')
-    } catch {
-      // file may not exist in CI — fall through to next candidate
-    }
-  }
-  return undefined
+  return process.env.DATABASE_URL?.trim() || undefined
 }
 
 const DATABASE_URL = loadDatabaseUrl()

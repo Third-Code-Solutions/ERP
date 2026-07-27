@@ -1,8 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser, requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { getUser, requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   boms,
   bomLineItems,
@@ -11,7 +11,7 @@ import {
   rateCards,
   materialItems,
   opportunities,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { eq, and, max, ilike, or, desc, isNull, gt } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
@@ -21,7 +21,7 @@ import {
   bomTotalCost,
   computeGP,
   computeGPMargin,
-} from '@buildops/shared-types/bom'
+} from '@third-code-erp/shared-types/bom'
 
 export async function createBom(projectId: string): Promise<{ id: string } | { error: string }> {
   const user = await getUser()
@@ -82,7 +82,7 @@ export async function addBomLineItem(
   const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
   if (!userRow?.tenant_id) return { error: 'No tenant' }
 
-  // Use the canonical math module (tested in @buildops/shared-types/bom)
+  // Use the canonical math module (tested in @third-code-erp/shared-types/bom)
   const line_total_cents = calcLineTotal(data.unit_cost_cents, data.quantity, data.markup_bps)
 
   const [existing] = await db

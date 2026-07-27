@@ -1,5 +1,5 @@
 -- =============================================================================
--- ABI Ops — Canvas-based in-app signing (DocuSeal alternative)
+-- Third Code ERP — Canvas-based in-app signing (DocuSeal alternative)
 --
 -- Adds signature_sessions table + RLS + audit trigger. Lets clients sign
 -- BOMs / Contracts / VOs / COCs via an HTML5 canvas pad on the public

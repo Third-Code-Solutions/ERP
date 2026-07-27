@@ -4,39 +4,16 @@
  * Probe rows leave no trace, so DB-backed tests never mutate real data
  * (honors "do not erase anything on the db").
  */
-import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
-import { readFileSync } from 'node:fs'
 import postgres from 'postgres'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-
 export function loadDatabaseUrl(): string | undefined {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL
-  const candidates = [
-    '../../../../.env.local',
-    '../../../../apps/web/.env.local',
-    '../../../../.env',
-  ]
-  for (const rel of candidates) {
-    try {
-      const txt = readFileSync(resolve(__dirname, rel), 'utf8')
-      const m = txt.match(/^\s*DATABASE_URL\s*=\s*(.+)\s*$/m)
-      if (m?.[1]) return m[1].trim().replace(/^["']|["']$/g, '')
-    } catch {
-      // file may not exist — try next
-    }
-  }
-  return undefined
+  // Database tests are write probes, even though every probe rolls back.
+  // Require explicit injection so an application .env.local can never make
+  // a normal unit-test command target a hosted database.
+  return process.env.DATABASE_URL?.trim() || undefined
 }
 
 export const DATABASE_URL = loadDatabaseUrl()
-
-// Make the loaded URL visible to the Drizzle `db` singleton (reads
-// process.env.DATABASE_URL at first use) so graph read-API tests can run.
-if (DATABASE_URL && !process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = DATABASE_URL
-}
 
 export function makeSql(): postgres.Sql {
   return postgres(DATABASE_URL as string, {

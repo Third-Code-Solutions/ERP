@@ -6,16 +6,13 @@
 -- This replaces the placeholder TEXT column from initial schema.
 
 CREATE EXTENSION IF NOT EXISTS vector;
-
 -- The embedding column was created as TEXT in the initial migration.
 -- Drop and re-add as vector(1536). Safe because no rows exist yet —
 -- BOM embedding emission requires OPENAI_API_KEY which has not run in prod.
 ALTER TABLE public.embeddings
   DROP COLUMN IF EXISTS embedding;
-
 ALTER TABLE public.embeddings
   ADD COLUMN embedding vector(1536);
-
 -- HNSW index for cosine similarity (better recall/latency than IVFFlat for our scale).
 -- ef_construction=64 + m=16 are sensible defaults for ~1536-dim vectors.
 CREATE INDEX IF NOT EXISTS embeddings_vector_cosine_idx

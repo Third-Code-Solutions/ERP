@@ -3,14 +3,14 @@
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   customerPortalSessions,
   projects,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { mintCustomerPortalToken } from '@/lib/abi/customer-portal'
+import { mintCustomerPortalToken } from '@/lib/operations/customer-portal'
 
 export interface MintAccessResult {
   error?: string

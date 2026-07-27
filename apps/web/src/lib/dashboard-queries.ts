@@ -1,7 +1,7 @@
-import { db } from '@buildops/database'
-import { boms, costEntries, invoices, opportunities, projects, purchaseOrders, users } from '@buildops/database/schema'
+import { db } from '@third-code-erp/database'
+import { boms, costEntries, invoices, opportunities, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
 import { eq, and, inArray, lt, gte, lte, sum, count, sql, desc } from 'drizzle-orm'
-import { computeProjectCostSnapshot } from '@buildops/shared-types/cost'
+import { computeProjectCostSnapshot } from '@third-code-erp/shared-types/cost'
 import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 
 export interface KpiData {
@@ -49,9 +49,9 @@ const ACTIVE_STAGES = [
   'negotiation',
 ] as const
 
-// Canonical ABI Ops 8-stage flow (REFACTOR.md M1 US-002). Pairs of
+// Canonical Third Code ERP 8-stage flow (REFACTOR.md M1 US-002). Pairs of
 // adjacent stages drive conversion-rate computation in the dashboard.
-export const ABI_STAGES = [
+export const PIPELINE_STAGES = [
   'lead',
   'site_survey',
   'design',
@@ -61,11 +61,11 @@ export const ABI_STAGES = [
   'won',
 ] as const
 
-export type AbiStage = (typeof ABI_STAGES)[number]
+export type PipelineStage = (typeof PIPELINE_STAGES)[number]
 
 export interface ConversionRateRow {
-  fromStage: AbiStage
-  toStage: AbiStage
+  fromStage: PipelineStage
+  toStage: PipelineStage
   fromCount: number
   toCount: number
   ratePct: number
@@ -398,10 +398,10 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
 }
 
 // -----------------------------------------------------------------------------
-// US-004 — Conversion rates between ABI Ops stages.
+// US-004 — Conversion rates between Third Code ERP stages.
 //
 // Rate for pair (A → B) = count(stage at or beyond B) / count(stage at or
-// beyond A) * 100. "At or beyond" uses the canonical ABI_STAGES order so a
+// beyond A) * 100. "At or beyond" uses canonical pipeline order so a
 // "won" deal counts as having passed every prior stage. Closed-lost rows
 // are excluded — the analysis is about progression, not loss attribution.
 // -----------------------------------------------------------------------------
@@ -418,20 +418,20 @@ export async function getConversionRates(tenantId: string): Promise<ConversionRa
   for (const r of rows) atStage.set(r.stage, Number(r.count))
 
   // "At or beyond" count for stage X = sum of counts at X and later.
-  const atOrBeyond = new Map<AbiStage, number>()
-  for (let i = 0; i < ABI_STAGES.length; i += 1) {
-    const fromStage = ABI_STAGES[i] as AbiStage
+  const atOrBeyond = new Map<PipelineStage, number>()
+  for (let i = 0; i < PIPELINE_STAGES.length; i += 1) {
+    const fromStage = PIPELINE_STAGES[i] as PipelineStage
     let acc = 0
-    for (let j = i; j < ABI_STAGES.length; j += 1) {
-      acc += atStage.get(ABI_STAGES[j] as string) ?? 0
+    for (let j = i; j < PIPELINE_STAGES.length; j += 1) {
+      acc += atStage.get(PIPELINE_STAGES[j] as string) ?? 0
     }
     atOrBeyond.set(fromStage, acc)
   }
 
   const result: ConversionRateRow[] = []
-  for (let i = 0; i < ABI_STAGES.length - 1; i += 1) {
-    const fromStage = ABI_STAGES[i] as AbiStage
-    const toStage = ABI_STAGES[i + 1] as AbiStage
+  for (let i = 0; i < PIPELINE_STAGES.length - 1; i += 1) {
+    const fromStage = PIPELINE_STAGES[i] as PipelineStage
+    const toStage = PIPELINE_STAGES[i + 1] as PipelineStage
     const fromCount = atOrBeyond.get(fromStage) ?? 0
     const toCount = atOrBeyond.get(toStage) ?? 0
     const ratePct = fromCount > 0 ? Math.round((toCount / fromCount) * 1000) / 10 : 0

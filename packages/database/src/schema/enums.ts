@@ -1,14 +1,14 @@
 import { pgEnum } from 'drizzle-orm/pg-core'
 
-// ABI Ops role taxonomy. Legacy values (owner/estimator/pm) are retained
+// Third Code ERP role taxonomy. Legacy values (owner/estimator/pm) are retained
 // for back-compat — Postgres enums cannot drop values without table rewrites.
-// New ABI Ops roles per REFACTOR.md §2 sit alongside them.
+// New Third Code ERP roles per REFACTOR.md §2 sit alongside them.
 export const roleEnum = pgEnum('role', [
-  // Legacy (retained for back-compat; new users get the ABI roles)
+  // Legacy (retained for back-compat; new users get the current ERP roles)
   'owner',
   'estimator',
   'pm',
-  // ABI Ops roles
+  // Third Code ERP roles
   'admin',
   'sales',
   'commercial',
@@ -55,10 +55,10 @@ export const kycArtifactTypeEnum = pgEnum('kyc_artifact_type', [
   'other',
 ])
 
-// ABI Ops pipeline stages per REFACTOR.md M1 US-002.
+// Third Code ERP pipeline stages per REFACTOR.md M1 US-002.
 // Legacy stages (opportunity_creation, scoping, resubmission, closed_won,
 // closed_lost) retained for back-compat — PG enums cannot DROP values.
-// New ABI stages: lead, site_survey, design, contract, won, lost.
+// Current pipeline stages: lead, site_survey, design, contract, won, lost.
 // Canonical 8-stage flow: lead → site_survey → design → bom_submission →
 // negotiation → contract → won (with lost reachable from any).
 export const opportunityStageEnum = pgEnum('opportunity_stage', [
@@ -68,7 +68,7 @@ export const opportunityStageEnum = pgEnum('opportunity_stage', [
   'resubmission',
   'closed_won',
   'closed_lost',
-  // ABI Ops 8-stage flow
+  // Third Code ERP 8-stage flow
   'lead',
   'site_survey',
   'design',
@@ -113,7 +113,7 @@ export const documentTypeEnum = pgEnum('document_type', [
 ])
 
 // PO status. Legacy values (submitted/confirmed/delivered) retained for
-// back-compat. New ABI 3-step flow per REFACTOR.md US-Pre-003:
+// back-compat. Current 3-step flow per REFACTOR.md US-Pre-003:
 // draft → pending_pm_approval → pending_commercial_approval →
 // pending_scm_issuance → issued → partial_delivered → fully_delivered.
 export const purchaseOrderStatusEnum = pgEnum('purchase_order_status', [
@@ -124,11 +124,12 @@ export const purchaseOrderStatusEnum = pgEnum('purchase_order_status', [
   'partial_delivery',
   'delivered',
   'cancelled',
-  // ABI 3-step approval flow
+  // Current 3-step approval flow
   'pending_pm_approval',
   'pending_commercial_approval',
   'pending_scm_issuance',
   'issued',
+  'partial_delivered',
   'fully_delivered',
 ])
 
@@ -155,4 +156,111 @@ export const costSourceEnum = pgEnum('cost_source', [
   'manual',
   'po_derived',
   'import',
+])
+
+// Accounting ledger foundation.
+export const fiscalPeriodStatusEnum = pgEnum('fiscal_period_status', [
+  'open',
+  'closed',
+])
+
+export const ledgerAccountTypeEnum = pgEnum('ledger_account_type', [
+  'asset',
+  'liability',
+  'equity',
+  'income',
+  'expense',
+])
+
+export const normalBalanceEnum = pgEnum('normal_balance', [
+  'debit',
+  'credit',
+])
+
+export const journalEntryStatusEnum = pgEnum('journal_entry_status', [
+  'draft',
+  'posted',
+])
+
+export const journalSourceEnum = pgEnum('journal_source', [
+  'manual',
+  'system',
+  'reversal',
+])
+
+export const supplierBillStatusEnum = pgEnum('supplier_bill_status', [
+  'draft',
+  'posted',
+  'reversed',
+])
+
+export const cashAccountKindEnum = pgEnum('cash_account_kind', [
+  'cash',
+  'bank',
+  'e_wallet',
+])
+
+export const cashTransactionDirectionEnum = pgEnum(
+  'cash_transaction_direction',
+  ['receipt', 'disbursement']
+)
+
+export const cashTransactionStatusEnum = pgEnum('cash_transaction_status', [
+  'draft',
+  'posted',
+  'reversed',
+])
+
+export const cashAllocationTypeEnum = pgEnum('cash_allocation_type', [
+  'customer_current_due',
+  'customer_retention',
+  'supplier_bill',
+])
+
+export const bankStatementStatusEnum = pgEnum('bank_statement_status', [
+  'draft',
+  'reconciled',
+  'voided',
+])
+
+export const stockReceiptStatusEnum = pgEnum('stock_receipt_status', [
+  'draft',
+  'posted',
+  'reversed',
+])
+
+export const stockLedgerEventTypeEnum = pgEnum('stock_ledger_event_type', [
+  'receipt',
+  'receipt_reversal',
+  'transfer_out',
+  'transfer_in',
+  'consumption',
+  'adjustment',
+  'movement_reversal',
+])
+
+export const stockMovementTypeEnum = pgEnum('stock_movement_type', [
+  'transfer',
+  'consumption',
+  'adjustment',
+])
+
+export const stockMovementStatusEnum = pgEnum('stock_movement_status', [
+  'draft',
+  'posted',
+  'reversed',
+])
+
+export const projectBudgetStatusEnum = pgEnum('project_budget_status', [
+  'draft',
+  'pending_approval',
+  'approved',
+  'superseded',
+  'rejected',
+])
+
+export const budgetControlModeEnum = pgEnum('budget_control_mode', [
+  'monitor',
+  'warn',
+  'block',
 ])

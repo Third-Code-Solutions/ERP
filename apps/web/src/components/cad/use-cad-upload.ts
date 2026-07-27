@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createSupabaseBrowserClient } from '@buildops/auth/client'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 
 export interface CadUploadResult {
   status:

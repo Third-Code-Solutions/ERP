@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { createSupabaseBrowserClient } from '@buildops/auth/client'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 import { useRouter } from 'next/navigation'
 
 export function SignupForm() {
@@ -17,10 +17,17 @@ export function SignupForm() {
     setError(null)
 
     const form = e.currentTarget
-    const email = (form.elements.namedItem('email') as HTMLInputElement).value
+    const fullName = (form.elements.namedItem('fullName') as HTMLInputElement).value.trim()
+    const companyName = (form.elements.namedItem('companyName') as HTMLInputElement).value.trim()
+    const organizationType = (form.elements.namedItem('organizationType') as HTMLSelectElement).value
+    const email = (form.elements.namedItem('email') as HTMLInputElement).value.trim()
     const password = (form.elements.namedItem('password') as HTMLInputElement).value
     const confirm = (form.elements.namedItem('confirm') as HTMLInputElement).value
 
+    if (!fullName || !companyName || !organizationType || !email.includes('@')) {
+      setError('Complete every field before creating your account.')
+      return
+    }
     if (password !== confirm) {
       setError('Passwords do not match.')
       return
@@ -31,17 +38,28 @@ export function SignupForm() {
     }
 
     startTransition(async () => {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+          // Onboarding context only. Authorization must use server-managed
+          // app_metadata and tenant membership records, never user_metadata.
+          data: {
+            full_name: fullName,
+            company_name: companyName,
+            organization_type: organizationType,
+          },
+        },
       })
 
       if (signUpError) {
         setError(signUpError.message)
+      } else if (data.session) {
+        router.replace('/dashboard')
+        router.refresh()
       } else {
         setSuccess(true)
-        router.push('/dashboard')
       }
     })
   }
@@ -61,7 +79,8 @@ export function SignupForm() {
           lineHeight: 1.5,
         }}
       >
-        Account created. Check your email to confirm your address before signing in.
+        Account created. Check your email to confirm your address. Your guided
+        workspace setup continues after confirmation.
       </div>
     )
   }
@@ -79,6 +98,69 @@ export function SignupForm() {
       className="auth-form"
     >
       <div className="auth-field">
+        <label htmlFor="fullName" className="auth-label">
+          Your name
+        </label>
+        <input
+          id="fullName"
+          name="fullName"
+          type="text"
+          autoComplete="name"
+          required
+          aria-required="true"
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? errorId : undefined}
+          maxLength={120}
+          className="auth-input"
+          placeholder="Juan dela Cruz"
+          autoFocus
+        />
+      </div>
+
+      <div className="auth-field">
+        <label htmlFor="companyName" className="auth-label">
+          Company
+        </label>
+        <input
+          id="companyName"
+          name="companyName"
+          type="text"
+          autoComplete="organization"
+          required
+          aria-required="true"
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? errorId : undefined}
+          maxLength={180}
+          className="auth-input"
+          placeholder="Your company name"
+        />
+      </div>
+
+      <div className="auth-field">
+        <label htmlFor="organizationType" className="auth-label">
+          Business type
+        </label>
+        <select
+          id="organizationType"
+          name="organizationType"
+          required
+          aria-required="true"
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? errorId : undefined}
+          className="auth-input"
+          defaultValue=""
+        >
+          <option disabled value="">Choose one</option>
+          <option value="construction">Construction contractor</option>
+          <option value="developer">Property owner or developer</option>
+          <option value="design-engineering">Design or engineering</option>
+          <option value="supply-manufacturing">Supply or manufacturing</option>
+          <option value="professional-services">Professional services</option>
+          <option value="other">Other project-driven business</option>
+        </select>
+      </div>
+
+      <div className="auth-field">
         <label htmlFor="email" className="auth-label">
           Email address
         </label>
@@ -94,7 +176,6 @@ export function SignupForm() {
           aria-describedby={hasError ? errorId : undefined}
           className="auth-input"
           placeholder="you@company.com"
-          autoFocus
         />
       </div>
 

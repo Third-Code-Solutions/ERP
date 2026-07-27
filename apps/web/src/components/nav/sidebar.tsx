@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
-import { createSupabaseBrowserClient } from '@buildops/auth/client'
-import type { AppRole } from '@buildops/auth'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
+import type { AppRole } from '@third-code-erp/auth'
 import {
   IconDashboard,
   IconProjects,
@@ -29,7 +29,7 @@ import {
   visibleNavSections,
   roleLabel,
   type NavIconKey,
-} from '@/lib/abi/nav-config'
+} from '@/lib/operations/nav-config'
 
 interface SidebarProps {
   user: User
@@ -86,8 +86,8 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
           A
         </div>
         <div className="sidebar-brand-text">
-          <span className="sidebar-brand-name">ABI Ops</span>
-          <span className="sidebar-brand-org">Actuate Builders Inc.</span>
+          <span className="sidebar-brand-name">Third Code ERP</span>
+          <span className="sidebar-brand-org">Third Code Solutions Inc.</span>
         </div>
       </div>
 

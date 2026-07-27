@@ -1,6 +1,6 @@
 import { Inngest } from 'inngest'
 
-export const inngest = new Inngest({ id: 'buildops' })
+export const inngest = new Inngest({ id: 'third-code-erp' })
 
 // =============================================================================
 // CAD parse pipeline
@@ -165,10 +165,10 @@ export const embedBomLineItems = inngest.createFunction(
     }
 
     const count = await step.run('embed-line-items', async () => {
-      const { db } = await import('@buildops/database')
-      const { bomLineItems, embeddings } = await import('@buildops/database/schema')
+      const { db } = await import('@third-code-erp/database')
+      const { bomLineItems, embeddings } = await import('@third-code-erp/database/schema')
       const { eq, and } = await import('drizzle-orm')
-      const { embedBatch } = await import('@buildops/ai')
+      const { embedBatch } = await import('@third-code-erp/ai')
 
       const lines = await db
         .select()

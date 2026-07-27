@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { boms, bomLineItems } from '@buildops/database/schema'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { boms, bomLineItems } from '@third-code-erp/database/schema'
 import {
   lineTotal as calcLineTotal,
   computeGP,
   computeGPMargin,
-} from '@buildops/shared-types/bom'
+} from '@third-code-erp/shared-types/bom'
 import { writeAuditLog } from '@/lib/audit'
 
 /**

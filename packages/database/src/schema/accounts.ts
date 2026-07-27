@@ -4,7 +4,7 @@ import { users } from './users'
 import { kycStatusEnum, accountIndustryEnum } from './enums'
 
 // REFACTOR.md M1 US-001 — Account is the top-level commercial entity in
-// ABI Ops. An Account holds the client/company record; opportunities and
+// Third Code ERP. An Account holds the client/company record; opportunities and
 // projects hang off it. KYC fields live on the account so Finance can
 // gate the pipeline.
 export const accounts = pgTable(
@@ -30,6 +30,10 @@ export const accounts = pgTable(
     created_by: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex('ux_accounts_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     tenantIdx: index('idx_accounts_tenant_id').on(table.tenant_id),
     tenantKycIdx: index('idx_accounts_tenant_kyc').on(table.tenant_id, table.kyc_status),
     tenantNameIdx: uniqueIndex('idx_accounts_tenant_name').on(table.tenant_id, table.name),

@@ -1,15 +1,23 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, desc, eq, inArray, sum } from 'drizzle-orm'
-import { getUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { boms, costEntries, projects, purchaseOrders } from '@buildops/database/schema'
+import { getUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import {
+  boms,
+  costCodes,
+  costEntries,
+  projectBudgets,
+  projects,
+  purchaseOrders,
+} from '@third-code-erp/database/schema'
 import {
   computeProjectCostSnapshot,
   computeCategoryRollup,
   COST_CATEGORIES,
   type CostCategory,
-} from '@buildops/shared-types/cost'
+} from '@third-code-erp/shared-types/cost'
 import { GpErosionBadge } from '@/components/cost/gp-erosion-badge'
 import { CostEntryForm } from '@/components/cost/cost-entry-form'
 import { CostTable, type CostRow } from '@/components/cost/cost-table'
@@ -53,6 +61,21 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
     .orderBy(desc(boms.version))
     .limit(1)
 
+  const [approvedBudget] = await db
+    .select({
+      total_budget_cents: projectBudgets.total_budget_cents,
+      revision: projectBudgets.revision,
+    })
+    .from(projectBudgets)
+    .where(
+      and(
+        eq(projectBudgets.project_id, id),
+        eq(projectBudgets.tenant_id, profile.tenantId),
+        eq(projectBudgets.status, 'approved')
+      )
+    )
+    .limit(1)
+
   const [poSum] = await db
     .select({ total: sum(purchaseOrders.total_cents) })
     .from(purchaseOrders)
@@ -78,9 +101,26 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
     .where(and(eq(costEntries.project_id, id), eq(costEntries.tenant_id, profile.tenantId)))
     .orderBy(desc(costEntries.incurred_at))
 
+  const activeCostCodes = await db
+    .select({
+      id: costCodes.id,
+      code: costCodes.code,
+      name: costCodes.name,
+      category: costCodes.category,
+    })
+    .from(costCodes)
+    .where(
+      and(
+        eq(costCodes.tenant_id, profile.tenantId),
+        eq(costCodes.is_active, true)
+      )
+    )
+    .orderBy(costCodes.code)
+
   const actualCents = entries.reduce((acc, e) => acc + e.amount_cents, 0)
   const snapshot = computeProjectCostSnapshot({
-    budgetCents: latestBom?.total_cost_cents ?? 0,
+    budgetCents:
+      approvedBudget?.total_budget_cents ?? latestBom?.total_cost_cents ?? 0,
     committedCents: Number(poSum?.total ?? 0),
     actualCents,
     bomTcvCents: latestBom?.tcv_cents ?? 0,
@@ -105,7 +145,14 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
   const variancePositive = snapshot.budgetVarianceCents >= 0
 
   const kpis = [
-    { label: 'BOM Budget', value: php(snapshot.budgetCents), tone: 'plain' as const },
+    {
+      label: approvedBudget ? 'Approved Budget' : 'BOM Estimate',
+      value: php(snapshot.budgetCents),
+      tone: 'plain' as const,
+      note: approvedBudget
+        ? `Controlled revision ${approvedBudget.revision}`
+        : 'No approved Project Budget',
+    },
     { label: 'PO Committed', value: php(snapshot.committedCents), tone: 'plain' as const },
     { label: 'Actual Cost', value: php(snapshot.actualCents), tone: 'plain' as const },
     {
@@ -126,6 +173,15 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
           </p>
         </div>
         <GpErosionBadge bps={snapshot.gpErosionBps} />
+      </div>
+
+      <div className="finance-header-actions">
+        <Link
+          className="finance-primary-link"
+          href={`/projects/${id}/cost/budget`}
+        >
+          Budget Control
+        </Link>
       </div>
 
       <div className="cost-kpis">
@@ -162,7 +218,9 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
         <div className="card">
           <div className="card-header">
             <h3 className="card-title">Cost log</h3>
-            {canRecord && <CostEntryForm projectId={id} />}
+            {canRecord && (
+              <CostEntryForm projectId={id} costCodes={activeCostCodes} />
+            )}
           </div>
           <CostTable entries={rows} projectId={id} canRecord={canRecord} />
         </div>

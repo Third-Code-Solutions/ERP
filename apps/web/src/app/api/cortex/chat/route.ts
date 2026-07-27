@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { getUserProfile } from '@buildops/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import {
   searchCortexNodes,
   searchCortexNodesByTerms,
@@ -7,18 +7,19 @@ import {
   getCortexGraphStats,
   createCortexConversation,
   appendCortexMessage,
+  ownsCortexConversation,
   cortexKeywordAnswer,
-} from '@buildops/database'
-import { getOpenAI, embedText } from '@buildops/ai'
+} from '@third-code-erp/database'
+import { getOpenAI, embedText } from '@third-code-erp/ai'
 import { writeAuditLog } from '@/lib/audit'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
-import { roleLabel } from '@/lib/abi/nav-config'
+import { roleLabel } from '@/lib/operations/nav-config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
 /**
- * POST /api/cortex/chat — the BuildOps AI Brain (Atlas).
+ * POST /api/cortex/chat — the Third Code ERP AI Brain (Cortex).
  *
  * A tenant-scoped, graph-grounded agent. It is fed the caller's Cortex graph
  * (tenant-scoped at the source — it can never see another tenant's records),
@@ -40,6 +41,17 @@ export async function POST(req: NextRequest) {
   // store the incoming user turn now; the assistant turn is stored once the
   // stream completes. Best-effort — never block the chat on a write.
   let conversationId = incomingConvId ?? null
+  if (
+    conversationId &&
+    !(await ownsCortexConversation(
+      profile.tenantId,
+      profile.user.id,
+      conversationId
+    ))
+  ) {
+    return new Response('Conversation not found', { status: 404 })
+  }
+
   try {
     if (!conversationId) {
       conversationId = await createCortexConversation(
@@ -49,7 +61,13 @@ export async function POST(req: NextRequest) {
       )
     }
     if (lastUserMessage) {
-      await appendCortexMessage(profile.tenantId, conversationId, 'user', lastUserMessage)
+      await appendCortexMessage(
+        profile.tenantId,
+        profile.user.id,
+        conversationId,
+        'user',
+        lastUserMessage
+      )
     }
   } catch (err) {
     console.error('[cortex/chat] persist user turn failed:', err)
@@ -89,7 +107,7 @@ export async function POST(req: NextRequest) {
     console.error('[cortex/chat] semantic retrieval skipped:', err)
   }
 
-  const systemPrompt = `You are Cortex, the AI Brain for BuildOps, a construction ERP for Philippine MEP contractors.
+  const systemPrompt = `You are Cortex, the AI Brain for Third Code ERP, a construction ERP for Philippine MEP contractors.
 You see the user's company knowledge graph — a permissioned, live mirror of ERP records. Answer using the records below.
 
 ACCESS: You are answering a "${roleLabel(profile.role)}" user. ${
@@ -186,6 +204,7 @@ ${records || '(no records visible)'}`
         try {
           await appendCortexMessage(
             profile.tenantId,
+            profile.user.id,
             convId,
             'assistant',
             assistant,

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'BOM Portal | ABI Ops',
+  title: 'BOM Portal | Third Code ERP',
   robots: { index: false, follow: false },
 }
 
@@ -17,8 +17,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <header className="portal-header">
         <div className="portal-header-inner">
           <div>
-            <p className="portal-eyebrow">Actuate Builders Inc.</p>
-            <h1 className="portal-brand">ABI Ops · Client Portal</h1>
+            <p className="portal-eyebrow">Third Code Solutions Inc.</p>
+            <h1 className="portal-brand">Third Code ERP · Client Portal</h1>
           </div>
           <span className="portal-pill">Secure link</span>
         </div>
@@ -27,7 +27,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <footer className="portal-footer">
         <p>
           This portal is for the named recipient only. If you weren't expecting
-          to receive a Bill of Materials from Actuate Builders Inc., please
+          to receive a Bill of Materials from Third Code Solutions Inc., please
           ignore this link.
         </p>
       </footer>

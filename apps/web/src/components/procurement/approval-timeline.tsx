@@ -1,9 +1,9 @@
 /**
- * ApprovalTimeline — visual stepper for the ABI 3-step PO approval flow
+ * ApprovalTimeline — visual stepper for the 3-step PO approval flow
  * (REFACTOR.md US-Pre-003). Server component — no client interactivity.
  *
  * Renders: Draft → PM → Commercial → SCM → Issued. Completed steps show a
- * checkmark, the current step is highlighted in ABI gold, future steps are
+ * checkmark, the current step is highlighted in Third Code copper, future steps are
  * muted. Per-step approver name + timestamp render below the label when
  * the column has been stamped.
  */
@@ -47,7 +47,7 @@ function statusIndex(status: string): number {
     case 'fully_delivered':
     case 'delivered':
       return 4
-    // Legacy mid-flow values map to the closest ABI step.
+    // Legacy mid-flow values map to the closest current step.
     case 'submitted':
       return 1
     case 'confirmed':

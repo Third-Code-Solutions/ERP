@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, bigint, timestamp, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, integer, bigint, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { boms } from './boms'
 
@@ -28,6 +28,10 @@ export const bomLineItems = pgTable(
   },
   (table) => ({
     tenantIdx: index('idx_bom_line_items_tenant_id').on(table.tenant_id),
+    tenantIdUniqueIdx: uniqueIndex('ux_bom_line_items_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     bomIdx: index('idx_bom_line_items_bom_id').on(table.bom_id),
     parentIdx: index('idx_bom_line_items_parent_id').on(table.parent_id),
   })

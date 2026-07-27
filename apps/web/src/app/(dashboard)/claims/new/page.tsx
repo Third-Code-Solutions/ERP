@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { asc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { projects } from '@buildops/database/schema'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { projects } from '@third-code-erp/database/schema'
 import { ClaimForm } from '@/components/claims/claim-form'
 
 export const metadata: Metadata = { title: 'New progress claim' }

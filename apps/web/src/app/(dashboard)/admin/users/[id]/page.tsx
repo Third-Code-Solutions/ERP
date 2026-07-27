@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { users as usersTable, auditLog } from '@buildops/database/schema'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { users as usersTable, auditLog } from '@third-code-erp/database/schema'
 import { ManageUserPanel } from '@/components/admin/manage-user-panel'
 
 interface PageProps {

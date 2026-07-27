@@ -45,15 +45,15 @@ export async function requireUser() {
   return user
 }
 
-// ABI Ops role taxonomy per REFACTOR.md §2.
+// Third Code ERP role taxonomy per REFACTOR.md §2.
 // Legacy values (owner/estimator/pm) retained for back-compat — they map
-// onto the new ABI roles via ROLE_RANK below.
+// onto the current Third Code ERP roles via ROLE_RANK below.
 export type AppRole =
   // Legacy
   | 'owner'
   | 'estimator'
   | 'pm'
-  // ABI Ops
+  // Third Code ERP
   | 'admin'
   | 'sales'
   | 'commercial'
@@ -111,7 +111,7 @@ export async function requireUserProfile(): Promise<UserProfile> {
 }
 
 // Privilege ladder. Higher = more authority. Legacy roles map onto their
-// ABI Ops equivalents so old data keeps working unchanged.
+// Third Code ERP equivalents so old data keeps working unchanged.
 const ROLE_RANK: Record<AppRole, number> = {
   // Viewer — read-only
   viewer: 0,
@@ -139,11 +139,11 @@ export function hasRole(role: AppRole, minRole: AppRole): boolean {
 }
 
 /**
- * The set of ABI Ops roles permitted to perform the given capability.
+ * The set of Third Code ERP roles permitted to perform the given capability.
  * Mirrors the permission matrix in REFACTOR.md §2. Use in server actions
  * and route guards. Returns true if the role is in the allow-list.
  */
-export type AbiCapability =
+export type ErpCapability =
   | 'account.create'
   | 'account.kyc_review'
   | 'opportunity.create'
@@ -168,8 +168,21 @@ export type AbiCapability =
   | 'admin.system_config'
   // Phase 3 — Cost Tracking (F3.2)
   | 'cost.record'
+  | 'finance.manage'
+  | 'finance.post'
+  | 'finance.issue_invoice'
+  | 'finance.post_supplier_bill'
+  | 'finance.manage_cash'
+  | 'inventory.read'
+  | 'inventory.manage'
+  | 'inventory.post_receipt'
+  | 'inventory.post_movement'
+  | 'budget.read'
+  | 'budget.manage'
+  | 'budget.approve_commercial'
+  | 'budget.approve_finance'
 
-const CAPABILITY_ROLES: Record<AbiCapability, AppRole[]> = {
+const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   // CRM
   'account.create': ['admin', 'owner', 'sales'],
   'account.kyc_review': ['admin', 'owner', 'finance'],
@@ -201,13 +214,51 @@ const CAPABILITY_ROLES: Record<AbiCapability, AppRole[]> = {
   'admin.system_config': ['admin', 'owner'],
   // Cost Tracking — site PMs, commercial and finance record actual spend.
   'cost.record': ['admin', 'owner', 'sd_pm_pe', 'pm', 'commercial', 'finance'],
+  'finance.manage': ['admin', 'owner', 'finance'],
+  'finance.post': ['admin', 'owner', 'finance'],
+  'finance.issue_invoice': ['admin', 'owner', 'finance'],
+  'finance.post_supplier_bill': ['admin', 'owner', 'finance'],
+  'finance.manage_cash': ['admin', 'owner', 'finance'],
+  'inventory.read': [
+    'admin',
+    'owner',
+    'finance',
+    'procurement',
+    'sd_pm_pe',
+    'pm',
+    'commercial',
+  ],
+  'inventory.manage': ['admin', 'owner', 'procurement'],
+  'inventory.post_receipt': ['admin', 'owner', 'finance'],
+  'inventory.post_movement': ['admin', 'owner', 'finance'],
+  'budget.read': [
+    'admin',
+    'owner',
+    'finance',
+    'commercial',
+    'procurement',
+    'sd_pm_pe',
+    'pm',
+    'estimator',
+  ],
+  'budget.manage': [
+    'admin',
+    'owner',
+    'finance',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'estimator',
+  ],
+  'budget.approve_commercial': ['admin', 'owner', 'commercial'],
+  'budget.approve_finance': ['admin', 'owner', 'finance'],
 }
 
-export function can(role: AppRole, capability: AbiCapability): boolean {
+export function can(role: AppRole, capability: ErpCapability): boolean {
   return CAPABILITY_ROLES[capability].includes(role)
 }
 
-export function requireCapability(profile: UserProfile, capability: AbiCapability): void {
+export function requireCapability(profile: UserProfile, capability: ErpCapability): void {
   if (!can(profile.role, capability)) {
     throw new Error(`Forbidden: role "${profile.role}" lacks capability "${capability}"`)
   }

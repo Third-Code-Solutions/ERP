@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { opportunities, projects, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { opportunities, projects, users } from '@third-code-erp/database/schema'
 import { and, eq, desc } from 'drizzle-orm'
-import { formatCentsCompact } from '@buildops/shared-types'
+import { formatCentsCompact } from '@third-code-erp/shared-types'
 import { AddOpportunityForm } from '@/components/pipeline/add-opportunity-form'
 
 export const metadata: Metadata = { title: 'Coverage Pipeline' }

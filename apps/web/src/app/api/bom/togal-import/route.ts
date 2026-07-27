@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, lte, or, gte, isNull, desc, inArray } from 'drizzle-orm'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   boms,
   materialItems,
   rateCards,
   mappingConfig,
-} from '@buildops/database/schema'
-import { parseTogalFile, type TogalRow } from '@/lib/abi/integrations/togal'
+} from '@third-code-erp/database/schema'
+import { parseTogalFile, type TogalRow } from '@/lib/operations/integrations/togal'
 
 /**
  * Togal import preview (REFACTOR.md M3 / US-010).

@@ -2,11 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, eq, isNull } from 'drizzle-orm'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { preConChecklistItems } from '@buildops/database/schema'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { preConChecklistItems } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { startSlaClock, stopSlaClock } from '@/lib/abi/sla-clock'
+import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 
 type ChecklistItemStatus = 'not_started' | 'in_progress' | 'blocked' | 'done'
 

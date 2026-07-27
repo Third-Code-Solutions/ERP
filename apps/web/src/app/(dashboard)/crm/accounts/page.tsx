@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { and, desc, eq, sql } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { accounts, opportunities } from '@buildops/database/schema'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { accounts, opportunities } from '@third-code-erp/database/schema'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Accounts' }

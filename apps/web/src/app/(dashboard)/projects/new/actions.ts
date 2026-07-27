@@ -1,9 +1,9 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { requireUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { projects, users } from '@buildops/database/schema'
+import { requireUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { projects, users } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 

@@ -1,13 +1,13 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { boms, bomLineItems, projects, users, vendors } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { boms, bomLineItems, projects, users, vendors } from '@third-code-erp/database/schema'
 import { and, eq, desc, asc } from 'drizzle-orm'
 import { BomBuilder } from '@/components/bom/bom-builder'
 import { CadDropZone } from '@/components/cad/cad-dropzone'
-import { scopeItems } from '@buildops/database/schema'
+import { scopeItems } from '@third-code-erp/database/schema'
 import { sql } from 'drizzle-orm'
 
 export const metadata: Metadata = { title: 'BOM' }

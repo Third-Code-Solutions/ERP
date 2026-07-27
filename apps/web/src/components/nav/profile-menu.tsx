@@ -3,10 +3,10 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createSupabaseBrowserClient } from '@buildops/auth/client'
-import type { AppRole } from '@buildops/auth'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
+import type { AppRole } from '@third-code-erp/auth'
 import { IconChevronDown, IconSettings, IconLogout, IconUser } from '@/components/ui/icons'
-import { roleLabel, canonicalRole } from '@/lib/abi/nav-config'
+import { roleLabel, canonicalRole } from '@/lib/operations/nav-config'
 
 interface Props {
   email: string

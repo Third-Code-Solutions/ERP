@@ -1,13 +1,13 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq, desc } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   opportunities,
   accounts,
   pprfSubmissions,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { ProposalSubNav } from '@/components/proposal/sub-nav'
 import { PprfForm } from '@/components/proposal/pprf-form'
 import { pprfPayloadSchema } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/schemas'

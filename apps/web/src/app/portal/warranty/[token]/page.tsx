@@ -9,14 +9,14 @@
  */
 
 import { createHash } from 'node:crypto'
-import { db } from '@buildops/database'
-import { warrantyPortalTokens, projects, accounts } from '@buildops/database/schema'
+import { db } from '@third-code-erp/database'
+import { warrantyPortalTokens, projects, accounts } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { submitTicket } from './actions'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Warranty Support | ABI Ops',
+  title: 'Warranty Support | Third Code ERP',
   robots: { index: false, follow: false },
 }
 
@@ -154,8 +154,8 @@ export default async function WarrantyPortalPage({ params, searchParams }: PageP
         </label>
 
         <p className="portal-note">
-          Photos: please email up to 5 images to <code>cx@abi.ph</code> with your
-          reference number after submitting. (Portal upload coming soon.)
+          Photos: send up to 5 images to the service contact provided with your
+          project, with your reference number after submitting.
         </p>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

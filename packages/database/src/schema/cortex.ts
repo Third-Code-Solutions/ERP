@@ -16,7 +16,7 @@ import { tenants } from './tenants'
 import { users } from './users'
 
 // -----------------------------------------------------------------------------
-// Cortex graph substrate (BUILDOPS_IMPLEMENTATION_PROMPT §5, Appendix B).
+// Cortex graph substrate (THIRD_CODE_ERP_IMPLEMENTATION_PROMPT §5, Appendix B).
 //
 // The canonical data lives in the ERP tables (single source of truth). These
 // three tables are a DERIVED, permissioned, queryable projection kept live by
@@ -76,6 +76,23 @@ export const cortexNodeTypeEnum = pgEnum('cortex_node_type', [
   'change_request',
   'material',
   'weekly_report',
+  // Finance projection
+  'fiscal_period',
+  'ledger_account',
+  'journal_entry',
+  'journal_line',
+  'supplier_bill',
+  'cash_account',
+  'cash_transaction',
+  'bank_statement',
+  // Inventory projection
+  'warehouse',
+  'stock_receipt',
+  'stock_ledger_entry',
+  // Cost control projection
+  'cost_code',
+  'project_budget',
+  'stock_movement',
 ])
 
 // Edge type catalog — Appendix B.

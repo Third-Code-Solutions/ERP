@@ -1,16 +1,16 @@
 import type { Metadata } from 'next'
 import { and, desc, eq } from 'drizzle-orm'
-import { db } from '@buildops/database'
+import { db } from '@third-code-erp/database'
 import {
   invoices,
   progressClaims,
   projects,
   accounts,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import {
   findActiveCustomerSession,
   logCustomerView,
-} from '@/lib/abi/customer-portal'
+} from '@/lib/operations/customer-portal'
 
 export const metadata: Metadata = {
   title: 'Project billing',
@@ -93,7 +93,7 @@ export default async function PortalProjectBillingPage({
     return (
       <PortalStatus
         title="Link expired or invalid"
-        body="This portal link doesn't match an active project, has expired, or has been revoked. Please ask your ABI contact to send a new one."
+        body="This portal link doesn't match an active project, has expired, or has been revoked. Please ask your project contact to send a new one."
       />
     )
   }

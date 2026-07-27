@@ -1,8 +1,11 @@
-import { pgTable, uuid, varchar, text, bigint, integer, timestamp, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, bigint, integer, timestamp, index, foreignKey } from 'drizzle-orm/pg-core'
 import { costCategoryEnum, costSourceEnum } from './enums'
 import { tenants } from './tenants'
 import { projects } from './projects'
 import { users } from './users'
+import { bomLineItems } from './bom-line-items'
+import { poLineItems } from './po-line-items'
+import { costCodes } from './budgets'
 
 // Phase 3 / F3.2 — Cost Tracking. The actual cost incurred on a project, the
 // third leg of the execution triangle: BOM (budget) → POs (committed) →
@@ -17,6 +20,7 @@ export const costEntries = pgTable(
     // Optional tie to a BOM line (line-level variance) / PO line (future auto-ingest).
     bom_line_item_id: uuid('bom_line_item_id'),
     po_line_item_id: uuid('po_line_item_id'),
+    cost_code_id: uuid('cost_code_id'),
     created_by: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     cost_category: costCategoryEnum('cost_category').notNull(),
     cost_source: costSourceEnum('cost_source').notNull().default('manual'),
@@ -34,6 +38,31 @@ export const costEntries = pgTable(
   (table) => ({
     tenantIdx: index('idx_cost_entries_tenant_id').on(table.tenant_id),
     projectIdx: index('idx_cost_entries_project_id').on(table.project_id),
+    bomLineItemIdx: index('idx_cost_entries_bom_line_item_id').on(
+      table.bom_line_item_id
+    ),
+    poLineItemIdx: index('idx_cost_entries_po_line_item_id').on(
+      table.po_line_item_id
+    ),
+    costCodeIdx: index('idx_cost_entries_cost_code').on(
+      table.tenant_id,
+      table.cost_code_id
+    ),
+    bomLineTenantFk: foreignKey({
+      columns: [table.tenant_id, table.bom_line_item_id],
+      foreignColumns: [bomLineItems.tenant_id, bomLineItems.id],
+      name: 'cost_entries_bom_line_tenant_fk',
+    }).onDelete('restrict'),
+    poLineTenantFk: foreignKey({
+      columns: [table.tenant_id, table.po_line_item_id],
+      foreignColumns: [poLineItems.tenant_id, poLineItems.id],
+      name: 'cost_entries_po_line_tenant_fk',
+    }).onDelete('restrict'),
+    costCodeTenantFk: foreignKey({
+      columns: [table.tenant_id, table.cost_code_id],
+      foreignColumns: [costCodes.tenant_id, costCodes.id],
+      name: 'cost_entries_cost_code_tenant_fk',
+    }).onDelete('restrict'),
     tenantCategoryIdx: index('idx_cost_entries_tenant_category').on(table.tenant_id, table.cost_category),
     incurredIdx: index('idx_cost_entries_incurred').on(table.tenant_id, table.incurred_at),
   })

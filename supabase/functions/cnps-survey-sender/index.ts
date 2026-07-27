@@ -66,13 +66,13 @@ function buildSurveyEmail(args: {
     `Open the survey: ${args.surveyUrl}`,
     ``,
     `Thank you,`,
-    `BuildOps Customer Experience`,
+    `Third Code ERP Customer Experience`,
   ].join('\n')
   const html = `
     <p>${greeting}</p>
     <p>Thanks for letting us close out service ticket <strong>${args.ticketNumber}</strong>. We would love a quick rating on how the experience went — it takes under a minute.</p>
     <p><a href="${args.surveyUrl}">Open the survey</a></p>
-    <p>Thank you,<br/>BuildOps Customer Experience</p>
+    <p>Thank you,<br/>Third Code ERP Customer Experience</p>
   `.trim()
   return { subject, html, text }
 }
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     const portalBase =
       Deno.env.get('PUBLIC_CNPS_BASE_URL') ??
       Deno.env.get('PUBLIC_APP_URL') ??
-      'https://app.buildops.dev'
+      'https://thirdcode-erp.vercel.app'
 
     for (const ticket of closedTickets) {
       summary.processed += 1

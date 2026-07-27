@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { requireUserProfile, can } from '@buildops/auth'
+import { requireUserProfile, can } from '@third-code-erp/auth'
 import { redirect } from 'next/navigation'
 import { NewAccountForm } from '@/components/accounts/new-account-form'
 

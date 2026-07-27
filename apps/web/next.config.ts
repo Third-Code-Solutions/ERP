@@ -2,8 +2,14 @@ import type { NextConfig } from 'next'
 import path from 'node:path'
 
 const config: NextConfig = {
-  transpilePackages: ['@buildops/auth', '@buildops/database', '@buildops/shared-types'],
+  transpilePackages: ['@third-code-erp/auth', '@third-code-erp/database', '@third-code-erp/shared-types'],
   outputFileTracingRoot: path.join(__dirname, '../../'),
+  experimental: {
+    // CSV is capped at 2 MB before decoding; base64 transport adds ~33%.
+    serverActions: {
+      bodySizeLimit: '3mb',
+    },
+  },
 
   // Large, server-only parsers used by the scope-extraction pipeline.
   // Keeping them external lets Next.js skip bundling, and lets Vercel's

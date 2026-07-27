@@ -2,13 +2,23 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { alias } from 'drizzle-orm/pg-core'
-import { getUser, getUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { poLineItems, projects, purchaseOrders, users, vendors } from '@buildops/database/schema'
-import { and, asc, eq } from 'drizzle-orm'
+import { can, getUser, getUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import {
+  costCodes,
+  poLineItems,
+  projectBudgets,
+  projects,
+  purchaseOrders,
+  supplierBills,
+  users,
+  vendors,
+} from '@third-code-erp/database/schema'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { PoStatusActions } from './po-status-actions'
 import { ApprovalTimeline } from '@/components/procurement/approval-timeline'
 import { ReceiveLineForm } from '@/components/procurement/receive-line-form'
+import { CostCodeAssignment } from '@/components/procurement/cost-code-assignment'
 
 export const metadata: Metadata = { title: 'Purchase Order' }
 
@@ -19,7 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
   partial_delivery: 'Partial Delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
-  // ABI 3-step approval flow
+  // Three-step approval flow
   pending_pm_approval: 'Pending PM Approval',
   pending_commercial_approval: 'Pending Commercial Approval',
   pending_scm_issuance: 'Pending SCM Issuance',
@@ -45,6 +55,15 @@ const STATUS_COLORS: Record<string, string> = {
 
 function formatPHP(cents: number): string {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+interface PoBudgetControlRow extends Record<string, unknown> {
+  cost_code_id: string
+  code: string
+  name: string
+  baseline_cents: number
+  current_po_cents: number
+  other_committed_cents: number
 }
 
 export default async function PoDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -78,6 +97,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
       project_name: projects.name,
       project_id: purchaseOrders.project_id,
       vendor_name: vendors.name,
+      vendor_id: purchaseOrders.vendor_id,
       vendor_contact: vendors.contact_name,
       vendor_email: vendors.email,
       vendor_phone: vendors.phone,
@@ -100,11 +120,144 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
 
   if (!po) return notFound()
 
-  const lines = await db
+  const [lines, costCodeRows] = await Promise.all([
+    db
     .select()
     .from(poLineItems)
     .where(and(eq(poLineItems.po_id, id), eq(poLineItems.tenant_id, userRow.tenant_id)))
-    .orderBy(asc(poLineItems.sort_order))
+    .orderBy(asc(poLineItems.sort_order)),
+    db
+      .select({
+        id: costCodes.id,
+        code: costCodes.code,
+        name: costCodes.name,
+      })
+      .from(costCodes)
+      .where(
+        and(
+          eq(costCodes.tenant_id, userRow.tenant_id),
+          eq(costCodes.is_active, true)
+        )
+      )
+      .orderBy(costCodes.code),
+  ])
+
+  const canManagePayables = profile
+    ? can(profile.role, 'finance.post_supplier_bill')
+    : false
+  const payableRows = canManagePayables
+    ? await db
+        .select({
+          id: supplierBills.id,
+          vendorBillNumber: supplierBills.vendor_bill_number,
+          internalNumber: supplierBills.internal_number,
+          status: supplierBills.status,
+          billDate: supplierBills.bill_date,
+          totalPayableCents: supplierBills.total_payable_cents,
+        })
+        .from(supplierBills)
+        .where(
+          and(
+            eq(supplierBills.purchase_order_id, po.id),
+            eq(supplierBills.tenant_id, userRow.tenant_id)
+          )
+        )
+        .orderBy(desc(supplierBills.bill_date))
+    : []
+  const [approvedBudget] = po.project_id
+    ? await db
+        .select({
+          id: projectBudgets.id,
+          controlMode: projectBudgets.control_mode,
+          toleranceBps: projectBudgets.commitment_tolerance_bps,
+          currency: projectBudgets.currency,
+          revision: projectBudgets.revision,
+        })
+        .from(projectBudgets)
+        .where(
+          and(
+            eq(projectBudgets.tenant_id, userRow.tenant_id),
+            eq(projectBudgets.project_id, po.project_id),
+            eq(projectBudgets.status, 'approved')
+          )
+        )
+        .limit(1)
+    : []
+  const rawBudgetControlRows =
+    approvedBudget && po.project_id
+      ? await db.execute<PoBudgetControlRow>(sql`
+          with current_po as (
+            select
+              line.cost_code_id,
+              sum(line.line_total_cents)::bigint as amount_cents
+            from public.po_line_items line
+            where line.tenant_id = ${userRow.tenant_id}::uuid
+              and line.po_id = ${po.id}::uuid
+            group by line.cost_code_id
+          ),
+          other_commitment as (
+            select
+              line.cost_code_id,
+              sum(line.line_total_cents)::bigint as amount_cents
+            from public.po_line_items line
+            join public.purchase_orders purchase_order
+              on purchase_order.id = line.po_id
+             and purchase_order.tenant_id = line.tenant_id
+            where line.tenant_id = ${userRow.tenant_id}::uuid
+              and purchase_order.project_id = ${po.project_id}::uuid
+              and purchase_order.id <> ${po.id}::uuid
+              and purchase_order.status::text in (
+                'confirmed',
+                'issued',
+                'partial_delivery',
+                'partial_delivered',
+                'delivered',
+                'fully_delivered'
+              )
+            group by line.cost_code_id
+          )
+          select
+            budget_line.cost_code_id,
+            cost_code.code,
+            cost_code.name,
+            budget_line.amount_cents::bigint as baseline_cents,
+            coalesce(current_po.amount_cents, 0)::bigint as current_po_cents,
+            coalesce(other_commitment.amount_cents, 0)::bigint
+              as other_committed_cents
+          from public.project_budget_lines budget_line
+          join public.cost_codes cost_code
+            on cost_code.id = budget_line.cost_code_id
+           and cost_code.tenant_id = budget_line.tenant_id
+          left join current_po
+            on current_po.cost_code_id = budget_line.cost_code_id
+          left join other_commitment
+            on other_commitment.cost_code_id = budget_line.cost_code_id
+          where budget_line.tenant_id = ${userRow.tenant_id}::uuid
+            and budget_line.project_budget_id = ${approvedBudget.id}::uuid
+            and (
+              coalesce(current_po.amount_cents, 0) <> 0
+              or coalesce(other_commitment.amount_cents, 0) <> 0
+            )
+          order by cost_code.code
+        `)
+      : []
+  const budgetControlRows = rawBudgetControlRows.map((row) => ({
+    ...row,
+    baseline_cents: Number(row.baseline_cents),
+    current_po_cents: Number(row.current_po_cents),
+    other_committed_cents: Number(row.other_committed_cents),
+  }))
+  const canStartSupplierBill =
+    canManagePayables &&
+    !!po.vendor_id &&
+    [
+      'confirmed',
+      'issued',
+      'partial_delivery',
+      'partial_delivered',
+      'delivered',
+      'fully_delivered',
+    ].includes(po.status)
 
   return (
     <div>
@@ -169,7 +322,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      {/* ABI 3-step approval timeline */}
+      {/* Three-step approval timeline */}
       <div style={{ marginBottom: '16px' }}>
         <ApprovalTimeline
           status={po.status}
@@ -267,7 +420,182 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
+      {canManagePayables && (
+        <div
+          style={{
+            background: 'white',
+            border: '1px solid var(--color-border)',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            marginBottom: '24px',
+          }}
+        >
+          <div
+            style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--color-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+            }}
+          >
+            <div>
+              <h2
+                style={{
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  color: 'var(--color-neutral-800)',
+                  margin: 0,
+                }}
+              >
+                Matched supplier bills ({payableRows.length})
+              </h2>
+              <p
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--color-neutral-500)',
+                  margin: '4px 0 0',
+                }}
+              >
+                Purchase Order is commitment evidence. Only posted bills create
+                payables.
+              </p>
+            </div>
+            {canStartSupplierBill && (
+              <Link
+                href={`/finance/payables/new?po=${po.id}`}
+                className="finance-primary-link"
+              >
+                Match supplier bill
+              </Link>
+            )}
+          </div>
+          {payableRows.length === 0 ? (
+            <div
+              style={{
+                padding: '24px 20px',
+                color: 'var(--color-neutral-500)',
+                fontSize: '0.875rem',
+              }}
+            >
+              No supplier bill has been matched to this Purchase Order.
+            </div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Bill</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th className="numeric">Payable</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payableRows.map((bill) => (
+                  <tr key={bill.id}>
+                    <td>
+                      <Link href={`/finance/payables/${bill.id}`}>
+                        {bill.internalNumber ?? bill.vendorBillNumber}
+                      </Link>
+                    </td>
+                    <td>{bill.billDate}</td>
+                    <td>
+                      <span
+                        className={`finance-status finance-status-${bill.status}`}
+                      >
+                        {bill.status}
+                      </span>
+                    </td>
+                    <td className="numeric">
+                      {formatPHP(bill.totalPayableCents)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
       {/* Line items */}
+      {po.project_id && (
+        <div className="budget-panel" style={{ marginBottom: 16 }}>
+          <div className="budget-panel-heading">
+            <div>
+              <p className="finance-eyebrow">Commitment control</p>
+              <h2>
+                {approvedBudget
+                  ? `Budget revision ${approvedBudget.revision}`
+                  : 'No approved Project Budget'}
+              </h2>
+            </div>
+            <p>
+              {approvedBudget
+                ? `${approvedBudget.controlMode} mode · ${(approvedBudget.toleranceBps / 100).toFixed(2)}% tolerance`
+                : 'This Purchase Order is not checked against a controlled baseline.'}
+              {' '}
+              <Link href={`/projects/${po.project_id}/cost/budget`}>
+                Open Budget Control
+              </Link>
+            </p>
+          </div>
+          {approvedBudget && (
+            <div className="finance-table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Cost Code</th>
+                    <th className="numeric">Baseline</th>
+                    <th className="numeric">Other committed</th>
+                    <th className="numeric">This PO</th>
+                    <th className="numeric">Remaining</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {budgetControlRows.map((row) => {
+                    const limit =
+                      row.baseline_cents +
+                      Math.round(
+                        (row.baseline_cents * approvedBudget.toleranceBps) /
+                          10_000
+                      )
+                    const remaining =
+                      limit -
+                      row.other_committed_cents -
+                      row.current_po_cents
+                    return (
+                      <tr key={row.cost_code_id}>
+                        <td>
+                          <strong>{row.code}</strong>
+                          <span className="finance-cell-detail">{row.name}</span>
+                        </td>
+                        <td className="numeric">
+                          {formatPHP(row.baseline_cents)}
+                        </td>
+                        <td className="numeric">
+                          {formatPHP(row.other_committed_cents)}
+                        </td>
+                        <td className="numeric">
+                          {formatPHP(row.current_po_cents)}
+                        </td>
+                        <td
+                          className={`numeric ${
+                            remaining < 0 ? 'budget-negative-text' : ''
+                          }`}
+                        >
+                          {formatPHP(remaining)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       <div
         style={{
           background: 'white',
@@ -290,7 +618,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
             <thead>
               <tr style={{ background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)' }}>
-                {['#', 'Code', 'Description', 'Qty', 'Unit', 'Unit Cost', 'Line Total', 'Received'].map((h, i) => (
+                {['#', 'Item', 'Description', 'Cost Code', 'Qty', 'Unit', 'Unit Cost', 'Line Total', 'Received'].map((h, i) => (
                   <th
                     key={h}
                     style={{
@@ -321,6 +649,14 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                   <td style={{ padding: '10px 16px', color: 'var(--color-neutral-800)', fontWeight: 500 }}>
                     {line.description}
                   </td>
+                  <td style={{ padding: '10px 16px' }}>
+                    <CostCodeAssignment
+                      lineId={line.id}
+                      currentId={line.cost_code_id}
+                      editable={po.status === 'draft'}
+                      codes={costCodeRows}
+                    />
+                  </td>
                   <td style={{ padding: '10px 16px', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace' }}>
                     {line.quantity.toLocaleString()}
                   </td>
@@ -335,7 +671,6 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
                   </td>
                   <td style={{ padding: '10px 16px', textAlign: 'right' }}>
                     <ReceiveLineForm
-                      lineId={line.id}
                       quantity={line.quantity}
                       receivedQty={line.received_qty}
                       disabled={po.status === 'cancelled'}
@@ -346,7 +681,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
             </tbody>
             <tfoot>
               <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-neutral-50)' }}>
-                <td colSpan={6} style={{ padding: '12px 16px', fontWeight: 700, fontSize: '0.875rem', color: 'var(--color-neutral-700)', textAlign: 'right' }}>
+                <td colSpan={7} style={{ padding: '12px 16px', fontWeight: 700, fontSize: '0.875rem', color: 'var(--color-neutral-700)', textAlign: 'right' }}>
                   Total
                 </td>
                 <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', color: 'var(--color-neutral-900)' }}>

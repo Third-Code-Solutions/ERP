@@ -10,7 +10,7 @@ export default function SignupPage() {
       <header className="auth-form-header">
         <h1 className="auth-form-title">Create your account</h1>
         <p className="auth-form-sub">
-          Start your trial of ABI Ops. No card required.
+          Tell us who you are setting up. No card required.
         </p>
       </header>
 

@@ -4,6 +4,7 @@ export * from './opportunities'
 export * from './accounts'
 export * from './bom/schemas'
 export * from './audit/hash-chain'
+export * from './erp-api/projects'
 // BOM calculations exported via './bom' subpath to avoid BasisPoints conflict
 export {
   lineTotal,

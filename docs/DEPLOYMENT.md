@@ -1,6 +1,6 @@
 # Deployment
 
-This guide walks through bringing ABI Ops from an empty cloud account to
+This guide walks through bringing Third Code ERP from an empty cloud account to
 a working production stack. The platform spans four hosted services:
 
 | Service | What it runs | Why |
@@ -69,7 +69,7 @@ provisioned when their feature is enabled.
 ## 3. Inngest
 
 1. Create an Inngest app at `app.inngest.com`. The app id is
-   `abi-ops` (configured in `apps/web/src/lib/inngest.ts`).
+   `third-code-erp` (configured in `apps/web/src/lib/inngest.ts`).
 2. Under `Manage → Event Keys`, copy the production key into Vercel as
    `INNGEST_EVENT_KEY`.
 3. Under `Manage → Signing Key`, copy the signing key into Vercel as
@@ -120,25 +120,17 @@ envelope flow.
 
 ## Migration Order
 
-Apply in this exact order — later files depend on earlier objects:
+`supabase/migrations` is the only ordered deployment authority. Never maintain
+or apply a second manual migration list. The PostgreSQL 17 reproducibility job
+rebuilds the database from zero, requires every database test to execute, and
+asserts an empty schema diff.
 
-```text
-20260509164536_initial_schema.sql
-20260509164537_rls_policies.sql
-20260509164538_audit_triggers.sql
-20260509173356_storage_buckets.sql
-20260509173415_pgvector.sql
-20260510120000_harden_loop.sql
-20260510140000_phase14_polish.sql
-20260512100000_abi_ops_phase_0.sql
-20260512110000_abi_ops_phase_2_to_8.sql
-20260512120000_abi_ops_8_stages.sql
-20260512130000_abi_po_approval.sql
-20260512140000_signature_sessions.sql
-```
-
-`supabase db push` enforces this ordering by filename. After every
-migration, run `supabase db lint` to confirm no policy drift.
+The authorized Supabase target was reconciled on 2026-07-28 and now reports
+44/44 repository migrations, no unexpected versions, and a green protected
+catalog verifier. Future releases still require the read-only planner,
+reviewed SQL, backup/rollback evidence, and the procedure in
+[`database-release.md`](runbooks/database-release.md). Never use hosted
+`db reset` or ad hoc `migration repair`.
 
 ---
 
@@ -167,7 +159,8 @@ After every production deploy, hit these endpoints in order:
 | URL | Expected |
 |---|---|
 | `GET /` | 200; sign-in screen renders |
-| `GET /api/health` | `{"ok": true, "db": "up"}` |
+| `GET /api/health` | Process liveness: `{"ok": true, "service": "third-code-erp-web"}` |
+| `GET /api/ready` | Database readiness: `{"ok": true, "database": "up"}` |
 | `POST /api/webhooks/inngest` (from Inngest dashboard) | 200 with registered functions list |
 | `GET /(dashboard)/dashboard` | KPI cards load within 2s |
 | `GET /(dashboard)/crm/accounts` | Accounts table renders |
@@ -186,16 +179,14 @@ Vercel keeps every deployment immutable. To roll back:
 2. Find the last known-good deployment.
 3. Click `Promote to Production`.
 
-For database rollbacks, every migration ships with a paired `down`
-script in the same file under a `-- DOWN` comment. To revert the most
-recent migration:
+The migration ledger does not provide reliable paired down scripts. Never run
+`supabase db reset --linked` against a hosted environment.
 
-```bash
-supabase db reset --linked  # only in staging; never run on prod
-```
-
-For production, write a forward-only fix migration. Never roll the prod
-database backward — the audit log hash chain will break.
+For a fully understood additive defect with intact data, use a reviewed
+forward-only fix migration. For destructive, uncertain, or integrity-affecting
+outcomes, restore the recorded pre-release backup/PITR point and expect
+downtime. Database restore does not restore deleted Storage objects. Follow
+[`database-release.md`](runbooks/database-release.md).
 
 ---
 

@@ -1,5 +1,5 @@
 -- =============================================================================
--- BuildOps Audit Log Triggers
+-- Third Code ERP Audit Log Triggers
 -- Automatically inserts into audit_log on mutations to tracked tables.
 -- Hash chain integrity is maintained at the application layer via
 -- packages/shared-types/src/audit/hash-chain.ts.
@@ -35,7 +35,6 @@ AS $$
   ) changed_keys
   WHERE old_row -> key IS DISTINCT FROM new_row -> key
 $$;
-
 -- =============================================================================
 -- Generic audit trigger function
 -- Called by per-table triggers; uses TG_TABLE_NAME for entity_type.
@@ -114,7 +113,6 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$;
-
 -- =============================================================================
 -- Attach triggers to all tracked tables
 -- =============================================================================
@@ -122,35 +120,28 @@ $$;
 CREATE TRIGGER audit_projects
   AFTER INSERT OR UPDATE OR DELETE ON projects
   FOR EACH ROW EXECUTE FUNCTION audit_log_trigger();
-
 CREATE TRIGGER audit_opportunities
   AFTER INSERT OR UPDATE OR DELETE ON opportunities
   FOR EACH ROW EXECUTE FUNCTION audit_log_trigger();
-
 CREATE TRIGGER audit_boms
   AFTER INSERT OR UPDATE OR DELETE ON boms
   FOR EACH ROW EXECUTE FUNCTION audit_log_trigger();
-
 CREATE TRIGGER audit_bom_line_items
   AFTER INSERT OR UPDATE OR DELETE ON bom_line_items
   FOR EACH ROW EXECUTE FUNCTION audit_log_trigger();
-
 CREATE TRIGGER audit_purchase_orders
   AFTER INSERT OR UPDATE OR DELETE ON purchase_orders
   FOR EACH ROW EXECUTE FUNCTION audit_log_trigger();
-
 CREATE TRIGGER audit_invoices
   AFTER INSERT OR UPDATE OR DELETE ON invoices
   FOR EACH ROW EXECUTE FUNCTION audit_log_trigger();
-
 -- =============================================================================
 -- Enforce append-only on audit_log at the database level
 -- =============================================================================
 CREATE RULE audit_log_no_update AS ON UPDATE TO audit_log DO INSTEAD NOTHING;
 CREATE RULE audit_log_no_delete AS ON DELETE TO audit_log DO INSTEAD NOTHING;
-
 -- =============================================================================
 -- Usage:
 --   psql $DATABASE_URL -f packages/database/src/sql/audit-triggers.sql
 -- Run after Drizzle migrations and RLS policies.
--- =============================================================================
+-- =============================================================================;

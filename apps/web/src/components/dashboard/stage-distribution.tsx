@@ -1,5 +1,5 @@
 import type { StageRow } from '@/lib/dashboard-queries'
-import { formatCentsCompact } from '@buildops/shared-types'
+import { formatCentsCompact } from '@third-code-erp/shared-types'
 
 const STAGE_LABELS: Record<string, string> = {
   opportunity_creation: 'Opportunity Creation',

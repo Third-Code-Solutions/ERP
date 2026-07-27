@@ -5,14 +5,14 @@
 // Used by both the inline upload pipeline (apps/web/src/app/api/upload/complete)
 // and the queued Inngest function (apps/web/src/lib/inngest.ts).
 
-import { db } from '@buildops/database'
-import { boms, bomLineItems, scopeItems } from '@buildops/database/schema'
+import { db } from '@third-code-erp/database'
+import { boms, bomLineItems, scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like, max, sql } from 'drizzle-orm'
 import {
   lineTotal as calcLineTotal,
   computeGP,
   computeGPMargin,
-} from '@buildops/shared-types/bom'
+} from '@third-code-erp/shared-types/bom'
 import { findCatalogPrice, shouldSkipAutoPrice } from './price-catalog'
 
 const DEFAULT_MARKUP_BPS = 3000 // 30%
@@ -126,7 +126,7 @@ export async function calcDraftBomFromScope(
   }> = []
 
   // Lazy-load AI helpers only when we have a key
-  const ai = useRag ? await import('@buildops/ai') : null
+  const ai = useRag ? await import('@third-code-erp/ai') : null
 
   for (const item of scope) {
     let unitCostCents = item.unit_cost_cents

@@ -2,7 +2,7 @@
 
 import crypto from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
-import { db } from '@buildops/database'
+import { db } from '@third-code-erp/database'
 import {
   signatureSessions,
   documents,
@@ -10,9 +10,9 @@ import {
   contracts,
   variationOrders,
   certificatesOfCompletion,
-} from '@buildops/database/schema'
-import { createSupabaseAdminClient } from '@buildops/auth'
-import { hashToken } from '@/lib/abi/integrations/canvas-sign'
+} from '@third-code-erp/database/schema'
+import { createSupabaseAdminClient } from '@third-code-erp/auth'
+import { hashToken } from '@/lib/operations/integrations/canvas-sign'
 import { writeAuditLog } from '@/lib/audit'
 
 interface SignInput {

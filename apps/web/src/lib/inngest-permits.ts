@@ -15,9 +15,9 @@
  */
 
 import { and, eq, lt, notInArray } from 'drizzle-orm'
-import { db } from '@buildops/database'
-import { permits, projects } from '@buildops/database/schema'
-import { notifyRoles } from '@/lib/abi/notifications'
+import { db } from '@third-code-erp/database'
+import { permits, projects } from '@third-code-erp/database/schema'
+import { notifyRoles } from '@/lib/operations/notifications'
 import { inngest } from '@/lib/inngest'
 
 const STALE_THRESHOLD_DAYS = 7

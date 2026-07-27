@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
 import { and, desc, eq, inArray } from 'drizzle-orm'
-import { db } from '@buildops/database'
-import { documents, projects, accounts } from '@buildops/database/schema'
-import { createSupabaseAdminClient } from '@buildops/auth/server'
+import { db } from '@third-code-erp/database'
+import { documents, projects, accounts } from '@third-code-erp/database/schema'
+import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import {
   findActiveCustomerSession,
   logCustomerView,
-} from '@/lib/abi/customer-portal'
+} from '@/lib/operations/customer-portal'
 
 export const metadata: Metadata = {
   title: 'Project documents',
@@ -72,7 +72,7 @@ export default async function PortalProjectDocumentsPage({
     return (
       <PortalStatus
         title="Link expired or invalid"
-        body="This portal link doesn't match an active project, has expired, or has been revoked. Please ask your ABI contact to send a new one."
+        body="This portal link doesn't match an active project, has expired, or has been revoked. Please ask your project contact to send a new one."
       />
     )
   }
@@ -202,7 +202,7 @@ export default async function PortalProjectDocumentsPage({
       {totalCount === 0 ? (
         <EmptyState
           title="No documents yet"
-          body="Once your ABI team uploads contracts, BOMs, invoices, or other project documents, they'll appear here."
+          body="Once your project team uploads contracts, BOMs, invoices, or other project documents, they'll appear here."
         />
       ) : (
         DOC_TYPES.map((type) => {

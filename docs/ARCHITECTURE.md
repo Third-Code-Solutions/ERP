@@ -1,6 +1,6 @@
 # Architecture
 
-ABI Ops is a single Next.js 15 application backed by Supabase, with
+Third Code ERP is a single Next.js 15 application backed by Supabase, with
 Inngest for background work and an optional Python DXF worker on
 Railway. The same Postgres instance carries operational rows, vector
 embeddings, the append-only audit log, and Supabase Auth — every table
@@ -21,7 +21,7 @@ is `tenant_id`-scoped and protected by row-level security.
                     │           │             │
        ┌────────────┴──┐ ┌──────┴───────┐ ┌──┴──────────────────┐
        │ Supabase      │ │ Inngest      │ │ Railway (optional)  │
-       │ - Postgres 16 │ │ - sla.tick   │ │ - dxf-parser        │
+       │ - Postgres 17 │ │ - sla.tick   │ │ - dxf-parser        │
        │ - Auth        │ │ - cadence    │ │ - rag-indexer       │
        │ - Storage     │ │ - warranty   │ └─────────────────────┘
        │ - Realtime    │ │ - permits    │
@@ -87,11 +87,14 @@ never hard-deleted from operational tables.
 | Projects | `projects`, `documents`, `scope_items` | `/projects`, `/projects/[id]` |
 | Proposal Workflow | `proposals`, `site_inspections`, `design_uploads`, `client_changes` | `/crm/opportunities/[id]/proposal` |
 | BOM Engine | `boms`, `bom_lines`, `signature_sessions` | `/bom`, `/projects/[id]/bom`, `/portal/bom/[token]` |
+| Project Cost Control | `cost_codes`, `project_budgets`, `project_budget_lines`, `cost_entries` | `/projects/[id]/cost`, `/projects/[id]/cost/budget` |
 | Procurement | `vendors`, `rfqs`, `purchase_orders`, `po_lines` | `/procurement`, `/purchase-orders` |
+| Inventory | `units_of_measure`, `material_items`, `warehouses`, `stock_receipts`, `stock_receipt_lines`, `stock_movements`, `stock_movement_lines`, `stock_ledger_entries` | `/inventory`, `/inventory/receipts`, `/inventory/receipts/[id]`, `/inventory/movements`, `/inventory/movements/[id]` |
 | Pre-Construction | `permits`, `checklists` | `/permits`, `/projects/[id]/checklist` |
 | Construction Cadence | `tasks`, `variation_orders`, `progress_snapshots` | `/tasks`, `/projects/[id]/progress`, `/projects/[id]/vos` |
 | Post-Construction | `punchlist_items`, `coc`, `turnover_packages` | `/punchlist`, `/projects/[id]/turnover` |
 | Warranty & CX | `warranty_tickets`, `cnps_surveys` | `/warranty`, `/portal/warranty/[token]`, `/portal/cnps/[token]` |
+| Finance | `fiscal_periods`, `ledger_accounts`, `journal_entries`, `journal_lines`, `invoices`, `supplier_bills`, `supplier_bill_lines`, `cash_accounts`, `cash_transactions`, `cash_allocations`, `bank_statements`, `bank_statement_lines` | `/finance`, `/finance/receivables`, `/finance/payables`, `/finance/cash`, `/finance/reconciliation`, `/finance/ledger` |
 | Admin & Reports | `rate_cards`, `material_items`, `mapping_config` | `/admin`, `/reports`, `/dashboard` |
 
 ---

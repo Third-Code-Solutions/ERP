@@ -1,5 +1,5 @@
 /**
- * BuildOps Agent memory store (tenant-scoped). Persists every conversation in
+ * Third Code ERP Agent memory store (tenant-scoped). Persists every conversation in
  * the user's DB so the AI Brain remembers. Drizzle runs as `postgres` (RLS
  * bypassed), so every query filters tenant_id explicitly, and reads also check
  * user ownership — a user only ever sees their own threads.
@@ -29,22 +29,58 @@ export async function createCortexConversation(
 
 export async function appendCortexMessage(
   tenantId: string,
+  userId: string,
   conversationId: string,
   role: Role,
   content: string,
   citations?: unknown
 ): Promise<void> {
-  await db.insert(cortexMessages).values({
-    tenant_id: tenantId,
-    conversation_id: conversationId,
-    role,
-    content,
-    citations: (citations as object) ?? null,
+  await db.transaction(async (tx) => {
+    const [owned] = await tx
+      .select({ id: cortexConversations.id })
+      .from(cortexConversations)
+      .where(
+        and(
+          eq(cortexConversations.tenant_id, tenantId),
+          eq(cortexConversations.id, conversationId),
+          eq(cortexConversations.user_id, userId)
+        )
+      )
+      .limit(1)
+
+    if (!owned) throw new Error('Cortex conversation not found')
+
+    await tx.insert(cortexMessages).values({
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      role,
+      content,
+      citations: (citations as object) ?? null,
+    })
+    await tx
+      .update(cortexConversations)
+      .set({ updated_at: new Date() })
+      .where(eq(cortexConversations.id, owned.id))
   })
-  await db
-    .update(cortexConversations)
-    .set({ updated_at: new Date() })
-    .where(and(eq(cortexConversations.tenant_id, tenantId), eq(cortexConversations.id, conversationId)))
+}
+
+export async function ownsCortexConversation(
+  tenantId: string,
+  userId: string,
+  conversationId: string
+): Promise<boolean> {
+  const [owned] = await db
+    .select({ id: cortexConversations.id })
+    .from(cortexConversations)
+    .where(
+      and(
+        eq(cortexConversations.tenant_id, tenantId),
+        eq(cortexConversations.id, conversationId),
+        eq(cortexConversations.user_id, userId)
+      )
+    )
+    .limit(1)
+  return Boolean(owned)
 }
 
 export async function listCortexConversations(

@@ -7,7 +7,7 @@
  * Predecessor links are drawn as right-angle paths from a predecessor's
  * finish to a successor's start.
  *
- * No charting library. ABI tokens only (navy / gold / neutral).
+ * No charting library. Third Code tokens only (navy / copper / neutral).
  */
 'use client'
 

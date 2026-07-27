@@ -44,7 +44,7 @@ def convert_dwg_to_dxf(dwg_bytes: bytes) -> bytes:
             "Install libredwg-tools (Debian/Ubuntu: apt-get install libredwg-tools)."
         )
 
-    with tempfile.TemporaryDirectory(prefix="buildops-dwg-") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="third-code-erp-dwg-") as tmpdir:
         in_path = os.path.join(tmpdir, "input.dwg")
         out_path = os.path.join(tmpdir, "input.dxf")
 

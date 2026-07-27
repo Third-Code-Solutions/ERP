@@ -12,9 +12,9 @@
 // DXF content under a .dwg extension and vice versa — magic-byte detection
 // catches that and routes correctly.
 
-import { createSupabaseAdminClient } from '@buildops/auth/server'
-import { db } from '@buildops/database'
-import { scopeItems } from '@buildops/database/schema'
+import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
+import { db } from '@third-code-erp/database'
+import { scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
 
 import { extractFromDxfText } from './dxf-extractor'

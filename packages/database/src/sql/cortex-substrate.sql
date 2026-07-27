@@ -1,5 +1,5 @@
 -- =============================================================================
--- Cortex graph substrate — BUILDOPS_IMPLEMENTATION_PROMPT §5 / Appendix B.
+-- Cortex graph substrate — THIRD_CODE_ERP_IMPLEMENTATION_PROMPT §5 / Appendix B.
 --
 -- Additive only. Creates the derived, permissioned, hash-chained projection of
 -- the ERP: cortex_nodes / cortex_edges / cortex_provenance, kept live by

@@ -2,8 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { createSupabaseBrowserClient } from '@buildops/auth/client'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 
 export function LoginForm() {
   const router = useRouter()
@@ -67,14 +66,9 @@ export function LoginForm() {
       </div>
 
       <div className="auth-field">
-        <div className="auth-label-row">
-          <label htmlFor="password" className="auth-label">
-            Password
-          </label>
-          <Link href="#" className="auth-link auth-link-muted">
-            Forgot password?
-          </Link>
-        </div>
+        <label htmlFor="password" className="auth-label">
+          Password
+        </label>
         <div className="auth-input-with-action">
           <input
             id="password"

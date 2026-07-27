@@ -3,13 +3,18 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile, requireCapability } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { costEntries, projects } from '@buildops/database/schema'
+import { requireUserProfile, requireCapability } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import {
+  costCodes,
+  costEntries,
+  projects,
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 
 const createSchema = z.object({
   project_id: z.string().uuid(),
+  cost_code_id: z.string().uuid(),
   cost_category: z.enum(['material', 'labour', 'subcontractor', 'equipment', 'overhead', 'other']),
   description: z.string().min(1).max(500),
   amount_php: z.coerce.number().min(0.01).max(1_000_000_000),
@@ -38,6 +43,7 @@ export async function createCostEntry(formData: FormData): Promise<Result> {
 
     const parsed = createSchema.safeParse({
       project_id: formData.get('project_id'),
+      cost_code_id: formData.get('cost_code_id'),
       cost_category: formData.get('cost_category'),
       description: formData.get('description'),
       amount_php: formData.get('amount_php'),
@@ -61,11 +67,28 @@ export async function createCostEntry(formData: FormData): Promise<Result> {
       .where(and(eq(projects.id, d.project_id), eq(projects.tenant_id, profile.tenantId)))
     if (!proj) return { error: 'Project not found.' }
 
+    const [costCode] = await db
+      .select({ id: costCodes.id, category: costCodes.category })
+      .from(costCodes)
+      .where(
+        and(
+          eq(costCodes.id, d.cost_code_id),
+          eq(costCodes.tenant_id, profile.tenantId),
+          eq(costCodes.is_active, true)
+        )
+      )
+      .limit(1)
+    if (!costCode) return { error: 'Select an active Cost Code.' }
+    if (costCode.category !== d.cost_category) {
+      return { error: 'Cost category must match the selected Cost Code.' }
+    }
+
     const [row] = await db
       .insert(costEntries)
       .values({
         tenant_id: profile.tenantId,
         project_id: d.project_id,
+        cost_code_id: d.cost_code_id,
         created_by: profile.user.id,
         cost_category: d.cost_category,
         cost_source: 'manual',

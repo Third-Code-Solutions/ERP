@@ -1,4 +1,4 @@
-# BuildOps Engineering Conventions
+# Third Code ERP Engineering Conventions
 
 ## Monorepo Layout
 
@@ -13,13 +13,13 @@ packages/config/    Shared tsconfig, eslint config
 
 ## Package Names
 
-All packages use `@buildops/` scope. Import paths:
+All packages use `@third-code-erp/` scope. Import paths:
 
 ```typescript
-import { db } from '@buildops/database'
-import { opportunities } from '@buildops/database/schema'
-import { computeTCV, formatCents } from '@buildops/shared-types'
-import { getUser, requireUser } from '@buildops/auth'
+import { db } from '@third-code-erp/database'
+import { opportunities } from '@third-code-erp/database/schema'
+import { computeTCV, formatCents } from '@third-code-erp/shared-types'
+import { getUser, requireUser } from '@third-code-erp/auth'
 ```
 
 ## Money
@@ -41,7 +41,7 @@ const marginBps = 2000  // 20% margin
 const retentionBps = 1000  // 10% retention
 ```
 
-Display money with `formatCents()` or `formatCentsCompact()` from `@buildops/shared-types`.
+Display money with `formatCents()` or `formatCentsCompact()` from `@third-code-erp/shared-types`.
 
 ## Database
 
@@ -58,10 +58,10 @@ Use the correct Supabase client per context:
 
 | Context | Import | When |
 |---------|--------|------|
-| Server Component / Route Handler | `createSupabaseServerClient()` from `@buildops/auth` | All server-side reads |
-| Server Action | `requireUser()` from `@buildops/auth` | Mutations that need the user |
-| Client Component | `createSupabaseBrowserClient()` from `@buildops/auth/client` | Auth UI, real-time subscriptions |
-| Admin / Background Jobs | `createSupabaseAdminClient()` from `@buildops/auth/admin` | Service role, bypasses RLS |
+| Server Component / Route Handler | `createSupabaseServerClient()` from `@third-code-erp/auth` | All server-side reads |
+| Server Action | `requireUser()` from `@third-code-erp/auth` | Mutations that need the user |
+| Client Component | `createSupabaseBrowserClient()` from `@third-code-erp/auth/client` | Auth UI, real-time subscriptions |
+| Admin / Background Jobs | `createSupabaseAdminClient()` from `@third-code-erp/auth/admin` | Service role, bypasses RLS |
 
 Never use the admin client in route handlers or server actions that accept user input.
 
@@ -83,7 +83,7 @@ await writeAuditLog({
 })
 ```
 
-The audit log is append-only. The hash chain is verified via `verifyHashChain()` in `@buildops/shared-types/audit`.
+The audit log is append-only. The hash chain is verified via `verifyHashChain()` in `@third-code-erp/shared-types/audit`.
 
 ## Server Actions
 
@@ -91,7 +91,7 @@ Always validate input with Zod at the top of every server action:
 
 ```typescript
 'use server'
-import { requireUser } from '@buildops/auth'
+import { requireUser } from '@third-code-erp/auth'
 import { z } from 'zod'
 
 const schema = z.object({ ... })

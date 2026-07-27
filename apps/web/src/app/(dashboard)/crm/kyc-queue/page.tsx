@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { and, eq, desc, sql } from 'drizzle-orm'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { accounts, accountKycArtifacts } from '@buildops/database/schema'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { accounts, accountKycArtifacts } from '@third-code-erp/database/schema'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'KYC Queue' }

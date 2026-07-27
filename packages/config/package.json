@@ -1,5 +1,5 @@
 {
-  "name": "@buildops/config",
+  "name": "@third-code-erp/config",
   "version": "0.1.0",
   "private": true,
   "exports": {

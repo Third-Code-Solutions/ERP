@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { requireUserProfile, can } from '@buildops/auth'
+import { requireUserProfile, can } from '@third-code-erp/auth'
 import { NewUserForm } from '@/components/admin/new-user-form'
 
 export const metadata: Metadata = { title: 'New user' }

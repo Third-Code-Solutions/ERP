@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useState, useTransition } from 'react'
-import { formatCentsCompact } from '@buildops/shared-types'
+import { formatCentsCompact } from '@third-code-erp/shared-types'
 import { createOpportunity, transitionStage } from '@/app/(dashboard)/projects/[id]/opportunities/actions'
 
 const STAGE_ORDER = [

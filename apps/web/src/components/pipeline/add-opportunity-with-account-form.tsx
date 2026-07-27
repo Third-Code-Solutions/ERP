@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createOpportunityForAccount } from '@/app/(dashboard)/pipeline/actions'
-import type { AbiStage } from '@buildops/shared-types'
+import type { PipelineStage } from '@third-code-erp/shared-types'
 
 export interface AccountOption {
   id: string
@@ -19,13 +19,13 @@ export interface ProjectOption {
 
 interface AddOpportunityWithAccountFormProps {
   open: boolean
-  defaultStage: AbiStage
+  defaultStage: PipelineStage
   accounts: AccountOption[]
   projects: ProjectOption[]
   onClose: () => void
 }
 
-const STAGE_LABELS: Record<AbiStage, string> = {
+const STAGE_LABELS: Record<PipelineStage, string> = {
   lead: 'Lead',
   site_survey: 'Site Survey',
   design: 'Design',

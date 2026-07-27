@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { invoices, projects, users } from '@buildops/database/schema'
-import { eq, desc, sum } from 'drizzle-orm'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { invoices, projects } from '@third-code-erp/database/schema'
+import { eq, desc } from 'drizzle-orm'
 
 export const metadata: Metadata = { title: 'Invoices' }
 
@@ -30,15 +30,8 @@ function formatPHP(cents: number): string {
 }
 
 export default async function InvoicesPage() {
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  if (!userRow?.tenant_id) return null
+  const profile = await requireUserProfile()
+  requireCapability(profile, 'finance.manage')
 
   const rows = await db
     .select({
@@ -52,38 +45,50 @@ export default async function InvoicesPage() {
       net_amount_cents: invoices.net_amount_cents,
       due_date: invoices.due_date,
       paid_at: invoices.paid_at,
+      issuance_journal_entry_id: invoices.issuance_journal_entry_id,
       created_at: invoices.created_at,
       project_name: projects.name,
       project_id: projects.id,
     })
     .from(invoices)
     .leftJoin(projects, eq(invoices.project_id, projects.id))
-    .where(eq(invoices.tenant_id, userRow.tenant_id))
+    .where(eq(invoices.tenant_id, profile.tenantId))
     .orderBy(desc(invoices.created_at))
 
   const totalIssued = rows
-    .filter((r) => r.status === 'issued' || r.status === 'partial_payment')
+    .filter(
+      (row) =>
+        Boolean(row.issuance_journal_entry_id) &&
+        ['issued', 'partial_payment', 'overdue'].includes(row.status)
+    )
     .reduce((s, r) => s + r.net_amount_cents, 0)
-  const totalPaid = rows
-    .filter((r) => r.status === 'paid')
+  const totalDraft = rows
+    .filter((row) => row.status === 'draft')
     .reduce((s, r) => s + r.net_amount_cents, 0)
-  const totalOverdue = rows
-    .filter((r) => r.status === 'overdue')
-    .reduce((s, r) => s + r.net_amount_cents, 0)
+  const postedCount = rows.filter((row) =>
+    Boolean(row.issuance_journal_entry_id)
+  ).length
 
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Invoices</h1>
-        <p className="page-subtitle">Progress billing, retention, and BIR-compliant invoicing</p>
+      <div className="page-header finance-page-header">
+        <div>
+          <h1 className="page-title">Invoices</h1>
+          <p className="page-subtitle">
+            Prepare project billing, then issue it into the ledger once.
+          </p>
+        </div>
+        <Link href="/finance/receivables" className="finance-secondary-link">
+          Open receivables
+        </Link>
       </div>
 
       {/* KPI strip */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
         {[
-          { label: 'Outstanding', value: formatPHP(totalIssued), color: '#3b82f6' },
-          { label: 'Collected', value: formatPHP(totalPaid), color: '#10b981' },
-          { label: 'Overdue', value: formatPHP(totalOverdue), color: '#ef4444' },
+          { label: 'Posted open', value: formatPHP(totalIssued), color: '#3b82f6' },
+          { label: 'Draft value', value: formatPHP(totalDraft), color: '#64748b' },
+          { label: 'Posted invoices', value: String(postedCount), color: '#10b981' },
         ].map(({ label, value, color }) => (
           <div
             key={label}
@@ -208,7 +213,9 @@ export default async function InvoicesPage() {
           color: 'var(--color-navy-700)',
         }}
       >
-        BIR 2307 generation, VAT computation, and invoice PDF export are coming in Phase 3.
+        Drafts have no ledger effect. “Issue and post” creates the immutable
+        receivable, retention, withholding-tax, revenue, and output-VAT lines
+        in one transaction.
       </div>
     </div>
   )

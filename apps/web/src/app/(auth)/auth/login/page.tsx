@@ -17,7 +17,7 @@ export default function LoginPage() {
       <LoginForm />
 
       <p className="auth-form-altline">
-        New to ABI Ops?{' '}
+        New to Third Code ERP?{' '}
         <Link href="/auth/signup" className="auth-link auth-link-strong">
           Create an account
         </Link>

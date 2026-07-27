@@ -1,5 +1,5 @@
 -- =============================================================================
--- BuildOps Row-Level Security Policies
+-- Third Code ERP Row-Level Security Policies
 -- Apply after running Drizzle migrations.
 -- Every table is isolated by tenant_id.
 -- =============================================================================

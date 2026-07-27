@@ -2,11 +2,11 @@
 
 /**
  * PoStatusActions — renders the CTA(s) appropriate for the PO's current
- * state per the ABI 3-step approval flow (REFACTOR.md US-Pre-003).
+ * state per the 3-step approval flow (REFACTOR.md US-Pre-003).
  *
  * Legacy statuses (submitted/confirmed/partial_delivery/delivered) keep
  * their original "Advance status" buttons via `advancePoStatus` so old
- * data doesn't get stuck. New ABI statuses route to the role-gated
+ * data doesn't get stuck. Current statuses route to the role-gated
  * approval/issuance/rejection actions.
  *
  * `viewerRole` is the caller's AppRole — the parent server component
@@ -115,7 +115,7 @@ export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
     run(() => rejectPoApproval(poId, reason))
   }
 
-  // ABI flow first.
+  // Current flow first.
   if (currentStatus === 'draft') {
     if (!hasRole(viewerRole, PO_CREATE_ROLES)) return null
     return (

@@ -8,9 +8,9 @@ import {
   can,
   createSupabaseAdminClient,
   type AppRole,
-} from '@buildops/auth'
-import { db } from '@buildops/database'
-import { users as usersTable } from '@buildops/database/schema'
+} from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { users as usersTable } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { ASSIGNABLE_ROLES } from './roles'
 

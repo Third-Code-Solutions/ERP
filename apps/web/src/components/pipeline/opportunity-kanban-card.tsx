@@ -1,6 +1,6 @@
 'use client'
 
-import { formatCentsCompact, type OpportunityStage } from '@buildops/shared-types'
+import { formatCentsCompact, type OpportunityStage } from '@third-code-erp/shared-types'
 
 export interface KanbanCardData {
   id: string

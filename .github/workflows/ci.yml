@@ -70,16 +70,148 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo test
+      - run: pnpm test:database-release-plan
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: coverage
           path: packages/*/coverage/
 
+  database-reproducibility:
+    name: Database Reproducibility (Postgres 17)
+    runs-on: ubuntu-latest
+    needs: [actionlint]
+    timeout-minutes: 30
+    services:
+      redis:
+        image: redis:7.4.9-alpine3.21
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # Supabase local database only. No project reference, access token, or
+      # production secret is present in this job.
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      DATABASE_HARDENING_EXPECTED: "1"
+      DATABASE_ACCOUNTING_EXPECTED: "1"
+      DATABASE_RECEIVABLES_EXPECTED: "1"
+      DATABASE_PAYABLES_EXPECTED: "1"
+      DATABASE_CASH_EXPECTED: "1"
+      DATABASE_RECONCILIATION_EXPECTED: "1"
+      DATABASE_INVENTORY_EXPECTED: "1"
+      DATABASE_BUDGET_EXPECTED: "1"
+      DATABASE_STOCK_MOVEMENT_EXPECTED: "1"
+      ERP_API_INTEGRATION_EXPECTED: "1"
+      REDIS_URL: redis://127.0.0.1:6379
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+      - run: pnpm install --frozen-lockfile
+      - name: Verify pinned database runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(supabase --version)" = "2.109.1"
+          grep -Eq '^major_version = 17$' supabase/config.toml
+          docker version
+          mkdir -p tmp/database-reproducibility
+      - name: Rebuild database from zero
+        run: |
+          supabase db start
+          supabase db reset --local
+      - name: Verify migration ledger and catalog
+        run: node scripts/verify-database-repro.mjs
+      - name: Verify release planner sees a current linear ledger
+        run: node scripts/plan-database-release.mjs --require-current
+      - name: Capture local migration ledger
+        shell: bash
+        run: |
+          set -o pipefail
+          supabase migration list --local 2>&1 \
+            | tee tmp/database-reproducibility/migration-list.txt
+      - name: Run database tests without skips
+        run: >-
+          pnpm --filter @third-code-erp/database exec vitest run
+          --reporter=json
+          --outputFile="$GITHUB_WORKSPACE/tmp/database-reproducibility/vitest.json"
+      - name: Assert every database test executed
+        run: >-
+          node scripts/assert-vitest-no-skips.mjs
+          tmp/database-reproducibility/vitest.json
+      - name: Run Nest transaction boundary integration
+        run: pnpm --filter @third-code-erp/api test:integration
+      - name: Build and smoke the Nest production container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --file apps/api/Dockerfile \
+            --tag third-code-erp-api:ci \
+            .
+          docker run --detach \
+            --name third-code-erp-api-ci \
+            --network host \
+            --env NODE_ENV=test \
+            --env PORT=3091 \
+            --env DATABASE_URL \
+            --env REDIS_URL \
+            --env SUPABASE_URL=http://127.0.0.1:54321 \
+            --env SUPABASE_ANON_KEY=local-ci-anon-key-not-a-secret \
+            --env ERP_API_CORS_ORIGINS=http://127.0.0.1:3000 \
+            third-code-erp-api:ci
+          cleanup() {
+            docker logs third-code-erp-api-ci || true
+            docker rm --force third-code-erp-api-ci || true
+          }
+          trap cleanup EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3091/health >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "Nest API health check timed out" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3091/ready >/dev/null
+          status="$(
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+              --request PATCH \
+              --header 'Content-Type: application/json' \
+              --data '{}' \
+              http://127.0.0.1:3091/v1/projects/33333333-3333-4333-8333-333333333333
+          )"
+          test "$status" = "401"
+      - name: Capture and assert empty schema diff
+        run: >-
+          supabase db diff --local --schema public
+          --output tmp/database-reproducibility/schema-diff.sql
+      - run: >-
+          node scripts/assert-empty-schema-diff.mjs
+          tmp/database-reproducibility/schema-diff.sql
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: database-reproducibility
+          path: tmp/database-reproducibility/
+          retention-days: 7
+
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [typecheck, lint, test]
+    needs: [typecheck, lint, test, database-reproducibility]
     env:
       # Build-time envs. If a repo secret is set, it wins; otherwise placeholders
       # keep CI green. The artifact is just a buildability gate — Vercel runs its

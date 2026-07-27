@@ -1,10 +1,14 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { invoices, projects, users } from '@buildops/database/schema'
-import { and, eq } from 'drizzle-orm'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import {
+  accounts,
+  invoices,
+  projects,
+} from '@third-code-erp/database/schema'
+import { and, eq, sql } from 'drizzle-orm'
 import { InvoiceStatusActions } from './invoice-status-actions'
 
 export const metadata: Metadata = { title: 'Invoice' }
@@ -31,13 +35,20 @@ function formatPHP(cents: number): string {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+interface ReceiptAllocationRow extends Record<string, unknown> {
+  transaction_id: string
+  transaction_number: string
+  reference_number: string
+  status: 'draft' | 'posted' | 'reversed'
+  allocation_type: 'customer_current_due' | 'customer_retention'
+  transaction_date: string
+  amount_cents: number
+}
+
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return notFound()
+  const profile = await requireUserProfile()
+  requireCapability(profile, 'finance.manage')
 
   const [inv] = await db
     .select({
@@ -53,16 +64,83 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       net_amount_cents: invoices.net_amount_cents,
       due_date: invoices.due_date,
       paid_at: invoices.paid_at,
+      account_id: sql<string | null>`coalesce(
+        ${invoices.account_id},
+        ${projects.account_id}
+      )`,
+      account_name: accounts.name,
+      issued_at: invoices.issued_at,
+      issuance_journal_entry_id: invoices.issuance_journal_entry_id,
+      reversed_at: invoices.reversed_at,
+      reversal_reason: invoices.reversal_reason,
+      reversal_journal_entry_id: invoices.reversal_journal_entry_id,
       notes: invoices.notes,
       created_at: invoices.created_at,
       project_name: projects.name,
       project_id: invoices.project_id,
     })
     .from(invoices)
-    .leftJoin(projects, eq(invoices.project_id, projects.id))
-    .where(and(eq(invoices.id, id), eq(invoices.tenant_id, userRow.tenant_id)))
+    .leftJoin(
+      projects,
+      and(
+        eq(invoices.project_id, projects.id),
+        eq(invoices.tenant_id, projects.tenant_id)
+      )
+    )
+    .leftJoin(
+      accounts,
+      and(
+        eq(
+          accounts.id,
+          sql`coalesce(${invoices.account_id}, ${projects.account_id})`
+        ),
+        eq(invoices.tenant_id, accounts.tenant_id)
+      )
+    )
+    .where(
+      and(eq(invoices.id, id), eq(invoices.tenant_id, profile.tenantId))
+    )
 
   if (!inv) return notFound()
+
+  const receiptAllocations = await db.execute<ReceiptAllocationRow>(sql`
+    select
+      cash_tx.id as transaction_id,
+      coalesce(cash_tx.internal_number, cash_tx.reference_number)
+        as transaction_number,
+      cash_tx.reference_number,
+      cash_tx.status,
+      allocation.allocation_type,
+      cash_tx.transaction_date,
+      allocation.amount_cents
+    from public.cash_allocations allocation
+    join public.cash_transactions cash_tx
+      on cash_tx.id = allocation.cash_transaction_id
+     and cash_tx.tenant_id = allocation.tenant_id
+    where allocation.invoice_id = ${inv.id}::uuid
+      and allocation.tenant_id = ${profile.tenantId}::uuid
+    order by cash_tx.transaction_date desc, allocation.line_number
+  `)
+  const activeCurrent = receiptAllocations
+    .filter(
+      (allocation) =>
+        allocation.status === 'posted' &&
+        allocation.allocation_type === 'customer_current_due'
+    )
+    .reduce(
+      (sum, allocation) => sum + Number(allocation.amount_cents),
+      0
+    )
+  const activeRetention = receiptAllocations
+    .filter(
+      (allocation) =>
+        allocation.status === 'posted' &&
+        allocation.allocation_type === 'customer_retention'
+    )
+    .reduce(
+      (sum, allocation) => sum + Number(allocation.amount_cents),
+      0
+    )
 
   return (
     <div>
@@ -87,10 +165,18 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 {inv.project_name}
               </Link>
             )}
+            {inv.account_id && (
+              <Link
+                href={`/crm/accounts/${inv.account_id}`}
+                style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}
+              >
+                {inv.account_name}
+              </Link>
+            )}
             <span>Created {new Date(inv.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="invoice-detail-actions">
           <span
             style={{
               padding: '4px 12px',
@@ -104,7 +190,11 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           >
             {STATUS_LABELS[inv.status] ?? inv.status}
           </span>
-          <InvoiceStatusActions invoiceId={id} currentStatus={inv.status} />
+          <InvoiceStatusActions
+            invoiceId={id}
+            currentStatus={inv.status}
+            defaultPostingDate={new Date().toISOString().slice(0, 10)}
+          />
           <Link
             href={`/invoices/${id}/print`}
             target="_blank"
@@ -146,6 +236,50 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </Link>
         </div>
       </div>
+
+      {inv.issuance_journal_entry_id && (
+        <div className="finance-callout invoice-posting-proof">
+          <div>
+            <strong>Posted financial record</strong>
+            <span>
+              Issued{' '}
+              {inv.issued_at
+                ? new Date(inv.issued_at).toLocaleDateString('en-PH', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })
+                : 'through the general ledger'}
+              . Commercial and monetary terms are now immutable.
+            </span>
+          </div>
+          <Link href={`/finance/journals/${inv.issuance_journal_entry_id}`}>
+            View journal
+          </Link>
+        </div>
+      )}
+
+      {inv.reversal_journal_entry_id && (
+        <div className="finance-callout invoice-posting-proof invoice-reversal-proof">
+          <div>
+            <strong>Invoice reversed</strong>
+            <span>
+              {inv.reversed_at
+                ? new Date(inv.reversed_at).toLocaleDateString('en-PH', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })
+                : 'Posted correction'}
+              {' · '}
+              {inv.reversal_reason}
+            </span>
+          </div>
+          <Link href={`/finance/journals/${inv.reversal_journal_entry_id}`}>
+            View reversal
+          </Link>
+        </div>
+      )}
 
       {/* Financial breakdown */}
       <div
@@ -198,6 +332,69 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
       </div>
+
+      <section className="finance-section">
+        <div className="finance-section-heading">
+          <div>
+            <p className="finance-eyebrow">Settlement evidence</p>
+            <h2>Receipt allocations</h2>
+          </div>
+          <p>
+            Current open{' '}
+            {formatPHP(Math.max(inv.net_amount_cents - activeCurrent, 0))}
+            {' · '}Retention open{' '}
+            {formatPHP(Math.max(inv.retention_cents - activeRetention, 0))}
+          </p>
+        </div>
+        <div className="finance-table-shell">
+          {receiptAllocations.length === 0 ? (
+            <div className="card-empty">
+              <p>No receipt has been allocated to this invoice.</p>
+              <Link href="/finance/cash/new">Record receipt</Link>
+            </div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Receipt</th>
+                  <th>Date</th>
+                  <th>Component</th>
+                  <th>Status</th>
+                  <th className="numeric">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {receiptAllocations.map((allocation, index) => (
+                  <tr
+                    key={`${allocation.transaction_id}:${allocation.allocation_type}:${index}`}
+                  >
+                    <td>
+                      <Link href={`/finance/cash/${allocation.transaction_id}`}>
+                        {allocation.transaction_number}
+                      </Link>
+                      <span className="finance-cell-detail">
+                        Ref {allocation.reference_number}
+                      </span>
+                    </td>
+                    <td>{allocation.transaction_date}</td>
+                    <td>{allocation.allocation_type.replaceAll('_', ' ')}</td>
+                    <td>
+                      <span
+                        className={`finance-status finance-status-${allocation.status}`}
+                      >
+                        {allocation.status}
+                      </span>
+                    </td>
+                    <td className="numeric">
+                      {formatPHP(Number(allocation.amount_cents))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
 
       {inv.notes && (
         <div

@@ -1,8 +1,9 @@
-import { pgTable, uuid, varchar, text, bigint, integer, timestamp, boolean, index, uniqueIndex, jsonb, pgEnum } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, bigint, integer, timestamp, boolean, index, uniqueIndex, jsonb, pgEnum, foreignKey } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { boms } from './boms'
 import { vendors } from './vendors'
 import { users } from './users'
+import { unitsOfMeasure } from './inventory-masters'
 
 // REFACTOR.md M3 — Tenant-scoped catalog of materials/items used to
 // auto-fill BOM lines from a Togal.ai import (US-010, US-011).
@@ -15,14 +16,31 @@ export const materialItems = pgTable(
     description: text('description').notNull(),
     category: varchar('category', { length: 120 }),
     unit: varchar('unit', { length: 32 }).notNull(), // sqm, lm, pcs, kg, etc.
+    base_uom_id: uuid('base_uom_id').notNull(),
+    inventory_tracked: boolean('inventory_tracked').notNull().default(false),
     wastage_bps: integer('wastage_bps').notNull().default(0), // basis points (0-10000)
     is_active: boolean('is_active').notNull().default(true),
+    created_by: uuid('created_by'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     tenantIdx: index('idx_material_items_tenant_id').on(table.tenant_id),
     tenantCodeUq: uniqueIndex('idx_material_items_tenant_code').on(table.tenant_id, table.code),
+    tenantIdUniqueIdx: uniqueIndex('ux_material_items_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
+    baseUomTenantFk: foreignKey({
+      name: 'material_items_base_uom_tenant_fk',
+      columns: [table.tenant_id, table.base_uom_id],
+      foreignColumns: [unitsOfMeasure.tenant_id, unitsOfMeasure.id],
+    }).onDelete('restrict'),
+    createdByTenantFk: foreignKey({
+      name: 'material_items_created_by_tenant_fk',
+      columns: [table.tenant_id, table.created_by],
+      foreignColumns: [users.tenant_id, users.id],
+    }).onDelete('restrict'),
   })
 )
 

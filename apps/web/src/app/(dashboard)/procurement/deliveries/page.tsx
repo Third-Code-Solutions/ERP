@@ -1,13 +1,13 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { and, desc, eq, gte } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   deliverySchedules,
   purchaseOrders,
   vendors,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { DeliveryListTable } from '@/components/deliveries/delivery-list-table'
 
 export const metadata: Metadata = { title: 'Deliveries' }

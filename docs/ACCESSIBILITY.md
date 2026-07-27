@@ -167,7 +167,7 @@ We do not yet ship `axe-core` in the project. Recommended approach:
 
 ### Option B: Playwright + axe (CI-friendly)
 ```bash
-pnpm --filter @buildops/web add -D @axe-core/playwright
+pnpm --filter @third-code-erp/web add -D @axe-core/playwright
 ```
 Then in an existing Playwright test:
 ```ts

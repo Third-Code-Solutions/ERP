@@ -2,15 +2,15 @@
 
 import { createHash } from 'crypto'
 import { and, asc, eq } from 'drizzle-orm'
-import { db } from '@buildops/database'
+import { db } from '@third-code-erp/database'
 import {
   bomPortalTokens,
   boms,
   bomLineItems,
   projects,
   accounts,
-} from '@buildops/database/schema'
-import { notifyRoles } from '@/lib/abi/notifications'
+} from '@third-code-erp/database/schema'
+import { notifyRoles } from '@/lib/operations/notifications'
 import { writeAuditLog } from '@/lib/audit'
 
 interface SignResult {

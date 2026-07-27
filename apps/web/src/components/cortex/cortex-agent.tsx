@@ -30,7 +30,7 @@ function relativeTime(iso: string): string {
 }
 
 /**
- * BuildOps Agent (Atlas) — graph-grounded chat with persistent memory. Every
+ * Third Code ERP Cortex — graph-grounded chat with persistent memory. Every
  * turn is stored in the user's DB (cortex_conversations / cortex_messages);
  * past threads load from the history panel so the brain remembers.
  */
@@ -133,11 +133,11 @@ export function CortexAgent() {
   }
 
   return (
-    <section className="cortex-agent" aria-label="BuildOps Agent">
+    <section className="cortex-agent" aria-label="Third Code ERP Cortex">
       <div className="cortex-agent__head">
         <span className="cortex-agent__spark" aria-hidden>✦</span>
         <div className="cortex-agent__headtext">
-          <h2 className="cortex-agent__title">BuildOps Agent</h2>
+          <h2 className="cortex-agent__title">Cortex</h2>
           <p className="cortex-agent__sub">Graph-grounded · remembers every chat</p>
         </div>
         <div className="cortex-agent__headbtns">

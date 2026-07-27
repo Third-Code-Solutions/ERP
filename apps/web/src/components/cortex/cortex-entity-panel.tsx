@@ -37,6 +37,12 @@ const NODE_LABELS: Record<string, string> = {
   bom: 'BOM',
   purchase_order: 'PO',
   invoice: 'Invoice',
+  warehouse: 'Warehouse',
+  stock_receipt: 'Stock Receipt',
+  stock_movement: 'Stock Movement',
+  stock_ledger_entry: 'Stock Ledger',
+  project_budget: 'Project Budget',
+  cost_code: 'Cost Code',
   task: 'Task',
 }
 

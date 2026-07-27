@@ -1,5 +1,5 @@
-import type { AppRole } from '@buildops/auth'
-import { canViewPath, canonicalRole } from '@/lib/abi/nav-config'
+import type { AppRole } from '@third-code-erp/auth'
+import { canViewPath, canonicalRole } from '@/lib/operations/nav-config'
 
 /**
  * Cortex RBAC — the AI Brain obeys the SAME role permissions as the human who
@@ -7,8 +7,8 @@ import { canViewPath, canonicalRole } from '@/lib/abi/nav-config'
  * allowed to view the corresponding ERP module (reuses the sidebar `canViewPath`
  * matrix, so Cortex never widens access beyond the UI).
  *
- * Admin / owner get unrestricted access (scope = null → no filter), so they also
- * see any future node type before it is mapped here.
+ * Admin / owner get unrestricted access (scope = null → no filter). Every
+ * other role is deny-by-default when a new node type has not been mapped.
  */
 const NODE_TYPE_PATH: Record<string, string> = {
   // Project-scoped execution records
@@ -20,6 +20,8 @@ const NODE_TYPE_PATH: Record<string, string> = {
   weekly_report: '/projects',
   contract: '/projects',
   cost_line: '/projects',
+  cost_code: '/projects',
+  project_budget: '/projects',
   // Sales / proposal
   opportunity: '/pipeline/board',
   inspection: '/pipeline/board',
@@ -38,6 +40,18 @@ const NODE_TYPE_PATH: Record<string, string> = {
   // Finance
   invoice: '/invoices',
   claim: '/claims',
+  fiscal_period: '/finance',
+  ledger_account: '/finance',
+  journal_entry: '/finance',
+  journal_line: '/finance',
+  supplier_bill: '/finance/payables',
+  cash_account: '/finance/cash',
+  cash_transaction: '/finance/cash',
+  bank_statement: '/finance/reconciliation',
+  warehouse: '/inventory',
+  stock_receipt: '/inventory',
+  stock_movement: '/inventory',
+  stock_ledger_entry: '/inventory',
   // Operations
   permit: '/permits',
   ticket: '/warranty',
@@ -66,6 +80,6 @@ export function cortexNodeTypeScope(role: AppRole): string[] | null {
 export function cortexCanSeeType(role: AppRole, type: string): boolean {
   if (canonicalRole(role) === 'admin') return true
   const path = NODE_TYPE_PATH[type]
-  if (!path) return true // unmapped type — keep the map current; don't hide
+  if (!path) return false
   return canViewPath(role, path)
 }

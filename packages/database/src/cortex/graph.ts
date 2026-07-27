@@ -242,19 +242,87 @@ export async function getCortexGraphStats(
   nodeTypes?: string[] | null
 ): Promise<CortexGraphStats> {
   const scope = typeScopeFilter(nodeTypes)
+  const scopedTypeList =
+    nodeTypes && nodeTypes.length > 0
+      ? sql.join(nodeTypes.map((nodeType) => sql`${nodeType}`), sql`, `)
+      : null
+  const scopedEdgeCount =
+    nodeTypes === undefined || nodeTypes === null
+      ? db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(cortexEdges)
+          .where(
+            and(
+              eq(cortexEdges.tenant_id, tenantId),
+              isNull(cortexEdges.valid_to)
+            )
+          )
+      : nodeTypes.length === 0
+        ? Promise.resolve([{ n: 0 }])
+        : db.execute<{ n: number }>(sql`
+            select count(*)::int as n
+            from cortex_edges edge
+            join cortex_nodes src
+              on src.id = edge.src_id
+             and src.tenant_id = edge.tenant_id
+            join cortex_nodes dst
+              on dst.id = edge.dst_id
+             and dst.tenant_id = edge.tenant_id
+            where edge.tenant_id = ${tenantId}
+              and edge.valid_to is null
+              and src.node_type::text in (${scopedTypeList})
+              and dst.node_type::text in (${scopedTypeList})
+          `)
+  const scopedProvenanceCount =
+    nodeTypes === undefined || nodeTypes === null
+      ? db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(cortexProvenance)
+          .where(eq(cortexProvenance.tenant_id, tenantId))
+      : nodeTypes.length === 0
+        ? Promise.resolve([{ n: 0 }])
+        : db.execute<{ n: number }>(sql`
+            select count(*)::int as n
+            from cortex_provenance provenance
+            where provenance.tenant_id = ${tenantId}
+              and (
+                (
+                  provenance.subject_kind = 'node'
+                  and exists (
+                    select 1
+                    from cortex_nodes node
+                    where node.id = provenance.subject_id
+                      and node.tenant_id = provenance.tenant_id
+                      and node.node_type::text in (${scopedTypeList})
+                  )
+                )
+                or
+                (
+                  provenance.subject_kind = 'edge'
+                  and exists (
+                    select 1
+                    from cortex_edges edge
+                    join cortex_nodes src
+                      on src.id = edge.src_id
+                     and src.tenant_id = edge.tenant_id
+                    join cortex_nodes dst
+                      on dst.id = edge.dst_id
+                     and dst.tenant_id = edge.tenant_id
+                    where edge.id = provenance.subject_id
+                      and edge.tenant_id = provenance.tenant_id
+                      and src.node_type::text in (${scopedTypeList})
+                      and dst.node_type::text in (${scopedTypeList})
+                  )
+                )
+              )
+          `)
   const [nodeRows, edgeRows, provRows, typeRows] = await Promise.all([
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(cortexNodes)
       .where(and(eq(cortexNodes.tenant_id, tenantId), isNull(cortexNodes.valid_to), scope)),
-    db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(cortexEdges)
-      .where(and(eq(cortexEdges.tenant_id, tenantId), isNull(cortexEdges.valid_to))),
-    db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(cortexProvenance)
-      .where(eq(cortexProvenance.tenant_id, tenantId)),
+    scopedEdgeCount,
+    scopedProvenanceCount,
     db
       .select({ nodeType: cortexNodes.node_type, count: sql<number>`count(*)::int` })
       .from(cortexNodes)

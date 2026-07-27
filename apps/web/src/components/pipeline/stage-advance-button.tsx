@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   STAGE_TRANSITIONS,
   type OpportunityStage,
-} from '@buildops/shared-types'
+} from '@third-code-erp/shared-types'
 import { advanceOpportunityStage } from '@/app/(dashboard)/pipeline/actions'
 
 interface StageAdvanceButtonProps {
@@ -20,7 +20,7 @@ const STAGE_LABELS: Record<OpportunityStage, string> = {
   resubmission: 'Resubmission',
   closed_won: 'Closed Won',
   closed_lost: 'Closed Lost',
-  // ABI Ops 8-stage canonical
+  // Third Code ERP 8-stage canonical
   lead: 'Lead',
   site_survey: 'Site Survey',
   design: 'Design',
@@ -49,7 +49,7 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
 
   // Split into "forward" (won/contract/etc.) and "lost" so we can render the
   // primary advance path as a button and lost as a quieter secondary action.
-  // Accepts both legacy (closed_lost) and ABI canonical (lost) names.
+  // Accepts both legacy (closed_lost) and current canonical (lost) names.
   const lostNext: OpportunityStage | null = transitions.includes('lost')
     ? 'lost'
     : transitions.includes('closed_lost')

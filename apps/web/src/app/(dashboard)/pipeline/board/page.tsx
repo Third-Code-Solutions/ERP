@@ -1,14 +1,14 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   accounts,
   opportunities,
   projects,
   slaLogs,
   users,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { PipelineBoard } from '@/components/pipeline/pipeline-board'
 

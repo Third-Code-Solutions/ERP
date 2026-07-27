@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { requireUserProfile, can } from '@buildops/auth'
+import { requireUserProfile, can } from '@third-code-erp/auth'
 
 export const metadata: Metadata = { title: 'Admin' }
 

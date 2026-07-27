@@ -1,128 +1,116 @@
-# BuildOps — Next Steps
+# Third Code ERP — Next release steps
 
-**Phase 0 (Foundation) and Phase 1 (Core ERP) are complete.**
-All packages typecheck. 64 domain logic tests pass.
+## Current verified state
 
----
+- Public brand, landing page, metadata, search surfaces, and product UI use
+  Third Code ERP.
+- Construction spine covers CRM, projects, documents, BOM, procurement,
+  delivery, site progress, cost, claims, billing, turnover, warranty, portals,
+  and Cortex graph/chat foundations.
+- Accounting foundation covers fiscal periods, chart of accounts, balanced
+  journals, immutable posting, linked reversals, and general-ledger inquiry.
+- Customer invoices post controlled receivables. Matched Supplier Bills post
+  controlled payables with Customer/Vendor/project dimensions and aging.
+- Customer receipts and Vendor disbursements now allocate to live open
+  subledger components, drive invoice payment state, reduce aging, and own
+  immutable reversal evidence.
+- Bank statement import now records exact-file SHA-256 provenance, matches
+  posted cash through exact or reviewed evidence, reconciles only complete
+  statements, and corrects through immutable void records.
+- Inventory now provides UOM/Item/Warehouse masters, posted Stock Receipts,
+  perpetual quantity/value evidence, Inventory/GRNI journals, linked
+  reversals, receipt-level Supplier Bill three-way matching, internal
+  transfers, Project/Cost Code consumption, count adjustments, and
+  weighted-average valuation.
+- Project Budget control now provides tenant Cost Codes, immutable revisions,
+  separate Commercial/Finance approval, PO commitment enforcement, and
+  baseline/commitment/actual/forecast/variance evidence.
+- Production web build passes and generates 75 pages.
+- Shared types pass 76/76 tests; web passes 61/61; database passes 103 tests
+  with 94 forward-migration tests gated against the older production schema.
+- Playwright discovers 70 browser tests in 30 files.
+- The 20 deployed migration files are byte-identical to fetched production
+  history. Twenty-one forward migrations are not deployed.
 
-## Immediate (Before First Pilot Demo)
+## Release gate — do this first
 
-### 1. Supabase Project Setup
-- Create Supabase project at supabase.com
-- Run `pnpm --filter @buildops/database generate` to generate Drizzle migrations
-- Run `pnpm --filter @buildops/database migrate` against Supabase Postgres
-- Apply `packages/database/src/sql/rls-policies.sql`
-- Apply `packages/database/src/sql/audit-triggers.sql`
-- Create `documents` storage bucket in Supabase dashboard
-- Set env vars in `.env.local` (copy from `.env.example`)
+1. Reconcile the six May versions that exist locally but not in the production
+   migration ledger. Do not run `supabase db push` or migration repair against
+   production before a reviewed reconciliation plan.
+2. Start a disposable PostgreSQL 17/Supabase environment and run the repository
+   migrations from zero with the deterministic seed.
+3. Run the full catalog verifier and confirm an empty schema diff.
+4. Run database tests with `DATABASE_HARDENING_EXPECTED=1`,
+   `DATABASE_ACCOUNTING_EXPECTED=1`, and
+   `DATABASE_RECEIVABLES_EXPECTED=1`, and
+   `DATABASE_PAYABLES_EXPECTED=1`, and
+   `DATABASE_CASH_EXPECTED=1`, and
+   `DATABASE_RECONCILIATION_EXPECTED=1`, and
+   `DATABASE_INVENTORY_EXPECTED=1`, and
+   `DATABASE_BUDGET_EXPECTED=1`, and
+   `DATABASE_STOCK_MOVEMENT_EXPECTED=1`; require the current full suite with
+   zero skips.
+5. Run authenticated finance browser journeys for admin, finance, and denied
+   roles. Verify desktop/mobile layout, keyboard use, console, and network.
+6. Complete security review of function ACLs, row policies, service-role
+   boundaries, tenant-negative cases, sequence concurrency, and reversal paths.
+7. Apply forward migrations in a reviewed preview environment, verify rollback
+   by forward compensation, then promote. Production deployment remains a
+   separate authorized action.
 
-### 2. First User / Tenant
-- Register a user via `/auth/signup`
-- Note the user's Supabase Auth UID from the Supabase dashboard
-- Run: `SEED_USER_ID=<uid> SEED_ADMIN_EMAIL=<email> pnpm --filter @buildops/database db:seed`
+Docker Desktop cannot currently provide the disposable database on this
+workstation because hardware virtualization is unavailable. GitHub CI is
+configured to reject skipped forward-migration tests.
 
-### 3. Deploy to Vercel
-- Connect repo to Vercel
-- Set environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`
-- Confirm middleware auth guard works on the deployed preview URL
+## Tier 2 — accounting and cash
 
----
+Build as small reconciled vertical slices:
 
-## Phase 2 — CAD Integration (Weeks 9–14)
+1. Customer invoices and receivable control account posting. Implemented
+   locally; release-gated.
+2. Supplier bills and payable control account posting. Implemented locally;
+   release-gated.
+3. Receipts, disbursements, retention, and allocation. Implemented locally;
+   release-gated. Advances remain a later specified subledger.
+4. Bank statement import, matching, and reconciliation. Implemented locally;
+   release-gated.
+5. Budget controls and project/cost-code dimensions. Implemented locally;
+   release-gated.
+6. Philippine tax configuration and verified statutory outputs.
+7. Multi-currency, realized/unrealized differences, and period close.
 
-### DXF Parser Service (Railway + Python)
-- Set up `apps/workers/dxf-parser/` with FastAPI + ezdxf
-- File upload endpoint: `POST /api/upload` in Next.js → store in Supabase Storage
-- Inngest job triggered on `document.uploaded` event
-- Parser extracts: layers, text annotations, block references (FCU, breakers), polyline areas
-- Maps extracted entities → `scope_items` table with confidence scores
+Exit only when every subledger reconciles to the general ledger and correction
+uses reversal/reposting.
 
-### Auto-BOM Generation
-- BOM builder UI: three-pane layout (scope tree / line editor / AI suggestions)
-- Estimator override flow with reason logging
-- BOM status state machine: draft → approved → locked
+## Tier 3 — items, warehouse, and supply
 
-### Suggested Files to Create
-```
-apps/workers/dxf-parser/src/main.py
-apps/workers/dxf-parser/src/parsers/ezdxf_extractor.py
-apps/workers/dxf-parser/Dockerfile
-apps/web/src/app/(dashboard)/projects/[id]/bom/bom-builder.tsx
-apps/web/src/app/api/upload/route.ts
-apps/web/src/lib/inngest.ts
-```
+- Item/UOM/Warehouse masters, perpetual Stock Receipts, and receipt-linked
+  Supplier Bill matching are implemented locally and release-gated.
+- Transfer, project/Cost Code consumption, count adjustment,
+  weighted-average valuation, and immutable reversal are implemented locally
+  and release-gated.
+- Requisition → quotation comparison → order → receipt → bill → payment.
+- Stock reservation, landed cost, and price-list depth.
+- Lots/serials only where discovery establishes a traceability requirement.
+- Quantity, value, commitment, receipt, invoice, payment, and job-cost
+  reconciliation across partial and reversal flows.
 
----
+## Tier 4 — validated extensions
 
-## Phase 3 — Execution Layer (Weeks 15–22)
+- Sales fulfillment and recurring service.
+- Quality and corrective action.
+- Fixed assets and depreciation.
+- Light manufacturing/subcontracting only after customer discovery.
+- People, time, and payroll only under a dedicated compliance specification.
 
-### Procurement
-- PO creation from approved BOM line items
-- Vendor selection with saved unit costs
-- PO approval workflow (role-gated: PM submits, Admin approves)
-- Delivery tracking with partial delivery support
+## Ongoing product gates
 
-### Progress Billing (Philippine compliance)
-- Milestone-based billing with percentage completion
-- Auto-compute: gross amount, VAT (12%), EWT (2%), retention (10%)
-- BIR 2307 PDF generation
-- Invoice numbering with BIR-registered series
-
-### GP Erosion Alerts
-- Actual vs. budgeted cost comparison per scope item
-- Real-time Supabase Realtime subscription in dashboard
-- Alert rail on executive dashboard when project GP drops below threshold
-
-### Suggested Files to Create
-```
-apps/web/src/app/(dashboard)/procurement/purchase-orders/[id]/page.tsx
-apps/web/src/app/(dashboard)/invoices/[id]/page.tsx
-apps/web/src/lib/billing-calculations.ts
-apps/web/src/components/billing/invoice-pdf.tsx
-```
-
----
-
-## Phase 4 — Intelligence Layer (Weeks 23–30)
-
-### RAG over Historical Projects
-- Enable `pgvector` extension in Supabase: `CREATE EXTENSION vector`
-- Migrate `embeddings.embedding` column from `text` to `vector(1536)`
-- `apps/workers/rag-indexer/`: embed DXF text, BOM items, contracts via OpenAI
-- Semantic search endpoint: `POST /api/rag/search`
-
-### AI Estimating Assistant
-- Right rail in BOM builder: "Similar past projects suggest…"
-- Confidence scores on each suggested unit cost
-- Estimator accept/reject per line, logged in audit trail
-
-### Conversational Q&A
-- Chat interface on project detail page
-- Claude Sonnet for answers with source citations
-- Query logging for audit and eval
-
----
-
-## Technical Debt to Address
-
-| Item | Priority |
-|------|----------|
-| Replace in-memory rate limiter with Upstash Redis | High (before GA) |
-| Add loading.tsx skeleton files for all dashboard routes | ✅ Done |
-| Add Playwright E2E tests for critical user journeys | ✅ Done (e2e/ directory, 7 spec files) |
-| Add vitest integration tests (with real Supabase test instance) | High |
-| GitHub Actions CI workflow (typecheck, lint, test, build, e2e, secret scan) | ✅ Done (.github/workflows/ci.yml) |
-| Drizzle migration CI check (no schema drift) | Medium |
-| Supabase Realtime subscription for dashboard auto-refresh | ✅ Done (DashboardRealtimeRefresher component) |
-| pgvector migration for embeddings table | Phase 4 |
-| MFA enforcement for Owner/Admin roles | Before GA |
-
----
-
-## Definition of Done (Per Phase)
-
-**Phase 2 done when:** Estimator can upload a DXF, review auto-generated scope items, edit the BOM, and export a PDF quote — in under 4 hours total.
-
-**Phase 3 done when:** PM can raise a PO from an approved BOM, track delivery, and generate a BIR-compliant progress billing invoice.
-
-**Phase 4 done when:** "Find similar past projects" returns accurate suggestions, estimator override rate on AI suggestions is tracked, and eval harness runs nightly with no regressions.
+- One calm next-decision surface per role; progressive disclosure for advanced
+  controls.
+- Cortex reads only authorized evidence and cites it. High-impact actions remain
+  proposed until a qualified person approves.
+- No financial posting, payment, supplier commitment, access change, deletion,
+  or compliance submission occurs silently.
+- Each slice includes tenant-negative, role-negative, immutability, reversal,
+  concurrency, audit, reconciliation, accessibility, browser, and deployment
+  evidence appropriate to its risk.

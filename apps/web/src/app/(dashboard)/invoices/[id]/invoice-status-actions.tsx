@@ -1,35 +1,72 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { advanceInvoiceStatus } from '@/app/(dashboard)/procurement/actions'
-
-const VALID_TRANSITIONS: Record<string, { label: string; status: string; variant: 'primary' | 'danger' }[]> = {
-  draft: [{ label: 'Issue Invoice', status: 'issued', variant: 'primary' }, { label: 'Cancel', status: 'cancelled', variant: 'danger' }],
-  issued: [{ label: 'Mark Partial Payment', status: 'partial_payment', variant: 'primary' }, { label: 'Mark Paid', status: 'paid', variant: 'primary' }, { label: 'Mark Overdue', status: 'overdue', variant: 'danger' }],
-  partial_payment: [{ label: 'Mark Paid', status: 'paid', variant: 'primary' }, { label: 'Mark Overdue', status: 'overdue', variant: 'danger' }],
-  overdue: [{ label: 'Mark Paid', status: 'paid', variant: 'primary' }],
-  paid: [],
-  cancelled: [],
-}
+import {
+  cancelDraftInvoice,
+  issueCustomerInvoice,
+  reverseCustomerInvoice,
+} from '@/app/(dashboard)/invoices/actions'
 
 interface Props {
   invoiceId: string
   currentStatus: string
+  defaultPostingDate: string
 }
 
-export function InvoiceStatusActions({ invoiceId, currentStatus }: Props) {
+export function InvoiceStatusActions({
+  invoiceId,
+  currentStatus,
+  defaultPostingDate,
+}: Props) {
+  const [postingDate, setPostingDate] = useState(defaultPostingDate)
+  const [reason, setReason] = useState('')
+  const [message, setMessage] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
-  const transitions = VALID_TRANSITIONS[currentStatus] ?? []
 
-  if (transitions.length === 0) return null
+  const isDraft = currentStatus === 'draft'
+  const isReversible = ['issued', 'overdue', 'partial_payment'].includes(
+    currentStatus
+  )
 
-  function handleTransition(nextStatus: string) {
+  if (!isDraft && !isReversible) return null
+
+  function issue() {
+    setMessage(null)
     startTransition(async () => {
-      const result = await advanceInvoiceStatus(invoiceId, nextStatus)
-      if ('error' in result) {
-        alert(result.error)
+      const result = await issueCustomerInvoice({ invoiceId, postingDate })
+      if (!result.ok) {
+        setMessage(result.error ?? 'Invoice issuance failed.')
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  function cancel() {
+    if (!window.confirm('Cancel this unposted draft invoice?')) return
+    setMessage(null)
+    startTransition(async () => {
+      const result = await cancelDraftInvoice(invoiceId)
+      if (!result.ok) {
+        setMessage(result.error ?? 'Invoice cancellation failed.')
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  function reverse() {
+    setMessage(null)
+    startTransition(async () => {
+      const result = await reverseCustomerInvoice({
+        invoiceId,
+        postingDate,
+        reason,
+      })
+      if (!result.ok) {
+        setMessage(result.error ?? 'Invoice reversal failed.')
         return
       }
       router.refresh()
@@ -37,27 +74,66 @@ export function InvoiceStatusActions({ invoiceId, currentStatus }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', gap: '8px' }}>
-      {transitions.map(({ label, status, variant }) => (
-        <button
-          key={status}
+    <div className="invoice-posting-control">
+      <label htmlFor="invoice-posting-date">
+        Posting date
+        <input
+          id="invoice-posting-date"
+          type="date"
+          value={postingDate}
+          onChange={(event) => setPostingDate(event.target.value)}
           disabled={pending}
-          onClick={() => handleTransition(status)}
-          style={{
-            padding: '7px 14px',
-            borderRadius: '6px',
-            fontSize: '0.8125rem',
-            fontWeight: 600,
-            cursor: pending ? 'not-allowed' : 'pointer',
-            opacity: pending ? 0.6 : 1,
-            border: 'none',
-            background: variant === 'danger' ? '#fee2e2' : 'var(--color-navy-700)',
-            color: variant === 'danger' ? '#dc2626' : 'white',
-          }}
-        >
-          {pending ? '…' : label}
-        </button>
-      ))}
+        />
+      </label>
+      {isDraft ? (
+        <>
+          <button
+            className="finance-primary-button"
+            type="button"
+            onClick={issue}
+            disabled={pending || !postingDate}
+          >
+            {pending ? 'Working…' : 'Issue and post'}
+          </button>
+          <button
+            className="invoice-cancel-button"
+            type="button"
+            onClick={cancel}
+            disabled={pending}
+          >
+            Cancel draft
+          </button>
+        </>
+      ) : (
+        <>
+          <label htmlFor="invoice-reversal-reason">
+            Correction reason
+            <input
+              id="invoice-reversal-reason"
+              type="text"
+              value={reason}
+              minLength={3}
+              maxLength={500}
+              placeholder="Why this invoice must be reversed"
+              onChange={(event) => setReason(event.target.value)}
+              disabled={pending}
+            />
+          </label>
+          <button
+            className="invoice-cancel-button"
+            type="button"
+            onClick={reverse}
+            disabled={pending || reason.trim().length < 3 || !postingDate}
+          >
+            {pending ? 'Reversing…' : 'Reverse invoice'}
+          </button>
+        </>
+      )}
+      {message && (
+        <p className="finance-form-message finance-form-error" role="alert">
+          {message}
+        </p>
+      )}
     </div>
   )
 }

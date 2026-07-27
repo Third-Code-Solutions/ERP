@@ -17,16 +17,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, asc, desc, eq } from 'drizzle-orm'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   masterSchedules,
   progressUpdates,
   projects,
   users,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { notifyRoles } from '@/lib/abi/notifications'
+import { notifyRoles } from '@/lib/operations/notifications'
 
 export interface MasterScheduleTask {
   name: string

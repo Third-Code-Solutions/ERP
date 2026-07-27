@@ -1,6 +1,6 @@
 # Environment Variables
 
-Every variable consumed by ABI Ops, grouped by service. Variables
+Every variable consumed by Third Code ERP, grouped by service. Variables
 marked `public` are exposed to the browser bundle (Next.js
 `NEXT_PUBLIC_` prefix). Everything else is server-only.
 
@@ -25,7 +25,7 @@ production, set these in Vercel (web), Railway (workers), and Supabase
 
 | Variable | Required | Scope | Where to get | Controls |
 |---|---|---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | yes | public | Your production domain (e.g. `https://abi.actuate.ph`) | Used to build portal links in emails and signed share URLs |
+| `NEXT_PUBLIC_SITE_URL` | yes | public | Your production domain (e.g. `https://thirdcode-erp.vercel.app`) | Used to build portal links in emails and signed share URLs |
 | `AUTH_TRUSTED_HOSTS` | no | server | Comma-separated host list | Adds extra hostnames the redirect allowlist accepts |
 
 ---

@@ -1,10 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser } from '@buildops/auth'
-import { createSupabaseAdminClient } from '@buildops/auth/server'
-import { db } from '@buildops/database'
-import { documents, scopeItems, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
+import { db } from '@third-code-erp/database'
+import { documents, scopeItems, users } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
 
 export interface DeleteResult {

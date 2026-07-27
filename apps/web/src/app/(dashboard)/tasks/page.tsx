@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { and, asc, desc, eq, gt, gte, lt, lte } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { dailyTasks, projects } from '@buildops/database/schema'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { dailyTasks, projects } from '@third-code-erp/database/schema'
 import { TaskRow, type TaskRowData } from '@/components/tasks/task-row'
-import { manilaBoundaries } from '@/lib/abi/cadence-engine'
+import { manilaBoundaries } from '@/lib/operations/cadence-engine'
 
 export const metadata: Metadata = { title: 'My Tasks' }
 

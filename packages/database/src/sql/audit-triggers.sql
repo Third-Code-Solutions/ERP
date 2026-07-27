@@ -1,5 +1,5 @@
 -- =============================================================================
--- BuildOps Audit Log Triggers
+-- Third Code ERP Audit Log Triggers
 -- Automatically inserts into audit_log on mutations to tracked tables.
 -- Hash chain integrity is maintained at the application layer via
 -- packages/shared-types/src/audit/hash-chain.ts.
@@ -17,6 +17,7 @@ CREATE OR REPLACE FUNCTION jsonb_diff(old_row JSONB, new_row JSONB)
 RETURNS JSONB
 LANGUAGE sql
 IMMUTABLE
+SET search_path = ''
 AS $$
   SELECT jsonb_object_agg(
     key,

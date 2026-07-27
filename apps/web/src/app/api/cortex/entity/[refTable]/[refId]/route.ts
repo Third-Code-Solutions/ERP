@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import { getUserProfile } from '@buildops/auth'
-import { cortexDescribeEntity, getCortexNodeByRef } from '@buildops/database'
+import { getUserProfile } from '@third-code-erp/auth'
+import { cortexDescribeEntity, getCortexNodeByRef } from '@third-code-erp/database'
 import { cortexCanSeeType, cortexNodeTypeScope } from '@/lib/cortex/rbac'
 
 /**

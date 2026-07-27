@@ -1,16 +1,17 @@
-# ABI Ops Platform — Software Product Requirements Document
+# Third Code ERP — Software Product Requirements Document
 
 **Engineering Reference — User Stories, API Specs, Sprint Plan**
 
-**Th/rd Code Solutions Inc.**
-**Client:** Actuate Builders Inc.
-**Version:** 1.0 | May 2026 | CONFIDENTIAL
+**Third Code Solutions Inc.**
+**Product:** Multi-tenant / Client-agnostic
+**Version:** 1.1 | July 2026 | CONFIDENTIAL
 
 | Version | Date | Status | Author |
 |---|---|---|---|
-| 1.0 | May 2026 | Draft — Pending Client Review | Th/rd Code Solutions |
+| 1.0 | May 2026 | Historical client-specific baseline | Third Code Solutions |
+| 1.1 | July 2026 | Active implementation — public foundation and clean-room ERP expansion | Third Code Solutions |
 
-> *Th/rd Code Solutions Inc. | Confidential | Not for Distribution*
+> *Third Code Solutions Inc. | Confidential | Not for Distribution*
 
 ---
 
@@ -31,7 +32,11 @@
 
 ## 1. Purpose & Scope
 
-This document defines the software product requirements for **ABI Ops** — a unified fit-out operations platform for Actuate Builders Inc. It is written for the engineering team at Th/rd Code Solutions and covers all specifications needed to design, build, test, and deploy the system.
+This document defines the software product requirements for **Third Code ERP** —
+a unified, multi-tenant operations platform for construction and adjacent
+project-driven businesses. It is written for the engineering team at Third Code
+Solutions and covers all specifications needed to design, build, test, and
+deploy the system.
 
 This PRD covers: user stories with acceptance criteria per module, system architecture, API contract, integration specs, non-functional requirements, security model, testing strategy, and a sprint-level delivery plan.
 
@@ -39,7 +44,10 @@ This PRD covers: user stories with acceptance criteria per module, system archit
 
 ### Companion Document
 
-This Software PRD should be read alongside the **ABI Ops Business PRD (v1.0)** which defines the process context, business rules, SLA framework, and module-level feature descriptions. This document defines the **HOW**; the Business PRD defines the **WHAT** and **WHY**.
+This Software PRD should be read alongside the **Third Code ERP Business PRD
+(v1.1)**, which defines the process context, business rules, SLA framework, and
+module-level feature descriptions. This document defines the **HOW**; the
+Business PRD defines the **WHAT** and **WHY**.
 
 ---
 
@@ -632,7 +640,7 @@ POST /api/v1/submissions
   Body: { template_id, submitters: [{ email, name, role }], send_email: false }
   Response: { submission_id, slug (portal URL) }
 
-# ABI Ops embeds the DocuSeal slug in the client BOM portal
+# Third Code ERP embeds the DocuSeal slug in the client BOM portal
 # On signing, DocuSeal POSTs to our webhook:
 
 POST /webhooks/docuseal (our endpoint)
@@ -691,7 +699,7 @@ cnps-survey-sender (every hour):
 | Unit Tests | Vitest (frontend), pytest (FastAPI) | 80% line coverage on business logic | Engineering (automated) |
 | Integration Tests | Playwright + Supabase test DB | All user stories: happy path + key error paths | Engineering (automated) |
 | API Tests | pytest + httpx | All API endpoints; auth checks; RLS enforcement | Engineering (automated) |
-| UAT | Manual + test scripts | All modules; all roles; SLA enforcement | ABI Ops team (client) |
+| UAT | Manual + test scripts | All modules; all roles; SLA enforcement | Third Code ERP tenant team |
 | Performance Tests | k6 | BOM generation, concurrent pipeline board load | Engineering (pre-launch) |
 | Security Scan | OWASP ZAP | OWASP Top 10 surface scan | Engineering (pre-launch) |
 
@@ -707,7 +715,9 @@ cnps-survey-sender (every hour):
 
 ### 8.3 UAT Plan
 
-UAT is conducted per phase before production deployment. ABI Ops team runs through role-specific test scripts in the staging environment. UAT sign-off per phase is required before production release.
+UAT is conducted per phase before production deployment. The tenant team runs
+through role-specific test scripts in the staging environment. UAT sign-off per
+phase is required before production release.
 
 | Phase | UAT Duration | UAT Participants | Sign-off Owner |
 |---|---|---|---|
@@ -720,7 +730,9 @@ UAT is conducted per phase before production deployment. ABI Ops team runs throu
 
 ## 9. Sprint Delivery Plan
 
-Sprints are 2-week cycles. Total Phase 1 estimate: **10 weeks (5 sprints)**. Full platform: **~32 weeks across 4 phases**. Estimates assume 1 full-stack lead (Kurt) + support from Th/rd Code team.
+Sprints are 2-week cycles. Total Phase 1 estimate: **10 weeks (5 sprints)**.
+Full platform: **~32 weeks across 4 phases**. Estimates assume 1 full-stack
+lead (Kurt) plus support from the Third Code Solutions team.
 
 ### Phase 1 — CRM Foundation + BOM Engine (Weeks 1–10)
 
@@ -856,10 +868,10 @@ These items require decisions or external input before implementation can begin.
 | T01 | Confirm exact Togal.ai export column names and format — needed to finalize import parser | Sprint 4 | Kurt + Togal account holder | Before Sprint 4 |
 | T02 | DocuSeal: self-host on Railway (recommended) vs. DocuSeal Cloud — cost and setup trade-off | Sprint 5 | Masshi / Kurt | Before Sprint 4 |
 | T03 | Supabase region selection: confirm SG (`ap-southeast-1`) is acceptable for data residency | Infra setup | Masshi | Before Sprint 1 |
-| T04 | Initial rate card data: Commercial team must populate Supplier Rate Card DB before Phase 1 UAT | Sprint 5 UAT | Commercial Lead (ABI) | Before Week 9 |
-| T05 | Checklist item template: get final list of Pre-Con checklist items and SLA days from SD Lead | Sprint 6 | SD Lead (ABI) | Before Sprint 6 |
-| T06 | Contract template: obtain ABI's standard contract Word template for digitization | Sprint 6 | Sales Head (ABI) | Before Sprint 6 |
-| T07 | Resend domain verification: set up SPF/DKIM for `notifications@abiops.ph` (or existing ABI domain) | Sprint 5 | Kurt | Before Sprint 5 |
+| T04 | Initial rate card data: Commercial team must populate Supplier Rate Card DB before Phase 1 UAT | Sprint 5 UAT | Commercial Lead | Before Week 9 |
+| T05 | Checklist item template: get final list of Pre-Con checklist items and SLA days from SD Lead | Sprint 6 | SD Lead | Before Sprint 6 |
+| T06 | Contract template: obtain Third Code ERP's standard contract Word template for digitization | Sprint 6 | Sales Head | Before Sprint 6 |
+| T07 | Resend domain verification: set up SPF/DKIM for the verified `EMAIL_FROM` sender | Sprint 5 | Kurt | Before Sprint 5 |
 | T08 | DocuSeal template design: BOM signing template and Contract template to be designed in DocuSeal admin before integration | Sprint 5 | Kurt | Before Sprint 5 |
 | T09 | Semaphore SMS: confirm API key availability and sender name registration for PH SMS | Sprint 12 | Kurt | Before Sprint 12 |
 | T10 | Togal.ai webhook: confirm if Togal API supports outbound webhooks for auto-import trigger | Future | Kurt + Togal | Post-launch |
@@ -868,4 +880,4 @@ These items require decisions or external input before implementation can begin.
 
 **— END OF DOCUMENT —**
 
-*ABI Ops Software PRD v1.0 | Th/rd Code Solutions Inc. | Confidential*
+*Third Code ERP Software PRD v1.1 | Third Code Solutions Inc. | Confidential*

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getUserProfile } from '@buildops/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import { getOpportunitiesForExport } from '@/lib/dashboard-queries'
 
 // CSV-safe escaping per RFC-4180. Wrap in quotes when the value contains
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     status: 200,
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="abi-pipeline-export-${today}.csv"`,
+      'Content-Disposition': `attachment; filename="third-code-erp-pipeline-export-${today}.csv"`,
       'Cache-Control': 'no-store',
     },
   })

@@ -6,26 +6,26 @@ import { and, eq, sql } from 'drizzle-orm'
 import {
   requireUserProfile,
   can,
-  type AbiCapability,
+  type ErpCapability,
   type AppRole,
-} from '@buildops/auth'
-import { db } from '@buildops/database'
+} from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   accounts,
   contacts,
   accountKycArtifacts,
   documents,
   users as usersTable,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import {
   createAccountSchema,
   reviewKycSchema,
   addKycArtifactSchema,
   type KycArtifactType,
-} from '@buildops/shared-types'
+} from '@third-code-erp/shared-types'
 import { writeAuditLog } from '@/lib/audit'
 
-function guard(role: AppRole, capability: AbiCapability) {
+function guard(role: AppRole, capability: ErpCapability) {
   if (!can(role, capability)) {
     return `Forbidden: role "${role}" lacks "${capability}"` as const
   }

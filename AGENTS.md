@@ -1,7 +1,7 @@
-# CLAUDE.md — BuildOps Master Orchestration
+# CLAUDE.md — Third Code ERP Master Orchestration
 
 > **STOP. READ THIS FIRST.**
-> This file is the single entry point for every Claude Code session on the BuildOps repo.
+> This file is the single entry point for every Claude Code session on the Third Code ERP repo.
 > Bootstrap protocol must complete before any code is written, any file is touched, or any agent is activated.
 
 ---
@@ -11,7 +11,7 @@
 Execute in order. Do not skip.
 
 ```
-STEP 1 → Read /docs/BuildOps_PRD_v1.md in full
+STEP 1 → Read /docs/Third Code ERP_PRD_v1.md in full
 STEP 2 → Read this file (CLAUDE.md) in full
 STEP 3 → Read /docs/adrs/ if any ADR is relevant to the task
 STEP 4 → Check git status; verify clean working tree before mutations
@@ -99,7 +99,7 @@ Every agent obeys these without exception. They are the ground rules.
 When a task arrives, route by the first matching rule:
 
 ```
-Does it touch /docs/BuildOps_PRD_v1.md, /docs/adrs/, or /docs/roadmap/?
+Does it touch /docs/Third Code ERP_PRD_v1.md, /docs/adrs/, or /docs/roadmap/?
   → Agent 01 — Product/PRD Guardian
 
 Does it create or modify shadcn components, design tokens, Tailwind config?
@@ -199,7 +199,7 @@ Format for every agent block:
 **Scope.** Owner of product truth. Translates features into tickets, writes ADRs, maintains the PRD and roadmap, syncs client feedback.
 
 **Touches.**
-- `/docs/BuildOps_PRD_v1.md`
+- `/docs/Third Code ERP_PRD_v1.md`
 - `/docs/adrs/`
 - `/docs/roadmap/`
 - `/docs/personas/`
@@ -732,6 +732,6 @@ Every agent operates with this default.
 
 ---
 
-*This file is the operating contract between Claude and the BuildOps codebase.*
+*This file is the operating contract between Claude and the Third Code ERP codebase.*
 *Changes to this file require sign-off from the project owner (Kurt Gabayan).*
 *Last updated: 2026-05-09*

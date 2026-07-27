@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import type { SearchHitType } from '@/app/api/search/search-policy'
 
 interface SearchHit {
-  type: 'account' | 'project' | 'opportunity' | 'bom' | 'po' | 'invoice' | 'claim'
+  type: SearchHitType
   id: string
   title: string
   subtitle?: string
@@ -19,6 +20,15 @@ const TYPE_LABEL: Record<SearchHit['type'], string> = {
   po: 'Purchase order',
   invoice: 'Invoice',
   claim: 'Progress claim',
+  document: 'Document',
+  task: 'My task',
+  permit: 'Permit',
+  punchlist: 'Punchlist',
+  warranty: 'Warranty ticket',
+  delivery: 'Delivery',
+  rfq: 'RFQ',
+  ledger_account: 'Ledger account',
+  journal_entry: 'Journal entry',
 }
 
 const TYPE_TONE: Record<SearchHit['type'], string> = {
@@ -29,6 +39,15 @@ const TYPE_TONE: Record<SearchHit['type'], string> = {
   po: 'var(--color-info)',
   invoice: 'var(--color-warning)',
   claim: 'var(--color-danger)',
+  document: 'var(--color-neutral-600)',
+  task: 'var(--color-success)',
+  permit: 'var(--color-warning)',
+  punchlist: 'var(--color-danger)',
+  warranty: 'var(--color-gold-600)',
+  delivery: 'var(--color-info)',
+  rfq: 'var(--color-navy-600)',
+  ledger_account: 'var(--color-navy-700)',
+  journal_entry: 'var(--color-success)',
 }
 
 interface Props {
@@ -204,7 +223,7 @@ export function CommandPalette({ open, onClose }: Props) {
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search accounts, projects, opportunities, BOMs, POs, invoices, claims…"
+            placeholder="Search projects, documents, tasks, records…"
             aria-label="Search"
             autoComplete="off"
             spellCheck={false}

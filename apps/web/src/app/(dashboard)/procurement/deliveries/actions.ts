@@ -18,17 +18,17 @@ import { z } from 'zod'
 import {
   requireUserProfile,
   can,
-  type AbiCapability,
+  type ErpCapability,
   type AppRole,
-} from '@buildops/auth'
-import { db } from '@buildops/database'
+} from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   deliverySchedules,
   deliveryInspections,
   purchaseOrders,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { notifyRoles } from '@/lib/abi/notifications'
+import { notifyRoles } from '@/lib/operations/notifications'
 
 type DeliveryStatus =
   | 'scheduled'
@@ -49,7 +49,7 @@ const TERMINAL: ReadonlySet<DeliveryStatus> = new Set([
   'cancelled',
 ])
 
-function guard(role: AppRole, capability: AbiCapability): string | null {
+function guard(role: AppRole, capability: ErpCapability): string | null {
   if (!can(role, capability)) {
     return `Forbidden: role "${role}" lacks "${capability}"`
   }

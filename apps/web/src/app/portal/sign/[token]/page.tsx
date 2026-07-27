@@ -8,11 +8,11 @@ import {
   certificatesOfCompletion,
   projects,
   accounts,
-} from '@buildops/database/schema'
-import { createSupabaseAdminClient } from '@buildops/auth'
-import { hashToken, isExpired, isSigned } from '@/lib/abi/integrations/canvas-sign'
+} from '@third-code-erp/database/schema'
+import { createSupabaseAdminClient } from '@third-code-erp/auth'
+import { hashToken, isExpired, isSigned } from '@/lib/operations/integrations/canvas-sign'
 import { CanvasSigningForm } from '@/components/canvas-sign/signing-form'
-import { db } from '@buildops/database'
+import { db } from '@third-code-erp/database'
 
 export const metadata: Metadata = {
   title: 'Sign document',

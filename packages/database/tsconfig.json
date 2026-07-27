@@ -1,5 +1,5 @@
 {
-  "extends": "@buildops/config/tsconfig",
+  "extends": "@third-code-erp/config/tsconfig",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {}

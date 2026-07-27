@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ABI_STAGES,
+  PIPELINE_STAGES,
   STAGE_LEGACY_MAP,
   formatCentsCompact,
-  type AbiStage,
+  type PipelineStage,
   type OpportunityStage,
-} from '@buildops/shared-types'
-import { createSupabaseBrowserClient } from '@buildops/auth/client'
+} from '@third-code-erp/shared-types'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 import { advanceOpportunityStage } from '@/app/(dashboard)/pipeline/actions'
 import {
   OpportunityKanbanCard,
@@ -28,7 +28,7 @@ interface PipelineBoardProps {
   projects: ProjectOption[]
 }
 
-const STAGE_LABELS: Record<AbiStage, string> = {
+const STAGE_LABELS: Record<PipelineStage, string> = {
   lead: 'Lead',
   site_survey: 'Site Survey',
   design: 'Design',
@@ -39,7 +39,7 @@ const STAGE_LABELS: Record<AbiStage, string> = {
   lost: 'Lost',
 }
 
-const STAGE_ACCENTS: Record<AbiStage, string> = {
+const STAGE_ACCENTS: Record<PipelineStage, string> = {
   lead: '#6b7280',
   site_survey: '#6366f1',
   design: '#8b5cf6',
@@ -50,7 +50,7 @@ const STAGE_ACCENTS: Record<AbiStage, string> = {
   lost: '#ef4444',
 }
 
-const KYC_GATED_STAGES: ReadonlySet<AbiStage> = new Set<AbiStage>([
+const KYC_GATED_STAGES: ReadonlySet<PipelineStage> = new Set<PipelineStage>([
   'design',
   'bom_submission',
   'negotiation',
@@ -60,23 +60,23 @@ const KYC_GATED_STAGES: ReadonlySet<AbiStage> = new Set<AbiStage>([
 
 interface PendingRegression {
   cardId: string
-  fromStage: AbiStage
-  toStage: AbiStage
+  fromStage: PipelineStage
+  toStage: PipelineStage
 }
 
 export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps) {
   const router = useRouter()
   const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [dragOverStage, setDragOverStage] = useState<AbiStage | null>(null)
+  const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null)
   const [banner, setBanner] = useState<{ kind: 'error' | 'info'; text: string } | null>(null)
   const [pendingRegression, setPendingRegression] = useState<PendingRegression | null>(null)
-  const [quickAddStage, setQuickAddStage] = useState<AbiStage | null>(null)
+  const [quickAddStage, setQuickAddStage] = useState<PipelineStage | null>(null)
   const [isPending, startTransition] = useTransition()
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // ── Group cards into ABI canonical columns. Legacy stages route via STAGE_LEGACY_MAP. ─
+  // ── Group cards into canonical columns. Legacy stages route via STAGE_LEGACY_MAP. ─
   const columns = useMemo(() => {
-    const buckets: Record<AbiStage, KanbanCardData[]> = {
+    const buckets: Record<PipelineStage, KanbanCardData[]> = {
       lead: [],
       site_survey: [],
       design: [],
@@ -87,8 +87,8 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
       lost: [],
     }
     for (const c of cards) {
-      const abi = STAGE_LEGACY_MAP[c.stage as OpportunityStage] ?? 'lead'
-      buckets[abi].push(c)
+      const pipelineStage = STAGE_LEGACY_MAP[c.stage as OpportunityStage] ?? 'lead'
+      buckets[pipelineStage].push(c)
     }
     return buckets
   }, [cards])
@@ -122,7 +122,7 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
     bannerTimerRef.current = setTimeout(() => setBanner(null), 4200)
   }
 
-  function performAdvance(cardId: string, toStage: AbiStage, reason?: string) {
+  function performAdvance(cardId: string, toStage: PipelineStage, reason?: string) {
     startTransition(async () => {
       const res = await advanceOpportunityStage(cardId, toStage, reason)
       if (res.error) {
@@ -143,7 +143,7 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
     })
   }
 
-  function handleDrop(toStage: AbiStage) {
+  function handleDrop(toStage: PipelineStage) {
     setDragOverStage(null)
     const cardId = draggingId
     setDraggingId(null)
@@ -152,7 +152,7 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
     const card = cards.find((c) => c.id === cardId)
     if (!card) return
 
-    const fromStage: AbiStage =
+    const fromStage: PipelineStage =
       STAGE_LEGACY_MAP[card.stage as OpportunityStage] ?? 'lead'
     if (fromStage === toStage) return
 
@@ -169,7 +169,7 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
 
     // ── Regression detection ──────────────────────────────────────────────
     const isRegression =
-      ABI_STAGES.indexOf(toStage) < ABI_STAGES.indexOf(fromStage) &&
+      PIPELINE_STAGES.indexOf(toStage) < PIPELINE_STAGES.indexOf(fromStage) &&
       toStage !== 'lost'
     if (isRegression) {
       setPendingRegression({ cardId, fromStage, toStage })
@@ -215,7 +215,7 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
           transition: 'opacity 120ms ease',
         }}
       >
-        {ABI_STAGES.map((stage) => {
+        {PIPELINE_STAGES.map((stage) => {
           const items = columns[stage]
           const subtotal = items.reduce((acc, c) => acc + c.tcv_cents, 0)
           const isOver = dragOverStage === stage
