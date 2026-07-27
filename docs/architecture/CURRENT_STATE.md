@@ -17,7 +17,7 @@ successful build.
 | Async work | Inngest is the active legacy job system. Redis 5/BullMQ 5 are wired into the Nest foundation but have no migrated business jobs yet |
 | Python | `apps/workers`: FastAPI document/DXF processing service. A legacy path can write `scope_items` directly and must be removed |
 | Files | Supabase Storage |
-| Deployment | Web is configured for Vercel. NestJS is deployed on Railway with managed Redis and healthy database/queue readiness. The Vercel production alias still serves the prior release because the first current-main deployment was blocked by commit-author membership policy |
+| Deployment | Next.js is live on Vercel. NestJS is live on Railway with managed Redis and healthy database/queue readiness. Both current production releases are attributed to `kurtgav` |
 
 ## Dependency configuration
 
@@ -77,8 +77,8 @@ matches the repository migration contract:
 
 ## Hosted release status
 
-- GitHub source is published to `Third-Code-Solutions/ERP`; `origin/main` is
-  `f28af8098de29e8f5627cd383261ef8d1c456df2`.
+- GitHub source is published to `Third-Code-Solutions/ERP`; the reviewed
+  deployment milestone is present on `main`.
 - GitHub CLI and Git operations use `kurtgav`. GitHub Actions cannot start
   runners because the organization account has a billing/spending-limit
   block; the failure occurs before any workflow step executes.
@@ -90,10 +90,12 @@ matches the repository migration contract:
   `8ccba547-8dde-4c37-8bcb-3f3834c18358`, built remotely from the reviewed
   Dockerfile and `railway.toml`.
 - Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is reconnected to
-  `Third-Code-Solutions/ERP`. Its first current-main deployment
-  `dpl_5Sdged8VSEc1if2UTAxWgPxYQ43P` was blocked before build because the
-  historical commit mapped to GitHub user `thirdcodekurt`, who is not a member
-  of the Vercel team.
+  `Third-Code-Solutions/ERP`. The `main` lineage serves
+  `https://thirdcode-erp.vercel.app`; verified runtime baseline
+  `dpl_EUTTu6My37zSWEzt57XvPTa3MdhZ` is READY on reviewed commit
+  `e0060b40097fed9733eea8149e09f92460807f7d`.
+- Vercel Web Analytics is enabled. Its production script returns JavaScript
+  with HTTP 200 and the final desktop browser console is clean.
 - `ERP_CORE_API_URL` is configured for the Railway API. The production and
   preview Project-write migration flag was returned to disabled pending live
   authorization and rollback evidence.
@@ -133,8 +135,9 @@ matches the repository migration contract:
 13. GitHub Actions is blocked before runner startup by the organization
     account's failed-payment/spending-limit state. Local green gates do not
     substitute for the skipped disposable PostgreSQL/Redis CI lane.
-14. The current Vercel frontend release is blocked until a commit attributable
-    to the authorized `kurtgav` Vercel team member is deployed.
+14. The migrated Project-write flag must remain disabled until live Auth,
+    cross-tenant, insufficient-capability, stale-write, audit, and rollback
+    evidence is complete.
 15. Database test harnesses now require an explicitly injected
     `DATABASE_URL`; normal unit-test commands cannot auto-load a hosted
     application `.env.local`.
@@ -175,3 +178,8 @@ matches the repository migration contract:
 - Fresh uncached Nest and Next production builds pass; Next generated all
   77 pages.
 - Gitleaks 8.30.1 reports zero findings for the exact staged change set.
+- Vercel production build is READY on the reviewed SHA. Live checks pass for
+  landing, login, protected-dashboard redirect, robots, sitemap, canonical
+  metadata, desktop/mobile overflow, images, analytics, and release identity.
+- Live source/DOM scans contain no former-product or prohibited external ERP
+  branding.

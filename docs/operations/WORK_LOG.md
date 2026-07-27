@@ -338,3 +338,43 @@ External blockers and rollback:
 - Rollback remains immediate: keep the Vercel write flag disabled, leave the
   prior frontend alias untouched, and redeploy the prior Railway release if
   API health regresses.
+
+## 2026-07-28 — M1 Vercel production release
+
+Completed:
+
+- Pushed commit `e0060b40097fed9733eea8149e09f92460807f7d` as
+  `kurtgav <kurtgavin.design@gmail.com>`.
+- Vercel accepted the GitHub identity, built the Next.js application, and
+  promoted production deployment `dpl_GctXj21P7kEQM4xbsfPU5rmUEC7t`.
+- Enabled Vercel Web Analytics after browser QA found its script returning
+  404.
+- Redeployed the same reviewed SHA as
+  `dpl_EUTTu6My37zSWEzt57XvPTa3MdhZ`; state is READY and the canonical alias
+  points to it.
+- Kept `ERP_PROJECT_WRITES_VIA_API=false` for Production and Preview.
+
+Validation:
+
+- Production `/` — 200.
+- Production `/auth/login` — 200 with correct email/password autocomplete.
+- Unauthenticated `/dashboard` — 307 to `/auth/login`.
+- `/robots.txt` — 200 with private application routes disallowed.
+- `/sitemap.xml` — 200 with the canonical landing URL.
+- Canonical metadata, index/follow metadata, title, and description — pass.
+- Desktop 1280×720 — no horizontal overflow; required images load.
+- Mobile 390×844 — no horizontal overflow; navigation and CTAs remain usable.
+- Final browser console — zero errors and zero warnings.
+- Web Analytics script — 200 JavaScript.
+- Runtime script metadata — exact production deployment
+  `dpl_EUTTu6My37zSWEzt57XvPTa3MdhZ`.
+- Former-product/prohibited-source live text scan — zero findings.
+- Railway `/health` and `/ready` remained 200 after frontend release.
+
+Remaining:
+
+- GitHub Actions cannot start runners until the organization billing/spending
+  issue is resolved.
+- Live Supabase Auth and denial-path evidence for the Nest guard remains
+  pending.
+- The migrated Project-write flag remains disabled.
