@@ -144,3 +144,12 @@ evidence passes.
 
 Reason: infrastructure availability is not proof that official ERP
 transactions are ready to move.
+
+## D-021 — Analytics must fail cleanly
+
+Decision: production telemetry is enabled at the Vercel project boundary and
+must load without generating browser errors. Analytics remains observational;
+it cannot authorize or mutate ERP records.
+
+Reason: shipping a client integration that predictably returns 404 creates
+noise that can conceal real frontend failures.

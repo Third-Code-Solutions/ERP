@@ -17,9 +17,9 @@ Status: complete on 2026-07-27.
 
 ### M1 — Nest transaction-authority foundation
 
-Status: source published; hosted database reconciled; NestJS and Redis
-deployed on Railway; Vercel current-main release and disposable CI execution
-pending.
+Status: source published; hosted database reconciled; NestJS/Redis deployed on
+Railway; Next.js deployed on Vercel; disposable CI and live Auth/authorization
+evidence pending.
 
 - Add NestJS modular-monolith application.
 - Add validated configuration, health/readiness endpoints, Supabase identity
@@ -46,8 +46,10 @@ Production entry status:
 - Real Supabase Auth verification in a preview environment.
 - Complete for backend infrastructure: Railway NestJS `/health` and `/ready`
   are green with PostgreSQL and Redis.
-- Pending for frontend: deploy current `main` to Vercel with a commit
-  attributable to `kurtgav`, then verify the production alias.
+- Complete for frontend infrastructure: Vercel production is READY on the
+  `e0060b40097fed9733eea8149e09f92460807f7d` runtime baseline or its
+  documentation-only successor, the canonical alias is current, Web Analytics
+  is enabled, and desktop/mobile browser gates pass.
 - Cross-tenant and insufficient-capability HTTP tests against the real guard.
 - Observability and rollback drill.
 - Complete: hosted database release gate at 44/44 migrations with the

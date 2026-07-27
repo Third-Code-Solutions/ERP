@@ -79,6 +79,8 @@ reach through each other's internals.
 ## Deployment mapping
 
 - Vercel `thirdcode-erp`: Next.js frontend/BFF only.
+- Vercel Web Analytics: first-party product telemetry with a clean browser
+  console and no transaction authority.
 - Railway `Third Code ERP API`: the single NestJS modular monolith.
 - Railway `Redis`: BullMQ, caching, retry coordination, and distributed locks.
 - Supabase project `aqqrtkmtcsfkbyyqxowv`: PostgreSQL, Auth, and Storage.
