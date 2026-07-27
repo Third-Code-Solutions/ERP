@@ -75,6 +75,9 @@ reach through each other's internals.
 - Keep root package-manager policy in the supported workspace configuration;
   frozen installs must not mutate the reviewed lockfile or emit ignored-setting
   warnings.
+- Pin release tooling to immutable versions and verify downloaded binary
+  digests before execution; never bootstrap a release gate from a mutable
+  upstream branch.
 - Rebuild PostgreSQL 17 from zero and reject skipped database tests.
 - Permit an isolated native PostgreSQL/Redis lane as supplemental local
   evidence when Docker is unavailable; require exact pinned Supabase container

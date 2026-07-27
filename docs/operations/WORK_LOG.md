@@ -740,3 +740,46 @@ Release evidence:
 - GitHub Actions run `30300165903` — billing/spending-limit failure before
   runner steps; Actionlint has zero steps and seven dependent jobs were
   skipped.
+
+## 2026-07-28 — M1 release-tool reproducibility
+
+Completed:
+
+- Reran GitHub Actions run `30300434327`. Actionlint check
+  `90092637986` again failed before runner startup with the exact
+  account-payment/spending-limit annotation; it produced zero steps and no
+  job log. Seven dependent jobs were skipped.
+- Reproduced the Actionlint job in the isolated Linux lane. Upstream resolved
+  the mutable bootstrap to Actionlint 1.7.12 and the workflow passed.
+- Replaced the mutable `main` bootstrap with an explicit Actionlint 1.7.12
+  release download and SHA-256 verification.
+- Kept application code, database state, provider environments, tenant
+  allowlist, and production write routing unchanged.
+
+Changed files:
+
+- `.github/scripts/run-actionlint.sh`
+- `.github/workflows/ci.yml`
+- the six architecture/operations memory files
+
+Validation:
+
+- Actionlint 1.7.12 on Linux — pass.
+- Actionlint Linux release SHA-256 — pass.
+- Pinned GitHub Action tag-to-commit checks — 5/5 pass.
+- Frozen pnpm 10.33.0 install — pass; lockfile unchanged.
+- Root lint and typecheck — pass.
+- Root tests — 244 pass; the normal non-database lane reports 128 database
+  skips, already superseded for source parity by the dedicated 212/212
+  zero-skip lane.
+- Root production build — pass; Nest compiles and Next generates 77 pages.
+- Gitleaks 8.30.1 exact staged scan — zero findings.
+- Repository identity — `kurtgav <kurtgavin.design@gmail.com>`.
+
+Rollback and unresolved:
+
+- Source rollback: revert the release-tool commit. No runtime or data rollback
+  is required.
+- Hosted CI remains blocked by GitHub account billing/spending limits. Local
+  workflow validation cannot replace the missing hosted runner execution.
+- `ERP_PROJECT_WRITES_VIA_API=false`; tenant allowlist remains empty.
