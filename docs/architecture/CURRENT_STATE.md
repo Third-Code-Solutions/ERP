@@ -154,8 +154,10 @@ matches the repository migration contract:
     application `.env.local`.
 16. Local Docker cannot run until firmware virtualization and Windows Virtual
     Machine Platform are enabled. The current host reports
-    `HCS_E_HYPERV_NOT_INSTALLED`; this blocks local disposable PostgreSQL/Redis
-    parity but does not justify using production as a test database.
+    `HCS_E_HYPERV_NOT_INSTALLED`. An isolated WSL1 lane now provides disposable
+    PostgreSQL 17.10, pgvector 0.6.2, and Redis 8.0.4 evidence without touching
+    production. This supplements, but does not replace, exact Supabase
+    PostgreSQL/Redis container parity in CI.
 
 ## Verification coverage
 
@@ -179,10 +181,21 @@ matches the repository migration contract:
 - Fresh uncached workspace tests pass with 244 executed tests; 128 database
   cases are skipped unless a disposable database URL and capability flags are
   explicitly injected.
+- The dedicated fail-closed database lane rebuilds from all 47 migrations and
+  seed data, then executes all 212 database tests with zero skips.
 - A disposable-database Nest integration test now covers 401, 403, cross-tenant
   404, stale 409, successful update, trigger audit actor, and final rollback.
-  It is wired into the clean PostgreSQL 17 CI job but has not run locally
-  because Docker is unavailable.
+  It passes locally against the isolated PostgreSQL/Redis lane and remains
+  wired into the exact clean-container CI job.
+- Fresh replay exposed and fixed three database-function defects: a missing
+  trigger return, PL/pgSQL record/table-alias resolution, and workflow guard
+  ordering for bank reversal and Project Budget revision approval.
+- The migration/catalog verifier passes with the optional platform
+  `rls_auto_enable()` helper both absent and present-but-locked.
+- Supabase project `aqqrtkmtcsfkbyyqxowv` is current at 47/47 migrations.
+  Hosted and clean-local definitions for all five repaired functions have
+  identical MD5 fingerprints; affected business/audit row counts were
+  unchanged across the release.
 - The production database catalog and migration ledger were verified.
 - The deployed Railway API passed live `/health` and `/ready` checks against
   the configured PostgreSQL and Redis dependencies.

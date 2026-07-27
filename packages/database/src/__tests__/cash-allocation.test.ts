@@ -331,6 +331,52 @@ async function seedCashFixture(
        returning id`
     )) as Rows
   )[0]!.id as string
+  const costCodeId = (
+    (await tx.unsafe(
+      `insert into cost_codes(
+         tenant_id,
+         code,
+         name,
+         category,
+         created_by
+       )
+       values(
+         '${tenantId}',
+         'MAT-${suffix}',
+         'Project materials',
+         'material',
+         '${actorId}'
+       )
+       returning id`
+    )) as Rows
+  )[0]!.id as string
+  const purchaseOrderLineId = (
+    (await tx.unsafe(
+      `insert into po_line_items(
+         tenant_id,
+         po_id,
+         sort_order,
+         description,
+         cost_code_id,
+         quantity,
+         quantity_micros,
+         unit_cost_cents,
+         line_total_cents
+       )
+       values(
+         '${tenantId}',
+         '${purchaseOrderId}',
+         1,
+         'Project materials',
+         '${costCodeId}',
+         1,
+         1000000,
+         100000,
+         100000
+       )
+       returning id`
+    )) as Rows
+  )[0]!.id as string
   const supplierBillId = (
     (await tx.unsafe(
       `insert into supplier_bills(
@@ -370,6 +416,8 @@ async function seedCashFixture(
        supplier_bill_id,
        ledger_account_id,
        project_id,
+       po_line_item_id,
+       cost_code_id,
        line_number,
        description,
        amount_cents
@@ -379,6 +427,8 @@ async function seedCashFixture(
        '${supplierBillId}',
        '${expenseLedgerId}',
        '${projectId}',
+       '${purchaseOrderLineId}',
+       '${costCodeId}',
        1,
        'Project materials',
        100000

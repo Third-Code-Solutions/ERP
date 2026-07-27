@@ -4,11 +4,12 @@
 
 Complete remaining M1 release controls without enabling production writes:
 
-1. Resolve the GitHub organization billing/spending-limit block, rerun the
-   clean PostgreSQL 17/Redis CI lane, and confirm no database test is skipped.
-2. Alternative local path: enable firmware virtualization plus Windows Virtual
-   Machine Platform, then run the pinned Supabase 2.109.1 PostgreSQL 17/Redis
-   lane. Do not use the hosted application database.
+1. Publish the reviewed source/evidence commits as
+   `kurtgav <kurtgavin.design@gmail.com>`, then verify GitHub, Vercel, and
+   Railway release identity/outcomes for the exact SHA.
+2. Resolve the GitHub organization billing/spending-limit block and rerun the
+   exact pinned Supabase PostgreSQL 17/Redis CI lane. The supplemental WSL1
+   native lane is green but does not replace this provider-parity gate.
 3. Keep deployed tenant-canary source at
    `ERP_PROJECT_WRITES_VIA_API=false`; leave the tenant allowlist empty until
    clean CI evidence is attached.

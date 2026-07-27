@@ -649,3 +649,74 @@ Rollback and unresolved:
   Windows Virtual Machine Platform, then restarting Windows.
 - Clean zero-skip PostgreSQL/Redis CI remains required before configuring a
   tenant allowlist or changing the production flag.
+
+## 2026-07-28 — M1 native zero-skip database evidence
+
+Completed:
+
+- Kept Docker Desktop and existing WSL distributions untouched after confirming
+  firmware virtualization is unavailable.
+- Imported a dedicated Alpine WSL1 test distribution and installed PostgreSQL
+  17.10, pgvector 0.6.2, and Redis 8.0.4.
+- Rebuilt the disposable database from zero through all 47 migrations and seed
+  data. No hosted application database was used as a fixture.
+- Made the security-advisor hardening migration portable when the optional
+  `public.rls_auto_enable()` guide helper is absent.
+- Added forward fixes for the receivable mirror trigger return, cash-posting
+  PL/pgSQL alias resolution, bank-reversal ordering/concurrency, and Project
+  Budget revision handoff.
+- Updated payables/cash fixtures to satisfy current three-way-match and Cost
+  Code evidence requirements.
+- Corrected deterministic Stock Movement enum-order expectations and preserved
+  exact transfer quantity/value assertions.
+
+Changed files:
+
+- `supabase/migrations/20260727162024_security_advisor_hardening.sql`
+- `supabase/migrations/20260727194749_fix_receivable_mirror_return.sql`
+- `supabase/migrations/20260727194757_fix_cash_posting_alias_resolution.sql`
+- `supabase/migrations/20260727194805_fix_finance_workflow_guards.sql`
+- `scripts/verify-database-repro.mjs`
+- four database runtime test files
+- the six architecture/operations memory files
+
+Validation:
+
+- Clean migration replay and seed — pass, 47/47.
+- Catalog, RLS, function ACL, trigger, index, and ledger verifier — pass.
+- Optional `rls_auto_enable()` verifier paths — absent pass; present and locked
+  pass.
+- Database release planner — current, 47/47, no gaps or unexpected versions.
+- Dedicated database tests — 212/212 pass, zero skipped.
+- Nest PostgreSQL/Redis integration — 1/1 pass.
+- Supabase connected project check — `ERP`,
+  `aqqrtkmtcsfkbyyqxowv`, ACTIVE_HEALTHY, PostgreSQL 17.
+- Hosted migration release — pass, 47/47 with canonical head
+  `20260727194805`; no gaps or unexpected versions.
+- Hosted/local function parity — five repaired function MD5 fingerprints are
+  identical.
+- Hosted ACL verification — repaired privileged functions deny anon and
+  authenticated execution and retain service-role execution.
+- Hosted affected-row baseline — unchanged before/after: audit 662, invoices
+  4, and zero rows in bank lines, cash transactions, journal lines, Project
+  Budgets, and Supplier Bill lines.
+- Supabase advisors after DDL — zero ERROR findings. Existing extension,
+  intentional RLS-helper execution, leaked-password protection, duplicate
+  index, and informational performance findings remain separately scoped.
+- Root lint and typecheck — pass.
+- Root tests — 244 pass; Turbo's filtered database task reports its normal 128
+  skips, separately superseded by the fail-closed zero-skip lane above.
+- Root production build — pass; Nest compiled and Next generated all 77 pages.
+
+Rollback and unresolved:
+
+- Source rollback: revert the forward-fix commit. After hosted application,
+  database rollback is a reviewed compensating forward migration; never delete
+  migration history or reset the linked project.
+- Hosted Supabase is current at 47 migrations. Repository source publication
+  and exact release-SHA/provider verification remain.
+- GitHub Actions remains blocked before runner startup by organization
+  billing/spending limits. Exact pinned Supabase PostgreSQL and Redis parity
+  remains required before Project-write activation.
+- `ERP_PROJECT_WRITES_VIA_API=false`; no tenant allowlist or provider
+  environment changed.

@@ -219,3 +219,16 @@ for a separately approved all-tenant rollout.
 Reason: one global Boolean cannot perform a controlled tenant canary. Enabling
 it would move every tenant at once and defeat the required blast-radius and
 rollback controls.
+
+## D-028 — Native disposable evidence supplements exact container parity
+
+Decision: when host virtualization is unavailable, an isolated imported WSL1
+distribution may run disposable PostgreSQL 17 and Redis for clean migration
+replay, fail-closed database tests, and Nest integration. The lane must use a
+dedicated database, contain no hosted credentials, and be destroyed or rebuilt
+between replay proofs. It does not satisfy the final pinned Supabase
+PostgreSQL/Redis CI gate.
+
+Reason: production data must never become a test fixture. Native disposable
+evidence shortens the feedback loop and exposed real migration/function
+defects, while the pinned CI lane remains authoritative for platform parity.

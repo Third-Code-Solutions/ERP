@@ -50,6 +50,9 @@ const requiredMigrations = [
   '20260726244000_stock_movement_schema.sql',
   '20260726245000_stock_movement_controls.sql',
   '20260727162024_security_advisor_hardening.sql',
+  '20260727194749_fix_receivable_mirror_return.sql',
+  '20260727194757_fix_cash_posting_alias_resolution.sql',
+  '20260727194805_fix_finance_workflow_guards.sql',
 ]
 
 const requiredTables = [
@@ -1036,7 +1039,7 @@ try {
   )
 
   await query(
-    'audit and platform maintenance helpers are not browser-callable',
+    'audit and optional platform maintenance helpers are not browser-callable',
     `select p.proname,
             coalesce(array_to_string(p.proconfig, ','), '') as config,
             exists (
@@ -1057,17 +1060,21 @@ try {
       const byName = new Map(rows.map((row) => [row.proname, row]))
       const jsonbDiff = byName.get('jsonb_diff')
       const rlsAutoEnable = byName.get('rls_auto_enable')
-      return rows.length === 2
-        && (jsonbDiff?.config === 'search_path=""'
+      const rlsAutoEnableIsLocked =
+        rlsAutoEnable === undefined
+        || (
+          rlsAutoEnable.public_execute === false
+          && rlsAutoEnable.anon_execute === false
+          && rlsAutoEnable.authenticated_execute === false
+          && rlsAutoEnable.service_execute === false
+        )
+      return (jsonbDiff?.config === 'search_path=""'
           || jsonbDiff?.config === 'search_path=')
         && jsonbDiff?.public_execute === false
         && jsonbDiff?.anon_execute === false
         && jsonbDiff?.authenticated_execute === false
         && jsonbDiff?.service_execute === true
-        && rlsAutoEnable?.public_execute === false
-        && rlsAutoEnable?.anon_execute === false
-        && rlsAutoEnable?.authenticated_execute === false
-        && rlsAutoEnable?.service_execute === false
+        && rlsAutoEnableIsLocked
     },
     (rows) => JSON.stringify(rows)
   )

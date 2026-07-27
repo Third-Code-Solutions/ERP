@@ -441,14 +441,14 @@ runtimeSuite('Stock Movement runtime controls', () => {
     expect(result.posted?.journal_entry_id).toBeNull()
     expect(result.entries).toEqual([
       {
-        event_type: 'transfer_in',
-        quantity_delta_micros: '4000000',
-        value_delta_cents: '40000',
-      },
-      {
         event_type: 'transfer_out',
         quantity_delta_micros: '-4000000',
         value_delta_cents: '-40000',
+      },
+      {
+        event_type: 'transfer_in',
+        quantity_delta_micros: '4000000',
+        value_delta_cents: '40000',
       },
     ])
   })
