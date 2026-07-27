@@ -172,3 +172,23 @@ before and after; equality is required.
 
 Reason: production authorization evidence is necessary, but production
 business records are not test fixtures.
+
+## D-024 — Correlate commands without logging business context
+
+Decision: Next generates a UUID for each migrated command. Nest validates or
+replaces it, echoes it as `x-request-id`, and records one structured outcome.
+Allowed fields are event, request ID, operation, method, status, outcome, and
+duration. Authorization headers, payloads, raw URLs, tenant/user IDs, and
+record IDs are forbidden.
+
+Reason: operators need a stable cross-service handle, but runtime logs must not
+become a second store of credentials or sensitive ERP data.
+
+## D-025 — Rollback selection is exact and independently tested
+
+Decision: only the literal value `ERP_PROJECT_WRITES_VIA_API=true` selects
+Nest. Unset, empty, `false`, and differently cased values keep the legacy
+Server Action. Tests exercise both branches without a hosted write.
+
+Reason: fail-closed parsing makes a misconfigured rollback return to the
+known legacy path instead of silently enabling a migrated transaction.
