@@ -246,3 +246,15 @@ bootstrap script is not permitted for a release gate.
 Reason: pinned workflow actions do not make CI reproducible when a shell step
 still executes mutable remote code. Version and digest pinning makes the
 reviewed tool artifact explicit and fail closed.
+
+## D-030 — Watched-path skips retain the last runtime artifact
+
+Decision: a commit outside a deployable service's reviewed watch set does not
+force a redundant runtime rebuild. Release evidence records the provider's
+skip event, the skipped repository SHA, the retained runtime artifact SHA, and
+live readiness. Commits that affect the service must still deploy and match
+the reviewed source SHA exactly.
+
+Reason: a monorepo documentation or CI-only commit can legitimately produce
+different repository-head and backend-runtime SHAs. Hiding that difference or
+claiming a skipped event as a deployment would weaken release traceability.

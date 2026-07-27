@@ -783,3 +783,25 @@ Rollback and unresolved:
 - Hosted CI remains blocked by GitHub account billing/spending limits. Local
   workflow validation cannot replace the missing hosted runner execution.
 - `ERP_PROJECT_WRITES_VIA_API=false`; tenant allowlist remains empty.
+
+Release evidence:
+
+- Commit `d4ef08151fa60e62e239c0f049b08b1f83820789`, authored by
+  `kurtgav <kurtgavin.design@gmail.com>`, is synchronized to GitHub `main` and
+  `agent-02/third-code-erp-landing`.
+- GitHub Actions run `30301208797`, Actionlint check `90094308552` — failed
+  before runner startup with the account-payment/spending-limit annotation;
+  zero steps, no job log, seven dependent jobs skipped.
+- Vercel production `dpl_Ch8gGs6VZgN1kKWM2RdWuPkrNdhV` — READY on the exact
+  commit, canonical alias attached, creator `kurtgav`.
+- Vercel preview `dpl_By2dCRLkMR6vKEntDGc2HVechvV4` — READY on the exact
+  commit, creator `kurtgav`.
+- Vercel production build error-only scan — clean; runtime error clusters in
+  the 15-minute release window — none.
+- Canonical landing, `/api/health`, and `/api/ready` — 200.
+- Railway event `6091af41-a567-4edb-8d56-5c2067dbe3f0` — SKIPPED with
+  `No changes to watched files`; commit author `kurtgav`. Healthy API
+  deployment `9e72f2c2-4e55-4878-ab4e-ace21b3fb0b7` remains RUNNING on
+  `42010b9adce6ae89286449edfc1e27c9ffe1eda7`.
+- Railway CLI identity — `Kurt Gavin <kurtgavin.design@gmail.com>`.
+- Railway `/health` — 200; `/ready` — 200 with database and Redis both `ok`.
