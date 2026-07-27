@@ -624,13 +624,27 @@ Validation:
 - Root tests — 244 pass; 128 database cases remain skipped without a
   disposable PostgreSQL instance.
 - Root production build — pass; Nest compiled and Next generated all 77 pages.
+- Source commit `79f32b7f24ade6d8902115db7e8b282af7e6f892` published to
+  both `main` and `agent-02/third-code-erp-landing` as
+  `kurtgav <kurtgavin.design@gmail.com>`.
+- Vercel production deployment `dpl_7knv7FjxiYZ9Wj6DgvkC6cHVSjer` — READY
+  on the source commit, canonical alias attached, creator `kurtgav`.
+- Vercel working-branch preview `dpl_JCBnrVAeyoRuZbn6JsaehFTUHQm1` — READY
+  on the same source commit, creator `kurtgav`.
+- Railway deployment event `505b161b-2826-4b18-afc2-41504cf3fb80` — SKIPPED
+  with `No changes to watched files`; the API correctly retained successful
+  code deployment `83849120-b063-4275-8727-0f6b13f0cd4e`.
+- Live canonical frontend, Railway `/health`, and Railway `/ready` — 200.
+- Live landing output contains `Third Code ERP` and no
+  external-ERP/legacy-brand trace.
 
 Rollback and unresolved:
 
 - Source rollback: revert the tenant-canary commit. With the production flag
   still exact false, deployment of this source does not route Project writes.
-- GitHub Actions remains blocked before runner startup by organization
-  billing/spending limits.
+- GitHub Actions run `30296861757` remains blocked before runner startup by
+  organization billing/spending limits. Actionlint had zero steps; seven
+  dependent jobs were skipped.
 - Local disposable parity requires enabling firmware virtualization and
   Windows Virtual Machine Platform, then restarting Windows.
 - Clean zero-skip PostgreSQL/Redis CI remains required before configuring a
