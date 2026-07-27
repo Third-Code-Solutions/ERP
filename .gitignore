@@ -159,3 +159,6 @@ temp/
 
 # Obsidian vault config (do not track)
 .obsidian/
+
+# Local agent workspace state
+.serena/
