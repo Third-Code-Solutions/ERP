@@ -10,6 +10,9 @@ watchPatterns = [
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "turbo.json",
+  "railway.toml",
+  ".dockerignore",
+  "apps/api/Dockerfile",
 ]
 
 [deploy]
