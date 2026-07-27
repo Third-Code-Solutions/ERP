@@ -17,8 +17,9 @@ Status: complete on 2026-07-27.
 
 ### M1 — Nest transaction-authority foundation
 
-Status: implemented locally; hosted database reconciled and verified;
-disposable CI execution, source publication, and preview deployment pending.
+Status: source published; hosted database reconciled; NestJS and Redis
+deployed on Railway; Vercel current-main release and disposable CI execution
+pending.
 
 - Add NestJS modular-monolith application.
 - Add validated configuration, health/readiness endpoints, Supabase identity
@@ -35,18 +36,24 @@ disposable CI execution, source publication, and preview deployment pending.
 - Keep pnpm 10 dependency overrides in `pnpm-workspace.yaml`; require a frozen
   install with an unchanged reviewed lockfile before CI execution.
 
-Production entry criteria still required:
+Production entry status:
 
-- A green execution of the new disposable PostgreSQL/Redis CI lane.
-- Repository access and a reviewed commit containing the new CI lane.
+- Blocked: a green execution of the new disposable PostgreSQL/Redis CI lane.
+  GitHub currently refuses runner startup because of account billing/spending
+  limits.
+- Complete: repository access and reviewed source publication to
+  `Third-Code-Solutions/ERP`.
 - Real Supabase Auth verification in a preview environment.
-- Preview deployment and readiness evidence.
+- Complete for backend infrastructure: Railway NestJS `/health` and `/ready`
+  are green with PostgreSQL and Redis.
+- Pending for frontend: deploy current `main` to Vercel with a commit
+  attributable to `kurtgav`, then verify the production alias.
 - Cross-tenant and insufficient-capability HTTP tests against the real guard.
 - Observability and rollback drill.
-- Hosted database release gate: complete at 44/44 migrations with the
+- Complete: hosted database release gate at 44/44 migrations with the
   protected-catalog verifier green and business baselines unchanged.
-- Source publication to the intended GitHub repository.
-- Preview deployment to the intended Vercel and Railway targets.
+- Keep `ERP_PROJECT_WRITES_VIA_API=false` until the remaining entry evidence is
+  attached.
 
 ### M2 — Remove unauthorized worker writes
 

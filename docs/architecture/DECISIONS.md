@@ -124,3 +124,23 @@ still writes and must not target a hosted application database by accident.
 Decision: Supabase migration commands use the direct/session-mode port 5432.
 Transaction-mode port 6543 is not used for migrations because prepared
 statements are unsupported there and produced a pre-execution collision.
+
+## D-019 — Release identity is explicit
+
+Decision: GitHub pushes, commit attribution, Railway deployment, and Vercel
+deployment use `kurtgav` / `kurtgavin.design@gmail.com`. Provider identity and
+release SHA are verification evidence, not incidental metadata.
+
+Reason: Vercel correctly blocked a current-main deployment before build when
+the historical commit mapped to `thirdcodekurt`, who is not a member of the
+authorized Vercel team.
+
+## D-020 — Deploy infrastructure before enabling transaction migration
+
+Decision: the Railway NestJS API and Redis may be deployed and health-checked
+while `ERP_PROJECT_WRITES_VIA_API` remains false. The flag can change only
+after live Auth, permission, tenant-isolation, stale-write, audit, and rollback
+evidence passes.
+
+Reason: infrastructure availability is not proof that official ERP
+transactions are ready to move.

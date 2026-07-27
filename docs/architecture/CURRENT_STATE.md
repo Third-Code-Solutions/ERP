@@ -17,7 +17,7 @@ successful build.
 | Async work | Inngest is the active legacy job system. Redis 5/BullMQ 5 are wired into the Nest foundation but have no migrated business jobs yet |
 | Python | `apps/workers`: FastAPI document/DXF processing service. A legacy path can write `scope_items` directly and must be removed |
 | Files | Supabase Storage |
-| Deployment | Web is configured for Vercel; Python workers for Railway. The new Nest container is buildable but not deployed or enabled |
+| Deployment | Web is configured for Vercel. NestJS is deployed on Railway with managed Redis and healthy database/queue readiness. The Vercel production alias still serves the prior release because the first current-main deployment was blocked by commit-author membership policy |
 
 ## Dependency configuration
 
@@ -75,12 +75,35 @@ matches the repository migration contract:
 - Existing Next Server Action contract and cache refresh behavior.
 - Safe rollback to the legacy write path with one disabled-by-default flag.
 
+## Hosted release status
+
+- GitHub source is published to `Third-Code-Solutions/ERP`; `origin/main` is
+  `f28af8098de29e8f5627cd383261ef8d1c456df2`.
+- GitHub CLI and Git operations use `kurtgav`. GitHub Actions cannot start
+  runners because the organization account has a billing/spending-limit
+  block; the failure occurs before any workflow step executes.
+- Railway project `a21fd382-80b2-4218-8025-11f420a062e3` runs the NestJS
+  service `Third Code ERP API` and a managed Redis service.
+- `https://third-code-erp-api-production.up.railway.app/health` returns
+  `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
+- The successful Railway deployment is
+  `8ccba547-8dde-4c37-8bcb-3f3834c18358`, built remotely from the reviewed
+  Dockerfile and `railway.toml`.
+- Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is reconnected to
+  `Third-Code-Solutions/ERP`. Its first current-main deployment
+  `dpl_5Sdged8VSEc1if2UTAxWgPxYQ43P` was blocked before build because the
+  historical commit mapped to GitHub user `thirdcodekurt`, who is not a member
+  of the Vercel team.
+- `ERP_CORE_API_URL` is configured for the Railway API. The production and
+  preview Project-write migration flag was returned to disabled pending live
+  authorization and rollback evidence.
+
 ## Current quality classification
 
 | Classification | Evidence |
 |---|---|
 | Implemented | Broad construction ERP UI, Supabase schema/RLS, server actions, route handlers, audit infrastructure, Inngest jobs, first Nest transaction slice |
-| Incomplete | Nest migration, Redis/BullMQ business jobs, uniform capability checks, uniform transactional audit, Python write removal, production API deployment |
+| Incomplete | Nest migration, Redis/BullMQ business jobs, uniform capability checks, uniform transactional audit, Python write removal, live Supabase Auth/cross-tenant verification, and current Vercel frontend release |
 | Mock/demo | Repository and live application contain demo-oriented data and optional-provider fallbacks |
 | Duplicated | Business rules and authorization are split across server actions, handlers, SQL, and worker code |
 | Broken/risky | Python direct database write; optional Python shared secret; process-local rate limiting; elevated server credentials can bypass RLS; several audit writes are not in the same transaction as the mutation |
@@ -107,13 +130,11 @@ matches the repository migration contract:
 12. Remaining Supabase advisor warnings include an extension in `public`,
     intentional RLS helper execution, and dashboard-level leaked-password
     protection; these require separate reviewed changes.
-13. GitHub CI cannot yet execute the uncommitted workflow from this worktree.
-    Read-only API probes with all three locally configured `gh` identities
-    receive repository 404. `git ls-remote --heads origin` independently
-    returns `Repository not found`.
-14. The logged-in Railway identity is unauthorized for project
-    `a21fd382-80b2-4218-8025-11f420a062e3`; its service/environment cannot be
-    safely selected or deployed.
+13. GitHub Actions is blocked before runner startup by the organization
+    account's failed-payment/spending-limit state. Local green gates do not
+    substitute for the skipped disposable PostgreSQL/Redis CI lane.
+14. The current Vercel frontend release is blocked until a commit attributable
+    to the authorized `kurtgav` Vercel team member is deployed.
 15. Database test harnesses now require an explicitly injected
     `DATABASE_URL`; normal unit-test commands cannot auto-load a hosted
     application `.env.local`.
@@ -137,9 +158,11 @@ matches the repository migration contract:
   404, stale 409, successful update, trigger audit actor, and final rollback.
   It is wired into the clean PostgreSQL 17 CI job but has not run locally
   because Docker is unavailable.
-- The production database catalog and migration ledger were verified. No
-  production transaction endpoint, Redis, Supabase Auth, or deployed API
-  integration was exercised.
+- The production database catalog and migration ledger were verified.
+- The deployed Railway API passed live `/health` and `/ready` checks against
+  the configured PostgreSQL and Redis dependencies. Supabase Auth,
+  cross-tenant denial, and official production transaction writes were not
+  exercised; the migrated write flag remains disabled.
 - Seven release-planner tests pass for current, linear-gap, non-linear,
   unexpected-history, SQL-risk, hash, and release-blocker behavior.
 - Nest HTTP contract tests use an explicit 15-second harness timeout after a
