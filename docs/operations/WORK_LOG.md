@@ -282,3 +282,59 @@ Deployment blockers:
 - Railway CLI identity is unauthorized for project
   `a21fd382-80b2-4218-8025-11f420a062e3`.
 - No application deployment or feature-flag enablement was claimed.
+
+## 2026-07-28 — M1 source publication and Railway deployment
+
+Completed:
+
+- Switched the active GitHub CLI identity to `kurtgav`.
+- Published the reviewed source to private repository
+  `Third-Code-Solutions/ERP`; `origin/main` reached
+  `f28af8098de29e8f5627cd383261ef8d1c456df2`.
+- Added reviewed Railway Docker deployment configuration and a bounded build
+  context.
+- Renamed Railway service `c45b3d01-036a-4663-a524-0713d782fce3` to
+  `Third Code ERP API`.
+- Added managed Redis service
+  `55639597-de49-4825-9073-eafad0332efe`.
+- Configured NestJS database, Supabase, Redis, CORS, runtime, start, health,
+  restart, and watch-path settings without exposing values in source or logs.
+- Deployed Railway release `8ccba547-8dde-4c37-8bcb-3f3834c18358`.
+- Corrected the public domain target to injected runtime port 8080.
+- Verified live API `/health` and `/ready`; PostgreSQL and Redis both report
+  ready.
+- Added Vercel `ERP_CORE_API_URL`, reconnected the project from the stale
+  transferred-repository redirect to `Third-Code-Solutions/ERP`, and created a
+  main-branch deploy hook.
+- Returned `ERP_PROJECT_WRITES_VIA_API` to disabled for Production and Preview
+  before any current frontend release.
+
+Changed files:
+
+- `railway.toml`
+- `.dockerignore`
+- `.gitignore`
+- the six architecture/operations memory files
+
+Validation:
+
+- `pnpm --filter @third-code-erp/api typecheck` — pass.
+- `pnpm --filter @third-code-erp/api test` — pass, 12 tests.
+- `pnpm --filter @third-code-erp/api build` — pass.
+- `git diff --check` — pass.
+- Railway remote Docker build — pass.
+- Railway `/health` — 200, service `third-code-erp-api`.
+- Railway `/ready` — 200, database `ok`, Redis `ok`.
+- Local Docker build — not run; Docker Desktop engine unavailable.
+
+External blockers and rollback:
+
+- GitHub Actions run `30288549139` failed before any step because the
+  organization account has failed payments or an insufficient spending limit.
+  Every dependent job was skipped.
+- Vercel deployment `dpl_5Sdged8VSEc1if2UTAxWgPxYQ43P` was blocked before
+  build because its historical commit mapped to non-team GitHub user
+  `thirdcodekurt`. The production alias remained on the prior READY release.
+- Rollback remains immediate: keep the Vercel write flag disabled, leave the
+  prior frontend alias untouched, and redeploy the prior Railway release if
+  API health regresses.

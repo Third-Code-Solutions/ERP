@@ -53,6 +53,9 @@ reach through each other's internals.
 
 ## Release evidence
 
+- Attribute Git commits and provider actions to the explicitly authorized
+  release identity. A provider-level `BLOCKED` deployment is not a build and
+  cannot be presented as a release.
 - Keep root package-manager policy in the supported workspace configuration;
   frozen installs must not mutate the reviewed lockfile or emit ignored-setting
   warnings.
@@ -72,3 +75,12 @@ reach through each other's internals.
 - Use a direct or session-mode PostgreSQL connection for migration tooling.
   Reserve transaction-mode poolers for application traffic that does not
   require prepared statements.
+
+## Deployment mapping
+
+- Vercel `thirdcode-erp`: Next.js frontend/BFF only.
+- Railway `Third Code ERP API`: the single NestJS modular monolith.
+- Railway `Redis`: BullMQ, caching, retry coordination, and distributed locks.
+- Supabase project `aqqrtkmtcsfkbyyqxowv`: PostgreSQL, Auth, and Storage.
+- Python analysis workers remain separately deployable but cannot become
+  transaction authorities.
