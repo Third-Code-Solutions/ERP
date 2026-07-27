@@ -1,15 +1,24 @@
 import 'reflect-metadata'
 
-import { ParseUUIDPipe, ValidationPipe } from '@nestjs/common'
+import {
+  Logger,
+  ParseUUIDPipe,
+  ValidationPipe,
+} from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import type { Request, Response, NextFunction } from 'express'
 import request from 'supertest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedRequest } from '../src/auth/current-principal.decorator'
+import { DatabaseModule } from '../src/database/database.module'
+import { DatabaseService } from '../src/database/database.service'
+import { REQUEST_ID_HEADER } from '../src/observability/request-observability.middleware'
 import { ProjectsController } from '../src/projects/projects.controller'
+import { ProjectsModule } from '../src/projects/projects.module'
 import { ProjectsService } from '../src/projects/projects.service'
 
 const PROJECT_ID = '33333333-3333-2333-8333-333333333333'
+const REQUEST_ID = '11111111-1111-4111-8111-111111111111'
 const HTTP_TEST_TIMEOUT_MS = 15_000
 
 describe('Projects API contract', () => {
@@ -105,6 +114,94 @@ describe('Projects API contract', () => {
       })
     ).rejects.toMatchObject({ status: 400 })
   })
+
+  it(
+    'applies sanitized command correlation through ProjectsModule',
+    async () => {
+      const update = vi.fn().mockResolvedValue({
+        id: PROJECT_ID,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        name: 'Updated Project',
+        client: 'Updated Client',
+        status: 'active',
+        projectType: 'fit_out',
+        totalSqm: 125,
+        location: 'Makati',
+        notes: 'Controlled update',
+        updatedAt: '2026-07-27T09:00:00.000Z',
+      })
+      const moduleRef = await Test.createTestingModule({
+        imports: [DatabaseModule, ProjectsModule],
+      })
+        .overrideProvider(DatabaseService)
+        .useValue({})
+        .overrideProvider(ProjectsService)
+        .useValue({ update })
+        .compile()
+      const app = moduleRef.createNestApplication()
+      app.use(
+        (
+          req: Request,
+          _res: Response,
+          next: NextFunction
+        ) => {
+          ;(req as AuthenticatedRequest).principal = {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId:
+              '22222222-2222-4222-8222-222222222222',
+            role: 'admin',
+            email: 'admin@example.test',
+          }
+          next()
+        }
+      )
+      app.useGlobalPipes(
+        new ValidationPipe({
+          transform: true,
+          whitelist: true,
+          forbidNonWhitelisted: true,
+        })
+      )
+      const log = vi
+        .spyOn(Logger.prototype, 'log')
+        .mockImplementation(() => undefined)
+      await app.init()
+      close = () => app.close()
+
+      const response = await request(app.getHttpServer())
+        .patch(`/v1/projects/${PROJECT_ID}`)
+        .set(REQUEST_ID_HEADER, REQUEST_ID)
+        .send({
+          name: 'Updated Project',
+          client: 'Updated Client',
+          status: 'active',
+          projectType: 'fit_out',
+          totalSqm: 125,
+          location: 'Makati',
+          notes: 'never-log-this-command-payload',
+          expectedUpdatedAt: '2026-07-27T08:00:00.000Z',
+        })
+        .expect(200)
+
+      expect(response.headers[REQUEST_ID_HEADER]).toBe(REQUEST_ID)
+      const outcomeCall = log.mock.calls.find(([value]) =>
+        String(value).includes('"event":"erp.command.outcome"')
+      )
+      expect(outcomeCall).toBeDefined()
+      const serialized = String(outcomeCall?.[0])
+      expect(JSON.parse(serialized)).toMatchObject({
+        requestId: REQUEST_ID,
+        operation: 'project.update',
+        statusCode: 200,
+        outcome: 'succeeded',
+      })
+      expect(serialized).not.toContain(
+        'never-log-this-command-payload'
+      )
+      expect(serialized).not.toContain(PROJECT_ID)
+    },
+    HTTP_TEST_TIMEOUT_MS
+  )
 
   it(
     'rejects unknown fields at the API boundary',

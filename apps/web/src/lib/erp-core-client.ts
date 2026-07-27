@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { randomUUID } from 'node:crypto'
 import {
   projectUpdateResultSchema,
   type ProjectUpdateResult,
@@ -43,6 +44,7 @@ export async function updateProjectThroughCoreApi(
       headers: {
         authorization: `Bearer ${session.access_token}`,
         'content-type': 'application/json',
+        'x-request-id': randomUUID(),
       },
       body: JSON.stringify(command),
       cache: 'no-store',
