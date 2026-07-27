@@ -6,15 +6,14 @@ Complete remaining M1 release controls without enabling production writes:
 
 1. Resolve the GitHub organization billing/spending-limit block, rerun the
    clean PostgreSQL 17/Redis CI lane, and confirm no database test is skipped.
-2. Execute one controlled Nest Project update against demo data without
-   enabling the Web feature flag. Snapshot the row and audit tail first.
-3. Verify committed result, authenticated actor attribution, tenant scope,
-   correlation log, and audit evidence; then restore the original demo values
-   through a second authorized Nest command and reconcile both audit entries.
-4. Keep `ERP_PROJECT_WRITES_VIA_API=false` until clean CI and the controlled
-   mutation/reconciliation evidence are complete.
-5. Then perform the provider-level enable/rollback drill for a controlled
-   tenant before starting M2.
+2. Keep `ERP_PROJECT_WRITES_VIA_API=false` until that clean CI evidence is
+   attached.
+3. Perform the provider-level enable/rollback drill for a controlled tenant:
+   capture provider configuration, enable exact `true`, prove one compatible
+   Web-to-Nest demo command and reconciliation, restore exact `false`, and
+   prove the legacy branch is selected.
+4. Record provider release IDs, runtime logs, final data reconciliation, and
+   the tested rollback procedure before starting M2.
 
 ## Following milestone
 

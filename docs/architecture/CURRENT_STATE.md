@@ -114,7 +114,7 @@ matches the repository migration contract:
 | Classification | Evidence |
 |---|---|
 | Implemented | Broad construction ERP UI, Supabase schema/RLS, server actions, route handlers, audit infrastructure, Inngest jobs, first Nest transaction slice |
-| Incomplete | Nest migration, Redis/BullMQ business jobs, uniform capability checks, uniform transactional audit, Python write removal, production-write activation evidence, clean CI, hosted mutation reconciliation, and provider-level rollback |
+| Incomplete | Nest migration, Redis/BullMQ business jobs, uniform capability checks, uniform transactional audit, Python write removal, production-write activation evidence, clean CI, and provider-level rollback |
 | Mock/demo | Repository and live application contain demo-oriented data and optional-provider fallbacks |
 | Duplicated | Business rules and authorization are split across server actions, handlers, SQL, and worker code |
 | Broken/risky | Python direct database write; optional Python shared secret; process-local rate limiting; elevated server credentials can bypass RLS; several audit writes are not in the same transaction as the mutation |
@@ -144,9 +144,9 @@ matches the repository migration contract:
 13. GitHub Actions is blocked before runner startup by the organization
     account's failed-payment/spending-limit state. Local green gates do not
     substitute for the skipped disposable PostgreSQL/Redis CI lane.
-14. The migrated Project-write flag must remain disabled until clean CI,
-    successful transactional audit attribution, reconciliation, and a
-    provider-level enable/rollback drill are complete.
+14. The migrated Project-write flag must remain disabled until clean CI and a
+    provider-level enable/rollback drill are complete. Controlled hosted
+    transaction, audit-attribution, and restoration evidence is complete.
 15. Database test harnesses now require an explicitly injected
     `DATABASE_URL`; normal unit-test commands cannot auto-load a hosted
     application `.env.local`.
@@ -183,6 +183,17 @@ matches the repository migration contract:
   UUID correlation header. Railway recorded the same ID as
   `erp.command.outcome`, operation `project.update`, outcome `rejected`, with
   no bearer token, payload, query, tenant, user, or Project identifier.
+- A controlled authorized demo Project update and exact-value restoration both
+  returned 200 through the deployed Nest API. Railway correlated both UUIDs
+  as successful `project.update` commands.
+- Supabase independently confirmed the original business values were restored,
+  exactly two append-only Project audit rows were added, both rows identify
+  the authorized same-tenant owner, both diffs contain only `notes` and
+  `updated_at`, the marker round trip is exact, and the tenant hash chain is
+  continuous.
+- The temporary Supabase Auth refresh session was revoked after the proof. Its
+  one-hour access JWT and all locally held credentials were cleared from the
+  in-memory execution kernel.
 - One-time admin-generated Supabase magic links were consumed without password
   resets to prove live identity resolution. Missing/invalid tokens returned
   401, a Viewer returned 403, a cross-tenant Project returned 404, a malformed

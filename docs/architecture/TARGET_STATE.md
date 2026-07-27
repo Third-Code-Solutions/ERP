@@ -59,6 +59,10 @@ reach through each other's internals.
 - Prove hosted identity and tenant boundaries through no-write failure paths
   before enabling a migrated transaction. Snapshot affected records and audit
   state before/after.
+- Before enabling a migrated command, execute one explicitly authorized,
+  reversible transaction against designated demo data. Restore through the
+  same Nest authority, reconcile both append-only audit records, and prove
+  tenant hash-chain continuity.
 - Correlate each official command across Web and Nest with a validated UUID.
   Structured runtime outcomes may contain operation, method, status, outcome,
   and duration only; never log bearer tokens, command payloads, URLs with

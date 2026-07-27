@@ -20,8 +20,9 @@ Status: complete on 2026-07-27.
 Status: source published; hosted database reconciled; NestJS/Redis deployed on
 Railway; Next.js deployed on Vercel; live Auth/capability/tenant isolation
 proved without writes; command observability and safe source-level rollback
-selection proved. Disposable CI, hosted mutation reconciliation, and
-provider-level enable/rollback remain.
+selection proved; controlled hosted mutation, audit reconciliation, and
+exact-value restoration proved. Disposable CI and provider-level
+enable/rollback remain.
 
 - Add NestJS modular-monolith application.
 - Add validated configuration, health/readiness endpoints, Supabase identity
@@ -60,6 +61,10 @@ Production entry status:
 - Complete: local rollback-selection rehearsal proves exact `false` uses the
   legacy write/audit path and exact `true` uses Nest only. Provider-level
   enable/rollback remains deferred; the hosted flag was never enabled.
+- Complete: one authorized, same-tenant Nest Project update against designated
+  demo data, followed by exact-value restoration through a second Nest
+  transaction. Both 200 responses correlated to safe Railway command logs;
+  Supabase confirmed two actor-attributed audit rows and continuous hashes.
 - Complete: hosted database release gate at 44/44 migrations with the
   protected-catalog verifier green and business baselines unchanged.
 - Keep `ERP_PROJECT_WRITES_VIA_API=false` until the remaining entry evidence is
