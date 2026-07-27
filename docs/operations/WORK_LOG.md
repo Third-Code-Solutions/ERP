@@ -553,6 +553,14 @@ Validation:
 - Root production build — pass; Nest compiled and Next generated all 77 pages.
 - Post-proof frontend, Web Analytics, Railway `/health`, and Railway `/ready`
   checks — 200.
+- Evidence commit `9a43e2308018cb2e1be28efbd7f2c7924de1aef4`
+  published to both `main` and `agent-02/third-code-erp-landing` as
+  `kurtgav <kurtgavin.design@gmail.com>`.
+- Vercel production deployment `dpl_FKBxqFQgZP2KmLr8eoJfjY5LmQsJ` — READY
+  on that commit, canonical alias attached, creator `kurtgav`.
+- Railway correctly retained code deployment
+  `83849120-b063-4275-8727-0f6b13f0cd4e`; documentation-only paths are
+  outside the API service watch set.
 
 Rollback and unresolved:
 
@@ -561,6 +569,7 @@ Rollback and unresolved:
 - No schema, storage, source-runtime, provider-environment, or feature-flag
   mutation occurred.
 - GitHub Actions still cannot start runners because of organization
-  billing/spending limits.
+  billing/spending limits. Run `30295276528` failed with zero Actionlint
+  steps and seven skipped dependent jobs.
 - Clean disposable PostgreSQL/Redis CI and the provider-level
   enable/rollback drill remain required before activation.
