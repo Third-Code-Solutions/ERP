@@ -18,8 +18,8 @@ Status: complete on 2026-07-27.
 ### M1 — Nest transaction-authority foundation
 
 Status: source published; hosted database reconciled; NestJS/Redis deployed on
-Railway; Next.js deployed on Vercel; disposable CI and live Auth/authorization
-evidence pending.
+Railway; Next.js deployed on Vercel; live Auth/capability/tenant isolation
+proved without writes. Disposable CI, observability, and rollback drill remain.
 
 - Add NestJS modular-monolith application.
 - Add validated configuration, health/readiness endpoints, Supabase identity
@@ -43,14 +43,16 @@ Production entry status:
   limits.
 - Complete: repository access and reviewed source publication to
   `Third-Code-Solutions/ERP`.
-- Real Supabase Auth verification in a preview environment.
+- Complete: real Supabase Auth identity resolution using consumed one-time
+  links without password resets.
 - Complete for backend infrastructure: Railway NestJS `/health` and `/ready`
   are green with PostgreSQL and Redis.
 - Complete for frontend infrastructure: Vercel production is READY on the
   `e0060b40097fed9733eea8149e09f92460807f7d` runtime baseline or its
   documentation-only successor, the canonical alias is current, Web Analytics
   is enabled, and desktop/mobile browser gates pass.
-- Cross-tenant and insufficient-capability HTTP tests against the real guard.
+- Complete: live missing/invalid 401, malformed 400, Viewer 403, cross-tenant
+  404, and stale authorized 409 responses with unchanged Project/audit state.
 - Observability and rollback drill.
 - Complete: hosted database release gate at 44/44 migrations with the
   protected-catalog verifier green and business baselines unchanged.
