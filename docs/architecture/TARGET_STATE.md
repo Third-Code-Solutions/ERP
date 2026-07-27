@@ -63,6 +63,9 @@ reach through each other's internals.
   reversible transaction against designated demo data. Restore through the
   same Nest authority, reconcile both append-only audit records, and prove
   tenant hash-chain continuity.
+- Gate incremental production routing by exact command flag and an explicit
+  database-derived tenant allowlist. Missing or malformed canary configuration
+  must retain the legacy selector.
 - Correlate each official command across Web and Nest with a validated UUID.
   Structured runtime outcomes may contain operation, method, status, outcome,
   and duration only; never log bearer tokens, command payloads, URLs with

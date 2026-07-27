@@ -44,18 +44,45 @@ describe('ERP Core client', () => {
     vi.restoreAllMocks()
   })
 
-  it('keeps legacy writes active unless the flag is exactly true', () => {
+  it('keeps legacy writes active unless the flag and tenant allowlist both match', () => {
     vi.stubEnv('ERP_PROJECT_WRITES_VIA_API', '')
-    expect(projectWritesUseCoreApi()).toBe(false)
+    vi.stubEnv(
+      'ERP_PROJECT_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
 
     vi.stubEnv('ERP_PROJECT_WRITES_VIA_API', 'false')
-    expect(projectWritesUseCoreApi()).toBe(false)
+    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
 
     vi.stubEnv('ERP_PROJECT_WRITES_VIA_API', 'TRUE')
-    expect(projectWritesUseCoreApi()).toBe(false)
+    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
 
     vi.stubEnv('ERP_PROJECT_WRITES_VIA_API', 'true')
-    expect(projectWritesUseCoreApi()).toBe(true)
+    vi.stubEnv('ERP_PROJECT_WRITES_VIA_API_TENANT_IDS', '')
+    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv(
+      'ERP_PROJECT_WRITES_VIA_API_TENANT_IDS',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    )
+    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv(
+      'ERP_PROJECT_WRITES_VIA_API_TENANT_IDS',
+      ` ${RESULT.tenantId},aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa `
+    )
+    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv(
+      'ERP_PROJECT_WRITES_VIA_API_TENANT_IDS',
+      `*,${RESULT.tenantId}`
+    )
+    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PROJECT_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(projectWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('forwards a UUID correlation header to the Nest command', async () => {

@@ -207,3 +207,15 @@ Reason: compilation and denial paths do not prove that the deployed
 transaction authority can commit, attribute, correlate, and recover a real
 ERP command. Reversible demo data provides that evidence without enabling the
 Web migration flag or directly editing the database.
+
+## D-027 — Project-write cutover requires two server-side gates
+
+Decision: `ERP_PROJECT_WRITES_VIA_API=true` is necessary but insufficient.
+The authenticated user's database-derived tenant must also match
+`ERP_PROJECT_WRITES_VIA_API_TENANT_IDS`. Missing, empty, malformed, or
+non-matching allowlists fail closed. `*` is accepted only as the sole entry
+for a separately approved all-tenant rollout.
+
+Reason: one global Boolean cannot perform a controlled tenant canary. Enabling
+it would move every tenant at once and defeat the required blast-radius and
+rollback controls.

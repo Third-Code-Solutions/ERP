@@ -132,6 +132,11 @@ reviewed SQL, backup/rollback evidence, and the procedure in
 [`database-release.md`](runbooks/database-release.md). Never use hosted
 `db reset` or ad hoc `migration repair`.
 
+The incremental Project-write migration uses a separate tenant-scoped canary
+and rollback procedure. Follow
+[`project-write-cutover.md`](runbooks/project-write-cutover.md); never enable
+the global flag without a reviewed tenant allowlist.
+
 ---
 
 ## Edge Functions (Legacy)

@@ -53,7 +53,7 @@ export async function updateProject(
     updated_at: new Date(),
   }
 
-  if (projectWritesUseCoreApi()) {
+  if (projectWritesUseCoreApi(userRow.tenant_id)) {
     const result = await updateProjectThroughCoreApi(projectId, {
       name,
       client,

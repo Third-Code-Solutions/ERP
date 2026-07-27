@@ -14,8 +14,33 @@ interface CoreResult<T> {
   error?: string
 }
 
-export function projectWritesUseCoreApi(): boolean {
-  return process.env.ERP_PROJECT_WRITES_VIA_API === 'true'
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function projectWritesUseCoreApi(tenantId: string): boolean {
+  if (process.env.ERP_PROJECT_WRITES_VIA_API !== 'true') return false
+
+  const normalizedTenantId = tenantId.trim().toLowerCase()
+  if (!UUID_PATTERN.test(normalizedTenantId)) return false
+
+  const allowlist = (
+    process.env.ERP_PROJECT_WRITES_VIA_API_TENANT_IDS ?? ''
+  )
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
+
+  if (allowlist.length === 0) return false
+  if (
+    allowlist.some(
+      (entry) => entry !== '*' && !UUID_PATTERN.test(entry)
+    )
+  ) {
+    return false
+  }
+  if (allowlist.includes('*')) return allowlist.length === 1
+
+  return allowlist.includes(normalizedTenantId)
 }
 
 export async function updateProjectThroughCoreApi(

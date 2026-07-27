@@ -573,3 +573,65 @@ Rollback and unresolved:
   steps and seven skipped dependent jobs.
 - Clean disposable PostgreSQL/Redis CI and the provider-level
   enable/rollback drill remain required before activation.
+
+## 2026-07-28 — M1 tenant-scoped Project canary control
+
+Completed:
+
+- Rechecked clean source and provider identities before editing. Git, GitHub
+  CLI, Vercel, and Railway remain associated with `kurtgav`.
+- Tried to start the pinned disposable PostgreSQL 17/Redis lane locally.
+  Docker Desktop is installed, and `pnpm dlx supabase@2.109.1 --version`
+  returns the CI-pinned version.
+- Diagnosed the local runtime failure from Docker and Windows evidence:
+  firmware virtualization is disabled, no hypervisor is present, and Docker
+  reports `HCS_E_HYPERV_NOT_INSTALLED`. No Windows feature, BIOS, production
+  database, or hosted environment was changed.
+- Inspected the Vercel project environment UI read-only. The Project-write
+  flag exists for Production and Preview under `kurtgav`; the sensitive value
+  is not disclosed by the dashboard. The editor was cancelled without saving.
+- Found that the existing single global Boolean could not perform the required
+  controlled-tenant canary: exact `true` would route every tenant at once.
+- Added a second server-side gate,
+  `ERP_PROJECT_WRITES_VIA_API_TENANT_IDS`, evaluated against the authenticated
+  user's database-derived tenant.
+- Made missing, empty, invalid, non-matching, and mixed-wildcard allowlists
+  fail closed to the legacy path. `*` works only as the sole explicit entry.
+- Passed the tenant ID from the authorized membership lookup into the selector.
+  No browser-controlled tenant value is accepted.
+- Added a Project cutover runbook covering entry gates, read-only baselines,
+  tenant canary order, audit/hash reconciliation, rollback, and abort recovery.
+- Kept `ERP_PROJECT_WRITES_VIA_API=false`. No tenant allowlist or provider
+  environment value was added or changed.
+
+Changed files:
+
+- `apps/web/.env.example`
+- `apps/web/src/lib/erp-core-client.ts`
+- `apps/web/src/lib/erp-core-client.test.ts`
+- `apps/web/src/app/(dashboard)/projects/[id]/actions.ts`
+- `apps/web/src/app/(dashboard)/projects/[id]/actions.test.ts`
+- `docs/runbooks/project-write-cutover.md`
+- `docs/DEPLOYMENT.md`
+- the six architecture/operations memory files
+
+Validation:
+
+- TDD red phase — three expected failures proved the global selector ignored
+  tenant scope.
+- Targeted Web tests — 4/4 pass.
+- Root lint and typecheck — pass.
+- Root tests — 244 pass; 128 database cases remain skipped without a
+  disposable PostgreSQL instance.
+- Root production build — pass; Nest compiled and Next generated all 77 pages.
+
+Rollback and unresolved:
+
+- Source rollback: revert the tenant-canary commit. With the production flag
+  still exact false, deployment of this source does not route Project writes.
+- GitHub Actions remains blocked before runner startup by organization
+  billing/spending limits.
+- Local disposable parity requires enabling firmware virtualization and
+  Windows Virtual Machine Platform, then restarting Windows.
+- Clean zero-skip PostgreSQL/Redis CI remains required before configuring a
+  tenant allowlist or changing the production flag.
