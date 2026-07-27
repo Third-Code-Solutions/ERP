@@ -203,6 +203,11 @@ matches the repository migration contract:
   to both release refs as `kurtgav <kurtgavin.design@gmail.com>`. Vercel
   production and preview are READY; Railway deployed the exact SHA
   successfully and reports database/Redis readiness.
+- Release-tool source commit `d4ef08151fa60e62e239c0f049b08b1f83820789`
+  pins the Actionlint artifact and is synchronized to both release refs.
+  Vercel production and preview are READY on that exact frontend/source SHA.
+  Railway recorded a watched-path skip and correctly retains the healthy API
+  runtime from `42010b9adce6ae89286449edfc1e27c9ffe1eda7`.
 - The production database catalog and migration ledger were verified.
 - The deployed Railway API passed live `/health` and `/ready` checks against
   the configured PostgreSQL and Redis dependencies.

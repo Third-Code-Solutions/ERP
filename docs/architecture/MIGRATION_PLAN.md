@@ -83,6 +83,11 @@ Production entry status:
 - Complete in source: the Actionlint bootstrap is pinned to version 1.7.12
   with an exact Linux archive SHA-256. Local Linux validation and pinned
   GitHub Action reference checks pass.
+- Complete release evidence: release-tool source commit
+  `d4ef08151fa60e62e239c0f049b08b1f83820789` is synchronized to both
+  GitHub refs; Vercel production/preview are READY on that SHA. Railway
+  recorded a watched-path skip and retains the healthy API artifact from
+  `42010b9adce6ae89286449edfc1e27c9ffe1eda7`.
 - Keep `ERP_PROJECT_WRITES_VIA_API=false` until the remaining entry evidence is
   attached.
 

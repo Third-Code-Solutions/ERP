@@ -57,7 +57,9 @@ reach through each other's internals.
   release identity. A provider-level `BLOCKED` deployment is not a build and
   cannot be presented as a release.
 - Preserve one exact release SHA across GitHub refs, Vercel metadata, Railway
-  metadata, and database migration evidence.
+  metadata, and database migration evidence when that SHA changes each
+  deployable artifact. For a watched-path skip, record the skipped event and
+  prove the retained artifact's exact runtime SHA and readiness.
 - Prove hosted identity and tenant boundaries through no-write failure paths
   before enabling a migrated transaction. Snapshot affected records and audit
   state before/after.
