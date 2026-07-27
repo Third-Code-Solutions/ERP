@@ -153,3 +153,22 @@ it cannot authorize or mutate ERP records.
 
 Reason: shipping a client integration that predictably returns 404 creates
 noise that can conceal real frontend failures.
+
+## D-022 — Do not assume one UUID version for existing records
+
+Decision: API path validation accepts any syntactically valid UUID already
+allowed by PostgreSQL. Tenant-scoped lookup, authorization, and record
+existence determine access. Malformed values still fail at the boundary.
+
+Reason: production contains a valid legacy Project identifier whose version
+nibble is not v4. Enforcing v4 rejected an existing record before tenant
+isolation could execute.
+
+## D-023 — Hosted authorization proof must be non-mutating
+
+Decision: production Auth/capability/tenant tests use short-lived one-time
+sessions and guaranteed failure paths. Capture target rows and audit state
+before and after; equality is required.
+
+Reason: production authorization evidence is necessary, but production
+business records are not test fixtures.

@@ -86,9 +86,10 @@ matches the repository migration contract:
   service `Third Code ERP API` and a managed Redis service.
 - `https://third-code-erp-api-production.up.railway.app/health` returns
   `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
-- The successful Railway deployment is
-  `8ccba547-8dde-4c37-8bcb-3f3834c18358`, built remotely from the reviewed
-  Dockerfile and `railway.toml`.
+- The current Railway deployment is
+  `6b2a49aa-a7fa-4d4b-8b0a-51a06e6bdfae`, built remotely from the reviewed
+  Dockerfile and `railway.toml` after commit
+  `bf3ca842b46fa832c4bd40a0f7f8bc27014ce43b`.
 - Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is reconnected to
   `Third-Code-Solutions/ERP`. The `main` lineage serves
   `https://thirdcode-erp.vercel.app`; verified runtime baseline
@@ -96,6 +97,10 @@ matches the repository migration contract:
   `e0060b40097fed9733eea8149e09f92460807f7d`.
 - Vercel Web Analytics is enabled. Its production script returns JavaScript
   with HTTP 200 and the final desktop browser console is clean.
+- A live no-write Supabase Auth proof covers missing/invalid bearer tokens,
+  insufficient capability, cross-tenant lookup, malformed identifiers, and
+  stale concurrency. All target Project fields and the 660-row audit baseline
+  remained unchanged.
 - `ERP_CORE_API_URL` is configured for the Railway API. The production and
   preview Project-write migration flag was returned to disabled pending live
   authorization and rollback evidence.
@@ -105,7 +110,7 @@ matches the repository migration contract:
 | Classification | Evidence |
 |---|---|
 | Implemented | Broad construction ERP UI, Supabase schema/RLS, server actions, route handlers, audit infrastructure, Inngest jobs, first Nest transaction slice |
-| Incomplete | Nest migration, Redis/BullMQ business jobs, uniform capability checks, uniform transactional audit, Python write removal, live Supabase Auth/cross-tenant verification, and current Vercel frontend release |
+| Incomplete | Nest migration, Redis/BullMQ business jobs, uniform capability checks, uniform transactional audit, Python write removal, production-write activation evidence, clean CI, and rollback observability |
 | Mock/demo | Repository and live application contain demo-oriented data and optional-provider fallbacks |
 | Duplicated | Business rules and authorization are split across server actions, handlers, SQL, and worker code |
 | Broken/risky | Python direct database write; optional Python shared secret; process-local rate limiting; elevated server credentials can bypass RLS; several audit writes are not in the same transaction as the mutation |
@@ -135,18 +140,19 @@ matches the repository migration contract:
 13. GitHub Actions is blocked before runner startup by the organization
     account's failed-payment/spending-limit state. Local green gates do not
     substitute for the skipped disposable PostgreSQL/Redis CI lane.
-14. The migrated Project-write flag must remain disabled until live Auth,
-    cross-tenant, insufficient-capability, stale-write, audit, and rollback
-    evidence is complete.
+14. The migrated Project-write flag must remain disabled until clean CI,
+    successful transactional audit attribution, observability, reconciliation,
+    and rollback evidence is complete.
 15. Database test harnesses now require an explicitly injected
     `DATABASE_URL`; normal unit-test commands cannot auto-load a hosted
     application `.env.local`.
 
 ## Verification coverage
 
-- Twelve Nest unit/HTTP tests cover identity, database-derived tenancy,
+- Thirteen Nest unit/HTTP tests cover identity, database-derived tenancy,
   capability policy, atomic update, cross-tenant denial, stale-write conflict,
-  and strict request validation.
+  strict request validation, legacy UUID compatibility, and malformed UUID
+  rejection.
 - Nest HTTP tests cover the preserved success contract and strict rejection of
   attacker-controlled fields.
 - API and web TypeScript checks pass for the new slice.
@@ -163,9 +169,16 @@ matches the repository migration contract:
   because Docker is unavailable.
 - The production database catalog and migration ledger were verified.
 - The deployed Railway API passed live `/health` and `/ready` checks against
-  the configured PostgreSQL and Redis dependencies. Supabase Auth,
-  cross-tenant denial, and official production transaction writes were not
-  exercised; the migrated write flag remains disabled.
+  the configured PostgreSQL and Redis dependencies.
+- One-time admin-generated Supabase magic links were consumed without password
+  resets to prove live identity resolution. Missing/invalid tokens returned
+  401, a Viewer returned 403, a cross-tenant Project returned 404, a malformed
+  identifier returned 400, and an authorized stale command returned 409.
+- The live proof made no business writes: both target Project snapshots and
+  the audit count/latest timestamp were unchanged at 660 rows.
+- Production data exposed one valid non-v4 Project UUID. The API now accepts
+  any syntactically valid UUID while retaining malformed-ID rejection; tenant
+  scope remains the resource authority.
 - Seven release-planner tests pass for current, linear-gap, non-linear,
   unexpected-history, SQL-risk, hash, and release-blocker behavior.
 - Nest HTTP contract tests use an explicit 15-second harness timeout after a

@@ -2,14 +2,14 @@
 
 ## Exact next action
 
-Complete M1 frontend release and integration evidence without enabling
-production writes:
+Complete remaining M1 release controls without enabling production writes:
 
 1. Resolve the GitHub organization billing/spending-limit block, rerun the
    clean PostgreSQL 17/Redis CI lane, and confirm no database test is skipped.
-2. Exercise Supabase Auth and safe authorization/tenant-denial paths against
-   the deployed Nest guard without using production business writes as tests.
-3. Attach observability and rollback evidence.
+2. Add request correlation and structured command outcome logs without
+   recording bearer tokens, command payloads, or sensitive record contents.
+3. Rehearse the feature-flag rollback and verify the legacy Server Action
+   remains the active production path.
 4. Keep `ERP_PROJECT_WRITES_VIA_API=false` until cross-tenant, insufficient
    capability, stale-write, audit attribution, and rollback evidence is
    complete.

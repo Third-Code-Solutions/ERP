@@ -378,3 +378,60 @@ Remaining:
 - Live Supabase Auth and denial-path evidence for the Nest guard remains
   pending.
 - The migrated Project-write flag remains disabled.
+
+## 2026-07-28 — M1 live authorization and UUID compatibility
+
+Completed:
+
+- Inspected production authorization fixtures read-only: 13 active Auth-backed
+  users across all canonical roles, two tenants, 24 Projects in the populated
+  tenant, and one Project in a tenant with no users.
+- Generated and immediately consumed one-time Supabase magic links for an
+  allowed role and a Viewer. No passwords were read, printed, or reset.
+- Exercised the deployed Nest guard only through guaranteed no-write paths.
+- Found a real compatibility defect: a valid production Project uses a
+  non-v4 UUID, while the route required UUID v4 and returned 400 before tenant
+  lookup.
+- Added a failing regression test, changed the route to accept all valid UUID
+  forms, retained malformed-ID rejection, and deployed the fix.
+- Published commit `bf3ca842b46fa832c4bd40a0f7f8bc27014ce43b`
+  as `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway Git deployment `dd6d0098-c9b9-4825-ab2a-3da3131a09db` and explicit
+  follow-up deployment `6b2a49aa-a7fa-4d4b-8b0a-51a06e6bdfae` both succeeded
+  with `apps/api/Dockerfile`, `/ready`, and the reviewed start command.
+- Vercel production deployment `dpl_FJjskHKyz1TztVwpNdoNR2TUhs7B` is READY on
+  the same Git commit.
+
+Changed files:
+
+- `apps/api/src/projects/projects.controller.ts`
+- `apps/api/test/projects.e2e.spec.ts`
+- the six architecture/operations memory files
+
+Validation:
+
+- Regression red phase — expected 200, received 400.
+- `pnpm --filter @third-code-erp/api test:e2e` — pass, 3 tests.
+- `pnpm --filter @third-code-erp/api test` — pass, 13 tests.
+- `pnpm --filter @third-code-erp/api lint` — pass.
+- `pnpm --filter @third-code-erp/api typecheck` — pass.
+- `pnpm --filter @third-code-erp/api build` — pass.
+- Railway `/health` and `/ready` — 200.
+- Missing bearer — 401.
+- Invalid bearer — 401.
+- Malformed Project UUID — 400.
+- Viewer without `project.update` — 403.
+- Allowed user targeting another tenant — 404.
+- Allowed user with stale timestamp — 409.
+- Before/after target Project snapshots — equal.
+- Before/after audit count/latest timestamp — equal, 660 rows.
+
+Rollback and unresolved:
+
+- Rollback: redeploy Railway deployment
+  `8ccba547-8dde-4c37-8bcb-3f3834c18358` or revert the one-line UUID parser
+  change. Project-write feature flag remains false.
+- GitHub Actions still cannot start runners because of organization
+  billing/spending limits.
+- Successful hosted mutation/audit attribution, observability, reconciliation,
+  and rollback drill remain required before enabling the migrated write path.

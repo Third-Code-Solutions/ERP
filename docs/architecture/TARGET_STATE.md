@@ -56,6 +56,9 @@ reach through each other's internals.
 - Attribute Git commits and provider actions to the explicitly authorized
   release identity. A provider-level `BLOCKED` deployment is not a build and
   cannot be presented as a release.
+- Prove hosted identity and tenant boundaries through no-write failure paths
+  before enabling a migrated transaction. Snapshot affected records and audit
+  state before/after.
 - Keep root package-manager policy in the supported workspace configuration;
   frozen installs must not mutate the reviewed lockfile or emit ignored-setting
   warnings.
