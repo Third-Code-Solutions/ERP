@@ -22,18 +22,18 @@ import { z } from 'zod'
 import {
   requireUserProfile,
   can,
-  type AbiCapability,
+  type ErpCapability,
   type AppRole,
-} from '@buildops/auth'
-import { db } from '@buildops/database'
+} from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   progressClaims,
   progressClaimDocuments,
   documents,
   invoices,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { notifyRoles } from '@/lib/abi/notifications'
+import { notifyRoles } from '@/lib/operations/notifications'
 
 type ClaimStatus =
   | 'draft'
@@ -49,7 +49,7 @@ type ClaimStatus =
 const COMMERCIAL_ROLES: AppRole[] = ['admin', 'owner', 'commercial']
 const FINANCE_ROLES: AppRole[] = ['admin', 'owner', 'finance']
 
-function hasAnyCapability(role: AppRole, caps: AbiCapability[]): boolean {
+function hasAnyCapability(role: AppRole, caps: ErpCapability[]): boolean {
   return caps.some((c) => can(role, c))
 }
 

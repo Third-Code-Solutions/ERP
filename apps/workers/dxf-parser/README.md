@@ -1,7 +1,7 @@
 # CAD Parser Worker
 
 FastAPI service that converts DWG files to DXF (via libredwg) and extracts
-scope items (via ezdxf). Used by BuildOps when a user uploads a binary DWG
+scope items (via ezdxf). Used by Third Code ERP when a user uploads a binary DWG
 that the in-process JS extractor can't handle.
 
 ## Run locally

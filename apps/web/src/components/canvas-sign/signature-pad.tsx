@@ -47,7 +47,7 @@ export function SignaturePad({
     if (!ctx) return
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.strokeStyle = '#0f2d4a' // ABI navy
+    ctx.strokeStyle = '#0f2d4a' // Third Code navy
     ctx.lineWidth = 2
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'

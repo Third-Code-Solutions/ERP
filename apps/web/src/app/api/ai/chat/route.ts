@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { boms, bomLineItems, invoices, projects, purchaseOrders, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { boms, bomLineItems, invoices, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
 import { and, eq, desc } from 'drizzle-orm'
-import { getOpenAI } from '@buildops/ai'
+import { getOpenAI } from '@third-code-erp/ai'
 import { writeAuditLog } from '@/lib/audit'
 
 export const runtime = 'nodejs'
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const systemPrompt = `You are a helpful assistant for BuildOps, a construction ERP system for Philippine MEP contractors.
+  const systemPrompt = `You are a helpful assistant for Third Code ERP, a construction ERP system for Philippine MEP contractors.
 You have access to project data and help users understand costs, margins, billing, and procurement.
 All monetary values are in Philippine Pesos (₱).
 Be concise and specific. When referencing numbers, always include the currency symbol.

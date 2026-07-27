@@ -12,15 +12,15 @@
  */
 
 import type { Metadata } from 'next'
-import { db } from '@buildops/database'
-import { projects, accounts } from '@buildops/database/schema'
+import { db } from '@third-code-erp/database'
+import { projects, accounts } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
-import { findActiveCustomerSession } from '@/lib/abi/customer-portal'
+import { findActiveCustomerSession } from '@/lib/operations/customer-portal'
 import { PortalHeader } from '@/components/customer-portal/portal-header'
 import { PortalSubNav } from '@/components/customer-portal/portal-sub-nav'
 
 export const metadata: Metadata = {
-  title: 'Live project · ABI Ops',
+  title: 'Live project · Third Code ERP',
   robots: { index: false, follow: false },
 }
 

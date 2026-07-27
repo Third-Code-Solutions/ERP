@@ -7,9 +7,9 @@
 
 import type { Metadata } from 'next'
 import { eq, sql, desc } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { rfqs, rfqQuotes, boms, projects } from '@buildops/database/schema'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { rfqs, rfqQuotes, boms, projects } from '@third-code-erp/database/schema'
 import { RfqListTable } from '@/components/rfq/rfq-list-table'
 
 export const metadata: Metadata = { title: 'RFQs' }

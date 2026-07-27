@@ -9,15 +9,15 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   accounts,
   projects,
   tenants,
   users,
   weeklyReports,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import {
   buildWeeklyReportHtml,
   type WeeklyReportSnapshot,

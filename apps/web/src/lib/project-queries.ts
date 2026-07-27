@@ -1,7 +1,7 @@
-import { db } from '@buildops/database'
-import { projects } from '@buildops/database/schema'
+import { db } from '@third-code-erp/database'
+import { projects } from '@third-code-erp/database/schema'
 import { eq, desc, asc, and, or, ilike, sql, type SQL } from 'drizzle-orm'
-import type { Project } from '@buildops/database/schema'
+import type { Project } from '@third-code-erp/database/schema'
 
 export type { Project }
 

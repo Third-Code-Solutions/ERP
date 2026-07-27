@@ -2,13 +2,13 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   customerPortalSessions,
   projects,
   accounts,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { MintTokenButton } from '@/components/customer-portal/mint-token-button'
 import {
   AccessListTable,
@@ -128,7 +128,7 @@ export default async function ProjectAccessPage({
         </h1>
         <p style={{ margin: '6px 0 0', fontSize: 13.5, color: 'var(--color-neutral-600)', lineHeight: 1.5 }}>
           Mint long-lived read-only links so your client can view live project status — progress, documents,
-          photos, and billing — without an ABI login. {activeCount} active link{activeCount === 1 ? '' : 's'} currently.
+          photos, and billing — without a workspace login. {activeCount} active link{activeCount === 1 ? '' : 's'} currently.
         </p>
       </div>
 

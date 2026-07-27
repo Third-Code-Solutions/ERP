@@ -12,17 +12,17 @@ import { z } from 'zod'
 import {
   requireUserProfile,
   can,
-  type AbiCapability,
+  type ErpCapability,
   type AppRole,
-} from '@buildops/auth'
-import { db } from '@buildops/database'
-import { progressClaims, projects } from '@buildops/database/schema'
+} from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { progressClaims, projects } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 
 // Either AR-code creators (finance) or pre-con leads (sd_pm_pe / pm /
 // commercial) can raise a progress claim. The capability check accepts
 // EITHER capability so both flows are reachable.
-const ALLOWED_CAPS: AbiCapability[] = ['kyc.create_ar_code', 'precon.manage_checklist']
+const ALLOWED_CAPS: ErpCapability[] = ['kyc.create_ar_code', 'precon.manage_checklist']
 
 function guard(role: AppRole): string | null {
   const ok = ALLOWED_CAPS.some((cap) => can(role, cap))

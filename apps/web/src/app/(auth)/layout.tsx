@@ -1,5 +1,3 @@
-import Link from 'next/link'
-
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="auth-shell">
@@ -14,11 +12,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="auth-brand-inner">
           <div className="auth-brand-top">
             <div className="auth-brand-mark">
-              <span className="auth-brand-mark-letter">A</span>
+              <span className="auth-brand-mark-letter">TC</span>
             </div>
             <div className="auth-brand-text">
-              <p className="auth-brand-name">ABI Ops</p>
-              <p className="auth-brand-org">Actuate Builders Inc.</p>
+              <p className="auth-brand-name">Third Code ERP</p>
+              <p className="auth-brand-org">Third Code Solutions Inc.</p>
             </div>
           </div>
 
@@ -55,16 +53,16 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                     <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </span>
-                <span>BIR-compliant progress billing with hash-chained audit</span>
+                <span>PH-ready progress billing controls with hash-chained audit</span>
               </li>
             </ul>
           </div>
 
           <footer className="auth-brand-foot">
             <span className="auth-brand-status">
-              <span className="auth-brand-status-dot" /> All systems normal
+              <span className="auth-brand-status-dot" /> Protected workspace access
             </span>
-            <span className="auth-brand-copy">© 2026 Actuate Builders Inc.</span>
+            <span className="auth-brand-copy">© 2026 Third Code Solutions Inc.</span>
           </footer>
         </div>
       </aside>
@@ -74,20 +72,19 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Compact brand for mobile (brand panel is hidden) */}
         <div className="auth-form-mobile-brand">
           <div className="auth-brand-mark">
-            <span className="auth-brand-mark-letter">A</span>
+            <span className="auth-brand-mark-letter">TC</span>
           </div>
           <div>
-            <p className="auth-brand-name" style={{ color: 'var(--color-navy-700)' }}>ABI Ops</p>
-            <p className="auth-brand-org" style={{ color: 'var(--color-neutral-500)' }}>Actuate Builders Inc.</p>
+            <p className="auth-brand-name" style={{ color: 'var(--color-navy-700)' }}>Third Code ERP</p>
+            <p className="auth-brand-org" style={{ color: 'var(--color-neutral-500)' }}>Third Code Solutions Inc.</p>
           </div>
         </div>
 
         <div className="auth-form-column">{children}</div>
 
         <p className="auth-form-legal">
-          By signing in you agree to the{' '}
-          <Link href="#" className="auth-link">Terms</Link> and{' '}
-          <Link href="#" className="auth-link">Privacy Policy</Link>.
+          Use is governed by your organization&apos;s authorized-use and data
+          policies.
         </p>
       </main>
     </div>

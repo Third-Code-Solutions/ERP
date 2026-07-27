@@ -1,5 +1,5 @@
 -- =============================================================================
--- ABI Ops Refactor — Phase 10 (Rework-alignment delta)
+-- Third Code ERP Refactor — Phase 10 (workflow-alignment delta)
 --
 -- Closes the four functional gaps identified against the Rework.com showcase:
 --   A) Delivery / Inspection / Acceptance state machine

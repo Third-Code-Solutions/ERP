@@ -61,7 +61,7 @@ function buildEmailBody(args: {
     `Entity: ${args.entityType} ${args.entityId}`,
     `Elapsed: ${hrsElapsed}h of ${hrsLimit}h budget`,
     ``,
-    `Open BuildOps to review and resolve.`,
+    `Open Third Code ERP to review and resolve.`,
   ].join('\n')
   const html = `
     <p>An SLA timer is <strong>${verb}</strong>.</p>
@@ -70,7 +70,7 @@ function buildEmailBody(args: {
       <li><strong>Entity:</strong> ${args.entityType} <code>${args.entityId}</code></li>
       <li><strong>Elapsed:</strong> ${hrsElapsed}h of ${hrsLimit}h budget</li>
     </ul>
-    <p>Open BuildOps to review and resolve.</p>
+    <p>Open Third Code ERP to review and resolve.</p>
   `.trim()
   return { subject, html, text }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Seed one demo account per ABI Ops role into the existing tenant.
+ * Seed one demo account per Third Code ERP role into the existing tenant.
  *
  * Reads from the repo-root .env.local:
  *   DATABASE_URL
@@ -58,23 +58,27 @@ if (!url || !supaUrl || !serviceKey) {
 const isPooler = url.includes('pgbouncer=true') || url.includes(':6543')
 const sql = postgres(url, { prepare: !isPooler, idle_timeout: 5, max: 1 })
 
-const SHARED_PASSWORD = 'AbiOps!Demo2026'
+const SHARED_PASSWORD = process.env.DEMO_SHARED_PASSWORD
+if (!SHARED_PASSWORD || SHARED_PASSWORD.length < 14) {
+  console.error('DEMO_SHARED_PASSWORD must be set and contain at least 14 characters')
+  process.exit(1)
+}
 
-// 11 demo accounts — the 10 ABI Ops canonical roles + legacy owner.
+// 11 demo accounts — the 10 Third Code ERP canonical roles + legacy owner.
 // Each email is unique so they don't collide; password is shared
 // so demo handoff is easy. (For prod, every user gets their own pw via /admin/users.)
 const ACCOUNTS = [
-  { email: 'admin@abi.demo.ph',       full_name: 'Demo Admin',       role: 'admin' },
-  { email: 'owner@abi.demo.ph',       full_name: 'Demo Owner',       role: 'owner' },
-  { email: 'sales@abi.demo.ph',       full_name: 'Demo Sales',       role: 'sales' },
-  { email: 'commercial@abi.demo.ph',  full_name: 'Demo Commercial',  role: 'commercial' },
-  { email: 'design@abi.demo.ph',      full_name: 'Demo Designer',    role: 'design' },
-  { email: 'sd@abi.demo.ph',          full_name: 'Demo SD / PM / PE', role: 'sd_pm_pe' },
-  { email: 'finance@abi.demo.ph',     full_name: 'Demo Finance',     role: 'finance' },
-  { email: 'procurement@abi.demo.ph', full_name: 'Demo Procurement', role: 'procurement' },
-  { email: 'safety@abi.demo.ph',      full_name: 'Demo Safety',      role: 'safety' },
-  { email: 'cx@abi.demo.ph',          full_name: 'Demo CX',          role: 'cx' },
-  { email: 'viewer@abi.demo.ph',      full_name: 'Demo Viewer',      role: 'viewer' },
+  { email: 'admin@thirdcode-erp.test',       full_name: 'Demo Admin',       role: 'admin' },
+  { email: 'owner@thirdcode-erp.test',       full_name: 'Demo Owner',       role: 'owner' },
+  { email: 'sales@thirdcode-erp.test',       full_name: 'Demo Sales',       role: 'sales' },
+  { email: 'commercial@thirdcode-erp.test',  full_name: 'Demo Commercial',  role: 'commercial' },
+  { email: 'design@thirdcode-erp.test',      full_name: 'Demo Designer',    role: 'design' },
+  { email: 'sd@thirdcode-erp.test',          full_name: 'Demo SD / PM / PE', role: 'sd_pm_pe' },
+  { email: 'finance@thirdcode-erp.test',     full_name: 'Demo Finance',     role: 'finance' },
+  { email: 'procurement@thirdcode-erp.test', full_name: 'Demo Procurement', role: 'procurement' },
+  { email: 'safety@thirdcode-erp.test',      full_name: 'Demo Safety',      role: 'safety' },
+  { email: 'cx@thirdcode-erp.test',          full_name: 'Demo CX',          role: 'cx' },
+  { email: 'viewer@thirdcode-erp.test',      full_name: 'Demo Viewer',      role: 'viewer' },
 ]
 
 async function adminFetch(path, init = {}) {
@@ -189,19 +193,17 @@ try {
   }
 
   console.log()
-  console.log('=== DEMO CREDENTIALS ===')
+  console.log('=== DEMO ACCOUNTS ===')
   console.log()
-  console.log('| Role          | Email                       | Password           |')
-  console.log('|---------------|-----------------------------|--------------------|')
+  console.log('| Role          | Email                       | Status  |')
+  console.log('|---------------|-----------------------------|---------|')
   for (const r of results) {
     if (r.status === 'error') continue
-    console.log(
-      `| ${r.role.padEnd(13)} | ${r.email.padEnd(27)} | ${SHARED_PASSWORD.padEnd(18)} |`
-    )
+    console.log(`| ${r.role.padEnd(13)} | ${r.email.padEnd(27)} | ${r.status.padEnd(7)} |`)
   }
   console.log()
   console.log('Login URL: https://thirdcode-erp.vercel.app/auth/login')
-  console.log('Shared password (all accounts):', SHARED_PASSWORD)
+  console.log('Password source: DEMO_SHARED_PASSWORD (not printed)')
 } catch (err) {
   console.error('[seed] FATAL:', err.message)
   process.exitCode = 1

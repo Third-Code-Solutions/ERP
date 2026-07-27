@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
-import { db } from '@buildops/database'
+import { db } from '@third-code-erp/database'
 import {
   bomPortalTokens,
   boms,
   documents,
   projects,
-} from '@buildops/database/schema'
-import type { DocuSealWebhookPayload } from '@/lib/abi/integrations/docuseal'
-import { notifyRoles } from '@/lib/abi/notifications'
+} from '@third-code-erp/database/schema'
+import type { DocuSealWebhookPayload } from '@/lib/operations/integrations/docuseal'
+import { notifyRoles } from '@/lib/operations/notifications'
 import { writeAuditLog } from '@/lib/audit'
 
 /**

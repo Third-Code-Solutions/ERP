@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq, desc } from 'drizzle-orm'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   accounts,
   contacts,
@@ -10,7 +10,7 @@ import {
   opportunities,
   projects,
   documents,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { KycReviewForm } from '@/components/accounts/kyc-review-form'
 import { AddKycArtifactForm } from '@/components/accounts/add-kyc-artifact-form'
 

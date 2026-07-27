@@ -8,13 +8,13 @@
 
 ## TL;DR
 
-BuildOps isolates tenants at **two** independent layers. You must understand
+Third Code ERP isolates tenants at **two** independent layers. You must understand
 which layer applies to which code path.
 
 | Path | DB role | RLS applies? | Isolation mechanism |
 |---|---|---|---|
 | **Drizzle SSR** (`packages/database` `db`, via `DATABASE_URL` Supavisor pooler) | `postgres` (table owner) | **NO** — owner bypasses RLS | Explicit `WHERE tenant_id = …` in every query |
-| **supabase-js / PostgREST** (`@buildops/auth` browser & server clients) | `authenticated` / `anon` | **YES** | RLS policies keyed on `auth_tenant_id()` |
+| **supabase-js / PostgREST** (`@third-code-erp/auth` browser & server clients) | `authenticated` / `anon` | **YES** | RLS policies keyed on `auth_tenant_id()` |
 
 > The `postgres` role bypasses RLS because no table has `FORCE ROW LEVEL
 > SECURITY`. This is intentional: the SSR layer is trusted server code that
@@ -48,10 +48,10 @@ which layer applies to which code path.
 Run:
 
 ```bash
-corepack pnpm --filter @buildops/database test
+corepack pnpm --filter @third-code-erp/database test
 ```
 
-Requires `DATABASE_URL` (root `.env.local` or `apps/web/.env.local`). The suite
+Requires an explicitly injected disposable `DATABASE_URL`. The suite
 auto-skips with a warning if it is unset, so CI without DB creds won't false-fail.
 
 ## Reviewer checklist (every PR touching data access)

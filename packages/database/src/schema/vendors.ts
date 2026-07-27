@@ -19,6 +19,10 @@ export const vendors = pgTable(
   (table) => ({
     tenantIdx: index('idx_vendors_tenant_id').on(table.tenant_id),
     tenantNameIdx: uniqueIndex('idx_vendors_tenant_name').on(table.tenant_id, table.name),
+    tenantIdUniqueIdx: uniqueIndex('ux_vendors_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
   })
 )
 

@@ -1,13 +1,13 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   projects,
   users,
   weeklyReports,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { generateThisWeekReport } from './actions'
 
 interface PageProps {

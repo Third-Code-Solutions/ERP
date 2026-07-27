@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-export const metadata: Metadata = { title: 'BuildOps' }
+export const metadata: Metadata = { title: 'Third Code ERP' }
 
 export default function PrintLayout({ children }: { children: React.ReactNode }) {
   return (

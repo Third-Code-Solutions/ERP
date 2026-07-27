@@ -33,10 +33,10 @@ export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
     return { ok: true, skipped: true }
   }
 
-  const from =
-    args.from ??
-    Deno.env.get('RESEND_FROM_EMAIL') ??
-    'BuildOps <notifications@buildops.dev>'
+  const from = args.from ?? Deno.env.get('RESEND_FROM_EMAIL')
+  if (!from) {
+    return { ok: false, error: 'RESEND_FROM_EMAIL is not configured' }
+  }
 
   const payload: Record<string, unknown> = {
     from,

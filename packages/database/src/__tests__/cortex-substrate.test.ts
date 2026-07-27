@@ -1,5 +1,5 @@
 /**
- * Cortex graph substrate proof (BUILDOPS_IMPLEMENTATION_PROMPT §5, Appendix D S0.2).
+ * Cortex graph substrate proof (THIRD_CODE_ERP_IMPLEMENTATION_PROMPT §5, Appendix D S0.2).
  *
  * Proves, against the real DB and inside always-rolled-back transactions:
  *   1. ERP mutation → graph: a project insert is auto-mirrored into a

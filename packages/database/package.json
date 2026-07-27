@@ -1,5 +1,5 @@
 {
-  "name": "@buildops/database",
+  "name": "@third-code-erp/database",
   "version": "0.1.0",
   "private": true,
   "exports": {
@@ -20,7 +20,7 @@
     "postgres": "^3.4.5"
   },
   "devDependencies": {
-    "@buildops/config": "workspace:*",
+    "@third-code-erp/config": "workspace:*",
     "@types/node": "^22.0.0",
     "drizzle-kit": "^0.30.5",
     "typescript": "^5.7.2",

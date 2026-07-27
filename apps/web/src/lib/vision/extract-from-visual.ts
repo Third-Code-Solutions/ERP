@@ -9,15 +9,15 @@
 // This is the path that powers "upload anything from the BOM tab → draft BOM
 // appears" for construction teams that don't always have a CAD drawing.
 //
-// Why two SDK versions: @buildops/ai is pinned to openai@4 (its v4 Responses
+// Why two SDK versions: @third-code-erp/ai is pinned to openai@4 (its v4 Responses
 // types lack the 'original' detail variant + some structured-output fields we
 // need). apps/web already pins openai@6 directly, so we instantiate the client
 // here rather than going through getOpenAI().
 
-import { db } from '@buildops/database'
-import { scopeItems } from '@buildops/database/schema'
+import { db } from '@third-code-erp/database'
+import { scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
-import { createSupabaseAdminClient } from '@buildops/auth/server'
+import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import OpenAI from 'openai'
 import type { ResponseInputContent } from 'openai/resources/responses/responses'
 import { calcDraftBomFromScope, type AutoBomResult } from '../cad/auto-bom'

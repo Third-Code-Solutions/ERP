@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { users } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
-import { embedText, serializeEmbedding } from '@buildops/ai'
+import { embedText, serializeEmbedding } from '@third-code-erp/ai'
 import { writeAuditLog } from '@/lib/audit'
 
 export interface SimilarItem {

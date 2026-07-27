@@ -9,13 +9,13 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   cnpsSurveys,
   warrantyTickets,
   accounts,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 
 export const metadata: Metadata = { title: 'CNPS Dashboard' }
 

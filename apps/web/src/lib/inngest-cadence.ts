@@ -14,10 +14,10 @@
  * pipeline declared there.
  */
 
-import { db } from '@buildops/database'
-import { tenants } from '@buildops/database/schema'
+import { db } from '@third-code-erp/database'
+import { tenants } from '@third-code-erp/database/schema'
 import { inngest } from './inngest'
-import { generateTasksForDate } from './abi/cadence-engine'
+import { generateTasksForDate } from './operations/cadence-engine'
 
 type Step = {
   run: <T>(name: string, fn: () => Promise<T>) => Promise<T>

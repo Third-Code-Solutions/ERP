@@ -15,16 +15,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, asc, count, eq } from 'drizzle-orm'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   projects,
   users,
   variationOrders,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { notifyRoles } from '@/lib/abi/notifications'
-import { createSigningSession } from '@/lib/abi/integrations/docuseal'
+import { notifyRoles } from '@/lib/operations/notifications'
+import { createSigningSession } from '@/lib/operations/integrations/docuseal'
 
 export type VoChangeType = 'client_initiated' | 'site_condition' | 'design_error'
 export type VoStatus =

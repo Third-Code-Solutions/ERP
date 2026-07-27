@@ -1,9 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { projectComments, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { projectComments, users } from '@third-code-erp/database/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 

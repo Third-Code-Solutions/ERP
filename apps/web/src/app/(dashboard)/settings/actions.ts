@@ -1,9 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { tenants, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { tenants, users } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 
 export async function updateTenantSettings(formData: FormData): Promise<{ error?: string }> {

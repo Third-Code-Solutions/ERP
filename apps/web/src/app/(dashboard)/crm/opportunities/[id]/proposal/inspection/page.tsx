@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq, desc } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   opportunities,
   accounts,
@@ -11,7 +11,7 @@ import {
   siteInspectionPhotos,
   siteInspectionRfis,
   documents,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { ProposalSubNav } from '@/components/proposal/sub-nav'
 import { InspectionForm } from '@/components/proposal/inspection-form'
 import { RfiForm } from '@/components/proposal/rfi-form'

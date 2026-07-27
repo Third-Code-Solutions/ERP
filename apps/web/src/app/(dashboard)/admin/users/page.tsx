@@ -2,9 +2,9 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { users as usersTable } from '@buildops/database/schema'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { users as usersTable } from '@third-code-erp/database/schema'
 
 export const metadata: Metadata = { title: 'Users' }
 

@@ -22,6 +22,23 @@ describe('Cortex RBAC — node-type scope', () => {
     const f = cortexNodeTypeScope('finance')!
     expect(f).toContain('invoice')
     expect(f).toContain('claim')
+    expect(f).toContain('journal_entry')
+    expect(f).toContain('journal_line')
+    expect(f).toContain('ledger_account')
+    expect(f).toContain('bank_statement')
+    expect(f).toContain('cost_code')
+    expect(f).toContain('project_budget')
+    expect(f).toContain('stock_movement')
+  })
+
+  it('sales cannot see finance ledger nodes', () => {
+    const s = cortexNodeTypeScope('sales')!
+    expect(s).not.toContain('journal_entry')
+    expect(s).not.toContain('journal_line')
+    expect(s).not.toContain('ledger_account')
+    expect(s).not.toContain('bank_statement')
+    expect(cortexCanSeeType('sales', 'journal_entry')).toBe(false)
+    expect(cortexCanSeeType('finance', 'journal_entry')).toBe(true)
   })
 
   it('viewer sees only the everyone surfaces (documents, tasks)', () => {
@@ -38,7 +55,8 @@ describe('Cortex RBAC — node-type scope', () => {
     expect(cortexCanSeeType('sales', 'invoice')).toBe(false)
     expect(cortexCanSeeType('finance', 'invoice')).toBe(true)
     expect(cortexCanSeeType('sales', 'opportunity')).toBe(true)
-    // unmapped types are not hidden (keep the map current)
-    expect(cortexCanSeeType('sales', 'some_future_type')).toBe(true)
+    // New types must be intentionally mapped before non-admin users can see them.
+    expect(cortexCanSeeType('sales', 'some_future_type')).toBe(false)
+    expect(cortexCanSeeType('admin', 'some_future_type')).toBe(true)
   })
 })

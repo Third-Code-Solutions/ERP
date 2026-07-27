@@ -24,17 +24,17 @@ export const { GET, POST, PUT } = serve({
     parseCadDrawing,
     calcDraftBomFromScope,
     embedBomLineItems,
-    // ABI Ops M5 — daily cadence task generator
+    // Third Code ERP M5 — daily cadence task generator
     generateDailyCadenceTasks,
     generateOnDemand,
-    // ABI Ops M7 — CNPS survey dispatch
+    // Third Code ERP M7 — CNPS survey dispatch
     dispatchCnpsSurveys,
     onCnpsSurveyScheduled,
-    // ABI Ops cross-cutting — SLA breach detector + permit staleness
+    // Third Code ERP cross-cutting — SLA breach detector + permit staleness
     // (replaces the Deno edge functions; both paths kept for ops flexibility)
     slaChecker,
     permitStalenessChecker,
-    // ABI Ops M3 — auto-create RFQ on BOM internal approval
+    // Third Code ERP M3 — auto-create RFQ on BOM internal approval
     onBomInternalApproved,
   ],
 })

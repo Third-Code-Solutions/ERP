@@ -1,5 +1,5 @@
 import type { KpiData } from '@/lib/dashboard-queries'
-import { formatCents, formatCentsCompact } from '@buildops/shared-types'
+import { formatCents, formatCentsCompact } from '@third-code-erp/shared-types'
 import { IconArrowUpRight, IconActivity, IconUser } from '@/components/ui/icons'
 
 interface KpiCardsProps {

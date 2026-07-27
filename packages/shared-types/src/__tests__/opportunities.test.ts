@@ -48,9 +48,9 @@ describe('STAGE_TRANSITIONS', () => {
     }
   })
 
-  it('every ABI active stage can progress to lost', () => {
-    // Canonical ABI Ops 8-stage flow uses `lost` (not `closed_lost`).
-    const abiActive = [
+  it('every canonical active stage can progress to lost', () => {
+    // Canonical Third Code ERP 8-stage flow uses `lost` (not `closed_lost`).
+    const pipelineActive = [
       'lead',
       'site_survey',
       'design',
@@ -58,7 +58,7 @@ describe('STAGE_TRANSITIONS', () => {
       'negotiation',
       'contract',
     ] as const
-    for (const stage of abiActive) {
+    for (const stage of pipelineActive) {
       expect(STAGE_TRANSITIONS[stage], `${stage} should reach lost`).toContain('lost')
     }
   })
@@ -96,7 +96,7 @@ describe('createOpportunitySchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('accepts a valid opportunity with account_id (ABI Ops flow)', () => {
+  it('accepts a valid opportunity with account_id (Third Code ERP flow)', () => {
     const result = createOpportunitySchema.safeParse({
       account_id: 'b1ffbc99-9c0b-4ef8-bb6d-6bb9bd380a22',
       tcv_cents: 1_000_000,

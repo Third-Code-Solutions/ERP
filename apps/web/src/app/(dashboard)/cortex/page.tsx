@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
-import { getUserProfile } from '@buildops/auth'
-import { getCortexGraphStats } from '@buildops/database'
+import { getUserProfile } from '@third-code-erp/auth'
+import { getCortexGraphStats } from '@third-code-erp/database'
 import { AccountNotProvisioned } from '@/components/auth/account-not-provisioned'
 import { CortexGraphView } from '@/components/cortex/cortex-graph-view'
 import { CortexAgent } from '@/components/cortex/cortex-agent'
 import { CortexIndexButton } from '@/components/cortex/cortex-index-button'
-import { canonicalRole } from '@/lib/abi/nav-config'
+import { canonicalRole } from '@/lib/operations/nav-config'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 
 export const metadata: Metadata = { title: 'Cortex — AI Brain' }

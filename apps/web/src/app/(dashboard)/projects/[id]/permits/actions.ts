@@ -2,16 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, eq, ilike, or } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   permits,
   preConChecklists,
   preConChecklistItems,
   projects,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { startSlaClock, stopSlaClock } from '@/lib/abi/sla-clock'
+import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 
 type PermitType = 'building_admin_vetting' | 'lgu_building_permit' | 'dole_permit'
 type PermitStatus =

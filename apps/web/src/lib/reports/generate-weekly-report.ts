@@ -13,8 +13,8 @@
 // audit-logging.
 
 import { and, desc, eq, gte, lte, ne } from 'drizzle-orm'
-import { createSupabaseAdminClient } from '@buildops/auth/server'
-import { db } from '@buildops/database'
+import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
+import { db } from '@third-code-erp/database'
 import {
   accounts,
   dailyTasks,
@@ -27,7 +27,7 @@ import {
   users,
   variationOrders,
   weeklyReports,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import {
   buildWeeklyReportHtml,

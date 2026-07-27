@@ -1,20 +1,23 @@
-# ABI Ops
+# Third Code ERP
 
-> Unified fit-out operations platform for **Actuate Builders Inc.** — built by **Th/rd Code Solutions**. ABI Ops collapses the seven disconnected systems (Account/CRM → Proposal → BOM → Pre-Construction → Construction → Post-Construction → Warranty) used by a Philippine commercial fit-out contractor into a single source of truth with role-based RLS, append-only audit, and SLA-driven automation.
+> A connected construction and project-business operating system built by
+> **Third Code Solutions Inc.** Third Code ERP unifies Account/CRM → Proposal →
+> BOM → Pre-Construction → Construction → Billing → Post-Construction →
+> Warranty with tenant-scoped access, append-only audit, automation, and Cortex.
 
-![status](https://img.shields.io/badge/status-internal_alpha-orange) ![stack](https://img.shields.io/badge/stack-Next.js%2015%20%C2%B7%20Supabase%20%C2%B7%20Inngest-blue)
+![status](https://img.shields.io/badge/status-internal_alpha-orange) ![stack](https://img.shields.io/badge/stack-Next.js%2015%20%C2%B7%20NestJS%2011%20%C2%B7%20PostgreSQL-blue)
 
 ## Tech Stack
 
 | Layer | Choice |
 |---|---|
 | Frontend | Next.js 15 (App Router) on Vercel · React 19 · Tailwind v4 |
-| Backend | Next.js Server Actions + Route Handlers · Zod at every boundary |
-| Database | Supabase Postgres 16 · Drizzle ORM · pgvector |
+| Backend | NestJS 11 modular monolith (incremental authority) · legacy Next.js actions/handlers during migration |
+| Database | Supabase Postgres 17 · Drizzle ORM · pgvector |
 | Storage | Supabase Storage (project documents, signature bundles) |
 | Auth | Supabase Auth with RLS (`tenant_id`-scoped) |
 | RAG / AI | OpenAI `gpt-4o-mini` + `text-embedding-3-small`, optional Anthropic |
-| Jobs | Inngest (preferred) · Supabase Edge Functions (legacy crons) |
+| Jobs | Redis + BullMQ for the new core · Inngest and Edge Functions during migration |
 | Email | Resend (optional — stdout fallback) |
 | SMS | Semaphore (optional — stdout fallback) |
 | E-Sign | Built-in canvas signing pad · DocuSeal envelope flow (optional) |
@@ -23,13 +26,14 @@
 
 ```bash
 pnpm install
-cp .env.example .env.local              # fill in Supabase + OpenAI keys
-pnpm --filter @buildops/database push   # apply Drizzle schema
+cp apps/web/.env.example apps/web/.env.local  # fill in Supabase + OpenAI keys
+supabase start                           # requires Docker
+supabase db reset --local                # ordered migrations + deterministic seed
 pnpm dev                                # web + workers on turbo
 ```
 
-Open `http://localhost:3000` and sign in. Seed data lives in
-`packages/database/src/seed.ts`. See [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md)
+Open `http://localhost:3000` and sign in. Reset data lives in
+`supabase/seed.sql`. See [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md)
 for the full env matrix.
 
 ## Folder Structure
@@ -37,6 +41,7 @@ for the full env matrix.
 ```text
 erp/
 ├── apps/
+│   ├── api/                # NestJS core ERP modular monolith
 │   ├── web/                # Next.js 15 frontend + server actions
 │   └── workers/            # Railway Python services (dxf-parser)
 ├── packages/
@@ -47,7 +52,7 @@ erp/
 │   ├── ui/                 # Shared shadcn-based components
 │   └── config/             # Shared eslint/tsconfig/tailwind
 ├── supabase/
-│   ├── migrations/         # SQL migrations (12 files; see DEPLOYMENT.md)
+│   ├── migrations/         # SQL migrations (43 files; see DEPLOYMENT.md)
 │   └── functions/          # Edge functions (legacy crons)
 ├── infra/                  # Scripts, docker, GH actions support
 ├── scripts/                # Repo-wide one-shots
@@ -56,7 +61,7 @@ erp/
 
 ## Module Map
 
-The platform is built as ten user-facing modules. Each line lists the
+The platform is built as thirteen user-facing modules. Each line lists the
 top-level route under `apps/web/src/app/(dashboard)`.
 
 | Module | Route | One-liner |
@@ -65,16 +70,22 @@ top-level route under `apps/web/src/app/(dashboard)`.
 | Projects | `/projects` | Project workspace (parent for all post-Won activity) |
 | Proposal Workflow | `/crm/opportunities/[id]/proposal` | PPRF, site inspection, design upload, change log |
 | BOM Engine | `/bom`, `/projects/[id]/bom` | Togal import, line editor, client portal + e-sign |
+| Project Cost Control | `/projects/[id]/cost`, `/projects/[id]/cost/budget` | Versioned Cost Code budgets, dual approval, commitments, actuals, forecast, and variance |
 | Procurement | `/procurement`, `/purchase-orders` | RFQ dispatch, AR codes, two-step PO approval |
+| Inventory | `/inventory`, `/inventory/receipts`, `/inventory/movements` | UOM/Item/Warehouse masters, controlled receipts, transfers, project consumption, count adjustments, and perpetual stock evidence |
 | Pre-Construction | `/permits`, `/projects/[id]/checklist` | Auto-checklist, permit tracker, PO generation |
 | Construction Cadence | `/tasks`, `/projects/[id]/progress` | Daily/weekly tasks, variation orders, S-curve |
 | Post-Construction | `/punchlist`, `/projects/[id]/turnover` | Punchlist, COC, turnover package |
 | Warranty & CX | `/warranty`, `/portal/warranty/[token]` | Client portal, ticket triage, auto CNPS surveys |
+| Finance | `/finance`, `/finance/receivables`, `/finance/payables`, `/finance/cash`, `/finance/reconciliation`, `/finance/ledger` | Three-way-matched payables, controlled subledgers, allocated cash, bank reconciliation, immutable journals, reversals, aging, and ledger |
 | Admin & Reports | `/admin`, `/reports`, `/dashboard` | Rate cards, mapping, executive KPIs |
 
 ## Documentation
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system map, data model, auth/RLS, jobs
+- [docs/architecture/CURRENT_STATE.md](docs/architecture/CURRENT_STATE.md) — verified migration baseline
+- [docs/architecture/MIGRATION_PLAN.md](docs/architecture/MIGRATION_PLAN.md) — incremental NestJS transaction migration
+- [docs/operations/NEXT_ACTIONS.md](docs/operations/NEXT_ACTIONS.md) — exact operational handoff
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Vercel + Supabase + Inngest + Railway setup
 - [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) — every env var, scope, where to get it
 - [docs/USER_STORY_INDEX.md](docs/USER_STORY_INDEX.md) — REFACTOR.md user stories mapped to code paths
@@ -93,6 +104,6 @@ pnpm test               # vitest unit + integration
 
 ## License & Contributing
 
-Internal project — proprietary to Th/rd Code Solutions Inc. and Actuate
-Builders Inc. Contribution guidelines live in [AGENTS.md](AGENTS.md);
+Internal project — proprietary to Third Code Solutions Inc. Contribution
+guidelines live in [AGENTS.md](AGENTS.md);
 agent routing rules and scope boundaries are enforced per session.

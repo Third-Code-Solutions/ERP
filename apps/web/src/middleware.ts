@@ -54,9 +54,9 @@ function buildCSP(nonce: string): string {
     // Next.js / next-themes inject inline <style> tags without a nonce. Keep
     // 'unsafe-inline' on style-src — modern browsers do not yet treat it as
     // unsafe in the way they treat inline scripts.
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com",
     "img-src 'self' data: blob: https:",
-    "font-src 'self' data: https://fonts.gstatic.com",
+    "font-src 'self' data: https://fonts.gstatic.com https://cdn.fontshare.com",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://api.openai.com https://vitals.vercel-insights.com",
     "frame-src 'none'",
     "object-src 'none'",
@@ -72,6 +72,13 @@ function buildCSP(nonce: string): string {
 // ---------------------------------------------------------------------------
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Monitoring probes must not depend on Supabase Auth session refresh or the
+  // per-instance request limiter. /api/ready performs its own database check.
+  if (pathname === '/api/health' || pathname === '/api/ready') {
+    return NextResponse.next()
+  }
+
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
   const nonce = generateNonce()
   const csp = buildCSP(nonce)
@@ -173,7 +180,7 @@ function isProtectedRoute(pathname: string): boolean {
     '/reports',
     '/settings',
     '/procurement',
-    // ABI Ops modules added across the refactor
+    // Third Code ERP modules added across the refactor
     '/crm',
     '/admin',
     '/tasks',

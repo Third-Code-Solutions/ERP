@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { createAccount } from '@/app/(dashboard)/crm/accounts/actions'
-import { accountIndustryValues } from '@buildops/shared-types'
+import { accountIndustryValues } from '@third-code-erp/shared-types'
 
 const INDUSTRY_LABELS: Record<string, string> = {
   retail: 'Retail',
@@ -39,7 +39,7 @@ export function NewAccountForm() {
           required
           minLength={2}
           maxLength={255}
-          placeholder="Actuate Builders Inc."
+          placeholder="Third Code Solutions Inc."
           className="form-input"
         />
       </div>

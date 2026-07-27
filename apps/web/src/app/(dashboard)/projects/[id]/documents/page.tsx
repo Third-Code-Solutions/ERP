@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { documents, projects, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { documents, projects, users } from '@third-code-erp/database/schema'
 import { and, eq, desc, sum } from 'drizzle-orm'
 import { UploadButton } from '@/components/documents/upload-button'
 import { DeleteDocumentButton } from '@/components/documents/delete-document-button'
@@ -287,7 +287,7 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
           color: 'var(--color-navy-700)',
         }}
       >
-        DWG is the primary CAD format. Upload a DWG or DXF and BuildOps automatically extracts scope items and drafts a BOM. DXF parses instantly in-browser. Binary DWG runs through the server-side libredwg converter when DXF_PARSER_URL is configured. In-browser preview and version history land in Phase 3.
+        DWG is the primary CAD format. Upload a DWG or DXF and Third Code ERP automatically extracts scope items and drafts a BOM. DXF parses instantly in-browser. Binary DWG runs through the server-side libredwg converter when DXF_PARSER_URL is configured. In-browser preview and version history land in Phase 3.
       </div>
     </div>
   )

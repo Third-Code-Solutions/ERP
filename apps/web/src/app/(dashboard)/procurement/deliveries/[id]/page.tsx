@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   auditLog,
   deliverySchedules,
@@ -12,7 +12,7 @@ import {
   vendors,
   projects,
   users as usersTable,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { SitePrepPanel } from '@/components/deliveries/site-prep-panel'
 import { InspectionPanel } from '@/components/deliveries/inspection-panel'
 import { DeliveryStatusActions } from '@/components/deliveries/delivery-status-actions'

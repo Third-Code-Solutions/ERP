@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
 import type { Metadata } from 'next'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { progressClaims, projects } from '@buildops/database/schema'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { progressClaims, projects } from '@third-code-erp/database/schema'
 import { ClaimListTable } from '@/components/claims/claim-list-table'
 
 export const metadata: Metadata = { title: 'Progress claims' }

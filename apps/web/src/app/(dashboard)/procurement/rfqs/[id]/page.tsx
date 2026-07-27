@@ -13,8 +13,8 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   rfqs,
   rfqQuotes,
@@ -22,7 +22,7 @@ import {
   projects,
   vendors,
   materialItems,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { LogQuoteForm } from '@/components/rfq/log-quote-form'
 import { PriceComparisonTable } from '@/components/rfq/price-comparison-table'
 import { completeRfq, cancelRfq } from '../actions'

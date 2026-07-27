@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createSupabaseBrowserClient } from '@buildops/auth/client'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 
 // Tables that affect the executive dashboard metrics.
 const WATCHED_TABLES = ['opportunities', 'purchase_orders', 'invoices', 'boms'] as const

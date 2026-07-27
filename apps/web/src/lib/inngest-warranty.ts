@@ -14,12 +14,12 @@
 
 import { randomBytes, createHash } from 'node:crypto'
 import { and, eq, isNull, lte, or } from 'drizzle-orm'
-import { db } from '@buildops/database'
+import { db } from '@third-code-erp/database'
 import {
   warrantyTickets,
   cnpsSurveys,
-} from '@buildops/database/schema'
-import { notifyExternalEmail } from '@/lib/abi/notifications'
+} from '@third-code-erp/database/schema'
+import { notifyExternalEmail } from '@/lib/operations/notifications'
 import { inngest } from '@/lib/inngest'
 
 function siteBase(): string {

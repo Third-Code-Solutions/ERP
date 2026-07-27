@@ -1,5 +1,5 @@
 -- =============================================================================
--- BuildOps harden-loop migration (2026-05-10)
+-- Third Code ERP harden-loop migration (2026-05-10)
 -- 1. po_line_items RLS (was missing — CRITICAL tenant-leak risk)
 -- 2. invoices unique constraint on (tenant_id, invoice_number) for atomic
 --    BIR-compliant numbering via retry-on-conflict
@@ -9,7 +9,6 @@
 -- 1. po_line_items — accessed via po.tenant_id join (mirrors bom_line_items)
 -- -----------------------------------------------------------------------------
 ALTER TABLE po_line_items ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "po_line_items_tenant_read" ON po_line_items
   FOR SELECT
   USING (
@@ -19,7 +18,6 @@ CREATE POLICY "po_line_items_tenant_read" ON po_line_items
         AND purchase_orders.tenant_id = auth_tenant_id()
     )
   );
-
 CREATE POLICY "po_line_items_tenant_insert" ON po_line_items
   FOR INSERT
   WITH CHECK (
@@ -29,7 +27,6 @@ CREATE POLICY "po_line_items_tenant_insert" ON po_line_items
         AND purchase_orders.tenant_id = auth_tenant_id()
     )
   );
-
 CREATE POLICY "po_line_items_tenant_update" ON po_line_items
   FOR UPDATE
   USING (
@@ -39,7 +36,6 @@ CREATE POLICY "po_line_items_tenant_update" ON po_line_items
         AND purchase_orders.tenant_id = auth_tenant_id()
     )
   );
-
 CREATE POLICY "po_line_items_tenant_delete" ON po_line_items
   FOR DELETE
   USING (
@@ -49,7 +45,6 @@ CREATE POLICY "po_line_items_tenant_delete" ON po_line_items
         AND purchase_orders.tenant_id = auth_tenant_id()
     )
   );
-
 -- -----------------------------------------------------------------------------
 -- 2. invoices — enforce continuous BIR-compliant numbering atomically
 -- The application code uses retry-on-conflict to allocate the next sequence

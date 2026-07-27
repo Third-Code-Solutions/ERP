@@ -19,20 +19,20 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
-import { db } from '@buildops/database'
+import { db } from '@third-code-erp/database'
 import {
   projects,
   progressUpdates,
   punchlistItems,
   masterSchedules,
   weeklyReports,
-} from '@buildops/database/schema'
-import { findActiveCustomerSession } from '@/lib/abi/customer-portal'
+} from '@third-code-erp/database/schema'
+import { findActiveCustomerSession } from '@/lib/operations/customer-portal'
 import { PortalEmpty } from '@/components/customer-portal/portal-empty'
 import { logView } from './actions'
 
 export const metadata: Metadata = {
-  title: 'Project overview · ABI Ops',
+  title: 'Project overview · Third Code ERP',
   robots: { index: false, follow: false },
 }
 

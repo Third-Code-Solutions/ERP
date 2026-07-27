@@ -3,17 +3,17 @@
 import { randomBytes, createHash } from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   boms,
   bomPortalTokens,
   projects,
   accounts,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { notifyExternalEmail } from '@/lib/abi/notifications'
-import { createSigningSession } from '@/lib/abi/integrations/docuseal'
+import { notifyExternalEmail } from '@/lib/operations/notifications'
+import { createSigningSession } from '@/lib/operations/integrations/docuseal'
 
 const PORTAL_TOKEN_BYTES = 32
 const PORTAL_VALIDITY_HOURS = 48

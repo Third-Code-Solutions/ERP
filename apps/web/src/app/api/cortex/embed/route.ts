@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getUserProfile } from '@buildops/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import {
   getUnembeddedCortexNodes,
   setCortexNodeEmbedding,
   cortexEmbeddingText,
-} from '@buildops/database'
-import { embedBatch } from '@buildops/ai'
-import { canonicalRole } from '@/lib/abi/nav-config'
+} from '@third-code-erp/database'
+import { embedBatch } from '@third-code-erp/ai'
+import { canonicalRole } from '@/lib/operations/nav-config'
 
 const BATCH_SIZE = 64
 

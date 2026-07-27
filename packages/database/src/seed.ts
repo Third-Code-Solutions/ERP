@@ -1,17 +1,17 @@
 /**
  * Development seed script.
- * Run: pnpm --filter @buildops/database db:seed
+ * Run: pnpm --filter @third-code-erp/database db:seed
  *
  * Creates a dev tenant + admin user record (Supabase Auth user must exist separately).
  * Set SEED_USER_ID to the Supabase Auth UID you want to use as the admin.
  */
 import { db } from './client'
-import { tenants, users } from './schema'
+import { costCodes, tenants, users } from './schema'
 import { eq } from 'drizzle-orm'
 
 const TENANT_SLUG = 'thrd-code-dev'
 const TENANT_NAME = 'Th/rd Code Construction (Dev)'
-const ADMIN_EMAIL = process.env['SEED_ADMIN_EMAIL'] ?? 'admin@buildops.dev'
+const ADMIN_EMAIL = process.env['SEED_ADMIN_EMAIL'] ?? 'admin@thirdcode-erp.test'
 const ADMIN_USER_ID = process.env['SEED_USER_ID'] ?? ''
 
 async function seed() {
@@ -64,6 +64,19 @@ async function seed() {
     })
     console.log(`Created user: ${ADMIN_EMAIL} (role: admin)`)
   }
+
+  await db
+    .insert(costCodes)
+    .values([
+      { tenant_id: tenantId, code: 'MAT', name: 'Materials', category: 'material', created_by: ADMIN_USER_ID },
+      { tenant_id: tenantId, code: 'LAB', name: 'Labour', category: 'labour', created_by: ADMIN_USER_ID },
+      { tenant_id: tenantId, code: 'SUB', name: 'Subcontractors', category: 'subcontractor', created_by: ADMIN_USER_ID },
+      { tenant_id: tenantId, code: 'EQP', name: 'Equipment', category: 'equipment', created_by: ADMIN_USER_ID },
+      { tenant_id: tenantId, code: 'OHD', name: 'Project overhead', category: 'overhead', created_by: ADMIN_USER_ID },
+      { tenant_id: tenantId, code: 'OTH', name: 'Other project cost', category: 'other', created_by: ADMIN_USER_ID },
+    ])
+    .onConflictDoNothing()
+  console.log('Ensured default Cost Codes.')
 
   console.log('Seed complete.')
   process.exit(0)

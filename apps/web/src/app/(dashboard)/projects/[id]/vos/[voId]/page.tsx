@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { projects, users } from '@buildops/database/schema'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { projects, users } from '@third-code-erp/database/schema'
 import { VoApprovalActions } from '@/components/vos/vo-approval-actions'
 import { getVoById, type VoStatus } from '../actions'
 

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { getUser } from '@buildops/auth'
+import { getUser } from '@third-code-erp/auth'
 import {
   getDashboardKpis,
   getStageDistribution,
@@ -17,8 +17,8 @@ import { ConversionRateTable } from '@/components/dashboard/conversion-rate-tabl
 import { ForecastChart } from '@/components/dashboard/forecast-chart'
 import { ExportCsvButton } from '@/components/dashboard/export-csv-button'
 import { CloseDateFilter } from '@/components/dashboard/close-date-filter'
-import { db } from '@buildops/database'
-import { users } from '@buildops/database/schema'
+import { db } from '@third-code-erp/database'
+import { users } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 
 export const metadata: Metadata = { title: 'Dashboard' }

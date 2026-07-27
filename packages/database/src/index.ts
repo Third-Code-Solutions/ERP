@@ -5,5 +5,7 @@ export * from './schema'
 export * from './cortex/graph'
 // Cortex retrieval + citation assembly (source-grounded, permission-scoped)
 export * from './cortex/retrieve'
-// BuildOps Agent memory (persisted conversations)
+// Third Code ERP Agent memory (persisted conversations)
 export * from './cortex/chat-store'
+// Accounting draft validation (database posting remains authoritative)
+export * from './accounting/journal'

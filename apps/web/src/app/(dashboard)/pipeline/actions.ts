@@ -1,20 +1,20 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { accounts, opportunities, projects, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { accounts, opportunities, projects, users } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
-import { startSlaClock, stopSlaClock } from '@/lib/abi/sla-clock'
+import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 import {
-  ABI_STAGES,
+  PIPELINE_STAGES,
   STAGE_PROBABILITY,
   STAGE_TRANSITIONS,
   STAGE_LEGACY_MAP,
-  type AbiStage,
+  type PipelineStage,
   type OpportunityStage,
-} from '@buildops/shared-types'
+} from '@third-code-erp/shared-types'
 
 // Stages beyond which KYC must be approved. `lead` + `site_survey` are
 // allowed pre-KYC so reps can initial-triage; everything past needs
@@ -87,7 +87,7 @@ export async function createOpportunity(formData: FormData): Promise<{ error?: s
   return {}
 }
 
-// ── Create opportunity for an account (ABI Ops flow) ──────────────────────────
+// ── Create opportunity for an account (Third Code ERP flow) ───────────────────
 
 /**
  * Create an Opportunity owned by an Account (REFACTOR.md M1 US-002).
@@ -116,10 +116,10 @@ export async function createOpportunityForAccount(formData: FormData): Promise<{
   if (!account) return { error: 'Account not found' }
 
   const stageRaw = parseStr(formData.get('stage')) ?? 'lead'
-  if (!ABI_STAGES.includes(stageRaw as AbiStage)) {
+  if (!PIPELINE_STAGES.includes(stageRaw as PipelineStage)) {
     return { error: `Invalid stage: ${stageRaw}` }
   }
-  const stage = stageRaw as AbiStage
+  const stage = stageRaw as PipelineStage
 
   // KYC gate: only `lead` is permitted unless KYC is approved or not_required.
   const kycOk = account.kyc_status === 'approved' || account.kyc_status === 'not_required'
@@ -254,16 +254,18 @@ export async function advanceOpportunityStage(
   }
 
   // ── Regression detection (US-002 AC5). ─────────────────────────────────────
-  // If the new stage sits earlier in the ABI flow than the current stage,
+  // If the new stage sits earlier in the canonical flow than the current stage,
   // require a reason.
   const trimmedReason =
     typeof reason === 'string' && reason.trim().length > 0 ? reason.trim() : undefined
-  const currentAbi: AbiStage = STAGE_LEGACY_MAP[opp.stage as OpportunityStage] ?? 'lead'
-  const nextAbi: AbiStage | undefined = STAGE_LEGACY_MAP[nextStageTyped]
+  const currentPipelineStage: PipelineStage =
+    STAGE_LEGACY_MAP[opp.stage as OpportunityStage] ?? 'lead'
+  const nextPipelineStage: PipelineStage | undefined = STAGE_LEGACY_MAP[nextStageTyped]
   const isRegression =
-    !!nextAbi &&
-    ABI_STAGES.indexOf(nextAbi) < ABI_STAGES.indexOf(currentAbi) &&
-    nextAbi !== 'lost'
+    !!nextPipelineStage &&
+    PIPELINE_STAGES.indexOf(nextPipelineStage) <
+      PIPELINE_STAGES.indexOf(currentPipelineStage) &&
+    nextPipelineStage !== 'lost'
   if (isRegression && !trimmedReason) {
     return { error: 'reason_required' }
   }
@@ -352,7 +354,7 @@ export async function advanceOpportunityStage(
   // can re-trigger from the project detail page.
   if (nextStageTyped === 'won' || nextStageTyped === 'closed_won') {
     try {
-      const { convertOpportunityToProject } = await import('@/lib/abi/won-conversion')
+      const { convertOpportunityToProject } = await import('@/lib/operations/won-conversion')
       await convertOpportunityToProject(opportunityId, user.id)
     } catch (err) {
       // eslint-disable-next-line no-console

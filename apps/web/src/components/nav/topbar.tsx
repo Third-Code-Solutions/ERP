@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import type { AppRole } from '@buildops/auth'
+import type { AppRole } from '@third-code-erp/auth'
 import { IconChevronRight, IconSearch } from '@/components/ui/icons'
 import { CommandPalette } from './command-palette'
 import { NotificationsDropdown } from './notifications-dropdown'
@@ -93,7 +93,7 @@ export function Topbar({ user, role, fullName, tenantId }: TopbarProps) {
       <header className="app-topbar">
         <nav aria-label="Breadcrumb" className="breadcrumb">
           <Link href="/dashboard" className="breadcrumb-item">
-            ABI Ops
+            Third Code ERP
           </Link>
           {segments.map((seg, idx) => {
             const href = '/' + segments.slice(0, idx + 1).join('/')

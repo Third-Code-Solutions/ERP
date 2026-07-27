@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { warrantyTickets, projects, accounts } from '@buildops/database/schema'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { warrantyTickets, projects, accounts } from '@third-code-erp/database/schema'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Warranty Tickets' }

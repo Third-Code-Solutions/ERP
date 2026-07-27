@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { and, asc, eq } from 'drizzle-orm'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { mappingConfig, materialItems } from '@buildops/database/schema'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { mappingConfig, materialItems } from '@third-code-erp/database/schema'
 import { MappingConfigForm } from '@/components/admin/mapping-config-form'
 
 export const metadata: Metadata = { title: 'Togal mapping config' }

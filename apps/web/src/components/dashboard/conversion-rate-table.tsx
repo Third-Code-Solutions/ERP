@@ -37,7 +37,7 @@ export function ConversionRateTable({ rows }: ConversionRateTableProps) {
         <div>
           <h2 className="card-title">Stage Conversion</h2>
           <p className="card-subtitle">
-            Rate at which opportunities advance between adjacent ABI stages
+            Rate at which opportunities advance between adjacent pipeline stages
           </p>
         </div>
         <div className="card-toolbar">

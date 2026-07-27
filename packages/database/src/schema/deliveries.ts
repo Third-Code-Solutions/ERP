@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, index, pgEnum } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, timestamp, index, uniqueIndex, pgEnum } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { purchaseOrders } from './purchase-orders'
 import { users } from './users'
@@ -53,6 +53,9 @@ export const deliverySchedules = pgTable(
   },
   (table) => ({
     tenantIdx: index('idx_delivery_schedules_tenant').on(table.tenant_id),
+    tenantIdUniqueIdx: uniqueIndex(
+      'ux_delivery_schedules_tenant_id_id'
+    ).on(table.tenant_id, table.id),
     poIdx: index('idx_delivery_schedules_po').on(table.purchase_order_id),
     tenantStatusIdx: index('idx_delivery_schedules_tenant_status').on(table.tenant_id, table.status),
     scheduledIdx: index('idx_delivery_schedules_scheduled').on(table.scheduled_date),

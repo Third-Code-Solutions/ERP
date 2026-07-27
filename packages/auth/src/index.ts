@@ -9,7 +9,7 @@ export {
   requireCapability,
   createSupabaseAdminClient,
   type AppRole,
-  type AbiCapability,
+  type ErpCapability,
   type UserProfile,
 } from './server'
 export { createSupabaseBrowserClient } from './client'

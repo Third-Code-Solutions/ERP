@@ -2,9 +2,9 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { boms, projects, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { boms, projects, users } from '@third-code-erp/database/schema'
 import { TogalImportWizard } from '@/components/bom/togal-import-wizard'
 
 export const metadata: Metadata = { title: 'Togal.ai import' }

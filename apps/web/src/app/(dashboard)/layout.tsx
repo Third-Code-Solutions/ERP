@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { getUserProfile } from '@buildops/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import { Sidebar } from '@/components/nav/sidebar'
 import { Topbar } from '@/components/nav/topbar'
 import { AccountNotProvisioned } from '@/components/auth/account-not-provisioned'
-import { canViewPath } from '@/lib/abi/nav-config'
+import { canViewPath } from '@/lib/operations/nav-config'
 
 export default async function DashboardLayout({
   children,

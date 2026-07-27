@@ -1,4 +1,13 @@
-import { pgTable, uuid, varchar, text, bigint, timestamp, index } from 'drizzle-orm/pg-core'
+import {
+  pgTable,
+  uuid,
+  varchar,
+  text,
+  bigint,
+  timestamp,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 import { purchaseOrderStatusEnum } from './enums'
 import { tenants } from './tenants'
 import { projects } from './projects'
@@ -24,7 +33,7 @@ export const purchaseOrders = pgTable(
     total_cents: bigint('total_cents', { mode: 'number' }).notNull().default(0),
     delivery_date: timestamp('delivery_date', { withTimezone: true }),
     notes: text('notes'),
-    // ABI 3-step approval stamps (REFACTOR.md US-Pre-003)
+    // Current 3-step approval stamps (REFACTOR.md US-Pre-003)
     pm_approved_at: timestamp('pm_approved_at', { withTimezone: true }),
     pm_approved_by: uuid('pm_approved_by').references(() => users.id, { onDelete: 'set null' }),
     commercial_approved_at: timestamp('commercial_approved_at', { withTimezone: true }),
@@ -37,6 +46,9 @@ export const purchaseOrders = pgTable(
   },
   (table) => ({
     tenantIdx: index('idx_purchase_orders_tenant_id').on(table.tenant_id),
+    tenantIdUniqueIdx: uniqueIndex(
+      'ux_purchase_orders_tenant_id_id'
+    ).on(table.tenant_id, table.id),
     projectIdx: index('idx_purchase_orders_project_id').on(table.project_id),
     vendorIdx: index('idx_purchase_orders_vendor_id').on(table.vendor_id),
     tenantStatusIdx: index('idx_purchase_orders_tenant_status').on(table.tenant_id, table.status),

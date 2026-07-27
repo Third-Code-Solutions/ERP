@@ -6,14 +6,14 @@
  */
 
 import { createHash } from 'node:crypto'
-import { db } from '@buildops/database'
-import { cnpsSurveys, warrantyTickets } from '@buildops/database/schema'
+import { db } from '@third-code-erp/database'
+import { cnpsSurveys, warrantyTickets } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { submitCnpsRating } from './actions'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Rate our service | ABI Ops',
+  title: 'Rate our service | Third Code ERP',
   robots: { index: false, follow: false },
 }
 
@@ -81,7 +81,7 @@ export default async function CnpsPortalPage({ params, searchParams }: PageProps
         How did we do?
       </h2>
       <p style={{ margin: '0 0 22px', color: '#525866' }}>
-        On a scale of 0–10, how likely are you to recommend Actuate Builders Inc.
+        On a scale of 0–10, how likely are you to recommend Third Code Solutions Inc.
         based on your experience with ticket <strong>{row.ticket_number}</strong>?
       </p>
 

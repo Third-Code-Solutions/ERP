@@ -64,7 +64,7 @@ signals systematic mirror failure → reconcile + investigate the trigger.
 
 **Run the proof suite:**
 ```bash
-corepack pnpm --filter @buildops/database test
+corepack pnpm --filter @third-code-erp/database test
 ```
 
 ## Dashboard surface (where users find it)
@@ -78,7 +78,7 @@ Sidebar → **Cortex** (Workspace section, visible to all roles). Page: `/cortex
   (reuses `CortexEntityPanel`). Whole graph from `GET /api/cortex/graph`
   (tenant-scoped, capped 1500 nodes for speed); node colour = record type, size
   = degree; respects `prefers-reduced-motion`.
-- **BuildOps Agent** (`components/cortex/cortex-agent.tsx`) — graph-grounded chat
+- **Cortex** (`components/cortex/cortex-agent.tsx`) — graph-grounded chat
   → `POST /api/cortex/chat` (Atlas). Tenant-scoped context, cites records, has an
   "I don't have that in the graph" path, audit-logged (`cortex_chat`). Streams.
   **Persistent memory**: every turn is stored in the user's DB
@@ -105,7 +105,7 @@ search via an HNSW index (`idx_cortex_nodes_embedding`, `vector_cosine_ops`).
 - Embedding text: `cortexEmbeddingText(node)` — deterministic; changing it means
   re-embedding the whole graph.
 - Population: `POST /api/cortex/embed` (admin-only) embeds a batch of the
-  tenant's un-embedded nodes via `@buildops/ai` `embedBatch`. Call until
+  tenant's un-embedded nodes via `@third-code-erp/ai` `embedBatch`. Call until
   `remaining` is 0 (drive from a cron/Inngest job). Returns 503 if no embedding
   provider key is configured — the rest of the app is unaffected. New/updated
   nodes land with `embedding = NULL`, so re-run periodically to keep fresh.

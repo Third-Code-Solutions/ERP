@@ -13,8 +13,8 @@
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   boms,
   bomLineItems,
@@ -22,9 +22,9 @@ import {
   rfqQuotes,
   rateCards,
   materialItems,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { notifyRoles } from '@/lib/abi/notifications'
+import { notifyRoles } from '@/lib/operations/notifications'
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 

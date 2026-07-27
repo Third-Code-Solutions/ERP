@@ -18,18 +18,18 @@
 import { revalidatePath } from 'next/cache'
 import { randomBytes, createHash } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile, requireCapability } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile, requireCapability } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   warrantyTickets,
   ticketMessages,
   warrantyPortalTokens,
   projects,
   documents,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog, computeDiff } from '@/lib/audit'
-import { notifyExternalEmail } from '@/lib/abi/notifications'
-import { startSlaClock, stopSlaClock } from '@/lib/abi/sla-clock'
+import { notifyExternalEmail } from '@/lib/operations/notifications'
+import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 import { inngest } from '@/lib/inngest'
 
 type ActionResult = { error?: string; ok?: true }

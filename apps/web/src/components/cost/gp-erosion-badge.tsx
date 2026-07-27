@@ -1,4 +1,4 @@
-import { erosionSeverity } from '@buildops/shared-types/cost'
+import { erosionSeverity } from '@third-code-erp/shared-types/cost'
 
 /**
  * GP-erosion pill. Positive bps = GP eroding; <= 0 = intact / improved.

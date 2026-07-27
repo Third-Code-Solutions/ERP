@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { addKycArtifact } from '@/app/(dashboard)/crm/accounts/actions'
-import { kycArtifactTypeValues } from '@buildops/shared-types'
+import { kycArtifactTypeValues } from '@third-code-erp/shared-types'
 
 const ARTIFACT_LABEL: Record<string, string> = {
   afs_year_1: 'AFS — Year 1',

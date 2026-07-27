@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getUserProfile } from '@buildops/auth'
-import { getCortexGraph } from '@buildops/database'
+import { getUserProfile } from '@third-code-erp/auth'
+import { getCortexGraph } from '@third-code-erp/database'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 
 /**

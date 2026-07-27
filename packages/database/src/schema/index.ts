@@ -14,7 +14,7 @@ export * from './invoices'
 export * from './audit-log'
 export * from './embeddings'
 export * from './project-comments'
-// ABI Ops refactor — Phase 0 (REFACTOR.md M1)
+// Third Code ERP refactor — Phase 0 (REFACTOR.md M1)
 export * from './accounts'
 export * from './contacts'
 export * from './account-kyc'
@@ -43,7 +43,19 @@ export * from './weekly-reports'
 export * from './customer-portal-sessions'
 // Phase 3 — Cost Tracking (F3.2)
 export * from './cost-entries'
-// Cortex AI Brain — graph substrate (BUILDOPS_IMPLEMENTATION_PROMPT §5, Appendix B)
+// Cortex AI Brain — graph substrate (THIRD_CODE_ERP_IMPLEMENTATION_PROMPT §5, Appendix B)
 export * from './cortex'
 // Cortex AI Brain — agent memory (persisted conversations)
 export * from './cortex-chat'
+// Accounting ledger foundation
+export * from './accounting'
+// Supplier payables foundation
+export * from './supplier-bills'
+// Cash receipt and disbursement allocation foundation
+export * from './cash'
+// Bank statement matching and reconciliation
+export * from './bank-reconciliation'
+export * from './inventory-masters'
+export * from './inventory'
+export * from './inventory-movements'
+export * from './budgets'

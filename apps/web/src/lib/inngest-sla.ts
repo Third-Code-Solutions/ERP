@@ -18,9 +18,9 @@
  */
 
 import { and, eq, isNull } from 'drizzle-orm'
-import { db } from '@buildops/database'
-import { slaLogs } from '@buildops/database/schema'
-import { notifyRoles } from '@/lib/abi/notifications'
+import { db } from '@third-code-erp/database'
+import { slaLogs } from '@third-code-erp/database/schema'
+import { notifyRoles } from '@/lib/operations/notifications'
 import { inngest } from '@/lib/inngest'
 
 const ADMIN_ROLES = ['admin', 'owner'] as const

@@ -1,7 +1,7 @@
 # ADR-007: Cortex Graph Substrate
 
 **Status:** Accepted · **Date:** 2026-06-14
-**Context:** BUILDOPS_IMPLEMENTATION_PROMPT §5 (Better-Than-Obsidian mandate), Appendix B/D (S0.2).
+**Context:** THIRD_CODE_ERP_IMPLEMENTATION_PROMPT §5 (Better-Than-Obsidian mandate), Appendix B/D (S0.2).
 
 ## Context
 

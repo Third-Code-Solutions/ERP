@@ -8,7 +8,7 @@
 // authenticated routes render without runtime errors?
 //
 // Run: PLAYWRIGHT_BASE_URL=http://localhost:3000 \
-//      E2E_USER_EMAIL=test@buildops.local E2E_USER_PASSWORD=testpassword123 \
+//      E2E_USER_EMAIL=test@third-code-erp.local E2E_USER_PASSWORD=testpassword123 \
 //      npx playwright test --project=chromium --workers=1 e2e/smoke-console.spec.ts
 import { test, expect, type BrowserContext } from '@playwright/test'
 
@@ -30,7 +30,12 @@ const ROUTES = [
   '/pipeline/conversion',
   '/procurement',
   '/purchase-orders',
+  '/inventory',
+  '/inventory/receipts',
   '/invoices',
+  '/finance',
+  '/finance/payables',
+  '/finance/reconciliation',
   '/reports',
   '/settings',
 ] as const
@@ -52,7 +57,7 @@ async function authenticate(context: BrowserContext): Promise<void> {
   const env = readEnvFile()
   const url = env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const email = process.env.E2E_USER_EMAIL ?? 'test@buildops.local'
+  const email = process.env.E2E_USER_EMAIL ?? 'test@third-code-erp.local'
   const password = process.env.E2E_USER_PASSWORD ?? 'testpassword123'
 
   const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {

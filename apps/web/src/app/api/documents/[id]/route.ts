@@ -10,10 +10,10 @@
 // useless within minutes.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getUser } from '@buildops/auth'
-import { createSupabaseAdminClient } from '@buildops/auth/server'
-import { db } from '@buildops/database'
-import { documents, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
+import { db } from '@third-code-erp/database'
+import { documents, users } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 
 const SIGNED_URL_TTL_SECONDS = 60 * 5 // 5 minutes

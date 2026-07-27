@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
-import { getUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { notifications } from '@buildops/database/schema'
+import { getUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { notifications } from '@third-code-erp/database/schema'
 
 export async function GET(_req: NextRequest) {
   const profile = await getUserProfile()

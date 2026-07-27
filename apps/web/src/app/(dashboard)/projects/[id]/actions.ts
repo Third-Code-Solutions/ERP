@@ -1,11 +1,15 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { projects, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { projects, users } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { writeAuditLog, computeDiff } from '@/lib/audit'
+import {
+  projectWritesUseCoreApi,
+  updateProjectThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 type ProjectStatus = 'lead' | 'active' | 'on_hold' | 'completed' | 'cancelled'
 type ProjectType = 'mep' | 'fit_out' | 'interior' | 'mixed'
@@ -49,6 +53,24 @@ export async function updateProject(
     updated_at: new Date(),
   }
 
+  if (projectWritesUseCoreApi()) {
+    const result = await updateProjectThroughCoreApi(projectId, {
+      name,
+      client,
+      status: updates.status,
+      projectType: updates.project_type,
+      totalSqm: updates.total_sqm,
+      location: updates.location,
+      notes: updates.notes,
+      expectedUpdatedAt: existing.updated_at.toISOString(),
+    })
+    if (!result.ok) {
+      return { error: result.error ?? 'Project update failed' }
+    }
+    refreshProject(projectId)
+    return {}
+  }
+
   await db
     .update(projects)
     .set(updates)
@@ -63,10 +85,14 @@ export async function updateProject(
     diff: computeDiff(existing, updates),
   })
 
+  refreshProject(projectId)
+  return {}
+}
+
+function refreshProject(projectId: string): void {
   revalidatePath(`/projects/${projectId}`)
   revalidatePath('/projects')
   revalidatePath('/')
-  return {}
 }
 
 function str(val: FormDataEntryValue | null): string | undefined {

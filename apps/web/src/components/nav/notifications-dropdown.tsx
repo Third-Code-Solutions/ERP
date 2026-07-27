@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { IconBell } from '@/components/ui/icons'
-import { createSupabaseBrowserClient } from '@buildops/auth/client'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 
 interface NotificationItem {
   id: string

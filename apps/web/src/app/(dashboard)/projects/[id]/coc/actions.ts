@@ -14,10 +14,10 @@ import { z } from 'zod'
 import {
   requireUserProfile,
   can,
-  type AbiCapability,
+  type ErpCapability,
   type AppRole,
-} from '@buildops/auth'
-import { db } from '@buildops/database'
+} from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   certificatesOfCompletion,
   documents,
@@ -26,14 +26,14 @@ import {
   accounts,
   contacts,
   opportunities,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { notifyRoles } from '@/lib/abi/notifications'
-import { createSigningSession } from '@/lib/abi/integrations/docuseal'
+import { notifyRoles } from '@/lib/operations/notifications'
+import { createSigningSession } from '@/lib/operations/integrations/docuseal'
 
 const DEFAULT_WARRANTY_DAYS = 365
 
-function guard(role: AppRole, capability: AbiCapability): string | null {
+function guard(role: AppRole, capability: ErpCapability): string | null {
   if (!can(role, capability)) {
     return `Forbidden: role "${role}" lacks "${capability}"`
   }

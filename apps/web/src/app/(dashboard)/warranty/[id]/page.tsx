@@ -10,8 +10,8 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { and, desc, eq } from 'drizzle-orm'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   warrantyTickets,
   ticketMessages,
@@ -19,7 +19,7 @@ import {
   accounts,
   documents,
   users,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { TicketMessageThread } from '@/components/warranty/ticket-message-thread'
 import { TicketStatusActions } from '@/components/warranty/ticket-status-actions'
 

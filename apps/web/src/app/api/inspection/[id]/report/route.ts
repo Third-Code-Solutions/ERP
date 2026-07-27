@@ -13,8 +13,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, eq } from 'drizzle-orm'
-import { getUser } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { getUser } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   accounts,
   opportunities,
@@ -24,7 +24,7 @@ import {
   siteInspections,
   tenants,
   users,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import {
   buildInspectionReportHtml,
   type InspectionPhotoInput,

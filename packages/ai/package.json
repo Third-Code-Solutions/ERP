@@ -1,5 +1,5 @@
 {
-  "name": "@buildops/ai",
+  "name": "@third-code-erp/ai",
   "version": "0.1.0",
   "private": true,
   "main": "./src/index.ts",

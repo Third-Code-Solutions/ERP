@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { DATABASE_URL, makeSql, inRollback, becomeAuthenticated, seedTwoTenants } from './_db-harness'
 
 const suite = DATABASE_URL ? describe : describe.skip
+const budgetExpected = process.env.DATABASE_BUDGET_EXPECTED === '1'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Rows = any
 
@@ -27,11 +28,25 @@ suite('cost_entries', () => {
       const pB = ((await tx.unsafe(
         `insert into projects(tenant_id, name, client) values('${tenantB}','CB','C') returning id`
       )) as Rows)[0].id
+      const codeA = budgetExpected
+        ? ((await tx.unsafe(
+            `insert into cost_codes(tenant_id, code, name, category) values('${tenantA}','MAT','Materials','material') returning id`
+          )) as Rows)[0].id
+        : null
+      const codeB = budgetExpected
+        ? ((await tx.unsafe(
+            `insert into cost_codes(tenant_id, code, name, category) values('${tenantB}','LAB','Labour','labour') returning id`
+          )) as Rows)[0].id
+        : null
       await tx.unsafe(
-        `insert into cost_entries(tenant_id, project_id, cost_category, description, amount_cents) values('${tenantA}','${pA}','material','COST_PROBE_A',1000)`
+        budgetExpected
+          ? `insert into cost_entries(tenant_id, project_id, cost_code_id, cost_category, description, amount_cents) values('${tenantA}','${pA}','${codeA}','material','COST_PROBE_A',1000)`
+          : `insert into cost_entries(tenant_id, project_id, cost_category, description, amount_cents) values('${tenantA}','${pA}','material','COST_PROBE_A',1000)`
       )
       await tx.unsafe(
-        `insert into cost_entries(tenant_id, project_id, cost_category, description, amount_cents) values('${tenantB}','${pB}','labour','COST_PROBE_B',2000)`
+        budgetExpected
+          ? `insert into cost_entries(tenant_id, project_id, cost_code_id, cost_category, description, amount_cents) values('${tenantB}','${pB}','${codeB}','labour','COST_PROBE_B',2000)`
+          : `insert into cost_entries(tenant_id, project_id, cost_category, description, amount_cents) values('${tenantB}','${pB}','labour','COST_PROBE_B',2000)`
       )
       await becomeAuthenticated(tx, userA)
       const rows = (await tx.unsafe(
@@ -49,10 +64,17 @@ suite('cost_entries', () => {
       const pB = ((await tx.unsafe(
         `insert into projects(tenant_id, name, client) values('${tenantB}','CB','C') returning id`
       )) as Rows)[0].id
+      const codeB = budgetExpected
+        ? ((await tx.unsafe(
+            `insert into cost_codes(tenant_id, code, name, category) values('${tenantB}','OTH','Other','other') returning id`
+          )) as Rows)[0].id
+        : null
       await becomeAuthenticated(tx, userA)
       try {
         await tx.unsafe(
-          `insert into cost_entries(tenant_id, project_id, cost_category, description, amount_cents) values('${tenantB}','${pB}','other','HACK',1)`
+          budgetExpected
+            ? `insert into cost_entries(tenant_id, project_id, cost_code_id, cost_category, description, amount_cents) values('${tenantB}','${pB}','${codeB}','other','HACK',1)`
+            : `insert into cost_entries(tenant_id, project_id, cost_category, description, amount_cents) values('${tenantB}','${pB}','other','HACK',1)`
         )
         return false
       } catch {

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getUserProfile } from '@buildops/auth'
-import { listCortexConversations } from '@buildops/database'
+import { getUserProfile } from '@third-code-erp/auth'
+import { listCortexConversations } from '@third-code-erp/database'
 
 /**
  * GET /api/cortex/conversations — the signed-in user's Cortex conversation

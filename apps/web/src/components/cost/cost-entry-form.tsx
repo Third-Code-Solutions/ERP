@@ -13,11 +13,28 @@ const CATEGORIES = [
   { value: 'other', label: 'Other' },
 ] as const
 
-export function CostEntryForm({ projectId }: { projectId: string }) {
+interface CostCodeOption {
+  id: string
+  code: string
+  name: string
+  category: (typeof CATEGORIES)[number]['value']
+}
+
+export function CostEntryForm({
+  projectId,
+  costCodes,
+}: {
+  projectId: string
+  costCodes: CostCodeOption[]
+}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [selectedCodeId, setSelectedCodeId] = useState(
+    costCodes[0]?.id ?? ''
+  )
+  const selectedCode = costCodes.find((code) => code.id === selectedCodeId)
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -39,7 +56,17 @@ export function CostEntryForm({ projectId }: { projectId: string }) {
 
   if (!open) {
     return (
-      <button type="button" className="cost-add-btn" onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className="cost-add-btn"
+        onClick={() => setOpen(true)}
+        disabled={costCodes.length === 0}
+        title={
+          costCodes.length === 0
+            ? 'Create a Cost Code in Budget Control first'
+            : undefined
+        }
+      >
         + Record cost
       </button>
     )
@@ -52,16 +79,26 @@ export function CostEntryForm({ projectId }: { projectId: string }) {
           <span>Description</span>
           <input name="description" required maxLength={500} placeholder="e.g. Site labour — week 12" />
         </label>
-        <label className="cost-field">
-          <span>Category</span>
-          <select name="cost_category" defaultValue="material">
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
+        <label className="cost-field cost-field--wide">
+          <span>Cost Code</span>
+          <select
+            name="cost_code_id"
+            value={selectedCodeId}
+            onChange={(event) => setSelectedCodeId(event.target.value)}
+            required
+          >
+            {costCodes.map((code) => (
+              <option key={code.id} value={code.id}>
+                {code.code} · {code.name}
               </option>
             ))}
           </select>
         </label>
+        <input
+          name="cost_category"
+          type="hidden"
+          value={selectedCode?.category ?? ''}
+        />
         <label className="cost-field">
           <span>Amount (₱)</span>
           <input name="amount_php" type="number" step="0.01" min="0.01" required placeholder="0.00" />

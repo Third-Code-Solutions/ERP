@@ -1,0 +1,150 @@
+import 'reflect-metadata'
+
+import {
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common'
+import type { UpdateProjectCommand } from '@third-code-erp/shared-types'
+import { describe, expect, it, vi } from 'vitest'
+import type { ErpPrincipal } from '../auth/current-principal.decorator'
+import type { AuditService } from '../audit/audit.service'
+import type { DatabaseService } from '../database/database.service'
+import { ProjectsService } from './projects.service'
+
+const PRINCIPAL: ErpPrincipal = {
+  userId: '11111111-1111-4111-8111-111111111111',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  role: 'admin',
+  email: 'admin@example.test',
+}
+
+const UPDATED_AT = new Date('2026-07-27T08:00:00.000Z')
+
+const EXISTING = {
+  id: '33333333-3333-4333-8333-333333333333',
+  tenant_id: PRINCIPAL.tenantId,
+  account_id: null,
+  name: 'Old Project',
+  client: 'Old Client',
+  location: null,
+  project_type: 'mep' as const,
+  status: 'active' as const,
+  total_sqm: 100,
+  notes: null,
+  created_by: PRINCIPAL.userId,
+  created_at: new Date('2026-01-01T00:00:00.000Z'),
+  updated_at: UPDATED_AT,
+}
+
+const COMMAND: UpdateProjectCommand = {
+  name: 'Updated Project',
+  client: 'Updated Client',
+  status: 'active',
+  projectType: 'fit_out',
+  totalSqm: 125,
+  location: 'Makati',
+  notes: 'Controlled update',
+  expectedUpdatedAt: UPDATED_AT.toISOString(),
+}
+
+function harness(existingRows = [EXISTING]) {
+  const forUpdate = vi.fn().mockResolvedValue(existingRows)
+  const limit = vi.fn().mockReturnValue({ for: forUpdate })
+  const whereSelect = vi.fn().mockReturnValue({ limit })
+  const from = vi.fn().mockReturnValue({ where: whereSelect })
+  const select = vi.fn().mockReturnValue({ from })
+
+  const returning = vi.fn().mockResolvedValue([
+    {
+      ...EXISTING,
+      name: COMMAND.name,
+      client: COMMAND.client,
+      project_type: COMMAND.projectType,
+      total_sqm: COMMAND.totalSqm,
+      location: COMMAND.location,
+      notes: COMMAND.notes,
+      updated_at: new Date('2026-07-27T09:00:00.000Z'),
+    },
+  ])
+  const whereUpdate = vi.fn().mockReturnValue({ returning })
+  const set = vi.fn().mockReturnValue({ where: whereUpdate })
+  const update = vi.fn().mockReturnValue({ set })
+
+  const transactionClient = { select, update }
+  const transaction = vi
+    .fn()
+    .mockImplementation(
+      async (callback: (tx: typeof transactionClient) => unknown) =>
+        callback(transactionClient)
+    )
+  const database = {
+    client: { transaction },
+  } as unknown as DatabaseService
+  const audit = {
+    stampActor: vi.fn().mockResolvedValue(undefined),
+  } as unknown as AuditService
+  const service = new ProjectsService(database, audit)
+
+  return {
+    service,
+    transaction,
+    transactionClient,
+    audit,
+    set,
+  }
+}
+
+describe('ProjectsService', () => {
+  it('updates tenant-scoped Project evidence inside one transaction', async () => {
+    const probe = harness()
+
+    const result = await probe.service.update(
+      EXISTING.id,
+      COMMAND,
+      PRINCIPAL
+    )
+
+    expect(probe.transaction).toHaveBeenCalledOnce()
+    expect(probe.audit.stampActor).toHaveBeenCalledWith(
+      probe.transactionClient,
+      PRINCIPAL
+    )
+    expect(probe.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: COMMAND.name,
+        client: COMMAND.client,
+        project_type: COMMAND.projectType,
+      })
+    )
+    expect(result).toMatchObject({
+      id: EXISTING.id,
+      tenantId: PRINCIPAL.tenantId,
+      name: COMMAND.name,
+    })
+  })
+
+  it('rejects a Project outside the caller tenant scope', async () => {
+    const probe = harness([])
+
+    await expect(
+      probe.service.update(EXISTING.id, COMMAND, PRINCIPAL)
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(probe.transactionClient.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects stale optimistic-concurrency evidence', async () => {
+    const probe = harness()
+
+    await expect(
+      probe.service.update(
+        EXISTING.id,
+        {
+          ...COMMAND,
+          expectedUpdatedAt: '2026-07-27T07:00:00.000Z',
+        },
+        PRINCIPAL
+      )
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(probe.transactionClient.update).not.toHaveBeenCalled()
+  })
+})

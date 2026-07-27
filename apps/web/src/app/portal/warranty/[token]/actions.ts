@@ -10,17 +10,16 @@
 
 import { createHash } from 'node:crypto'
 import { redirect } from 'next/navigation'
-import { db } from '@buildops/database'
+import { db } from '@third-code-erp/database'
 import {
   warrantyPortalTokens,
   warrantyTickets,
   projects,
-  auditLog,
-} from '@buildops/database/schema'
-import { eq, max, desc } from 'drizzle-orm'
-import { computeHash } from '@buildops/shared-types'
-import { notifyExternalEmail, notifyRoles } from '@/lib/abi/notifications'
-import { startSlaClock } from '@/lib/abi/sla-clock'
+} from '@third-code-erp/database/schema'
+import { eq, max } from 'drizzle-orm'
+import { writeAuditLog } from '@/lib/audit'
+import { notifyExternalEmail, notifyRoles } from '@/lib/operations/notifications'
+import { startSlaClock } from '@/lib/operations/sla-clock'
 
 function hashToken(plain: string): string {
   return createHash('sha256').update(plain).digest('hex')
@@ -152,34 +151,16 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
     },
   })
 
-  // 8. Audit (no actor — public portal). Write directly so we can pass null.
+  // 8. Audit (no actor — public portal).
   try {
-    const [last] = await db
-      .select({ hash: auditLog.hash })
-      .from(auditLog)
-      .where(eq(auditLog.tenant_id, tokenRow.tenant_id))
-      .orderBy(desc(auditLog.id))
-      .limit(1)
-    const prevHash = last?.hash ?? 'genesis'
-    const now = new Date()
     const diff = { ticket_number: ticketNumber, category, submitted_by_email: email }
-    const hash = await computeHash(prevHash, {
-      entity_type: 'warranty_ticket',
-      entity_id: inserted.id,
+    await writeAuditLog({
+      tenantId: tokenRow.tenant_id,
+      actorId: null,
+      entityType: 'warranty_ticket',
+      entityId: inserted.id,
       action: 'create',
       diff,
-      created_at: now.toISOString(),
-    })
-    await db.insert(auditLog).values({
-      tenant_id: tokenRow.tenant_id,
-      actor_id: null,
-      entity_type: 'warranty_ticket',
-      entity_id: inserted.id,
-      action: 'create',
-      diff,
-      prev_hash: prevHash,
-      hash,
-      created_at: now,
     })
   } catch {
     // never let audit failures block ticket submission

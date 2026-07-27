@@ -3,7 +3,7 @@ import type { Page, Response } from '@playwright/test'
 const LOGIN_NAV_RETRIES = 4
 
 export async function login(page: Page): Promise<void> {
-  const email = process.env.E2E_USER_EMAIL ?? 'test@buildops.local'
+  const email = process.env.E2E_USER_EMAIL ?? 'test@third-code-erp.local'
   const password = process.env.E2E_USER_PASSWORD ?? 'testpassword123'
 
   let response: Response | null = null

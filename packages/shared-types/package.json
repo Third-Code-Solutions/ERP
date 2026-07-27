@@ -1,5 +1,5 @@
 {
-  "name": "@buildops/shared-types",
+  "name": "@third-code-erp/shared-types",
   "version": "0.1.0",
   "private": true,
   "exports": {
@@ -20,7 +20,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@buildops/config": "workspace:*",
+    "@third-code-erp/config": "workspace:*",
     "typescript": "^5.7.2",
     "vitest": "^3.1.2"
   }

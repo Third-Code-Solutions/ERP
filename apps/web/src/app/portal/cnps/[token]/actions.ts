@@ -12,16 +12,15 @@
 
 import { createHash } from 'node:crypto'
 import { redirect } from 'next/navigation'
-import { db } from '@buildops/database'
+import { db } from '@third-code-erp/database'
 import {
   cnpsSurveys,
   warrantyTickets,
   accounts,
-  auditLog,
-} from '@buildops/database/schema'
-import { and, desc, eq, isNotNull } from 'drizzle-orm'
-import { computeHash } from '@buildops/shared-types'
-import { notifyRoles } from '@/lib/abi/notifications'
+} from '@third-code-erp/database/schema'
+import { and, eq, isNotNull } from 'drizzle-orm'
+import { writeAuditLog } from '@/lib/audit'
+import { notifyRoles } from '@/lib/operations/notifications'
 
 function hashToken(plain: string): string {
   return createHash('sha256').update(plain).digest('hex')
@@ -120,31 +119,14 @@ export async function submitCnpsRating(
 
   // 5. Audit.
   try {
-    const [last] = await db
-      .select({ hash: auditLog.hash })
-      .from(auditLog)
-      .where(eq(auditLog.tenant_id, row.tenant_id))
-      .orderBy(desc(auditLog.id))
-      .limit(1)
-    const prevHash = last?.hash ?? 'genesis'
     const diff = { score: rawScore, comment_len: comment.length }
-    const hash = await computeHash(prevHash, {
-      entity_type: 'cnps_survey',
-      entity_id: row.survey_id,
+    await writeAuditLog({
+      tenantId: row.tenant_id,
+      actorId: null,
+      entityType: 'cnps_survey',
+      entityId: row.survey_id,
       action: 'update',
       diff,
-      created_at: now.toISOString(),
-    })
-    await db.insert(auditLog).values({
-      tenant_id: row.tenant_id,
-      actor_id: null,
-      entity_type: 'cnps_survey',
-      entity_id: row.survey_id,
-      action: 'update',
-      diff,
-      prev_hash: prevHash,
-      hash,
-      created_at: now,
     })
   } catch {
     // non-blocking

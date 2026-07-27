@@ -1,6 +1,6 @@
 # Supabase Edge Functions — schedulers
 
-Three Deno edge functions back the ABI Ops automation surface
+Three Deno edge functions back the Third Code ERP automation surface
 (REFACTOR.md §7.4). All share `_shared/email.ts` (Resend + PostgREST
 helpers) and `_shared/cors.ts`.
 
@@ -39,8 +39,8 @@ Set secrets once per project:
 ```bash
 supabase secrets set \
   RESEND_API_KEY=re_... \
-  RESEND_FROM_EMAIL='BuildOps <notifications@buildops.dev>' \
-  PUBLIC_CNPS_BASE_URL=https://app.buildops.dev
+  RESEND_FROM_EMAIL='Third Code ERP <notifications@your-verified-domain.example>' \
+  PUBLIC_CNPS_BASE_URL=https://thirdcode-erp.vercel.app
 ```
 
 ## Cron setup

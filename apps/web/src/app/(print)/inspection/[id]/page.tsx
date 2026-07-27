@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, asc, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   accounts,
   opportunities,
@@ -13,7 +13,7 @@ import {
   siteInspections,
   tenants,
   users,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import {
   buildInspectionReportHtml,
   type InspectionPhotoInput,

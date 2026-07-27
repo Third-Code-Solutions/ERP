@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createSupabaseBrowserClient } from '@buildops/auth/client'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
 
 /**
  * Terminal screen for an authenticated user who has no public.users row

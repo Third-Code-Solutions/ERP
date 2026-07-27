@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import { createSupabaseAdminClient } from '@buildops/auth/server'
-import { findActiveCustomerSession } from '@/lib/abi/customer-portal'
+import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
+import { findActiveCustomerSession } from '@/lib/operations/customer-portal'
 import { SCurveChart } from '@/components/progress/s-curve-chart'
 import { PortalProgressSummary } from '@/components/customer-portal/portal-progress-summary'
 import { PortalWeeklyList } from '@/components/customer-portal/portal-weekly-list'
@@ -151,7 +151,7 @@ export default async function PortalProjectProgressPage({ params }: PageProps) {
     return (
       <PortalStatus
         title="Link unavailable"
-        body="This portal link is no longer active. Please ask your ABI contact to send a new one."
+        body="This portal link is no longer active. Please ask your project contact to send a new one."
       />
     )
   }

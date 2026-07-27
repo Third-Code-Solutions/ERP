@@ -21,11 +21,19 @@ interface LineItem {
   unit: string
   quantity: string
   unit_cost: string
+  cost_code_id: string
+}
+
+interface CostCode {
+  id: string
+  code: string
+  name: string
 }
 
 interface CreatePoFormProps {
   projects: Project[]
   vendors: Vendor[]
+  costCodes: CostCode[]
 }
 
 function formatPHP(cents: number): string {
@@ -34,15 +42,36 @@ function formatPHP(cents: number): string {
 
 let lineCounter = 0
 
-export function CreatePoForm({ projects, vendors }: CreatePoFormProps) {
+function emptyLine(costCodeId: string): LineItem {
+  return {
+    id: ++lineCounter,
+    code: '',
+    description: '',
+    unit: 'pc',
+    quantity: '1',
+    unit_cost: '',
+    cost_code_id: costCodeId,
+  }
+}
+
+export function CreatePoForm({
+  projects,
+  vendors,
+  costCodes,
+}: CreatePoFormProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [lines, setLines] = useState<LineItem[]>([{ id: ++lineCounter, code: '', description: '', unit: 'pc', quantity: '1', unit_cost: '' }])
+  const [lines, setLines] = useState<LineItem[]>([
+    emptyLine(costCodes[0]?.id ?? ''),
+  ])
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
   function addLine() {
-    setLines((prev) => [...prev, { id: ++lineCounter, code: '', description: '', unit: 'pc', quantity: '1', unit_cost: '' }])
+    setLines((prev) => [
+      ...prev,
+      emptyLine(costCodes[0]?.id ?? ''),
+    ])
   }
 
   function removeLine(id: number) {
@@ -75,6 +104,7 @@ export function CreatePoForm({ projects, vendors }: CreatePoFormProps) {
         unit: l.unit || undefined,
         quantity: Math.max(1, parseFloat(l.quantity) || 1),
         unit_cost_cents: Math.round((parseFloat(l.unit_cost) || 0) * 100),
+        costCodeId: l.cost_code_id,
       }))
 
     if (lineItems.length === 0) {
@@ -90,7 +120,7 @@ export function CreatePoForm({ projects, vendors }: CreatePoFormProps) {
         setError(result.error)
       } else {
         setIsOpen(false)
-        setLines([{ id: ++lineCounter, code: '', description: '', unit: 'pc', quantity: '1', unit_cost: '' }])
+        setLines([emptyLine(costCodes[0]?.id ?? '')])
         router.push(`/purchase-orders/${result.id}`)
       }
     })
@@ -99,7 +129,7 @@ export function CreatePoForm({ projects, vendors }: CreatePoFormProps) {
   function handleClose() {
     setIsOpen(false)
     setError('')
-    setLines([{ id: ++lineCounter, code: '', description: '', unit: 'pc', quantity: '1', unit_cost: '' }])
+    setLines([emptyLine(costCodes[0]?.id ?? '')])
   }
 
   if (!isOpen) {
@@ -182,7 +212,7 @@ export function CreatePoForm({ projects, vendors }: CreatePoFormProps) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
               <thead>
                 <tr style={{ background: 'var(--color-neutral-50)', borderBottom: '1px solid var(--color-border)' }}>
-                  {['Code', 'Description', 'Unit', 'Qty', 'Unit Cost (₱)', 'Total', ''].map((h) => (
+                  {['Item', 'Description', 'Cost Code', 'Unit', 'Qty', 'Unit Cost (₱)', 'Total', ''].map((h) => (
                     <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--color-neutral-500)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
@@ -211,6 +241,23 @@ export function CreatePoForm({ projects, vendors }: CreatePoFormProps) {
                           placeholder="Description *"
                           style={{ ...cellInput, width: '100%', minWidth: '140px' }}
                         />
+                      </td>
+                      <td style={{ padding: '6px 8px', width: '150px' }}>
+                        <select
+                          value={line.cost_code_id}
+                          onChange={(e) =>
+                            updateLine(line.id, 'cost_code_id', e.target.value)
+                          }
+                          required
+                          style={{ ...cellInput, width: '140px' }}
+                        >
+                          <option value="">Select code</option>
+                          {costCodes.map((costCode) => (
+                            <option value={costCode.id} key={costCode.id}>
+                              {costCode.code} · {costCode.name}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td style={{ padding: '6px 8px', width: '70px' }}>
                         <select
@@ -300,10 +347,14 @@ export function CreatePoForm({ projects, vendors }: CreatePoFormProps) {
           </button>
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || costCodes.length === 0}
             style={{ background: 'var(--color-navy-700)', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 18px', fontSize: '0.8125rem', fontWeight: 600, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1 }}
           >
-            {isPending ? 'Creating…' : 'Create PO'}
+            {isPending
+              ? 'Creating…'
+              : costCodes.length === 0
+                ? 'Create a Cost Code first'
+                : 'Create PO'}
           </button>
         </div>
       </form>

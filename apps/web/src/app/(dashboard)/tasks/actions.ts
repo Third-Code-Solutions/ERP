@@ -11,11 +11,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
-import { requireUserProfile } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { dailyTasks } from '@buildops/database/schema'
+import { requireUserProfile } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { dailyTasks } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { stopSlaClock } from '@/lib/abi/sla-clock'
+import { stopSlaClock } from '@/lib/operations/sla-clock'
 import { inngest } from '@/lib/inngest'
 
 const MAX_NOTES_LENGTH = 2_000

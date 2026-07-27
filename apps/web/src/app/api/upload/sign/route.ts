@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getUser } from '@buildops/auth'
-import { createSupabaseAdminClient } from '@buildops/auth/server'
-import { db } from '@buildops/database'
-import { documents, users } from '@buildops/database/schema'
+import { getUser } from '@third-code-erp/auth'
+import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
+import { db } from '@third-code-erp/database'
+import { documents, users } from '@third-code-erp/database/schema'
 import { and, eq, sum } from 'drizzle-orm'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB per upload (PRD F2.1)

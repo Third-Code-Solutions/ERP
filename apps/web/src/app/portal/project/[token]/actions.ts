@@ -11,7 +11,7 @@
  * `findActiveCustomerSession` before this is ever called.
  */
 
-import { logCustomerView } from '@/lib/abi/customer-portal'
+import { logCustomerView } from '@/lib/operations/customer-portal'
 
 export async function logView(sessionId: string): Promise<void> {
   if (!sessionId) return

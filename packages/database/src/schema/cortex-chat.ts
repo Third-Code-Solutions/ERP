@@ -3,7 +3,7 @@ import { tenants } from './tenants'
 import { users } from './users'
 
 // -----------------------------------------------------------------------------
-// BuildOps Agent memory — persists every Cortex conversation in the user's DB
+// Third Code ERP Agent memory — persists every Cortex conversation in the user's DB
 // (tenant-scoped), so the AI Brain has a durable, auditable memory surfaced in
 // the dashboard. One conversation per thread; messages are append-only turns.
 // -----------------------------------------------------------------------------

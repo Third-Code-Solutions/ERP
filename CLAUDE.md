@@ -1,13 +1,13 @@
-# Th/rd Code Construction ERP — Product Requirements Document
+# Third Code ERP — Product Requirements Document
 
 | Field | Value |
 |---|---|
 | **Document** | PRD-CERP-001 |
-| **Version** | 1.0 |
-| **Status** | Draft → Review |
+| **Version** | 1.1 |
+| **Status** | Active implementation |
 | **Owner** | Kurt Gabayan (CTO) |
 | **Contributors** | Masshi Okubo, Colin Buckley, Kenrick Kho |
-| **Last Updated** | 2026-05-09 |
+| **Last Updated** | 2026-07-27 |
 | **Classification** | Internal / Confidential |
 | **Target GA** | Q4 2026 |
 
@@ -15,11 +15,15 @@
 
 ## 1. Executive Summary
 
-Th/rd Code Construction ERP (codename: **BuildOps**) is a vertically integrated operations platform for Philippine construction firms specializing in MEP, fit-out, and interior build-outs. The system ingests CAD drawings, auto-generates Bills of Materials, tracks the deal pipeline from Coverage to Closed Won, manages per-floor cost execution, and surfaces real-time GP erosion signals to leadership.
+Third Code ERP is a vertically integrated, multi-tenant operations platform for
+Philippine construction firms and adjacent project-driven businesses. The system
+ingests CAD drawings, auto-generates Bills of Materials, tracks the deal pipeline
+from Coverage to Closed Won, manages per-floor cost execution, and surfaces
+real-time GP erosion signals to leadership.
 
 The platform replaces three things that currently exist as disconnected tools: (1) AutoCAD + manual Excel takeoff, (2) generic CRM tools like Rework.com that don't understand construction workflows, and (3) standalone accounting systems with no project visibility.
 
-**Why we win:** Philippine construction firms today operate with zero data continuity between estimating, sales, execution, and billing. Generic SaaS (Rework.com, Procore) covers 60–70% of the workflow but doesn't speak Philippine compliance (BIR, PCAB, retention/progress billing) and doesn't integrate with how estimators actually consume DXF drawings. BuildOps closes that gap.
+**Why we win:** Philippine construction firms today operate with zero data continuity between estimating, sales, execution, and billing. Generic SaaS covers only part of the workflow, does not speak Philippine compliance (BIR, PCAB, retention/progress billing), and does not integrate with how estimators consume DXF drawings. Third Code ERP closes that gap with one permission-aware operating graph.
 
 ---
 
@@ -38,7 +42,7 @@ Each handoff loses fidelity. Every estimator builds their own BOM template. Ever
 
 ### 2.2 Quantified Pain (from client discovery)
 
-| Metric | Current State | After BuildOps |
+| Metric | Current State | After Third Code ERP |
 |---|---|---|
 | Time to build BOM from drawing | 6–8 hrs per project | 1.5–2 hrs |
 | Pipeline visibility lag | Weekly Excel rebuild | Real-time |
@@ -425,7 +429,7 @@ CREATE TABLE audit_log (
 ## 9. Folder Structure
 
 ```
-buildops/
+third-code-erp/
 ├── apps/
 │   ├── web/                          # Next.js 15 frontend
 │   │   ├── app/
@@ -1015,7 +1019,8 @@ Examples:
 
 ### 15.2 Go-to-Market
 
-- **Design partners (Phase 1–2):** Current Th/rd Code construction client; 1–2 referrals; free in exchange for feedback + case study
+- **Design partners (Phase 1–2):** Current Third Code Solutions construction
+  client; 1–2 referrals; free in exchange for feedback + case study
 - **Pilot pricing (Phase 3):** ₱45,000–80,000/month per firm based on user count
 - **GA pricing (Phase 4):** Tiered by user count + project volume + AI usage
 - **Sales motion:** Founder-led, ABM into mid-market PH construction (50–500 employees)

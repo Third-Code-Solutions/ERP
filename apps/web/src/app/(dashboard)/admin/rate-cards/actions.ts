@@ -3,9 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { requireUserProfile, can } from '@buildops/auth'
-import { db } from '@buildops/database'
-import { rateCards, materialItems, vendors } from '@buildops/database/schema'
+import { requireUserProfile, can } from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
+import { rateCards, materialItems, vendors } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 
 const rateCardSchema = z.object({

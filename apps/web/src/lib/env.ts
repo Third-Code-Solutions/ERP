@@ -16,7 +16,7 @@ function assertEnv(keys: readonly string[], context: string) {
   const missing = keys.filter((k) => !process.env[k])
   if (missing.length > 0) {
     throw new Error(
-      `[BuildOps] Missing ${context} environment variables: ${missing.join(', ')}\n` +
+      `[Third Code ERP] Missing ${context} environment variables: ${missing.join(', ')}\n` +
         'Copy .env.example to .env.local and fill in the values.'
     )
   }

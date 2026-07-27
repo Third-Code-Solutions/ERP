@@ -7,10 +7,10 @@ import {
   requireUserProfile,
   can,
   createSupabaseAdminClient,
-  type AbiCapability,
+  type ErpCapability,
   type AppRole,
-} from '@buildops/auth'
-import { db } from '@buildops/database'
+} from '@third-code-erp/auth'
+import { db } from '@third-code-erp/database'
 import {
   pprfSubmissions,
   siteInspections,
@@ -25,10 +25,10 @@ import {
   projects,
   tenants,
   users,
-} from '@buildops/database/schema'
+} from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { startSlaClock } from '@/lib/abi/sla-clock'
-import { notifyRoles } from '@/lib/abi/notifications'
+import { startSlaClock } from '@/lib/operations/sla-clock'
+import { notifyRoles } from '@/lib/operations/notifications'
 import { inngest } from '@/lib/inngest'
 import {
   buildInspectionReportHtml,
@@ -42,7 +42,7 @@ import {
 // audit log, revalidatePath. All writes are tenant-scoped via the user
 // profile's tenantId.
 
-function guard(role: AppRole, capability: AbiCapability) {
+function guard(role: AppRole, capability: ErpCapability) {
   if (!can(role, capability)) {
     return `Forbidden: role "${role}" lacks "${capability}"` as const
   }
