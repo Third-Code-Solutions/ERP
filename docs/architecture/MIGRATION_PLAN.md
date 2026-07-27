@@ -17,12 +17,14 @@ Status: complete on 2026-07-27.
 
 ### M1 — Nest transaction-authority foundation
 
-Status: source published; hosted database reconciled; NestJS/Redis deployed on
-Railway; Next.js deployed on Vercel; live Auth/capability/tenant isolation
-proved without writes; command observability and safe source-level rollback
-selection proved; controlled hosted mutation, audit reconciliation, and
-exact-value restoration proved. Disposable CI and provider-level
-enable/rollback remain.
+Status: source published; hosted database reconciled through migration 47;
+NestJS/Redis deployed on Railway; Next.js deployed on Vercel; live
+Auth/capability/tenant isolation proved without writes; command observability
+and safe source-level rollback selection proved; controlled hosted mutation,
+audit reconciliation, and exact-value restoration proved. A supplemental
+native PostgreSQL/Redis lane now passes clean replay plus zero-skip database and
+Nest integration tests. Three forward database fixes are applied and verified
+on hosted Supabase. Exact pinned CI and provider-level enable/rollback remain.
 
 - Add NestJS modular-monolith application.
 - Add validated configuration, health/readiness endpoints, Supabase identity
@@ -70,6 +72,11 @@ Production entry status:
   Supabase confirmed two actor-attributed audit rows and continuous hashes.
 - Complete: hosted database release gate at 44/44 migrations with the
   protected-catalog verifier green and business baselines unchanged.
+- Complete locally: clean replay of 47 migrations plus seed, 212/212 database
+  tests with no skips, and the Nest transaction-authority integration test
+  against disposable PostgreSQL and Redis.
+- Complete hosted release: applied and verified the three forward migrations
+  `20260727194749`, `20260727194757`, and `20260727194805`.
 - Keep `ERP_PROJECT_WRITES_VIA_API=false` until the remaining entry evidence is
   attached.
 

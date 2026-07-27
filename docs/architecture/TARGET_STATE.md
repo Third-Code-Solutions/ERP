@@ -74,6 +74,9 @@ reach through each other's internals.
   frozen installs must not mutate the reviewed lockfile or emit ignored-setting
   warnings.
 - Rebuild PostgreSQL 17 from zero and reject skipped database tests.
+- Permit an isolated native PostgreSQL/Redis lane as supplemental local
+  evidence when Docker is unavailable; require exact pinned Supabase container
+  parity before production cutover.
 - Exercise Nest identity, membership, capability, tenant, concurrency, audit,
   and rollback behavior against that disposable database.
 - Use real Redis for readiness and container smoke checks.

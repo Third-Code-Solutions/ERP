@@ -596,7 +596,7 @@ runtimeSuite('bank reconciliation runtime proof', () => {
   })
 
   it('blocks cash reversal while draft match evidence remains', async () => {
-    const blocked = await inRollback(sqlClient, async (tx) => {
+    const rejection = await inRollback(sqlClient, async (tx) => {
       const fixture = await seedReconciliationFixture(tx)
       const statement = await createStatement(tx, fixture)
       await tx.unsafe(
@@ -616,13 +616,11 @@ runtimeSuite('bank reconciliation runtime proof', () => {
           )`
         )
       } catch (error) {
-        return String(error).includes(
-          'Unmatch or void bank reconciliation first'
-        )
+        return String(error)
       }
-      return false
+      return ''
     })
-    expect(blocked).toBe(true)
+    expect(rejection).toContain('Unmatch or void bank reconciliation first')
   })
 
   it('voids a reconciled statement without deleting match history', async () => {
