@@ -28,7 +28,7 @@ export class ProjectsController {
   @Patch(':projectId')
   @RequireCapabilities('project.update')
   update(
-    @Param('projectId', new ParseUUIDPipe({ version: '4' }))
+    @Param('projectId', new ParseUUIDPipe())
     projectId: string,
     @Body(UpdateProjectPipe) command: UpdateProjectCommand,
     @CurrentPrincipal() principal: ErpPrincipal

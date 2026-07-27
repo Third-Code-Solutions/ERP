@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 
-import { ValidationPipe } from '@nestjs/common'
+import { ParseUUIDPipe, ValidationPipe } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import type { Request, Response, NextFunction } from 'express'
 import request from 'supertest'
@@ -9,7 +9,7 @@ import type { AuthenticatedRequest } from '../src/auth/current-principal.decorat
 import { ProjectsController } from '../src/projects/projects.controller'
 import { ProjectsService } from '../src/projects/projects.service'
 
-const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+const PROJECT_ID = '33333333-3333-2333-8333-333333333333'
 const HTTP_TEST_TIMEOUT_MS = 15_000
 
 describe('Projects API contract', () => {
@@ -21,7 +21,7 @@ describe('Projects API contract', () => {
   })
 
   it(
-    'preserves the Project update HTTP contract and strips no fields silently',
+    'preserves the Project update HTTP contract for existing UUID formats',
     async () => {
       const update = vi.fn().mockResolvedValue({
         id: PROJECT_ID,
@@ -93,6 +93,18 @@ describe('Projects API contract', () => {
     },
     HTTP_TEST_TIMEOUT_MS
   )
+
+  it('still rejects malformed Project identifiers', async () => {
+    const pipe = new ParseUUIDPipe()
+
+    await expect(
+      pipe.transform('not-a-uuid', {
+        type: 'param',
+        metatype: String,
+        data: 'projectId',
+      })
+    ).rejects.toMatchObject({ status: 400 })
+  })
 
   it(
     'rejects unknown fields at the API boundary',
