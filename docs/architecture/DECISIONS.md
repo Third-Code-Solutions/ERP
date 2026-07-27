@@ -236,3 +236,13 @@ defects, while the pinned CI lane remains authoritative for platform parity.
 Outcome: the lane found four production-relevant function defects before
 release. Clean-local and hosted function fingerprints match after the
 forward-only migration release; the production feature flag remains disabled.
+
+## D-029 — Release tooling must be immutable
+
+Decision: CI downloads Actionlint from a versioned release and verifies the
+exact Linux archive SHA-256 before extraction. A mutable upstream branch
+bootstrap script is not permitted for a release gate.
+
+Reason: pinned workflow actions do not make CI reproducible when a shell step
+still executes mutable remote code. Version and digest pinning makes the
+reviewed tool artifact explicit and fail closed.

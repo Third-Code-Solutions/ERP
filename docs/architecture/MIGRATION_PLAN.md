@@ -80,6 +80,9 @@ Production entry status:
 - Complete source/provider release: commit
   `42010b9adce6ae89286449edfc1e27c9ffe1eda7` is synchronized to both refs;
   Vercel and Railway released the exact SHA under `kurtgav`.
+- Complete in source: the Actionlint bootstrap is pinned to version 1.7.12
+  with an exact Linux archive SHA-256. Local Linux validation and pinned
+  GitHub Action reference checks pass.
 - Keep `ERP_PROJECT_WRITES_VIA_API=false` until the remaining entry evidence is
   attached.
 

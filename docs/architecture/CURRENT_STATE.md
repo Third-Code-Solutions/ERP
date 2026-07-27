@@ -158,6 +158,9 @@ matches the repository migration contract:
     PostgreSQL 17.10, pgvector 0.6.2, and Redis 8.0.4 evidence without touching
     production. This supplements, but does not replace, exact Supabase
     PostgreSQL/Redis container parity in CI.
+17. The CI Actionlint bootstrap previously downloaded a mutable script from
+    upstream `main`. It is now pinned to Actionlint 1.7.12 and verifies the
+    Linux release archive SHA-256 before execution.
 
 ## Verification coverage
 
@@ -239,6 +242,9 @@ matches the repository migration contract:
 - Fresh uncached Nest and Next production builds pass; Next generated all
   77 pages.
 - Gitleaks 8.30.1 reports zero findings for the exact staged change set.
+- Actionlint 1.7.12 passes against the workflow in the isolated Linux lane,
+  the pinned archive digest matches the upstream release asset, and all
+  GitHub Action tag-to-commit references resolve.
 - Vercel production build is READY on the reviewed SHA. Live checks pass for
   landing, login, protected-dashboard redirect, robots, sitemap, canonical
   metadata, desktop/mobile overflow, images, analytics, and release identity.

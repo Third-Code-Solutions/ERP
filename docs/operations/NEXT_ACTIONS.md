@@ -5,8 +5,10 @@
 Complete remaining M1 release controls without enabling production writes:
 
 1. Resolve the GitHub organization billing/spending-limit block and rerun the
-   exact pinned Supabase PostgreSQL 17/Redis CI lane. The supplemental WSL1
-   native lane is green but does not replace this provider-parity gate.
+   exact pinned Supabase PostgreSQL 17/Redis CI lane. Run `30300434327`,
+   attempt check `90092637986`, confirms the runner never started. The
+   supplemental WSL1 native lane and pinned Actionlint 1.7.12 validation are
+   green but do not replace this provider-parity gate.
 2. Keep deployed tenant-canary source at
    `ERP_PROJECT_WRITES_VIA_API=false`; leave the tenant allowlist empty until
    clean CI evidence is attached.
