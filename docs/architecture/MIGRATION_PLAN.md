@@ -19,7 +19,9 @@ Status: complete on 2026-07-27.
 
 Status: source published; hosted database reconciled; NestJS/Redis deployed on
 Railway; Next.js deployed on Vercel; live Auth/capability/tenant isolation
-proved without writes. Disposable CI, observability, and rollback drill remain.
+proved without writes; command observability and safe source-level rollback
+selection proved. Disposable CI, hosted mutation reconciliation, and
+provider-level enable/rollback remain.
 
 - Add NestJS modular-monolith application.
 - Add validated configuration, health/readiness endpoints, Supabase identity
@@ -48,12 +50,16 @@ Production entry status:
 - Complete for backend infrastructure: Railway NestJS `/health` and `/ready`
   are green with PostgreSQL and Redis.
 - Complete for frontend infrastructure: Vercel production is READY on the
-  `e0060b40097fed9733eea8149e09f92460807f7d` runtime baseline or its
+  `4fd1451e756ccb578ed013016d644e5048af6f92` runtime baseline or its
   documentation-only successor, the canonical alias is current, Web Analytics
   is enabled, and desktop/mobile browser gates pass.
 - Complete: live missing/invalid 401, malformed 400, Viewer 403, cross-tenant
   404, and stale authorized 409 responses with unchanged Project/audit state.
-- Observability and rollback drill.
+- Complete: Web-to-Nest UUID correlation and sanitized structured command
+  outcomes, including a deployed pre-guard 401 matched in Railway logs.
+- Complete: local rollback-selection rehearsal proves exact `false` uses the
+  legacy write/audit path and exact `true` uses Nest only. Provider-level
+  enable/rollback remains deferred; the hosted flag was never enabled.
 - Complete: hosted database release gate at 44/44 migrations with the
   protected-catalog verifier green and business baselines unchanged.
 - Keep `ERP_PROJECT_WRITES_VIA_API=false` until the remaining entry evidence is

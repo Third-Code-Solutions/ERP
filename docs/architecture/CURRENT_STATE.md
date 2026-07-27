@@ -87,30 +87,34 @@ matches the repository migration contract:
 - `https://third-code-erp-api-production.up.railway.app/health` returns
   `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
 - The current Railway deployment is
-  `6b2a49aa-a7fa-4d4b-8b0a-51a06e6bdfae`, built remotely from the reviewed
+  `83849120-b063-4275-8727-0f6b13f0cd4e`, built remotely from the reviewed
   Dockerfile and `railway.toml` after commit
-  `bf3ca842b46fa832c4bd40a0f7f8bc27014ce43b`.
+  `4fd1451e756ccb578ed013016d644e5048af6f92`.
 - Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is reconnected to
   `Third-Code-Solutions/ERP`. The `main` lineage serves
   `https://thirdcode-erp.vercel.app`; verified runtime baseline
-  `dpl_EUTTu6My37zSWEzt57XvPTa3MdhZ` is READY on reviewed commit
-  `e0060b40097fed9733eea8149e09f92460807f7d`.
+  `dpl_9X7Vwgjj22R7WxyhJte8aTLBYiSd` is READY on reviewed commit
+  `4fd1451e756ccb578ed013016d644e5048af6f92`.
 - Vercel Web Analytics is enabled. Its production script returns JavaScript
   with HTTP 200 and the final desktop browser console is clean.
 - A live no-write Supabase Auth proof covers missing/invalid bearer tokens,
   insufficient capability, cross-tenant lookup, malformed identifiers, and
   stale concurrency. All target Project fields and the 660-row audit baseline
   remained unchanged.
+- Web-generated UUID correlation IDs now cross the Next-to-Nest boundary.
+  Project command attempts return the same `x-request-id` and emit one
+  structured outcome containing only operation, method, status, outcome, and
+  duration. A deployed pre-guard 401 was matched to its Railway log.
 - `ERP_CORE_API_URL` is configured for the Railway API. The production and
-  preview Project-write migration flag was returned to disabled pending live
-  authorization and rollback evidence.
+  preview Project-write migration flag remains disabled; no provider
+  environment value was changed during this milestone.
 
 ## Current quality classification
 
 | Classification | Evidence |
 |---|---|
 | Implemented | Broad construction ERP UI, Supabase schema/RLS, server actions, route handlers, audit infrastructure, Inngest jobs, first Nest transaction slice |
-| Incomplete | Nest migration, Redis/BullMQ business jobs, uniform capability checks, uniform transactional audit, Python write removal, production-write activation evidence, clean CI, and rollback observability |
+| Incomplete | Nest migration, Redis/BullMQ business jobs, uniform capability checks, uniform transactional audit, Python write removal, production-write activation evidence, clean CI, hosted mutation reconciliation, and provider-level rollback |
 | Mock/demo | Repository and live application contain demo-oriented data and optional-provider fallbacks |
 | Duplicated | Business rules and authorization are split across server actions, handlers, SQL, and worker code |
 | Broken/risky | Python direct database write; optional Python shared secret; process-local rate limiting; elevated server credentials can bypass RLS; several audit writes are not in the same transaction as the mutation |
@@ -141,26 +145,31 @@ matches the repository migration contract:
     account's failed-payment/spending-limit state. Local green gates do not
     substitute for the skipped disposable PostgreSQL/Redis CI lane.
 14. The migrated Project-write flag must remain disabled until clean CI,
-    successful transactional audit attribution, observability, reconciliation,
-    and rollback evidence is complete.
+    successful transactional audit attribution, reconciliation, and a
+    provider-level enable/rollback drill are complete.
 15. Database test harnesses now require an explicitly injected
     `DATABASE_URL`; normal unit-test commands cannot auto-load a hosted
     application `.env.local`.
 
 ## Verification coverage
 
-- Thirteen Nest unit/HTTP tests cover identity, database-derived tenancy,
+- Seventeen Nest unit/HTTP tests cover identity, database-derived tenancy,
   capability policy, atomic update, cross-tenant denial, stale-write conflict,
   strict request validation, legacy UUID compatibility, and malformed UUID
-  rejection.
+  rejection, request correlation, outcome classification, and log
+  sanitization.
 - Nest HTTP tests cover the preserved success contract and strict rejection of
-  attacker-controlled fields.
+  attacker-controlled fields. Four HTTP tests include real
+  `ProjectsModule` middleware registration.
+- Sixty-seven Web unit tests include exact feature-flag selection, legacy
+  write/audit rollback behavior, Nest-only routing when enabled, and
+  Next-to-Nest correlation forwarding.
 - API and web TypeScript checks pass for the new slice.
 - API production compilation passes.
 - The built API starts independently: `/health` returns 200, an unauthenticated
   Project write returns 401, and `/ready` returns 503 when its deliberately
   absent database and Redis dependencies are unavailable.
-- Fresh uncached workspace tests pass with 235 executed tests; 128 database
+- Fresh uncached workspace tests pass with 244 executed tests; 128 database
   cases are skipped unless a disposable database URL and capability flags are
   explicitly injected.
 - A disposable-database Nest integration test now covers 401, 403, cross-tenant
@@ -170,6 +179,10 @@ matches the repository migration contract:
 - The production database catalog and migration ledger were verified.
 - The deployed Railway API passed live `/health` and `/ready` checks against
   the configured PostgreSQL and Redis dependencies.
+- A deployed unauthenticated Project PATCH returned 401 and echoed its safe
+  UUID correlation header. Railway recorded the same ID as
+  `erp.command.outcome`, operation `project.update`, outcome `rejected`, with
+  no bearer token, payload, query, tenant, user, or Project identifier.
 - One-time admin-generated Supabase magic links were consumed without password
   resets to prove live identity resolution. Missing/invalid tokens returned
   401, a Viewer returned 403, a cross-tenant Project returned 404, a malformed

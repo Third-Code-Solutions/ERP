@@ -435,3 +435,70 @@ Rollback and unresolved:
   billing/spending limits.
 - Successful hosted mutation/audit attribution, observability, reconciliation,
   and rollback drill remain required before enabling the migrated write path.
+
+## 2026-07-28 — M1 command observability and rollback selection
+
+Completed:
+
+- Added UUID correlation from the Next Project adapter through Nest and back
+  in the `x-request-id` response header.
+- Added Project-route middleware that records one JSON command outcome after
+  response completion.
+- Restricted log content to event, request ID, operation, method, status,
+  outcome, and duration. Tests prove bearer tokens, payload contents, query
+  values, and Project IDs are absent.
+- Added exact feature-flag tests and Server Action branch tests. Empty,
+  `false`, and `TRUE` retain the legacy database/audit path; only exact `true`
+  selects Nest.
+- Added an inert Vitest-only alias for Next's `server-only` boundary marker.
+- Published commit `4fd1451e756ccb578ed013016d644e5048af6f92`
+  as `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway deployment `83849120-b063-4275-8727-0f6b13f0cd4e` succeeded from
+  the reviewed Dockerfile with `/ready` and
+  `node apps/api/dist/main.js`.
+- Vercel production deployment `dpl_9X7Vwgjj22R7WxyhJte8aTLBYiSd` is READY
+  on the same commit.
+
+Changed files:
+
+- `apps/api/src/observability/request-observability.middleware.ts`
+- `apps/api/src/observability/request-observability.middleware.spec.ts`
+- `apps/api/src/projects/projects.module.ts`
+- `apps/api/test/projects.e2e.spec.ts`
+- `apps/web/src/lib/erp-core-client.ts`
+- `apps/web/src/lib/erp-core-client.test.ts`
+- `apps/web/src/app/(dashboard)/projects/[id]/actions.test.ts`
+- `apps/web/vitest.config.ts`
+- `apps/web/test/server-only.ts`
+- the six architecture/operations memory files
+
+Validation:
+
+- TDD red phase: missing API observability module and missing Web
+  `x-request-id`.
+- API tests — 17/17 pass; HTTP tests — 4/4 pass.
+- Web tests — 67/67 pass.
+- Root lint, typecheck, test, and production build — pass.
+- Total root tests — 244 pass; 128 database cases skipped without the
+  disposable `DATABASE_URL`.
+- Forbidden external-ERP/legacy-brand trace scan — zero findings.
+- Staged secret-pattern scan — zero findings.
+- Railway `/health` and `/ready` — 200.
+- Production frontend and Analytics script — 200.
+- Live no-write PATCH — 401 with caller UUID echoed.
+- Railway application log — same UUID, `project.update`, 401, `rejected`;
+  safe fields only.
+
+Rollback and unresolved:
+
+- No database, schema, storage, provider-environment, or feature-flag write
+  occurred.
+- Local branch rehearsal proves `false` selects the existing Server Action
+  database/audit path and `true` selects Nest only.
+- Provider-level enable/rollback was intentionally not run; the hosted flag
+  remains disabled.
+- GitHub Actions run `30293798902` failed before any step because recent
+  account payments failed or the spending limit must be increased. Actionlint
+  had zero steps; seven dependent jobs were skipped.
+- Successful hosted mutation/audit attribution, reconciliation, clean CI, and
+  provider-level enable/rollback remain required before activation.

@@ -59,6 +59,10 @@ reach through each other's internals.
 - Prove hosted identity and tenant boundaries through no-write failure paths
   before enabling a migrated transaction. Snapshot affected records and audit
   state before/after.
+- Correlate each official command across Web and Nest with a validated UUID.
+  Structured runtime outcomes may contain operation, method, status, outcome,
+  and duration only; never log bearer tokens, command payloads, URLs with
+  identifiers/query values, tenant IDs, user IDs, or business-record IDs.
 - Keep root package-manager policy in the supported workspace configuration;
   frozen installs must not mutate the reviewed lockfile or emit ignored-setting
   warnings.
