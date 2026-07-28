@@ -52,6 +52,16 @@ function Get-GhJson {
   return $json | ConvertFrom-Json
 }
 
+function Write-RunnerLogs {
+  foreach ($logName in @('runner.stdout.log', 'runner.stderr.log')) {
+    $logPath = Join-Path $runDirectory $logName
+    if (Test-Path -LiteralPath $logPath) {
+      Write-Host "=== $logName"
+      Get-Content -LiteralPath $logPath -ErrorAction SilentlyContinue
+    }
+  }
+}
+
 Invoke-Checked -Command 'gh' -ArgumentList @('auth', 'status')
 $viewer = (& gh api user --jq '.login').Trim()
 if ($LASTEXITCODE -ne 0 -or $viewer -ne 'kurtgav') {
@@ -150,6 +160,7 @@ try {
   $runnerOnline = $false
   for ($attempt = 1; $attempt -le 30; $attempt += 1) {
     if ($runnerProcess.HasExited) {
+      Write-RunnerLogs
       throw 'GitHub runner exited before it became available.'
     }
     $runners = Get-GhJson -Endpoint "repos/$Repository/actions/runners"
