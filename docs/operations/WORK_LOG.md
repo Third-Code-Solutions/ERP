@@ -852,7 +852,43 @@ Rollback and unresolved:
   label is destructive and is not an emergency rollback.
 - No business or audit rows changed.
 - Anonymous production `/dashboard` correctly redirects to sign-in after the
-  repair. Final authenticated browser proof requires a shared disposable
-  session or a new authenticated request; no credentials were copied from the
-  user's browser.
+  repair.
+- `ERP_PROJECT_WRITES_VIA_API=false`; tenant allowlist remains empty.
+
+## 2026-07-29 -- Authenticated dashboard incident closure
+
+Completed:
+
+- Reused the user's authenticated in-app session without copying credentials,
+  cookies, local storage, or tokens.
+- Hard-reloaded `https://thirdcode-erp.vercel.app/dashboard` on production
+  deployment `dpl_5a132nUPMyqNHUMT4JwA8EpBqgHr`.
+- Verified production title `Dashboard | Third Code ERP`, authorized Admin
+  identity, Key performance indicators, and Risk Signals content.
+- Browser console error scan returned zero errors.
+- Vercel runtime records authenticated `/dashboard` requests on the repaired
+  deployment and zero `/dashboard` runtime-error clusters in the proof window.
+- Confirmed GitHub CLI and connected GitHub app both use `kurtgav`; local Git
+  author remains `kurtgav <kurtgavin.design@gmail.com>`.
+- Reran CI run `30318929116` under `kurtgav`. Actionlint check
+  `90343298615` again failed before runner startup with zero steps because
+  GitHub reports failed account payments or an insufficient spending limit.
+
+Changed files:
+
+- the six architecture/operations memory files only
+
+Validation:
+
+- Authenticated production dashboard hard reload -- pass.
+- Critical dashboard-region render -- pass.
+- Browser console -- zero errors.
+- Vercel `/dashboard` runtime errors -- zero in proof window.
+- Repository worktree before documentation update -- clean at
+  `cf6c8e2ce1ee331f0b0b4d5428ab4ea88d540518`.
+
+Rollback and unresolved:
+
+- Documentation-only rollback: revert this evidence commit.
+- GitHub-hosted CI remains externally blocked before runner execution.
 - `ERP_PROJECT_WRITES_VIA_API=false`; tenant allowlist remains empty.
