@@ -17,7 +17,7 @@ Status: complete on 2026-07-27.
 
 ### M1 — Nest transaction-authority foundation
 
-Status: source published; hosted database reconciled through migration 47;
+Status: source published; hosted database reconciled through migration 48;
 NestJS/Redis deployed on Railway; Next.js deployed on Vercel; live
 Auth/capability/tenant isolation proved without writes; command observability
 and safe source-level rollback selection proved; controlled hosted mutation,
@@ -81,6 +81,10 @@ Production entry status:
   `20260728005112` to align the hosted `purchase_order_status` catalog with
   the canonical application contract. Purchase-order and audit baselines are
   unchanged, and the verifier now rejects enum-catalog drift.
+- Complete emergency route proof: authenticated Admin `/dashboard` hard reload
+  renders KPI and Risk Signals content with zero browser-console errors;
+  Vercel records successful route requests and zero runtime errors in the
+  proof window.
 - Complete source/provider release: commit
   `42010b9adce6ae89286449edfc1e27c9ffe1eda7` is synchronized to both refs;
   Vercel and Railway released the exact SHA under `kurtgav`.

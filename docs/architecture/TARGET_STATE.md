@@ -90,6 +90,9 @@ reach through each other's internals.
 - Compare the target database migration ledger before any rollout.
 - Treat database enum labels and ordering as versioned application contracts;
   verify canonical catalogs during clean replay and hosted release planning.
+- Close production database incident repairs only after the affected
+  authenticated route is hard-reloaded, its critical regions render, the
+  browser console is clean, and provider runtime errors are reconciled.
 - Never use a production database as a write-test fixture.
 - Require a read-only, hash-bearing release plan for every hosted target.
 - For non-linear history, reconcile an isolated restored clone with a new

@@ -271,3 +271,14 @@ Reason: TypeScript/schema agreement did not prove the hosted PostgreSQL
 catalog was current. The missing `partial_delivered` label passed compilation
 and caused a production Server Component failure. Catalog assertions catch
 that drift before deployment without mutating business data.
+
+## D-032 -- Database incident closure requires affected-route proof
+
+Decision: a hosted database repair is not closed by catalog inspection alone.
+Re-execute the affected authenticated route with a hard reload, verify its
+critical rendered regions and browser console, then reconcile provider
+runtime requests and error clusters for the same release window.
+
+Reason: a successful SQL probe proves the repaired contract but not the full
+Server Component, authentication, rendering, and production-observability
+path that users exercise.

@@ -267,3 +267,9 @@ matches the repository migration contract:
 - The reproducibility verifier now checks the exact ordered purchase-order
   status catalog, preventing the same schema/application drift from passing
   release validation.
+- Post-repair authenticated production proof now passes on Vercel deployment
+  `dpl_5a132nUPMyqNHUMT4JwA8EpBqgHr`: `/dashboard` survives a hard reload,
+  identifies the authorized Admin, renders KPI and Risk Signals regions, and
+  records zero browser-console errors.
+- Vercel records authenticated `/dashboard` 200 responses on the repaired
+  deployment and no `/dashboard` runtime errors in the proof window.
