@@ -139,13 +139,6 @@ try {
     $registration = $null
   }
 
-  $dispatchStart = [DateTime]::UtcNow.AddSeconds(-5)
-  Invoke-Checked -Command 'gh' -ArgumentList @(
-    'workflow', 'run', $workflow,
-    '--repo', $Repository,
-    '--ref', $Ref
-  )
-
   $runnerProcess = Start-Process `
     -FilePath (Join-Path $runDirectory 'run.cmd') `
     -WorkingDirectory $runDirectory `
@@ -154,30 +147,68 @@ try {
     -WindowStyle Hidden `
     -PassThru
 
+  $runnerOnline = $false
   for ($attempt = 1; $attempt -le 30; $attempt += 1) {
-    $runsJson = & gh run list `
-      --repo $Repository `
-      --workflow $workflow `
-      --branch $Ref `
-      --event workflow_dispatch `
-      --limit 10 `
-      --json databaseId,createdAt,headSha
-    if ($LASTEXITCODE -ne 0) {
-      throw 'Unable to query the dispatched workflow.'
+    if ($runnerProcess.HasExited) {
+      throw 'GitHub runner exited before it became available.'
     }
-
-    $matchingRun = $runsJson |
-      ConvertFrom-Json |
-      Where-Object {
-        $_.headSha -eq $expectedHeadSha -and
-        [DateTime]$_.createdAt -ge $dispatchStart
-      } |
+    $runners = Get-GhJson -Endpoint "repos/$Repository/actions/runners"
+    $registeredRunner = $runners.runners |
+      Where-Object { $_.name -eq $runnerName -and $_.status -eq 'online' } |
       Select-Object -First 1
-    if ($matchingRun) {
-      $runId = $matchingRun.databaseId
+    if ($registeredRunner) {
+      $runnerOnline = $true
       break
     }
     Start-Sleep -Seconds 2
+  }
+
+  if (-not $runnerOnline) {
+    throw 'Timed out while waiting for the ephemeral runner to become online.'
+  }
+
+  $dispatchStart = [DateTime]::UtcNow.AddSeconds(-5)
+  $dispatchOutput = & gh workflow run $workflow `
+    --repo $Repository `
+    --ref $Ref
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Unable to dispatch the self-hosted workflow.'
+  }
+  $dispatchOutput | Write-Host
+
+  $runUrlLine = $dispatchOutput |
+    Where-Object { $_ -match '/actions/runs/(\d+)$' } |
+    Select-Object -First 1
+  if ($runUrlLine -and $runUrlLine -match '/actions/runs/(\d+)$') {
+    $runId = $Matches[1]
+  }
+
+  if (-not $runId) {
+    for ($attempt = 1; $attempt -le 30; $attempt += 1) {
+      $runsJson = & gh run list `
+        --repo $Repository `
+        --workflow $workflow `
+        --branch $Ref `
+        --event workflow_dispatch `
+        --limit 10 `
+        --json databaseId,createdAt,headSha
+      if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to query the dispatched workflow.'
+      }
+
+      $matchingRun = $runsJson |
+        ConvertFrom-Json |
+        Where-Object {
+          $_.headSha -eq $expectedHeadSha -and
+          [DateTime]$_.createdAt -ge $dispatchStart
+        } |
+        Select-Object -First 1
+      if ($matchingRun) {
+        $runId = $matchingRun.databaseId
+        break
+      }
+      Start-Sleep -Seconds 2
+    }
   }
 
   if (-not $runId) {
@@ -194,8 +225,8 @@ try {
   Write-Host "PASS self-hosted workflow: $repositoryUrl/actions/runs/$runId"
 } finally {
   if ($runnerProcess -and -not $runnerProcess.HasExited) {
-    Stop-Process -Id $runnerProcess.Id -Force
-    $runnerProcess.WaitForExit()
+    & taskkill.exe /PID $runnerProcess.Id /T /F 2>$null | Out-Null
+    Start-Sleep -Seconds 1
   }
 
   try {
@@ -222,6 +253,18 @@ try {
       )) {
       throw "Refusing unsafe runner cleanup: $resolvedRunDirectory"
     }
-    Remove-Item -LiteralPath $resolvedRunDirectory -Recurse -Force
+    $removed = $false
+    for ($attempt = 1; $attempt -le 10; $attempt += 1) {
+      try {
+        Remove-Item -LiteralPath $resolvedRunDirectory -Recurse -Force
+        $removed = $true
+        break
+      } catch {
+        Start-Sleep -Milliseconds 500
+      }
+    }
+    if (-not $removed) {
+      Write-Warning "Runner work directory requires manual cleanup: $runDirectory"
+    }
   }
 }
