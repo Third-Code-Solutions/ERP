@@ -72,11 +72,15 @@ Production entry status:
   Supabase confirmed two actor-attributed audit rows and continuous hashes.
 - Complete: hosted database release gate at 44/44 migrations with the
   protected-catalog verifier green and business baselines unchanged.
-- Complete locally: clean replay of 47 migrations plus seed, 212/212 database
+- Complete locally: clean replay of 48 migrations plus seed, 212/212 database
   tests with no skips, and the Nest transaction-authority integration test
   against disposable PostgreSQL and Redis.
 - Complete hosted release: applied and verified the three forward migrations
   `20260727194749`, `20260727194757`, and `20260727194805`.
+- Complete emergency database repair: applied forward migration
+  `20260728005112` to align the hosted `purchase_order_status` catalog with
+  the canonical application contract. Purchase-order and audit baselines are
+  unchanged, and the verifier now rejects enum-catalog drift.
 - Complete source/provider release: commit
   `42010b9adce6ae89286449edfc1e27c9ffe1eda7` is synchronized to both refs;
   Vercel and Railway released the exact SHA under `kurtgav`.

@@ -53,6 +53,7 @@ const requiredMigrations = [
   '20260727194749_fix_receivable_mirror_return.sql',
   '20260727194757_fix_cash_posting_alias_resolution.sql',
   '20260727194805_fix_finance_workflow_guards.sql',
+  '20260728005112_fix_purchase_order_status_catalog.sql',
 ]
 
 const requiredTables = [
@@ -306,6 +307,21 @@ const requiredExpandedNodeTypes = [
   'cost_code',
   'project_budget',
   'stock_movement',
+]
+
+const requiredPurchaseOrderStatuses = [
+  'draft',
+  'submitted',
+  'confirmed',
+  'partial_delivery',
+  'delivered',
+  'cancelled',
+  'pending_pm_approval',
+  'pending_commercial_approval',
+  'pending_scm_issuance',
+  'issued',
+  'partial_delivered',
+  'fully_delivered',
 ]
 
 const requiredTriggers = [
@@ -763,6 +779,26 @@ try {
       return requiredExpandedNodeTypes
         .filter((label) => !labels.has(label))
         .join(', ')
+    }
+  )
+
+  await query(
+    'purchase order status catalog matches the application contract',
+    `select e.enumlabel
+       from pg_enum e
+       join pg_type t on t.oid = e.enumtypid
+       join pg_namespace n on n.oid = t.typnamespace
+      where n.nspname = 'public'
+        and t.typname = 'purchase_order_status'
+      order by e.enumsortorder`,
+    (rows) =>
+      rows.length === requiredPurchaseOrderStatuses.length
+      && rows.every(
+        (row, index) => row.enumlabel === requiredPurchaseOrderStatuses[index]
+      ),
+    (rows) => {
+      const actual = rows.map((row) => row.enumlabel)
+      return `expected=[${requiredPurchaseOrderStatuses.join(',')}], actual=[${actual.join(',')}]`
     }
   )
 
