@@ -283,11 +283,11 @@ Reason: a successful SQL probe proves the repaired contract but not the full
 Server Component, authentication, rendering, and production-observability
 path that users exercise.
 
-## D-033 -- Ephemeral self-hosted CI is the no-cost M1 runner
+## D-033 -- Short-lived self-hosted CI is the no-cost M1 runner
 
 Decision: while GitHub-hosted jobs are blocked by organization billing, the
-authoritative M1 application-schema gate may run on a repository-scoped
-ephemeral Windows runner supplied by the developer. The workflow is manual,
+authoritative M1 application-schema gate may run on a repository-scoped,
+short-lived Windows runner supplied by the developer. The workflow is manual,
 private-repository only, restricted to `kurtgav`, read-only to repository
 contents, and receives no production secrets. It runs PostgreSQL 17 and exact
 Redis 7.4.9 inside the isolated `ThirdCodeERP-Test` WSL1 distribution, uses a
@@ -303,5 +303,5 @@ The Docker/Supabase-container lane remains an equivalent future gate.
 Reason: GitHub documents self-hosted runners as free to use, while current paid
 hosted jobs are rejected before any step executes. Requiring payment or working
 hardware virtualization adds no application correctness evidence. The
-ephemeral, reviewed-code-only boundary limits local-machine exposure without
+short-lived, reviewed-code-only boundary limits local-machine exposure without
 weakening the actual release checks.

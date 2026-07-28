@@ -893,14 +893,14 @@ Rollback and unresolved:
 - GitHub-hosted CI remains externally blocked before runner execution.
 - `ERP_PROJECT_WRITES_VIA_API=false`; tenant allowlist remains empty.
 
-## 2026-07-29 -- No-cost ephemeral CI alternative
+## 2026-07-29 -- No-cost short-lived CI alternative
 
 Completed:
 
 - Confirmed GitHub-hosted run `30379589707`, attempt 3, check `90353729857`
   was rejected with zero executed steps by the organization billing/spending
   limit.
-- Added a manual `kurtgav`-only workflow for an ephemeral repository runner.
+- Added a manual `kurtgav`-only workflow for a short-lived repository runner.
 - Added checksum-pinned cross-platform Actionlint 1.7.12 and Gitleaks 8.30.1
   launchers.
 - Added a test-only Supabase system fixture and an isolated WSL1 database lane
@@ -910,6 +910,10 @@ Completed:
 - Added a pinned GitHub Actions Runner 2.336.0 bootstrap that verifies the
   archive digest, refuses public repositories or non-`kurtgav` identities,
   dispatches one job, deregisters the runner, and deletes its work directory.
+- Recorded and cancelled diagnostic run `30418930049`. GitHub accepted the
+  workflow dispatch but deleted `--ephemeral` registrations before the runner
+  listener could open a session. The replacement uses one short-lived standard
+  registration with explicit process stop, deregistration, and erasure.
 - Added the operator runbook and recorded decision D-033.
 
 Changed files:
@@ -921,7 +925,7 @@ Changed files:
 - `scripts/lib/run-pinned-release-tool.mjs`
 - `scripts/run-actionlint.mjs`
 - `scripts/run-gitleaks.mjs`
-- `scripts/ci/run-ephemeral-github-runner.ps1`
+- `scripts/ci/run-transient-github-runner.ps1`
 - `scripts/ci/run-wsl1-database-lane.ps1`
 - `scripts/ci/smoke-api.ps1`
 - `scripts/ci/stop-wsl1-database-lane.ps1`

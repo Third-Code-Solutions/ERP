@@ -4,7 +4,7 @@
 
 Complete remaining M1 controls without enabling production writes:
 
-1. Push the reviewed no-cost CI source, start the pinned ephemeral runner, and
+1. Push the reviewed no-cost CI source, start the pinned transient runner, and
    dispatch `.github/workflows/ci-self-hosted.yml` on the exact release SHA.
    Attach the GitHub run ID and confirm the runner deregistered. Do not pay for
    hosted minutes and do not weaken or skip any gate.

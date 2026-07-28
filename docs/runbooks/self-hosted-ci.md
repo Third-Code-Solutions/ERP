@@ -3,7 +3,7 @@
 ## Purpose
 
 GitHub-hosted jobs are currently blocked before startup by the organization
-billing state. This repository therefore has a manual, ephemeral, self-hosted
+billing state. This repository therefore has a manual, short-lived self-hosted
 verification lane that uses the developer-owned Windows machine and consumes no
 GitHub-hosted runner minutes.
 
@@ -16,7 +16,8 @@ the account restriction is removed.
 - Only `kurtgav` can dispatch the workflow.
 - Workflow has `contents: read` permission.
 - No pull request, push, or fork event can start the local runner.
-- The runner is repository-scoped, ephemeral, and deleted after one job.
+- The runner is repository-scoped, started for one job, and explicitly stopped,
+  deregistered, and erased immediately afterward.
 - The runner is never installed as a Windows service.
 - No production database, Supabase, Vercel, Railway, or application secrets are
   supplied to the job.
@@ -42,14 +43,15 @@ Push the target branch first. Then:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File scripts/ci/run-ephemeral-github-runner.ps1 `
+  -File scripts/ci/run-transient-github-runner.ps1 `
   -Ref agent-02/third-code-erp-landing
 ```
 
 The script verifies the active GitHub identity and private repository, downloads
 GitHub Actions Runner 2.336.0, validates its SHA-256 digest, registers a unique
-ephemeral runner, dispatches the manual workflow, waits for the result, removes
-any remaining registration, and deletes the local runner work directory.
+short-lived runner, waits for it to become online, dispatches the manual
+workflow, waits for the result, removes the registration, and deletes the local
+runner work directory.
 
 ## Required green evidence
 

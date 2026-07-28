@@ -276,7 +276,7 @@ matches the repository migration contract:
 - GitHub-hosted Actions remain blocked before job startup by the organization
   billing/spending-limit state. Latest blocked run `30379589707`, attempt 3,
   check `90353729857`, executed zero steps.
-- A no-cost manual workflow now targets a repository-scoped ephemeral Windows
+- A no-cost manual workflow now targets a repository-scoped short-lived Windows
   runner. It is private-repository only, dispatchable by `kurtgav`, read-only
   to repository contents, carries no production secrets, and uploads no
   artifacts.
@@ -290,6 +290,10 @@ matches the repository migration contract:
   database integration, unchanged before/after schema fingerprint
   `963464C47A8C3B2F771ABB940A0DC106C103FD5DF2410707884B736110A58D26`,
   native Nest health/readiness/401 smoke, and Gitleaks 8.30.1.
+- GitHub accepted runner registration but deleted `--ephemeral` registrations
+  before the listener could open a session. The bootstrap therefore uses a
+  one-workflow transient runner with explicit stop, deregistration, and local
+  erasure.
 - Remote self-hosted GitHub workflow proof remains required before the M1
   provider canary. `ERP_PROJECT_WRITES_VIA_API=false`; the tenant allowlist
   remains empty.
