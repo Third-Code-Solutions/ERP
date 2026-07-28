@@ -282,3 +282,26 @@ runtime requests and error clusters for the same release window.
 Reason: a successful SQL probe proves the repaired contract but not the full
 Server Component, authentication, rendering, and production-observability
 path that users exercise.
+
+## D-033 -- Ephemeral self-hosted CI is the no-cost M1 runner
+
+Decision: while GitHub-hosted jobs are blocked by organization billing, the
+authoritative M1 application-schema gate may run on a repository-scoped
+ephemeral Windows runner supplied by the developer. The workflow is manual,
+private-repository only, restricted to `kurtgav`, read-only to repository
+contents, and receives no production secrets. It runs PostgreSQL 17 and exact
+Redis 7.4.9 inside the isolated `ThirdCodeERP-Test` WSL1 distribution, uses a
+dedicated disposable database, uploads no artifacts, and removes the runner
+registration and work directory after the job.
+
+The lane is valid only when it replays the complete migration history, executes
+all database tests with zero skips, proves deterministic schema state, runs the
+Nest transaction integration and production smoke, passes the remaining static
+and build gates, and is reconciled with the hosted Supabase ledger/catalog.
+The Docker/Supabase-container lane remains an equivalent future gate.
+
+Reason: GitHub documents self-hosted runners as free to use, while current paid
+hosted jobs are rejected before any step executes. Requiring payment or working
+hardware virtualization adds no application correctness evidence. The
+ephemeral, reviewed-code-only boundary limits local-machine exposure without
+weakening the actual release checks.

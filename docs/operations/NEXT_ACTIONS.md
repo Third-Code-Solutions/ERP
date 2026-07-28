@@ -4,14 +4,13 @@
 
 Complete remaining M1 controls without enabling production writes:
 
-1. Resolve the GitHub organization billing/spending-limit block and rerun the
-   exact pinned Supabase PostgreSQL 17/Redis CI lane. Latest run
-   `30318929116`, check `90343298615`, confirms the runner never started. The
-   supplemental WSL1 native lane and pinned Actionlint 1.7.12 validation are
-   green but do not replace this provider-parity gate.
+1. Push the reviewed no-cost CI source, start the pinned ephemeral runner, and
+   dispatch `.github/workflows/ci-self-hosted.yml` on the exact release SHA.
+   Attach the GitHub run ID and confirm the runner deregistered. Do not pay for
+   hosted minutes and do not weaken or skip any gate.
 2. Keep deployed tenant-canary source at
    `ERP_PROJECT_WRITES_VIA_API=false`; leave the tenant allowlist empty until
-   clean CI evidence is attached.
+   clean self-hosted GitHub workflow evidence is attached.
 3. After clean CI, perform the provider-level enable/rollback drill for a
    controlled tenant:
    capture provider configuration, enable exact `true`, prove one compatible

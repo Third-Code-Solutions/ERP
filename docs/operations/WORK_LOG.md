@@ -892,3 +892,64 @@ Rollback and unresolved:
 - Documentation-only rollback: revert this evidence commit.
 - GitHub-hosted CI remains externally blocked before runner execution.
 - `ERP_PROJECT_WRITES_VIA_API=false`; tenant allowlist remains empty.
+
+## 2026-07-29 -- No-cost ephemeral CI alternative
+
+Completed:
+
+- Confirmed GitHub-hosted run `30379589707`, attempt 3, check `90353729857`
+  was rejected with zero executed steps by the organization billing/spending
+  limit.
+- Added a manual `kurtgav`-only workflow for an ephemeral repository runner.
+- Added checksum-pinned cross-platform Actionlint 1.7.12 and Gitleaks 8.30.1
+  launchers.
+- Added a test-only Supabase system fixture and an isolated WSL1 database lane
+  using PostgreSQL 17, exact Redis 7.4.9, and database
+  `erp_self_hosted_ci`.
+- Added native Nest production smoke and fail-safe cleanup scripts.
+- Added a pinned GitHub Actions Runner 2.336.0 bootstrap that verifies the
+  archive digest, refuses public repositories or non-`kurtgav` identities,
+  dispatches one job, deregisters the runner, and deletes its work directory.
+- Added the operator runbook and recorded decision D-033.
+
+Changed files:
+
+- `.github/actionlint.yaml`
+- `.github/workflows/ci.yml`
+- `.github/workflows/ci-self-hosted.yml`
+- `package.json`
+- `scripts/lib/run-pinned-release-tool.mjs`
+- `scripts/run-actionlint.mjs`
+- `scripts/run-gitleaks.mjs`
+- `scripts/ci/run-ephemeral-github-runner.ps1`
+- `scripts/ci/run-wsl1-database-lane.ps1`
+- `scripts/ci/smoke-api.ps1`
+- `scripts/ci/stop-wsl1-database-lane.ps1`
+- `scripts/ci/supabase-system-bootstrap.sql`
+- `docs/runbooks/self-hosted-ci.md`
+- the six architecture/operations memory files
+
+Validation:
+
+- PowerShell parser -- pass for all four runner/database/smoke scripts.
+- Actionlint 1.7.12 and pinned action-reference validation -- pass.
+- Root lint and typecheck -- pass.
+- Root unit tests and seven database release-planner tests -- pass.
+- Fresh Next/Nest production build -- pass; 77 Next pages.
+- Clean PostgreSQL 17 replay -- pass, 48 migrations.
+- Database suite -- 212/212 pass, zero skips.
+- Nest database integration -- pass.
+- Before/after schema SHA-256 -- identical,
+  `963464C47A8C3B2F771ABB940A0DC106C103FD5DF2410707884B736110A58D26`.
+- Native Nest production smoke -- health, database/Redis readiness, and
+  unauthenticated Project PATCH 401 all pass.
+- Gitleaks 8.30.1 -- 86 commits, zero findings.
+
+Rollback and unresolved:
+
+- No production runtime, database, feature flag, or tenant allowlist changed.
+- Remove the manual workflow and runner scripts to roll back this alternative.
+- Remote GitHub self-hosted workflow proof is still required after push.
+- Redis reports the WSL1 host `vm.overcommit_memory` warning; persistence and
+  background saves are disabled in this disposable test-only process.
+- `ERP_PROJECT_WRITES_VIA_API=false`; tenant allowlist remains empty.
