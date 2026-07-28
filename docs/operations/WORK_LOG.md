@@ -805,3 +805,54 @@ Release evidence:
   `42010b9adce6ae89286449edfc1e27c9ffe1eda7`.
 - Railway CLI identity — `Kurt Gavin <kurtgavin.design@gmail.com>`.
 - Railway `/health` — 200; `/ready` — 200 with database and Redis both `ok`.
+
+## 2026-07-28 -- Production dashboard enum-catalog repair
+
+Completed:
+
+- Reproduced production digest `862076041` in an isolated PostgreSQL 17
+  database. Exact failure: `invalid input value for enum
+  purchase_order_status: "partial_delivered"` (`22P02`).
+- Traced the crash to the dashboard committed-purchase-order query. The
+  canonical application schema includes `partial_delivered`; migration
+  `20260512130000_third_code_erp_po_approval.sql` omitted it.
+- Added forward migration
+  `20260728005112_fix_purchase_order_status_catalog.sql`.
+- Applied the same migration to Supabase project
+  `aqqrtkmtcsfkbyyqxowv`.
+- Extended the fail-closed database verifier with the exact ordered
+  purchase-order status catalog.
+
+Changed files:
+
+- `supabase/migrations/20260728005112_fix_purchase_order_status_catalog.sql`
+- `scripts/verify-database-repro.mjs`
+- the six architecture/operations memory files
+
+Validation:
+
+- Isolated PostgreSQL 17 direct enum cast -- pass.
+- Database replay/catalog verifier -- pass, 48 migrations and 30 protected
+  tables.
+- Read-only database release planner -- current, 48/48, no gaps or unexpected
+  history.
+- Dedicated database suite -- 212/212 pass, zero skips.
+- Root lint and typecheck -- pass.
+- Root test lane -- pass; dedicated database lane supersedes its intentional
+  database skips.
+- Nest and Next production builds -- pass; Next generated 77 pages.
+- Hosted enum catalog -- exact 12 canonical labels; direct
+  `partial_delivered` cast passes.
+- Hosted pre/post reconciliation -- 13 purchase orders, `378642000` total
+  cents, 662 audit rows, and identical status counts.
+
+Rollback and unresolved:
+
+- The safe rollback is forward compensation only. Removing a PostgreSQL enum
+  label is destructive and is not an emergency rollback.
+- No business or audit rows changed.
+- Anonymous production `/dashboard` correctly redirects to sign-in after the
+  repair. Final authenticated browser proof requires a shared disposable
+  session or a new authenticated request; no credentials were copied from the
+  user's browser.
+- `ERP_PROJECT_WRITES_VIA_API=false`; tenant allowlist remains empty.

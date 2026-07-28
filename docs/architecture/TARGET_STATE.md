@@ -88,6 +88,8 @@ reach through each other's internals.
   and rollback behavior against that disposable database.
 - Use real Redis for readiness and container smoke checks.
 - Compare the target database migration ledger before any rollout.
+- Treat database enum labels and ordering as versioned application contracts;
+  verify canonical catalogs during clean replay and hosted release planning.
 - Never use a production database as a write-test fixture.
 - Require a read-only, hash-bearing release plan for every hosted target.
 - For non-linear history, reconcile an isolated restored clone with a new

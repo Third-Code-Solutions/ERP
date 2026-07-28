@@ -184,7 +184,7 @@ matches the repository migration contract:
 - Fresh uncached workspace tests pass with 244 executed tests; 128 database
   cases are skipped unless a disposable database URL and capability flags are
   explicitly injected.
-- The dedicated fail-closed database lane rebuilds from all 47 migrations and
+- The dedicated fail-closed database lane rebuilds from all 48 migrations and
   seed data, then executes all 212 database tests with zero skips.
 - A disposable-database Nest integration test now covers 401, 403, cross-tenant
   404, stale 409, successful update, trigger audit actor, and final rollback.
@@ -195,7 +195,7 @@ matches the repository migration contract:
   ordering for bank reversal and Project Budget revision approval.
 - The migration/catalog verifier passes with the optional platform
   `rls_auto_enable()` helper both absent and present-but-locked.
-- Supabase project `aqqrtkmtcsfkbyyqxowv` is current at 47/47 migrations.
+- Supabase project `aqqrtkmtcsfkbyyqxowv` is current at 48/48 migrations.
   Hosted and clean-local definitions for all five repaired functions have
   identical MD5 fingerprints; affected business/audit row counts were
   unchanged across the release.
@@ -255,3 +255,15 @@ matches the repository migration contract:
   metadata, desktop/mobile overflow, images, analytics, and release identity.
 - Live source/DOM scans contain no former-product or prohibited external ERP
   branding.
+- Production `/dashboard` previously failed with digest `862076041` because
+  the hosted `purchase_order_status` enum omitted the application-contract
+  value `partial_delivered`.
+- Forward migration `20260728005112_fix_purchase_order_status_catalog.sql`
+  adds the missing enum label. The hosted ledger and a clean PostgreSQL 17
+  replay are both current at 48/48.
+- Hosted pre/post reconciliation is unchanged: 13 purchase orders,
+  `378642000` total cents, 662 audit rows, and identical status counts. The
+  repair changed only the enum catalog.
+- The reproducibility verifier now checks the exact ordered purchase-order
+  status catalog, preventing the same schema/application drift from passing
+  release validation.

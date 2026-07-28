@@ -258,3 +258,16 @@ the reviewed source SHA exactly.
 Reason: a monorepo documentation or CI-only commit can legitimately produce
 different repository-head and backend-runtime SHAs. Hiding that difference or
 claiming a skipped event as a deployment would weaken release traceability.
+
+## D-031 -- Database enum catalogs are application contracts
+
+Decision: every persisted enum consumed by application queries or workflow
+code is a versioned contract. Clean replay and hosted release verification
+must assert the exact canonical labels and ordering. Additions use
+forward-only migrations; production labels are never removed as an emergency
+rollback.
+
+Reason: TypeScript/schema agreement did not prove the hosted PostgreSQL
+catalog was current. The missing `partial_delivered` label passed compilation
+and caused a production Server Component failure. Catalog assertions catch
+that drift before deployment without mutating business data.
