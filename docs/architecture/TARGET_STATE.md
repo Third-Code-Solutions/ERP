@@ -81,9 +81,15 @@ reach through each other's internals.
   digests before execution; never bootstrap a release gate from a mutable
   upstream branch.
 - Rebuild PostgreSQL 17 from zero and reject skipped database tests.
-- Permit an isolated native PostgreSQL/Redis lane as supplemental local
-  evidence when Docker is unavailable; require exact pinned Supabase container
-  parity before production cutover.
+- Permit an isolated native PostgreSQL 17/Redis 7.4.9 lane as the authoritative
+  application-schema M1 gate when paid hosted runners and local virtualization
+  are unavailable. Require a clean full migration replay, zero skipped database
+  tests, deterministic schema fingerprint, Nest integration/smoke proof, and a
+  separate hosted Supabase ledger/catalog comparison. The pinned container lane
+  remains an equivalent future option, not a payment prerequisite.
+- Run the no-cost lane only from a private repository through a manual,
+  actor-restricted, repository-scoped ephemeral runner. Never install it as a
+  service, expose production secrets, or execute unreviewed pull-request code.
 - Exercise Nest identity, membership, capability, tenant, concurrency, audit,
   and rollback behavior against that disposable database.
 - Use real Redis for readiness and container smoke checks.

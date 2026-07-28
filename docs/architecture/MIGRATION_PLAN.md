@@ -96,8 +96,16 @@ Production entry status:
   GitHub refs; Vercel production/preview are READY on that SHA. Railway
   recorded a watched-path skip and retains the healthy API artifact from
   `42010b9adce6ae89286449edfc1e27c9ffe1eda7`.
-- Keep `ERP_PROJECT_WRITES_VIA_API=false` until the remaining entry evidence is
-  attached.
+- Complete locally: a no-cost ephemeral self-hosted workflow and runner
+  bootstrap are implemented. The exact lane passes lint, typecheck, tests,
+  production build, 48-migration PostgreSQL 17 replay, 212/212 database tests
+  with zero skips, Nest integration and native runtime smoke, stable schema
+  fingerprint, and full-history secret scan.
+- Pending entry evidence: push the reviewed source, dispatch the same workflow
+  through the ephemeral GitHub runner, and attach the GitHub run result. This
+  replaces payment as the M1 CI unblocker; it does not bypass the tests.
+- Keep `ERP_PROJECT_WRITES_VIA_API=false` and the tenant allowlist empty until
+  that remote workflow proof is attached.
 
 ### M2 — Remove unauthorized worker writes
 

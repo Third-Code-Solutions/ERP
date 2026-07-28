@@ -1,0 +1,64 @@
+name: CI (Self-Hosted Free)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: self-hosted-free-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Full verification
+    if: github.actor == 'kurtgav'
+    runs-on: [self-hosted, Windows, X64, third-code-erp-ci]
+    timeout-minutes: 60
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci
+      REDIS_URL: redis://127.0.0.1:6379
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+      ERP_API_CORS_ORIGINS: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate workflows
+        run: |
+          pnpm ci:actionlint
+          pnpm verify:workflow-action-refs
+      - name: Lint
+        run: pnpm turbo lint
+      - name: Type check
+        run: pnpm turbo typecheck
+      - name: Unit tests
+        run: |
+          pnpm turbo test
+          pnpm test:database-release-plan
+      - name: Rebuild and verify PostgreSQL 17 database
+        shell: powershell
+        run: scripts/ci/run-wsl1-database-lane.ps1
+      - name: Production build
+        run: pnpm turbo build
+      - name: Smoke Nest production build
+        shell: powershell
+        run: scripts/ci/smoke-api.ps1
+      - name: Scan repository history for secrets
+        run: pnpm ci:gitleaks
+      - name: Clean isolated database runtime
+        if: always()
+        shell: powershell
+        run: scripts/ci/stop-wsl1-database-lane.ps1

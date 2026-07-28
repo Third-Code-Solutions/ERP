@@ -273,3 +273,23 @@ matches the repository migration contract:
   records zero browser-console errors.
 - Vercel records authenticated `/dashboard` 200 responses on the repaired
   deployment and no `/dashboard` runtime errors in the proof window.
+- GitHub-hosted Actions remain blocked before job startup by the organization
+  billing/spending-limit state. Latest blocked run `30379589707`, attempt 3,
+  check `90353729857`, executed zero steps.
+- A no-cost manual workflow now targets a repository-scoped ephemeral Windows
+  runner. It is private-repository only, dispatchable by `kurtgav`, read-only
+  to repository contents, carries no production secrets, and uploads no
+  artifacts.
+- The runner delegates database verification to the isolated
+  `ThirdCodeERP-Test` WSL1 distribution: PostgreSQL 17 plus checksum-pinned
+  Redis 7.4.9, a dedicated `erp_self_hosted_ci` database, minimal test-only
+  Supabase system fixtures, and no hosted credentials.
+- Local proof passes: Actionlint 1.7.12, pinned action references, lint,
+  typecheck, unit/release-planner tests, production build with 77 pages,
+  48-migration clean replay, 212/212 database tests with zero skips, Nest
+  database integration, unchanged before/after schema fingerprint
+  `963464C47A8C3B2F771ABB940A0DC106C103FD5DF2410707884B736110A58D26`,
+  native Nest health/readiness/401 smoke, and Gitleaks 8.30.1.
+- Remote self-hosted GitHub workflow proof remains required before the M1
+  provider canary. `ERP_PROJECT_WRITES_VIA_API=false`; the tenant allowlist
+  remains empty.
