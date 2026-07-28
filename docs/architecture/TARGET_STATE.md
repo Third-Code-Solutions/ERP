@@ -88,7 +88,8 @@ reach through each other's internals.
   separate hosted Supabase ledger/catalog comparison. The pinned container lane
   remains an equivalent future option, not a payment prerequisite.
 - Run the no-cost lane only from a private repository through a manual,
-  actor-restricted, repository-scoped ephemeral runner. Never install it as a
+  actor-restricted, repository-scoped short-lived runner. Start it for one
+  reviewed workflow, then stop, deregister, and erase it. Never install it as a
   service, expose production secrets, or execute unreviewed pull-request code.
 - Exercise Nest identity, membership, capability, tenant, concurrency, audit,
   and rollback behavior against that disposable database.

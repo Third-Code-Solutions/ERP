@@ -134,7 +134,6 @@ try {
     try {
       Invoke-Checked -Command '.\config.cmd' -ArgumentList @(
         '--unattended',
-        '--ephemeral',
         '--url', $repositoryUrl,
         '--token', $registrationToken,
         '--name', $runnerName,
@@ -175,7 +174,7 @@ try {
   }
 
   if (-not $runnerOnline) {
-    throw 'Timed out while waiting for the ephemeral runner to become online.'
+    throw 'Timed out while waiting for the transient runner to become online.'
   }
 
   $dispatchStart = [DateTime]::UtcNow.AddSeconds(-5)
