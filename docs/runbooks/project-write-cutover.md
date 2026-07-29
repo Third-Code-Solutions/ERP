@@ -78,6 +78,27 @@ commit;
 Store evidence in the approved release artifact. Do not commit business values
 or tenant identifiers to Git.
 
+Run the redacted target gate from a trusted operator workstation:
+
+```powershell
+$env:CANARY_TENANT_ID = '<approved tenant UUID>'
+$env:CANARY_PROJECT_ID = '<approved Project UUID>'
+$env:CANARY_ACTOR_ID = '<approved actor UUID>'
+node --env-file=.env.local scripts/plan-project-cutover.mjs --require-ready
+Remove-Item Env:CANARY_TENANT_ID,Env:CANARY_PROJECT_ID,Env:CANARY_ACTOR_ID
+```
+
+The command opens a repeatable-read, read-only transaction and prints opaque
+references plus control results only. Exit code `2` means a rollout blocker.
+It does not replace the restricted complete-value baseline needed for exact
+restoration.
+
+As of 2026-07-29, neither existing tenant is eligible. The main demo tenant has
+historical predecessor/hash mismatches; the clean QA tenant has no application
+user or Auth identity. Use a dedicated canary tenant created through the
+approved supported onboarding path. Never rewrite append-only history to pass
+this gate.
+
 ## Tenant canary
 
 1. Keep `ERP_PROJECT_WRITES_VIA_API=false`.

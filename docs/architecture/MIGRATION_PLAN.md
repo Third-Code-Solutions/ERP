@@ -66,6 +66,14 @@ Production entry status:
 - Complete in source: tenant-scoped canary selection requires exact `true` and
   an explicit matching tenant allowlist. Empty, malformed, non-matching, and
   mixed-wildcard values fail closed. Deployment and provider drill remain.
+- Complete: read-only hosted target discovery and a redacted Project-cutover
+  planner. The current demo tenant is blocked by historical predecessor/hash
+  integrity failures; the clean QA tenant is blocked by missing application
+  and Auth users. No production flag or data changed.
+- Remaining M1 prerequisite: create one dedicated canary tenant through a
+  supported onboarding path, with active Auth identity, authorized same-tenant
+  user, reversible E2E Project, and a genesis-rooted chain that passes
+  `pnpm plan:project-cutover -- --require-ready`.
 - Complete: one authorized, same-tenant Nest Project update against designated
   demo data, followed by exact-value restoration through a second Nest
   transaction. Both 200 responses correlated to safe Railway command logs;

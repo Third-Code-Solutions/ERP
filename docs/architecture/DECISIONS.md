@@ -330,3 +330,20 @@ stalled in setup-node's post-job cache upload. Remote caching adds storage and
 network use without improving correctness or the persistent local runner's
 dependency availability. Follow-up run `30422175962` completed all gates and
 post-job actions successfully in 5m33s with remote caching disabled.
+
+## D-036 -- M1 uses a clean dedicated canary tenant
+
+Decision: do not enable Project routing for an existing tenant whose complete
+audit chain fails predecessor or hash verification. Do not delete, update,
+re-hash, checkpoint around, or otherwise conceal historical append-only
+evidence. Provision one dedicated canary tenant through a reviewed supported
+onboarding path. It must have an active Supabase Auth identity, an authorized
+same-tenant application user, a reversible E2E Project, and a genesis-rooted
+chain that passes the read-only planner before provider configuration changes.
+
+Reason: the primary demo tenant has suitable users and Projects but two
+historical predecessor mismatches and 151 historical hash mismatches. The only
+currently clean QA tenant has no user or Auth identity. Weakening the gate would
+turn an audit-integrity defect into accepted rollout policy; rewriting history
+would destroy evidence. A dedicated canary creates the smallest trustworthy
+boundary without changing production transaction rules.

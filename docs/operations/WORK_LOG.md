@@ -1018,3 +1018,58 @@ Rollback and unresolved:
 - Redis reports the WSL1 host `vm.overcommit_memory` warning; persistence and
   background saves are disabled in this disposable test-only process.
 - `ERP_PROJECT_WRITES_VIA_API=false`; tenant allowlist remains empty.
+
+## 2026-07-29 -- M1 read-only Project cutover preflight
+
+Outcome:
+
+- Verified the connected Supabase ERP project is healthy on PostgreSQL 17.6.
+- Inspected tenant, Project, user, Auth, audit-trigger, function-hardening, and
+  audit-chain state with read-only SQL only.
+- Identified a reversible E2E Project and an authorized Admin in the main demo
+  tenant without recording raw identifiers or business values in Git.
+- Blocked that target: its full append-only tenant history has two predecessor
+  discontinuities and 151 hashes that do not verify under the current formula.
+- Rejected the alternate QA tenant: its one-row chain is clean, but it has no
+  application user or Supabase Auth identity.
+- Added a redacted Project cutover planner using a repeatable-read, read-only
+  transaction. It fails closed on target scope, capability, Auth, PostgreSQL
+  version, audit controls, predecessor continuity, hash verification, and
+  Project history.
+- Kept Vercel Git disconnected. No Vercel build, Railway deployment, database
+  write, Auth mutation, feature-flag change, or allowlist change occurred.
+
+Changed files:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/ci-self-hosted.yml`
+- `package.json`
+- `scripts/lib/project-cutover-plan.mjs`
+- `scripts/plan-project-cutover.mjs`
+- `scripts/plan-project-cutover.test.mjs`
+- `docs/runbooks/project-write-cutover.md`
+- the six architecture/operations memory files
+
+Validation:
+
+- Project cutover planner unit tests -- 6/6 pass.
+- Planner syntax check -- pass.
+- Hosted read-only planner against the selected demo target -- expected
+  `blocked`; PostgreSQL 17, target/actor/Auth/control checks pass, full-chain
+  integrity checks fail with the recorded historical mismatch counts.
+- No secret, UUID, email, or business value appears in planner output.
+- Root lint, typecheck, unit suites, and production build -- pass; the root
+  database suite intentionally skips runtime cases without `DATABASE_URL`.
+- Authoritative self-hosted database lane remains 212/212 with zero skips.
+- Hosted migration ledger -- current, 48/48, no gaps or unexpected versions.
+- Actionlint 1.7.12 and pinned action-reference validation -- pass.
+- Gitleaks 8.30.1 -- 93 commits, zero findings.
+
+Rollback and unresolved:
+
+- Source rollback: revert this planner/documentation milestone; no production
+  state requires rollback.
+- Do not enable the provider flag for either current tenant.
+- Next: implement a supported, audited dedicated-canary onboarding slice, then
+  require a zero-blocker planner result before requesting one paid Vercel
+  production release.

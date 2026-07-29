@@ -67,6 +67,14 @@ reach through each other's internals.
   reversible transaction against designated demo data. Restore through the
   same Nest authority, reconcile both append-only audit records, and prove
   tenant hash-chain continuity.
+- Canary tenants must begin with a verifiable genesis-rooted audit chain, an
+  active Supabase Auth identity, a same-tenant application user holding the
+  required capability, and a non-critical reversible record. Historical chain
+  failures are never waived, deleted, or rewritten to make a rollout pass.
+- Run the redacted read-only Project cutover planner immediately before and
+  after the maintenance window. Store the complete mutable business baseline
+  only in the approved restricted release artifact, never in Git or provider
+  logs.
 - Gate incremental production routing by exact command flag and an explicit
   database-derived tenant allowlist. Missing or malformed canary configuration
   must retain the legacy selector.
