@@ -1635,6 +1635,14 @@ Validation and constraints:
 - Default Next production build passes with 77/77 generated pages.
 - Isolated standalone build and runtime smoke pass: health, real SSR landing,
   nonce CSP, robots, sitemap, and manifest.
+- Transient self-hosted run `30484376284` passed install, workflow checks,
+  lint, typecheck, unit tests, the clean PostgreSQL 17/Redis lane, and the
+  production build. Its standalone step built 77/77 pages, then hit a
+  Windows deep-path cleanup failure.
+- Moved the isolated standalone worktree to the repository drive root, kept
+  the verified containment guard, and added bounded cleanup retries. Local
+  rerun passes all runtime assertions, removes its worktree, and leaves port
+  3090 closed.
 - Root lint and typecheck pass.
 - Application suites pass: Shared 79/79, API 26/26, Web 276/276; total 381.
 - Local database suite remains 99 passed and 137 skipped because this

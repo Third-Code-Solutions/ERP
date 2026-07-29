@@ -1008,6 +1008,13 @@ matches the repository migration contract:
   unprivileged pnpm-symlink tracing failure.
 - Standalone source build and runtime proof pass: 77/77 generated pages,
   process health, SSR landing, nonce CSP, robots, sitemap, and manifest.
+- First transient self-hosted run `30484376284` passed checkout, locked install,
+  workflow validation, lint, typecheck, unit tests, the clean PostgreSQL
+  17/Redis lane, and the production build. Its standalone step built 77/77
+  pages, then failed only while removing a deep Windows runner path.
+- The standalone smoke now isolates work at the repository drive root and
+  retries verified cleanup. Local rerun passes every runtime assertion, removes
+  its worktree, and leaves no process listening on port 3090.
 - Root lint/typecheck, 381 application tests, default production build,
   77/77 generated pages, the 1440/768/390 frontend release browser test,
   gitleaks, actionlint, workflow action-reference validation, and both release
