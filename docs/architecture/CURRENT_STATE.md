@@ -35,17 +35,19 @@ successful build.
 The authorized Supabase target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17 and
 matches the repository migration contract:
 
-- Migration ledger: 44 of 44 applied; no missing or unexpected versions.
+- Migration ledger: 49 of 49 applied; no missing or unexpected versions.
 - Catalog: 86 public tables and 315 RLS policies.
 - Verifier: all 30 protected-table groups, constraints, triggers, privileges,
   tenant controls, and finance/inventory authority checks pass.
 - A forward-only hardening migration fixes the mutable `jsonb_diff`
   `search_path` and removes browser/service execution from maintenance-only
   helpers.
-- Business baselines remained unchanged across the migration: 2 tenants,
-  13 users, 25 projects, 13 purchase orders, 4 invoices, 660 audit rows,
-  37 Storage objects, PHP 3,786,420.00 in purchase orders, and
-  PHP 1,182,006.54 invoice net total.
+- Migration `20260729051205_harden_signup_provisioning.sql` hardens the Auth
+  signup trigger with an empty `search_path`, fully qualified relations and
+  built-ins, bounded display metadata, and a deterministic bounded tenant
+  slug. Only `service_role` can execute the function directly.
+- The signup hardening changed no business or identity rows: hosted counts
+  remained 13 Auth users, 13 application profiles, and 2 tenants.
 - `supabase/seed.sql` was intentionally not applied because it is a local/CI
   reset fixture, not production data.
 

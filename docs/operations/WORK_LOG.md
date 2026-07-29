@@ -1118,3 +1118,46 @@ Rollback and unresolved:
   completion of its confirmation step.
 - After confirmation, the exact next gate is the redacted read-only Project
   cutover planner; production routing remains disabled.
+
+## 2026-07-29 -- Signup provisioning hardening
+
+Outcome:
+
+- Added and applied forward migration
+  `20260729051205_harden_signup_provisioning.sql`.
+- Hardened `public.handle_new_user()` with an empty `search_path`, fully
+  qualified relations and built-ins, bounded display metadata, a deterministic
+  bounded tenant slug, and safe missing-email fallbacks.
+- Kept atomic tenant plus same-ID Admin provisioning and the existing Auth
+  trigger contract.
+- Revoked direct execution from `PUBLIC`, `anon`, and `authenticated`; retained
+  `service_role`.
+- Reconciled the connector-assigned hosted migration version into repository
+  history without executing the SQL twice.
+
+Validation:
+
+- Hosted release plan -- current, PostgreSQL 17, 49/49 migrations.
+- Hosted function -- `SECURITY DEFINER`, `search_path=""`, qualified
+  `public.tenants`/`public.users`, trigger enabled, client execution denied.
+- Hosted row counts before/after -- 13 Auth users, 13 application profiles,
+  2 tenants; unchanged.
+- Disposable PostgreSQL 17/Redis 7.4.9 lane -- 49 migrations, verifier pass,
+  218/218 database tests with zero skips, Nest database integration pass.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` -- pass.
+- Database release/cutover planner tests, Actionlint, pinned action references,
+  Gitleaks, and `git diff --check` -- pass.
+- Supabase security/performance advisors -- no finding on
+  `handle_new_user`; pre-existing function, extension, Auth configuration,
+  foreign-key, duplicate-index, and unused-index findings remain backlog.
+
+Rollback and unresolved:
+
+- No data rollback is required; the migration changed only a function
+  definition and privileges.
+- If signup regression appears, disable public signup operationally and apply a
+  reviewed forward compensation restoring the prior function body and
+  privileges. Never edit applied migration history or delete provisioned rows.
+- Canary creation still requires explicit approval for an unused
+  user-controlled email and completion of its confirmation step.
+- Project routing remains disabled and the tenant allowlist remains empty.

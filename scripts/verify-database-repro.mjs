@@ -1009,7 +1009,14 @@ try {
       const byName = new Map(rows.map((row) => [row.proname, row]))
       return requiredSecurityDefinerFunctions.every((name) => {
         const fn = byName.get(name)
-        return fn?.prosecdef === true && /(?:^|,)search_path=public(?:,|$)/.test(fn.config)
+        const hasExpectedSearchPath =
+          name === 'handle_new_user'
+            ? fn?.config === 'search_path=""' ||
+              fn?.config === 'search_path='
+            : /(?:^|,)search_path=public(?:,|$)/.test(
+                fn?.config ?? ''
+              )
+        return fn?.prosecdef === true && hasExpectedSearchPath
       })
     },
     (rows) => {
@@ -1017,7 +1024,14 @@ try {
       return requiredSecurityDefinerFunctions
         .filter((name) => {
           const fn = byName.get(name)
-          return !fn || fn.prosecdef !== true || !/(?:^|,)search_path=public(?:,|$)/.test(fn.config)
+          const hasExpectedSearchPath =
+            name === 'handle_new_user'
+              ? fn?.config === 'search_path=""' ||
+                fn?.config === 'search_path='
+              : /(?:^|,)search_path=public(?:,|$)/.test(
+                  fn?.config ?? ''
+                )
+          return !fn || fn.prosecdef !== true || !hasExpectedSearchPath
         })
         .join(', ')
     }

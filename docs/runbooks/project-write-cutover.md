@@ -104,17 +104,21 @@ this gate.
 This step changes Auth and business state. Obtain explicit approval for one
 unused user-controlled email identity before starting.
 
-1. Keep both Project routing gates disabled.
-2. Open the canonical `/auth/signup` page and create the canary account through
+1. Confirm the hosted database release plan is current at migration
+   `20260729051205` and the signup trigger is enabled.
+2. Confirm `public.handle_new_user()` has `search_path=""`, client roles cannot
+   execute it directly, and `service_role` retains execution.
+3. Keep both Project routing gates disabled.
+4. Open the canonical `/auth/signup` page and create the canary account through
    the product form.
-3. Complete the email confirmation using the user-controlled inbox.
-4. Sign in and verify the dashboard resolves the new Admin profile without an
+5. Complete the email confirmation using the user-controlled inbox.
+6. Sign in and verify the dashboard resolves the new Admin profile without an
    account-provisioning error.
-5. Create one clearly labeled, non-critical E2E Project through
+7. Create one clearly labeled, non-critical E2E Project through
    `/projects/new`.
-6. Capture the resulting tenant, actor, and Project UUIDs only in the
+8. Capture the resulting tenant, actor, and Project UUIDs only in the
    restricted release artifact.
-7. Run the read-only planner with `--require-ready`. Stop unless it reports
+9. Run the read-only planner with `--require-ready`. Stop unless it reports
    zero blockers and a genesis-rooted, fully verified chain.
 
 Do not create or modify `auth.users`, `public.tenants`, `public.users`,

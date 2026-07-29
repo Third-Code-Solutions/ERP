@@ -17,14 +17,14 @@ Status: complete on 2026-07-27.
 
 ### M1 — Nest transaction-authority foundation
 
-Status: source published; hosted database reconciled through migration 48;
+Status: source published; hosted database reconciled through migration 49;
 NestJS/Redis deployed on Railway; Next.js deployed on Vercel; live
 Auth/capability/tenant isolation proved without writes; command observability
 and safe source-level rollback selection proved; controlled hosted mutation,
 audit reconciliation, and exact-value restoration proved. A supplemental
 native PostgreSQL/Redis lane now passes clean replay plus zero-skip database and
-Nest integration tests. Three forward database fixes are applied and verified
-on hosted Supabase. Exact pinned CI and provider-level enable/rollback remain.
+Nest integration tests. Signup provisioning is hardened and verified on hosted
+Supabase. Dedicated-canary onboarding and provider-level enable/rollback remain.
 
 - Add NestJS modular-monolith application.
 - Add validated configuration, health/readiness endpoints, Supabase identity
@@ -43,9 +43,9 @@ on hosted Supabase. Exact pinned CI and provider-level enable/rollback remain.
 
 Production entry status:
 
-- Blocked: a green execution of the new disposable PostgreSQL/Redis CI lane.
-  GitHub currently refuses runner startup because of account billing/spending
-  limits.
+- Complete: the no-cost disposable PostgreSQL/Redis lane is green locally and
+  through the approved short-lived self-hosted workflow; paid hosted runners
+  are not required for M1 database evidence.
 - Complete: repository access and reviewed source publication to
   `Third-Code-Solutions/ERP`.
 - Complete: real Supabase Auth identity resolution using consumed one-time
@@ -79,9 +79,9 @@ Production entry status:
   demo data, followed by exact-value restoration through a second Nest
   transaction. Both 200 responses correlated to safe Railway command logs;
   Supabase confirmed two actor-attributed audit rows and continuous hashes.
-- Complete: hosted database release gate at 44/44 migrations with the
+- Complete: hosted database release gate at 49/49 migrations with the
   protected-catalog verifier green and business baselines unchanged.
-- Complete locally: clean replay of 48 migrations plus seed, 212/212 database
+- Complete locally: clean replay of 49 migrations plus seed, 218/218 database
   tests with no skips, and the Nest transaction-authority integration test
   against disposable PostgreSQL and Redis.
 - Complete hosted release: applied and verified the three forward migrations
@@ -90,6 +90,10 @@ Production entry status:
   `20260728005112` to align the hosted `purchase_order_status` catalog with
   the canonical application contract. Purchase-order and audit baselines are
   unchanged, and the verifier now rejects enum-catalog drift.
+- Complete signup hardening: applied `20260729051205` with an empty privileged
+  function path, fully qualified objects, deterministic bounded slugs, bounded
+  display metadata, and direct execution revoked from client roles. Hosted
+  identity/tenant counts remained unchanged.
 - Complete emergency route proof: authenticated Admin `/dashboard` hard reload
   renders KPI and Risk Signals content with zero browser-console errors;
   Vercel records successful route requests and zero runtime errors in the
@@ -118,7 +122,7 @@ Production entry status:
   or artifact upload. Runner registration and process counts returned to zero;
   credential files were erased.
 - Keep `ERP_PROJECT_WRITES_VIA_API=false` and the tenant allowlist empty until
-  that remote workflow proof is attached.
+  the dedicated canary passes the read-only cutover planner.
 
 ### M2 — Remove unauthorized worker writes
 
