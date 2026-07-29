@@ -33,7 +33,7 @@ test.describe('permission-aware dashboard', () => {
   test('keeps executive data out of a viewer dashboard', async ({
     page,
   }, testInfo) => {
-    testInfo.setTimeout(60_000)
+    testInfo.setTimeout(120_000)
     const env = readLocalEnv()
     const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
     const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
@@ -45,7 +45,7 @@ test.describe('permission-aware dashboard', () => {
     expect(baseUrl).toBeTruthy()
 
     const profileResponse = await fetch(
-      `${supabaseUrl}/rest/v1/users?select=email&role=eq.viewer&limit=1`,
+      `${supabaseUrl}/rest/v1/users?select=email,tenant_id&role=eq.viewer&limit=1`,
       {
         headers: {
           apikey: serviceRoleKey!,
@@ -54,8 +54,30 @@ test.describe('permission-aware dashboard', () => {
       }
     )
     expect(profileResponse.ok).toBe(true)
-    const profiles = (await profileResponse.json()) as Array<{ email: string }>
+    const profiles = (await profileResponse.json()) as Array<{
+      email: string
+      tenant_id: string
+    }>
     expect(profiles).toHaveLength(1)
+
+    const documentResponse = await fetch(
+      `${supabaseUrl}/rest/v1/documents?select=id,file_name&tenant_id=eq.${encodeURIComponent(profiles[0]!.tenant_id)}&limit=1`,
+      {
+        headers: {
+          apikey: serviceRoleKey!,
+          Authorization: `Bearer ${serviceRoleKey}`,
+        },
+      }
+    )
+    expect(documentResponse.ok).toBe(true)
+    const tenantDocuments = (await documentResponse.json()) as Array<{
+      id: string
+      file_name: string
+    }>
+    expect(tenantDocuments).toHaveLength(1)
+    const tenantDocument = tenantDocuments[0]!
+    const documentSearchTerm = tenantDocument.file_name.slice(0, 80)
+    expect(documentSearchTerm.length).toBeGreaterThanOrEqual(2)
 
     const linkResponse = await fetch(
       `${supabaseUrl}/auth/v1/admin/generate_link`,
@@ -124,6 +146,36 @@ test.describe('permission-aware dashboard', () => {
         },
       ])
 
+      const documentSearch = await page.request.get(
+        `${baseUrl}/api/search?q=${encodeURIComponent(documentSearchTerm)}`
+      )
+      expect(documentSearch.status()).toBe(200)
+      expect(documentSearch.headers()['cache-control']).toContain('private')
+      expect(documentSearch.headers()['cache-control']).toContain('no-store')
+      expect(documentSearch.headers()['vary']).toContain('Cookie')
+      const documentSearchBody = (await documentSearch.json()) as {
+        hits: Array<{ title: string; type: string }>
+      }
+      expect(documentSearchBody.hits).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            title: tenantDocument.file_name,
+            type: 'document',
+          }),
+        ])
+      )
+      expect(
+        documentSearchBody.hits.every((hit) =>
+          ['document', 'task'].includes(hit.type)
+        )
+      ).toBe(true)
+
+      const literalProbe = await page.request.get(
+        `${baseUrl}/api/search?q=${encodeURIComponent('%_\\third-code-literal-probe-019f')}`
+      )
+      expect(literalProbe.status()).toBe(200)
+      expect(await literalProbe.json()).toEqual({ hits: [] })
+
       const errors: string[] = []
       page.on('console', (message) => {
         if (message.type() === 'error') errors.push(message.text())
@@ -159,6 +211,24 @@ test.describe('permission-aware dashboard', () => {
         ).toBeVisible()
         await expect(page.getByRole('link', { name: 'Finance' })).toHaveCount(0)
 
+        if (viewport.name === 'desktop') {
+          await page
+            .getByRole('button', { name: /Open global search/ })
+            .click()
+          const searchInput = page.getByRole('textbox', { name: 'Search' })
+          await searchInput.fill(documentSearchTerm)
+          await expect(
+            page
+              .getByRole('option')
+              .filter({ hasText: tenantDocument.file_name })
+              .first()
+          ).toBeVisible()
+          await page.keyboard.press('Escape')
+          await expect(
+            page.getByRole('dialog', { name: 'Command palette' })
+          ).toHaveCount(0)
+        }
+
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth - window.innerWidth
@@ -191,7 +261,9 @@ test.describe('permission-aware dashboard', () => {
         )
         expect(logoutResponse.ok).toBe(true)
       }
-      await page.context().clearCookies()
+      if (!page.isClosed()) {
+        await page.context().clearCookies()
+      }
     }
   })
 })

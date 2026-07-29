@@ -23,6 +23,8 @@ import {
 } from '@third-code-erp/database/schema'
 import {
   canSearchEntity,
+  literalSearchPattern,
+  normalizeSearchQuery,
   type SearchHitType,
 } from './search-policy'
 
@@ -35,20 +37,37 @@ interface SearchHit {
 }
 
 const PER_TYPE_LIMIT = 5
+const SEARCH_RESPONSE_HEADERS = {
+  'Cache-Control': 'private, no-store, max-age=0',
+  Vary: 'Cookie',
+} as const
+
+function searchResponse(
+  body: { hits: SearchHit[]; hint?: string },
+  status = 200
+) {
+  return NextResponse.json(body, {
+    status,
+    headers: SEARCH_RESPONSE_HEADERS,
+  })
+}
 
 export async function GET(req: NextRequest) {
   const profile = await getUserProfile()
   if (!profile) {
-    return NextResponse.json({ hits: [] }, { status: 401 })
+    return searchResponse({ hits: [] }, 401)
   }
 
   // Bound wildcard-search work before fan-out across record types.
-  const q = (req.nextUrl.searchParams.get('q') ?? '').trim().slice(0, 100)
+  const q = normalizeSearchQuery(req.nextUrl.searchParams.get('q'))
   if (q.length < 2) {
-    return NextResponse.json({ hits: [], hint: 'Type at least 2 characters.' })
+    return searchResponse({
+      hits: [],
+      hint: 'Type at least 2 characters.',
+    })
   }
 
-  const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`
+  const like = literalSearchPattern(q)
   const role = profile.role
   const tenantId = profile.tenantId
 
@@ -116,7 +135,13 @@ export async function GET(req: NextRequest) {
           account_name: accounts.name,
         })
         .from(opportunities)
-        .leftJoin(accounts, eq(accounts.id, opportunities.account_id))
+        .leftJoin(
+          accounts,
+          and(
+            eq(accounts.id, opportunities.account_id),
+            eq(accounts.tenant_id, tenantId)
+          )
+        )
         .where(
           and(
             eq(opportunities.tenant_id, tenantId),
@@ -151,7 +176,13 @@ export async function GET(req: NextRequest) {
           project_name: projects.name,
         })
         .from(boms)
-        .leftJoin(projects, eq(projects.id, boms.project_id))
+        .leftJoin(
+          projects,
+          and(
+            eq(projects.id, boms.project_id),
+            eq(projects.tenant_id, tenantId)
+          )
+        )
         .where(
           and(
             eq(boms.tenant_id, tenantId),
@@ -647,5 +678,5 @@ export async function GET(req: NextRequest) {
   }
   const hits = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
 
-  return NextResponse.json({ hits })
+  return searchResponse({ hits })
 }
