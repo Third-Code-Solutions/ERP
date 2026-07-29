@@ -28,5 +28,7 @@ await runPinnedReleaseTool({
     '--no-banner',
     '--redact',
     '--verbose',
+    '--config',
+    resolve(repositoryRoot, '.gitleaks.toml'),
   ],
 })

@@ -806,6 +806,53 @@ Release evidence:
 - Railway CLI identity — `Kurt Gavin <kurtgavin.design@gmail.com>`.
 - Railway `/health` — 200; `/ready` — 200 with database and Redis both `ok`.
 
+## 2026-07-29 -- Vercel cost-control course correction
+
+Completed:
+
+- Inspected the connected Vercel project and the last 24 hours of deployments.
+- Confirmed four CI-only source commits each triggered one production build
+  from `main` and one preview build from the synchronized feature ref: eight
+  READY deployments total.
+- Confirmed latest production deployment
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` is READY on
+  `f24e5603a35571f8dcadd43fc09c64d12646a7d0`.
+- Stopped further Git pushes and explicit Vercel deployment calls.
+- Prepared LF enforcement for SQL and a value/path-specific Gitleaks allowlist
+  locally; neither change has been pushed.
+- Added the local Vercel fail-closed configuration
+  `git.deploymentEnabled=false`; it remains unpushed until provider Git
+  disconnection is approved and verified.
+- Hardened transient-runner cleanup, removed stale runner credentials and work
+  directories, and confirmed GitHub reports zero registered runners.
+- Recorded decision D-034: source pushes do not authorize Vercel releases.
+
+Validation:
+
+- GitHub self-hosted run `30419757852` passed workflow validation, lint,
+  typecheck, unit tests, all 48 migrations, 212/212 database tests, Nest
+  integration, production build, and native Nest smoke.
+- The only failure was Gitleaks rule `generic-api-key` on the deterministic
+  `--restrict-key=0123456789abcdef0123456789abcdef` schema delimiter.
+- The workflow contains no Vercel deploy command.
+- Vercel deployment inventory showed no active build after the audit.
+- Vercel JSON parse, PowerShell parse, Actionlint 1.7.12, Gitleaks 8.30.1
+  across 90 commits, and `git diff --check` all pass for the local remediation.
+- Root lint, typecheck, unit suites, Nest/Next production build, and all 77
+  generated Next pages pass locally without cloud compute.
+- The isolated database lane replays all 48 migrations on PostgreSQL 17, runs
+  212/212 database tests with zero skips, passes Nest database integration, and
+  reproduces schema SHA-256
+  `963464C47A8C3B2F771ABB940A0DC106C103FD5DF2410707884B736110A58D26`.
+- Disposable PostgreSQL/Redis services stopped cleanly after validation.
+
+Pending:
+
+- User confirmation to disconnect Vercel Git integration. The current live
+  deployment remains online; future deployment becomes manual and singular.
+- Publish the validated local guard only after Git auto-deploy is disabled,
+  then prove the source push creates zero Vercel deployments.
+
 ## 2026-07-28 -- Production dashboard enum-catalog repair
 
 Completed:

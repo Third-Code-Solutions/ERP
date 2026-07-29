@@ -115,6 +115,9 @@ reach through each other's internals.
 ## Deployment mapping
 
 - Vercel `thirdcode-erp`: Next.js frontend/BFF only.
+- Vercel Git auto-deploy disabled. Source publication does not authorize a
+  build; production uses one explicitly approved deployment of a green SHA,
+  with promotion preferred over redundant rebuilds.
 - Vercel Web Analytics: first-party product telemetry with a clean browser
   console and no transaction authority.
 - Railway `Third Code ERP API`: the single NestJS modular monolith.

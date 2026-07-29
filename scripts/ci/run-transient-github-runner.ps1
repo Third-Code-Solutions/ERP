@@ -2,7 +2,8 @@
 param(
   [string]$Ref = '',
   [string]$Repository = 'Third-Code-Solutions/ERP',
-  [string]$RunnerBase = 'D:\thirdcode\.github-runners\Third-Code-ERP'
+  [string]$RunnerBase = 'D:\thirdcode\.github-runners\Third-Code-ERP',
+  [switch]$CleanupOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,6 +63,51 @@ function Write-RunnerLogs {
   }
 }
 
+function Remove-TransientRunnerDirectory {
+  param(
+    [Parameter(Mandatory)]
+    [string]$Directory
+  )
+
+  $resolvedDirectory = [IO.Path]::GetFullPath($Directory)
+  if (
+    -not $resolvedDirectory.StartsWith(
+      "$runnerBasePath\",
+      [StringComparison]::OrdinalIgnoreCase
+    ) -or
+    [IO.Path]::GetFileName($resolvedDirectory) -notmatch
+      '^third-code-erp-\d{14}$'
+  ) {
+    throw "Refusing unsafe runner cleanup: $resolvedDirectory"
+  }
+
+  Get-Process Runner.Listener, Runner.Worker -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.Path -and $_.Path.StartsWith(
+        "$resolvedDirectory\",
+        [StringComparison]::OrdinalIgnoreCase
+      )
+    } |
+    Stop-Process -Force -ErrorAction SilentlyContinue
+
+  foreach ($credential in @('.credentials', '.credentials_rsaparams')) {
+    $credentialPath = Join-Path $resolvedDirectory $credential
+    if (Test-Path -LiteralPath $credentialPath) {
+      Remove-Item -LiteralPath $credentialPath -Force -ErrorAction SilentlyContinue
+    }
+  }
+
+  for ($attempt = 1; $attempt -le 30; $attempt += 1) {
+    try {
+      Remove-Item -LiteralPath $resolvedDirectory -Recurse -Force
+      return $true
+    } catch {
+      Start-Sleep -Seconds 1
+    }
+  }
+  return $false
+}
+
 Invoke-Checked -Command 'gh' -ArgumentList @('auth', 'status')
 $viewer = (& gh api user --jq '.login').Trim()
 if ($LASTEXITCODE -ne 0 -or $viewer -ne 'kurtgav') {
@@ -71,6 +117,33 @@ if ($LASTEXITCODE -ne 0 -or $viewer -ne 'kurtgav') {
 $repositoryMetadata = Get-GhJson -Endpoint "repos/$Repository"
 if (-not $repositoryMetadata.private) {
   throw 'Refusing to attach a local runner to a public repository.'
+}
+
+$registeredRunners = Get-GhJson -Endpoint "repos/$Repository/actions/runners"
+$registeredNames = @($registeredRunners.runners | ForEach-Object { $_.name })
+if (Test-Path -LiteralPath $runnerBasePath) {
+  foreach (
+    $staleDirectory in Get-ChildItem `
+      -LiteralPath $runnerBasePath `
+      -Directory `
+      -Filter 'third-code-erp-*'
+  ) {
+    if (
+      $staleDirectory.Name -notin $registeredNames -and
+      (Test-Path -LiteralPath (Join-Path $staleDirectory.FullName '.runner'))
+    ) {
+      if (Remove-TransientRunnerDirectory -Directory $staleDirectory.FullName) {
+        Write-Host "Removed stale runner directory: $($staleDirectory.Name)"
+      } else {
+        Write-Warning "Stale runner requires manual cleanup: $($staleDirectory.FullName)"
+      }
+    }
+  }
+}
+
+if ($CleanupOnly) {
+  Write-Host 'Transient runner cleanup complete.'
+  exit 0
 }
 
 if ([string]::IsNullOrWhiteSpace($Ref)) {
@@ -147,6 +220,12 @@ try {
     $registrationToken = $null
     $registration = $null
   }
+
+  # Migration SQL must reach PostgreSQL byte-for-byte. A Windows runner
+  # normally inherits core.autocrlf=true, which changes function bodies.
+  $env:GIT_CONFIG_COUNT = '1'
+  $env:GIT_CONFIG_KEY_0 = 'core.autocrlf'
+  $env:GIT_CONFIG_VALUE_0 = 'false'
 
   $runnerProcess = Start-Process `
     -FilePath (Join-Path $runDirectory 'run.cmd') `
@@ -256,24 +335,7 @@ try {
   }
 
   if (Test-Path -LiteralPath $runDirectory) {
-    $resolvedRunDirectory = [IO.Path]::GetFullPath($runDirectory)
-    if (-not $resolvedRunDirectory.StartsWith(
-        "$runnerBasePath\",
-        [StringComparison]::OrdinalIgnoreCase
-      )) {
-      throw "Refusing unsafe runner cleanup: $resolvedRunDirectory"
-    }
-    $removed = $false
-    for ($attempt = 1; $attempt -le 10; $attempt += 1) {
-      try {
-        Remove-Item -LiteralPath $resolvedRunDirectory -Recurse -Force
-        $removed = $true
-        break
-      } catch {
-        Start-Sleep -Milliseconds 500
-      }
-    }
-    if (-not $removed) {
+    if (-not (Remove-TransientRunnerDirectory -Directory $runDirectory)) {
       Write-Warning "Runner work directory requires manual cleanup: $runDirectory"
     }
   }

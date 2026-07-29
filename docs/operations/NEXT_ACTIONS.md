@@ -4,19 +4,22 @@
 
 Complete remaining M1 controls without enabling production writes:
 
-1. Push the reviewed no-cost CI source, start the pinned transient runner, and
-   dispatch `.github/workflows/ci-self-hosted.yml` on the exact release SHA.
-   Attach the GitHub run ID and confirm the runner deregistered. Do not pay for
-   hosted minutes and do not weaken or skip any gate.
-2. Keep deployed tenant-canary source at
+1. Disable Vercel Git auto-deploy before the next Git push. Keep the current
+   READY production deployment online. Future Vercel releases are one explicit
+   manual deployment after green CI; do not create a duplicate preview.
+2. Publish the already validated LF/Gitleaks/Vercel guard in one source push.
+   Prove that push creates zero Vercel deployments, then rerun
+   `.github/workflows/ci-self-hosted.yml` on the exact SHA. Attach the GitHub
+   run ID and confirm the transient runner deregistered.
+3. Keep deployed tenant-canary source at
    `ERP_PROJECT_WRITES_VIA_API=false`; leave the tenant allowlist empty until
    clean self-hosted GitHub workflow evidence is attached.
-3. After clean CI, perform the provider-level enable/rollback drill for a
+4. After clean CI, perform the provider-level enable/rollback drill for a
    controlled tenant:
    capture provider configuration, enable exact `true`, prove one compatible
    Web-to-Nest demo command and reconciliation, restore exact `false`, and
    prove the legacy branch is selected.
-4. Record provider release IDs, runtime logs, final data reconciliation, and
+5. Record provider release IDs, runtime logs, final data reconciliation, and
    the tested rollback procedure before starting M2.
 
 ## Following milestone
