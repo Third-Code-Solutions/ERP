@@ -638,7 +638,7 @@
 .operationFlow span {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  justify-content: center;
   min-height: 78px;
   padding: 14px;
   border-right: 1px solid rgba(245, 240, 232, 0.1);
@@ -651,13 +651,6 @@
 
 .operationFlow span:hover {
   background: rgba(208, 138, 87, 0.08);
-}
-
-.operationFlow i {
-  color: rgba(208, 138, 87, 0.75);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-style: normal;
 }
 
 .complianceList {
@@ -739,13 +732,6 @@
   background:
     radial-gradient(circle at 80% 15%, rgba(208, 138, 87, 0.2), transparent 42%),
     var(--landing-ink);
-}
-
-.accordionNumber {
-  color: currentColor;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  opacity: 0.48;
 }
 
 .accordionIcon {
@@ -858,13 +844,6 @@
 .workflowStage {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-}
-
-.workflowStage span {
-  color: rgba(245, 240, 232, 0.35);
-  font-family: var(--font-mono);
-  font-size: 10px;
 }
 
 .workflowStage strong {
@@ -1073,8 +1052,7 @@
 .faqList summary {
   position: relative;
   display: grid;
-  grid-template-columns: 46px 1fr;
-  gap: 18px;
+  grid-template-columns: 1fr;
   align-items: center;
   min-height: 112px;
   padding: 28px 64px 28px 0;
@@ -1112,17 +1090,10 @@
   transform: rotate(45deg);
 }
 
-.faqList summary > span {
-  color: rgba(245, 240, 232, 0.34);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-}
-
 .faqList details > p {
   max-width: 720px;
   margin: 0;
-  padding: 0 48px 34px 64px;
+  padding: 0 48px 34px 0;
   color: rgba(245, 240, 232, 0.58);
   font-size: 15px;
   line-height: 1.75;
@@ -1327,7 +1298,7 @@
   .accordionItem,
   .accordionItemActive {
     display: grid;
-    grid-template-columns: auto auto minmax(120px, 0.45fr) minmax(0, 1fr);
+    grid-template-columns: auto minmax(120px, 0.45fr) minmax(0, 1fr);
     grid-template-rows: 1fr;
     gap: 18px;
     align-items: center;
@@ -1439,9 +1410,14 @@
   }
 
   .navCta {
-    min-height: 40px;
+    min-height: 44px;
     padding: 0 13px;
     font-size: 10px;
+  }
+
+  .brand,
+  .footerBrand {
+    min-height: 44px;
   }
 
   .hero {
@@ -1457,8 +1433,16 @@
   }
 
   .hero h1 {
-    font-size: clamp(3rem, 14.5vw, 4.6rem);
-    line-height: 0.92;
+    font-size: clamp(2.35rem, 10.7vw, 2.65rem);
+    line-height: 0.96;
+  }
+
+  .heroLine {
+    white-space: nowrap;
+  }
+
+  .inlineImage {
+    display: none;
   }
 
   .heroLead {
@@ -1543,7 +1527,7 @@
 
   .accordionItem,
   .accordionItemActive {
-    grid-template-columns: auto auto 1fr;
+    grid-template-columns: auto 1fr;
     gap: 12px;
     padding: 18px;
   }
@@ -1590,7 +1574,8 @@
   }
 
   .ctaSection h2 {
-    font-size: clamp(3.1rem, 14vw, 4.8rem);
+    font-size: clamp(2.5rem, 10vw, 2.65rem);
+    line-height: 0.98;
   }
 
   .ctaActions {
@@ -1610,6 +1595,16 @@
   .footerLinks {
     grid-template-columns: repeat(2, 1fr);
     row-gap: 44px;
+  }
+
+  .footerLinks > div {
+    gap: 0;
+  }
+
+  .footerLinks a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
   }
 
   .footerBottom {

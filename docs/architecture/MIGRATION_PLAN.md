@@ -136,6 +136,21 @@ Production entry status:
   rules in `AGENTS.md` through a separately reviewed owner-approved governance
   change. Current owner-approved architecture documents remain authoritative.
 
+### Parallel public landing QA correction
+
+Status: source candidate complete; deployment not authorized.
+
+- Preserve the accepted landing architecture and generated image; do not
+  rewrite the page.
+- Correct the 390px six-line hero to three lines, remove decorative ordinals,
+  and enforce 44px visible mobile controls.
+- Keep analytics enabled on Vercel while suppressing unavailable Vercel
+  telemetry scripts on self-hosted production builds.
+- Verify the optimized production build, 1440/768/390 overflow and typography,
+  accordion/carousel/FAQ interactions, structured data, and clean console.
+- Keep Vercel Git disconnected. Publish source only after all local gates pass;
+  request no paid build until the user explicitly approves the disclosed cost.
+
 ### M2 — Remove unauthorized worker writes
 
 Status: next.

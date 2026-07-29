@@ -387,3 +387,23 @@ matches the repository migration contract:
 - Exact next action: obtain explicit approval for the unused canary email,
   complete normal signup and confirmation, create one non-critical Project,
   then require a zero-blocker read-only cutover plan.
+
+## Public landing mobile QA correction candidate
+
+- A fresh live audit verified canonical metadata, index/follow directives,
+  Organization, SoftwareApplication, and FAQPage JSON-LD, robots, sitemap,
+  manifest, health, and readiness. The live frontend remains deployment
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` at source revision `f24e5603a355`.
+- The live 390px hero renders six visual lines and several mobile links are
+  shorter than the product's 44px control target. Decorative ordinal labels
+  also remain in capability, workflow, and FAQ surfaces.
+- The local release candidate constrains the mobile H1 to exactly three visual
+  lines, removes decorative ordinal labels, preserves functional carousel
+  position, and gives every visible mobile link/button/summary at least 44px.
+- Vercel Analytics now renders only when `VERCEL=1`. Self-hosted production
+  builds no longer request the unavailable `/_vercel/insights/script.js`.
+  The hero uses one high-priority responsive image request without duplicate
+  preload work.
+- This candidate changes no database, Auth, Nest, Redis, queue, tenant-routing,
+  or provider configuration. Vercel Git remains disconnected; no deployment
+  is authorized by this source work.

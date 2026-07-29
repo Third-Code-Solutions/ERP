@@ -5,6 +5,9 @@
 - **Target file:** `apps/web/src/components/marketing/third-code-landing.tsx`
 - **Styles:** `apps/web/src/components/marketing/third-code-landing.module.css`
 - **Image:** `apps/web/public/images/third-code-erp-hero.png`
+- **Desktop evidence:** `docs/design-references/third-code-landing-desktop-2026-07-29.png`
+- **Tablet evidence:** `docs/design-references/third-code-landing-tablet-2026-07-29.png`
+- **Mobile evidence:** `docs/design-references/third-code-landing-mobile-2026-07-29.png`
 - **Interaction model:** scroll, hover, focus, and click
 
 ## Brand system
@@ -22,9 +25,11 @@
 - H1 width: `max-width: 72rem`
 - H1 size: `clamp(3rem, 5vw, 5.5rem)`
 - Maximum three lines at supported widths
+- Exactly three measured visual lines at 1440px, 768px, and 390px
 - Left-aligned copy with right/lower-right media composition
 - Two actions: `Start guided setup`, `Open workspace`
 - No badges, raw metrics, or floating stamps
+- Decorative inline heading image hidden at 700px and below
 
 ## Bento density
 
@@ -46,7 +51,8 @@
 
 - Desktop: asymmetric hero, dense bento, horizontal accordion, stacked cards.
 - Tablet: two-column hero and bento; normal-flow workflow cards.
-- Mobile: single column; 44px minimum controls; no horizontal overflow.
+- Mobile: single column; three-line hero; 44px minimum visible controls; no
+  horizontal overflow.
 
 ## Accessibility
 
@@ -56,3 +62,5 @@
 - Reduced-motion fallback.
 - Accordion and carousel expose state through ARIA.
 - Decorative motion and marquee hidden from screen readers.
+- Capability, workflow, and FAQ surfaces use descriptive labels without
+  decorative ordinals.

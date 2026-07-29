@@ -36,6 +36,17 @@ Complete remaining M1 controls without enabling production writes:
     obsolete pnpm 9, PostgreSQL 16, tRPC, and Inngest target rules with the
     approved architecture. Do not mix that governance rewrite into canary work.
 
+## Prepared frontend release candidate
+
+- Landing mobile QA correction is source-only. Keep Vercel Git disconnected.
+- Before any frontend deployment, re-confirm zero new deployments, disclose the
+  exact provider charge, and obtain explicit user approval.
+- If approved, deploy the single reviewed green SHA once. Do not create a
+  duplicate preview and production build.
+- After deployment, repeat 1440/768/390 browser checks, metadata/JSON-LD,
+  interactions, analytics, health/readiness, console, and exact release
+  identity before calling the frontend slice complete.
+
 ## Following milestone
 
 M2: remove the Python `scope_items` direct-write path. Python returns immutable

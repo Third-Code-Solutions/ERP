@@ -25,7 +25,6 @@ type IconName =
 
 type Capability = {
   id: string
-  number: string
   title: string
   description: string
   detail: string
@@ -48,7 +47,6 @@ type TeamPriority = {
 const capabilities: Capability[] = [
   {
     id: 'find',
-    number: '01',
     title: 'Find anything',
     description: 'Search every approved record from one calm command surface.',
     detail:
@@ -57,7 +55,6 @@ const capabilities: Capability[] = [
   },
   {
     id: 'understand',
-    number: '02',
     title: 'Understand context',
     description: 'See why a number changed—not only what changed.',
     detail:
@@ -66,7 +63,6 @@ const capabilities: Capability[] = [
   },
   {
     id: 'act',
-    number: '03',
     title: 'Move work forward',
     description: 'Turn answers into reviewable next actions.',
     detail:
@@ -75,7 +71,6 @@ const capabilities: Capability[] = [
   },
   {
     id: 'prove',
-    number: '04',
     title: 'Prove every decision',
     description: 'Trace every change back to its source and approver.',
     detail:
@@ -351,7 +346,6 @@ export function ThirdCodeLanding() {
                   <Image
                     alt=""
                     fill
-                    priority
                     sizes="(max-width: 700px) 72px, 118px"
                     src="/images/third-code-erp-hero.png"
                   />
@@ -394,7 +388,8 @@ export function ThirdCodeLanding() {
               <Image
                 alt="Architectural plans, fit-out materials, and a connected operations graph in a construction workspace"
                 fill
-                priority
+                fetchPriority="high"
+                loading="eager"
                 sizes="(max-width: 900px) 100vw, 58vw"
                 src="/images/third-code-erp-hero.png"
               />
@@ -471,11 +466,8 @@ export function ThirdCodeLanding() {
               </div>
               <h3>From first conversation to final warranty.</h3>
               <div className={styles.operationFlow}>
-                {['Win', 'Estimate', 'Buy', 'Build', 'Bill', 'Support'].map((item, index) => (
-                  <span key={item}>
-                    <i>{String(index + 1).padStart(2, '0')}</i>
-                    {item}
-                  </span>
+                {['Win', 'Estimate', 'Buy', 'Build', 'Bill', 'Support'].map((item) => (
+                  <span key={item}>{item}</span>
                 ))}
               </div>
             </article>
@@ -517,7 +509,6 @@ export function ThirdCodeLanding() {
                     onMouseEnter={() => setActiveCapability(capability.id)}
                     type="button"
                   >
-                    <span className={styles.accordionNumber}>{capability.number}</span>
                     <span className={styles.accordionIcon}>
                       <ProductIcon name={capability.icon} />
                     </span>
@@ -552,7 +543,6 @@ export function ThirdCodeLanding() {
                 style={{ '--card-index': index } as CSSProperties}
               >
                 <div className={styles.workflowStage}>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
                   <strong>{card.stage}</strong>
                 </div>
                 <div>
@@ -613,12 +603,9 @@ export function ThirdCodeLanding() {
             </p>
           </div>
           <div className={styles.faqList}>
-            {landingFaqs.map((item, index) => (
+            {landingFaqs.map((item) => (
               <details key={item.question}>
-                <summary>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  {item.question}
-                </summary>
+                <summary>{item.question}</summary>
                 <p>{item.answer}</p>
               </details>
             ))}
