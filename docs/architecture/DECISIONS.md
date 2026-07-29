@@ -361,3 +361,18 @@ flow creates the audit root. Exercising normal product paths proves the
 customer onboarding boundary and avoids privileged data repair disguised as
 test setup. The only external prerequisite is an unused user-controlled email
 whose confirmation is explicitly authorized.
+
+## D-038 -- Harden privileged signup provisioning before canary use
+
+Decision: retain the Auth trigger as the atomic tenant/Admin bootstrap, but run
+its `SECURITY DEFINER` function with an empty `search_path`, fully qualify every
+relation and built-in, bound display metadata to column limits, generate a
+deterministic bounded tenant slug, and revoke direct execution from `PUBLIC`,
+`anon`, and `authenticated`. Treat `raw_user_meta_data` only as display input;
+never use it for role or capability decisions.
+
+Reason: `supabase_auth_admin` needs a definer function to create application
+rows, while an ambient path would broaden privileged name resolution. The
+normal signup trigger can block account creation if it fails, so its complete
+behavior must replay against PostgreSQL and be exercised in database tests
+before creating the dedicated canary.

@@ -42,6 +42,10 @@ Browser
 9. AI output is advisory and traceable to inputs/model/version.
 10. Existing public behavior is preserved until a replacement slice passes
     contract, integration, tenant-isolation, security, and rollback checks.
+11. Auth-triggered tenant provisioning uses a narrowly scoped
+    `SECURITY DEFINER` function with an empty `search_path`, fully qualified
+    objects, no client execution privilege, and atomic tenant/Admin creation.
+    User-editable signup metadata is display data only, never authorization.
 
 ## Nest module shape
 

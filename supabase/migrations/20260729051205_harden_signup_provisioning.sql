@@ -1,10 +1,9 @@
--- ---------------------------------------------------------------------------
--- Auto-provision a workspace + profile row for every new auth user.
+-- Harden Auth-triggered tenant provisioning.
 --
--- Signup inserts into auth.users. This trigger atomically creates one tenant
--- and same-ID Admin profile. SECURITY DEFINER is required because
--- supabase_auth_admin cannot write the application tables directly.
--- ---------------------------------------------------------------------------
+-- SECURITY DEFINER is required because supabase_auth_admin cannot write the
+-- application profile tables directly. Empty search_path plus fully-qualified
+-- relations and functions prevents privileged name resolution through an
+-- unintended schema.
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -82,7 +81,6 @@ begin
     base_slug := 'workspace';
   end if;
 
-  -- Stable UUID-derived suffix keeps retries deterministic.
   final_slug :=
     base_slug
     || '-'
@@ -114,11 +112,6 @@ begin
   return new;
 end;
 $$;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
 
 revoke execute on function public.handle_new_user()
   from public, anon, authenticated;
