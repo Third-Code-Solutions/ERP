@@ -372,6 +372,13 @@ matches the repository migration contract:
 - Supabase advisors report no finding tied to `organization_type`,
   `tenants_organization_type_check`, or `handle_new_user`. The pre-existing
   advisor backlog remains open.
+- Source commit `828b63f90f13f6ff735a2b972781a69fa7ffcf2f` is synchronized
+  to `main` and `agent-02/third-code-erp-landing` under `kurtgav`.
+- Railway deployment `f480586e-fe8d-4214-a33e-7bfdaaa5f38c` succeeded from
+  that exact commit. `/health` and `/ready` return HTTP 200; PostgreSQL and
+  Redis both report `ok`.
+- Vercel Git remains disconnected and recorded zero deployments after source
+  publication.
 - No Auth user, email, Project, provider variable, or Vercel deployment was
   created. Project routing remains disabled and the allowlist remains empty.
 - Exact next action: obtain explicit approval for the unused canary email,
