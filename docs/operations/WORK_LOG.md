@@ -2451,11 +2451,84 @@ Rollback and unresolved:
 - Production success-path proof requires a newly created controlled signing
   session because it writes official signature, document, source, and audit
   state. Do not use historical demo records.
-- System RFQ creation still uses a fabricated zero-UUID actor and non-atomic
-  create/audit path; schedule separate correction rather than mixing it into
-  public signing.
+- RFQ auto-dispatch integrity is recorded in the following milestone.
 - Public signing authority remains in Next.js pending incremental NestJS
   migration.
 - Live activation still requires one explicitly approved consolidated queued
   Standard Vercel build.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Atomic RFQ auto-dispatch integrity
+
+Outcome:
+
+- Found a browser-callable RFQ creation path that accepted caller-supplied
+  system tenant authority, used a fabricated zero-UUID actor, and committed
+  RFQ and audit independently.
+- Found that BOM approval emitted `bom/approved` while the consumer listened
+  only for `bom/internal_approved`; automatic RFQ creation was not wired.
+- Replaced both paths with a server-only, tenant-scoped transaction service.
+- Added BOM row locking, actor revalidation, one-result retry semantics,
+  transactional audit, and post-commit notification.
+- Added a unique tenant/BOM RFQ key and validated tenant-composite BOM foreign
+  key.
+- Removed direct browser insert, update, and delete privileges from RFQs and
+  quotes while preserving authenticated tenant-scoped reads.
+- Applied forward migrations `20260729152059` and `20260729153620` to Supabase
+  project `aqqrtkmtcsfkbyyqxowv`. Hosted state is current at 53/53; RFQ count,
+  quote count, and duplicate count remain zero.
+- No Vercel deployment was created. Visible UI and copy are unchanged.
+
+Changed files:
+
+- `apps/web/src/app/(dashboard)/procurement/rfqs/actions.ts`
+- `apps/web/src/app/(dashboard)/procurement/rfqs/actions.test.ts`
+- `apps/web/src/app/(dashboard)/projects/[id]/bom/actions.ts`
+- `apps/web/src/lib/inngest-rfq.ts`
+- `apps/web/src/lib/inngest-rfq.test.ts`
+- `apps/web/src/lib/procurement/rfq-service.ts`
+- `apps/web/src/lib/procurement/rfq-service.test.ts`
+- `packages/database/src/schema/bom-extras.ts`
+- `packages/database/src/schema/boms.ts`
+- `packages/database/src/__tests__/rfq-transaction-integrity.test.ts`
+- `supabase/migrations/20260729152059_rfq_transaction_integrity.sql`
+- `supabase/migrations/20260729153620_close_rfq_browser_writes.sql`
+- `docs/research/components/rfq-auto-dispatch-integrity.spec.md`
+- the six architecture/operations memory files
+- `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`
+
+Validation:
+
+- Focused RFQ Web suites -- 15/15 pass.
+- RFQ Drizzle contract suite -- 5/5 pass.
+- Root lint, typecheck, test, and production build -- pass.
+- Root tests -- 433 application tests pass.
+- Next production build -- 77/77 static-generation steps.
+- Disposable PostgreSQL 17/Redis 7.4.9 lane -- 53/53 migrations and 228/228
+  database assertions with zero skips; schema fingerprint stable.
+- Hosted migration plan -- current at 53/53 with no missing or unexpected
+  versions.
+- gitleaks 8.30.1, actionlint 1.7.12, action-reference checks, diff checks, and
+  prohibited external ERP source/brand scan -- pass.
+- Source commit `f173957559a93eb724daf9eeed3fbbb1c4576baf` -- pushed to
+  both repository refs under `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway deployment `94c78bd2-327a-4f6a-a49e-1d77195d850d` -- SUCCESS for
+  the exact source SHA; live `/health` and `/ready` pass with database and
+  Redis `ok`.
+- Vercel -- Git remains disconnected and zero deployments exist after retained
+  READY deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- GitHub Actions run `30467875222` -- Actionlint failed before any step started
+  because of the account payment/spending-limit restriction; all dependent
+  jobs skipped with zero executed steps.
+
+Rollback and unresolved:
+
+- Revert application source commit `f173957` only if necessary. Do not undo the
+  live integrity migrations; correct them with a reviewed forward migration.
+- RFQ quote logging, completion, and cancellation still split status/quote
+  writes from audit and need their own row-locked transaction slice.
+- RFQ transaction authority remains transitional Next.js code pending
+  incremental NestJS migration.
+- Frontend activation still requires one explicitly approved consolidated
+  queued Standard Vercel build.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.

@@ -477,3 +477,22 @@ reach through each other's internals.
 - This safe Next.js authority is transitional. The public signing command must
   move behind NestJS incrementally without weakening the token, transaction,
   tenant, audit, replay, or cleanup invariants.
+
+## RFQ dispatch integrity boundary
+
+- BOM-to-RFQ creation produces at most one official RFQ per tenant/BOM.
+- Browser input never supplies system mode, tenant, actor, or role. Manual
+  dispatch derives all authority from the authenticated server profile.
+- Background dispatch accepts only a trusted queue event and revalidates any
+  initiating actor against the event tenant before audit attribution.
+- BOM lock, retry check, tenant-scoped line/rate lookup, RFQ insert, and audit
+  share one database transaction.
+- Database uniqueness and a tenant-composite BOM foreign key remain the final
+  retry and cross-tenant integrity boundary.
+- Notification is post-commit and independently retryable. Replaying an
+  already committed dispatch emits no duplicate audit or notification.
+- Browser database roles may read authorized RFQ state but cannot mutate RFQs
+  or quotes directly.
+- The transitional Next.js service must move behind NestJS incrementally
+  without weakening transaction, idempotency, tenancy, permission, actor, or
+  audit invariants.
