@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@third-code-erp/config": "workspace:*",
+    "@third-code-erp/shared-types": "workspace:*",
     "@types/node": "^22.0.0",
     "drizzle-kit": "^0.30.5",
     "typescript": "^5.7.2",

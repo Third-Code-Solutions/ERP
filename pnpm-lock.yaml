@@ -255,6 +255,9 @@ importers:
       '@third-code-erp/config':
         specifier: workspace:*
         version: link:../config
+      '@third-code-erp/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.18

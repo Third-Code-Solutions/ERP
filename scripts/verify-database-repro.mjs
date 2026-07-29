@@ -324,6 +324,15 @@ const requiredPurchaseOrderStatuses = [
   'fully_delivered',
 ]
 
+const requiredOrganizationTypes = [
+  'construction',
+  'developer',
+  'design-engineering',
+  'supply-manufacturing',
+  'professional-services',
+  'other',
+]
+
 const requiredTriggers = [
   ['auth.users', 'on_auth_user_created'],
   ['public.projects', 'cortex_mirror_projects'],
@@ -800,6 +809,33 @@ try {
       const actual = rows.map((row) => row.enumlabel)
       return `expected=[${requiredPurchaseOrderStatuses.join(',')}], actual=[${actual.join(',')}]`
     }
+  )
+
+  await query(
+    'tenant organization type contract is constrained and validated',
+    `select
+       column_info.is_nullable,
+       column_info.column_default,
+       constraint_info.convalidated,
+       pg_get_constraintdef(constraint_info.oid, true) as definition
+     from information_schema.columns column_info
+     join pg_constraint constraint_info
+       on constraint_info.conrelid = 'public.tenants'::regclass
+      and constraint_info.conname = 'tenants_organization_type_check'
+    where column_info.table_schema = 'public'
+      and column_info.table_name = 'tenants'
+      and column_info.column_name = 'organization_type'`,
+    (rows) => {
+      const row = rows[0]
+      return rows.length === 1
+        && row.is_nullable === 'NO'
+        && /'other'/.test(row.column_default ?? '')
+        && row.convalidated === true
+        && requiredOrganizationTypes.every((value) =>
+          row.definition.includes(`'${value}'`)
+        )
+    },
+    (rows) => JSON.stringify(rows)
   )
 
   await query(

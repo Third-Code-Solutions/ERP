@@ -348,3 +348,32 @@ matches the repository migration contract:
 - Executing this path requires a new user-controlled email identity and email
   confirmation. No account was created and no email was sent during the
   read-only inspection.
+
+## M1 onboarding organization classification
+
+- Hosted Supabase is current at migration
+  `20260729054456_persist_signup_organization_type.sql` (50/50).
+- Signup organization type now uses one shared six-value catalog across the
+  Next.js form, TypeScript domain contract, Drizzle schema, database trigger,
+  migration, and reproducibility verifier.
+- `public.tenants.organization_type` is `NOT NULL`, defaults to `other`, and is
+  protected by a validated check constraint. The two existing demo tenants
+  were safely backfilled to `other`.
+- Signup metadata is normalized through a database whitelist. Unknown or
+  tampered values become `other`; the value grants no role, capability, or
+  tenant access.
+- Hosted counts remain 13 Auth users, 13 application profiles, and 2 tenants.
+  `handle_new_user()` retains `search_path=""`; client execution remains
+  denied; `service_role` execution and the enabled Auth trigger remain intact.
+- Validation is green: root lint, typecheck, tests, and production build;
+  50-migration PostgreSQL 17 replay; 220/220 database tests with zero skips;
+  Nest database integration; release/cutover planners; Actionlint; pinned
+  action references; Gitleaks; and diff hygiene.
+- Supabase advisors report no finding tied to `organization_type`,
+  `tenants_organization_type_check`, or `handle_new_user`. The pre-existing
+  advisor backlog remains open.
+- No Auth user, email, Project, provider variable, or Vercel deployment was
+  created. Project routing remains disabled and the allowlist remains empty.
+- Exact next action: obtain explicit approval for the unused canary email,
+  complete normal signup and confirmation, create one non-critical Project,
+  then require a zero-blocker read-only cutover plan.

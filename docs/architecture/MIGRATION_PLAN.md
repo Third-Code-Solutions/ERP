@@ -94,6 +94,11 @@ Production entry status:
   function path, fully qualified objects, deterministic bounded slugs, bounded
   display metadata, and direct execution revoked from client roles. Hosted
   identity/tenant counts remained unchanged.
+- Complete onboarding classification persistence: applied
+  `20260729054456`, added a constrained non-authoritative tenant organization
+  type, safely backfilled existing tenants to `other`, and aligned the shared
+  catalog across Web, TypeScript, Drizzle, trigger SQL, tests, and the database
+  verifier. Hosted identity/tenant counts remained unchanged.
 - Complete emergency route proof: authenticated Admin `/dashboard` hard reload
   renders KPI and Risk Signals content with zero browser-console errors;
   Vercel records successful route requests and zero runtime errors in the
@@ -123,6 +128,10 @@ Production entry status:
   credential files were erased.
 - Keep `ERP_PROJECT_WRITES_VIA_API=false` and the tenant allowlist empty until
   the dedicated canary passes the read-only cutover planner.
+- Exact next action: after explicit email approval, exercise normal signup and
+  confirmation, create one reversible non-critical Project, and require a
+  zero-blocker planner result. Do not enable routing or request a paid Vercel
+  build before that evidence exists.
 
 ### M2 — Remove unauthorized worker writes
 

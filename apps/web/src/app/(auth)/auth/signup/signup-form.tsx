@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from 'react'
 import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
+import { isOrganizationType } from '@third-code-erp/shared-types'
 import { useRouter } from 'next/navigation'
+import { ORGANIZATION_TYPE_OPTIONS } from './signup-options'
 
 export function SignupForm() {
   const supabase = createSupabaseBrowserClient()
@@ -24,7 +26,12 @@ export function SignupForm() {
     const password = (form.elements.namedItem('password') as HTMLInputElement).value
     const confirm = (form.elements.namedItem('confirm') as HTMLInputElement).value
 
-    if (!fullName || !companyName || !organizationType || !email.includes('@')) {
+    if (
+      !fullName
+      || !companyName
+      || !isOrganizationType(organizationType)
+      || !email.includes('@')
+    ) {
       setError('Complete every field before creating your account.')
       return
     }
@@ -151,12 +158,11 @@ export function SignupForm() {
           defaultValue=""
         >
           <option disabled value="">Choose one</option>
-          <option value="construction">Construction contractor</option>
-          <option value="developer">Property owner or developer</option>
-          <option value="design-engineering">Design or engineering</option>
-          <option value="supply-manufacturing">Supply or manufacturing</option>
-          <option value="professional-services">Professional services</option>
-          <option value="other">Other project-driven business</option>
+          {ORGANIZATION_TYPE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </div>
 
