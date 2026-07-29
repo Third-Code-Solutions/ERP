@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
 import { cortexDescribeEntity, getCortexNodeByRef } from '@third-code-erp/database'
+import {
+  cortexEntityDefinition,
+  isCortexRefTable,
+} from '@/lib/cortex/href'
 import { cortexCanSeeType, cortexNodeTypeScope } from '@/lib/cortex/rbac'
 
 /**
@@ -14,40 +18,10 @@ import { cortexCanSeeType, cortexNodeTypeScope } from '@/lib/cortex/rbac'
  * human (spec §7).
  */
 
-// Every table Cortex mirrors into the graph is queryable.
-const REF_TABLES = [
-  'projects',
-  'accounts',
-  'users',
-  'opportunities',
-  'documents',
-  'boms',
-  'purchase_orders',
-  'invoices',
-  'daily_tasks',
-  'vendors',
-  'scope_items',
-  'contacts',
-  'permits',
-  'variation_orders',
-  'progress_claims',
-  'warranty_tickets',
-  'delivery_schedules',
-  'rfqs',
-  'contracts',
-  'certificates_of_completion',
-  'punchlist_items',
-  'site_inspections',
-  'design_files',
-  'change_requests',
-  'master_schedules',
-  'material_items',
-  'weekly_reports',
-  'pre_con_checklist_items',
-] as const
-
 const paramsSchema = z.object({
-  refTable: z.enum(REF_TABLES),
+  refTable: z
+    .string()
+    .refine(isCortexRefTable, 'Unsupported Cortex reference table'),
   refId: z.string().uuid(),
 })
 
@@ -73,7 +47,15 @@ export async function GET(
   try {
     // Resolve the node first to RBAC-gate on its type (tenant-scoped read).
     const node = await getCortexNodeByRef(profile.tenantId, refTable, refId)
-    if (!node || !cortexCanSeeType(profile.role, node.node_type)) {
+    const definition = node
+      ? cortexEntityDefinition(node.node_type)
+      : null
+    if (
+      !node ||
+      !definition ||
+      !definition.refTables.includes(refTable) ||
+      !cortexCanSeeType(profile.role, node.node_type)
+    ) {
       return NextResponse.json({ found: false, summary: '', citations: [] }, { status: 404 })
     }
     // RBAC: neighbors/citations in the pack are also scoped to the role, so an

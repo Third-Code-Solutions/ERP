@@ -55,6 +55,11 @@ Complete remaining M1 controls without enabling production writes:
   atomic document/audit creation, reversible deletion, deletion audit, and
   post-commit Storage cleanup. Do not exercise destructive proof against
   historical demo documents and do not buy another build.
+- Include the canonical Cortex registry in that same reviewed SHA. After
+  deployment, use authorized Admin, finance, procurement, estimator, sales,
+  and viewer sessions to verify graph filtering, citation labels, record
+  navigation, finance/inventory entity context, and non-enumerating denial.
+  Do not buy a separate build for this source-only consistency change.
 
 ## Following milestone
 

@@ -474,3 +474,23 @@ matches the repository migration contract:
 - No UI, schema, hosted data, Auth, Storage object, queue, provider setting, or
   deployment changed. Live Vercel retains the prior behavior until one
   explicitly approved consolidated production build.
+
+## Cortex canonical entity registry candidate
+
+- PostgreSQL and Drizzle define 48 Cortex node types. The hosted graph currently
+  has 385 active nodes across 14 of those types.
+- Cortex metadata had drifted across separate maps: role scope covered 43
+  types, graph labels/colors covered 28, navigation covered fewer, and the
+  entity endpoint accepted only the older source-table set.
+- Source now has one exhaustive 48-type registry for display labels, colors,
+  role access paths, source-table ownership, and canonical record navigation.
+- Four reserved enum values with no UUID-backed mirror table are explicit
+  non-queryable definitions; no fictional source name is accepted.
+- Graph RBAC and citation labels derive from that registry. A schema-backed
+  unit test fails when a node type is added without an intentional definition.
+- Entity lookup now accepts every registered source, checks the tenant-scoped
+  node, rejects a source/type mismatch, applies the caller's role scope to the
+  context pack, and preserves a non-enumerating 404 for forbidden records.
+- No schema, hosted row, Auth identity, Storage object, provider setting, or
+  deployment changed. Live Vercel retains the old maps until one explicitly
+  approved consolidated production build.

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { CORTEX_TYPE_LABEL } from '@/lib/cortex/href'
 
 interface Citation {
   nodeId: string
@@ -25,25 +26,6 @@ type State =
 interface Props {
   refTable: string
   refId: string
-}
-
-/** Per-node-type label for citation chips — keeps the graph legible. */
-const NODE_LABELS: Record<string, string> = {
-  project: 'Project',
-  account: 'Account',
-  employee: 'Person',
-  opportunity: 'Opportunity',
-  document: 'Document',
-  bom: 'BOM',
-  purchase_order: 'PO',
-  invoice: 'Invoice',
-  warehouse: 'Warehouse',
-  stock_receipt: 'Stock Receipt',
-  stock_movement: 'Stock Movement',
-  stock_ledger_entry: 'Stock Ledger',
-  project_budget: 'Project Budget',
-  cost_code: 'Cost Code',
-  task: 'Task',
 }
 
 /**
@@ -123,7 +105,9 @@ export function CortexEntityPanel({ refTable, refId }: Props) {
             <ul className="cortex-panel__chips">
               {state.answer.citations.slice(0, 12).map((c) => (
                 <li key={c.nodeId} className="cortex-chip" title={c.title ?? c.refId}>
-                  <span className="cortex-chip__type">{NODE_LABELS[c.nodeType] ?? c.nodeType}</span>
+                  <span className="cortex-chip__type">
+                    {CORTEX_TYPE_LABEL[c.nodeType] ?? c.nodeType}
+                  </span>
                   <span className="cortex-chip__name">{c.title ?? c.refId.slice(0, 8)}</span>
                 </li>
               ))}

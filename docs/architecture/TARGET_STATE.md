@@ -228,3 +228,17 @@ reach through each other's internals.
 - M2 still adds composite database constraints and audit triggers. Application
   authority checks are immediate defense, not a substitute for database
   integrity.
+
+## Cortex entity consistency boundary
+
+- One typed registry covers every versioned Cortex node type and owns its
+  display label, color, access path, permitted source table, and record route.
+- Non-admin roles are deny-by-default for unknown types. Application graph,
+  entity lookup, citations, and record navigation use the same registry.
+- Entity lookup first resolves a tenant-scoped node, then verifies that the
+  node type owns the requested source before retrieval. Forbidden and
+  mismatched records use the same non-enumerating 404 response.
+- Registry completeness is checked against the database enum contract.
+- Application filtering supplements PostgreSQL RLS and database authorization;
+  it never replaces them. Any new node type requires coordinated database
+  policy, mirror, registry, route, and test changes.

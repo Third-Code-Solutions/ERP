@@ -517,3 +517,30 @@ Rollback: revert the capability, route/action guards, transactional audit
 helper, and tests together. No schema or provider rollback is required for the
 source candidate. If deployed, promote the prior Vercel artifact; do not grant
 mutation authority to `viewer` as an outage workaround.
+
+## D-045 -- Cortex entity behavior comes from one exhaustive registry
+
+Decision: define every versioned Cortex node type once with its display label,
+color, role access path, permitted source table, and canonical record route.
+Derive graph RBAC, citation labels, navigation, and entity-source validation
+from that registry. Resolve the node by authenticated tenant before checking
+source ownership and role access. Return the same 404 for missing, mismatched,
+and forbidden records.
+
+Reason: independent partial maps silently drifted as finance and inventory
+types were added. That produced inconsistent visibility, generic labels,
+missing record links, and an entity endpoint that could not describe newer
+records. A source/type ownership check also prevents one registered source
+name from being paired with a node of another type.
+
+Validation: require exact registry equality with the 48-value Drizzle enum,
+metadata and route checks for every type, registered/unregistered source tests,
+finance-source compatibility, forbidden-role and source/type mismatch tests,
+full lint/typecheck/test/build gates, and local production health/readiness and
+unauthenticated-boundary smoke.
+
+Rollback: revert the registry, compatibility re-export, derived RBAC, entity
+route guard, shared citation labels, and tests together. No schema, data,
+Storage, Auth, queue, or provider rollback is required. If deployed, promote
+the prior Vercel artifact; never reconnect Git or purchase a separate rollback
+build when an existing artifact can be promoted.

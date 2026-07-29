@@ -232,3 +232,16 @@ Status: source candidate complete; deployment not authorized.
 - Preview runtime, database, queue, and logs verified.
 - Feature flag, rollback procedure, and data-reconciliation query exercised.
 - Current-state, decisions, work log, and next action updated.
+
+## Parallel Cortex consistency slice
+
+- Keep one 48-type application registry aligned with the versioned database
+  enum.
+- Derive graph scope, entity-source validation, display metadata, and record
+  navigation from the registry instead of maintaining independent maps.
+- Preserve tenant-scoped node resolution, non-enumerating permission denial,
+  and role-filtered citations.
+- Add each future entity only with its source mirror, database authorization,
+  application route, and enum-completeness tests.
+- Activate this source candidate only in the next explicitly approved
+  consolidated Vercel build; do not buy a separate build.
