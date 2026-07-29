@@ -5,7 +5,7 @@
 Await explicit approval for one manual queued Standard Vercel production build:
 
 1. Use exact candidate
-   `e99b88fd232957ec8a224968ecb63441a2eab9d9`.
+   `f173957559a93eb724daf9eeed3fbbb1c4576baf`.
 2. Keep Vercel Git disconnected. Do not create a preview.
 3. Reconfirm zero deployments after retained production
    `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
@@ -27,7 +27,7 @@ Await explicit approval for one manual queued Standard Vercel production build:
 
 Complete remaining M1 controls without enabling production writes:
 
-1. Treat hosted Supabase migration `20260729115110` as the current 51/51
+1. Treat hosted Supabase migration `20260729153620` as the current 53/53
    baseline. Do not replay it or edit applied migration history.
 2. Treat organization type as constrained tenant profile data only. Never use
    it for roles, capabilities, memberships, approvals, or tenant access.
@@ -135,6 +135,11 @@ Complete remaining M1 controls without enabling production writes:
   document linkage, replay denial, and compensating Storage cleanup. Do not
   exercise destructive proof against existing signatures and do not buy a
   separate build.
+- Include atomic RFQ auto-dispatch in that same reviewed SHA. Verify one
+  controlled same-tenant approval creates one RFQ and one audit, a replay
+  returns the same RFQ without duplicate notification, direct browser writes
+  remain denied, and the current/manual compatibility contract is preserved.
+  Do not buy a separate build.
 
 ## Following milestone
 
@@ -151,15 +156,15 @@ reconciliation gates pass.
 
 ## Next unblocked integrity slice
 
-Correct `createRfqFromBom` system authority without expanding M2:
+Harden RFQ quote and terminal-state mutations without expanding M2:
 
-1. Replace fabricated zero-UUID actor with explicit nullable system actor or
-   propagated verified initiating actor.
-2. Commit RFQ creation and its audit in one transaction.
-3. Keep notification delivery after commit and make retries idempotent.
-4. Preserve tenant-scoped BOM/line/rate-card reads and existing manual role
-   permission.
-5. Add focused failure/retry tests before any source push.
+1. Lock the tenant-scoped RFQ before logging a quote, completing, or cancelling.
+2. Define explicit allowed state transitions and idempotent replay behavior.
+3. Tenant-validate RFQ, vendor, and material references before any write.
+4. Commit quote/status mutation and audit in one transaction.
+5. Keep notification after commit and prevent duplicate retry delivery.
+6. Add database constraints and focused failure/concurrency tests only where
+   the existing schema cannot enforce the required tenant boundary.
 
 ## Do not start yet
 

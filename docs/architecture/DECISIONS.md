@@ -905,3 +905,30 @@ provider no-deployment evidence.
 Rollback: revert source commit `e99b88f`. No schema or provider rollback is
 required because the candidate is not deployed. Rollback restores the
 unaudited partial-write and replay risks and therefore is emergency-only.
+
+## D-061 -- RFQ dispatch is tenant-locked and retry-idempotent
+
+Decision: derive manual RFQ authority from the authenticated server profile and
+route background approval events through a server-only service. Lock the
+tenant-scoped BOM, detect a prior result, create the RFQ, and write its audit
+inside one transaction. Enforce one RFQ per tenant/BOM with database
+uniqueness and a tenant-composite BOM foreign key. Deliver notification only
+after commit and never on an idempotent replay. Deny direct browser mutations
+to RFQs and quotes.
+
+Reason: the former browser-callable Server Action accepted a caller-provided
+system tenant, used a fabricated zero-UUID actor, and separated RFQ creation
+from audit. The producer emitted a different event from the consumer trigger,
+and retries had no durable uniqueness boundary. Browser Data API writes could
+also bypass official workflow authority.
+
+Validation: require action, service, queue-handler, and Drizzle contract tests;
+53/53 hosted migration parity; 228/228 disposable PostgreSQL 17 database tests;
+full lint, typecheck, test, and production build; direct privilege proof;
+secret/workflow/prohibited-source scans; successful Railway readiness; and zero
+new Vercel deployments.
+
+Rollback: application rollback is source commit `f173957`. The database
+migrations are forward-only because they close cross-tenant, duplicate, and
+browser-write risks. A later corrective migration may change the contract only
+after an explicit compatibility and security review.

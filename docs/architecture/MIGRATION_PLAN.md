@@ -338,6 +338,25 @@ Status: source candidate complete; deployment not authorized.
 - Activate only in the next explicitly approved consolidated Vercel build.
   Keep Git integration disconnected and do not create a separate preview.
 
+## Parallel atomic RFQ-dispatch slice
+
+Status: source and hosted database complete; frontend activation not authorized.
+
+- Preserve the browser action's `{ rfqId } | { error }` compatibility shape.
+- Remove caller-controlled system tenant authority and derive manual authority
+  from the authenticated server profile.
+- Wire current and historical BOM-approval events to one server-only
+  transaction service.
+- Lock the tenant-scoped BOM and commit retry check, RFQ creation, and audit in
+  one transaction.
+- Add tenant-composite BOM ownership and one-RFQ-per-tenant/BOM constraints.
+- Keep notification post-commit and suppress duplicate retry notification.
+- Remove direct browser write privileges for RFQs and quotes while preserving
+  authenticated tenant-scoped reads.
+- Apply only forward migrations; never edit the 53 applied migration files.
+- Move this authority into NestJS later without changing the compatibility or
+  integrity contract.
+
 ## Parallel permission-safe universal search slice
 
 Status: source candidate complete; deployment not authorized.
