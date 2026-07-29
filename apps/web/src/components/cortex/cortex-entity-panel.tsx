@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { CortexCitationList } from './cortex-citation-list'
+import { CortexEvidenceTrail } from './cortex-evidence-trail'
 import { CortexRelationshipList } from './cortex-relationship-list'
 import type { CortexEntityResponse } from '@/lib/cortex/entity-response'
 
@@ -90,6 +91,7 @@ export function CortexEntityPanel({ refTable, refId }: Props) {
           <CortexRelationshipList
             relationships={state.answer.relationships ?? []}
           />
+          <CortexEvidenceTrail evidence={state.answer.evidence ?? []} />
           <div className="cortex-panel__sources">
             <span className="cortex-panel__sources-label">
               {state.answer.citations.length} source

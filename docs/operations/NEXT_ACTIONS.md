@@ -73,6 +73,10 @@ Complete remaining M1 controls without enabling production writes:
   representative incoming/outgoing edges, origin labels, exact record links,
   unknown-edge fallback, role-downgrade omission, and responsive behavior. Do
   not buy a separate build.
+- Include the Cortex evidence trail in that same reviewed SHA. Verify mutation
+  evidence on an authorized populated record, all safe future origin labels,
+  exact newest-first order, empty state, role-downgrade/cross-tenant denial,
+  and absence of every raw provenance field. Do not buy a separate build.
 
 ## Following milestone
 

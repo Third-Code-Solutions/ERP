@@ -292,3 +292,20 @@ Status: source candidate complete; deployment not authorized.
   Keep Git integration disconnected and do not create a separate preview.
 - After activation, verify representative incoming/outgoing edges, unknown-edge
   fallback, exact routes, role downgrades, and cross-tenant denial.
+
+## Parallel Cortex evidence-trail slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Reuse existing node provenance already loaded by the authorized context pack.
+- Cap retrieval and response at six newest events.
+- Normalize provenance server-side to safe kind, label, explanation, and ISO
+  timestamp only.
+- Never expose actor, internal reference, hash-chain, sequence, tenant, or
+  subject identifiers.
+- Render a collapsed native disclosure with 44px target, visible focus, UTC
+  timestamps, reduced-motion support, and zero horizontal overflow.
+- Activate only in the next explicitly approved consolidated Vercel build.
+  Keep Git integration disconnected and do not create a separate preview.
+- After activation, verify authorized mutation evidence, empty state, role
+  downgrade, cross-tenant denial, and raw-field absence in browser responses.

@@ -620,3 +620,29 @@ component/style, tests, and spec together. Existing summary and citation chips
 remain functional. No schema, row, Auth, Storage, queue, backend, provider, or
 data rollback is required. If later deployed, promote the retained
 last-known-good Vercel artifact without reconnecting Git.
+
+## D-049 -- Cortex provenance is normalized before browser presentation
+
+Decision: reuse node provenance already loaded by the tenant- and role-scoped
+context pack, but return only a bounded safe presentation projection. Map
+origin to user-facing kind, label, and explanation; serialize a validated ISO
+timestamp; discard every raw identity, reference, hash, and sequence field.
+Render the result through a native collapsed disclosure.
+
+Reason: provenance makes an Obsidian-like operational graph trustworthy, but
+raw rows contain actor IDs, internal references, hash-chain material, and
+global sequence values that users do not need. A server projection explains
+evidence without expanding browser authority or leaking internals.
+
+Validation: require all-origin and unknown-origin mapping tests, malformed-time
+omission, six-event bound, explicit raw-field absence, route retrieval limit,
+native disclosure render tests, full lint/typecheck/test/build gates,
+hosted aggregate coverage, local 401 proof, and 1440/768/390 interaction,
+focus, target-size, console, and overflow checks.
+
+Rollback: revert the evidence projection, route retrieval bound, disclosure
+component/style, tests, spec, and documentation together. Existing summary,
+relationship, and citation UI remains functional. No schema, row, Auth,
+Storage, queue, backend, provider, or data rollback is required. If later
+deployed, promote the retained last-known-good Vercel artifact without
+reconnecting Git.

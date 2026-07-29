@@ -72,6 +72,7 @@ export async function GET(
       refId,
       {
         neighborLimit: 12,
+        provenanceLimit: 6,
         nodeTypes: scope,
       }
     )
