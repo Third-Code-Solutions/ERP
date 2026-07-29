@@ -623,8 +623,8 @@ Next migration milestone:
 
 ## 2026-07-30 approved-BOM RFQ BullMQ milestone
 
-Status: source implementation and all local release gates complete; production
-cutover disabled.
+Status: source implementation, all local release gates, and Railway deployment
+complete; production cutover disabled.
 
 - Added the original HTTP, job, retry, dead-letter, authority, compatibility,
   and rollback contract before implementation.
