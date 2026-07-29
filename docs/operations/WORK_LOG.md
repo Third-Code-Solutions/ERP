@@ -3101,6 +3101,26 @@ Hosted database evidence:
 - Advisor additions are informational only: RLS-with-no-policy for two
   intentionally fail-closed tables and unused indexes on two empty tables.
 
+Provider evidence:
+
+- Source commit `a93da5f5025677444ca14407c98a189673c952dc` is published on
+  `main` and `agent-02/third-code-erp-landing`, authored by
+  `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway deployment `50fad0aa-8506-457a-a405-152dc31d2340` is SUCCESS for
+  that exact SHA. Image digest is
+  `sha256:50d598e279aa8d6b3681a0f2a230ed46d682bdc80e0802ff9bd81023dbd11a55`.
+- Live `/health` and `/ready` return 200; PostgreSQL and Redis report `ok`.
+  Anonymous dispatch returns 401. Deployment error logs and recent HTTP 5xx
+  logs are empty.
+- Railway has no automatic-dispatch, notification-sweep, or email-delivery
+  variables. The new path is inert and creates no scheduled provider work.
+- GitHub Actions run `30499929834` failed before executing a step. Actionlint
+  has zero steps and every dependent job is skipped because the hosted account
+  billing restriction remains.
+- Vercel project `thirdcode-erp` reports zero deployments after retained
+  production deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`, baseline
+  timestamp `1785295180454`. Git remains disconnected.
+
 Rollback and unresolved:
 
 - Keep automatic routing, its tenant allowlist, and recovery scheduling

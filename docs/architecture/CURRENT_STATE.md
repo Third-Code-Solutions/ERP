@@ -1167,5 +1167,16 @@ matches the repository migration contract:
   indexes. Existing unrelated warnings remain tracked.
 - Production automatic dispatch, tenant allowlist, and notification recovery
   flags remain disabled. Existing Inngest behavior remains authoritative.
+- Source commit `a93da5f5025677444ca14407c98a189673c952dc` is published on
+  both GitHub refs under `kurtgav` and is live on Railway as successful
+  deployment `50fad0aa-8506-457a-a405-152dc31d2340`, image
+  `sha256:50d598e279aa8d6b3681a0f2a230ed46d682bdc80e0802ff9bd81023dbd11a55`.
+- Live `/health` and `/ready` return 200; readiness reports PostgreSQL and
+  Redis `ok`. Anonymous dispatch returns 401. Deployment error logs and recent
+  HTTP 5xx logs are empty.
+- GitHub Actions run `30499929834` executed zero steps because the hosted
+  Actionlint job could not start; all dependent jobs were skipped. Local and
+  disposable evidence remains authoritative.
 - No React/UI, Python, Storage, or Vercel deployment changed. Vercel Git
-  remains disconnected.
+  remains disconnected; Vercel reports zero deployments after retained
+  baseline timestamp `1785295180454`.

@@ -658,8 +658,8 @@ Next migration milestone:
 
 ## 2026-07-30 RFQ notification outbox milestone
 
-Status: implementation, hosted schema, and local release gates complete;
-production routing disabled.
+Status: implementation, hosted schema, local release gates, and Railway
+deployment complete; production routing disabled.
 
 - Added the original outbox, delivery state-machine, retry, provider
   idempotency, compatibility, and rollback contract before implementation.
