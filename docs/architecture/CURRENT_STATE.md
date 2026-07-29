@@ -600,7 +600,12 @@ matches the repository migration contract:
 - Tablet and mobile flow the drawer below the graph. The shell collapses to an
   icon navigation rail below 700px. Authenticated production-build QA at
   1440, 768, and 390 found zero page overflow and zero console/page errors.
-- No schema, business row, password, Storage object, queue, provider setting,
-  or deployment changed. Hosted Supabase supplied read-only record evidence;
-  gated E2E used one-time test sessions and globally revoked them afterward.
-  Vercel retained `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- No schema, business row, password, Storage object, queue, or provider setting
+  changed. Hosted Supabase supplied read-only record evidence; gated E2E used
+  one-time test sessions and globally revoked them afterward. Vercel retained
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- Source commit `5ed6984d789dcc62bffc6a61f2e16fe759e281b7` reached both
+  the working branch and `main`. Because `packages/database` is watched,
+  Railway deployment `dd9f0f50-e8bd-4411-a49b-ffea0984030a` built and
+  activated successfully; live health and readiness are 200 with PostgreSQL
+  and Redis `ok`.

@@ -42,8 +42,17 @@ compatible.
 - Repository-wide prohibited external ERP source/brand scan: zero findings.
 - Vercel: zero new deployments; retained production deployment
   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- GitHub: commit `5ed6984d789dcc62bffc6a61f2e16fe759e281b7`
+  published to the working branch and `main`. Hosted Actions run
+  `30447346925` failed before any step started because of account
+  billing/spending status.
+- Railway: deployment `dd9f0f50-e8bd-4411-a49b-ffea0984030a` succeeded for
+  the exact source commit. Live `/health` and `/ready` are 200; PostgreSQL and
+  Redis both report `ok`.
 
 ## Rollback
 
-Revert this changeset's source and documentation together. No schema, business
-data, Storage, queue, provider configuration, or deployed artifact changed.
+Revert this changeset's source and documentation together. A source revert
+touching `packages/database` creates one Railway rollback build; verify its
+health, readiness, and revision. No schema, business-data, Storage, queue, or
+provider-configuration rollback is required. Vercel remains unchanged.
