@@ -51,3 +51,33 @@ export function cortexAgentContextLabel(
     CORTEX_TYPE_LABEL[context.nodeType] ?? humanize(context.nodeType)
   return context.title ? `${context.title} · ${typeLabel}` : typeLabel
 }
+
+interface CortexConversationSearchItem {
+  title: string | null
+  context: CortexAgentContext | null
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLocaleLowerCase()
+    .trim()
+}
+
+export function filterCortexConversations<
+  T extends CortexConversationSearchItem,
+>(conversations: readonly T[], query: string): T[] {
+  const terms = normalizeSearch(query).split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return [...conversations]
+
+  return conversations.filter((conversation) => {
+    const contextLabel = conversation.context
+      ? cortexAgentContextLabel(conversation.context)
+      : 'Company-wide'
+    const haystack = normalizeSearch(
+      `${conversation.title ?? 'Untitled'} ${contextLabel}`
+    )
+    return terms.every((term) => haystack.includes(term))
+  })
+}

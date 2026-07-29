@@ -124,6 +124,12 @@ Production entry status:
   authenticated page/record authorization, deterministic no-write deep-link
   browser restore, responsive overflow checks, clean console, and global
   one-time-session revocation.
+- Complete in source: local keyboard-first search over the existing 30
+  authorized recent conversations using title and human record-scope labels.
+  The UI names the bounded recent scope and exposes no internal identifiers.
+- Complete local proof: helper/component tests, full repository gates,
+  authenticated mobile search/clear/deep-link browser QA, no overflow or
+  console errors, and global one-time-session revocation.
 - Complete emergency route proof: authenticated Admin `/dashboard` hard reload
   renders KPI and Risk Signals content with zero browser-console errors;
   Vercel records successful route requests and zero runtime errors in the
@@ -355,3 +361,18 @@ Status: source candidate complete; deployment not authorized.
 - After activation, verify Admin and restricted-role focus, role downgrade,
   cross-tenant denial, invalid focus, exact backlink navigation, and
   1440/768/390 console/overflow behavior.
+
+## Parallel Cortex recent-conversation search slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Filter only the existing bounded authorized history response; do not expand
+  the API, database query, or retention boundary.
+- Match case- and diacritic-insensitively across conversation title and human
+  scope label while preserving server order.
+- Keep tenant, user, record UUID, and graph-node identifiers out of searchable
+  and visible text.
+- Show the recent-count boundary, accessible search/clear controls, bounded
+  empty state, visible focus, 44px mobile targets, and zero overflow.
+- Activate only in the next explicitly approved consolidated Vercel build.
+  Keep Git integration disconnected and do not create a separate preview.

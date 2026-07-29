@@ -1,6 +1,12 @@
 'use client'
 
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { CortexCitationList } from './cortex-citation-list'
 import {
   CORTEX_CITATIONS_HEADER,
@@ -13,6 +19,7 @@ import {
   cortexAgentContextHref,
   cortexAgentContextLabel,
   cortexConversationUrl,
+  filterCortexConversations,
   type CortexAgentContext,
 } from '@/lib/cortex/agent-context'
 
@@ -75,8 +82,10 @@ export function CortexAgent({
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyQuery, setHistoryQuery] = useState('')
   const [isRestoring, setIsRestoring] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
+  const historySearchRef = useRef<HTMLInputElement>(null)
   const initialRestoreRef = useRef<string | null>(null)
   const restoreRequestRef = useRef(0)
 
@@ -107,6 +116,10 @@ export function CortexAgent({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    if (historyOpen) historySearchRef.current?.focus()
+  }, [historyOpen])
 
   const restoreConversation = useCallback(async (id: string) => {
     const requestId = ++restoreRequestRef.current
@@ -253,6 +266,10 @@ export function CortexAgent({
   const suggestions = initialContext
     ? RECORD_SUGGESTIONS
     : COMPANY_SUGGESTIONS
+  const filteredConversations = useMemo(
+    () => filterCortexConversations(conversations, historyQuery),
+    [conversations, historyQuery]
+  )
 
   return (
     <section className="cortex-agent" aria-label="Third Code ERP Cortex">
@@ -307,10 +324,46 @@ export function CortexAgent({
 
       {historyOpen ? (
         <div className="cortex-agent__history">
-          <div className="cortex-agent__history-head">Saved conversations</div>
-          {conversations.length === 0 && <p className="cortex-agent__history-empty">No saved chats yet.</p>}
+          <div className="cortex-agent__history-head">
+            <span>Saved conversations</span>
+            <span>{conversations.length} recent</span>
+          </div>
+          <div className="cortex-agent__history-search">
+            <input
+              ref={historySearchRef}
+              type="search"
+              value={historyQuery}
+              onChange={(event) => setHistoryQuery(event.target.value)}
+              placeholder="Search recent chats"
+              maxLength={100}
+              aria-label="Search saved conversations"
+            />
+            {historyQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryQuery('')
+                  historySearchRef.current?.focus()
+                }}
+                aria-label="Clear conversation search"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {conversations.length === 0 && (
+            <p className="cortex-agent__history-empty">
+              No saved chats yet.
+            </p>
+          )}
+          {conversations.length > 0 &&
+            filteredConversations.length === 0 && (
+              <p className="cortex-agent__history-empty">
+                No recent chats match “{historyQuery.trim()}”.
+              </p>
+            )}
           <ul>
-            {conversations.map((c) => (
+            {filteredConversations.map((c) => (
               <li key={c.id}>
                 {cortexAgentContextsMatch(initialContext, c.context) ? (
                   <button

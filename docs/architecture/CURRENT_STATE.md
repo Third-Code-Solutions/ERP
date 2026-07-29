@@ -193,7 +193,7 @@ matches the repository migration contract:
 - The built API starts independently: `/health` returns 200, an unauthenticated
   Project write returns 401, and `/ready` returns 503 when its deliberately
   absent database and Redis dependencies are unavailable.
-- Fresh workspace tests pass with 376 passing tests; 134 database
+- Fresh workspace tests pass with 377 passing tests; 134 database
   cases are skipped unless a disposable database URL and capability flags are
   explicitly injected.
 - The dedicated fail-closed database lane rebuilds from all 51 migrations and
@@ -642,8 +642,9 @@ matches the repository migration contract:
   remain: one public-schema extension, callable authorization helpers,
   leaked-password protection disabled, and one RLS-enabled internal sequence
   table without a policy.
-- UI context sending and display are not implemented yet. Vercel Git remains
-  disconnected, and no frontend deployment or provider spend occurred.
+- The durable API boundary is now exercised by the source-only context,
+  deep-link, and recent-history presentation candidates below. Vercel Git
+  remains disconnected, and no frontend deployment or provider spend occurred.
 - Source commit `e948223b261b7c335ceaad85e359fec68888e84a` reached the
   working branch and `main` under `kurtgav <kurtgavin.design@gmail.com>`.
   Railway deployment `5a84fc30-2b4e-46fa-a505-0b1bb393fef4` succeeded for
@@ -703,3 +704,24 @@ matches the repository migration contract:
   console/page errors, and global session revocation passed.
 - No schema, hosted row, Auth identity, Storage object, queue, provider
   setting, Railway build, or Vercel deployment changed.
+
+## Cortex recent-conversation search candidate
+
+- Saved-conversation history now provides keyboard-first search over the
+  existing bounded list of 30 authorized recent chats. It does not imply a
+  tenant-wide or global history query.
+- Matching is case- and diacritic-insensitive. Every whitespace-separated term
+  must occur in the combined conversation title and human record-scope label.
+  Source order remains newest-first.
+- Search never indexes or renders tenant IDs, user IDs, internal graph-node
+  IDs, or canonical record UUIDs. Company-wide and record-type labels remain
+  searchable.
+- The panel shows the honest recent-count boundary, provides a 44px mobile
+  search and clear target, visible focus, bounded empty state, and no
+  horizontal overflow.
+- Authenticated local production QA verified title-plus-record filtering,
+  clear/reset, saved-chat deep-link restore, 1440/768/390 layouts, zero
+  console/page errors, and global session revocation.
+- Root lint/typecheck/build pass; 377 tests pass; Next generates 77/77 static
+  steps. No database, API, hosted row, AI call, Auth identity, Storage object,
+  queue, Railway deployment, or Vercel deployment changed.

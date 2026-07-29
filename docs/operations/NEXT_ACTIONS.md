@@ -10,9 +10,9 @@ Prepare one consolidated frontend activation, but stop before provider spend:
 4. Obtain explicit user approval before calling any deploy command.
 5. If approved, deploy exactly once without a duplicate preview.
 6. Verify authenticated Cortex scope creation/restoration, citations, focused
-   graph, saved-conversation deep links, new-chat URL cleanup, record panels,
-   landing QA, 1440/768/390 layouts, console, runtime errors, analytics, and
-   exact release identity.
+   graph, saved-conversation deep links, recent-chat search/clear, new-chat URL
+   cleanup, record panels, landing QA, 1440/768/390 layouts, console, runtime
+   errors, analytics, and exact release identity.
 7. If not approved, retain the current READY Vercel artifact and continue only
    no-cost source/backend work allowed by the standing M1 controls.
 
@@ -103,6 +103,11 @@ Complete remaining M1 controls without enabling production writes:
   denial, one-click cross-record history navigation, URL synchronization after
   create/load/new-chat, stale-response suppression, and absence of
   tenant/user/content data in URLs.
+- Include Cortex recent-conversation search in that same reviewed SHA. Verify
+  the visible recent-count boundary, title and human record-scope matching,
+  company-wide and empty states, clear/reset, keyboard focus, 44px mobile
+  targets, and absence of internal identifiers. Do not expand the API or buy a
+  separate build.
 
 ## Following milestone
 
