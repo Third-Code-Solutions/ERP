@@ -337,6 +337,23 @@ Status: source candidate complete; deployment not authorized.
 - Preserve dashboard RBAC and entity-API tenant/current-role authorization.
 - Activate only in the next explicitly approved consolidated Vercel build.
   Keep Git integration disconnected and do not create a separate preview.
+
+## Parallel permission-safe universal search slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Normalize and cap query input before role-filtered query fan-out.
+- Escape PostgreSQL `ILIKE` escape, percent, and underscore characters so
+  browser input is always literal.
+- Repeat authenticated tenant predicates on every base and joined table.
+- Preserve assignee-scoped tasks and the canonical route-based role matrix.
+- Mark every search response private/no-store and vary it on the session
+  cookie.
+- Verify helper behavior, role policy, authenticated normal and literal
+  searches, command-palette rendering, 1440/768/390 layouts, console output,
+  overflow, and global one-time-session revocation.
+- Activate only in the next explicitly approved consolidated Vercel build.
+  Keep Git integration disconnected and do not create a separate preview.
 - After activation, verify one populated and one empty record for each role
   family, exact backlinks, non-enumerating denial, and responsive behavior.
 

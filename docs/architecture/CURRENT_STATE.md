@@ -735,10 +735,10 @@ matches the repository migration contract:
 ## Cost-controlled frontend release candidate
 
 - The consolidated frontend candidate is
-  `36e618274769ef49a18974dbe3bed8f0b4db7edd`, 33 commits after retained
+  `8dc051e70d56cf3f0cde9c2f409c4f97928d337d`, 35 commits after retained
   production source `f24e5603a35571f8dcadd43fc09c64d12646a7d0`.
-- The Web delta is fully inventoried: 72 files, comprising 44 runtime files
-  and 28 test/E2E files. No Web runtime file remains unclassified.
+- The Web delta is fully inventoried: 75 files, comprising 46 runtime files
+  and 29 test/E2E files. No Web runtime file remains unclassified.
 - Vercel Git is disconnected. On-demand concurrent builds are disabled and
   the next build uses Standard 4 vCPU/8 GB. Vercel documents Standard build
   compute as no added charge in this queued configuration.
@@ -747,7 +747,7 @@ matches the repository migration contract:
 - Middleware now isolates anonymous IP buckets from authenticated user buckets.
   This prevents an authenticated burst from producing a later public 429 and
   prevents authenticated users behind one shared IP from consuming one bucket.
-- Root lint, typecheck, test, and production build pass. There are 396 passing
+- Root lint, typecheck, test, and production build pass. There are 399 passing
   application tests; Next generates 77/77 static steps. A sequential
   authenticated Cortex plus public landing browser run passes 2/2.
 - gitleaks, actionlint, diff checks, and prohibited external ERP brand/source
@@ -775,3 +775,29 @@ matches the repository migration contract:
   Railway deployment, or Vercel deployment changed.
 - Source commit `36e618274769ef49a18974dbe3bed8f0b4db7edd` is on both
   repository refs under `kurtgav <kurtgavin.design@gmail.com>`.
+
+## Permission-safe universal search candidate
+
+- Query text is trimmed and capped at 100 characters before any database
+  fan-out. PostgreSQL `ILIKE` control characters (`\`, `%`, and `_`) are
+  escaped so browser input remains literal text.
+- Record-type queries are built only after canonical role authorization.
+  Restricted viewers can search tenant documents and their own assigned tasks;
+  they cannot infer Finance, Pipeline, procurement, or other forbidden data.
+- Every base record remains tenant-scoped. Opportunity-account and BOM-project
+  joins now repeat the authenticated tenant predicate on the joined table,
+  matching the defense-in-depth already used by later joins.
+- Every response, including 401 and short-query responses, is explicitly
+  `private, no-store` and varies on the session cookie.
+- Unit coverage proves normalization, literal pattern construction, response
+  caching, and the existing role matrix.
+- Authenticated local browser QA found a real tenant document, returned only
+  viewer-authorized result types, proved a literal `%`, `_`, and backslash
+  probe, opened the result in the command palette, and repeated the dashboard
+  at 1440, 768, and 390 without overflow or console/page errors. The one-time
+  session was revoked globally.
+- Source commit `8dc051e70d56cf3f0cde9c2f409c4f97928d337d` is on both
+  repository refs. Railway skipped deployment
+  `37ee8021-9037-4f4c-b0d9-cf9219699c25`; Vercel created no deployment.
+- No schema, hosted row, Auth identity, Storage object, queue, AI call, active
+  Railway build, or Vercel build changed.

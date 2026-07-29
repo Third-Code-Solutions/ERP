@@ -834,3 +834,26 @@ tests, specification, and documentation together. Existing executive
 dashboard behavior returns for all roles, so rollback is functional but
 reopens the identified authorization exposure. No schema or provider rollback
 is required.
+
+## D-058 -- Search input is literal and every join repeats tenant scope
+
+Decision: normalize search input once, cap it at 100 characters, and escape
+PostgreSQL `ILIKE` escape, percent, and underscore characters. Build only
+role-authorized record queries. Apply authenticated tenant predicates to both
+base and joined tables, preserve assignee scoping for tasks, and mark every
+response private/no-store with Cookie variation.
+
+Reason: search fans one browser-controlled string across many record types.
+An unescaped backslash can change wildcard semantics, an unscoped display join
+can expose a foreign tenant label when application credentials bypass RLS, and
+a cached response can retain user-specific result metadata.
+
+Validation: require helper and role-matrix tests, 401/short-query cache-header
+tests, full lint/typecheck/test/build, secret/workflow/prohibited-source scans,
+and an authenticated restricted-role browser proof using both a real authorized
+record and a literal wildcard probe. Require zero forbidden result types,
+overflow, console errors, page errors, and a globally revoked one-time session.
+
+Rollback: revert source commit `8dc051e`. No schema or provider rollback is
+required because the candidate is not deployed. Rollback restores prior search
+behavior and therefore reopens the identified input, join, and cache risks.
