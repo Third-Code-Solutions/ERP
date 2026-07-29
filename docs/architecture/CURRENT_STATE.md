@@ -941,3 +941,16 @@ matches the repository migration contract:
 - Railway deployment `733f1197-344a-41d9-ad95-af4fda876242` is SUCCESS for
   that docs head and serves the RFQ source commit. Live `/health` returns
   `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
+
+## 2026-07-30 RFQ quote NestJS adapter
+
+- NestJS now exposes original endpoint
+  `POST /v1/procurement/rfqs/:rfqId/quotes` with strict shared contracts,
+  Supabase JWT identity, `rfq.dispatch`, tenant predicates, row/advisory locks,
+  exact retry semantics, explicit terminal-state rejection, and atomic
+  semantic audit evidence.
+- Next.js keeps the existing writer by default. The Nest path requires exact
+  flag `ERP_RFQ_QUOTE_WRITES_VIA_API=true` and an explicit UUID tenant
+  allowlist; enabled failures are fail-closed with no legacy fallback.
+- Complete/cancel commands remain in the existing Next.js transaction service.
+- No database migration or provider environment change was required.

@@ -364,6 +364,19 @@ Status: source candidate complete; deployment not authorized.
 - Activate only in the next explicitly approved consolidated Vercel build.
   Keep Git integration disconnected and do not create a separate preview.
 
+## Milestone: inert NestJS RFQ quote command
+
+Status: implementation and local validation complete; activation not authorized.
+
+- Added shared strict command/result contracts and a modular-monolith
+  ProcurementModule.
+- Preserved the Next.js writer as default and added exact flag plus UUID
+  tenant allowlist routing.
+- Added fail-closed API transport and retained complete/cancel on Next.js.
+- Validated disposable PostgreSQL rollback, tenant isolation, authorization,
+  exact retries, conflict behavior, state transition, and audit evidence.
+- Next milestone: inspect provider gates, then propose one tenant canary.
+
 ## Parallel atomic RFQ-dispatch slice
 
 Status: source and hosted database complete; frontend activation not authorized.

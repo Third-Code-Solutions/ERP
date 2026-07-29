@@ -22,6 +22,10 @@ import {
   notifyRfqCompleted,
   transitionRfqRecord,
 } from '@/lib/procurement/rfq-workflow-service'
+import {
+  logRfqQuoteThroughCoreApi,
+  rfqQuoteWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -121,6 +125,23 @@ export async function logQuote(
   const input = parsed.data
 
   try {
+    if (rfqQuoteWritesUseCoreApi(profile.tenantId)) {
+      const result = await logRfqQuoteThroughCoreApi(input.rfq_id, {
+        submissionId: input.submission_id,
+        bomLineItemId: input.bom_line_item_id,
+        vendorId: input.vendor_id,
+        unitPriceCents: input.unit_price_cents,
+        leadTimeDays: input.lead_time_days,
+        validUntil: input.valid_until,
+        notes: input.notes || undefined,
+      })
+      if (!result.ok) return { error: result.error }
+
+      revalidatePath(`/procurement/rfqs/${input.rfq_id}`)
+      revalidatePath('/procurement/rfqs')
+      return {}
+    }
+
     const result = await logRfqQuoteRecord({
       tenantId: profile.tenantId,
       actorId: profile.user.id,

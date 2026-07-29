@@ -202,3 +202,10 @@ vercel rollback dpl_GTDC2eis2Epkrty6USXyAPMNbsGt
 Instant rollback reuses the retained artifact and does not require rebuilding
 the old source. Environment configuration is independent of the artifact, so
 its current values must be preserved and rechecked during rollback.
+
+## RFQ quote adapter note
+
+The adapter changes server code but remains inert without its exact flag and
+tenant allowlist. Vercel Git stays disconnected. Do not spend a Vercel build
+for this milestone; include it only in the next explicitly approved,
+consolidated frontend release.

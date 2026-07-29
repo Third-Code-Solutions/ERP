@@ -20,6 +20,9 @@ class GuardFixtureController {
   @RequireCapabilities('project.update')
   update(): void {}
 
+  @RequireCapabilities('rfq.dispatch')
+  dispatch(): void {}
+
   @Public()
   open(): void {}
 
@@ -155,6 +158,34 @@ describe('CapabilityGuard', () => {
             tenantId: '22222222-2222-4222-8222-222222222222',
             role: 'viewer',
             email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
+  })
+
+  it('allows only procurement-authorized roles to dispatch RFQs', () => {
+    expect(
+      guard.canActivate(
+        contextFor('dispatch', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'procurement',
+            email: 'procurement@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+
+    expect(() =>
+      guard.canActivate(
+        contextFor('dispatch', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'commercial',
+            email: 'commercial@example.test',
           },
         })
       )

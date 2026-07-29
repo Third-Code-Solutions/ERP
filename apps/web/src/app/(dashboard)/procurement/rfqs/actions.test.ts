@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   createRfqFromBomRecord: vi.fn(),
   notifyRfqCreated: vi.fn(),
   logRfqQuoteRecord: vi.fn(),
+  rfqQuoteWritesUseCoreApi: vi.fn(),
+  logRfqQuoteThroughCoreApi: vi.fn(),
   transitionRfqRecord: vi.fn(),
   notifyRfqCompleted: vi.fn(),
   revalidatePath: vi.fn(),
@@ -37,6 +39,11 @@ vi.mock('@/lib/procurement/rfq-workflow-service', () => ({
   logRfqQuoteRecord: mocks.logRfqQuoteRecord,
   transitionRfqRecord: mocks.transitionRfqRecord,
   notifyRfqCompleted: mocks.notifyRfqCompleted,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  rfqQuoteWritesUseCoreApi: mocks.rfqQuoteWritesUseCoreApi,
+  logRfqQuoteThroughCoreApi: mocks.logRfqQuoteThroughCoreApi,
 }))
 
 vi.mock('next/cache', () => ({
@@ -80,6 +87,15 @@ describe('RFQ Server Action authority', () => {
       quoteId: '99999999-9999-4999-8999-999999999999',
       created: true,
       statusChanged: true,
+    })
+    mocks.rfqQuoteWritesUseCoreApi.mockReturnValue(false)
+    mocks.logRfqQuoteThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        quoteId: '99999999-9999-4999-8999-999999999999',
+        created: true,
+        statusChanged: true,
+      },
     })
     mocks.transitionRfqRecord.mockResolvedValue({
       rfqId: RFQ_ID,
@@ -197,6 +213,55 @@ describe('RFQ Server Action authority', () => {
 
     expect(result.error).toContain('submission_id')
     expect(mocks.logRfqQuoteRecord).not.toHaveBeenCalled()
+  })
+
+  it('uses the Nest quote command only for an explicitly enabled tenant', async () => {
+    mocks.rfqQuoteWritesUseCoreApi.mockReturnValue(true)
+    const formData = new FormData()
+    formData.set('rfq_id', RFQ_ID)
+    formData.set('bom_line_item_id', LINE_ID)
+    formData.set('vendor_id', VENDOR_ID)
+    formData.set('submission_id', SUBMISSION_ID)
+    formData.set('unit_price_cents', '125050')
+    formData.set('lead_time_days', '14')
+    formData.set('valid_until', '2026-08-31T00:00:00.000Z')
+    formData.set('notes', '  Includes delivery  ')
+
+    await expect(logQuote(formData)).resolves.toEqual({})
+
+    expect(mocks.logRfqQuoteThroughCoreApi).toHaveBeenCalledWith(
+      RFQ_ID,
+      {
+        submissionId: SUBMISSION_ID,
+        bomLineItemId: LINE_ID,
+        vendorId: VENDOR_ID,
+        unitPriceCents: 125050,
+        leadTimeDays: 14,
+        validUntil: '2026-08-31T00:00:00.000Z',
+        notes: 'Includes delivery',
+      }
+    )
+    expect(mocks.logRfqQuoteRecord).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the enabled Nest quote command is unavailable', async () => {
+    mocks.rfqQuoteWritesUseCoreApi.mockReturnValue(true)
+    mocks.logRfqQuoteThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No quote was committed.',
+    })
+    const formData = new FormData()
+    formData.set('rfq_id', RFQ_ID)
+    formData.set('bom_line_item_id', LINE_ID)
+    formData.set('vendor_id', VENDOR_ID)
+    formData.set('submission_id', SUBMISSION_ID)
+    formData.set('unit_price_cents', '100')
+
+    await expect(logQuote(formData)).resolves.toEqual({
+      error: 'ERP Core API is unavailable. No quote was committed.',
+    })
+    expect(mocks.logRfqQuoteRecord).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
   it('completes through the transaction service then notifies', async () => {

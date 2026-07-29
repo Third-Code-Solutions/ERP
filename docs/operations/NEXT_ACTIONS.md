@@ -182,3 +182,13 @@ Add an inert NestJS procurement adapter for the now-defined RFQ commands:
 - No production feature-flag enablement.
 - No new microservices.
 - No external ERP source, schema, UI, or wording reuse.
+
+## Exact next action after RFQ quote adapter
+
+1. Keep `ERP_RFQ_QUOTE_WRITES_VIA_API` unset/false everywhere.
+2. Verify M1 Railway/Supabase readiness and a real tenant/auth canary account.
+3. Present the exact tenant UUID, environment changes, monitoring, and
+   rollback for approval.
+4. If approved, enable one tenant only and verify quote create/retry/conflict,
+   audit evidence, logs, and unchanged completion/cancellation.
+5. Do not enable wildcard routing or deploy Vercel without explicit approval.

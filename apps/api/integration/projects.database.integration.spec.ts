@@ -285,5 +285,5 @@ suite('Projects API database integration', () => {
       .where(eq(tenants.id, probeTenantId))
       .limit(1)
     expect(leaked).toHaveLength(0)
-  })
+  }, 30_000)
 })

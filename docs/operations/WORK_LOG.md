@@ -1460,6 +1460,36 @@ Rollback and unresolved:
 - Composite database constraints remain required in M2.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
 
+## 2026-07-30 — Inert NestJS RFQ quote adapter
+
+Completed:
+
+- Added ProcurementModule, strict quote endpoint, shared contracts, capability
+  policy, tenant-scoped transaction, idempotency lock, state checks, and
+  semantic audit writer.
+- Added disabled Next.js cutover with exact tenant allowlist and fail-closed
+  behavior. No provider flag enabled; no Vercel deployment requested.
+- Added unit, HTTP contract, action/client, authorization, and disposable
+  PostgreSQL integration coverage.
+
+Validation:
+
+- Lint and full typecheck passed.
+- Shared 79/79, web 265/265, API rerun 26/26.
+- Disposable lane: 54/54 migrations, database 236/236 zero skips, API
+  integration 2/2, stable schema hash
+  `36B8999F16B825D89D8F782CBF28180D074AD677A9E8B2C16B713C79BB931BB6`.
+- Nest and Next production builds passed; Next generated 77/77 pages.
+- Gitleaks, Actionlint, workflow action refs, and diff checks passed.
+- Full parallel test run exposed local CPU timeout only; all affected API
+  tests passed immediately API-only after the bounded timeout adjustment.
+
+Unresolved:
+
+- Adapter is intentionally disabled. M1 canary/provider approval remains the
+  activation gate.
+- Complete/cancel remain Next.js authority.
+
 ## 2026-07-30 -- Atomic RFQ quote and terminal workflow
 
 Outcome:
