@@ -11,17 +11,17 @@ Status: source complete; production deployment not authorized.
 - Retained production source:
   `f24e5603a35571f8dcadd43fc09c64d12646a7d0`
 - Candidate source:
-  `e53f20d63eb937440c2b29c88c920a543a49a3ef`
+  `36e618274769ef49a18974dbe3bed8f0b4db7edd`
 - GitHub refs:
   `main` and `agent-02/third-code-erp-landing`
 - Git identity:
   `kurtgav <kurtgavin.design@gmail.com>`
 - Candidate distance:
-  31 commits; 124 repository files; 11,917 insertions; 666 deletions
+  33 commits; 134 repository files; 12,952 insertions; 694 deletions
 - Web distance:
-  64 files; 5,554 insertions; 525 deletions
+  72 files; 6,212 insertions; 553 deletions
 - Web composition:
-  39 runtime files and 25 test/E2E files
+  44 runtime files and 28 test/E2E files
 
 ## Risk-domain inventory
 
@@ -33,9 +33,10 @@ Status: source complete; production deployment not authorized.
 | Documents and upload | 5 | tenant or mutation-authority regression | signed upload, document audit, cross-tenant denial |
 | Cortex | 22 | scope, citation, navigation, or restore regression | authorized scope, graph, citations, deep links, search, role denial |
 | Shared shell and rate limit | 6 | navigation, responsive, or shared-IP 429 regression | dashboard shell and anonymous/authenticated sequential flow |
-| Tests | 25 | release-evidence coverage | unit, route, component, and browser suites |
+| Permission-aware dashboard | 5 | executive data exposure to restricted roles | viewer data path, role-safe links, task counts, 1440/768/390 |
+| Tests | 28 | release-evidence coverage | unit, route, component, and browser suites |
 
-All 39 runtime files are assigned to one domain above. No unclassified Web
+All 44 runtime files are assigned to one domain above. No unclassified Web
 runtime file remains.
 
 ## Production prerequisites
@@ -75,32 +76,41 @@ References:
 
 - `pnpm lint` -- pass
 - `pnpm typecheck` -- pass
-- `pnpm test` -- 379 application tests pass
+- `pnpm test` -- 396 application tests pass
 - `pnpm build` -- pass; Next generated 77/77 static steps
 - Combined authenticated Cortex and public landing browser sequence -- 2/2
   pass at one worker
 - Landing responsive proof -- 1440, 768, and 390; no horizontal overflow,
   console error, or page error
+- Authenticated viewer dashboard proof -- 1440, 768, and 390; assignee-scoped
+  work only, no executive metrics or forbidden links, no horizontal overflow,
+  console error, or page error; one-time session revoked globally
 - `git diff --check` -- pass
 - gitleaks 8.30.1 -- pass; no leaks
 - actionlint 1.7.12 -- pass
 - Prohibited external ERP brand/source scan -- zero matches
 - Vercel deployments after the retained baseline -- zero
 
-GitHub Actions run `30455237294` could not start a workflow step because the
+GitHub Actions run `30456997160` could not start a workflow step because the
 account reports failed payments or an exceeded spending limit. The local gates
 above are the completed evidence; hosted CI is an unresolved external gate.
 
-## Defect caught before release
+## Defects caught before release
 
 The old middleware reused one IP bucket for both authenticated and anonymous
 traffic. A busy authenticated session could therefore make a later public
 request from the same shared IP fail with HTTP 429. Authenticated users behind
 one NAT also shared a bucket.
 
-Candidate `e53f20d` keys anonymous traffic by IP and authenticated traffic by
+Candidate `36e6182` keys anonymous traffic by IP and authenticated traffic by
 user identity. Unit coverage proves bucket separation. A single sequential
 browser run now passes authenticated Cortex and the public landing page 2/2.
+
+The old dashboard executed executive pipeline, GP, forecast, rep-scorecard, and
+alert reads for every authenticated role even though `/dashboard` is available
+to roles that cannot access `/pipeline/board`. Candidate `36e6182` selects the
+data loader before any query. Restricted roles receive only tenant- and
+assignee-scoped pending task counts plus authorized workspace links.
 
 ## One-build activation procedure
 
@@ -108,7 +118,7 @@ Requires explicit user approval:
 
 1. Reconfirm the candidate SHA and all gates above.
 2. Reconfirm Vercel Git is disconnected and zero newer deployments exist.
-3. Trigger exactly one manual production deployment for candidate `e53f20d`.
+3. Trigger exactly one manual production deployment for candidate `36e6182`.
 4. Do not trigger a preview, redeploy, or second build while the first is
    queued or running.
 5. Confirm READY and the production alias points to the exact new deployment.

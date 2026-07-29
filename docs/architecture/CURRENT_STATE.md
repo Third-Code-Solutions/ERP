@@ -735,10 +735,10 @@ matches the repository migration contract:
 ## Cost-controlled frontend release candidate
 
 - The consolidated frontend candidate is
-  `e53f20d63eb937440c2b29c88c920a543a49a3ef`, 31 commits after retained
+  `36e618274769ef49a18974dbe3bed8f0b4db7edd`, 33 commits after retained
   production source `f24e5603a35571f8dcadd43fc09c64d12646a7d0`.
-- The Web delta is fully inventoried: 64 files, comprising 39 runtime files
-  and 25 test/E2E files. No Web runtime file remains unclassified.
+- The Web delta is fully inventoried: 72 files, comprising 44 runtime files
+  and 28 test/E2E files. No Web runtime file remains unclassified.
 - Vercel Git is disconnected. On-demand concurrent builds are disabled and
   the next build uses Standard 4 vCPU/8 GB. Vercel documents Standard build
   compute as no added charge in this queued configuration.
@@ -747,7 +747,7 @@ matches the repository migration contract:
 - Middleware now isolates anonymous IP buckets from authenticated user buckets.
   This prevents an authenticated burst from producing a later public 429 and
   prevents authenticated users behind one shared IP from consuming one bucket.
-- Root lint, typecheck, test, and production build pass. There are 379 passing
+- Root lint, typecheck, test, and production build pass. There are 396 passing
   application tests; Next generates 77/77 static steps. A sequential
   authenticated Cortex plus public landing browser run passes 2/2.
 - gitleaks, actionlint, diff checks, and prohibited external ERP brand/source
@@ -756,3 +756,22 @@ matches the repository migration contract:
 - The release and rollback manifest is
   `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`. Production activation still
   requires explicit user approval and exactly one manual production build.
+
+## Permission-aware dashboard candidate
+
+- `/dashboard` remains available to every authenticated role, but executive
+  pipeline visibility now follows the existing `/pipeline/board` permission.
+- Data-loader selection occurs before queries. `safety`, `cx`, and `viewer`
+  roles cannot execute pipeline, GP, forecast, rep-scorecard, or executive
+  alert reads from the dashboard.
+- Restricted roles receive a calm Today surface with pending task counts
+  constrained by authenticated tenant and authenticated assignee.
+- Quick access is derived from the canonical navigation permission registry.
+  It cannot advertise Finance, Pipeline, or other forbidden workspaces.
+- Authenticated local production QA used an existing demo viewer with a
+  one-time link. Desktop, tablet, and mobile passed with no forbidden content,
+  overflow, console error, or page error. The session was revoked globally.
+- No schema, hosted row, role, password, Storage object, queue, AI call,
+  Railway deployment, or Vercel deployment changed.
+- Source commit `36e618274769ef49a18974dbe3bed8f0b4db7edd` is on both
+  repository refs under `kurtgav <kurtgavin.design@gmail.com>`.

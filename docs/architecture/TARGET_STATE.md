@@ -409,3 +409,18 @@ reach through each other's internals.
   runtime-error review, API readiness, release identity, and responsive proof.
 - The retained last-known-good deployment remains the instant-rollback target
   until the new release is verified.
+
+## Permission-aware Today boundary
+
+- Dashboard data follows the same canonical role policy as direct route
+  access. A universally reachable shell never implies universally readable
+  executive data.
+- Loader selection happens before database work. A forbidden dashboard mode
+  cannot query and then hide restricted data in React.
+- Restricted roles receive tenant- and assignee-scoped work only.
+- Executive pipeline, GP, forecast, rep, and alert reads require the same role
+  permission as `/pipeline/board`.
+- Quick links derive from the canonical navigation registry and cannot expose
+  forbidden workspaces.
+- Today remains read-only. It cannot approve, post, reverse, allocate, commit,
+  delete, or finalize an ERP transaction.
