@@ -116,6 +116,14 @@ Production entry status:
 - Pending activation: include this candidate in one explicitly approved
   consolidated Vercel production build. Do not reconnect Git or create a
   separate preview.
+- Complete in source: validated saved-conversation deep links, automatic
+  authorized restore, URL synchronization after create/load/new-chat, and
+  one-click cross-context history navigation. Latest-request-wins protection
+  prevents stale restore responses from replacing newer chat state.
+- Complete local proof: pure URL-contract tests, full repository gates, real
+  authenticated page/record authorization, deterministic no-write deep-link
+  browser restore, responsive overflow checks, clean console, and global
+  one-time-session revocation.
 - Complete emergency route proof: authenticated Admin `/dashboard` hard reload
   renders KPI and Risk Signals content with zero browser-console errors;
   Vercel records successful route requests and zero runtime errors in the

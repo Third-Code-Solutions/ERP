@@ -16,10 +16,27 @@ export function cortexAgentContextsMatch(
 }
 
 export function cortexAgentContextHref(
-  context: CortexAgentContext | null
+  context: CortexAgentContext | null,
+  conversationId?: string
 ): string {
-  if (!context) return '/cortex'
-  return `/cortex?refTable=${encodeURIComponent(context.refTable)}&refId=${encodeURIComponent(context.refId)}`
+  const params = new URLSearchParams()
+  if (context) {
+    params.set('refTable', context.refTable)
+    params.set('refId', context.refId)
+  }
+  if (conversationId) params.set('conversationId', conversationId)
+  const query = params.toString()
+  return query ? `/cortex?${query}` : '/cortex'
+}
+
+export function cortexConversationUrl(
+  currentUrl: string,
+  conversationId: string | null
+): string {
+  const url = new URL(currentUrl, 'https://local.invalid')
+  if (conversationId) url.searchParams.set('conversationId', conversationId)
+  else url.searchParams.delete('conversationId')
+  return `${url.pathname}${url.search}${url.hash}`
 }
 
 function humanize(value: string): string {

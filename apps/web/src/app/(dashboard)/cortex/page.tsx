@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
 import { getCortexGraphStats } from '@third-code-erp/database'
 import { AccountNotProvisioned } from '@/components/auth/account-not-provisioned'
@@ -15,6 +16,7 @@ interface CortexPageProps {
   searchParams: Promise<{
     refTable?: string | string[]
     refId?: string | string[]
+    conversationId?: string | string[]
   }>
 }
 
@@ -32,6 +34,13 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
         profile.role,
         focus
       )
+    : null
+  const parsedConversationId = z
+    .string()
+    .uuid()
+    .safeParse(params.conversationId)
+  const initialConversationId = parsedConversationId.success
+    ? parsedConversationId.data
     : null
 
   // RBAC: KPIs reflect only what this role may see (admin/owner = everything).
@@ -82,6 +91,7 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
         <div className="cortex-layout__agent">
           <CortexAgent
             initialContext={agentContext}
+            initialConversationId={initialConversationId}
             contextUnavailable={Boolean(focus && !agentContext)}
           />
         </div>

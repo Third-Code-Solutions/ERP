@@ -3,8 +3,11 @@ import {
   cortexAgentContextsMatch,
   cortexAgentContextHref,
   cortexAgentContextLabel,
+  cortexConversationUrl,
   type CortexAgentContext,
 } from './agent-context'
+
+const CONVERSATION_ID = '33333333-3333-4333-8333-333333333333'
 
 const PROJECT_CONTEXT: CortexAgentContext = {
   refTable: 'projects',
@@ -35,7 +38,32 @@ describe('Cortex agent context presentation contract', () => {
     expect(cortexAgentContextHref(PROJECT_CONTEXT)).toBe(
       '/cortex?refTable=projects&refId=11111111-1111-4111-8111-111111111111'
     )
+    expect(
+      cortexAgentContextHref(PROJECT_CONTEXT, CONVERSATION_ID)
+    ).toBe(
+      '/cortex?refTable=projects&refId=11111111-1111-4111-8111-111111111111&conversationId=33333333-3333-4333-8333-333333333333'
+    )
+    expect(cortexAgentContextHref(null, CONVERSATION_ID)).toBe(
+      '/cortex?conversationId=33333333-3333-4333-8333-333333333333'
+    )
     expect(cortexAgentContextHref(null)).toBe('/cortex')
+  })
+
+  it('adds or removes a conversation deep link without losing record focus', () => {
+    const focused =
+      'https://local.invalid/cortex?refTable=projects&refId=11111111-1111-4111-8111-111111111111'
+
+    expect(cortexConversationUrl(focused, CONVERSATION_ID)).toBe(
+      '/cortex?refTable=projects&refId=11111111-1111-4111-8111-111111111111&conversationId=33333333-3333-4333-8333-333333333333'
+    )
+    expect(
+      cortexConversationUrl(
+        `${focused}&conversationId=${CONVERSATION_ID}`,
+        null
+      )
+    ).toBe(
+      '/cortex?refTable=projects&refId=11111111-1111-4111-8111-111111111111'
+    )
   })
 
   it('uses a human record label with a bounded fallback', () => {
