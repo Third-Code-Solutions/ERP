@@ -91,15 +91,16 @@ matches the repository migration contract:
 - `https://third-code-erp-api-production.up.railway.app/health` returns
   `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
 - The current Railway deployment is
-  `dffa3105-7db3-4bd2-8ba9-505bf2248aee`, built remotely from commit
-  `62d9106f483cf64ceead737b39aeebf618853ca3`. The root `package.json`
-  planner aliases matched Railway's API watch patterns even though API source
-  did not change; the deployment completed successfully and health/readiness
-  remain HTTP 200.
+  `1a0cd374-7bd1-449c-9083-ecf4598ccd04`, built remotely from commit
+  `72afd93bbd09925d7de9a839b7dd8259db519eac`. Database-package and migration
+  paths matched Railway's API watch patterns even though runtime API source did
+  not change; the deployment completed successfully and health/readiness remain
+  HTTP 200.
 - Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is disconnected from
   Git. The canonical alias still serves READY deployment
   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`. Vercel recorded zero deployments after
-  source commits `ae373ce6`, `277e0348`, `e681bc2c`, and `62d9106f`.
+  source commits `ae373ce6`, `277e0348`, `e681bc2c`, `62d9106f`, and
+  `72afd93b`.
 - Vercel Web Analytics is enabled. Its production script returns JavaScript
   with HTTP 200 and the final desktop browser console is clean.
 - A live no-write Supabase Auth proof covers missing/invalid bearer tokens,
