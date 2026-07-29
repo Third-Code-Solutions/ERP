@@ -8,8 +8,9 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+$repositoryDrive = [IO.Path]::GetPathRoot($repositoryRoot)
 $tempBase = [IO.Path]::GetFullPath(
-  (Join-Path (Split-Path -Parent $repositoryRoot) '.thirdcode-erp-ci')
+  (Join-Path $repositoryDrive '.thirdcode-erp-ci')
 )
 $workRoot = [IO.Path]::GetFullPath(
   (Join-Path $tempBase "web-standalone-$([Guid]::NewGuid().ToString('N'))")
@@ -85,6 +86,26 @@ function Assert-ResponseContains {
 
   if ($contentText -notmatch $Pattern) {
     throw "$Name did not contain expected pattern: $Pattern"
+  }
+}
+
+function Remove-IsolatedWorkRoot {
+  Assert-SafeWorkRoot
+
+  foreach ($attempt in 1..3) {
+    if (-not (Test-Path -LiteralPath $workRoot)) {
+      return
+    }
+
+    try {
+      Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction Stop
+      return
+    } catch {
+      if ($attempt -eq 3) {
+        throw
+      }
+      Start-Sleep -Seconds 1
+    }
   }
 }
 
@@ -236,10 +257,7 @@ try {
     Get-Content -LiteralPath $serverErrorLog
   }
 
-  Assert-SafeWorkRoot
-  if (Test-Path -LiteralPath $workRoot) {
-    Remove-Item -LiteralPath $workRoot -Recurse -Force
-  }
+  Remove-IsolatedWorkRoot
   if (
     (Test-Path -LiteralPath $tempBase) -and
     -not (Get-ChildItem -LiteralPath $tempBase -Force)
