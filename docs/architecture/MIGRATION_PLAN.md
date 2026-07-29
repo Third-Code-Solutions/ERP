@@ -277,3 +277,18 @@ Status: source candidate complete; deployment not authorized.
   Keep Git integration disconnected and do not create a separate preview.
 - After activation, verify one populated and one empty record for each role
   family, exact backlinks, non-enumerating denial, and responsive behavior.
+
+## Parallel Cortex relationship-meaning slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Reuse the existing entity authorization gate and role-filtered context pack.
+- Convert canonical edge type plus direction into bounded human labels.
+- Return at most 12 relationship rows joined only to already-authorized
+  neighbor citations.
+- Render canonical backlinks with origin metadata, static fallback, visible
+  focus, 44px targets, and responsive two-to-one-column behavior.
+- Activate only in the next explicitly approved consolidated Vercel build.
+  Keep Git integration disconnected and do not create a separate preview.
+- After activation, verify representative incoming/outgoing edges, unknown-edge
+  fallback, exact routes, role downgrades, and cross-tenant denial.

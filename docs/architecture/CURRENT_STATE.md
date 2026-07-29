@@ -539,3 +539,23 @@ matches the repository migration contract:
 - No schema, hosted row, Auth identity, Storage object, queue, provider setting,
   or deployment changed. This remains a source candidate while Vercel Git is
   disconnected.
+
+## Cortex directional relationship candidate
+
+- Record context previously listed grouped edge names in summary text and
+  separate source chips, but did not explain each source's directional meaning.
+- The entity response now derives at most 12 relationship rows from the
+  existing tenant- and current-role-filtered context pack.
+- Fifteen canonical edge types have explicit outgoing and incoming labels.
+  Unknown types fail safely to `Connected`.
+- Each relationship retains its canonical citation, origin, direction, and
+  confidence. Missing citations are omitted instead of producing guessed links.
+- The existing authorization gate still runs before graph-neighbor retrieval.
+  Browser code receives no tenant selector, database access, or transaction
+  authority.
+- The panel renders canonical backlinks in two columns at desktop/tablet and
+  one column at mobile, with 44px targets, visible focus, ellipsis, and no
+  horizontal overflow.
+- No schema, hosted row, Auth identity, Storage object, queue, backend, provider
+  setting, or deployment changed. This remains a source candidate while Vercel
+  Git is disconnected.

@@ -1,12 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
-import { cortexDescribeEntity, getCortexNodeByRef } from '@third-code-erp/database'
+import {
+  describeContextPack,
+  getCortexContextPack,
+  getCortexNodeByRef,
+} from '@third-code-erp/database'
 import {
   cortexEntityDefinition,
   isCortexRefTable,
 } from '@/lib/cortex/href'
 import { cortexCanSeeType, cortexNodeTypeScope } from '@/lib/cortex/rbac'
+import { cortexEntityResponse } from '@/lib/cortex/entity-response'
 
 /**
  * GET /api/cortex/entity/:refTable/:refId
@@ -61,7 +66,16 @@ export async function GET(
     // RBAC: neighbors/citations in the pack are also scoped to the role, so an
     // in-scope record never leaks a forbidden-type connection.
     const scope = cortexNodeTypeScope(profile.role)
-    const answer = await cortexDescribeEntity(profile.tenantId, refTable, refId, scope)
+    const pack = await getCortexContextPack(
+      profile.tenantId,
+      refTable,
+      refId,
+      {
+        neighborLimit: 12,
+        nodeTypes: scope,
+      }
+    )
+    const answer = cortexEntityResponse(pack, describeContextPack)
     return NextResponse.json(answer, { status: answer.found ? 200 : 404 })
   } catch {
     return NextResponse.json({ error: 'Cortex lookup failed' }, { status: 500 })

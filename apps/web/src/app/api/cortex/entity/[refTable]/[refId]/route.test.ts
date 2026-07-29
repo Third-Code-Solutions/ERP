@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   getCortexNodeByRef: vi.fn(),
-  cortexDescribeEntity: vi.fn(),
+  getCortexContextPack: vi.fn(),
+  describeContextPack: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -13,7 +14,8 @@ vi.mock('@third-code-erp/auth', () => ({
 
 vi.mock('@third-code-erp/database', () => ({
   getCortexNodeByRef: mocks.getCortexNodeByRef,
-  cortexDescribeEntity: mocks.cortexDescribeEntity,
+  getCortexContextPack: mocks.getCortexContextPack,
+  describeContextPack: mocks.describeContextPack,
 }))
 
 import { GET } from './route'
@@ -38,11 +40,15 @@ describe('Cortex entity lookup registry boundary', () => {
     mocks.getCortexNodeByRef.mockResolvedValue({
       node_type: 'journal_entry',
     })
-    mocks.cortexDescribeEntity.mockResolvedValue({
-      found: true,
-      summary: 'Journal entry context',
+    mocks.getCortexContextPack.mockResolvedValue({
+      node: {
+        id: '33333333-3333-4333-8333-333333333333',
+      },
+      neighbors: [],
+      provenance: [],
       citations: [],
     })
+    mocks.describeContextPack.mockReturnValue('Journal entry context')
   })
 
   it('supports registered finance sources and applies the role scope', async () => {
@@ -56,12 +62,19 @@ describe('Cortex entity lookup registry boundary', () => {
       'journal_entries',
       REF_ID
     )
-    expect(mocks.cortexDescribeEntity).toHaveBeenCalledWith(
+    expect(mocks.getCortexContextPack).toHaveBeenCalledWith(
       TENANT_ID,
       'journal_entries',
       REF_ID,
-      expect.arrayContaining(['journal_entry', 'journal_line'])
+      {
+        neighborLimit: 12,
+        nodeTypes: expect.arrayContaining([
+          'journal_entry',
+          'journal_line',
+        ]),
+      }
     )
+    expect(body.relationships).toEqual([])
   })
 
   it('rejects an unregistered source before graph access', async () => {
@@ -69,7 +82,7 @@ describe('Cortex entity lookup registry boundary', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
-    expect(mocks.cortexDescribeEntity).not.toHaveBeenCalled()
+    expect(mocks.getCortexContextPack).not.toHaveBeenCalled()
   })
 
   it('returns a non-enumerating 404 when the role cannot see the type', async () => {
@@ -86,7 +99,7 @@ describe('Cortex entity lookup registry boundary', () => {
       summary: '',
       citations: [],
     })
-    expect(mocks.cortexDescribeEntity).not.toHaveBeenCalled()
+    expect(mocks.getCortexContextPack).not.toHaveBeenCalled()
   })
 
   it('rejects a node whose type does not own the requested source', async () => {
@@ -97,6 +110,6 @@ describe('Cortex entity lookup registry boundary', () => {
     const response = await request('journal_entries')
 
     expect(response.status).toBe(404)
-    expect(mocks.cortexDescribeEntity).not.toHaveBeenCalled()
+    expect(mocks.getCortexContextPack).not.toHaveBeenCalled()
   })
 })

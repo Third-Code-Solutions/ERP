@@ -69,6 +69,10 @@ Complete remaining M1 controls without enabling production writes:
   procurement, inventory, claims, variation, punchlist, and warranty. Confirm
   exact links, Project-panel non-duplication, and non-enumerating denial. Do not
   buy a separate build.
+- Include directional relationship meaning in that same reviewed SHA. Verify
+  representative incoming/outgoing edges, origin labels, exact record links,
+  unknown-edge fallback, role-downgrade omission, and responsive behavior. Do
+  not buy a separate build.
 
 ## Following milestone
 

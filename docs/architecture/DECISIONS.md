@@ -596,3 +596,27 @@ correction, tests, and spec together. Existing record pages and Project Cortex
 panel remain functional. No schema, row, Auth, Storage, queue, provider, or
 backend rollback is required. If later deployed, promote the retained
 last-known-good Vercel artifact without reconnecting Git.
+
+## D-048 -- Cortex relationship meaning is derived after authorization
+
+Decision: keep the existing tenant/source/type/role authorization gate before
+context-pack retrieval. Build a bounded relationship response only from the
+pack's role-filtered neighbors and citations. Translate canonical edge type
+plus direction through an original presentation map; use `Connected` for
+unknown types. Route destinations through the canonical entity registry.
+
+Reason: source chips show evidence but not relationship meaning. Returning raw
+graph neighbors to the browser would duplicate authorization and navigation
+logic in React. Server-side assembly preserves one trust boundary while making
+record backlinks useful to non-technical operators.
+
+Validation: require outgoing/incoming/unknown label tests, citation-join and
+bound tests, authorization-order route tests, canonical-link and static-fallback
+render tests, full lint/typecheck/test/build gates, local production 401 proof,
+and 1440/768/390 focus, target-size, truncation, console, and overflow checks.
+
+Rollback: revert the response builder, entity-route extension, relationship
+component/style, tests, and spec together. Existing summary and citation chips
+remain functional. No schema, row, Auth, Storage, queue, backend, provider, or
+data rollback is required. If later deployed, promote the retained
+last-known-good Vercel artifact without reconnecting Git.
