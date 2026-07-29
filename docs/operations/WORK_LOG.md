@@ -1243,3 +1243,50 @@ Rollback and unresolved:
 - Exact next action: complete approved normal signup, email confirmation, and
   one non-critical Project; then run the redacted cutover planner with
   `--require-ready`.
+
+## 2026-07-29 -- Architecture memory reconciliation
+
+Outcome:
+
+- Recounted the repository at 50 Supabase migrations and 45 Drizzle schema
+  files; confirmed migration head `20260729054456`.
+- Reconciled current M1 documentation from stale 44/49/218 values to the
+  verified 50-migration, 220/220 zero-skip database baseline.
+- Updated current Railway source/deployment evidence to source
+  `828b63f90f13f6ff735a2b972781a69fa7ffcf2f` and deployment
+  `f480586e-fe8d-4214-a33e-7bfdaaa5f38c`.
+- Recorded that `AGENTS.md` references a missing PRD and obsolete pnpm 9,
+  PostgreSQL 16, tRPC, and Inngest target rules. No unapproved rewrite of that
+  owner-controlled file was performed.
+- Kept M1 canary routing disabled. No Auth, database, provider, or runtime state
+  changed.
+
+Changed files:
+
+- `docs/architecture/CURRENT_STATE.md`
+- `docs/architecture/TARGET_STATE.md`
+- `docs/architecture/MIGRATION_PLAN.md`
+- `docs/architecture/DECISIONS.md`
+- `docs/operations/WORK_LOG.md`
+- `docs/operations/NEXT_ACTIONS.md`
+- `docs/blockers/2026-07-29-stale-repository-governance.md`
+- `docs/changesets/2026-07-29-architecture-memory-reconciliation.md`
+
+Validation:
+
+- Repository recount and dependency-manifest inspection -- pass.
+- Current drift search -- no stale 44/49/218 claim remains in current-state or
+  current M1 status; chronological work-log evidence remains unchanged.
+- Markdown/diff hygiene -- pass.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` -- pass.
+- Root tests -- 250 pass; 132 disposable-database-gated cases skip as designed.
+- Release planner 7/7; cutover planner 6/6; Actionlint 1.7.12; pinned action
+  references; Gitleaks 8.30.1 over 100 commits -- pass.
+
+Rollback and unresolved:
+
+- Revert the documentation commit; runtime and provider state are unaffected.
+- M1 still requires explicit approval for one unused canary email.
+- `AGENTS.md` reconciliation requires separate owner sign-off.
+- Exact next action remains approved normal signup, email confirmation, one
+  reversible non-critical Project, and a zero-blocker cutover planner.

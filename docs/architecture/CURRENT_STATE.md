@@ -1,6 +1,6 @@
 # Current State
 
-Verified from the repository and the configured Supabase target on 2026-07-28.
+Verified from the repository and the configured Supabase target on 2026-07-29.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
@@ -11,7 +11,7 @@ successful build.
 | Frontend | `apps/web`: Next.js 15.5.18 App Router, React 19.2.6, TypeScript 5.9.3 |
 | Existing application backend | 47 Next.js Server Action files, 24 Route Handler files, SQL functions/triggers, and Supabase clients |
 | New core ERP boundary | `apps/api`: NestJS 11 modular-monolith foundation. Project update is the first feature-flagged transaction slice and is off by default |
-| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 44 SQL migrations and 45 Drizzle schema files |
+| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 50 SQL migrations and 45 Drizzle schema files |
 | Authentication | Supabase Auth. Tenant membership and role come from PostgreSQL, not client claims |
 | Authorization | RLS plus mixed application checks in the legacy path. The Nest slice has deny-by-default capability metadata and tenant-scoped queries |
 | Async work | Inngest is the active legacy job system. Redis 5/BullMQ 5 are wired into the Nest foundation but have no migrated business jobs yet |
@@ -35,7 +35,7 @@ successful build.
 The authorized Supabase target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17 and
 matches the repository migration contract:
 
-- Migration ledger: 49 of 49 applied; no missing or unexpected versions.
+- Migration ledger: 50 of 50 applied; no missing or unexpected versions.
 - Catalog: 86 public tables and 315 RLS policies.
 - Verifier: all 30 protected-table groups, constraints, triggers, privileges,
   tenant controls, and finance/inventory authority checks pass.
@@ -48,6 +48,10 @@ matches the repository migration contract:
   slug. Only `service_role` can execute the function directly.
 - The signup hardening changed no business or identity rows: hosted counts
   remained 13 Auth users, 13 application profiles, and 2 tenants.
+- Migration
+  `20260729054456_persist_signup_organization_type.sql` adds the constrained
+  non-authoritative tenant organization profile field. Existing tenants safely
+  default to `other`; hosted identity and tenant counts remain unchanged.
 - `supabase/seed.sql` was intentionally not applied because it is a local/CI
   reset fixture, not production data.
 
@@ -91,16 +95,13 @@ matches the repository migration contract:
 - `https://third-code-erp-api-production.up.railway.app/health` returns
   `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
 - The current Railway deployment is
-  `1a0cd374-7bd1-449c-9083-ecf4598ccd04`, built remotely from commit
-  `72afd93bbd09925d7de9a839b7dd8259db519eac`. Database-package and migration
-  paths matched Railway's API watch patterns even though runtime API source did
-  not change; the deployment completed successfully and health/readiness remain
-  HTTP 200.
+  `f480586e-fe8d-4214-a33e-7bfdaaa5f38c`, built remotely from source commit
+  `828b63f90f13f6ff735a2b972781a69fa7ffcf2f`. Health and readiness remain
+  HTTP 200 with PostgreSQL and Redis `ok`.
 - Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is disconnected from
   Git. The canonical alias still serves READY deployment
   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`. Vercel recorded zero deployments after
-  source commits `ae373ce6`, `277e0348`, `e681bc2c`, `62d9106f`, and
-  `72afd93b`.
+  source commits through `63b2b4c9dc824b6baa5c1fda2c2475cbde5b8896`.
 - Vercel Web Analytics is enabled. Its production script returns JavaScript
   with HTTP 200 and the final desktop browser console is clean.
 - A live no-write Supabase Auth proof covers missing/invalid bearer tokens,
@@ -136,20 +137,23 @@ matches the repository migration contract:
 5. Python authentication can be optional and its CORS policy can be broad.
 6. Rate limiting is process-local and cannot coordinate multiple instances.
 7. Storage accepts a larger object than one documented application limit.
-8. A clean local database reset requires Docker, which was unavailable during
-   this milestone; clean-schema migration reproduction remains a CI gate.
+8. Docker Desktop remains unavailable on this host, but the isolated WSL1
+   PostgreSQL 17/Redis lane now provides the authoritative no-cost clean replay
+   and zero-skip database gate.
 9. Live-looking secrets exist in ignored local environment files. They were
    not copied into source or logs and should be rotated.
-10. The existing worktree contains extensive pre-existing changes. Migration
-    work must remain narrowly staged and reviewed.
+10. Repository governance is inconsistent: `AGENTS.md` references a missing
+    PRD and obsolete pnpm/PostgreSQL/tRPC/Inngest stack rules. The explicit
+    user-approved architecture documents govern current migration work until a
+    separately approved governance rewrite reconciles that file.
 11. The repository's current `lint` tasks are TypeScript checks, not a
     configured ESLint rule set.
 12. Remaining Supabase advisor warnings include an extension in `public`,
     intentional RLS helper execution, and dashboard-level leaked-password
     protection; these require separate reviewed changes.
-13. GitHub Actions is blocked before runner startup by the organization
-    account's failed-payment/spending-limit state. Local green gates do not
-    substitute for the skipped disposable PostgreSQL/Redis CI lane.
+13. GitHub-hosted Actions is blocked before runner startup by the organization
+    billing/spending-limit state. The approved short-lived self-hosted lane
+    remains the authoritative no-cost gate.
 14. The migrated Project-write flag must remain disabled until clean CI and a
     provider-level enable/rollback drill are complete. Controlled hosted
     transaction, audit-attribution, and restoration evidence is complete.
@@ -158,10 +162,9 @@ matches the repository migration contract:
     application `.env.local`.
 16. Local Docker cannot run until firmware virtualization and Windows Virtual
     Machine Platform are enabled. The current host reports
-    `HCS_E_HYPERV_NOT_INSTALLED`. An isolated WSL1 lane now provides disposable
-    PostgreSQL 17.10, pgvector 0.6.2, and Redis 8.0.4 evidence without touching
-    production. This supplements, but does not replace, exact Supabase
-    PostgreSQL/Redis container parity in CI.
+    `HCS_E_HYPERV_NOT_INSTALLED`. The isolated WSL1 lane provides disposable
+    PostgreSQL 17 and Redis 7.4.9 evidence without hosted credentials or
+    production access.
 17. The CI Actionlint bootstrap previously downloaded a mutable script from
     upstream `main`. It is now pinned to Actionlint 1.7.12 and verifies the
     Linux release archive SHA-256 before execution.
@@ -176,7 +179,7 @@ matches the repository migration contract:
 - Nest HTTP tests cover the preserved success contract and strict rejection of
   attacker-controlled fields. Four HTTP tests include real
   `ProjectsModule` middleware registration.
-- Sixty-seven Web unit tests include exact feature-flag selection,
+- Sixty-nine Web unit tests include exact feature-flag selection,
   tenant-allowlist fail-closed behavior, database-derived tenant routing,
   legacy write/audit rollback behavior, Nest-only routing when enabled, and
   Next-to-Nest correlation forwarding.
@@ -185,11 +188,11 @@ matches the repository migration contract:
 - The built API starts independently: `/health` returns 200, an unauthenticated
   Project write returns 401, and `/ready` returns 503 when its deliberately
   absent database and Redis dependencies are unavailable.
-- Fresh uncached workspace tests pass with 244 executed tests; 128 database
+- Fresh workspace tests pass with 250 passing tests; 132 database
   cases are skipped unless a disposable database URL and capability flags are
   explicitly injected.
-- The dedicated fail-closed database lane rebuilds from all 48 migrations and
-  seed data, then executes all 212 database tests with zero skips.
+- The dedicated fail-closed database lane rebuilds from all 50 migrations and
+  seed data, then executes all 220 database tests with zero skips.
 - A disposable-database Nest integration test now covers 401, 403, cross-tenant
   404, stale 409, successful update, trigger audit actor, and final rollback.
   It passes locally against the isolated PostgreSQL/Redis lane and remains

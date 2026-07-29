@@ -17,7 +17,7 @@ Status: complete on 2026-07-27.
 
 ### M1 — Nest transaction-authority foundation
 
-Status: source published; hosted database reconciled through migration 49;
+Status: source published; hosted database reconciled through migration 50;
 NestJS/Redis deployed on Railway; Next.js deployed on Vercel; live
 Auth/capability/tenant isolation proved without writes; command observability
 and safe source-level rollback selection proved; controlled hosted mutation,
@@ -79,9 +79,9 @@ Production entry status:
   demo data, followed by exact-value restoration through a second Nest
   transaction. Both 200 responses correlated to safe Railway command logs;
   Supabase confirmed two actor-attributed audit rows and continuous hashes.
-- Complete: hosted database release gate at 49/49 migrations with the
+- Complete: hosted database release gate at 50/50 migrations with the
   protected-catalog verifier green and business baselines unchanged.
-- Complete locally: clean replay of 49 migrations plus seed, 218/218 database
+- Complete locally: clean replay of 50 migrations plus seed, 220/220 database
   tests with no skips, and the Nest transaction-authority integration test
   against disposable PostgreSQL and Redis.
 - Complete hosted release: applied and verified the three forward migrations
@@ -132,6 +132,9 @@ Production entry status:
   confirmation, create one reversible non-critical Project, and require a
   zero-blocker planner result. Do not enable routing or request a paid Vercel
   build before that evidence exists.
+- Before M2 application code, reconcile the missing-PRD and obsolete-stack
+  rules in `AGENTS.md` through a separately reviewed owner-approved governance
+  change. Current owner-approved architecture documents remain authoritative.
 
 ### M2 — Remove unauthorized worker writes
 
