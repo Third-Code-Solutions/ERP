@@ -932,3 +932,33 @@ Rollback: application rollback is source commit `f173957`. The database
 migrations are forward-only because they close cross-tenant, duplicate, and
 browser-write risks. A later corrective migration may change the contract only
 after an explicit compatibility and security review.
+
+## D-062 -- RFQ quote commands use one locked state machine
+
+Decision: give each quote attempt a tenant-scoped UUID idempotency key and a
+canonical BOM-line ID. Lock the tenant RFQ, derive material identity from its
+stored line, validate all parents, and commit quote, status, and audit in one
+transaction. Lock completion/cancellation, recheck allowed source state and
+coverage, and commit transition plus audit together. Enforce the same state
+graph and tenant relationships in PostgreSQL. Keep notification after commit.
+
+Reason: the former flow committed quote, status, and audit independently;
+trusted browser material identity; could complete a pending or incompletely
+quoted RFQ by calling the action directly; and had no durable retry key.
+Creation also discarded material IDs for uncontracted lines, so code/material
+fallback could never prove full coverage. These defects permitted partial
+official state, duplicate quotes, false completion, and weak tenant evidence.
+
+Validation: require 26 focused Web tests, 12 RFQ database contract/runtime
+tests in the zero-skip lane, cross-tenant vendor rejection, duplicate-key
+rejection, invalid-transition rejection, audit-failure rollback, 54/54 clean
+replay and hosted ledger parity, full lint/typecheck/test/build, 453
+application tests, 236/236 database tests, 77/77 static generation, secret and
+workflow scans, and zero Vercel deployments.
+
+Rollback: revert application source commit `20d276c` only if necessary.
+Migration `20260729162944` is forward-only because removing it would reopen
+cross-tenant, duplicate-submission, evidence-deletion, and invalid-transition
+paths. Correct database defects with a reviewed forward migration. Keep
+Vercel Git disconnected and the retained production deployment active until
+one consolidated frontend release is explicitly approved.

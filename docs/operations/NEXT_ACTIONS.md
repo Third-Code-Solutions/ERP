@@ -5,12 +5,12 @@
 Await explicit approval for one manual queued Standard Vercel production build:
 
 1. Use exact candidate
-   `f173957559a93eb724daf9eeed3fbbb1c4576baf`.
+   `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59`.
 2. Keep Vercel Git disconnected. Do not create a preview.
 3. Reconfirm zero deployments after retained production
    `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
-4. Disclose expected incremental Standard build compute charge: `$0` in the
-   current no-on-demand-concurrency configuration.
+4. Recheck live provider billing before approval. Treat any unverified build
+   estimate as billable; do not deploy unless the user accepts the exact cap.
 5. Obtain explicit user approval before calling any deploy command.
 6. If approved, trigger exactly one production build and wait for its terminal
    status. Never duplicate a queued or running build.
@@ -27,7 +27,7 @@ Await explicit approval for one manual queued Standard Vercel production build:
 
 Complete remaining M1 controls without enabling production writes:
 
-1. Treat hosted Supabase migration `20260729153620` as the current 53/53
+1. Treat hosted Supabase migration `20260729162944` as the current 54/54
    baseline. Do not replay it or edit applied migration history.
 2. Treat organization type as constrained tenant profile data only. Never use
    it for roles, capabilities, memberships, approvals, or tenant access.
@@ -140,6 +140,10 @@ Complete remaining M1 controls without enabling production writes:
   returns the same RFQ without duplicate notification, direct browser writes
   remain denied, and the current/manual compatibility contract is preserved.
   Do not buy a separate build.
+- Include atomic RFQ quote/terminal workflow in that same reviewed SHA. Verify
+  one controlled quote, exact retry, conflicting-key denial, full-coverage
+  completion, invalid transition denial, actor-attributed audits, and
+  post-commit notification behavior. Do not buy a separate build.
 
 ## Following milestone
 
@@ -156,15 +160,20 @@ reconciliation gates pass.
 
 ## Next unblocked integrity slice
 
-Harden RFQ quote and terminal-state mutations without expanding M2:
+Add an inert NestJS procurement adapter for the now-defined RFQ commands:
 
-1. Lock the tenant-scoped RFQ before logging a quote, completing, or cancelling.
-2. Define explicit allowed state transitions and idempotent replay behavior.
-3. Tenant-validate RFQ, vendor, and material references before any write.
-4. Commit quote/status mutation and audit in one transaction.
-5. Keep notification after commit and prevent duplicate retry delivery.
-6. Add database constraints and focused failure/concurrency tests only where
-   the existing schema cannot enforce the required tenant boundary.
+1. Preserve the existing `logQuote`, `completeRfq`, and `cancelRfq` Server
+   Action result contract.
+2. Add NestJS command DTOs, capability guards, tenant-derived identity, and
+   transaction services for quote/create-terminal transitions.
+3. Reuse the PostgreSQL idempotency, tenant-composite, coverage, audit, and
+   state-machine invariants. Do not duplicate authority in React.
+4. Keep routing disabled by default with an exact boolean and explicit
+   database-derived tenant allowlist.
+5. Add contract, tenant-isolation, retry, concurrency, audit, and rollback
+   tests against disposable PostgreSQL/Redis.
+6. Do not deploy or enable the adapter until M1 canary and provider controls
+   pass. No Vercel build is required for inert source.
 
 ## Do not start yet
 

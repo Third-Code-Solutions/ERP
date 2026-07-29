@@ -496,3 +496,26 @@ reach through each other's internals.
 - The transitional Next.js service must move behind NestJS incrementally
   without weakening transaction, idempotency, tenancy, permission, actor, or
   audit invariants.
+
+## RFQ quote workflow integrity boundary
+
+- A quote submission has one stable tenant-scoped idempotency key and one
+  canonical BOM-line identity. Browser retries reuse the key; exact replay
+  returns the durable result and conflicting reuse fails closed.
+- The server derives material identity from the locked RFQ line. Browser input
+  cannot select a cross-tenant or unrelated material.
+- RFQ, vendor, material, BOM line, actor, and quote references are
+  tenant-validated before mutation and protected by database constraints where
+  persistence requires the relationship.
+- Quote creation, first-quote status change, and their audits share one
+  database transaction. Completion/cancellation and audit also share one
+  transaction.
+- Completion rechecks full line coverage while holding the RFQ lock. Client
+  rendering is convenience only and never workflow authority.
+- PostgreSQL enforces the explicit state graph. `completed` and `cancelled`
+  are terminal; an invalid transition fails independently of application code.
+- Notifications occur only after commit. Notification failure cannot roll
+  back or misreport an already committed official transaction.
+- The current Next.js service is a compatibility implementation. The next
+  incremental migration places the same commands behind a disabled NestJS
+  procurement adapter before any provider-level cutover.

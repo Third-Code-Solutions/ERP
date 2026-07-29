@@ -1460,6 +1460,82 @@ Rollback and unresolved:
 - Composite database constraints remain required in M2.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
 
+## 2026-07-30 -- Atomic RFQ quote and terminal workflow
+
+Outcome:
+
+- Replaced independent quote, RFQ-status, and audit writes with one
+  server-only transaction service that locks and tenant-scopes the RFQ.
+- Added stable BOM-line identity and tenant-scoped UUID submission
+  idempotency. Exact retry returns the durable quote; conflicting key reuse
+  fails without mutation.
+- Removed browser-supplied material authority. Material identity is derived
+  from the locked RFQ line and validated against the same tenant.
+- Fixed RFQ creation so uncontracted catalog lines retain their material ID
+  and every new line persists its canonical BOM-line ID.
+- Completion now requires `quotes_received` plus full locked line coverage.
+  Cancellation and completion use explicit allowed source states.
+- Quote creation, first-quote status change, terminal transition, and their
+  audits are atomic. Completion notification is post-commit and cannot
+  misreport transaction failure.
+- Added four validated tenant-composite quote references, restrictive evidence
+  parents, durable submission uniqueness, and a PostgreSQL RFQ state trigger.
+- Applied migration `20260729162944_rfq_quote_workflow_integrity.sql` through
+  the connected Supabase project `aqqrtkmtcsfkbyyqxowv`.
+- Hosted Supabase is healthy and current at 54/54. RFQ and quote counts remain
+  zero; four constraints are validated; the state trigger is enabled; browser
+  quote mutation privileges remain denied.
+- No Vercel deployment was created. Git remains disconnected and the retained
+  production deployment remains unchanged.
+
+Changed files:
+
+- `apps/web/src/app/(dashboard)/procurement/rfqs/[id]/page.tsx`
+- `apps/web/src/app/(dashboard)/procurement/rfqs/actions.ts`
+- `apps/web/src/app/(dashboard)/procurement/rfqs/actions.test.ts`
+- `apps/web/src/components/rfq/log-quote-form.tsx`
+- `apps/web/src/components/rfq/price-comparison-table.tsx`
+- `apps/web/src/lib/procurement/rfq-service.ts`
+- `apps/web/src/lib/procurement/rfq-service.test.ts`
+- `apps/web/src/lib/procurement/rfq-workflow-service.ts`
+- `apps/web/src/lib/procurement/rfq-workflow-service.test.ts`
+- `packages/database/src/schema/bom-extras.ts`
+- `packages/database/src/__tests__/rfq-quote-workflow-integrity.test.ts`
+- `supabase/migrations/20260729162944_rfq_quote_workflow_integrity.sql`
+- `docs/research/components/rfq-quote-workflow-integrity.spec.md`
+- the six architecture/operations memory files
+- `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`
+
+Validation:
+
+- Focused RFQ Web suites -- 26/26 pass.
+- RFQ database contract/runtime suites -- 12/12 pass in the zero-skip lane.
+- Root lint and full workspace typecheck -- pass.
+- Root tests -- 453 application tests pass.
+- Nest/Next production build -- pass; Next generated 77/77 static pages.
+- Disposable PostgreSQL 17/Redis 7.4.9 lane -- 54/54 migrations, 236/236
+  database tests, 1/1 Nest integration, no skips, stable schema fingerprint
+  `36B8999F16B825D89D8F782CBF28180D074AD677A9E8B2C16B713C79BB931BB6`.
+- Hosted Supabase -- 54/54; head `20260729162944`; no missing/unexpected
+  migration; no RFQ/quote row mutation.
+- gitleaks 8.30.1, actionlint 1.7.12, pinned action-reference checks,
+  `git diff --check`, and prohibited external ERP source/brand scan -- pass.
+- Source commit `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59` is authored
+  by `kurtgav <kurtgavin.design@gmail.com>`.
+- Vercel deployments after retained baseline `1785295180454` -- zero.
+
+Rollback and unresolved:
+
+- Revert application source commit `20d276c` only if necessary.
+- Do not remove migration `20260729162944`; correct defects with a reviewed
+  forward migration because reversal reopens tenant, replay, evidence, and
+  state-machine risks.
+- RFQ workflow authority remains transitional Next.js code. Next safe slice is
+  an inert, disabled NestJS procurement adapter preserving the same contract.
+- Frontend activation still requires one explicitly approved consolidated
+  queued Standard Vercel build.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
 ## 2026-07-29 -- Cortex directional relationship meaning
 
 Outcome:
@@ -2523,12 +2599,15 @@ Validation:
 
 Rollback and unresolved:
 
-- Revert application source commit `f173957` only if necessary. Do not undo the
-  live integrity migrations; correct them with a reviewed forward migration.
-- RFQ quote logging, completion, and cancellation still split status/quote
-  writes from audit and need their own row-locked transaction slice.
-- RFQ transaction authority remains transitional Next.js code pending
-  incremental NestJS migration.
+- Revert application source commit `20d276c` only if necessary. Do not undo
+  the live integrity migrations; correct them with a reviewed forward
+  migration.
+- RFQ quote logging, completion, and cancellation are now row-locked,
+  tenant-scoped, idempotent, state-machine guarded, and atomic with audit in
+  source commit `20d276c`; hosted migration `20260729162944` is current.
+- RFQ transaction authority remains transitional Next.js code. The next safe
+  slice is an inert disabled NestJS procurement adapter preserving the same
+  contract.
 - Frontend activation still requires one explicitly approved consolidated
   queued Standard Vercel build.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.

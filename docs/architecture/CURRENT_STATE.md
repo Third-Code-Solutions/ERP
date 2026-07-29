@@ -1,6 +1,6 @@
 # Current State
 
-Verified from the repository and the configured Supabase target on 2026-07-29.
+Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
@@ -11,7 +11,7 @@ successful build.
 | Frontend | `apps/web`: Next.js 15.5.18 App Router, React 19.2.6, TypeScript 5.9.3 |
 | Existing application backend | 47 Next.js Server Action files, 24 Route Handler files, SQL functions/triggers, and Supabase clients |
 | New core ERP boundary | `apps/api`: NestJS 11 modular-monolith foundation. Project update is the first feature-flagged transaction slice and is off by default |
-| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 53 SQL migrations and 45 Drizzle schema files |
+| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 54 SQL migrations and 45 Drizzle schema files |
 | Authentication | Supabase Auth. Tenant membership and role come from PostgreSQL, not client claims |
 | Authorization | RLS plus mixed application checks in the legacy path. The Nest slice has deny-by-default capability metadata and tenant-scoped queries |
 | Async work | Inngest is the active legacy job system. Redis 5/BullMQ 5 are wired into the Nest foundation but have no migrated business jobs yet |
@@ -35,7 +35,7 @@ successful build.
 The authorized Supabase target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17 and
 matches the repository migration contract:
 
-- Migration ledger: 53 of 53 applied; no missing or unexpected versions.
+- Migration ledger: 54 of 54 applied; no missing or unexpected versions.
 - Catalog: 86 public tables and 315 RLS policies.
 - Verifier: all 30 protected-table groups, constraints, triggers, privileges,
   tenant controls, and finance/inventory authority checks pass.
@@ -63,6 +63,11 @@ matches the repository migration contract:
 - Migration `20260729153620_close_rfq_browser_writes.sql` removes direct
   browser mutation authority from RFQs and RFQ quotes. Authenticated users keep
   tenant-scoped reads; official writes require server authority.
+- Migration `20260729162944_rfq_quote_workflow_integrity.sql` adds durable
+  quote submission idempotency, stable BOM-line identity, four validated
+  tenant-composite quote references, and a database-enforced RFQ state graph.
+  Hosted verification found zero RFQs, zero quotes, and no affected business
+  rows.
 - `supabase/seed.sql` was intentionally not applied because it is a local/CI
   reset fixture, not production data.
 
@@ -112,7 +117,7 @@ matches the repository migration contract:
 - Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is disconnected from
   Git. The canonical alias still serves READY deployment
   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`. Vercel recorded zero deployments after
-  source commits through `f173957559a93eb724daf9eeed3fbbb1c4576baf`.
+  source commits through `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59`.
 - Vercel Web Analytics is enabled. Its production script returns JavaScript
   with HTTP 200 and the final desktop browser console is clean.
 - A live no-write Supabase Auth proof covers missing/invalid bearer tokens,
@@ -199,11 +204,11 @@ matches the repository migration contract:
 - The built API starts independently: `/health` returns 200, an unauthenticated
   Project write returns 401, and `/ready` returns 503 when its deliberately
   absent database and Redis dependencies are unavailable.
-- Fresh workspace tests pass with 433 passing tests; 134 database
+- Fresh workspace tests pass with 453 passing tests; 137 database
   cases are skipped unless a disposable database URL and capability flags are
   explicitly injected.
-- The dedicated fail-closed database lane rebuilds from all 53 migrations and
-  seed data, then executes all 228 database tests with zero skips.
+- The dedicated fail-closed database lane rebuilds from all 54 migrations and
+  seed data, then executes all 236 database tests with zero skips.
 - A disposable-database Nest integration test now covers 401, 403, cross-tenant
   404, stale 409, successful update, trigger audit actor, and final rollback.
   It passes locally against the isolated PostgreSQL/Redis lane and remains
@@ -213,7 +218,7 @@ matches the repository migration contract:
   ordering for bank reversal and Project Budget revision approval.
 - The migration/catalog verifier passes with the optional platform
   `rls_auto_enable()` helper both absent and present-but-locked.
-- Supabase project `aqqrtkmtcsfkbyyqxowv` is current at 53/53 migrations.
+- Supabase project `aqqrtkmtcsfkbyyqxowv` is current at 54/54 migrations.
   Hosted and clean-local definitions for all five repaired functions have
   identical MD5 fingerprints; affected business/audit row counts were
   unchanged across the release.
@@ -741,19 +746,19 @@ matches the repository migration contract:
 ## Cost-controlled frontend release candidate
 
 - The consolidated frontend candidate is
-  `f173957559a93eb724daf9eeed3fbbb1c4576baf`, 41 commits after retained
+  `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59`, 43 commits after retained
   production source `f24e5603a35571f8dcadd43fc09c64d12646a7d0`.
-- The Web delta is fully inventoried: 89 files, comprising 54 runtime files
-  and 35 test/E2E files. No Web runtime file remains unclassified.
+- The Web delta is fully inventoried: 94 files, comprising 58 runtime files
+  and 36 test/E2E files. No Web runtime file remains unclassified.
 - Vercel Git is disconnected. On-demand concurrent builds are disabled and
-  the next build uses Standard 4 vCPU/8 GB. Vercel documents Standard build
-  compute as no added charge in this queued configuration.
+  the next approved build would use Standard 4 vCPU/8 GB. No zero-cost claim
+  is assumed; live billing and the accepted spend cap must be reconfirmed.
 - No Vercel deployment followed the source push. The retained READY production
   artifact remains `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
 - Middleware now isolates anonymous IP buckets from authenticated user buckets.
   This prevents an authenticated burst from producing a later public 429 and
   prevents authenticated users behind one shared IP from consuming one bucket.
-- Root lint, typecheck, test, and production build pass. There are 433 passing
+- Root lint, typecheck, test, and production build pass. There are 453 passing
   application tests; Next generates 77/77 static steps. A sequential
   authenticated Cortex plus public landing browser run passes 2/2.
 - gitleaks, actionlint, diff checks, and prohibited external ERP brand/source
@@ -885,10 +890,10 @@ matches the repository migration contract:
 - Direct `anon` and `authenticated` insert, update, and delete privileges were
   removed from `rfqs` and `rfq_quotes`; authenticated tenant-scoped reads
   remain.
-- Hosted Supabase is current at 53/53 migrations with zero RFQs, zero quotes,
+- Hosted Supabase is current at 54/54 migrations with zero RFQs, zero quotes,
   and zero duplicate tenant/BOM pairs. No business rows changed.
-- Root lint, typecheck, 433 tests, Nest/Next production builds, 77/77 static
-  steps, the 228/228 PostgreSQL 17/Redis lane, secret/workflow scans, diff
+- Root lint, typecheck, 453 tests, Nest/Next production builds, 77/77 static
+  steps, the 236/236 PostgreSQL 17/Redis lane, secret/workflow scans, diff
   checks, and prohibited external ERP source/brand scans pass.
 - Source commit `f173957559a93eb724daf9eeed3fbbb1c4576baf` is on both
   repository refs under `kurtgav <kurtgavin.design@gmail.com>`. Railway
@@ -897,3 +902,34 @@ matches the repository migration contract:
 - Vercel Git remains disconnected and Vercel created zero deployments after
   the retained READY production artifact. The RFQ Web source remains pending
   the single explicitly approved consolidated frontend build.
+
+## Atomic RFQ quote and terminal workflow
+
+- Quote logging, completion, and cancellation now use one server-only,
+  tenant-scoped transaction service. Each command locks the RFQ before
+  validation and commits official state plus actor-attributed audit together.
+- Quote submissions carry a browser-generated UUID that is reused across
+  transport retries. `(tenant_id, submission_id)` is unique; exact replay
+  returns the prior quote and conflicting key reuse fails closed.
+- New RFQs persist the canonical BOM line ID and retain the material ID for
+  uncontracted catalog items. Quote coverage resolves the line ID first, with
+  bounded legacy material/code fallback for existing JSON.
+- Vendor, material, RFQ, and BOM-line references are tenant-composite database
+  constraints. Vendor/material deletion is restrictive instead of erasing
+  official quote evidence.
+- The allowed database state graph is `pending -> quotes_received|cancelled`
+  and `quotes_received -> completed|cancelled`. Terminal states cannot reopen.
+- Completion rechecks full quote coverage under the RFQ lock. Completion
+  notification is post-commit; its failure cannot misreport a rolled-back ERP
+  transaction.
+- Source commit `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59` contains the
+  reviewed implementation. Local lint/typecheck, 453 application tests,
+  Nest/Next production build, 77/77 static generation, 54-migration replay,
+  236/236 zero-skip database tests, and 1/1 Nest database integration pass.
+- Supabase project `aqqrtkmtcsfkbyyqxowv` is healthy and current at 54/54,
+  headed by `20260729162944`. Four quote constraints are validated, the state
+  trigger is enabled, and authenticated insert/update/delete privileges on
+  RFQ quotes remain false.
+- Vercel Git remains disconnected. No deployment exists after retained
+  production `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`; visible UI activation remains
+  pending one explicitly approved consolidated production build.
