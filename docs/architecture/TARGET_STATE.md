@@ -164,3 +164,20 @@ reach through each other's internals.
   from user-editable organization metadata.
 - Applied migrations remain immutable. Any rollback is a reviewed forward
   compensation while preserving existing tenant and identity rows.
+
+## Public landing quality boundary
+
+- Keep the landing AIDA structure, original generated construction imagery,
+  Satoshi display typography, dense 24-cell bento, and scoped GSAP motion.
+- Render the hero in no more than three visual lines at supported desktop,
+  tablet, and 390px mobile widths. Hide the decorative inline heading image
+  when it would force extra mobile lines.
+- Use descriptive content labels instead of decorative section/question
+  ordinals. Retain numeric state only where it communicates functional
+  position, such as an accessible carousel counter.
+- Require zero horizontal overflow, visible focus states, reduced-motion
+  behavior, and at least 44px visible mobile interaction targets.
+- Load Vercel Analytics only on Vercel. Local or alternative-host production
+  artifacts must not emit missing-script console errors.
+- Gate any paid frontend build on green local checks, browser evidence at
+  1440/768/390, exact charge disclosure, and explicit user approval.

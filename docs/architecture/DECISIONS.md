@@ -419,3 +419,27 @@ and maintained architecture documents all match the newer architecture.
 
 Rollback: revert this documentation decision only together with an approved,
 internally consistent replacement governance set. Runtime state is unaffected.
+
+## D-041 -- Correct the landing incrementally and scope Vercel telemetry
+
+Decision: preserve the accepted public landing architecture and apply a
+targeted responsive/accessibility correction. At 390px, render the hero as
+three non-wrapping text lines, hide its decorative inline micro-image, remove
+decorative ordinals, and enforce 44px visible interaction targets. Render
+`@vercel/analytics` only when `VERCEL=1`; use responsive-image fetch priority
+instead of duplicate preload hints.
+
+Reason: live browser measurement proved six hero lines and undersized mobile
+targets, contradicting the landing specification and GPT Taste constraints.
+A full redesign would add risk without improving the accepted desktop system.
+Unconditional Vercel telemetry also creates false console failures in local or
+alternative-host production artifacts.
+
+Validation: require optimized production build success; exact H1 line-box
+measurement at 1440, 768, and 390; zero horizontal overflow; zero decorative
+ordinal labels; no visible mobile target below 44px; working accordion and FAQ;
+valid JSON-LD; and zero browser console errors or warnings.
+
+Rollback: revert the landing component, CSS module, and conditional analytics
+render together. No data or provider rollback is required. Existing Vercel
+production remains unchanged until a separately approved deployment.
