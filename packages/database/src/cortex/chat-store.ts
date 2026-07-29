@@ -15,14 +15,36 @@ import {
 
 type Role = CortexMessage['role']
 
+export interface CortexConversationRecordContext {
+  refTable: string
+  refId: string
+}
+
+export type CortexConversationSummary = Pick<
+  CortexConversation,
+  | 'id'
+  | 'title'
+  | 'context_ref_table'
+  | 'context_ref_id'
+  | 'created_at'
+  | 'updated_at'
+>
+
 export async function createCortexConversation(
   tenantId: string,
   userId: string,
-  title: string | null
+  title: string | null,
+  context: CortexConversationRecordContext | null = null
 ): Promise<string> {
   const [row] = await db
     .insert(cortexConversations)
-    .values({ tenant_id: tenantId, user_id: userId, title })
+    .values({
+      tenant_id: tenantId,
+      user_id: userId,
+      title,
+      context_ref_table: context?.refTable ?? null,
+      context_ref_id: context?.refId ?? null,
+    })
     .returning({ id: cortexConversations.id })
   return row!.id
 }
@@ -69,8 +91,25 @@ export async function ownsCortexConversation(
   userId: string,
   conversationId: string
 ): Promise<boolean> {
-  const [owned] = await db
-    .select({ id: cortexConversations.id })
+  return Boolean(
+    await getCortexConversation(tenantId, userId, conversationId)
+  )
+}
+
+export async function getCortexConversation(
+  tenantId: string,
+  userId: string,
+  conversationId: string
+): Promise<CortexConversationSummary | null> {
+  const [conversation] = await db
+    .select({
+      id: cortexConversations.id,
+      title: cortexConversations.title,
+      context_ref_table: cortexConversations.context_ref_table,
+      context_ref_id: cortexConversations.context_ref_id,
+      created_at: cortexConversations.created_at,
+      updated_at: cortexConversations.updated_at,
+    })
     .from(cortexConversations)
     .where(
       and(
@@ -80,18 +119,20 @@ export async function ownsCortexConversation(
       )
     )
     .limit(1)
-  return Boolean(owned)
+  return conversation ?? null
 }
 
 export async function listCortexConversations(
   tenantId: string,
   userId: string,
   limit = 20
-): Promise<Pick<CortexConversation, 'id' | 'title' | 'created_at' | 'updated_at'>[]> {
+): Promise<CortexConversationSummary[]> {
   return db
     .select({
       id: cortexConversations.id,
       title: cortexConversations.title,
+      context_ref_table: cortexConversations.context_ref_table,
+      context_ref_id: cortexConversations.context_ref_id,
       created_at: cortexConversations.created_at,
       updated_at: cortexConversations.updated_at,
     })

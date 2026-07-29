@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
+  getCortexConversation: vi.fn(),
   getCortexConversationMessages: vi.fn(),
   getCortexCitationsByNodeIds: vi.fn(),
+  authorizeCortexRecordContext: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -12,8 +14,13 @@ vi.mock('@third-code-erp/auth', () => ({
 }))
 
 vi.mock('@third-code-erp/database', () => ({
+  getCortexConversation: mocks.getCortexConversation,
   getCortexConversationMessages: mocks.getCortexConversationMessages,
   getCortexCitationsByNodeIds: mocks.getCortexCitationsByNodeIds,
+}))
+
+vi.mock('@/lib/cortex/record-context', () => ({
+  authorizeCortexRecordContext: mocks.authorizeCortexRecordContext,
 }))
 
 import { GET } from './route'
@@ -42,6 +49,15 @@ describe('Cortex conversation citation reauthorization', () => {
       role: 'finance',
       user: { id: USER_ID },
     })
+    mocks.getCortexConversation.mockResolvedValue({
+      id: CONVERSATION_ID,
+      title: 'Finance thread',
+      context_ref_table: null,
+      context_ref_id: null,
+      created_at: new Date('2026-07-29T00:00:00.000Z'),
+      updated_at: new Date('2026-07-29T00:00:00.000Z'),
+    })
+    mocks.authorizeCortexRecordContext.mockResolvedValue(null)
     mocks.getCortexConversationMessages.mockResolvedValue([
       {
         role: 'assistant',
@@ -94,11 +110,60 @@ describe('Cortex conversation citation reauthorization', () => {
   })
 
   it('does not query citations for a missing or foreign conversation', async () => {
-    mocks.getCortexConversationMessages.mockResolvedValue(null)
+    mocks.getCortexConversation.mockResolvedValue(null)
 
     const response = await request()
 
     expect(response.status).toBe(404)
+    expect(mocks.getCortexConversationMessages).not.toHaveBeenCalled()
+    expect(mocks.getCortexCitationsByNodeIds).not.toHaveBeenCalled()
+  })
+
+  it('reauthorizes and returns the persisted record context', async () => {
+    const context = {
+      refTable: 'invoices',
+      refId: REF_ID,
+      nodeId: VISIBLE_NODE_ID,
+      nodeType: 'invoice',
+      title: 'INV-2026-001',
+    }
+    mocks.getCortexConversation.mockResolvedValue({
+      id: CONVERSATION_ID,
+      title: 'Invoice thread',
+      context_ref_table: context.refTable,
+      context_ref_id: context.refId,
+      created_at: new Date('2026-07-29T00:00:00.000Z'),
+      updated_at: new Date('2026-07-29T00:00:00.000Z'),
+    })
+    mocks.authorizeCortexRecordContext.mockResolvedValue(context)
+
+    const response = await request()
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.context).toEqual(context)
+    expect(mocks.authorizeCortexRecordContext).toHaveBeenCalledWith(
+      TENANT_ID,
+      'finance',
+      { refTable: 'invoices', refId: REF_ID }
+    )
+  })
+
+  it('hides a scoped conversation after current access is revoked', async () => {
+    mocks.getCortexConversation.mockResolvedValue({
+      id: CONVERSATION_ID,
+      title: 'Revoked thread',
+      context_ref_table: 'projects',
+      context_ref_id: REF_ID,
+      created_at: new Date('2026-07-29T00:00:00.000Z'),
+      updated_at: new Date('2026-07-29T00:00:00.000Z'),
+    })
+    mocks.authorizeCortexRecordContext.mockResolvedValue(null)
+
+    const response = await request()
+
+    expect(response.status).toBe(404)
+    expect(mocks.getCortexConversationMessages).not.toHaveBeenCalled()
     expect(mocks.getCortexCitationsByNodeIds).not.toHaveBeenCalled()
   })
 
@@ -108,6 +173,7 @@ describe('Cortex conversation citation reauthorization', () => {
     const response = await request()
 
     expect(response.status).toBe(401)
+    expect(mocks.getCortexConversation).not.toHaveBeenCalled()
     expect(mocks.getCortexConversationMessages).not.toHaveBeenCalled()
   })
 })

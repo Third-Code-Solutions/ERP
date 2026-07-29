@@ -1,4 +1,15 @@
-import { pgTable, pgEnum, uuid, varchar, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import {
+  check,
+  index,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { users } from './users'
 
@@ -25,6 +36,10 @@ export const cortexConversations = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     title: varchar('title', { length: 255 }),
+    // Durable pointer to the canonical ERP record that scoped this thread.
+    // Both values are null for a whole-company conversation.
+    context_ref_table: varchar('context_ref_table', { length: 100 }),
+    context_ref_id: uuid('context_ref_id'),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -33,6 +48,11 @@ export const cortexConversations = pgTable(
       table.tenant_id,
       table.user_id,
       table.updated_at
+    ),
+    contextPairCheck: check(
+      'cortex_conversations_context_pair_check',
+      sql`(${table.context_ref_table} is null and ${table.context_ref_id} is null)
+        or (${table.context_ref_table} is not null and ${table.context_ref_id} is not null)`
     ),
   })
 )

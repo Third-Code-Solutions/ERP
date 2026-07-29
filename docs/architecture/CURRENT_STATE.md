@@ -11,7 +11,7 @@ successful build.
 | Frontend | `apps/web`: Next.js 15.5.18 App Router, React 19.2.6, TypeScript 5.9.3 |
 | Existing application backend | 47 Next.js Server Action files, 24 Route Handler files, SQL functions/triggers, and Supabase clients |
 | New core ERP boundary | `apps/api`: NestJS 11 modular-monolith foundation. Project update is the first feature-flagged transaction slice and is off by default |
-| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 50 SQL migrations and 45 Drizzle schema files |
+| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 51 SQL migrations and 45 Drizzle schema files |
 | Authentication | Supabase Auth. Tenant membership and role come from PostgreSQL, not client claims |
 | Authorization | RLS plus mixed application checks in the legacy path. The Nest slice has deny-by-default capability metadata and tenant-scoped queries |
 | Async work | Inngest is the active legacy job system. Redis 5/BullMQ 5 are wired into the Nest foundation but have no migrated business jobs yet |
@@ -35,7 +35,7 @@ successful build.
 The authorized Supabase target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17 and
 matches the repository migration contract:
 
-- Migration ledger: 50 of 50 applied; no missing or unexpected versions.
+- Migration ledger: 51 of 51 applied; no missing or unexpected versions.
 - Catalog: 86 public tables and 315 RLS policies.
 - Verifier: all 30 protected-table groups, constraints, triggers, privileges,
   tenant controls, and finance/inventory authority checks pass.
@@ -52,6 +52,11 @@ matches the repository migration contract:
   `20260729054456_persist_signup_organization_type.sql` adds the constrained
   non-authoritative tenant organization profile field. Existing tenants safely
   default to `other`; hosted identity and tenant counts remain unchanged.
+- Migration
+  `20260729115110_cortex_conversation_record_context.sql` adds an optional
+  validated canonical record-reference pair to saved Cortex conversations and
+  removes authenticated browser write authority from Cortex conversation and
+  message tables. Existing ten conversations remain valid and unscoped.
 - `supabase/seed.sql` was intentionally not applied because it is a local/CI
   reset fixture, not production data.
 
@@ -188,11 +193,11 @@ matches the repository migration contract:
 - The built API starts independently: `/health` returns 200, an unauthenticated
   Project write returns 401, and `/ready` returns 503 when its deliberately
   absent database and Redis dependencies are unavailable.
-- Fresh workspace tests pass with 250 passing tests; 132 database
+- Fresh workspace tests pass with 369 passing tests; 132 database
   cases are skipped unless a disposable database URL and capability flags are
   explicitly injected.
-- The dedicated fail-closed database lane rebuilds from all 50 migrations and
-  seed data, then executes all 220 database tests with zero skips.
+- The dedicated fail-closed database lane rebuilds from all 51 migrations and
+  seed data, then executes all 224 database tests with zero skips.
 - A disposable-database Nest integration test now covers 401, 403, cross-tenant
   404, stale 409, successful update, trigger audit actor, and final rollback.
   It passes locally against the isolated PostgreSQL/Redis lane and remains
@@ -202,7 +207,7 @@ matches the repository migration contract:
   ordering for bank reversal and Project Budget revision approval.
 - The migration/catalog verifier passes with the optional platform
   `rls_auto_enable()` helper both absent and present-but-locked.
-- Supabase project `aqqrtkmtcsfkbyyqxowv` is current at 48/48 migrations.
+- Supabase project `aqqrtkmtcsfkbyyqxowv` is current at 51/51 migrations.
   Hosted and clean-local definitions for all five repaired functions have
   identical MD5 fingerprints; affected business/audit row counts were
   unchanged across the release.
@@ -609,3 +614,33 @@ matches the repository migration contract:
   Railway deployment `dd9f0f50-e8bd-4411-a49b-ffea0984030a` built and
   activated successfully; live health and readiness are 200 with PostgreSQL
   and Redis `ok`.
+
+## Cortex durable conversation context
+
+- Saved conversations can now hold one immutable canonical record reference:
+  registered source table plus UUID, or neither value.
+- New and restored chats reauthorize that record against the authenticated
+  tenant, current Cortex node, canonical entity mapping, and current role.
+  Missing, mismatched, revoked, and forbidden context shares a
+  non-enumerating 404 response.
+- History omits conversations whose stored context is no longer authorized.
+  Existing unscoped conversations remain backward compatible.
+- Chat request input is bounded. Stored record context is included in the
+  grounded prompt and deterministic fallback without allowing the model to
+  approve or finalize ERP transactions.
+- Official conversation and message writes are server-only. Hosted catalog
+  checks confirm zero authenticated write policies, table grants, or column
+  grants for these tables.
+- Hosted Supabase is live on migration
+  `20260729115110_cortex_conversation_record_context.sql` at 51/51. Ten
+  existing conversations remain; zero have a half-bound context pair.
+- Disposable PostgreSQL 17 and Redis validation passed all 51 migrations,
+  catalog verification, 224/224 database tests with zero skips, Nest database
+  integration, and stable rollback fingerprint
+  `C89987BD5B4E7DAA2F53DDD0036FBE3614D385844078453B052E992516935260`.
+- Supabase security advisor reports no new Cortex finding. Existing findings
+  remain: one public-schema extension, callable authorization helpers,
+  leaked-password protection disabled, and one RLS-enabled internal sequence
+  table without a policy.
+- UI context sending and display are not implemented yet. Vercel Git remains
+  disconnected, and no frontend deployment or provider spend occurred.

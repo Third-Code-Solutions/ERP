@@ -3,9 +3,11 @@ import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
 import {
   getCortexCitationsByNodeIds,
+  getCortexConversation,
   getCortexConversationMessages,
 } from '@third-code-erp/database'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
+import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
 
 const storedCitationSchema = z.object({
   nodeId: z.string().uuid(),
@@ -33,6 +35,33 @@ export async function GET(
   const parsed = z.string().uuid().safeParse((await params).id)
   if (!parsed.success) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
+  const conversation = await getCortexConversation(
+    profile.tenantId,
+    profile.user.id,
+    parsed.data
+  )
+  if (!conversation) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  const { context_ref_table, context_ref_id } = conversation
+  if (Boolean(context_ref_table) !== Boolean(context_ref_id)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  const context =
+    context_ref_table && context_ref_id
+      ? await authorizeCortexRecordContext(
+          profile.tenantId,
+          profile.role,
+          {
+            refTable: context_ref_table,
+            refId: context_ref_id,
+          }
+        )
+      : null
+  if (context_ref_table && !context) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   const messages = await getCortexConversationMessages(profile.tenantId, profile.user.id, parsed.data)
   if (!messages) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -55,5 +84,5 @@ export async function GET(
     }),
   }))
 
-  return NextResponse.json({ messages: safeMessages })
+  return NextResponse.json({ context, messages: safeMessages })
 }

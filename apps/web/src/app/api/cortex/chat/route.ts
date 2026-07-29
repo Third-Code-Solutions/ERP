@@ -7,12 +7,15 @@ import {
   getCortexGraphStats,
   createCortexConversation,
   appendCortexMessage,
-  ownsCortexConversation,
+  getCortexConversation,
   cortexKeywordAnswer,
+  cortexDescribeEntity,
 } from '@third-code-erp/database'
 import { getOpenAI, embedText } from '@third-code-erp/ai'
+import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
+import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
 import {
   CORTEX_CITATIONS_HEADER,
   encodeCortexCitationHeader,
@@ -21,6 +24,25 @@ import { roleLabel } from '@/lib/operations/nav-config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
+
+const recordContextSchema = z.object({
+  refTable: z.string().trim().min(1).max(100),
+  refId: z.string().uuid(),
+})
+
+const chatRequestSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string().max(20_000),
+      })
+    )
+    .min(1)
+    .max(100),
+  conversationId: z.string().uuid().optional(),
+  context: recordContextSchema.optional(),
+})
 
 /**
  * POST /api/cortex/chat — the Third Code ERP AI Brain (Cortex).
@@ -34,10 +56,15 @@ export async function POST(req: NextRequest) {
   const profile = await getUserProfile()
   if (!profile) return new Response('Unauthorized', { status: 401 })
 
-  const { messages, conversationId: incomingConvId } = (await req.json()) as {
-    messages: { role: 'user' | 'assistant'; content: string }[]
-    conversationId?: string
+  const parsed = chatRequestSchema.safeParse(await req.json().catch(() => null))
+  if (!parsed.success) {
+    return new Response('Invalid chat request', { status: 400 })
   }
+  const {
+    messages,
+    conversationId: incomingConvId,
+    context: incomingContext,
+  } = parsed.data
 
   const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
 
@@ -45,15 +72,59 @@ export async function POST(req: NextRequest) {
   // store the incoming user turn now; the assistant turn is stored once the
   // stream completes. Best-effort — never block the chat on a write.
   let conversationId = incomingConvId ?? null
-  if (
-    conversationId &&
-    !(await ownsCortexConversation(
+  let authorizedContext: Awaited<
+    ReturnType<typeof authorizeCortexRecordContext>
+  > = null
+  if (conversationId) {
+    const conversation = await getCortexConversation(
       profile.tenantId,
       profile.user.id,
       conversationId
-    ))
-  ) {
-    return new Response('Conversation not found', { status: 404 })
+    )
+    if (!conversation) {
+      return new Response('Conversation not found', { status: 404 })
+    }
+
+    const storedContext =
+      conversation.context_ref_table && conversation.context_ref_id
+        ? {
+            refTable: conversation.context_ref_table,
+            refId: conversation.context_ref_id,
+          }
+        : null
+    if (
+      incomingContext &&
+      (!storedContext ||
+        incomingContext.refTable !== storedContext.refTable ||
+        incomingContext.refId !== storedContext.refId)
+    ) {
+      return new Response('Conversation context mismatch', { status: 409 })
+    }
+    if (
+      Boolean(conversation.context_ref_table) !==
+      Boolean(conversation.context_ref_id)
+    ) {
+      return new Response('Conversation not found', { status: 404 })
+    }
+    if (storedContext) {
+      authorizedContext = await authorizeCortexRecordContext(
+        profile.tenantId,
+        profile.role,
+        storedContext
+      )
+      if (!authorizedContext) {
+        return new Response('Conversation not found', { status: 404 })
+      }
+    }
+  } else if (incomingContext) {
+    authorizedContext = await authorizeCortexRecordContext(
+      profile.tenantId,
+      profile.role,
+      incomingContext
+    )
+    if (!authorizedContext) {
+      return new Response('Focused record not found', { status: 404 })
+    }
   }
 
   try {
@@ -61,7 +132,13 @@ export async function POST(req: NextRequest) {
       conversationId = await createCortexConversation(
         profile.tenantId,
         profile.user.id,
-        lastUserMessage.slice(0, 80) || 'New conversation'
+        lastUserMessage.slice(0, 80) || 'New conversation',
+        authorizedContext
+          ? {
+              refTable: authorizedContext.refTable,
+              refId: authorizedContext.refId,
+            }
+          : null
       )
     }
     if (lastUserMessage) {
@@ -91,6 +168,14 @@ export async function POST(req: NextRequest) {
     searchCortexNodes(profile.tenantId, { limit: 40, nodeTypes: scope }),
     searchCortexNodesByTerms(profile.tenantId, terms, 12, scope),
   ])
+  const focused = authorizedContext
+    ? await cortexDescribeEntity(
+        profile.tenantId,
+        authorizedContext.refTable,
+        authorizedContext.refId,
+        scope
+      )
+    : null
 
   const shape = stats.byType.map((t) => `${t.nodeType}:${t.count}`).join(', ')
   const fmt = (n: { node_type: string; title: string | null; summary: string | null }) =>
@@ -129,6 +214,9 @@ How to answer:
 
 GRAPH SHAPE (counts by record type): ${shape || 'empty'}
 
+CONVERSATION FOCUS (the canonical ERP record this thread is bound to):
+${focused?.found ? focused.summary : '(whole-company conversation)'}
+
 SEMANTICALLY RELATED RECORDS (closest in meaning):
 ${semantic || '(semantic index not built yet)'}
 
@@ -151,6 +239,8 @@ ${records || '(no records visible)'}`
         message_count: messages.length,
         graph_records_in_context: recent.length,
         last_user_message: lastUser.slice(0, 1000),
+        context_ref_table: authorizedContext?.refTable ?? null,
+        context_ref_id: authorizedContext?.refId ?? null,
       },
     })
   } catch (err) {
@@ -160,7 +250,18 @@ ${records || '(no records visible)'}`
   // Deterministic, always-available grounded answer (keyword match over the
   // graph). The agent's fallback when no LLM is configured or it fails — and
   // its cited records are persisted with the assistant turn either way.
-  const grounded = await cortexKeywordAnswer(profile.tenantId, lastUserMessage, scope)
+  const keywordGrounded = await cortexKeywordAnswer(
+    profile.tenantId,
+    lastUserMessage,
+    scope
+  )
+  const grounded =
+    focused?.found && keywordGrounded.citations.length === 0
+      ? {
+          answer: focused.summary,
+          citations: focused.citations,
+        }
+      : keywordGrounded
 
   type ChatChunk = { choices: { delta?: { content?: string | null } }[] }
   let llmStream: AsyncIterable<ChatChunk> | null = null
