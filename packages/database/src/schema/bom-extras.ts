@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, text, bigint, integer, timestamp, boolean, index, uniqueIndex, jsonb, pgEnum, foreignKey } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { boms } from './boms'
+import { bomLineItems } from './bom-line-items'
 import { vendors } from './vendors'
 import { users } from './users'
 import { unitsOfMeasure } from './inventory-masters'
@@ -127,6 +128,10 @@ export const rfqs = pgTable(
   (table) => ({
     tenantIdx: index('idx_rfqs_tenant_id').on(table.tenant_id),
     bomIdx: index('idx_rfqs_bom_id').on(table.bom_id),
+    tenantIdUniqueIdx: uniqueIndex('ux_rfqs_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     tenantBomUq: uniqueIndex('ux_rfqs_tenant_bom').on(
       table.tenant_id,
       table.bom_id
@@ -144,9 +149,11 @@ export const rfqQuotes = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenant_id: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
-    rfq_id: uuid('rfq_id').notNull().references(() => rfqs.id, { onDelete: 'cascade' }),
-    vendor_id: uuid('vendor_id').notNull().references(() => vendors.id, { onDelete: 'cascade' }),
-    material_item_id: uuid('material_item_id').references(() => materialItems.id, { onDelete: 'set null' }),
+    submission_id: uuid('submission_id').notNull().defaultRandom(),
+    rfq_id: uuid('rfq_id').notNull(),
+    bom_line_item_id: uuid('bom_line_item_id'),
+    vendor_id: uuid('vendor_id').notNull(),
+    material_item_id: uuid('material_item_id'),
     unit_price_cents: bigint('unit_price_cents', { mode: 'number' }).notNull(),
     lead_time_days: integer('lead_time_days'),
     valid_until: timestamp('valid_until', { withTimezone: true }),
@@ -157,6 +164,33 @@ export const rfqQuotes = pgTable(
   (table) => ({
     rfqIdx: index('idx_rfq_quotes_rfq_id').on(table.rfq_id),
     vendorIdx: index('idx_rfq_quotes_vendor_id').on(table.vendor_id),
+    tenantRfqIdx: index('idx_rfq_quotes_tenant_rfq').on(
+      table.tenant_id,
+      table.rfq_id
+    ),
+    tenantSubmissionUq: uniqueIndex(
+      'ux_rfq_quotes_tenant_submission'
+    ).on(table.tenant_id, table.submission_id),
+    rfqTenantFk: foreignKey({
+      name: 'rfq_quotes_rfq_tenant_fk',
+      columns: [table.tenant_id, table.rfq_id],
+      foreignColumns: [rfqs.tenant_id, rfqs.id],
+    }).onDelete('cascade'),
+    vendorTenantFk: foreignKey({
+      name: 'rfq_quotes_vendor_tenant_fk',
+      columns: [table.tenant_id, table.vendor_id],
+      foreignColumns: [vendors.tenant_id, vendors.id],
+    }).onDelete('restrict'),
+    materialTenantFk: foreignKey({
+      name: 'rfq_quotes_material_tenant_fk',
+      columns: [table.tenant_id, table.material_item_id],
+      foreignColumns: [materialItems.tenant_id, materialItems.id],
+    }).onDelete('restrict'),
+    bomLineTenantFk: foreignKey({
+      name: 'rfq_quotes_bom_line_tenant_fk',
+      columns: [table.tenant_id, table.bom_line_item_id],
+      foreignColumns: [bomLineItems.tenant_id, bomLineItems.id],
+    }).onDelete('restrict'),
   })
 )
 

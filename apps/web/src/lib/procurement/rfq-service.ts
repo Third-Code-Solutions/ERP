@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@third-code-erp/database'
 import {
   boms,
@@ -17,6 +17,7 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface RfqLineItemJson {
+  bom_line_item_id: string
   material_item_id: string | null
   code: string | null
   description: string
@@ -132,6 +133,7 @@ export async function createRfqFromBomRecord(
 
     const lines = await tx
       .select({
+        id: bomLineItems.id,
         code: bomLineItems.code,
         description: bomLineItems.description,
         unit: bomLineItems.unit,
@@ -151,27 +153,54 @@ export async function createRfqFromBomRecord(
       return { error: 'BOM has no line items to RFQ' }
     }
 
-    const contracted = await tx
-      .select({
-        code: materialItems.code,
-        material_item_id: materialItems.id,
-      })
-      .from(rateCards)
-      .innerJoin(
-        materialItems,
-        and(
-          eq(rateCards.material_item_id, materialItems.id),
-          eq(materialItems.tenant_id, params.tenantId)
-        )
-      )
-      .where(eq(rateCards.tenant_id, params.tenantId))
+    const itemCodes = [
+      ...new Set(
+        itemLines
+          .map((line) => line.code)
+          .filter((code): code is string => Boolean(code))
+      ),
+    ]
+    const catalog =
+      itemCodes.length === 0
+        ? []
+        : await tx
+            .select({
+              code: materialItems.code,
+              material_item_id: materialItems.id,
+              rate_card_id: rateCards.id,
+            })
+            .from(materialItems)
+            .leftJoin(
+              rateCards,
+              and(
+                eq(
+                  rateCards.material_item_id,
+                  materialItems.id
+                ),
+                eq(
+                  rateCards.tenant_id,
+                  params.tenantId
+                )
+              )
+            )
+            .where(
+              and(
+                eq(
+                  materialItems.tenant_id,
+                  params.tenantId
+                ),
+                inArray(materialItems.code, itemCodes)
+              )
+            )
 
     const contractedCodes = new Set<string>()
     const materialItemIdByCode = new Map<string, string>()
-    for (const item of contracted) {
+    for (const item of catalog) {
       if (item.code) {
-        contractedCodes.add(item.code)
         materialItemIdByCode.set(item.code, item.material_item_id)
+        if (item.rate_card_id) {
+          contractedCodes.add(item.code)
+        }
       }
     }
 
@@ -180,6 +209,7 @@ export async function createRfqFromBomRecord(
         (line) => !(line.code && contractedCodes.has(line.code))
       )
       .map((line) => ({
+        bom_line_item_id: line.id,
         material_item_id: line.code
           ? materialItemIdByCode.get(line.code) ?? null
           : null,

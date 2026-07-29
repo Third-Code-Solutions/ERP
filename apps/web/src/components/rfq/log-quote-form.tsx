@@ -7,11 +7,12 @@
  * RFQ line items, plus a vendor, plus unit price + lead time + validity.
  */
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { logQuote } from '@/app/(dashboard)/procurement/rfqs/actions'
 
 interface LineItemChoice {
+  bom_line_item_id?: string
   material_item_id: string | null
   code: string | null
   description: string
@@ -30,6 +31,7 @@ interface Props {
 
 export function LogQuoteForm({ rfqId, vendors, lineItems }: Props) {
   const router = useRouter()
+  const submissionIdRef = useRef<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -60,13 +62,19 @@ export function LogQuoteForm({ rfqId, vendors, lineItems }: Props) {
       setError('Pick a line item')
       return
     }
+    if (!picked.bom_line_item_id) {
+      setError('Selected line is unavailable')
+      return
+    }
 
     const fd = new FormData()
+    const submissionId =
+      submissionIdRef.current ?? crypto.randomUUID()
+    submissionIdRef.current = submissionId
     fd.append('rfq_id', rfqId)
+    fd.append('bom_line_item_id', picked.bom_line_item_id)
     fd.append('vendor_id', vendorId)
-    if (picked.material_item_id) {
-      fd.append('material_item_id', picked.material_item_id)
-    }
+    fd.append('submission_id', submissionId)
     // Store as centavos (₱ × 100).
     fd.append('unit_price_cents', Math.round(priceNum * 100).toString())
     if (leadDays) fd.append('lead_time_days', leadDays)
@@ -79,6 +87,7 @@ export function LogQuoteForm({ rfqId, vendors, lineItems }: Props) {
         setError(r.error)
         return
       }
+      submissionIdRef.current = null
       setSuccess('Quote logged.')
       setUnitPricePhp('')
       setLeadDays('')
