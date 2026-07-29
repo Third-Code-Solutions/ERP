@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+import { requestRateLimitKey } from '@/lib/request-rate-limit'
+
 // ---------------------------------------------------------------------------
 // Rate limiting — in-memory sliding window per IP (Edge-compatible)
 // For production, replace with Upstash Redis or Vercel KV.
@@ -13,13 +15,13 @@ const RATE_LIMIT_AUTH     = 1_000   // requests per window, authenticated
 // Edge-compatible map (resets on cold start; acceptable for MVP rate limiting)
 const requestCounts = new Map<string, { count: number; windowStart: number }>()
 
-function isRateLimited(ip: string, authenticated: boolean): boolean {
+function isRateLimited(key: string, authenticated: boolean): boolean {
   const limit = authenticated ? RATE_LIMIT_AUTH : RATE_LIMIT_UNAUTH
   const now = Date.now()
-  const entry = requestCounts.get(ip)
+  const entry = requestCounts.get(key)
 
   if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    requestCounts.set(ip, { count: 1, windowStart: now })
+    requestCounts.set(key, { count: 1, windowStart: now })
     return false
   }
 
@@ -132,7 +134,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Rate limiting
-  if (isRateLimited(ip, !!user)) {
+  if (isRateLimited(requestRateLimitKey(ip, user?.id), !!user)) {
     return new NextResponse('Too Many Requests', {
       status: 429,
       headers: {
