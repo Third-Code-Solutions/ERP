@@ -100,8 +100,8 @@ matches the repository migration contract:
 - `https://third-code-erp-api-production.up.railway.app/health` returns
   `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
 - The current Railway deployment is
-  `f480586e-fe8d-4214-a33e-7bfdaaa5f38c`, built remotely from source commit
-  `828b63f90f13f6ff735a2b972781a69fa7ffcf2f`. Health and readiness remain
+  `5a84fc30-2b4e-46fa-a505-0b1bb393fef4`, built remotely from source commit
+  `e948223b261b7c335ceaad85e359fec68888e84a`. Health and readiness remain
   HTTP 200 with PostgreSQL and Redis `ok`.
 - Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is disconnected from
   Git. The canonical alias still serves READY deployment
@@ -644,3 +644,13 @@ matches the repository migration contract:
   table without a policy.
 - UI context sending and display are not implemented yet. Vercel Git remains
   disconnected, and no frontend deployment or provider spend occurred.
+- Source commit `e948223b261b7c335ceaad85e359fec68888e84a` reached the
+  working branch and `main` under `kurtgav <kurtgavin.design@gmail.com>`.
+  Railway deployment `5a84fc30-2b4e-46fa-a505-0b1bb393fef4` succeeded for
+  that exact SHA; live `/health` and `/ready` are HTTP 200 with PostgreSQL and
+  Redis `ok`.
+- GitHub Actions run `30449560735` did not start a workflow step because the
+  account reports failed payments or an exceeded spending limit. Local and
+  disposable-runtime gates remain the verified evidence.
+- Vercel reports zero deployments after the retained production baseline
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.

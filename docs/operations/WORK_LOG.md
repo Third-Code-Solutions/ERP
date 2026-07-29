@@ -1946,6 +1946,18 @@ Validation:
   performance findings remain separately tracked.
 - Gitleaks 8.30.1, Actionlint 1.7.12, diff check, and prohibited external ERP
   source/brand scan -- clean.
+- GitHub publication -- source commit
+  `e948223b261b7c335ceaad85e359fec68888e84a` reached both
+  `agent-02/third-code-erp-landing` and `main` under
+  `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway deployment `5a84fc30-2b4e-46fa-a505-0b1bb393fef4` -- `SUCCESS`
+  for that exact commit; live `/health` and `/ready` return 200 with PostgreSQL
+  and Redis `ok`.
+- GitHub Actions run `30449560735` -- failed before any step started. The
+  annotation reports recent account payments failed or the spending limit must
+  be increased; all dependent jobs skipped.
+- Vercel provider check -- zero deployments after retained production
+  deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
 
 Rollback and unresolved:
 
