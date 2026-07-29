@@ -520,3 +520,22 @@ matches the repository migration contract:
   passed `/ready`, and is live with PostgreSQL and Redis both `ok`.
 - The Next.js citation UI is still source-only. Live Vercel remains deployment
   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` at revision `f24e5603a355`.
+
+## Cortex operational record context candidate
+
+- Cortex context was embedded only on Project detail and the graph workspace.
+  Finance, procurement, inventory, CRM, claims, variation, punchlist, and
+  warranty detail pages had no in-place backlinks.
+- Dashboard layout now resolves 16 exact UUID-backed detail-route patterns to
+  their canonical Cortex source tables and renders one shared context panel.
+- Collection, create, edit, print, portal, Project-detail, malformed, and
+  unsupported paths fail closed and render no new panel.
+- Existing path RBAC runs before rendering. The existing entity API then
+  reauthorizes tenant, source/type ownership, and current-role graph scope.
+- Cash transaction navigation now opens the exact transaction detail route
+  instead of falling back to the collection.
+- No page owns a Cortex query or duplicate route map. One resolver and the
+  exhaustive entity registry own the behavior.
+- No schema, hosted row, Auth identity, Storage object, queue, provider setting,
+  or deployment changed. This remains a source candidate while Vercel Git is
+  disconnected.

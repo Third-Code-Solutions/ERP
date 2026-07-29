@@ -570,3 +570,29 @@ styles, and tests together. Existing stored messages remain readable as plain
 text. No schema, row, Auth, Storage, queue, provider, or deployment rollback is
 needed. If later deployed, promote the retained last-known-good Vercel
 artifact; do not reconnect Git or buy a separate rollback build.
+
+## D-047 -- Operational Cortex context is route-derived and read-only
+
+Decision: render Cortex context from the authenticated dashboard layout using
+one exact UUID-route resolver. Map supported detail routes to canonical source
+tables, then delegate retrieval to the existing tenant- and role-authorized
+entity API. Do not add Cortex queries or route maps to each record page.
+Project detail remains excluded because it already owns an inline panel.
+
+Reason: duplicating context wiring across record pages would drift from the
+canonical registry and mix AI presentation with ERP business logic. A layout
+resolver gives finance, procurement, inventory, CRM, claims, variation,
+punchlist, and warranty records consistent Obsidian-like backlinks while
+preserving existing transaction authority.
+
+Validation: require exact route/ref-table/record-ID tests, unsupported and
+malformed fail-closed tests, canonical-source assertions, one-panel render
+tests, exact cash-transaction navigation, full lint/typecheck/test/build gates,
+local production authentication boundary checks, and 1440/768/390 focus,
+target-size, and overflow proof.
+
+Rollback: revert the route resolver, layout injection, wrapper, cash route
+correction, tests, and spec together. Existing record pages and Project Cortex
+panel remain functional. No schema, row, Auth, Storage, queue, provider, or
+backend rollback is required. If later deployed, promote the retained
+last-known-good Vercel artifact without reconnecting Git.

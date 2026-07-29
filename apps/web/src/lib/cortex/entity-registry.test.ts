@@ -56,6 +56,7 @@ describe('Cortex entity registry', () => {
     ['journal_entry', '/finance/journals/record-id'],
     ['supplier_bill', '/finance/payables/record-id'],
     ['cash_account', '/finance/cash'],
+    ['cash_transaction', '/finance/cash/record-id'],
     ['stock_receipt', '/inventory/receipts/record-id'],
   ])('maps %s to its canonical route', (type, expected) => {
     expect(

@@ -1460,6 +1460,58 @@ Rollback and unresolved:
 - Composite database constraints remain required in M2.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
 
+## 2026-07-29 -- Cortex operational record context
+
+Outcome:
+
+- Audited every UUID-backed dashboard detail page. Cortex context existed only
+  on Project detail and the graph workspace.
+- Added one exact route resolver for 16 CRM, finance, procurement, inventory,
+  claims, variation, punchlist, and warranty detail surfaces.
+- Injected one shared Cortex panel from the authenticated dashboard layout.
+- Excluded Project detail and every collection, create, edit, print, portal,
+  malformed, and unsupported path.
+- Preserved path RBAC, tenant derivation, current-role node scope, and
+  non-enumerating entity denial.
+- Corrected cash-transaction citations to open exact detail records.
+- Changed no schema, hosted data, Auth, Storage, queue, provider setting, or
+  deployment.
+
+Changed files:
+
+- `apps/web/src/lib/cortex/record-route.ts`
+- `apps/web/src/lib/cortex/record-route.test.ts`
+- `apps/web/src/components/cortex/cortex-route-context.tsx`
+- `apps/web/src/components/cortex/cortex-route-context.test.tsx`
+- `apps/web/src/app/(dashboard)/layout.tsx`
+- `apps/web/src/lib/cortex/entity-registry.ts`
+- `apps/web/src/lib/cortex/entity-registry.test.ts`
+- `apps/web/src/app/globals.css`
+- `docs/research/components/cortex-record-context.spec.md`
+- the six architecture/operations memory files
+- `docs/changesets/2026-07-29-cortex-operational-record-context.md`
+
+Validation:
+
+- Focused route, render, registry, RBAC, and entity API suite -- 55/55 pass.
+- Root lint and all-package typecheck -- pass.
+- Root tests -- 334 pass; 132 writable-database-gated cases skip.
+- API and Web production builds -- pass; Web generated 77/77 static steps.
+- Local production -- health 200, readiness 200, unauthenticated record route
+  redirects to login, direct Cortex entity request returns 401.
+- Browser proof at 1440/768/390 -- 32/32/44px targets, visible focus, 24px
+  panel separation, and zero horizontal overflow.
+
+Rollback and unresolved:
+
+- Revert this source/documentation milestone; runtime and provider state remain
+  unchanged.
+- Live activation requires the one explicitly approved consolidated Vercel
+  build. Do not create a separate preview or reconnect Git.
+- Authenticated live role-by-role proof remains pending that approved build and
+  controlled canary identities.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
 ## 2026-07-29 -- Document mutation authority hardening
 
 Outcome:
