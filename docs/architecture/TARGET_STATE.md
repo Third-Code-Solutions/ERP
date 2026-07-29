@@ -71,6 +71,9 @@ reach through each other's internals.
   active Supabase Auth identity, a same-tenant application user holding the
   required capability, and a non-critical reversible record. Historical chain
   failures are never waived, deleted, or rewritten to make a rollout pass.
+- Create the dedicated canary through the normal public signup and authenticated
+  Project-create flow. Do not insert Auth, tenant, user, Project, or audit rows
+  through an operator SQL session or a one-off service-role script.
 - Run the redacted read-only Project cutover planner immediately before and
   after the maintenance window. Store the complete mutable business baseline
   only in the approved restricted release artifact, never in Git or provider

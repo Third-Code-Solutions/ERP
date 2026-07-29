@@ -337,3 +337,11 @@ matches the repository migration contract:
   route changed during this preflight. The canary remains blocked until a
   dedicated clean tenant is created through an approved supported onboarding
   path and the planner returns `ready`.
+- The supported dedicated-tenant path already exists. `/auth/signup` is live;
+  Supabase Auth fires `on_auth_user_created`, whose non-public
+  `SECURITY DEFINER` function creates one isolated tenant and same-ID Admin
+  profile. The signed-in Admin can create a non-critical Project through
+  `/projects/new`, producing that tenant's first Project audit root.
+- Executing this path requires a new user-controlled email identity and email
+  confirmation. No account was created and no email was sent during the
+  read-only inspection.

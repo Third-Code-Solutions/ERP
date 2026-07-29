@@ -99,6 +99,27 @@ user or Auth identity. Use a dedicated canary tenant created through the
 approved supported onboarding path. Never rewrite append-only history to pass
 this gate.
 
+## Dedicated canary onboarding
+
+This step changes Auth and business state. Obtain explicit approval for one
+unused user-controlled email identity before starting.
+
+1. Keep both Project routing gates disabled.
+2. Open the canonical `/auth/signup` page and create the canary account through
+   the product form.
+3. Complete the email confirmation using the user-controlled inbox.
+4. Sign in and verify the dashboard resolves the new Admin profile without an
+   account-provisioning error.
+5. Create one clearly labeled, non-critical E2E Project through
+   `/projects/new`.
+6. Capture the resulting tenant, actor, and Project UUIDs only in the
+   restricted release artifact.
+7. Run the read-only planner with `--require-ready`. Stop unless it reports
+   zero blockers and a genesis-rooted, fully verified chain.
+
+Do not create or modify `auth.users`, `public.tenants`, `public.users`,
+`public.projects`, or `public.audit_log` through operator SQL for this setup.
+
 ## Tenant canary
 
 1. Keep `ERP_PROJECT_WRITES_VIA_API=false`.
