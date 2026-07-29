@@ -579,3 +579,28 @@ matches the repository migration contract:
 - No schema, hosted row, Auth identity, Storage object, queue, backend, provider
   setting, or deployment changed. Hosted Supabase access was aggregate
   read-only. Vercel Git remains disconnected.
+
+## Cortex focused-neighborhood candidate
+
+- Authorized operational record panels now expose one `Open focused graph`
+  backlink built from their canonical source table and UUID.
+- `/api/cortex/graph` preserves its existing whole-graph response when no
+  focus is supplied. A complete `refTable` plus `refId` focus is validated
+  against the canonical registry and UUID format.
+- The server resolves the node by authenticated tenant, verifies source/type
+  ownership and current-role access, then returns the exact node plus a
+  bounded one-hop neighborhood. Missing, mismatched, and forbidden records
+  share a non-enumerating 404.
+- Focused database retrieval rechecks tenant on the focus node, graph edge,
+  and joined neighbor node because the application database role bypasses
+  RLS. Browser input never selects a tenant or trusted node ID.
+- The server-derived focus node opens its detail drawer automatically, remains
+  highlighted, and is centered in the visible canvas. The count is explicitly
+  labeled as connections shown, not a total.
+- Tablet and mobile flow the drawer below the graph. The shell collapses to an
+  icon navigation rail below 700px. Authenticated production-build QA at
+  1440, 768, and 390 found zero page overflow and zero console/page errors.
+- No schema, business row, password, Storage object, queue, provider setting,
+  or deployment changed. Hosted Supabase supplied read-only record evidence;
+  gated E2E used one-time test sessions and globally revoked them afterward.
+  Vercel retained `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.

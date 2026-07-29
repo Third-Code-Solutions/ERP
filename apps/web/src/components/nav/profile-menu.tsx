@@ -70,6 +70,7 @@ export function ProfileMenu({ email, fullName, role }: Props) {
           {initials}
         </span>
         <span
+          className="user-chip-label"
           style={{
             maxWidth: 160,
             overflow: 'hidden',

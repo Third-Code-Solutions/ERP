@@ -121,7 +121,7 @@ export function Topbar({ user, role, fullName, tenantId }: TopbarProps) {
           })}
         </nav>
 
-        <div style={{ flex: 1 }} />
+        <div className="topbar-spacer" />
 
         <button
           type="button"
@@ -138,7 +138,7 @@ export function Topbar({ user, role, fullName, tenantId }: TopbarProps) {
           <kbd aria-hidden>⌘K</kbd>
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="topbar-actions">
           <NotificationsDropdown tenantId={tenantId} userId={user.id} />
 
           <span className="topbar-divider" aria-hidden />

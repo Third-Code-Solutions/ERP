@@ -309,3 +309,24 @@ Status: source candidate complete; deployment not authorized.
   Keep Git integration disconnected and do not create a separate preview.
 - After activation, verify authorized mutation evidence, empty state, role
   downgrade, cross-tenant denial, and raw-field absence in browser responses.
+
+## Parallel Cortex focused-neighborhood slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Preserve the no-query whole-graph contract.
+- Accept focus only as a complete registered source table plus UUID.
+- Resolve tenant and role exclusively from the authenticated session.
+- Reauthorize source/type ownership and role access before neighborhood
+  retrieval; use a non-enumerating 404 for missing, mismatched, and forbidden
+  records.
+- Return a server-derived focus node plus a bounded one-hop neighborhood with
+  explicit tenant predicates on focus, edges, and joined neighbors.
+- Link operational record context to the focused graph, auto-open the exact
+  record, maintain a persistent highlight, and offer a clear route back to the
+  whole graph.
+- Activate only in the next explicitly approved consolidated Vercel build.
+  Keep Git integration disconnected and do not create a separate preview.
+- After activation, verify Admin and restricted-role focus, role downgrade,
+  cross-tenant denial, invalid focus, exact backlink navigation, and
+  1440/768/390 console/overflow behavior.

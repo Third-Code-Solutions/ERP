@@ -154,6 +154,7 @@ export async function getCortexNeighbors(
       and(
         eq(cortexEdges.tenant_id, tenantId),
         eq(cortexEdges.src_id, nodeId),
+        eq(cortexNodes.tenant_id, tenantId),
         isNull(cortexEdges.valid_to),
         isNull(cortexNodes.valid_to),
         scope
@@ -169,6 +170,7 @@ export async function getCortexNeighbors(
       and(
         eq(cortexEdges.tenant_id, tenantId),
         eq(cortexEdges.dst_id, nodeId),
+        eq(cortexNodes.tenant_id, tenantId),
         isNull(cortexEdges.valid_to),
         isNull(cortexNodes.valid_to),
         scope
@@ -236,6 +238,95 @@ export interface CortexGraphNode {
 export interface CortexGraphData {
   nodes: CortexGraphNode[]
   links: { source: string; target: string; type: string }[]
+}
+
+export interface CortexFocusedGraphData extends CortexGraphData {
+  focusNodeId: string
+}
+
+function graphProjectId(attributes: unknown): string | null {
+  if (!attributes || typeof attributes !== 'object' || Array.isArray(attributes)) {
+    return null
+  }
+  const projectId = (attributes as Record<string, unknown>).project_id
+  return typeof projectId === 'string' ? projectId : null
+}
+
+function toGraphNode(node: CortexNode): CortexGraphNode {
+  return {
+    id: node.id,
+    type: node.node_type,
+    title: node.title,
+    refTable: node.ref_table,
+    refId: node.ref_id,
+    projectId: graphProjectId(node.attributes),
+  }
+}
+
+/**
+ * One current node plus its permission-scoped, one-hop neighborhood.
+ *
+ * The focus ID must have been resolved by a trusted server caller. This helper
+ * still re-checks tenant, current-row status, and role scope before returning
+ * data because the application database role bypasses RLS.
+ */
+export async function getCortexFocusedGraph(
+  tenantId: string,
+  focusNodeId: string,
+  neighborLimit = 40,
+  nodeTypes?: string[] | null
+): Promise<CortexFocusedGraphData | null> {
+  const focusRows = await db
+    .select()
+    .from(cortexNodes)
+    .where(
+      and(
+        eq(cortexNodes.tenant_id, tenantId),
+        eq(cortexNodes.id, focusNodeId),
+        isNull(cortexNodes.valid_to),
+        typeScopeFilter(nodeTypes)
+      )
+    )
+    .limit(1)
+  const focus = focusRows[0]
+  if (!focus) return null
+
+  const boundedLimit = Math.max(1, Math.min(neighborLimit, 40))
+  const neighbors = await getCortexNeighbors(tenantId, focus.id, {
+    limit: boundedLimit,
+    nodeTypes,
+  })
+
+  const nodeMap = new Map<string, CortexGraphNode>([
+    [focus.id, toGraphNode(focus)],
+  ])
+  const edgeIds = new Set<string>()
+  const links: CortexGraphData['links'] = []
+
+  for (const neighbor of neighbors) {
+    nodeMap.set(neighbor.node.id, toGraphNode(neighbor.node))
+    if (edgeIds.has(neighbor.edgeId)) continue
+    edgeIds.add(neighbor.edgeId)
+    links.push(
+      neighbor.direction === 'out'
+        ? {
+            source: focus.id,
+            target: neighbor.node.id,
+            type: neighbor.edgeType,
+          }
+        : {
+            source: neighbor.node.id,
+            target: focus.id,
+            type: neighbor.edgeType,
+          }
+    )
+  }
+
+  return {
+    focusNodeId: focus.id,
+    nodes: [...nodeMap.values()],
+    links,
+  }
 }
 
 /**

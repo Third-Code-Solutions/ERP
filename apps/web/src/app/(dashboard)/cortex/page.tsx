@@ -10,9 +10,21 @@ import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 
 export const metadata: Metadata = { title: 'Cortex — AI Brain' }
 
-export default async function CortexPage() {
+interface CortexPageProps {
+  searchParams: Promise<{
+    refTable?: string | string[]
+    refId?: string | string[]
+  }>
+}
+
+export default async function CortexPage({ searchParams }: CortexPageProps) {
   const profile = await getUserProfile()
   if (!profile) return <AccountNotProvisioned />
+  const params = await searchParams
+  const focus =
+    typeof params.refTable === 'string' && typeof params.refId === 'string'
+      ? { refTable: params.refTable, refId: params.refId }
+      : null
 
   // RBAC: KPIs reflect only what this role may see (admin/owner = everything).
   const stats = await getCortexGraphStats(profile.tenantId, cortexNodeTypeScope(profile.role))
@@ -56,7 +68,7 @@ export default async function CortexPage() {
               The graph is empty for now. As records are created they mirror in automatically.
             </p>
           ) : (
-            <CortexGraphView />
+            <CortexGraphView focus={focus} />
           )}
         </div>
         <div className="cortex-layout__agent">

@@ -646,3 +646,31 @@ relationship, and citation UI remains functional. No schema, row, Auth,
 Storage, queue, backend, provider, or data rollback is required. If later
 deployed, promote the retained last-known-good Vercel artifact without
 reconnecting Git.
+
+## D-050 -- Focused Cortex graphs are server-authorized bounded neighborhoods
+
+Decision: treat `refTable` and `refId` as an untrusted navigation hint. Validate
+the pair, resolve the node under the authenticated tenant, verify canonical
+source/type ownership and current-role access, and then retrieve one bounded
+hop using the server-derived node ID. Recheck tenant on the focus node, edge,
+and joined neighbor. Preserve the original whole-graph response when no focus
+is supplied.
+
+Reason: a browser-only highlight can silently focus a forbidden or missing
+record, and a fixed 1,500-node whole-graph cap can omit an older requested
+record. A small authorized neighborhood makes the exact record dependable,
+reduces payload and visual noise, and keeps React out of the authorization
+boundary.
+
+Validation: require unauthenticated, malformed, partial, source/type mismatch,
+role denial, authorized focus, and whole-graph compatibility tests; root
+lint/typecheck/test/build; a connected-database authenticated E2E that follows
+the real record backlink; API bounds; clear-focus behavior; zero console/page
+errors; and 1440/768/390 no-overflow screenshots.
+
+Rollback: revert the focused database helper, graph route extension, page
+query wiring, record backlink, canvas focus state, responsive shell changes,
+tests, and documentation together. The existing whole graph and entity panels
+remain functional. No schema, business row, Storage, queue, backend-provider,
+or deployment rollback is required. If later deployed, promote the retained
+last-known-good Vercel artifact without reconnecting Git.
