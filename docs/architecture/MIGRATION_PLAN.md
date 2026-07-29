@@ -377,6 +377,18 @@ Status: implementation and local validation complete; activation not authorized.
   exact retries, conflict behavior, state transition, and audit evidence.
 - Next milestone: inspect provider gates, then propose one tenant canary.
 
+Provider inspection complete:
+
+- Exact RFQ adapter commit is healthy on Railway.
+- Vercel incurred no new deployment.
+- No hosted tenant currently satisfies Auth, role, Project, and genesis-rooted
+  audit requirements.
+- Do not select either existing tenant. Create a dedicated canary only through
+  approved public signup and authenticated Project creation.
+- Root `AGENTS.md` reconciliation remains a separate owner-approved governance
+  milestone; do not silently apply its obsolete stack rules or edit it without
+  sign-off.
+
 ## Parallel atomic RFQ-dispatch slice
 
 Status: source and hosted database complete; frontend activation not authorized.

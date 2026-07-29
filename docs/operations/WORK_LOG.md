@@ -1490,6 +1490,34 @@ Unresolved:
   activation gate.
 - Complete/cancel remain Next.js authority.
 
+## 2026-07-30 — RFQ adapter provider and canary verification
+
+Completed:
+
+- Confirmed Railway deployed exact commit `cdb246a` as deployment
+  `f51c7aba-d5d9-4ccd-9cbe-46fa508117af` under `kurtgav`.
+- Confirmed live health/readiness, PostgreSQL, Redis, anonymous 401, and no
+  deployment error logs.
+- Confirmed Vercel created zero deployments after the retained baseline.
+- Queried hosted Supabase read-only. Neither existing tenant is a valid M1
+  canary: QA has no application/Auth user; demo audit integrity remains
+  invalid.
+- Confirmed all Project and RFQ cutover variables are absent from Railway.
+- Confirmed GitHub run `30475864702` was blocked before any job step by the
+  existing account billing/spending condition.
+
+Changed state:
+
+- Documentation only. No database, Auth, tenant, record, provider variable,
+  Vercel deployment, Railway deployment, or live data changed.
+
+Unresolved:
+
+- Dedicated canary requires explicit approval for one unused user-controlled
+  email and its confirmation step.
+- Root `AGENTS.md` still conflicts with the approved architecture and requires
+  explicit owner sign-off before reconciliation.
+
 ## 2026-07-30 -- Atomic RFQ quote and terminal workflow
 
 Outcome:

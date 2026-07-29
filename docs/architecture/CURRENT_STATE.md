@@ -954,3 +954,21 @@ matches the repository migration contract:
   allowlist; enabled failures are fail-closed with no legacy fallback.
 - Complete/cancel commands remain in the existing Next.js transaction service.
 - No database migration or provider environment change was required.
+
+## 2026-07-30 RFQ adapter provider verification
+
+- Railway deployment `f51c7aba-d5d9-4ccd-9cbe-46fa508117af` is SUCCESS and
+  RUNNING for exact Git commit
+  `cdb246a9a1aa7b61b3e816dc397a86d8e0c2c86f`, authored by `kurtgav`.
+- Live `/health` returns `status=ok`; `/ready` returns `status=ready` with
+  database and Redis both `ok`. Anonymous RFQ quote submission returns 401.
+- Railway error-log query for that deployment returned no entries.
+- Vercel reported zero deployments after retained baseline timestamp
+  `1785295180454`; Git integration remains disconnected.
+- Hosted read-only canary discovery found zero eligible tenants. The QA tenant
+  has one Project but no application/Auth user. The demo tenant has active
+  users and Projects but its historical audit chain still has 2 link and 151
+  hash mismatches.
+- GitHub Actions run `30475864702` failed before any step; Actionlint contains
+  zero steps and every dependent job was skipped. Local and disposable-lane
+  evidence remains authoritative until account billing is repaired.

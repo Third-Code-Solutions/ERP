@@ -192,3 +192,14 @@ Add an inert NestJS procurement adapter for the now-defined RFQ commands:
 4. If approved, enable one tenant only and verify quote create/retry/conflict,
    audit evidence, logs, and unchanged completion/cancellation.
 5. Do not enable wildcard routing or deploy Vercel without explicit approval.
+
+Provider inspection result:
+
+- No existing tenant may be used for the canary.
+- Await explicit approval for one unused user-controlled email, then use normal
+  signup and authenticated Project creation.
+- Await explicit owner sign-off before reconciling root `AGENTS.md` from pnpm
+  9/PostgreSQL 16/tRPC/Inngest rules to the approved pnpm 10/PostgreSQL
+  17/NestJS/Redis/BullMQ modular-monolith architecture.
+- Until both approvals exist, keep all cutover flags disabled and continue only
+  source work that does not bypass those gates.
