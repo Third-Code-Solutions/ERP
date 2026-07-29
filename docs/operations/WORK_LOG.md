@@ -1224,6 +1224,13 @@ Validation:
 - Supabase advisors -- 12 security and 284 performance notices; zero finding
   tied to the new organization field, constraint, or signup function. Existing
   advisor backlog remains unresolved.
+- Source commit `828b63f90f13f6ff735a2b972781a69fa7ffcf2f` -- pushed
+  atomically to `main` and `agent-02/third-code-erp-landing` as `kurtgav`.
+- Railway deployment `f480586e-fe8d-4214-a33e-7bfdaaa5f38c` -- success from
+  exact source commit; `/health` and `/ready` HTTP 200 with PostgreSQL and
+  Redis `ok`.
+- Vercel deployment count after source publication -- zero; Git remains
+  disconnected.
 
 Rollback and unresolved:
 
