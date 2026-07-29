@@ -50,6 +50,11 @@ Complete remaining M1 controls without enabling production writes:
   deployment, verify same-tenant signed upload and document recording plus a
   non-mutating cross-tenant/missing-Project denial. Do not buy a separate build
   for this security candidate.
+- Include document mutation authority in that same reviewed SHA. Use the
+  controlled canary tenant to prove `viewer` denial, authorized signed upload,
+  atomic document/audit creation, reversible deletion, deletion audit, and
+  post-commit Storage cleanup. Do not exercise destructive proof against
+  historical demo documents and do not buy another build.
 
 ## Following milestone
 

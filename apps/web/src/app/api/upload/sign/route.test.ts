@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
+  can: vi.fn(),
   select: vi.fn(),
   from: vi.fn(),
   where: vi.fn(),
@@ -10,10 +11,12 @@ const mocks = vi.hoisted(() => ({
   createSupabaseAdminClient: vi.fn(),
   storageFrom: vi.fn(),
   createSignedUploadUrl: vi.fn(),
+  writeAuditLog: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
   getUser: mocks.getUser,
+  can: mocks.can,
 }))
 
 vi.mock('@third-code-erp/auth/server', () => ({
@@ -30,6 +33,10 @@ vi.mock('@/lib/project-queries', () => ({
   getProject: mocks.getProject,
 }))
 
+vi.mock('@/lib/audit', () => ({
+  writeAuditLog: mocks.writeAuditLog,
+}))
+
 import { POST } from './route'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
@@ -40,9 +47,10 @@ describe('signed document upload Project access', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getUser.mockResolvedValue({ id: USER_ID })
+    mocks.can.mockReturnValue(true)
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })
-    mocks.where.mockResolvedValue([{ tenant_id: TENANT_ID }])
+    mocks.where.mockResolvedValue([{ tenant_id: TENANT_ID, role: 'pm' }])
     mocks.getProject.mockResolvedValue(null)
     mocks.storageFrom.mockReturnValue({
       createSignedUploadUrl: mocks.createSignedUploadUrl,
@@ -50,6 +58,30 @@ describe('signed document upload Project access', () => {
     mocks.createSupabaseAdminClient.mockReturnValue({
       storage: { from: mocks.storageFrom },
     })
+    mocks.writeAuditLog.mockResolvedValue(undefined)
+  })
+
+  it('rejects a role without document mutation capability before request work', async () => {
+    mocks.can.mockReturnValue(false)
+    const request = new NextRequest('http://localhost/api/upload/sign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId: OTHER_PROJECT_ID,
+        fileName: 'drawing.dwg',
+        mimeType: 'application/acad',
+        sizeBytes: 1_024,
+      }),
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mocks.can).toHaveBeenCalledWith('pm', 'document.manage')
+    expect(mocks.getProject).not.toHaveBeenCalled()
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
   it('rejects an absent or cross-tenant Project before quota and Storage work', async () => {
@@ -118,5 +150,55 @@ describe('signed document upload Project access', () => {
       OTHER_PROJECT_ID
     )
     expect(mocks.createSignedUploadUrl).toHaveBeenCalledOnce()
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      actorId: USER_ID,
+      entityType: 'document_upload',
+      entityId: OTHER_PROJECT_ID,
+      action: 'query',
+      diff: { operation: 'signed_upload_url_created' },
+    })
+  })
+
+  it('does not return a signed URL when its audit entry cannot be appended', async () => {
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined)
+    mocks.where
+      .mockResolvedValueOnce([{ tenant_id: TENANT_ID, role: 'pm' }])
+      .mockResolvedValueOnce([{ total: '0' }])
+    mocks.getProject.mockResolvedValue({
+      id: OTHER_PROJECT_ID,
+      tenant_id: TENANT_ID,
+    })
+    mocks.createSignedUploadUrl.mockResolvedValue({
+      data: {
+        signedUrl: 'https://storage.example.test/upload',
+        token: 'signed-token',
+        path: `${TENANT_ID}/${OTHER_PROJECT_ID}/object-drawing.dwg`,
+      },
+      error: null,
+    })
+    mocks.writeAuditLog.mockRejectedValue(new Error('audit unavailable'))
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'drawing.dwg',
+          mimeType: 'application/acad',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Failed to audit upload authorization',
+    })
+    expect(errorSpy).toHaveBeenCalledOnce()
+    errorSpy.mockRestore()
   })
 })

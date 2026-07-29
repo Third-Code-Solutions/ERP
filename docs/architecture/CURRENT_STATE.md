@@ -450,3 +450,27 @@ matches the repository migration contract:
 - No UI, copy, schema, data, Auth, Storage, queue, provider setting, or
   deployment changed. Live Vercel still needs one separately approved paid
   build before this protection is active there.
+
+## Document mutation authority candidate
+
+- Upload sign, upload complete, and Project document deletion previously
+  authenticated a user but did not require an explicit document-mutation
+  capability. A `viewer` could reach all three mutation paths.
+- Signed upload authorization and document creation previously produced no
+  application audit entry. Document deletion also lacked an audit entry.
+- Document deletion removed the Storage object before independent database
+  deletes. A later database failure could leave a live document record whose
+  object had already been removed.
+- Source now defines `document.manage` for every operational role and denies
+  `viewer`. Upload sign and complete fail with 403 before request side effects
+  when the capability is absent.
+- Signed URL issuance appends an actor- and tenant-scoped audit record before
+  returning the credential. Document creation and its hash-linked audit entry
+  commit in one PostgreSQL transaction.
+- Document deletion validates UUIDs, binds document, tenant, and Project
+  together, locks the row, deletes derived scope rows and the document, and
+  appends the audit entry in one transaction. Storage cleanup starts only
+  after that transaction commits and uses the Project loaded from the record.
+- No UI, schema, hosted data, Auth, Storage object, queue, provider setting, or
+  deployment changed. Live Vercel retains the prior behavior until one
+  explicitly approved consolidated production build.

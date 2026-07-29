@@ -186,6 +186,23 @@ Status: source candidate complete; deployment not authorized.
 - Ship only in one consolidated, explicitly approved Vercel production build.
 - Keep M2 composite database constraints as required defense in depth.
 
+### Parallel document mutation authority
+
+Status: source candidate complete; deployment not authorized.
+
+- Add explicit `document.manage` capability for operational roles; deny
+  `viewer`.
+- Require capability before upload-sign, upload-complete, or document-delete
+  side effects.
+- Audit signed URL issuance before returning the credential.
+- Commit document creation plus audit in one PostgreSQL transaction.
+- Commit derived scope deletion, document deletion, and audit in one
+  PostgreSQL transaction; run Storage cleanup only after commit.
+- Ship only in the existing consolidated, explicitly approved Vercel
+  production build. Do not buy a separate build for this candidate.
+- Keep M2 composite constraints, durable processing evidence, Nest authority,
+  and audit triggers as required later controls.
+
 ### M3 — Sensitive project and procurement commands
 
 - Migrate approvals, commitments, purchase orders, and inventory commands one

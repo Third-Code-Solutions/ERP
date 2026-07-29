@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getUser } from '@third-code-erp/auth'
+import { can, getUser } from '@third-code-erp/auth'
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
 import { documents, users } from '@third-code-erp/database/schema'
 import { and, eq, sum } from 'drizzle-orm'
 import { getProject } from '@/lib/project-queries'
+import { writeAuditLog } from '@/lib/audit'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB per upload (PRD F2.1)
 const PROJECT_QUOTA_BYTES = 500 * 1024 * 1024 // 500 MB per project (PRD F2.1)
@@ -25,12 +26,15 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
+    .select({ tenant_id: users.tenant_id, role: users.role })
     .from(users)
     .where(eq(users.id, user.id))
 
   if (!userRow?.tenant_id) {
     return NextResponse.json({ error: 'No tenant associated with account' }, { status: 403 })
+  }
+  if (!can(userRow.role, 'document.manage')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   let body: unknown
@@ -95,6 +99,23 @@ export async function POST(req: NextRequest) {
   if (error || !data) {
     return NextResponse.json(
       { error: `Failed to create signed upload URL: ${error?.message ?? 'unknown'}` },
+      { status: 500 }
+    )
+  }
+
+  try {
+    await writeAuditLog({
+      tenantId: userRow.tenant_id,
+      actorId: user.id,
+      entityType: 'document_upload',
+      entityId: projectId,
+      action: 'query',
+      diff: { operation: 'signed_upload_url_created' },
+    })
+  } catch (auditError) {
+    console.error('[upload/sign] audit append failed:', auditError)
+    return NextResponse.json(
+      { error: 'Failed to audit upload authorization' },
       { status: 500 }
     )
   }
