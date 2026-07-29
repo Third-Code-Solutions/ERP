@@ -1819,9 +1819,9 @@ Outcome:
   existing tablet topbar and mobile fixed-sidebar overflow.
 - Tablet/mobile now flow the drawer below the graph; narrow screens use a 64px
   icon navigation rail with accessible link names retained.
-- No schema, business row, password, Storage object, queue, provider setting,
-  or deployment changed. The gated E2E generated and consumed one-time test
-  sessions and globally revoked them after verification.
+- No schema, business row, password, Storage object, queue, or provider setting
+  changed. The gated E2E generated and consumed one-time test sessions and
+  globally revoked them after verification.
 
 Changed files:
 
@@ -1860,11 +1860,23 @@ Validation:
   prohibited external ERP source/brand scan -- clean.
 - Vercel provider check -- latest deployment remains
   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`; zero new deployments from this work.
+- GitHub publication -- commit
+  `5ed6984d789dcc62bffc6a61f2e16fe759e281b7` reached both
+  `agent-02/third-code-erp-landing` and `main` under
+  `kurtgav <kurtgavin.design@gmail.com>`.
+- GitHub Actions run `30447346925` -- failed before any step started. The
+  annotation reports recent account payments failed or the spending limit must
+  be increased. All dependent jobs skipped; no code failure was observed.
+- Railway deployment `dd9f0f50-e8bd-4411-a49b-ffea0984030a` -- `SUCCESS` for
+  exact commit `5ed6984d789dcc62bffc6a61f2e16fe759e281b7`; live
+  `/health` 200 and `/ready` 200 with PostgreSQL and Redis `ok`.
 
 Rollback and unresolved:
 
-- Revert this source/documentation milestone; no database or provider rollback
-  is required.
+- Revert this source/documentation milestone. A revert touching
+  `packages/database` will create one Railway rollback build; verify live
+  health/readiness and exact revision. No schema or provider-configuration
+  rollback is required.
 - Live activation requires one explicitly approved consolidated Vercel build.
   Do not create a preview, reconnect Git, or spend provider credit.
 - Destructive database integration remains pending a disposable writable
