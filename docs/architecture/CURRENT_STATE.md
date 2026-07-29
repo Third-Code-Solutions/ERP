@@ -735,10 +735,10 @@ matches the repository migration contract:
 ## Cost-controlled frontend release candidate
 
 - The consolidated frontend candidate is
-  `8dc051e70d56cf3f0cde9c2f409c4f97928d337d`, 35 commits after retained
+  `8058c8a5db18828656fc182939dce7aa06c698af`, 37 commits after retained
   production source `f24e5603a35571f8dcadd43fc09c64d12646a7d0`.
-- The Web delta is fully inventoried: 75 files, comprising 46 runtime files
-  and 29 test/E2E files. No Web runtime file remains unclassified.
+- The Web delta is fully inventoried: 80 files, comprising 49 runtime files
+  and 31 test/E2E files. No Web runtime file remains unclassified.
 - Vercel Git is disconnected. On-demand concurrent builds are disabled and
   the next build uses Standard 4 vCPU/8 GB. Vercel documents Standard build
   compute as no added charge in this queued configuration.
@@ -747,7 +747,7 @@ matches the repository migration contract:
 - Middleware now isolates anonymous IP buckets from authenticated user buckets.
   This prevents an authenticated burst from producing a later public 429 and
   prevents authenticated users behind one shared IP from consuming one bucket.
-- Root lint, typecheck, test, and production build pass. There are 399 passing
+- Root lint, typecheck, test, and production build pass. There are 408 passing
   application tests; Next generates 77/77 static steps. A sequential
   authenticated Cortex plus public landing browser run passes 2/2.
 - gitleaks, actionlint, diff checks, and prohibited external ERP brand/source
@@ -799,5 +799,32 @@ matches the repository migration contract:
 - Source commit `8dc051e70d56cf3f0cde9c2f409c4f97928d337d` is on both
   repository refs. Railway skipped deployment
   `37ee8021-9037-4f4c-b0d9-cf9219699c25`; Vercel created no deployment.
+- No schema, hosted row, Auth identity, Storage object, queue, AI call, active
+  Railway build, or Vercel build changed.
+
+## Private Search-to-Cortex handoff candidate
+
+- The global command palette now has explicit `Search records` and
+  `Ask Cortex` modes. Search remains the default.
+- Ask mode never calls `/api/search`; questions cannot enter search-query URLs
+  or search logs.
+- Opening Cortex generates an opaque UUID and stores the normalized,
+  100-character-bounded question in same-tab `sessionStorage` for at most five
+  minutes. Prompt text is absent from the URL.
+- The Cortex page accepts a handoff only on the company-wide route. It consumes
+  and deletes the draft once, replaces the URL with `/cortex`, prefills and
+  focuses the composer, and does not send an AI request.
+- Authenticated viewer QA preserved normal document search and proved the Ask
+  handoff at 1440, 768, and 390 with zero search leakage, zero Cortex chat
+  requests, exact composer text, removed browser storage, no overflow, and no
+  console/page errors. The one-time session was globally revoked.
+- Root lint, typecheck, 408 application tests, Nest/Next production builds,
+  77/77 static-generation steps, gitleaks, actionlint, diff checks, and the
+  prohibited external ERP source/brand scan pass.
+- Source commit `8058c8a5db18828656fc182939dce7aa06c698af` is on both
+  repository refs under `kurtgav <kurtgavin.design@gmail.com>`. Railway skipped
+  deployment `e2c6d6a8-82cb-4f19-996f-b67518b9d949` because no watched backend
+  file changed. Vercel created zero deployments after the retained READY
+  baseline.
 - No schema, hosted row, Auth identity, Storage object, queue, AI call, active
   Railway build, or Vercel build changed.

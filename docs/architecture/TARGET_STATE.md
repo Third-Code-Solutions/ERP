@@ -439,3 +439,19 @@ reach through each other's internals.
 - User-specific results are private and non-cacheable.
 - Search is read-only. It cannot approve, post, commit, allocate, delete, or
   finalize an ERP transaction.
+
+## Search-to-Cortex draft boundary
+
+- Record search and AI drafting are explicit modes. Search is the default;
+  Ask mode does not fan the question into record-search requests.
+- Browser-to-Cortex draft transport uses an opaque, expiring, one-time
+  identifier. Prompt text never enters the route, server render parameters,
+  provider request, or analytics event during handoff.
+- The server accepts a draft handoff only for a company-wide Cortex route
+  without record focus or saved-conversation identity.
+- Draft consumption removes browser state before parsing. Malformed, expired,
+  future-dated, empty, undersized, or invalid-ID state fails closed.
+- Opening Cortex only prefills and focuses the composer. The user must
+  explicitly press Send before any AI request.
+- The AI surface remains analysis-only. It cannot approve or finalize an ERP
+  transaction.
