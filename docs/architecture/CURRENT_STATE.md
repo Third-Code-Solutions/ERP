@@ -111,8 +111,9 @@ matches the repository migration contract:
 - `https://third-code-erp-api-production.up.railway.app/health` returns
   `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
 - The current Railway deployment is
-  `94c78bd2-327a-4f6a-a49e-1d77195d850d`, built remotely from source commit
-  `f173957559a93eb724daf9eeed3fbbb1c4576baf`. Health and readiness remain
+  `733f1197-344a-41d9-ad95-af4fda876242`, built remotely from docs head
+  `cc5733fa98136c500aa2602b9232a6f9ae34df78`, which contains RFQ source
+  `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59`. Health and readiness remain
   HTTP 200 with PostgreSQL and Redis `ok`.
 - Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is disconnected from
   Git. The canonical alias still serves READY deployment
@@ -933,3 +934,10 @@ matches the repository migration contract:
 - Vercel Git remains disconnected. No deployment exists after retained
   production `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`; visible UI activation remains
   pending one explicitly approved consolidated production build.
+- Both GitHub refs resolve to
+  `cc5733fa98136c500aa2602b9232a6f9ae34df78`. GitHub Actions run
+  `30471712383` executed zero steps because the account payment/spending-limit
+  block prevented Actionlint from starting; dependent jobs were skipped.
+- Railway deployment `733f1197-344a-41d9-ad95-af4fda876242` is SUCCESS for
+  that docs head and serves the RFQ source commit. Live `/health` returns
+  `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
