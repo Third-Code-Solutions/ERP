@@ -1036,8 +1036,14 @@ Outcome:
   transaction. It fails closed on target scope, capability, Auth, PostgreSQL
   version, audit controls, predecessor continuity, hash verification, and
   Project history.
-- Kept Vercel Git disconnected. No Vercel build, Railway deployment, database
-  write, Auth mutation, feature-flag change, or allowlist change occurred.
+- Kept Vercel Git disconnected; Vercel recorded zero new deployments.
+- Publishing the root `package.json` planner aliases matched Railway's API
+  watch patterns and created one deployment,
+  `dffa3105-7db3-4bd2-8ba9-505bf2248aee`, on exact commit `62d9106f`. No API
+  source changed. The deployment completed successfully; `/health` and
+  `/ready` remain HTTP 200.
+- No database write, Auth mutation, feature-flag change, or allowlist change
+  occurred.
 
 Changed files:
 
@@ -1064,11 +1070,18 @@ Validation:
 - Hosted migration ledger -- current, 48/48, no gaps or unexpected versions.
 - Actionlint 1.7.12 and pinned action-reference validation -- pass.
 - Gitleaks 8.30.1 -- 93 commits, zero findings.
+- GitHub hosted run `30423405464` -- blocked by the existing account
+  billing/spending limit before any step; self-hosted proof remains the
+  authoritative green lane.
+- Vercel deployment count after source publication -- zero; canonical landing,
+  `/api/health`, and `/api/ready` remain HTTP 200.
 
 Rollback and unresolved:
 
 - Source rollback: revert this planner/documentation milestone; no production
-  state requires rollback.
+  data requires rollback. If the operational-tooling Railway rebuild proves
+  defective, redeploy last-known-good API deployment
+  `2b77cc8e-3c5a-44df-8c4d-58926aced3bb`.
 - Do not enable the provider flag for either current tenant.
 - Next: implement a supported, audited dedicated-canary onboarding slice, then
   require a zero-blocker planner result before requesting one paid Vercel

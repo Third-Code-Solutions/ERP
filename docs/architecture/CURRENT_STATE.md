@@ -89,14 +89,15 @@ matches the repository migration contract:
 - `https://third-code-erp-api-production.up.railway.app/health` returns
   `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
 - The current Railway deployment is
-  `83849120-b063-4275-8727-0f6b13f0cd4e`, built remotely from the reviewed
-  Dockerfile and `railway.toml` after commit
-  `4fd1451e756ccb578ed013016d644e5048af6f92`.
-- Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is reconnected to
-  `Third-Code-Solutions/ERP`. The `main` lineage serves
-  `https://thirdcode-erp.vercel.app`; verified runtime baseline
-  `dpl_9X7Vwgjj22R7WxyhJte8aTLBYiSd` is READY on reviewed commit
-  `4fd1451e756ccb578ed013016d644e5048af6f92`.
+  `dffa3105-7db3-4bd2-8ba9-505bf2248aee`, built remotely from commit
+  `62d9106f483cf64ceead737b39aeebf618853ca3`. The root `package.json`
+  planner aliases matched Railway's API watch patterns even though API source
+  did not change; the deployment completed successfully and health/readiness
+  remain HTTP 200.
+- Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` is disconnected from
+  Git. The canonical alias still serves READY deployment
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`. Vercel recorded zero deployments after
+  source commits `ae373ce6`, `277e0348`, `e681bc2c`, and `62d9106f`.
 - Vercel Web Analytics is enabled. Its production script returns JavaScript
   with HTTP 200 and the final desktop browser console is clean.
 - A live no-write Supabase Auth proof covers missing/invalid bearer tokens,
