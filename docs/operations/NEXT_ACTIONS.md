@@ -53,6 +53,13 @@ M2: remove the Python `scope_items` direct-write path. Python returns immutable
 processing evidence; BullMQ transports it; a new Nest command authorizes,
 idempotently validates, and commits accepted changes.
 
+Design is ready at
+`docs/architecture/M2_DOCUMENT_PROCESSING_EVIDENCE_CONTRACT.md`. First code
+slice is inert M2.1: contracts, composite tenant constraints, durable
+job/evidence state, explicit capabilities, and a Nest BullMQ processor with no
+caller. Do not begin it until M1 canary and separate `AGENTS.md`
+reconciliation gates pass.
+
 ## Do not start yet
 
 - No finance migration before M1 integration evidence.

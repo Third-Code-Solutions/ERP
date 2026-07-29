@@ -1358,3 +1358,57 @@ Rollback and unresolved:
   zero-blocker cutover planner.
 - Any paid frontend build still requires exact charge disclosure and explicit
   user approval.
+
+## 2026-07-29 -- M2 document-processing evidence design
+
+Outcome:
+
+- Traced complete upload path through browser, Next.js upload handlers, inline
+  DXF extraction, visual/AI extraction, Inngest retry, Python CAD parsing,
+  scope replacement, and draft-BOM creation.
+- Verified Python directly deletes/inserts `scope_items`, commits with
+  `DATABASE_URL`, and downloads files using a Storage service-role key.
+- Verified BullMQ/Redis foundation exists in NestJS but has no registered
+  business queue or processor.
+- Read hosted PostgreSQL 17.6 catalog without business-data writes.
+  `documents` and `scope_items` have RLS but no composite tenant/Project
+  foreign keys and no audit triggers.
+- Defined an original evidence-only Python contract, explicit Nest
+  capabilities, durable job state machine, immutable evidence, opaque BullMQ
+  payload, transaction/idempotency rules, compatibility adapter, test matrix,
+  staged rollout, and rollback.
+- Kept M1 routing disabled and Vercel Git disconnected. No application code,
+  schema, business data, Auth, Storage, queue, provider setting, or deployment
+  changed.
+
+Changed files:
+
+- `docs/architecture/M2_DOCUMENT_PROCESSING_EVIDENCE_CONTRACT.md`
+- `docs/architecture/CURRENT_STATE.md`
+- `docs/architecture/TARGET_STATE.md`
+- `docs/architecture/MIGRATION_PLAN.md`
+- `docs/architecture/DECISIONS.md`
+- `docs/operations/WORK_LOG.md`
+- `docs/operations/NEXT_ACTIONS.md`
+- `docs/changesets/2026-07-29-m2-document-processing-design.md`
+
+Validation:
+
+- Repository source trace and Nest/Python symbol inspection -- pass.
+- Hosted catalog inspection -- read-only, PostgreSQL 17.6.
+- Vercel deployments since disconnect baseline -- zero.
+- Documentation path, prohibited-term, Markdown, and diff checks -- pass.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` -- pass.
+- Root tests -- 250 pass; 132 disposable-database-gated cases skip as
+  designed because this documentation-only milestone did not inject a database
+  target.
+- Optimized Web build -- 77/77 routes generated.
+
+Rollback and unresolved:
+
+- Revert this documentation-only milestone; runtime and provider state are
+  unchanged.
+- M1 still requires explicit canary-email approval, normal signup and
+  confirmation, one reversible Project, and a zero-blocker cutover plan.
+- M2 application code still requires separate owner-approved `AGENTS.md`
+  reconciliation.

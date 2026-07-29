@@ -443,3 +443,29 @@ valid JSON-LD; and zero browser console errors or warnings.
 Rollback: revert the landing component, CSS module, and conditional analytics
 render together. No data or provider rollback is required. Existing Vercel
 production remains unchanged until a separately approved deployment.
+
+## D-042 -- Document processors produce evidence, not transactions
+
+Decision: document-processing authority moves incrementally to NestJS. BullMQ
+jobs contain only an opaque job ID. NestJS reloads authoritative tenant,
+Project, document, actor, and Storage context from PostgreSQL. Python receives a
+short-lived exact-object read grant and returns bounded, versioned, hash-linked
+evidence without database or Storage service-role credentials. NestJS alone
+validates and commits pending-review scope rows inside an actor-stamped,
+idempotent transaction.
+
+Reason: current Python path accepts caller-supplied authority and writes
+`scope_items` directly. Current Next.js paths also duplicate writes, retries,
+and draft-BOM creation without durable processing state. Hosted catalog
+inspection confirms missing composite tenant/Project constraints and audit
+triggers on `documents` and `scope_items`.
+
+Validation: require same-tenant composite constraints, evidence immutability,
+explicit capability tests, duplicate/retry proof with real Redis, atomic
+database integration with zero skips, Python credential-removal tests,
+compatibility response and browser proof, and an authorized reversible canary.
+
+Rollback: keep new route flag false and tenant allowlist empty, stop queue
+consumption, preserve job/evidence/audit records, and retain legacy path.
+Applied schema rollback is a reviewed forward compensation; immutable evidence
+and audit rows are never deleted.
