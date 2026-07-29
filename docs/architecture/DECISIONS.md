@@ -975,3 +975,26 @@ complete/cancel behavior remains unchanged.
 
 Rollback: unset the flag/allowlist or revert this application milestone. No
 schema rollback exists because this milestone adds no migration.
+
+## ADR-029: Public discovery URLs come from one validated origin
+
+Decision: resolve canonical metadata, structured-data identities, robots
+sitemap location, and sitemap entries from `NEXT_PUBLIC_SITE_URL`, then
+server-only `SITE_URL`, then Vercel's production hostname, with the retained
+Third Code Vercel origin as compatibility fallback. Accept only absolute
+HTTP(S) origins without credentials, paths, queries, or fragments. Omit
+sitemap `lastModified` when no verified content-change date exists.
+
+Reason: hardcoded Vercel URLs made a no-cost alternative host publish the
+wrong canonical identity. A synthetic current timestamp also claimed content
+freshness without evidence. One strict resolver keeps discovery output
+consistent and makes hosting replaceable without changing visible UI.
+
+Validation: require resolver precedence and rejection tests, rendered
+canonical and structured-data checks, robots/sitemap/manifest endpoint checks,
+1440/768/390 browser coverage, no console/page errors or horizontal overflow,
+full lint/typecheck/test/build, and secret/workflow scans.
+
+Rollback: revert this isolated application commit. The current Vercel origin
+remains the resolver fallback, so rollback requires no database or provider
+change. Do not reconnect Vercel Git or deploy during rollback.

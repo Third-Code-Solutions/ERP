@@ -523,3 +523,17 @@ reach through each other's internals.
 The disabled quote adapter now exists. Target activation remains a measured
 single-tenant canary only after M1 provider gates; completion and cancellation
 move later as separate, independently verified milestones.
+
+## Host-portable public discovery boundary
+
+- One validated origin controls canonical metadata, Open Graph URLs,
+  structured-data identities, portal links, `robots.txt`, and `sitemap.xml`.
+- Vercel is a compatible host, not a permanent identity embedded throughout
+  the application.
+- Alternative hosting must set `NEXT_PUBLIC_SITE_URL` during the production
+  build. Mixed origins, credential-bearing URLs, path-scoped origins, and
+  silently malformed values fail closed.
+- Sitemap timestamps represent verified content changes only. Unknown dates
+  are omitted rather than synthesized.
+- Hosting portability cannot weaken CSP, authentication, tenant isolation,
+  authorization, audit, or transaction boundaries.

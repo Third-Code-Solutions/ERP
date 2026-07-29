@@ -364,6 +364,24 @@ Status: source candidate complete; deployment not authorized.
 - Activate only in the next explicitly approved consolidated Vercel build.
   Keep Git integration disconnected and do not create a separate preview.
 
+## Public-origin portability slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Replace Vercel-specific public URL literals in metadata, structured data,
+  robots, and sitemap generation with one validated resolver.
+- Preserve the current production hostname as the compatibility fallback.
+- Reject malformed, credential-bearing, non-HTTP(S), or path-scoped origins.
+- Remove the unverified build-time sitemap `lastModified` value.
+- Verify helper precedence/failure behavior, SEO endpoints, structured data,
+  desktop/tablet/mobile behavior, console output, overflow, full repository
+  gates, and security scans.
+- For any future alternative host, set `NEXT_PUBLIC_SITE_URL` before its single
+  reviewed production build. Do not reconnect Vercel Git or create a Vercel
+  deployment for this source slice.
+- Rollback is one source commit. No database, Railway, Supabase, or Vercel
+  rollback is required.
+
 ## Milestone: inert NestJS RFQ quote command
 
 Status: implementation and local validation complete; activation not authorized.

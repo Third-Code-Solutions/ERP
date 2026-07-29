@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 
 import { landingFaqs } from '@/components/marketing/third-code-content'
 import { ThirdCodeLanding } from '@/components/marketing/third-code-landing'
+import { publicUrl } from '@/lib/public-origin'
 
 export const metadata: Metadata = {
   title: 'Construction ERP with a permission-aware AI brain',
@@ -39,13 +40,13 @@ const structuredData = {
   '@graph': [
     {
       '@type': 'Organization',
-      '@id': 'https://thirdcode-erp.vercel.app/#organization',
+      '@id': publicUrl('/#organization'),
       name: 'Third Code Solutions Inc.',
-      url: 'https://thirdcode-erp.vercel.app/',
+      url: publicUrl('/'),
     },
     {
       '@type': 'SoftwareApplication',
-      '@id': 'https://thirdcode-erp.vercel.app/#software',
+      '@id': publicUrl('/#software'),
       name: 'Third Code ERP',
       applicationCategory: 'BusinessApplication',
       applicationSubCategory: 'Construction management and enterprise resource planning',
@@ -53,7 +54,7 @@ const structuredData = {
       description:
         'A connected construction ERP for pipeline, projects, procurement, cost, billing, compliance, and permission-aware operational intelligence.',
       provider: {
-        '@id': 'https://thirdcode-erp.vercel.app/#organization',
+        '@id': publicUrl('/#organization'),
       },
       featureList: [
         'Construction pipeline and client management',
@@ -65,7 +66,7 @@ const structuredData = {
     },
     {
       '@type': 'FAQPage',
-      '@id': 'https://thirdcode-erp.vercel.app/#faq',
+      '@id': publicUrl('/#faq'),
       mainEntity: landingFaqs.map((item) => ({
         '@type': 'Question',
         name: item.question,

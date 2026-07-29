@@ -1601,6 +1601,62 @@ Rollback and unresolved:
   queued Standard Vercel build.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
 
+## 2026-07-30 -- Host-portable public origin
+
+Outcome:
+
+- Audited current landing source, retained live Vercel output, generated
+  desktop/mobile evidence, metadata, structured data, sitemap, robots,
+  manifest, interactions, responsive behavior, and console state.
+- Confirmed production is older than current source: retained live output
+  still exposes decorative ordinals already removed from the source candidate.
+- Added one strict public-origin resolver for canonical metadata,
+  structured-data IDs, robots, and sitemap output.
+- Added alternative-host configuration to both environment examples.
+- Removed synthetic sitemap `lastModified`.
+- Extended the release browser test across `robots.txt`, `sitemap.xml`, and
+  `manifest.webmanifest`.
+- No visible UI, database, Railway, Supabase, Vercel setting, or deployment
+  changed.
+
+Changed files:
+
+- `.env.example`
+- `apps/web/.env.example`
+- `apps/web/src/lib/public-origin.ts`
+- `apps/web/src/lib/public-origin.test.ts`
+- `apps/web/src/app/layout.tsx`
+- `apps/web/src/app/page.tsx`
+- `apps/web/src/app/robots.ts`
+- `apps/web/src/app/sitemap.ts`
+- `apps/web/e2e/frontend-release-local.spec.ts`
+- the six architecture/operations memory files
+
+Validation:
+
+- Public-origin unit tests: 8/8 pass.
+- Root lint and typecheck: pass.
+- Application tests: shared 79/79, API 26/26, Web 273/273.
+- Local database lane: 99 passed, 137 skipped because production credentials
+  were intentionally absent; no database code or schema changed.
+- NestJS and Next.js production build: pass; Next generated 77/77 pages.
+- Frontend release browser test: 1/1 pass against installed Chrome at
+  1440/768/390, including interactions, no overflow, no console/page errors,
+  and SEO endpoint assertions.
+- Built output contains the retained canonical origin, a consistent sitemap
+  directive, no sitemap `lastmod`, and the expected manifest.
+- gitleaks, actionlint, workflow action-reference checks, and diff checks:
+  pass.
+
+Rollback and unresolved:
+
+- Revert the isolated source commit. No provider or database rollback exists.
+- Live Vercel remains on the retained older landing artifact until an explicit
+  consolidated deployment approval.
+- Root layout remains dynamically rendered for CSP nonce integrity. Cost
+  optimization needs a separate security review.
+- M1 canary and root `AGENTS.md` reconciliation still await explicit approval.
+
 ## 2026-07-29 -- Cortex directional relationship meaning
 
 Outcome:

@@ -1,10 +1,10 @@
 import type { MetadataRoute } from 'next'
+import { publicUrl } from '@/lib/public-origin'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
-      url: 'https://thirdcode-erp.vercel.app/',
-      lastModified: new Date(),
+      url: publicUrl('/'),
       changeFrequency: 'weekly',
       priority: 1,
     },

@@ -3,6 +3,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { Inter, JetBrains_Mono } from 'next/font/google'
+import { resolvePublicOrigin } from '@/lib/public-origin'
 import './globals.css'
 
 const inter = Inter({
@@ -20,7 +21,7 @@ const jetbrains = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://thirdcode-erp.vercel.app'),
+  metadataBase: resolvePublicOrigin(),
   title: {
     template: '%s | Third Code ERP',
     default: 'Third Code ERP',
