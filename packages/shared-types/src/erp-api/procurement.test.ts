@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   logRfqQuoteCommandSchema,
   rfqQuoteResultSchema,
+  rfqTransitionResultSchema,
+  transitionRfqCommandSchema,
 } from './procurement'
 
 const UUID = '11111111-1111-4111-8111-111111111111'
@@ -55,6 +57,55 @@ describe('RFQ quote API contracts', () => {
         created: true,
         statusChanged: true,
         tenantId: UUID,
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('RFQ terminal transition API contracts', () => {
+  it('accepts only canonical complete and bounded cancel commands', () => {
+    expect(
+      transitionRfqCommandSchema.parse({ command: 'complete' })
+    ).toEqual({ command: 'complete' })
+    expect(
+      transitionRfqCommandSchema.parse({
+        command: 'cancel',
+        reason: '  Supplier withdrew  ',
+      })
+    ).toEqual({
+      command: 'cancel',
+      reason: 'Supplier withdrew',
+    })
+  })
+
+  it('rejects missing reasons and caller-supplied authority', () => {
+    expect(
+      transitionRfqCommandSchema.safeParse({
+        command: 'cancel',
+        reason: ' ',
+      }).success
+    ).toBe(false)
+    expect(
+      transitionRfqCommandSchema.safeParse({
+        command: 'complete',
+        tenantId: UUID,
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires a strict durable transition result', () => {
+    expect(
+      rfqTransitionResultSchema.safeParse({
+        rfqId: UUID,
+        tenantId: UUID,
+        transitioned: true,
+      }).success
+    ).toBe(true)
+    expect(
+      rfqTransitionResultSchema.safeParse({
+        rfqId: UUID,
+        tenantId: UUID,
+        transitioned: false,
       }).success
     ).toBe(false)
   })

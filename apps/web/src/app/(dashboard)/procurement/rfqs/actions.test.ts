@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   logRfqQuoteRecord: vi.fn(),
   rfqQuoteWritesUseCoreApi: vi.fn(),
   logRfqQuoteThroughCoreApi: vi.fn(),
+  rfqTerminalWritesUseCoreApi: vi.fn(),
+  transitionRfqThroughCoreApi: vi.fn(),
   transitionRfqRecord: vi.fn(),
   notifyRfqCompleted: vi.fn(),
   revalidatePath: vi.fn(),
@@ -44,6 +46,10 @@ vi.mock('@/lib/procurement/rfq-workflow-service', () => ({
 vi.mock('@/lib/erp-core-client', () => ({
   rfqQuoteWritesUseCoreApi: mocks.rfqQuoteWritesUseCoreApi,
   logRfqQuoteThroughCoreApi: mocks.logRfqQuoteThroughCoreApi,
+  rfqTerminalWritesUseCoreApi:
+    mocks.rfqTerminalWritesUseCoreApi,
+  transitionRfqThroughCoreApi:
+    mocks.transitionRfqThroughCoreApi,
 }))
 
 vi.mock('next/cache', () => ({
@@ -95,6 +101,15 @@ describe('RFQ Server Action authority', () => {
         quoteId: '99999999-9999-4999-8999-999999999999',
         created: true,
         statusChanged: true,
+      },
+    })
+    mocks.rfqTerminalWritesUseCoreApi.mockReturnValue(false)
+    mocks.transitionRfqThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        rfqId: RFQ_ID,
+        tenantId: TENANT_ID,
+        transitioned: true,
       },
     })
     mocks.transitionRfqRecord.mockResolvedValue({
@@ -294,6 +309,22 @@ describe('RFQ Server Action authority', () => {
     warn.mockRestore()
   })
 
+  it('completes through Nest only for an explicitly enabled tenant', async () => {
+    mocks.rfqTerminalWritesUseCoreApi.mockReturnValue(true)
+
+    await expect(completeRfq(RFQ_ID)).resolves.toEqual({})
+
+    expect(mocks.transitionRfqThroughCoreApi).toHaveBeenCalledWith(
+      RFQ_ID,
+      { command: 'complete' }
+    )
+    expect(mocks.transitionRfqRecord).not.toHaveBeenCalled()
+    expect(mocks.notifyRfqCompleted).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      rfqId: RFQ_ID,
+    })
+  })
+
   it('trims cancellation reason before transaction authority', async () => {
     await expect(
       cancelRfq(RFQ_ID, '  Supplier withdrew  ')
@@ -313,5 +344,23 @@ describe('RFQ Server Action authority', () => {
       error: 'Cancellation reason must be 1000 characters or fewer',
     })
     expect(mocks.transitionRfqRecord).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the enabled Nest cancellation is unavailable', async () => {
+    mocks.rfqTerminalWritesUseCoreApi.mockReturnValue(true)
+    mocks.transitionRfqThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No RFQ transition was committed.',
+    })
+
+    await expect(
+      cancelRfq(RFQ_ID, 'Supplier withdrew')
+    ).resolves.toEqual({
+      error:
+        'ERP Core API is unavailable. No RFQ transition was committed.',
+    })
+    expect(mocks.transitionRfqRecord).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 })

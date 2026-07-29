@@ -20,7 +20,38 @@ export const rfqQuoteResultSchema = z
   })
   .strict()
 
+export const transitionRfqCommandSchema = z.discriminatedUnion(
+  'command',
+  [
+    z
+      .object({
+        command: z.literal('complete'),
+      })
+      .strict(),
+    z
+      .object({
+        command: z.literal('cancel'),
+        reason: z.string().trim().min(1).max(1_000),
+      })
+      .strict(),
+  ]
+)
+
+export const rfqTransitionResultSchema = z
+  .object({
+    rfqId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    transitioned: z.literal(true),
+  })
+  .strict()
+
 export type LogRfqQuoteCommand = z.infer<
   typeof logRfqQuoteCommandSchema
 >
 export type RfqQuoteResult = z.infer<typeof rfqQuoteResultSchema>
+export type TransitionRfqCommand = z.infer<
+  typeof transitionRfqCommandSchema
+>
+export type RfqTransitionResult = z.infer<
+  typeof rfqTransitionResultSchema
+>

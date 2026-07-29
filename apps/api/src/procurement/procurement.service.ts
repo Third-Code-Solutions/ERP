@@ -12,7 +12,9 @@ import {
 } from '@third-code-erp/database/schema'
 import type {
   LogRfqQuoteCommand,
+  RfqTransitionResult,
   RfqQuoteResult,
+  TransitionRfqCommand,
 } from '@third-code-erp/shared-types'
 import { and, eq, sql } from 'drizzle-orm'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
@@ -22,6 +24,7 @@ import { DatabaseService } from '../database/database.service'
 interface RfqLineItemJson {
   bom_line_item_id?: string
   material_item_id?: string | null
+  code?: string | null
   description: string
 }
 
@@ -43,6 +46,38 @@ function sameDate(
   return (
     (left?.getTime() ?? null) ===
     (right ? new Date(right).getTime() : null)
+  )
+}
+
+function lineIsCovered(
+  line: RfqLineItemJson,
+  quotes: Array<{
+    bom_line_item_id: string | null
+    material_item_id: string | null
+    material_code: string | null
+  }>
+): boolean {
+  if (
+    line.bom_line_item_id &&
+    quotes.some(
+      (quote) =>
+        quote.bom_line_item_id === line.bom_line_item_id
+    )
+  ) {
+    return true
+  }
+  if (
+    line.material_item_id &&
+    quotes.some(
+      (quote) =>
+        quote.material_item_id === line.material_item_id
+    )
+  ) {
+    return true
+  }
+  return Boolean(
+    line.code &&
+      quotes.some((quote) => quote.material_code === line.code)
   )
 }
 
@@ -265,6 +300,140 @@ export class ProcurementService {
         quoteId: created.id,
         created: true,
         statusChanged,
+      }
+    })
+  }
+
+  async transition(
+    rfqId: string,
+    command: TransitionRfqCommand,
+    principal: ErpPrincipal
+  ): Promise<RfqTransitionResult> {
+    return this.database.client.transaction(async (transaction) => {
+      await this.audit.stampActor(transaction, principal)
+
+      const [rfq] = await transaction
+        .select({
+          id: rfqs.id,
+          status: rfqs.status,
+          line_items: rfqs.line_items,
+        })
+        .from(rfqs)
+        .where(
+          and(
+            eq(rfqs.id, rfqId),
+            eq(rfqs.tenant_id, principal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      if (!rfq) throw new NotFoundException('RFQ not found')
+
+      let targetStatus: 'completed' | 'cancelled'
+      let diff: Record<string, unknown>
+
+      if (command.command === 'complete') {
+        if (rfq.status === 'completed') {
+          throw new ConflictException('RFQ already completed')
+        }
+        if (rfq.status === 'cancelled') {
+          throw new ConflictException('RFQ is cancelled')
+        }
+        if (rfq.status !== 'quotes_received') {
+          throw new ConflictException(
+            'RFQ quote coverage is incomplete'
+          )
+        }
+
+        const quotes = await transaction
+          .select({
+            bom_line_item_id: rfqQuotes.bom_line_item_id,
+            material_item_id: rfqQuotes.material_item_id,
+            material_code: materialItems.code,
+          })
+          .from(rfqQuotes)
+          .leftJoin(
+            materialItems,
+            and(
+              eq(materialItems.id, rfqQuotes.material_item_id),
+              eq(
+                materialItems.tenant_id,
+                principal.tenantId
+              )
+            )
+          )
+          .where(
+            and(
+              eq(rfqQuotes.rfq_id, rfqId),
+              eq(
+                rfqQuotes.tenant_id,
+                principal.tenantId
+              )
+            )
+          )
+
+        const lines = parseLineItems(rfq.line_items)
+        if (
+          lines.length === 0 ||
+          !lines.every((line) => lineIsCovered(line, quotes))
+        ) {
+          throw new ConflictException(
+            'RFQ quote coverage is incomplete'
+          )
+        }
+
+        targetStatus = 'completed'
+        diff = { from: rfq.status, to: targetStatus }
+      } else {
+        if (rfq.status === 'completed') {
+          throw new ConflictException(
+            'Cannot cancel a completed RFQ'
+          )
+        }
+        if (rfq.status === 'cancelled') {
+          throw new ConflictException('RFQ already cancelled')
+        }
+
+        targetStatus = 'cancelled'
+        diff = {
+          from: rfq.status,
+          to: targetStatus,
+          reason: command.reason,
+        }
+      }
+
+      const [updated] = await transaction
+        .update(rfqs)
+        .set({
+          status: targetStatus,
+          updated_at: new Date(),
+        })
+        .where(
+          and(
+            eq(rfqs.id, rfqId),
+            eq(rfqs.tenant_id, principal.tenantId),
+            eq(rfqs.status, rfq.status)
+          )
+        )
+        .returning({ id: rfqs.id })
+      if (!updated) {
+        throw new Error('RFQ transition lost its row lock')
+      }
+
+      await this.audit.writeSemantic(transaction, {
+        tenantId: principal.tenantId,
+        actorId: principal.userId,
+        entityType: 'rfq',
+        entityId: rfqId,
+        action: 'status_change',
+        diff,
+      })
+
+      return {
+        rfqId,
+        tenantId: principal.tenantId,
+        transitioned: true,
       }
     })
   }

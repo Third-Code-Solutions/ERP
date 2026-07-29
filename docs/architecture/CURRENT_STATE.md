@@ -340,10 +340,9 @@ matches the repository migration contract:
   validation, lint, typecheck, unit tests, 48 migrations, 212/212 database
   tests, Nest integration, production build, native smoke, Gitleaks, and
   cleanup all passed in 5m33s without dependency-cache or artifact upload.
-- GitHub runner registration and runner-process counts are zero. All retained
-  Windows runner directories are credential-free; Windows still holds their
-  non-secret work files open, so physical directory deletion remains an
-  operator cleanup item.
+- GitHub runner registration and runner-process counts are zero. Transient
+  runner work directories and credential-free remnants were removed after
+  the verified run.
 - The connected Supabase ERP project is `ACTIVE_HEALTHY` on PostgreSQL 17.6.
   A read-only M1 candidate scan found no existing tenant that satisfies every
   Project-cutover entry gate. The primary demo tenant has an authorized Admin
@@ -954,6 +953,33 @@ matches the repository migration contract:
   allowlist; enabled failures are fail-closed with no legacy fallback.
 - Complete/cancel commands remain in the existing Next.js transaction service.
 - No database migration or provider environment change was required.
+
+## 2026-07-30 RFQ terminal NestJS adapter
+
+- NestJS now exposes the original terminal command boundary
+  `POST /v1/procurement/rfqs/:rfqId/transitions` for complete and cancel.
+- Strict shared contracts reject unknown authority fields, trim and bound
+  cancellation reasons, and require a durable tenant-scoped success result.
+- The authenticated principal supplies tenant and actor. The controller
+  requires `rfq.dispatch`; the service locks the tenant RFQ, enforces its
+  explicit state machine, rechecks full quote coverage for completion, uses a
+  guarded status update, and commits semantic audit evidence in the same
+  transaction.
+- Next.js preserves the current Server Action response and notification
+  behavior. Routing remains on the compatibility service unless
+  `ERP_RFQ_TERMINAL_WRITES_VIA_API` is exactly `true` and the authenticated
+  tenant matches a separate strict UUID allowlist. An enabled API failure
+  never falls back to a second writer.
+- The adapter is source-complete but disabled in every provider environment.
+  No UI, schema, migration, data, Python, Storage, queue, or provider setting
+  changed.
+- Full validation passes: lint, typecheck, 397 application tests, production
+  build with 77/77 generated pages, Actionlint, pinned-action verification,
+  both release planners, Gitleaks, and product-path ERPNext/Frappe scan.
+- The disposable PostgreSQL 17 and Redis 7.4.9 lane passes all 54 migrations,
+  236/236 database tests with zero skips, and 2/2 Nest database integration
+  tests including real tenant denial, quote completion, repeated-transition
+  conflict, cancellation reason audit, and transaction rollback cleanup.
 
 ## 2026-07-30 RFQ adapter provider verification
 

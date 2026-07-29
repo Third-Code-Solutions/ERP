@@ -4,7 +4,10 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common'
-import type { LogRfqQuoteCommand } from '@third-code-erp/shared-types'
+import type {
+  LogRfqQuoteCommand,
+  TransitionRfqCommand,
+} from '@third-code-erp/shared-types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -40,6 +43,7 @@ function harness(selectResults: unknown[][]) {
     if (!result) throw new Error('Unexpected select')
     const chain: Record<string, unknown> = {}
     chain.from = vi.fn(() => chain)
+    chain.leftJoin = vi.fn(() => chain)
     chain.where = vi.fn(() => chain)
     chain.limit = vi.fn(() => chain)
     chain.for = vi.fn(async () => result)
@@ -85,6 +89,7 @@ function harness(selectResults: unknown[][]) {
     insert,
     update,
     values,
+    updateReturning,
   }
 }
 
@@ -296,5 +301,196 @@ describe('ProcurementService RFQ quote command', () => {
     ).rejects.toThrow('audit unavailable')
     expect(probe.insert).toHaveBeenCalledOnce()
     expect(probe.audit.writeSemantic).toHaveBeenCalledOnce()
+  })
+})
+
+describe('ProcurementService RFQ terminal transition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('completes a fully quoted RFQ and records one semantic audit', async () => {
+    const probe = harness([
+      [
+        {
+          id: RFQ_ID,
+          status: 'quotes_received',
+          line_items: [
+            {
+              bom_line_item_id: LINE_ID,
+              material_item_id: null,
+              code: 'MAT-001',
+              description: 'Line',
+            },
+          ],
+        },
+      ],
+      [
+        {
+          bom_line_item_id: LINE_ID,
+          material_item_id: null,
+          material_code: null,
+        },
+      ],
+    ])
+
+    await expect(
+      probe.service.transition(
+        RFQ_ID,
+        { command: 'complete' },
+        PRINCIPAL
+      )
+    ).resolves.toEqual({
+      rfqId: RFQ_ID,
+      tenantId: PRINCIPAL.tenantId,
+      transitioned: true,
+    })
+
+    expect(probe.transaction).toHaveBeenCalledOnce()
+    expect(probe.audit.stampActor).toHaveBeenCalledWith(
+      probe.transactionClient,
+      PRINCIPAL
+    )
+    expect(probe.update).toHaveBeenCalledOnce()
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      probe.transactionClient,
+      {
+        tenantId: PRINCIPAL.tenantId,
+        actorId: PRINCIPAL.userId,
+        entityType: 'rfq',
+        entityId: RFQ_ID,
+        action: 'status_change',
+        diff: {
+          from: 'quotes_received',
+          to: 'completed',
+        },
+      }
+    )
+  })
+
+  it('rejects completion when any RFQ line lacks quote coverage', async () => {
+    const probe = harness([
+      [
+        {
+          id: RFQ_ID,
+          status: 'quotes_received',
+          line_items: [
+            {
+              bom_line_item_id: LINE_ID,
+              material_item_id: null,
+              code: 'MAT-001',
+              description: 'Line',
+            },
+          ],
+        },
+      ],
+      [],
+    ])
+
+    await expect(
+      probe.service.transition(
+        RFQ_ID,
+        { command: 'complete' },
+        PRINCIPAL
+      )
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(probe.update).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('cancels a non-terminal RFQ with the bounded reason in its audit', async () => {
+    const command: TransitionRfqCommand = {
+      command: 'cancel',
+      reason: 'Supplier withdrew',
+    }
+    const probe = harness([
+      [
+        {
+          id: RFQ_ID,
+          status: 'pending',
+          line_items: [],
+        },
+      ],
+    ])
+
+    await expect(
+      probe.service.transition(RFQ_ID, command, PRINCIPAL)
+    ).resolves.toEqual({
+      rfqId: RFQ_ID,
+      tenantId: PRINCIPAL.tenantId,
+      transitioned: true,
+    })
+    expect(probe.transactionClient.select).toHaveBeenCalledOnce()
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      probe.transactionClient,
+      expect.objectContaining({
+        diff: {
+          from: 'pending',
+          to: 'cancelled',
+          reason: 'Supplier withdrew',
+        },
+      })
+    )
+  })
+
+  it('hides a missing or cross-tenant RFQ as not found', async () => {
+    const probe = harness([[]])
+
+    await expect(
+      probe.service.transition(
+        RFQ_ID,
+        { command: 'complete' },
+        PRINCIPAL
+      )
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(probe.update).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('rejects audit failure so the transition transaction can roll back', async () => {
+    const probe = harness([
+      [
+        {
+          id: RFQ_ID,
+          status: 'pending',
+          line_items: [],
+        },
+      ],
+    ])
+    vi.mocked(probe.audit.writeSemantic).mockRejectedValue(
+      new Error('audit unavailable')
+    )
+
+    await expect(
+      probe.service.transition(
+        RFQ_ID,
+        { command: 'cancel', reason: 'No longer needed' },
+        PRINCIPAL
+      )
+    ).rejects.toThrow('audit unavailable')
+    expect(probe.update).toHaveBeenCalledOnce()
+    expect(probe.audit.writeSemantic).toHaveBeenCalledOnce()
+  })
+
+  it('fails if the guarded update loses the locked row', async () => {
+    const probe = harness([
+      [
+        {
+          id: RFQ_ID,
+          status: 'pending',
+          line_items: [],
+        },
+      ],
+    ])
+    probe.updateReturning.mockResolvedValue([])
+
+    await expect(
+      probe.service.transition(
+        RFQ_ID,
+        { command: 'cancel', reason: 'No longer needed' },
+        PRINCIPAL
+      )
+    ).rejects.toThrow('RFQ transition lost its row lock')
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
 })
