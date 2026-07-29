@@ -397,7 +397,7 @@ matches the repository migration contract:
 - The live 390px hero renders six visual lines and several mobile links are
   shorter than the product's 44px control target. Decorative ordinal labels
   also remain in capability, workflow, and FAQ surfaces.
-- The local release candidate constrains the mobile H1 to exactly three visual
+- The source release candidate constrains the mobile H1 to exactly three visual
   lines, removes decorative ordinal labels, preserves functional carousel
   position, and gives every visible mobile link/button/summary at least 44px.
 - Vercel Analytics now renders only when `VERCEL=1`. Self-hosted production
@@ -407,3 +407,7 @@ matches the repository migration contract:
 - This candidate changes no database, Auth, Nest, Redis, queue, tenant-routing,
   or provider configuration. Vercel Git remains disconnected; no deployment
   is authorized by this source work.
+- Commit `f40b2472d070085ef114143b65cfd822bda30f0d` is synchronized to
+  `main` and `agent-02/third-code-erp-landing` as
+  `kurtgav <kurtgavin.design@gmail.com>`. Vercel recorded zero deployments
+  after publication.

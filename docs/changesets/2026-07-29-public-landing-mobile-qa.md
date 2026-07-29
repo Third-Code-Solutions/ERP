@@ -36,7 +36,8 @@
 
 ## Release state
 
-- Source candidate only.
+- Source commit `f40b2472d070085ef114143b65cfd822bda30f0d` is published to
+  `main` and `agent-02/third-code-erp-landing`.
 - Vercel Git remains disconnected.
 - No Vercel deployment or paid build authorized.
 - Live deployment remains `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` at source
