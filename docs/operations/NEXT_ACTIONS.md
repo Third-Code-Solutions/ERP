@@ -2,20 +2,25 @@
 
 ## Exact next product action
 
-Migrate automatic BOM-approved RFQ dispatch to NestJS/BullMQ without enabling
-production cutover:
+Add idempotent automatic-RFQ notification delivery to NestJS/BullMQ without
+enabling production cutover:
 
-1. Write an original event/job contract before code.
-2. Keep tenant, actor, source, and retry authority server-derived.
-3. Add a BullMQ producer and NestJS consumer inside the modular monolith.
-4. Reuse the Nest RFQ transaction service; do not add a second commit path.
-5. Preserve the current Inngest behavior behind a separate exact tenant gate.
-6. Fail closed after the BullMQ path is selected. Never retry through Inngest.
-7. Prove duplicate delivery, Redis restart, bounded retry, dead-letter,
-   tenant denial, one RFQ, and one audit against disposable PostgreSQL 17 and
-   Redis 7.4.9.
-8. Leave all production cutover flags unset after validation.
-9. Do not reconnect Vercel Git or trigger a frontend build.
+1. Write the original notification outbox, delivery, retry, dead-letter,
+   observability, and rollback contract before code.
+2. Store notification intent in PostgreSQL in the same transaction as a newly
+   created automatic RFQ. Exact RFQ replay must create no second intent.
+3. Keep recipient resolution tenant-scoped and server-derived. Do not put
+   unrestricted business content or credentials in Redis.
+4. Deliver through BullMQ with bounded retry and one durable terminal-failure
+   record. Notification failure must never roll back or repeat the official RFQ
+   transaction.
+5. Preserve Inngest as the only production producer while the automatic Nest
+   gate is absent/false.
+6. Prove creation, replay, tenant denial, delivery retry, dead-letter, Redis
+   restart, one RFQ, one RFQ audit, and one notification intent against
+   disposable PostgreSQL 17 and Redis 7.4.9.
+7. Leave `ERP_RFQ_AUTO_DISPATCH_VIA_API` and its tenant allowlist unset.
+8. Do not reconnect Vercel Git or trigger a frontend build.
 
 ## Frontend deployment remains approval-gated
 

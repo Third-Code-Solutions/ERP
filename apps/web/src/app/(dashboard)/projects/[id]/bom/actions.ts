@@ -17,6 +17,10 @@ import { sql } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 import { inngest } from '@/lib/inngest'
 import {
+  dispatchApprovedBomRfqThroughCoreApi,
+  rfqAutoDispatchUsesCoreApi,
+} from '@/lib/erp-core-client'
+import {
   lineTotal as calcLineTotal,
   bomTotalCost,
   computeGP,
@@ -159,20 +163,33 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
     diff: { status: 'approved' },
   })
 
-  // Best-effort: trigger async embedding for RAG. Missing INNGEST keys must
-  // not roll back the approval — the BOM is already saved.
-  try {
-    await inngest.send({
-      name: 'bom/approved',
-      data: {
-        bomId,
-        projectId,
-        tenantId: userRow.tenant_id,
-        actorId: user.id,
-      },
-    })
-  } catch (err) {
-    console.warn('[approveBom] inngest.send failed (approval still persisted):', err)
+  // Post-commit dispatch stays best-effort. Selected NestJS authority fails
+  // closed and never retries through the compatibility Inngest producer.
+  if (rfqAutoDispatchUsesCoreApi(userRow.tenant_id)) {
+    const dispatch =
+      await dispatchApprovedBomRfqThroughCoreApi({ bomId })
+    if (!dispatch.ok) {
+      console.warn(
+        `[approveBom] Nest RFQ dispatch failed (approval still persisted): ${dispatch.error ?? 'unknown error'}`
+      )
+    }
+  } else {
+    try {
+      await inngest.send({
+        name: 'bom/approved',
+        data: {
+          bomId,
+          projectId,
+          tenantId: userRow.tenant_id,
+          actorId: user.id,
+        },
+      })
+    } catch (err) {
+      console.warn(
+        '[approveBom] inngest.send failed (approval still persisted):',
+        err
+      )
+    }
   }
 
   revalidatePath(`/projects/${projectId}/bom`)

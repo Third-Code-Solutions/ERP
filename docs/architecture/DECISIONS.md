@@ -1071,3 +1071,33 @@ partial backend outage from causing duplicate writes.
 
 Rollback: leave the gate unset or set it to exact `false`; revert the source
 commit if needed. No schema or data rollback is required.
+
+## D-064 -- Approved-BOM RFQ dispatch uses a disabled BullMQ authority path
+
+Date: 2026-07-30
+
+Decision: NestJS exposes a protected enqueue command accepting only the BOM
+UUID. It derives tenant and actor from the authenticated principal and derives
+source, queue, versioned deterministic job ID, retry count, and backoff from
+server code. The worker validates the payload, reloads the actor membership,
+rechecks current `rfq.dispatch`, requires an approved tenant BOM, and invokes
+the same atomic RFQ transaction used by manual creation.
+
+The source job has five exponential attempts. Its final failure creates one
+bounded deterministic record in a dedicated dead-letter queue. Next.js selects
+the new producer only through independent exact flag and strict tenant
+allowlist variables. A selected Nest failure never falls back to Inngest.
+
+Reason: enqueue-time authorization can become stale, duplicate delivery is
+normal, and ambiguous dual producers can create conflicting side effects.
+Execution-time reauthorization, one transaction authority, deterministic
+identity, and explicit terminal failure preserve tenant isolation and
+operational evidence.
+
+Cutover constraint: keep the new flags unset until the existing RFQ
+notification side effect has an idempotent NestJS outbox/delivery replacement
+and a controlled hosted canary is approved.
+
+Rollback: leave the flag absent/false and the allowlist empty, or revert this
+source milestone. The existing Inngest path remains authoritative. No schema,
+data, Supabase, Storage, Python, UI, or Vercel rollback is required.

@@ -12,6 +12,7 @@ import type {
   CreateRfqCommand,
   LogRfqQuoteCommand,
   RfqCreationResult,
+  RfqDispatchResult,
   RfqTransitionResult,
   RfqQuoteResult,
   TransitionRfqCommand,
@@ -22,15 +23,19 @@ import {
 } from '../auth/current-principal.decorator'
 import { RequireCapabilities } from '../auth/capability.guard'
 import { CreateRfqPipe } from './create-rfq.pipe'
+import { DispatchRfqPipe } from './dispatch-rfq.pipe'
 import { LogRfqQuotePipe } from './log-rfq-quote.pipe'
 import { ProcurementService } from './procurement.service'
+import { RfqDispatchQueue } from './rfq-dispatch.queue'
 import { TransitionRfqPipe } from './transition-rfq.pipe'
 
 @Controller('v1/procurement/rfqs')
 export class ProcurementController {
   constructor(
     @Inject(ProcurementService)
-    private readonly procurement: ProcurementService
+    private readonly procurement: ProcurementService,
+    @Inject(RfqDispatchQueue)
+    private readonly dispatchQueue: RfqDispatchQueue
   ) {}
 
   @Post()
@@ -41,6 +46,16 @@ export class ProcurementController {
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<RfqCreationResult> {
     return this.procurement.create(command, principal)
+  }
+
+  @Post('dispatch')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @RequireCapabilities('rfq.dispatch')
+  dispatch(
+    @Body(DispatchRfqPipe) command: CreateRfqCommand,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<RfqDispatchResult> {
+    return this.dispatchQueue.enqueue(command, principal)
   }
 
   @Post(':rfqId/quotes')

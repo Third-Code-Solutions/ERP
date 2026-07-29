@@ -2,6 +2,7 @@ import 'reflect-metadata'
 
 import {
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
 import type {
@@ -289,6 +290,135 @@ describe('ProcurementService RFQ creation command', () => {
       probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
     ).rejects.toThrow('audit unavailable')
     expect(probe.insert).toHaveBeenCalledOnce()
+  })
+
+  it('revalidates queued actor and creates only from an approved BOM', async () => {
+    const probe = harness([
+      [
+        {
+          tenantId: PRINCIPAL.tenantId,
+          role: 'procurement',
+          email: PRINCIPAL.email,
+        },
+      ],
+      [
+        {
+          id: BOM_ID,
+          project_id: PROJECT_ID,
+          status: 'approved',
+        },
+      ],
+      [],
+      [
+        {
+          id: LINE_ID,
+          code: null,
+          description: 'Open line',
+          unit: 'pcs',
+          quantity: 1,
+          is_group: 0,
+        },
+      ],
+    ])
+
+    await expect(
+      probe.service.createFromApprovedBom({
+        schemaVersion: 1,
+        tenantId: PRINCIPAL.tenantId,
+        actorId: PRINCIPAL.userId,
+        bomId: BOM_ID,
+        source: 'bom_approved',
+      })
+    ).resolves.toMatchObject({
+      tenantId: PRINCIPAL.tenantId,
+      projectId: PROJECT_ID,
+      lineCount: 1,
+      created: true,
+    })
+    expect(probe.audit.stampActor).toHaveBeenCalledWith(
+      probe.transactionClient,
+      PRINCIPAL
+    )
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      probe.transactionClient,
+      expect.objectContaining({
+        tenantId: PRINCIPAL.tenantId,
+        actorId: PRINCIPAL.userId,
+        action: 'create',
+        diff: {
+          bom_id: BOM_ID,
+          line_count: 1,
+          source: 'bom_approved',
+        },
+      })
+    )
+  })
+
+  it('denies missing, cross-tenant, or downgraded queued actors', async () => {
+    const missing = harness([[]])
+    await expect(
+      missing.service.createFromApprovedBom({
+        schemaVersion: 1,
+        tenantId: PRINCIPAL.tenantId,
+        actorId: PRINCIPAL.userId,
+        bomId: BOM_ID,
+        source: 'bom_approved',
+      })
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(missing.audit.stampActor).not.toHaveBeenCalled()
+
+    const downgraded = harness([
+      [
+        {
+          tenantId: PRINCIPAL.tenantId,
+          role: 'viewer',
+          email: PRINCIPAL.email,
+        },
+      ],
+    ])
+    await expect(
+      downgraded.service.createFromApprovedBom({
+        schemaVersion: 1,
+        tenantId: PRINCIPAL.tenantId,
+        actorId: PRINCIPAL.userId,
+        bomId: BOM_ID,
+        source: 'bom_approved',
+      })
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(downgraded.audit.stampActor).not.toHaveBeenCalled()
+  })
+
+  it('denies automatic dispatch when the BOM is not approved', async () => {
+    const probe = harness([
+      [
+        {
+          tenantId: PRINCIPAL.tenantId,
+          role: 'procurement',
+          email: PRINCIPAL.email,
+        },
+      ],
+      [
+        {
+          id: BOM_ID,
+          project_id: PROJECT_ID,
+          status: 'draft',
+        },
+      ],
+    ])
+
+    await expect(
+      probe.service.createFromApprovedBom({
+        schemaVersion: 1,
+        tenantId: PRINCIPAL.tenantId,
+        actorId: PRINCIPAL.userId,
+        bomId: BOM_ID,
+        source: 'bom_approved',
+      })
+    ).rejects.toThrow(
+      'BOM must be approved before automatic RFQ dispatch'
+    )
+    expect(probe.insert).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
 })
 

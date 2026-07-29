@@ -16,6 +16,36 @@ export const rfqCreationResultSchema = z
   })
   .strict()
 
+export const rfqDispatchResultSchema = z
+  .object({
+    jobId: z.string().min(1).max(200),
+    enqueued: z.boolean(),
+  })
+  .strict()
+
+export const rfqDispatchJobSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    tenantId: z.string().uuid(),
+    actorId: z.string().uuid(),
+    bomId: z.string().uuid(),
+    source: z.literal('bom_approved'),
+  })
+  .strict()
+
+export const rfqDispatchDeadLetterSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    sourceJobId: z.string().min(1).max(200),
+    sourceJobName: z.string().min(1).max(100),
+    jobData: z.unknown(),
+    attemptsMade: z.number().int().safe().positive(),
+    errorName: z.string().min(1).max(100),
+    errorMessage: z.string().min(1).max(1_000),
+    failedAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+
 export const logRfqQuoteCommandSchema = z
   .object({
     submissionId: z.string().uuid(),
@@ -69,6 +99,15 @@ export type CreateRfqCommand = z.infer<
 >
 export type RfqCreationResult = z.infer<
   typeof rfqCreationResultSchema
+>
+export type RfqDispatchResult = z.infer<
+  typeof rfqDispatchResultSchema
+>
+export type RfqDispatchJob = z.infer<
+  typeof rfqDispatchJobSchema
+>
+export type RfqDispatchDeadLetter = z.infer<
+  typeof rfqDispatchDeadLetterSchema
 >
 export type RfqQuoteResult = z.infer<typeof rfqQuoteResultSchema>
 export type TransitionRfqCommand = z.infer<

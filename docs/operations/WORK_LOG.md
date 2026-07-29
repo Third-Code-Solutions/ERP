@@ -2932,3 +2932,81 @@ Provider evidence:
   and no runner process remains. Two Windows-locked, credential-free runner
   work directories retain only non-secret `.runner` metadata and require
   manual cleanup.
+
+## 2026-07-30 -- Approved-BOM RFQ BullMQ dispatch
+
+Outcome:
+
+- Wrote an original clean-room dispatch specification before code.
+- Added strict shared dispatch result, versioned job, and dead-letter
+  contracts.
+- Added protected NestJS `POST /v1/procurement/rfqs/dispatch`, deriving all
+  authority and queue policy from the authenticated server context.
+- Added deterministic tenant/BOM job identity, five exponential attempts, and
+  one deterministic final dead-letter record.
+- Added execution-time membership and `rfq.dispatch` reauthorization,
+  approved-BOM enforcement, and reuse of the existing atomic RFQ transaction.
+- Added an independent exact Next.js flag and strict tenant allowlist while
+  preserving Inngest as the disabled-path authority. Selected Nest failure
+  never falls back to Inngest.
+- Kept both automatic dispatch environment variables unset. Notification
+  parity remains the explicit blocker before any tenant cutover.
+- Changed no React/UI, schema, migration, hosted data, Supabase, Python,
+  Storage, provider configuration, or Vercel deployment.
+
+Changed files:
+
+- `packages/shared-types/src/erp-api/procurement.ts`
+- `packages/shared-types/src/erp-api/procurement.test.ts`
+- `apps/api/src/auth/capability.guard.ts`
+- `apps/api/src/procurement/**`
+- `apps/api/integration/procurement.database.integration.spec.ts`
+- `apps/api/integration/rfq-dispatch.redis.integration.spec.ts`
+- `apps/web/src/lib/erp-core-client.ts`
+- `apps/web/src/lib/erp-core-client.test.ts`
+- `apps/web/src/app/(dashboard)/projects/[id]/bom/actions.ts`
+- `apps/web/src/app/(dashboard)/projects/[id]/bom/actions.test.ts`
+- `scripts/ci/run-wsl1-database-lane.ps1`
+- `docs/research/components/rfq-auto-dispatch-nest-bullmq.spec.md`
+- the six architecture/operations memory files
+
+Validation:
+
+- Focused shared/API/Web suites -- 60/60 pass.
+- `pnpm lint` -- pass.
+- `pnpm typecheck` -- pass.
+- `pnpm test` -- pass: 430 application tests; ordinary database lane 99 pass
+  with 137 intentional disposable-only skips.
+- `pnpm build` -- pass: Nest production bundle and 77/77 Next generated pages.
+- Disposable PostgreSQL 17/Redis 7.4.9 lane -- 54/54 migrations, 236/236
+  zero-skip database assertions, 5/5 Nest integration tests, and stable schema
+  SHA-256
+  `36B8999F16B825D89D8F782CBF28180D074AD677A9E8B2C16B713C79BB931BB6`.
+- Real Redis evidence -- duplicate suppression, three-attempt bounded failure
+  exercising the production processor, one dead letter, shutdown/restart,
+  reconnect, and post-restart processing pass. Unit tests separately assert
+  the production five-attempt policy.
+- Actionlint, immutable workflow-action reference checks, database and Project
+  release-planner tests, Gitleaks, `git diff --check`, and prohibited
+  ERPNext/Frappe runtime scan -- pass.
+
+Failures found and fixed:
+
+- The first database assertion counted both the database trigger audit and the
+  intended semantic audit; the assertion now filters the exact semantic action
+  and source.
+- The first dead-letter test waited for a worker that intentionally does not
+  exist; it now verifies durable job presence.
+- The first WSL restart helper used unsafe shell expansion and the long
+  database run could leave Redis stopped before API integration. The helper now
+  uses pinned absolute Redis paths and recreates the disposable process
+  immediately before integration tests.
+
+Rollback and unresolved:
+
+- Keep `ERP_RFQ_AUTO_DISPATCH_VIA_API` absent/false and its allowlist empty, or
+  revert the source commit. Existing Inngest behavior remains authoritative.
+- Do not enable the BullMQ path until an idempotent NestJS notification
+  outbox/delivery slice passes equivalent evidence and a controlled hosted
+  canary is explicitly approved.
+- Vercel Git remains disconnected. No frontend build is authorized.

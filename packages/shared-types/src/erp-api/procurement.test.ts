@@ -3,6 +3,9 @@ import {
   createRfqCommandSchema,
   logRfqQuoteCommandSchema,
   rfqCreationResultSchema,
+  rfqDispatchDeadLetterSchema,
+  rfqDispatchJobSchema,
+  rfqDispatchResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   transitionRfqCommandSchema,
@@ -44,6 +47,60 @@ describe('RFQ creation API contracts', () => {
       rfqCreationResultSchema.safeParse({
         ...result,
         lineCount: -1,
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('Approved-BOM RFQ dispatch contracts', () => {
+  it('accepts only server-derived versioned job authority', () => {
+    const job = {
+      schemaVersion: 1 as const,
+      tenantId: UUID,
+      actorId: UUID,
+      bomId: UUID,
+      source: 'bom_approved' as const,
+    }
+    expect(rfqDispatchJobSchema.parse(job)).toEqual(job)
+    expect(
+      rfqDispatchJobSchema.safeParse({
+        ...job,
+        role: 'owner',
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires strict enqueue and dead-letter results', () => {
+    expect(
+      rfqDispatchResultSchema.safeParse({
+        jobId: `rfq1-${UUID}-${UUID}`,
+        enqueued: true,
+      }).success
+    ).toBe(true)
+    expect(
+      rfqDispatchResultSchema.safeParse({
+        jobId: '',
+        enqueued: true,
+      }).success
+    ).toBe(false)
+
+    const deadLetter = {
+      schemaVersion: 1 as const,
+      sourceJobId: `rfq1-${UUID}-${UUID}`,
+      sourceJobName: 'create-from-approved-bom',
+      jobData: { bomId: UUID },
+      attemptsMade: 5,
+      errorName: 'Error',
+      errorMessage: 'database unavailable',
+      failedAt: '2026-07-30T00:00:00.000Z',
+    }
+    expect(
+      rfqDispatchDeadLetterSchema.safeParse(deadLetter).success
+    ).toBe(true)
+    expect(
+      rfqDispatchDeadLetterSchema.safeParse({
+        ...deadLetter,
+        attemptsMade: 0,
       }).success
     ).toBe(false)
   })

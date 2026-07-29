@@ -2,9 +2,11 @@ import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createRfqThroughCoreApi,
+  dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
   rfqCreateWritesUseCoreApi,
+  rfqAutoDispatchUsesCoreApi,
   rfqQuoteWritesUseCoreApi,
   rfqTerminalWritesUseCoreApi,
   transitionRfqThroughCoreApi,
@@ -193,6 +195,32 @@ describe('ERP Core client', () => {
     expect(rfqCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
   })
 
+  it('keeps automatic RFQ dispatch on Inngest unless its independent gate matches', () => {
+    vi.stubEnv('ERP_RFQ_AUTO_DISPATCH_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_RFQ_AUTO_DISPATCH_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(rfqAutoDispatchUsesCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_RFQ_AUTO_DISPATCH_VIA_API', 'TRUE')
+    expect(rfqAutoDispatchUsesCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_RFQ_AUTO_DISPATCH_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_RFQ_AUTO_DISPATCH_VIA_API_TENANT_IDS',
+      `*,${RESULT.tenantId}`
+    )
+    expect(rfqAutoDispatchUsesCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv(
+      'ERP_RFQ_AUTO_DISPATCH_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(rfqAutoDispatchUsesCoreApi(RESULT.tenantId)).toBe(true)
+    expect(rfqAutoDispatchUsesCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('sends a strict RFQ creation command and validates the result', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(RFQ_CREATE_RESULT), {
@@ -242,6 +270,63 @@ describe('ERP Core client', () => {
       ok: false,
       error:
         'ERP Core API returned an invalid RFQ creation result.',
+    })
+  })
+
+  it('queues strict approved-BOM dispatch and validates the result', async () => {
+    const result = {
+      jobId:
+        'rfq1-22222222-2222-4222-8222-222222222222-33333333-3333-4333-8333-333333333333',
+      enqueued: true,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 202,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      dispatchApprovedBomRfqThroughCoreApi({
+        bomId: PROJECT_ID,
+      })
+    ).resolves.toEqual({ ok: true, data: result })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/procurement/rfqs/dispatch',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ bomId: PROJECT_ID }),
+        cache: 'no-store',
+      })
+    )
+  })
+
+  it('fails closed on an invalid automatic dispatch result', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            jobId: '',
+            enqueued: true,
+          }),
+          {
+            status: 202,
+            headers: { 'content-type': 'application/json' },
+          }
+        )
+      )
+    )
+
+    await expect(
+      dispatchApprovedBomRfqThroughCoreApi({
+        bomId: PROJECT_ID,
+      })
+    ).resolves.toEqual({
+      ok: false,
+      error:
+        'ERP Core API returned an invalid RFQ dispatch result.',
     })
   })
 

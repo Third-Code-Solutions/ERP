@@ -567,8 +567,13 @@ authoritative until that proof succeeds.
   NestJS adapters.
 - Target remains one NestJS procurement authority for manual and automatic
   RFQ creation, quotes, and state transitions.
-- Automatic creation will move from the transitional Inngest consumer to a
-  Redis/BullMQ job owned by the NestJS modular monolith.
+- Automatic creation now has a disabled Redis/BullMQ producer-consumer path
+  owned by the NestJS modular monolith. The transitional Inngest path remains
+  authoritative until equivalent notification delivery is idempotent and
+  observable.
+- A selected BullMQ job must reauthorize the queued actor at execution time,
+  validate the approved BOM state, reuse the official RFQ transaction, and
+  end in a bounded completed, retrying, failed, or dead-letter state.
 - Python will not approve, create, complete, cancel, or otherwise finalize RFQ
   transactions.
 - Cutover remains tenant-by-tenant, fail-closed, observable, reconciled, and

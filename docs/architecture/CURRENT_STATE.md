@@ -10,11 +10,11 @@ successful build.
 |---|---|
 | Frontend | `apps/web`: Next.js 15.5.18 App Router, React 19.2.6, TypeScript 5.9.3 |
 | Existing application backend | 47 Next.js Server Action files, 24 Route Handler files, SQL functions/triggers, and Supabase clients |
-| New core ERP boundary | `apps/api`: NestJS 11 modular-monolith foundation. Project update is the first feature-flagged transaction slice and is off by default |
+| New core ERP boundary | `apps/api`: NestJS 11 modular monolith. Project and procurement adapters are disabled by default; approved-BOM RFQ dispatch now has an inert BullMQ producer/consumer path |
 | Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 54 SQL migrations and 45 Drizzle schema files |
 | Authentication | Supabase Auth. Tenant membership and role come from PostgreSQL, not client claims |
 | Authorization | RLS plus mixed application checks in the legacy path. The Nest slice has deny-by-default capability metadata and tenant-scoped queries |
-| Async work | Inngest is the active legacy job system. Redis 5/BullMQ 5 are wired into the Nest foundation but have no migrated business jobs yet |
+| Async work | Inngest remains authoritative. Redis 5/BullMQ 5 now carry one disabled approved-BOM RFQ job contract with bounded retry and explicit dead-letter handling |
 | Python | `apps/workers`: FastAPI document/DXF processing service. A legacy path can write `scope_items` directly and must be removed |
 | Files | Supabase Storage |
 | Deployment | Next.js is live on Vercel. NestJS is live on Railway with managed Redis and healthy database/queue readiness. Both current production releases are attributed to `kurtgav` |
@@ -80,8 +80,9 @@ matches the repository migration contract:
   audit support.
 - Inngest/Edge Functions: scheduled and event-driven legacy jobs.
 - Python: parsing and analysis, plus one prohibited direct-write legacy path.
-- NestJS: Project update authorization and atomic transaction authority only,
-  behind `ERP_PROJECT_WRITES_VIA_API=false`.
+- NestJS: Project and RFQ command authorization, atomic transaction authority,
+  and one approved-BOM BullMQ worker. All production cutover gates remain
+  disabled.
 
 ## Milestone 1 implementation
 
@@ -137,8 +138,8 @@ matches the repository migration contract:
 
 | Classification | Evidence |
 |---|---|
-| Implemented | Broad construction ERP UI, Supabase schema/RLS, server actions, route handlers, audit infrastructure, Inngest jobs, first Nest transaction slice |
-| Incomplete | Nest migration, Redis/BullMQ business jobs, uniform capability checks, uniform transactional audit, Python write removal, production-write activation evidence, clean CI, and provider-level rollback |
+| Implemented | Broad construction ERP UI, Supabase schema/RLS, server actions, route handlers, audit infrastructure, Inngest jobs, incremental Nest transaction adapters, and one disabled BullMQ RFQ job |
+| Incomplete | Remaining Nest migration, notification/outbox parity for RFQ BullMQ cutover, uniform capability checks, uniform transactional audit, Python write removal, production-write activation evidence, clean hosted CI, and provider-level rollback |
 | Mock/demo | Repository and live application contain demo-oriented data and optional-provider fallbacks |
 | Duplicated | Business rules and authorization are split across server actions, handlers, SQL, and worker code |
 | Broken/risky | Python direct database write; optional Python shared secret; process-local rate limiting; elevated server credentials can bypass RLS; several audit writes are not in the same transaction as the mutation |
@@ -1087,3 +1088,37 @@ matches the repository migration contract:
   restriction.
 - Vercel Git is disconnected and no frontend deployment was created. Frontend
   release remains a single explicitly approved, consolidated deployment.
+
+## 2026-07-30 approved-BOM RFQ BullMQ dispatch
+
+- NestJS now exposes protected
+  `POST /v1/procurement/rfqs/dispatch`. The request accepts only `bomId`;
+  tenant, actor, source, retry policy, queue, and deterministic job ID are
+  server-derived.
+- Queue `procurement-rfq-dispatch` runs
+  `create-from-approved-bom` with five bounded attempts, exponential backoff,
+  retained failures, and one deterministic dead-letter record after the final
+  failure.
+- The worker parses the job again, reloads the actor by tenant, rechecks the
+  current `rfq.dispatch` capability, locks the approved tenant BOM, and reuses
+  the existing atomic RFQ transaction. Replay returns the existing RFQ without
+  a second semantic audit.
+- Next.js selects this producer only when exact
+  `ERP_RFQ_AUTO_DISPATCH_VIA_API=true` and a strict tenant allowlist match.
+  Disabled or unmatched tenants keep the current Inngest producer. After Nest
+  selection, failure never falls back to Inngest.
+- Both automatic-dispatch variables remain unset. Inngest remains production
+  authority because its notification side effect has not yet moved to an
+  idempotent NestJS outbox/delivery path.
+- No React/UI, schema, migration, hosted data, Python, Storage, provider
+  environment, or Vercel deployment changed.
+- Validation passes: 60/60 focused tests; root lint, typecheck, 430 application
+  tests, and production build with 77/77 generated pages; Actionlint, pinned
+  action references, both release planners, Gitleaks, and zero prohibited
+  external-ERP runtime matches.
+- The disposable PostgreSQL 17/Redis 7.4.9 lane passes all 54 migrations,
+  236/236 database assertions with zero skips, and 5/5 Nest integration tests.
+  It proves duplicate suppression, bounded retry, one dead letter, Redis
+  restart/reconnect, tenant and role denial, approved-state enforcement, one
+  RFQ, one semantic audit, rollback cleanup, and stable schema fingerprint
+  `36B8999F16B825D89D8F782CBF28180D074AD677A9E8B2C16B713C79BB931BB6`.
