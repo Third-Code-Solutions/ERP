@@ -5,7 +5,7 @@
 Await explicit approval for one manual queued Standard Vercel production build:
 
 1. Use exact candidate
-   `36e618274769ef49a18974dbe3bed8f0b4db7edd`.
+   `8dc051e70d56cf3f0cde9c2f409c4f97928d337d`.
 2. Keep Vercel Git disconnected. Do not create a preview.
 3. Reconfirm zero deployments after retained production
    `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
@@ -119,6 +119,11 @@ Complete remaining M1 controls without enabling production writes:
   authorized executive role retains pipeline analytics and one restricted role
   receives only assignee-scoped work and permitted links. Confirm no executive
   query/content leak, 1440/768/390 behavior, and session revocation.
+- Include permission-safe universal search in that same reviewed SHA. Verify
+  literal `%`, `_`, and backslash handling, private/no-store responses,
+  joined-record tenant isolation, per-role result types, authorized normal
+  search, command-palette navigation, and 1440/768/390 behavior. Do not expand
+  result scope or buy a separate build.
 
 ## Following milestone
 

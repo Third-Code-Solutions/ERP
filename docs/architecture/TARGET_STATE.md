@@ -424,3 +424,18 @@ reach through each other's internals.
   forbidden workspaces.
 - Today remains read-only. It cannot approve, post, reverse, allocate, commit,
   delete, or finalize an ERP transaction.
+
+## Permission-safe universal search boundary
+
+- Search input is bounded and interpreted as literal text. User-supplied
+  wildcard or escape characters cannot broaden a query.
+- Searchable record types are selected from the same canonical role policy as
+  direct navigation. A result link never grants permission and every query
+  still authorizes independently.
+- Base and joined records repeat the authenticated tenant predicate. Foreign
+  display labels cannot be joined into an otherwise tenant-scoped result.
+- Assignee-scoped types remain assignee-scoped. Search cannot turn a personal
+  task surface into a tenant-wide task directory.
+- User-specific results are private and non-cacheable.
+- Search is read-only. It cannot approve, post, commit, allocate, delete, or
+  finalize an ERP transaction.

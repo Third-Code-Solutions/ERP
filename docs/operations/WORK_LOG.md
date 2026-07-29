@@ -2253,3 +2253,67 @@ Rollback and unresolved:
 - Live activation still requires one explicitly approved consolidated queued
   Standard Vercel build.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Permission-safe universal search
+
+Outcome:
+
+- Confirmed the search API already filtered record types by canonical route
+  permissions and tenant-scoped every base record.
+- Closed the remaining raw-backslash `ILIKE` escape gap while preserving
+  literal `%` and `_` matching.
+- Added authenticated-tenant predicates to opportunity-account and BOM-project
+  joins.
+- Added explicit private/no-store and Cookie-vary headers to success,
+  short-query, and unauthorized responses.
+- Preserved viewer scope: tenant documents plus authenticated-assignee tasks
+  only.
+- Extended the existing one-time-link viewer browser gate with real normal
+  search, literal wildcard probe, cache headers, allowed result types, and
+  command-palette rendering.
+- No database migration, hosted row, role, password, Auth identity, Storage
+  object, queue job, AI call, Railway build, or Vercel deployment changed.
+
+Changed files:
+
+- `apps/web/src/app/api/search/search-policy.ts`
+- `apps/web/src/app/api/search/route.ts`
+- `apps/web/src/app/api/search/route.test.ts`
+- `apps/web/e2e/dashboard-role-local.spec.ts`
+- the six architecture/operations memory files
+- `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`
+
+Validation:
+
+- Focused universal-search suite -- 11/11 pass.
+- Root lint and typecheck -- pass.
+- Root tests -- 399 application tests pass; ordinary no-URL database lane
+  remains 90 pass and 134 skipped, covered by the retained 224/224 zero-skip
+  PostgreSQL 17 release gate.
+- Nest and Next production builds -- pass; Next generates 77/77 static steps.
+- Authenticated viewer local E2E -- pass with a real tenant document, only
+  document/task result types, a zero-hit literal `%`, `_`, and backslash probe,
+  private/no-store headers, Cookie variation, command-palette result, 1440,
+  768, and 390 dashboard layouts, zero overflow, and zero console/page errors.
+- One-time viewer session -- globally revoked after every completed QA run.
+- gitleaks 8.30.1, actionlint 1.7.12, diff checks, and prohibited external ERP
+  brand/source scan -- pass.
+- Source commit `8dc051e70d56cf3f0cde9c2f409c4f97928d337d` -- pushed to
+  both repository refs under `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway correctly skipped deployment
+  `37ee8021-9037-4f4c-b0d9-cf9219699c25` because no watched backend file
+  changed. Active API remains successful deployment
+  `5a84fc30-2b4e-46fa-a505-0b1bb393fef4` at source
+  `e948223b261b7c335ceaad85e359fec68888e84a`.
+- Vercel -- zero deployments after retained READY deployment
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- GitHub Actions run `30460436767` -- zero executed steps; account
+  billing/spending block remains external.
+
+Rollback and unresolved:
+
+- Revert source commit `8dc051e`; no provider rollback is needed because the
+  candidate is not deployed.
+- Live activation still requires one explicitly approved consolidated queued
+  Standard Vercel build.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.
