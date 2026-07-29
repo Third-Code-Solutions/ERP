@@ -13,6 +13,10 @@ import {
 import { getOpenAI, embedText } from '@third-code-erp/ai'
 import { writeAuditLog } from '@/lib/audit'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
+import {
+  CORTEX_CITATIONS_HEADER,
+  encodeCortexCitationHeader,
+} from '@/lib/cortex/citation-header'
 import { roleLabel } from '@/lib/operations/nav-config'
 
 export const runtime = 'nodejs'
@@ -219,5 +223,7 @@ ${records || '(no records visible)'}`
 
   const headers: Record<string, string> = { 'Content-Type': 'text/plain; charset=utf-8' }
   if (convId) headers['X-Conversation-Id'] = convId
+  const citationHeader = encodeCortexCitationHeader(grounded.citations)
+  if (citationHeader) headers[CORTEX_CITATIONS_HEADER] = citationHeader
   return new Response(readable, { headers })
 }

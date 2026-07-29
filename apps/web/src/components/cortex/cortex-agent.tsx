@@ -1,10 +1,18 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { CortexCitationList } from './cortex-citation-list'
+import {
+  CORTEX_CITATIONS_HEADER,
+  decodeCortexCitationHeader,
+  normalizeCortexCitations,
+  type NavigableCortexCitation,
+} from '@/lib/cortex/citation-header'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
+  citations?: NavigableCortexCitation[]
 }
 interface Conversation {
   id: string
@@ -68,8 +76,16 @@ export function CortexAgent() {
     try {
       const res = await fetch(`/api/cortex/conversations/${id}`)
       if (!res.ok) return
-      const data = (await res.json()) as { messages: Message[] }
-      setMessages(data.messages.map((m) => ({ role: m.role, content: m.content })))
+      const data = (await res.json()) as {
+        messages: Array<Message & { citations?: unknown }>
+      }
+      setMessages(
+        data.messages.map((message) => ({
+          role: message.role,
+          content: message.content,
+          citations: normalizeCortexCitations(message.citations),
+        }))
+      )
       setConversationId(id)
       setHistoryOpen(false)
     } catch {
@@ -106,6 +122,9 @@ export function CortexAgent() {
       }
       const cid = res.headers.get('X-Conversation-Id')
       if (cid) setConversationId(cid)
+      const citations = decodeCortexCitationHeader(
+        res.headers.get(CORTEX_CITATIONS_HEADER)
+      )
 
       const reader = res.body!.getReader()
       const decoder = new TextDecoder()
@@ -114,7 +133,10 @@ export function CortexAgent() {
         const { done, value } = await reader.read()
         if (done) break
         acc += decoder.decode(value, { stream: true })
-        setMessages([...next, { role: 'assistant', content: acc }])
+        setMessages([
+          ...next,
+          { role: 'assistant', content: acc, citations },
+        ])
       }
       void loadHistory()
     } catch (err) {
@@ -194,6 +216,19 @@ export function CortexAgent() {
               <div className="cortex-msg__bubble">
                 {m.content || (isStreaming && i === messages.length - 1 ? '…' : '')}
               </div>
+              {m.role === 'assistant' &&
+                m.citations &&
+                m.citations.length > 0 && (
+                  <div className="cortex-msg__sources">
+                    <span className="cortex-msg__sources-label">
+                      Sources
+                    </span>
+                    <CortexCitationList
+                      citations={m.citations}
+                      limit={8}
+                    />
+                  </div>
+                )}
             </div>
           ))}
           {error && (

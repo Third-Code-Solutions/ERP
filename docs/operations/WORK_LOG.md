@@ -1568,3 +1568,61 @@ Rollback and unresolved:
 - Database Cortex authorization remains authoritative and must be updated with
   any future enum/mirror addition.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Cortex grounded citation navigation
+
+Outcome:
+
+- Preserved the exact plain-text Cortex response body and added a bounded
+  citation response header for immediate source links.
+- Added one shared citation renderer using canonical registry labels and
+  record routes.
+- Rehydrated saved citation node IDs from current tenant-scoped graph data
+  under the viewer's current role.
+- Removed trust in stored titles, references, Project IDs, and routes.
+- Omitted malformed, stale, superseded, cross-tenant, and forbidden records.
+- Added visible focus behavior and 44px mobile citation targets.
+- Changed no schema, hosted data, Auth, Storage, queue, provider setting, or
+  deployment. Vercel Git remained disconnected.
+
+Changed files:
+
+- `packages/database/src/cortex/graph.ts`
+- `packages/database/src/cortex/retrieve.ts`
+- `packages/database/src/__tests__/cortex-substrate.test.ts`
+- `apps/web/src/lib/cortex/citation-header.ts`
+- `apps/web/src/lib/cortex/citation-header.test.ts`
+- `apps/web/src/app/api/cortex/chat/route.ts`
+- `apps/web/src/app/api/cortex/chat/route.test.ts`
+- `apps/web/src/app/api/cortex/conversations/[id]/route.ts`
+- `apps/web/src/app/api/cortex/conversations/[id]/route.test.ts`
+- `apps/web/src/components/cortex/cortex-citation-list.tsx`
+- `apps/web/src/components/cortex/cortex-agent.tsx`
+- `apps/web/src/components/cortex/cortex-entity-panel.tsx`
+- `apps/web/src/app/globals.css`
+- `docs/research/components/cortex-citations.spec.md`
+- the six architecture/operations memory files
+- `docs/changesets/2026-07-29-cortex-citation-navigation.md`
+
+Validation:
+
+- Focused citation, chat, conversation, entity, RBAC, and registry tests --
+  32/32 pass.
+- Root lint and all-package typecheck -- pass.
+- Root tests -- 303 pass; 132 database-gated cases skip because this
+  source-only slice did not inject a writable database.
+- Optimized production build -- pass; 77/77 static-generation steps.
+- Local production smoke -- health 200, readiness 200, unauthenticated entity
+  lookup 401, unauthenticated chat POST 401.
+- Browser CSS proof -- visible desktop focus, exact 44px targets at 390px, no
+  horizontal overflow.
+
+Rollback and unresolved:
+
+- Revert this source/documentation milestone; runtime and provider state remain
+  unchanged.
+- Live activation requires the single explicitly approved consolidated Vercel
+  build. Do not create a separate preview or reconnect Git.
+- The database integration assertions remain pending a disposable writable
+  target; hosted production was not mutated for this slice.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

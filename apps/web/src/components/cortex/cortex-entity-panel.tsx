@@ -1,20 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CORTEX_TYPE_LABEL } from '@/lib/cortex/href'
-
-interface Citation {
-  nodeId: string
-  nodeType: string
-  refTable: string
-  refId: string
-  title: string | null
-}
+import { CortexCitationList } from './cortex-citation-list'
+import type { NavigableCortexCitation } from '@/lib/cortex/citation-header'
 
 interface CortexAnswer {
   found: boolean
   summary: string
-  citations: Citation[]
+  citations: NavigableCortexCitation[]
 }
 
 type State =
@@ -102,16 +95,7 @@ export function CortexEntityPanel({ refTable, refId }: Props) {
               {state.answer.citations.length} source
               {state.answer.citations.length === 1 ? '' : 's'}
             </span>
-            <ul className="cortex-panel__chips">
-              {state.answer.citations.slice(0, 12).map((c) => (
-                <li key={c.nodeId} className="cortex-chip" title={c.title ?? c.refId}>
-                  <span className="cortex-chip__type">
-                    {CORTEX_TYPE_LABEL[c.nodeType] ?? c.nodeType}
-                  </span>
-                  <span className="cortex-chip__name">{c.title ?? c.refId.slice(0, 8)}</span>
-                </li>
-              ))}
-            </ul>
+            <CortexCitationList citations={state.answer.citations} />
           </div>
         </>
       )}

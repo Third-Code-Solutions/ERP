@@ -245,3 +245,19 @@ Status: source candidate complete; deployment not authorized.
   application route, and enum-completeness tests.
 - Activate this source candidate only in the next explicitly approved
   consolidated Vercel build; do not buy a separate build.
+
+## Parallel Cortex citation navigation slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Preserve the existing `text/plain` chat response while adding bounded
+  citation metadata for new answers.
+- Rehydrate stored citation IDs using current tenant and role scope before
+  rendering history.
+- Route visible citations through the canonical 48-type entity registry.
+- Omit stale, malformed, cross-tenant, superseded, and forbidden nodes.
+- Include this candidate in the next explicitly approved consolidated Vercel
+  build. Keep Vercel Git disconnected and do not create a separate preview.
+- After activation, verify exact record navigation and role-downgrade behavior
+  with authorized Admin, finance, procurement, estimator, sales, and viewer
+  sessions.

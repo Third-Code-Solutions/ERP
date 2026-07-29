@@ -544,3 +544,29 @@ route guard, shared citation labels, and tests together. No schema, data,
 Storage, Auth, queue, or provider rollback is required. If deployed, promote
 the prior Vercel artifact; never reconnect Git or purchase a separate rollback
 build when an existing artifact can be promoted.
+
+## D-046 -- Persist citation identity, reauthorize citation presentation
+
+Decision: keep the Cortex answer body as `text/plain`. Return a bounded,
+base64url-encoded citation header for the current response. When loading saved
+messages, treat persisted citation metadata as untrusted and use only valid
+node IDs to reload current citation fields under authenticated tenant and
+current-role scope. Derive record links from the canonical entity registry.
+
+Reason: changing the streamed body would break existing clients. Rendering
+persisted titles and references directly would let stale metadata survive a
+role downgrade, record supersession, or graph correction. Reauthorization at
+read time preserves conversation continuity without weakening tenant or RBAC
+boundaries.
+
+Validation: require plain-text response compatibility, bounded UTF-8 header
+round-trip and malformed-header fail-closed tests, current-role history
+rehydration tests, cross-tenant/forbidden omission, full
+lint/typecheck/test/build gates, production-mode health/readiness and
+unauthenticated-boundary smoke, plus desktop and 390px focus/overflow checks.
+
+Rollback: revert the citation header, history rehydration, citation component,
+styles, and tests together. Existing stored messages remain readable as plain
+text. No schema, row, Auth, Storage, queue, provider, or deployment rollback is
+needed. If later deployed, promote the retained last-known-good Vercel
+artifact; do not reconnect Git or buy a separate rollback build.

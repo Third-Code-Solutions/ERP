@@ -54,6 +54,56 @@ export async function getCortexNodeByRef(
   return rows[0] ?? null
 }
 
+
+export interface CortexCitationNode {
+  id: string
+  node_type: CortexNode['node_type']
+  ref_table: string
+  ref_id: string
+  title: string | null
+  projectId: string | null
+}
+
+/**
+ * Current citation nodes for a bounded set of graph IDs. Tenant and current
+ * role scope are enforced in SQL because the application database role bypasses
+ * RLS. Results preserve caller order and omit missing, superseded, or forbidden
+ * nodes.
+ */
+export async function getCortexCitationNodesByIds(
+  tenantId: string,
+  nodeIds: string[],
+  nodeTypes?: string[] | null
+): Promise<CortexCitationNode[]> {
+  const orderedIds = [...new Set(nodeIds)].slice(0, 200)
+  if (orderedIds.length === 0) return []
+
+  const rows = await db
+    .select({
+      id: cortexNodes.id,
+      node_type: cortexNodes.node_type,
+      ref_table: cortexNodes.ref_table,
+      ref_id: cortexNodes.ref_id,
+      title: cortexNodes.title,
+      projectId: sql<string | null>`${cortexNodes.attributes} ->> 'project_id'`,
+    })
+    .from(cortexNodes)
+    .where(
+      and(
+        eq(cortexNodes.tenant_id, tenantId),
+        inArray(cortexNodes.id, orderedIds),
+        isNull(cortexNodes.valid_to),
+        typeScopeFilter(nodeTypes)
+      )
+    )
+
+  const byId = new Map(rows.map((node) => [node.id, node]))
+  return orderedIds.flatMap((id) => {
+    const node = byId.get(id)
+    return node ? [node] : []
+  })
+}
+
 /** Build an RBAC node-type filter, or undefined for "no restriction". */
 function typeScopeFilter(nodeTypes?: string[] | null): SQL | undefined {
   if (!nodeTypes) return undefined
