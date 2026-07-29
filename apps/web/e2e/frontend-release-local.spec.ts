@@ -34,10 +34,10 @@ test('validates the consolidated public frontend candidate', async ({
   ).toBeVisible()
 
   const canonical = page.locator('link[rel="canonical"]')
-  await expect(canonical).toHaveAttribute(
-    'href',
-    'https://thirdcode-erp.vercel.app'
-  )
+  await expect(canonical).toHaveAttribute('href', /^https?:\/\/[^/]+\/?$/)
+  const canonicalHref = await canonical.getAttribute('href')
+  expect(canonicalHref).not.toBeNull()
+  const normalizedPublicOrigin = new URL(canonicalHref!).origin
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
     'content',
     'index, follow'
@@ -52,6 +52,30 @@ test('validates the consolidated public frontend candidate', async ({
       (entry: { '@type': string }) => entry['@type']
     )
   ).toEqual(['Organization', 'SoftwareApplication', 'FAQPage'])
+
+  const robotsResponse = await page.request.get('/robots.txt')
+  expect(robotsResponse.status()).toBe(200)
+  const robotsText = await robotsResponse.text()
+  expect(robotsText).toContain('User-Agent: *')
+  expect(robotsText).toContain(
+    `Sitemap: ${normalizedPublicOrigin}/sitemap.xml`
+  )
+
+  const sitemapResponse = await page.request.get('/sitemap.xml')
+  expect(sitemapResponse.status()).toBe(200)
+  const sitemapText = await sitemapResponse.text()
+  expect(sitemapText).toContain(
+    `<loc>${normalizedPublicOrigin}/</loc>`
+  )
+  expect(sitemapText).not.toContain('<lastmod>')
+
+  const manifestResponse = await page.request.get('/manifest.webmanifest')
+  expect(manifestResponse.status()).toBe(200)
+  expect(await manifestResponse.json()).toMatchObject({
+    name: 'Third Code ERP',
+    short_name: 'Third Code ERP',
+    start_url: '/',
+  })
 
   const understandButton = page
     .locator('button[aria-expanded]')

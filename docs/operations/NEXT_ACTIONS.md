@@ -203,3 +203,18 @@ Provider inspection result:
   17/NestJS/Redis/BullMQ modular-monolith architecture.
 - Until both approvals exist, keep all cutover flags disabled and continue only
   source work that does not bypass those gates.
+
+## Exact next action after public-origin portability
+
+1. Keep Vercel Git disconnected and create no Vercel preview or production
+   deployment.
+2. Review a no-cost/self-hosted frontend target that can run this dynamic
+   Next.js CSP-nonce architecture; static-only hosting is not equivalent.
+3. Before any alternative-host build, set its canonical
+   `NEXT_PUBLIC_SITE_URL` and verify metadata, structured data, robots,
+   sitemap, auth callback allowlists, portal links, CSP, and Supabase redirect
+   URLs against that exact hostname.
+4. Keep the retained Vercel production artifact as rollback until the
+   alternative passes authenticated browser, API, database, Redis, logs, and
+   tenant-isolation proof.
+5. Do not cut traffic, reconnect Git, or remove Vercel until explicit approval.

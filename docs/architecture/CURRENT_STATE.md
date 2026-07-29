@@ -972,3 +972,23 @@ matches the repository migration contract:
 - GitHub Actions run `30475864702` failed before any step; Actionlint contains
   zero steps and every dependent job was skipped. Local and disposable-lane
   evidence remains authoritative until account billing is repaired.
+
+## 2026-07-30 public-origin portability
+
+- Public metadata, structured-data identifiers, `robots.txt`, and
+  `sitemap.xml` now resolve from one validated public origin.
+- Resolution order is `NEXT_PUBLIC_SITE_URL`, server-only `SITE_URL`, Vercel's
+  production hostname, then the retained Third Code Vercel origin for
+  compatibility.
+- Configured origins must be absolute HTTP(S) origins without credentials,
+  paths, queries, or fragments. Invalid configuration fails the build instead
+  of publishing mixed or unsafe URLs.
+- Sitemap output no longer fabricates a fresh `lastModified` value on every
+  build.
+- No visible landing layout, copy, motion, database, provider setting, or live
+  deployment changed.
+- Root lint/typecheck, 378 application tests, production build with 77/77
+  generated pages, one desktop/tablet/mobile browser release test, gitleaks,
+  actionlint, and workflow action-reference validation pass. Local database
+  tests remain 99 passed and 137 skipped because this source-only milestone
+  did not inject production database credentials.

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next'
+import { publicUrl } from '@/lib/public-origin'
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -32,6 +33,6 @@ export default function robots(): MetadataRoute.Robots {
         '/weekly-report',
       ],
     },
-    sitemap: 'https://thirdcode-erp.vercel.app/sitemap.xml',
+    sitemap: publicUrl('/sitemap.xml'),
   }
 }
