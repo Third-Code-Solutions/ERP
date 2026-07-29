@@ -1290,3 +1290,71 @@ Rollback and unresolved:
 - `AGENTS.md` reconciliation requires separate owner sign-off.
 - Exact next action remains approved normal signup, email confirmation, one
   reversible non-critical Project, and a zero-blocker cutover planner.
+
+## 2026-07-29 -- Public landing mobile QA correction
+
+Outcome:
+
+- Audited live landing at 1440px, 768px, and 390px with full-page screenshots,
+  accessibility snapshots, computed line boxes, interaction sweeps, console,
+  network, metadata, and structured data.
+- Preserved the accepted landing architecture. Corrected the mobile hero from
+  six measured lines to exactly three and reduced the mobile action headline.
+- Removed decorative capability, operation, workflow, and FAQ ordinals while
+  retaining the functional carousel position.
+- Enforced at least 44px for every visible mobile link, button, and summary.
+- Scoped Vercel Analytics to `VERCEL=1`; self-hosted production no longer
+  requests the unavailable insights script.
+- Replaced duplicate image preload hints with one eager, high-priority,
+  responsive hero image. Decorative and below-fold copies remain lazy.
+- Added final desktop, tablet, and mobile evidence under
+  `docs/design-references/`.
+- No database, Auth, Nest, Redis, queue, tenant-routing, provider variable, or
+  deployment state changed.
+
+Changed files:
+
+- `apps/web/src/app/layout.tsx`
+- `apps/web/src/components/marketing/third-code-landing.tsx`
+- `apps/web/src/components/marketing/third-code-landing.module.css`
+- `docs/architecture/CURRENT_STATE.md`
+- `docs/architecture/TARGET_STATE.md`
+- `docs/architecture/MIGRATION_PLAN.md`
+- `docs/architecture/DECISIONS.md`
+- `docs/operations/WORK_LOG.md`
+- `docs/operations/NEXT_ACTIONS.md`
+- `docs/research/PAGE_TOPOLOGY.md`
+- `docs/research/BEHAVIORS.md`
+- `docs/research/components/third-code-landing.spec.md`
+- `docs/changesets/2026-07-29-public-landing-mobile-qa.md`
+- three `docs/design-references/third-code-landing-*-2026-07-29.png` files
+
+Validation:
+
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` -- pass.
+- Root tests -- 250 pass; 132 disposable-database-gated cases skip as designed.
+- Optimized Web build -- 77/77 routes generated.
+- Browser widths 1440/768/390 -- no horizontal overflow; H1 line counts 3/3/3.
+- Mobile visible targets below 44px -- zero.
+- Decorative ordinal labels -- zero.
+- Accordion, hover expansion, carousel, and FAQ interactions -- pass.
+- JSON-LD -- valid Organization, SoftwareApplication, and FAQPage graph.
+- Local production console -- zero errors and zero warnings.
+- Live canonical, robots, sitemap, manifest, health, and readiness -- HTTP 200.
+- Provenance scan -- no prohibited external ERP source or brand terms.
+- Source commit `f40b2472d070085ef114143b65cfd822bda30f0d` -- pushed
+  atomically to `main` and `agent-02/third-code-erp-landing` as `kurtgav`.
+- Vercel deployment count after source publication -- zero; Git remains
+  disconnected.
+
+Rollback and unresolved:
+
+- Revert feature commit `f40b2472d070085ef114143b65cfd822bda30f0d`
+  and this evidence update. Runtime/database/provider rollback is unnecessary.
+- Live Vercel remains on deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`;
+  corrected source is intentionally not deployed.
+- M1 still requires explicit approval for one unused canary email, normal
+  signup and confirmation, one reversible non-critical Project, and a
+  zero-blocker cutover planner.
+- Any paid frontend build still requires exact charge disclosure and explicit
+  user approval.
