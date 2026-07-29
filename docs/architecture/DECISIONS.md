@@ -347,3 +347,17 @@ currently clean QA tenant has no user or Auth identity. Weakening the gate would
 turn an audit-integrity defect into accepted rollout policy; rewriting history
 would destroy evidence. A dedicated canary creates the smallest trustworthy
 boundary without changing production transaction rules.
+
+## D-037 -- Canary provisioning uses normal product onboarding
+
+Decision: create the dedicated M1 identity through `/auth/signup`, complete
+email confirmation, and create its non-critical Project through the
+authenticated product UI. Do not provision the canary by direct SQL, by
+writing `auth.users`, or through a one-off service-role script.
+
+Reason: the deployed Auth trigger already atomically creates an isolated tenant
+and same-ID Admin profile for a new Auth identity, and the existing Project
+flow creates the audit root. Exercising normal product paths proves the
+customer onboarding boundary and avoids privileged data repair disguised as
+test setup. The only external prerequisite is an unused user-controlled email
+whose confirmation is explicitly authorized.

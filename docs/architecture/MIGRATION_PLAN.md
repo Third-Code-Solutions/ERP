@@ -70,9 +70,10 @@ Production entry status:
   planner. The current demo tenant is blocked by historical predecessor/hash
   integrity failures; the clean QA tenant is blocked by missing application
   and Auth users. No production flag or data changed.
-- Remaining M1 prerequisite: create one dedicated canary tenant through a
-  supported onboarding path, with active Auth identity, authorized same-tenant
-  user, reversible E2E Project, and a genesis-rooted chain that passes
+- Remaining M1 prerequisite: use the existing public signup plus authenticated
+  Project-create flow for one user-controlled email identity. Confirm the
+  resulting active Auth identity, Admin profile, reversible E2E Project, and
+  genesis-rooted chain with
   `pnpm plan:project-cutover -- --require-ready`.
 - Complete: one authorized, same-tenant Nest Project update against designated
   demo data, followed by exact-value restoration through a second Nest

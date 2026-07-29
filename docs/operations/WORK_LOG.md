@@ -1083,6 +1083,38 @@ Rollback and unresolved:
   defective, redeploy last-known-good API deployment
   `2b77cc8e-3c5a-44df-8c4d-58926aced3bb`.
 - Do not enable the provider flag for either current tenant.
-- Next: implement a supported, audited dedicated-canary onboarding slice, then
-  require a zero-blocker planner result before requesting one paid Vercel
+- Next: inspect and execute the supported dedicated-canary onboarding path,
+  then require a zero-blocker planner result before requesting one paid Vercel
   production release.
+
+## 2026-07-29 -- Dedicated canary onboarding inspection
+
+Outcome:
+
+- Traced the deployed customer onboarding path without mutation.
+- Confirmed canonical `/auth/signup` returns HTTP 200 and renders the account
+  form.
+- Confirmed the hosted `on_auth_user_created` trigger exists.
+- Confirmed its non-public `SECURITY DEFINER` function creates one tenant and
+  same-ID application profile; direct execution is revoked from `anon` and
+  `authenticated`.
+- Confirmed new profiles receive Admin role and `/projects/new` creates a
+  tenant-scoped Project with the authenticated actor.
+- Determined no implementation change is needed for canary provisioning.
+
+Validation:
+
+- Repository source trace -- signup, Auth trigger, profile resolution, and
+  Project creation paths verified.
+- Hosted function and trigger inspection -- pass, read-only.
+- Live signup page -- HTTP 200.
+- No Auth user, tenant, profile, Project, audit row, email, provider variable,
+  or deployment changed.
+
+Rollback and unresolved:
+
+- No state or source change requires rollback.
+- Execution requires explicit approval for an unused user-controlled email and
+  completion of its confirmation step.
+- After confirmation, the exact next gate is the redacted read-only Project
+  cutover planner; production routing remains disabled.
