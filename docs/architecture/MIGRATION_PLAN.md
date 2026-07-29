@@ -620,3 +620,38 @@ Next migration milestone:
    handling, and Redis recovery against disposable PostgreSQL and Redis.
 5. Do not enable provider flags or deploy the frontend without explicit
    approval.
+
+## 2026-07-30 approved-BOM RFQ BullMQ milestone
+
+Status: source implementation and all local release gates complete; production
+cutover disabled.
+
+- Added the original HTTP, job, retry, dead-letter, authority, compatibility,
+  and rollback contract before implementation.
+- Added protected NestJS enqueue authority with a deterministic
+  tenant/BOM/version job ID and strict server-derived payload.
+- Added a NestJS BullMQ processor that revalidates membership and capability,
+  requires an approved tenant BOM, and reuses the existing atomic RFQ
+  transaction.
+- Added five-attempt exponential retry and deterministic final dead-letter
+  handling.
+- Added an independent exact Next.js flag and strict tenant allowlist. The
+  current Inngest producer remains selected by default; a selected Nest failure
+  never invokes a second producer.
+- Proved the full queue contract against disposable PostgreSQL 17 and Redis
+  7.4.9, including a real Redis restart.
+- Kept both production cutover variables unset. No schema, data, UI, Python,
+  Storage, Supabase, or Vercel change was made.
+
+Next migration milestone:
+
+1. Specify an idempotent RFQ notification outbox and delivery contract inside
+   the NestJS modular monolith.
+2. Commit notification intent atomically with a newly created automatic RFQ;
+   replay must not create another intent.
+3. Deliver through BullMQ with bounded retry, dead-letter, audit-safe
+   observability, and no transaction-finalizing authority outside NestJS.
+4. Prove create/replay/failure/recovery behavior with disposable PostgreSQL and
+   Redis.
+5. Keep automatic RFQ routing disabled until controlled hosted canary,
+   reconciliation, monitoring, and rollback receive explicit approval.

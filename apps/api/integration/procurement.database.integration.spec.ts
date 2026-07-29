@@ -28,6 +28,7 @@ import {
   type DatabaseTransaction,
 } from '../src/database/database.service'
 import { ProcurementController } from '../src/procurement/procurement.controller'
+import { RfqDispatchQueue } from '../src/procurement/rfq-dispatch.queue'
 import { ProcurementService } from '../src/procurement/procurement.service'
 
 const integrationEnabled =
@@ -89,9 +90,13 @@ suite('Procurement API database integration', () => {
       const bomA = randomUUID()
       const bomB = randomUUID()
       const bomCreateA = randomUUID()
+      const bomAutoA = randomUUID()
+      const bomDraftA = randomUUID()
       const lineA = randomUUID()
       const lineB = randomUUID()
       const lineCreateA = randomUUID()
+      const lineAutoA = randomUUID()
+      const lineDraftA = randomUUID()
       const vendorA = randomUUID()
       const vendorB = randomUUID()
       const rfqA = randomUUID()
@@ -179,6 +184,20 @@ suite('Procurement API database integration', () => {
           created_by: procurementA,
           status: 'approved',
         },
+        {
+          id: bomAutoA,
+          tenant_id: tenantA,
+          project_id: projectA,
+          created_by: procurementA,
+          status: 'approved',
+        },
+        {
+          id: bomDraftA,
+          tenant_id: tenantA,
+          project_id: projectA,
+          created_by: procurementA,
+          status: 'draft',
+        },
       ])
       await transaction.insert(bomLineItems).values([
         {
@@ -201,6 +220,22 @@ suite('Procurement API database integration', () => {
           bom_id: bomCreateA,
           description: 'Creation line A',
           quantity: 2,
+          unit: 'pcs',
+        },
+        {
+          id: lineAutoA,
+          tenant_id: tenantA,
+          bom_id: bomAutoA,
+          description: 'Automatic line A',
+          quantity: 3,
+          unit: 'pcs',
+        },
+        {
+          id: lineDraftA,
+          tenant_id: tenantA,
+          bom_id: bomDraftA,
+          description: 'Draft automatic line A',
+          quantity: 1,
           unit: 'pcs',
         },
       ])
@@ -278,6 +313,15 @@ suite('Procurement API database integration', () => {
             useValue: database,
           },
           {
+            provide: RfqDispatchQueue,
+            useValue: {
+              enqueue: async () => ({
+                jobId: 'integration-dispatch',
+                enqueued: true,
+              }),
+            },
+          },
+          {
             provide: APP_GUARD,
             useExisting: SupabaseJwtGuard,
           },
@@ -289,6 +333,8 @@ suite('Procurement API database integration', () => {
       }).compile()
       const app = moduleRef.createNestApplication()
       await app.init()
+      const procurementService =
+        moduleRef.get(ProcurementService)
 
       const command = {
         submissionId,
@@ -301,6 +347,89 @@ suite('Procurement API database integration', () => {
       }
 
       try {
+        const automatic = await procurementService.createFromApprovedBom({
+          schemaVersion: 1,
+          tenantId: tenantA,
+          actorId: procurementA,
+          bomId: bomAutoA,
+          source: 'bom_approved',
+        })
+        expect(automatic).toMatchObject({
+          tenantId: tenantA,
+          projectId: projectA,
+          lineCount: 1,
+          created: true,
+        })
+        await expect(
+          procurementService.createFromApprovedBom({
+            schemaVersion: 1,
+            tenantId: tenantA,
+            actorId: procurementA,
+            bomId: bomAutoA,
+            source: 'bom_approved',
+          })
+        ).resolves.toEqual({
+          ...automatic,
+          created: false,
+        })
+        await expect(
+          procurementService.createFromApprovedBom({
+            schemaVersion: 1,
+            tenantId: tenantB,
+            actorId: procurementA,
+            bomId: bomAutoA,
+            source: 'bom_approved',
+          })
+        ).rejects.toMatchObject({ status: 403 })
+        await expect(
+          procurementService.createFromApprovedBom({
+            schemaVersion: 1,
+            tenantId: tenantA,
+            actorId: commercialA,
+            bomId: bomAutoA,
+            source: 'bom_approved',
+          })
+        ).rejects.toMatchObject({ status: 403 })
+        await expect(
+          procurementService.createFromApprovedBom({
+            schemaVersion: 1,
+            tenantId: tenantA,
+            actorId: procurementA,
+            bomId: bomDraftA,
+            source: 'bom_approved',
+          })
+        ).rejects.toMatchObject({ status: 409 })
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs/dispatch')
+          .send({ bomId: bomAutoA })
+          .expect(401)
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs/dispatch')
+          .set('Authorization', 'Bearer commercial-a-token')
+          .send({ bomId: bomAutoA })
+          .expect(403)
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs/dispatch')
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({
+            bomId: bomAutoA,
+            tenantId: tenantA,
+          })
+          .expect(400)
+
+        const dispatch = await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs/dispatch')
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ bomId: bomAutoA })
+          .expect(202)
+        expect(dispatch.body).toEqual({
+          jobId: 'integration-dispatch',
+          enqueued: true,
+        })
+
         await request(app.getHttpServer())
           .post('/v1/procurement/rfqs')
           .send({ bomId: bomCreateA })
@@ -464,6 +593,24 @@ suite('Procurement API database integration', () => {
               eq(rfqs.bom_id, bomCreateA)
             )
           )
+        const automaticRfqRows = await transaction
+          .select()
+          .from(rfqs)
+          .where(
+            and(
+              eq(rfqs.tenant_id, tenantA),
+              eq(rfqs.bom_id, bomAutoA)
+            )
+          )
+        const automaticAudit = await transaction
+          .select()
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, automatic.rfqId)
+            )
+          )
         const tenantBCancelAudit = await transaction
           .select()
           .from(auditLog)
@@ -487,6 +634,22 @@ suite('Procurement API database integration', () => {
 
         expect(quotes).toHaveLength(1)
         expect(createdRfqRows).toHaveLength(1)
+        expect(automaticRfqRows).toHaveLength(1)
+        expect(
+          automaticAudit.filter((entry) => {
+            const diff = entry.diff as {
+              bom_id?: string
+              line_count?: number
+              source?: string
+            }
+            return (
+              entry.action === 'create' &&
+              diff.bom_id === bomAutoA &&
+              diff.line_count === 1 &&
+              diff.source === 'bom_approved'
+            )
+          })
+        ).toHaveLength(1)
         expect(createdRfqRows[0]?.id).toBe(createdRfq.body.rfqId)
         expect(quotes[0]?.created_by).toBe(procurementA)
         expect(updatedRfq?.status).toBe('completed')

@@ -3,6 +3,7 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import {
   rfqCreationResultSchema,
+  rfqDispatchResultSchema,
   projectUpdateResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
@@ -10,6 +11,7 @@ import {
   type LogRfqQuoteCommand,
   type ProjectUpdateResult,
   type RfqCreationResult,
+  type RfqDispatchResult,
   type RfqQuoteResult,
   type RfqTransitionResult,
   type TransitionRfqCommand,
@@ -76,6 +78,16 @@ export function rfqCreateWritesUseCoreApi(
     tenantId,
     process.env.ERP_RFQ_CREATE_WRITES_VIA_API,
     process.env.ERP_RFQ_CREATE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function rfqAutoDispatchUsesCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_RFQ_AUTO_DISPATCH_VIA_API,
+    process.env.ERP_RFQ_AUTO_DISPATCH_VIA_API_TENANT_IDS
   )
 }
 
@@ -218,6 +230,57 @@ export async function createRfqThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No RFQ was created.',
+    }
+  }
+}
+
+export async function dispatchApprovedBomRfqThroughCoreApi(
+  command: CreateRfqCommand
+): Promise<CoreResult<RfqDispatchResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/rfqs/dispatch`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : 'RFQ dispatch was not queued.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = rfqDispatchResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid RFQ dispatch result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. RFQ dispatch was not queued.',
     }
   }
 }

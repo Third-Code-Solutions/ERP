@@ -260,6 +260,8 @@ Invoke-Wsl -ArgumentList @(
 $env:DATABASE_URL =
   "postgresql://postgres:postgres@127.0.0.1:54322/$databaseName"
 $env:REDIS_URL = 'redis://127.0.0.1:6379'
+$env:ERP_REDIS_RESTART_EXPECTED = '1'
+$env:ERP_REDIS_TEST_DISTRIBUTION = $Distribution
 $env:DATABASE_HARDENING_EXPECTED = '1'
 $env:DATABASE_ACCOUNTING_EXPECTED = '1'
 $env:DATABASE_RECEIVABLES_EXPECTED = '1'
@@ -295,6 +297,10 @@ try {
     'scripts/assert-vitest-no-skips.mjs',
     $testReport
   )
+  # Database verification is intentionally long. Recreate the disposable
+  # Redis process immediately before queue integration so WSL lifecycle or a
+  # prior reconnect drill cannot leave stale runtime state.
+  Invoke-WslScript -Script $serviceBootstrap
   Invoke-Checked -Command 'pnpm' -ArgumentList @(
     '--filter',
     '@third-code-erp/api',

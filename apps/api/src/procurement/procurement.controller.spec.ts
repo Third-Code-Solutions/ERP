@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 import { ProcurementController } from './procurement.controller'
 import { ProcurementService } from './procurement.service'
+import { RfqDispatchQueue } from './rfq-dispatch.queue'
 
 const RFQ_ID = '33333333-3333-4333-8333-333333333333'
 const BOM_ID = '88888888-8888-4888-8888-888888888888'
@@ -29,7 +30,8 @@ describe('Procurement RFQ HTTP contract', () => {
   async function appFor(
     logQuote: ReturnType<typeof vi.fn>,
     transition = vi.fn(),
-    create = vi.fn()
+    create = vi.fn(),
+    enqueue = vi.fn()
   ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [ProcurementController],
@@ -37,6 +39,10 @@ describe('Procurement RFQ HTTP contract', () => {
         {
           provide: ProcurementService,
           useValue: { create, logQuote, transition },
+        },
+        {
+          provide: RfqDispatchQueue,
+          useValue: { enqueue },
         },
       ],
     }).compile()
@@ -111,6 +117,58 @@ describe('Procurement RFQ HTTP contract', () => {
       .expect(400)
 
     expect(create).not.toHaveBeenCalled()
+  })
+
+  it('accepts strict approved-BOM dispatch and returns 202', async () => {
+    const enqueue = vi.fn().mockResolvedValue({
+      jobId:
+        'rfq1-22222222-2222-4222-8222-222222222222-88888888-8888-4888-8888-888888888888',
+      enqueued: true,
+    })
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      enqueue
+    )
+
+    const response = await request(app.getHttpServer())
+      .post('/v1/procurement/rfqs/dispatch')
+      .send({ bomId: BOM_ID })
+      .expect(202)
+
+    expect(response.body).toEqual({
+      jobId:
+        'rfq1-22222222-2222-4222-8222-222222222222-88888888-8888-4888-8888-888888888888',
+      enqueued: true,
+    })
+    expect(enqueue).toHaveBeenCalledWith(
+      { bomId: BOM_ID },
+      expect.objectContaining({
+        userId: '11111111-1111-4111-8111-111111111111',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+    )
+  })
+
+  it('rejects caller-supplied dispatch authority', async () => {
+    const enqueue = vi.fn()
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      enqueue
+    )
+
+    await request(app.getHttpServer())
+      .post('/v1/procurement/rfqs/dispatch')
+      .send({
+        bomId: BOM_ID,
+        actorId: '11111111-1111-4111-8111-111111111111',
+      })
+      .expect(400)
+
+    expect(enqueue).not.toHaveBeenCalled()
   })
 
   it(

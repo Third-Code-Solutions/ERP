@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -11,18 +12,26 @@ import {
   rateCards,
   rfqQuotes,
   rfqs,
+  users,
   vendors,
 } from '@third-code-erp/database/schema'
 import type {
   CreateRfqCommand,
   LogRfqQuoteCommand,
   RfqCreationResult,
+  RfqDispatchJob,
   RfqTransitionResult,
   RfqQuoteResult,
   TransitionRfqCommand,
 } from '@third-code-erp/shared-types'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import type { ErpPrincipal } from '../auth/current-principal.decorator'
+import {
+  roleHasCapability,
+} from '../auth/capability.guard'
+import type {
+  ErpPrincipal,
+  ErpRole,
+} from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
 import { DatabaseService } from '../database/database.service'
 
@@ -40,6 +49,12 @@ interface CreatedRfqLineItemJson {
   description: string
   qty: number
   unit: string | null
+}
+
+interface CreateRfqOptions {
+  source: 'manual' | 'bom_approved'
+  requireApprovedBom: boolean
+  revalidateActor: boolean
 }
 
 function existingLineCount(lineItems: unknown): number {
@@ -112,13 +127,82 @@ export class ProcurementService {
     command: CreateRfqCommand,
     principal: ErpPrincipal
   ): Promise<RfqCreationResult> {
+    return this.createRecord(command, principal, {
+      source: 'manual',
+      requireApprovedBom: false,
+      revalidateActor: false,
+    })
+  }
+
+  async createFromApprovedBom(
+    job: RfqDispatchJob
+  ): Promise<RfqCreationResult> {
+    return this.createRecord(
+      { bomId: job.bomId },
+      {
+        userId: job.actorId,
+        tenantId: job.tenantId,
+        role: 'viewer',
+        email: '',
+      },
+      {
+        source: job.source,
+        requireApprovedBom: true,
+        revalidateActor: true,
+      }
+    )
+  }
+
+  private async createRecord(
+    command: CreateRfqCommand,
+    principal: ErpPrincipal,
+    options: CreateRfqOptions
+  ): Promise<RfqCreationResult> {
     return this.database.client.transaction(async (transaction) => {
-      await this.audit.stampActor(transaction, principal)
+      let authorizedPrincipal = principal
+      if (options.revalidateActor) {
+        const [membership] = await transaction
+          .select({
+            tenantId: users.tenant_id,
+            role: users.role,
+            email: users.email,
+          })
+          .from(users)
+          .where(
+            and(
+              eq(users.id, principal.userId),
+              eq(users.tenant_id, principal.tenantId)
+            )
+          )
+          .limit(1)
+          .for('share')
+
+        const role = membership?.role as ErpRole | undefined
+        if (
+          !membership ||
+          !role ||
+          !roleHasCapability(role, 'rfq.dispatch')
+        ) {
+          throw new ForbiddenException()
+        }
+        authorizedPrincipal = {
+          userId: principal.userId,
+          tenantId: membership.tenantId,
+          role,
+          email: membership.email,
+        }
+      }
+
+      await this.audit.stampActor(
+        transaction,
+        authorizedPrincipal
+      )
 
       const [bom] = await transaction
         .select({
           id: boms.id,
           project_id: boms.project_id,
+          status: boms.status,
         })
         .from(boms)
         .where(
@@ -131,6 +215,14 @@ export class ProcurementService {
         .for('update')
 
       if (!bom) throw new NotFoundException('BOM not found')
+      if (
+        options.requireApprovedBom &&
+        bom.status !== 'approved'
+      ) {
+        throw new ConflictException(
+          'BOM must be approved before automatic RFQ dispatch'
+        )
+      }
 
       const [existing] = await transaction
         .select({
@@ -273,7 +365,7 @@ export class ProcurementService {
         diff: {
           bom_id: command.bomId,
           line_count: rfqLines.length,
-          source: 'manual',
+          source: options.source,
         },
       })
 

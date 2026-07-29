@@ -31,6 +31,13 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
   'rfq.dispatch': ['owner', 'admin', 'procurement'],
 }
 
+export function roleHasCapability(
+  role: ErpRole,
+  capability: ErpCapability
+): boolean {
+  return CAPABILITY_ROLES[capability].includes(role)
+}
+
 const CAPABILITIES_KEY = 'third-code-erp:capabilities'
 
 export const RequireCapabilities = (
@@ -71,7 +78,7 @@ export class CapabilityGuard implements CanActivate {
     if (
       !role ||
       !required.every((capability) =>
-        CAPABILITY_ROLES[capability].includes(role)
+        roleHasCapability(role, capability)
       )
     ) {
       throw new ForbiddenException()
