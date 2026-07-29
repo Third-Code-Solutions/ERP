@@ -371,3 +371,17 @@ reach through each other's internals.
   and canonical context together. Context mismatch fails closed.
 - URLs never contain tenant ID, user ID, prompt text, answer text, or internal
   graph-node ID.
+
+## Cortex recent-history search boundary
+
+- History search operates only on the bounded, already-authorized recent
+  conversation response. Presentation must label this scope honestly and must
+  not imply full-history or cross-tenant search.
+- Matching may use conversation title and human canonical-context labels only.
+  Tenant IDs, user IDs, record UUIDs, and internal graph-node IDs remain
+  excluded from searchable and visible text.
+- Search is local, deterministic, case- and diacritic-insensitive, preserves
+  server order, and never weakens owner, tenant, current-role, record-context,
+  or citation authorization.
+- Keyboard focus is visible, mobile targets are at least 44px, empty results
+  are bounded, and the open panel produces no horizontal overflow.

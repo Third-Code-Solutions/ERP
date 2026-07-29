@@ -35,6 +35,7 @@ test.describe('Cortex focused graph', () => {
   test('opens an authorized record neighborhood without responsive overflow', async ({
     page,
   }, testInfo) => {
+    testInfo.setTimeout(60_000)
     const env = readLocalEnv()
     const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
     const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
@@ -230,7 +231,29 @@ test.describe('Cortex focused graph', () => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ conversations: [] }),
+          body: JSON.stringify({
+            conversations: [
+              {
+                id: deepLinkConversationId,
+                title: 'Company priorities',
+                created_at: '2026-07-29T00:00:00.000Z',
+                updated_at: '2026-07-29T00:00:00.000Z',
+                context: null,
+              },
+              {
+                id: '44444444-4444-4444-8444-444444444444',
+                title: 'Invoice follow-up',
+                created_at: '2026-07-29T00:00:00.000Z',
+                updated_at: '2026-07-29T00:00:00.000Z',
+                context: {
+                  refTable: 'invoices',
+                  refId: '55555555-5555-4555-8555-555555555555',
+                  nodeType: 'invoice',
+                  title: 'INV-1042',
+                },
+              },
+            ],
+          }),
         })
       }
     )
@@ -256,6 +279,30 @@ test.describe('Cortex focused graph', () => {
         })
       }
     )
+
+    await page.goto(`${baseUrl}/cortex`, {
+      waitUntil: 'domcontentloaded',
+    })
+    await page.getByTitle('Conversation history').click()
+    const historySearch = page.getByRole('searchbox', {
+      name: 'Search saved conversations',
+    })
+    await historySearch.fill('invoice 1042')
+    await expect(page.getByText('Invoice follow-up')).toBeVisible()
+    await expect(page.getByText('Company priorities')).toHaveCount(0)
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth
+      )
+    ).toBeLessThanOrEqual(1)
+    await page.locator('.cortex-agent').screenshot({
+      path: testInfo.outputPath('cortex-history-search-mobile.png'),
+    })
+    await page.getByRole('button', {
+      name: 'Clear conversation search',
+    }).click()
+    await expect(historySearch).toBeFocused()
+    await expect(page.getByText('Company priorities')).toBeVisible()
 
     await page.goto(
       `${baseUrl}/cortex?conversationId=${deepLinkConversationId}`,

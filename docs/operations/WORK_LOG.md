@@ -2074,3 +2074,53 @@ Rollback and unresolved:
   production build. Do not reconnect Git or create a preview.
 - GitHub-hosted CI remains blocked before step start by account billing.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Cortex recent-conversation search
+
+Outcome:
+
+- Added keyboard-first search to the existing bounded list of 30 authorized
+  recent chats; no API or database history expansion.
+- Added case- and diacritic-insensitive all-term matching across conversation
+  title and human record-scope label while preserving server order.
+- Added an honest recent-count label, accessible clear control, and bounded
+  no-results state.
+- Kept tenant, user, record UUID, and graph-node identifiers out of searchable
+  and visible text.
+- No hosted write, AI request, schema, Auth identity, Storage object, queue,
+  provider setting, or deployment changed.
+
+Changed files:
+
+- `apps/web/src/lib/cortex/agent-context.ts`
+- `apps/web/src/lib/cortex/agent-context.test.ts`
+- `apps/web/src/components/cortex/cortex-agent.tsx`
+- `apps/web/src/app/globals.css`
+- `apps/web/e2e/cortex-focused-local.spec.ts`
+- the six architecture/operations memory files
+
+Validation:
+
+- Focused helper/component tests -- 8/8 pass.
+- Root lint and typecheck -- pass.
+- Root tests -- 377 pass; 134 disposable-database cases skip in the ordinary
+  no-URL lane and remain covered by the 224/224 zero-skip release gate.
+- Nest and Next production builds -- pass; Next generates 77/77 static steps.
+- Authenticated local production E2E -- title-plus-record filter, clear/reset,
+  company-wide deep-link restore, mobile panel screenshot, 1440/768/390
+  responsive proof, zero overflow, zero console/page errors, and global
+  one-time-session revocation.
+- Vercel provider check -- zero deployments after retained READY production
+  baseline `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- Railway provider check -- active API remains successful deployment
+  `5a84fc30-2b4e-46fa-a505-0b1bb393fef4` at source
+  `e948223b261b7c335ceaad85e359fec68888e84a`.
+
+Rollback and unresolved:
+
+- Revert this source/documentation slice. Existing API, context, deep links,
+  database, and provider state remain functional.
+- Live activation still requires one explicitly approved consolidated Vercel
+  production build. Do not reconnect Git or create a preview.
+- GitHub-hosted CI remains blocked before step start by account billing.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

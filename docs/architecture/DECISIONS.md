@@ -751,3 +751,25 @@ Rollback: revert page query parsing, URL helper, agent restore/synchronization,
 E2E assertions, and documentation. Existing history buttons and durable
 conversation context remain functional. No schema, row, Auth, Storage, queue,
 backend, or provider rollback is required.
+
+## D-054 -- Cortex history search stays local to authorized recent chats
+
+Decision: filter only the existing bounded response of 30 authorized recent
+conversations. Match every normalized query term against conversation title
+plus human record-scope label, preserve server order, and label the result set
+as recent. Never index or expose tenant IDs, user IDs, record UUIDs, or
+internal graph-node IDs.
+
+Reason: users need fast retrieval without another database/API surface or a
+misleading promise of global history search. Reusing the authorized response
+preserves the current ownership, tenant, role, record-context, and citation
+boundary while avoiding provider and query cost.
+
+Validation: require title, record-title, record-type, company-wide, blank, and
+no-result helper tests; focused component tests; full lint/typecheck/test/build;
+authenticated production-browser search, clear, deep-link restore, mobile
+screenshot, no overflow/errors, and global test-session revocation.
+
+Rollback: revert the filter helper, agent history controls, CSS, tests, and
+documentation together. The conversation API, database, durable context,
+deep links, and provider state remain unchanged.
