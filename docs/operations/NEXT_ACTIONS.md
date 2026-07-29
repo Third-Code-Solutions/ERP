@@ -218,3 +218,16 @@ Provider inspection result:
    alternative passes authenticated browser, API, database, Redis, logs, and
    tenant-isolation proof.
 5. Do not cut traffic, reconnect Git, or remove Vercel until explicit approval.
+
+## Exact next action after standalone runtime preparation
+
+1. Keep Vercel Git disconnected. Create no preview or production deployment.
+2. Select an already-owned Linux host with Docker and a controlled test
+   hostname; do not purchase infrastructure without explicit approval.
+3. Build and scan `apps/web/Dockerfile` on that host using the exact reviewed
+   SHA and test hostname.
+4. Add the test hostname to Supabase Auth redirects, then verify health,
+   readiness, authenticated login, tenant isolation, portal links, Cortex,
+   browser console, responsive layouts, logs, restart behavior, and rollback.
+5. Present exact DNS, redirect, monitoring, rollback, and cost impact before
+   any traffic cutover. Retain Vercel throughout the proof.

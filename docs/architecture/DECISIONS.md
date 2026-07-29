@@ -998,3 +998,26 @@ full lint/typecheck/test/build, and secret/workflow scans.
 Rollback: revert this isolated application commit. The current Vercel origin
 remains the resolver fallback, so rollback requires no database or provider
 change. Do not reconnect Vercel Git or deploy during rollback.
+
+## ADR-030: Alternative frontend hosting uses Next standalone
+
+Decision: preserve Next.js and make standalone Node output opt-in through
+`NEXT_OUTPUT_MODE=standalone`. Package it as a non-root Node 22 image and keep
+normal output as the default. Use `APP_REVISION` as the provider-neutral
+release identity, with Railway and Vercel SHA variables as migration
+fallbacks.
+
+Reason: the application depends on dynamic SSR, Middleware, Server Actions,
+route handlers, and request-specific CSP nonces. Static hosting changes
+security and behavior. Opt-in standalone output enables owned-compute hosting
+without a big-bang rewrite or coupling the default build to one provider.
+
+Validation: require normal production build, isolated standalone build,
+77/77 generated pages, real standalone process health, SSR landing, nonce CSP,
+robots, sitemap, manifest, unit tests for revision resolution, full repository
+gates, and zero provider deployments. A Docker image build remains mandatory
+before traffic cutover when a Docker-capable Linux host is available.
+
+Rollback: revert this application commit. No schema, data, provider, DNS, or
+Supabase rollback is required because this milestone does not deploy or cut
+traffic. Keep the retained Vercel artifact and Git disconnection unchanged.

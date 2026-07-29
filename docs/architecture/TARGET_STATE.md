@@ -537,3 +537,19 @@ move later as separate, independently verified milestones.
   are omitted rather than synthesized.
 - Hosting portability cannot weaken CSP, authentication, tenant isolation,
   authorization, audit, or transaction boundaries.
+
+## Portable frontend runtime boundary
+
+- The supported alternative is a full Node.js Next standalone runtime, never a
+  static export that drops Middleware, Server Actions, route handlers, SSR, or
+  per-request CSP nonces.
+- The same reviewed SHA identifies source, image, `/api/health`, and
+  `/api/ready`.
+- Public browser variables are fixed at build time. Server credentials remain
+  runtime-only and cannot enter image layers.
+- The runtime is non-root, listens behind a TLS reverse proxy, exposes
+  liveness and database readiness separately, and retains the previous image
+  for immediate application rollback.
+- Vercel remains disconnected and retained as external rollback until the
+  alternative hostname passes authenticated, tenant-isolated production
+  evidence and traffic cutover receives explicit approval.

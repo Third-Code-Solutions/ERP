@@ -2,6 +2,8 @@ import type { NextConfig } from 'next'
 import path from 'node:path'
 
 const config: NextConfig = {
+  output:
+    process.env.NEXT_OUTPUT_MODE === 'standalone' ? 'standalone' : undefined,
   transpilePackages: ['@third-code-erp/auth', '@third-code-erp/database', '@third-code-erp/shared-types'],
   outputFileTracingRoot: path.join(__dirname, '../../'),
   experimental: {

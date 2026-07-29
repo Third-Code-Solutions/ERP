@@ -992,3 +992,30 @@ matches the repository migration contract:
   actionlint, and workflow action-reference validation pass. Local database
   tests remain 99 passed and 137 skipped because this source-only milestone
   did not inject production database credentials.
+
+## 2026-07-30 portable standalone Web runtime
+
+- `apps/web` can now emit Next.js standalone output when
+  `NEXT_OUTPUT_MODE=standalone`. Normal local and Vercel-compatible builds keep
+  the existing output mode.
+- `apps/web/Dockerfile` defines a Node 22 Alpine, non-root, health-checked
+  runtime. Public URL and Supabase browser values are build inputs; secrets
+  remain runtime-only.
+- Web health and readiness expose one provider-neutral revision resolver:
+  `APP_REVISION`, Railway SHA, Vercel SHA, then `local`.
+- The free self-hosted workflow now runs an isolated standalone production
+  smoke. On Windows it uses a hoisted dependency tree to avoid the host's
+  unprivileged pnpm-symlink tracing failure.
+- Standalone source build and runtime proof pass: 77/77 generated pages,
+  process health, SSR landing, nonce CSP, robots, sitemap, and manifest.
+- Root lint/typecheck, 381 application tests, default production build,
+  77/77 generated pages, the 1440/768/390 frontend release browser test,
+  gitleaks, actionlint, workflow action-reference validation, and both release
+  planner suites pass. Local database tests remain 99 passed and 137 skipped
+  because no disposable database credential was injected for this source-only
+  slice.
+- Docker Desktop cannot start on this workstation because WSL2 virtualization
+  is disabled. The Docker image itself is therefore not locally built; the
+  standalone Node artifact and runtime are verified independently.
+- No frontend hostname, Supabase redirect setting, traffic, database, Railway
+  service, Vercel setting, or Vercel deployment changed.
