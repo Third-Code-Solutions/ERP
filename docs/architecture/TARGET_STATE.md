@@ -90,7 +90,8 @@ reach through each other's internals.
 - Run the no-cost lane only from a private repository through a manual,
   actor-restricted, repository-scoped short-lived runner. Start it for one
   reviewed workflow, then stop, deregister, and erase it. Never install it as a
-  service, expose production secrets, or execute unreviewed pull-request code.
+  service, expose production secrets, upload dependency caches/artifacts, or
+  execute unreviewed pull-request code.
 - Exercise Nest identity, membership, capability, tenant, concurrency, audit,
   and rollback behavior against that disposable database.
 - Use real Redis for readiness and container smoke checks.

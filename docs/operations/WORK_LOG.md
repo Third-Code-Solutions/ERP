@@ -846,12 +846,18 @@ Validation:
   `963464C47A8C3B2F771ABB940A0DC106C103FD5DF2410707884B736110A58D26`.
 - Disposable PostgreSQL/Redis services stopped cleanly after validation.
 
-Pending:
+Provider and CI evidence:
 
-- User confirmation to disconnect Vercel Git integration. The current live
-  deployment remains online; future deployment becomes manual and singular.
-- Publish the validated local guard only after Git auto-deploy is disabled,
-  then prove the source push creates zero Vercel deployments.
+- Vercel Git was disconnected with user authorization. Existing production
+  stayed READY; landing, health, and readiness remained HTTP 200.
+- Guard commit `ae373ce6f399e0d4bc5c7ef23537cc4f9b842837` was pushed to both
+  release refs as `kurtgav`; Vercel created zero deployments.
+- Self-hosted run `30421480977` passed every substantive gate, including the
+  48-migration/212-test database lane, production build, native Nest smoke, and
+  Gitleaks. It was cancelled only after setup-node's post-job pnpm cache upload
+  remained stuck.
+- Remote dependency-cache upload is removed from the self-hosted workflow.
+  A clean rerun and final runner cleanup proof remain pending.
 
 ## 2026-07-28 -- Production dashboard enum-catalog repair
 

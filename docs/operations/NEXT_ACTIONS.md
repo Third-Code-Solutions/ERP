@@ -4,13 +4,13 @@
 
 Complete remaining M1 controls without enabling production writes:
 
-1. Disable Vercel Git auto-deploy before the next Git push. Keep the current
-   READY production deployment online. Future Vercel releases are one explicit
-   manual deployment after green CI; do not create a duplicate preview.
-2. Publish the already validated LF/Gitleaks/Vercel guard in one source push.
-   Prove that push creates zero Vercel deployments, then rerun
+1. Publish the no-remote-cache self-hosted workflow and rerun
    `.github/workflows/ci-self-hosted.yml` on the exact SHA. Attach the GitHub
-   run ID and confirm the transient runner deregistered.
+   run ID and confirm the transient runner deregistered and local credentials
+   were erased.
+2. Reconfirm the source push creates zero Vercel deployments. Keep existing
+   READY production online; future Vercel releases remain one explicit manual
+   deployment after green CI.
 3. Keep deployed tenant-canary source at
    `ERP_PROJECT_WRITES_VIA_API=false`; leave the tenant allowlist empty until
    clean self-hosted GitHub workflow evidence is attached.

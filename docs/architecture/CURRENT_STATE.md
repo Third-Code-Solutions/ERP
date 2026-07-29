@@ -305,15 +305,16 @@ matches the repository migration contract:
   native Nest smoke. Its final Gitleaks step classified the deterministic
   `pg_dump --restrict-key` delimiter as a generic API key. A path-and-value
   specific allowlist is prepared locally.
-- Vercel Git integration currently creates two deployments per synchronized
-  commit: production from `main` and preview from the feature ref. Four CI-only
-  commits created eight READY deployments. No further push or deploy is
-  authorized until automatic Git deployment is disabled.
-- `apps/web/vercel.json` now contains the local fail-closed guard
-  `git.deploymentEnabled=false`. It is intentionally unpushed: provider-side
-  Git disconnection must happen first so publishing the guard cannot create
-  another billed build.
-- Local remediation now passes JSON parsing, PowerShell parsing, Actionlint
-  1.7.12, Gitleaks 8.30.1 across 90 commits, and `git diff --check`. GitHub has
-  zero registered self-hosted runners; no runner process or stale work
-  directory remains.
+- Vercel Git integration was disconnected from `Third-Code-Solutions/ERP`.
+  Existing production deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` stayed
+  READY; landing, health, and readiness remained HTTP 200.
+- Guard commit `ae373ce6f399e0d4bc5c7ef23537cc4f9b842837` is synchronized to
+  `main` and `agent-02/third-code-erp-landing`. Vercel recorded zero
+  deployments after that push.
+- Self-hosted run `30421480977` passed every substantive gate on `ae373ce`:
+  locked install, workflow validation, lint, typecheck, unit tests, 48
+  migrations, 212/212 database tests, Nest integration, production build,
+  native smoke, and Gitleaks. The run was cancelled because `setup-node`
+  remained indefinitely in its post-job pnpm cache upload. The self-hosted
+  workflow now disables remote dependency-cache upload; a clean rerun remains
+  required.
