@@ -46,6 +46,33 @@ export const rfqDispatchDeadLetterSchema = z
   })
   .strict()
 
+export const notificationDeliveryJobSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    tenantId: z.string().uuid(),
+    outboxId: z.string().uuid(),
+    deliveryId: z.string().uuid(),
+  })
+  .strict()
+
+export const notificationSweepJobSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+  })
+  .strict()
+
+export const notificationDeliveryResultSchema = z
+  .object({
+    deliveryId: z.string().uuid(),
+    status: z.enum([
+      'delivered',
+      'already_delivered',
+      'already_processing',
+      'dead_letter',
+    ]),
+  })
+  .strict()
+
 export const logRfqQuoteCommandSchema = z
   .object({
     submissionId: z.string().uuid(),
@@ -108,6 +135,15 @@ export type RfqDispatchJob = z.infer<
 >
 export type RfqDispatchDeadLetter = z.infer<
   typeof rfqDispatchDeadLetterSchema
+>
+export type NotificationDeliveryJob = z.infer<
+  typeof notificationDeliveryJobSchema
+>
+export type NotificationSweepJob = z.infer<
+  typeof notificationSweepJobSchema
+>
+export type NotificationDeliveryResult = z.infer<
+  typeof notificationDeliveryResultSchema
 >
 export type RfqQuoteResult = z.infer<typeof rfqQuoteResultSchema>
 export type TransitionRfqCommand = z.infer<

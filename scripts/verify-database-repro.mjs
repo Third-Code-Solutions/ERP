@@ -54,6 +54,7 @@ const requiredMigrations = [
   '20260727194757_fix_cash_posting_alias_resolution.sql',
   '20260727194805_fix_finance_workflow_guards.sql',
   '20260728005112_fix_purchase_order_status_catalog.sql',
+  '20260729233017_notification_outbox_foundation.sql',
 ]
 
 const requiredTables = [
@@ -87,6 +88,8 @@ const requiredTables = [
   'project_budget_lines',
   'stock_movements',
   'stock_movement_lines',
+  'notification_outbox',
+  'notification_deliveries',
 ]
 
 const requiredPolicies = [
@@ -188,6 +191,10 @@ const requiredPolicies = [
 
 const requiredIndexes = [
   'ux_cortex_nodes_current',
+  'ux_notification_outbox_tenant_event',
+  'ux_notification_deliveries_recipient_channel',
+  'ux_notification_deliveries_tenant_idempotency',
+  'ux_notifications_tenant_source_delivery',
   'ux_cortex_edges_current',
   'idx_cortex_nodes_embedding',
   'idx_cortex_conversations_tenant_user',
@@ -745,6 +752,38 @@ try {
         .map((row) => `${row.tablename}.${row.policyname}`)
       return `missing=[${missing.join(',')}], unexpected=[${unexpected.join(',')}], weak=[${weak.join(',')}]`
     }
+  )
+
+  await query(
+    'notification outbox and delivery authority is server-only',
+    `select
+       has_table_privilege(
+         'authenticated',
+         'public.notification_outbox',
+         'select,insert,update,delete'
+       ) as authenticated_outbox,
+       has_table_privilege(
+         'authenticated',
+         'public.notification_deliveries',
+         'select,insert,update,delete'
+       ) as authenticated_deliveries,
+       has_table_privilege(
+         'authenticated',
+         'public.notifications',
+         'insert,update,delete'
+       ) as authenticated_notification_write,
+       has_table_privilege(
+         'authenticated',
+         'public.notifications',
+         'select'
+       ) as authenticated_notification_read`,
+    (rows) =>
+      rows.length === 1
+      && rows[0].authenticated_outbox === false
+      && rows[0].authenticated_deliveries === false
+      && rows[0].authenticated_notification_write === false
+      && rows[0].authenticated_notification_read === true,
+    (rows) => JSON.stringify(rows[0] ?? {})
   )
 
   await query(
@@ -1438,7 +1477,10 @@ try {
   )
 
   const authenticatedReadableTables = requiredTables.filter(
-    (table) => table !== 'financial_sequences'
+    (table) =>
+      table !== 'financial_sequences' &&
+      table !== 'notification_outbox' &&
+      table !== 'notification_deliveries'
   )
 
   const minimumAuthenticatedTableGrants = [

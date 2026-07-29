@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   createRfqCommandSchema,
   logRfqQuoteCommandSchema,
+  notificationDeliveryJobSchema,
+  notificationDeliveryResultSchema,
+  notificationSweepJobSchema,
   rfqCreationResultSchema,
   rfqDispatchDeadLetterSchema,
   rfqDispatchJobSchema,
@@ -101,6 +104,48 @@ describe('Approved-BOM RFQ dispatch contracts', () => {
       rfqDispatchDeadLetterSchema.safeParse({
         ...deadLetter,
         attemptsMade: 0,
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('RFQ notification delivery contracts', () => {
+  it('allows only opaque versioned delivery identity in Redis', () => {
+    const job = {
+      schemaVersion: 1 as const,
+      tenantId: UUID,
+      outboxId: UUID,
+      deliveryId: UUID,
+    }
+    expect(notificationDeliveryJobSchema.parse(job)).toEqual(job)
+    expect(
+      notificationDeliveryJobSchema.safeParse({
+        ...job,
+        recipientEmail: 'procurement@example.test',
+      }).success
+    ).toBe(false)
+    expect(
+      notificationSweepJobSchema.parse({ schemaVersion: 1 })
+    ).toEqual({ schemaVersion: 1 })
+  })
+
+  it('requires a strict delivery result', () => {
+    expect(
+      notificationDeliveryResultSchema.safeParse({
+        deliveryId: UUID,
+        status: 'delivered',
+      }).success
+    ).toBe(true)
+    expect(
+      notificationDeliveryResultSchema.safeParse({
+        deliveryId: UUID,
+        status: 'already_processing',
+      }).success
+    ).toBe(true)
+    expect(
+      notificationDeliveryResultSchema.safeParse({
+        deliveryId: UUID,
+        status: 'processing',
       }).success
     ).toBe(false)
   })

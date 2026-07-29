@@ -1101,3 +1101,33 @@ and a controlled hosted canary is approved.
 Rollback: leave the flag absent/false and the allowlist empty, or revert this
 source milestone. The existing Inngest path remains authoritative. No schema,
 data, Supabase, Storage, Python, UI, or Vercel rollback is required.
+
+## D-065 -- Automatic RFQ notifications use a PostgreSQL outbox
+
+Date: 2026-07-30
+
+Decision: the automatic NestJS RFQ transaction commits one tenant-scoped
+notification intent and immutable procurement-recipient delivery snapshots
+with the RFQ and semantic audit. BullMQ jobs carry only version and UUID
+identity. PostgreSQL owns delivery state, attempt count, stale recovery,
+terminal evidence, and in-app uniqueness.
+
+Email content is rebuilt server-side from authorized PostgreSQL rows and sent
+with one stable provider idempotency key. Missing email configuration fails
+closed. An active processing claim is not reclaimed; a stale claim may be
+recovered, but the database ceiling prevents more than five provider attempts.
+
+Recovery scheduling requires exact
+`ERP_NOTIFICATION_SWEEP_ENABLED=true` and defaults false. Automatic dispatch,
+its tenant allowlist, and recovery scheduling remain disabled until an
+approved tenant canary.
+
+Reason: notification intent must survive a process or Redis failure without
+repeating the official RFQ transaction, leaking business data into Redis, or
+creating unbounded provider cost. Database authority plus provider
+idempotency makes retries observable and bounded.
+
+Rollback: keep all three flags absent/false and revert application source if
+needed. Leave the forward migration and durable evidence in place. Do not
+delete outbox or dead-letter records. Existing Inngest behavior remains
+authoritative while the Nest path is disabled.

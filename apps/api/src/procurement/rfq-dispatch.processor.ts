@@ -19,6 +19,7 @@ import {
   RFQ_DISPATCH_QUEUE,
 } from './rfq-dispatch.constants'
 import { ProcurementService } from './procurement.service'
+import { NotificationDeliveryQueue } from './notification-delivery.queue'
 
 @Processor(RFQ_DISPATCH_QUEUE)
 export class RfqDispatchProcessor extends WorkerHost {
@@ -32,7 +33,9 @@ export class RfqDispatchProcessor extends WorkerHost {
       RfqDispatchDeadLetter,
       void,
       string
-    >
+    >,
+    @Inject(NotificationDeliveryQueue)
+    private readonly notificationQueue: NotificationDeliveryQueue
   ) {
     super()
   }
@@ -47,7 +50,22 @@ export class RfqDispatchProcessor extends WorkerHost {
     if (!parsed.success) {
       throw new Error('Invalid RFQ dispatch job data')
     }
-    return this.procurement.createFromApprovedBom(parsed.data)
+    const result = await this.procurement.createFromApprovedBom(
+      parsed.data
+    )
+    if (result.notificationOutboxId) {
+      await this.notificationQueue.enqueueOutbox(
+        parsed.data.tenantId,
+        result.notificationOutboxId
+      )
+    }
+    return {
+      rfqId: result.rfqId,
+      tenantId: result.tenantId,
+      projectId: result.projectId,
+      lineCount: result.lineCount,
+      created: result.created,
+    }
   }
 
   @OnWorkerEvent('failed')

@@ -1136,3 +1136,36 @@ matches the repository migration contract:
   hosted job could not start; dependent jobs were skipped. No self-hosted
   runner remains registered. Local and disposable evidence is authoritative
   for this release.
+
+## 2026-07-30 RFQ notification outbox and BullMQ delivery
+
+- Automatic NestJS RFQ creation now commits one immutable
+  `notification_outbox` intent and same-tenant procurement-recipient delivery
+  snapshots in the same PostgreSQL transaction as the RFQ and semantic audit.
+- Exact replay returns the existing outbox. Database uniqueness prevents a
+  second intent, recipient/channel delivery, or in-app notification.
+- BullMQ carries only tenant, outbox, and delivery UUIDs. PostgreSQL remains
+  the delivery authority with explicit `pending`, `processing`, `delivered`,
+  and `dead_letter` states, a five-attempt database ceiling, and stale-claim
+  recovery.
+- In-app delivery revalidates the current procurement role and commits its
+  notification and delivered state together. Email delivery rebuilds content
+  from PostgreSQL and uses a stable Resend idempotency key.
+- Browser roles have no access to outbox/delivery tables and can no longer
+  directly insert, update, or delete notifications. Existing authorized
+  notification reads remain unchanged.
+- Recovery polling is opt-in through exact
+  `ERP_NOTIFICATION_SWEEP_ENABLED=true`; its default is false. The disabled
+  production path therefore creates no scheduled Redis or email-provider
+  work.
+- Hosted Supabase project `aqqrtkmtcsfkbyyqxowv` is healthy on PostgreSQL 17.
+  Migration `20260729233017_notification_outbox_foundation.sql` is applied;
+  ledger is 55/55, both new tables have zero rows, all three composite
+  constraints are validated, and browser privileges are closed.
+- Supabase advisors add only expected informational findings for the two
+  intentionally policy-free/server-only empty tables and their unused new
+  indexes. Existing unrelated warnings remain tracked.
+- Production automatic dispatch, tenant allowlist, and notification recovery
+  flags remain disabled. Existing Inngest behavior remains authoritative.
+- No React/UI, Python, Storage, or Vercel deployment changed. Vercel Git
+  remains disconnected.

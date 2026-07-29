@@ -3028,3 +3028,85 @@ Provider evidence:
   Actionlint could not start and all dependent jobs were skipped. GitHub
   reports zero registered self-hosted runners. The complete local and
   disposable PostgreSQL/Redis evidence above remains the release gate.
+
+## 2026-07-30 -- RFQ notification outbox and BullMQ delivery
+
+Outcome:
+
+- Wrote an original clean-room notification outbox specification before code.
+- Added atomic RFQ, semantic-audit, outbox-intent, and recipient-snapshot
+  persistence in NestJS/PostgreSQL.
+- Added UUID-only BullMQ jobs, deterministic job identity, five-attempt
+  database and queue ceilings, active-claim suppression, stale recovery, and
+  durable dead-letter state.
+- Added idempotent in-app delivery and server-built Resend delivery with one
+  provider idempotency key per delivery.
+- Removed browser write authority from notifications and exposed no browser
+  privileges on outbox/delivery tables.
+- Made the one-minute recovery sweep opt-in and false by default to avoid
+  continuous Redis work while automatic routing is disabled.
+- Applied hosted migration
+  `20260729233017_notification_outbox_foundation.sql` to Supabase project
+  `aqqrtkmtcsfkbyyqxowv`.
+- Kept all production cutover flags disabled. Existing Inngest behavior
+  remains authoritative.
+
+Changed files:
+
+- `apps/api/src/config/environment.ts`
+- `apps/api/src/config/environment.spec.ts`
+- `apps/api/src/procurement/notification-*`
+- `apps/api/src/procurement/procurement.service.ts`
+- `apps/api/src/procurement/procurement.service.spec.ts`
+- `apps/api/src/procurement/rfq-dispatch.processor.ts`
+- `apps/api/src/procurement/rfq-dispatch.processor.spec.ts`
+- `apps/api/src/procurement/procurement.module.ts`
+- `apps/api/integration/procurement.database.integration.spec.ts`
+- `apps/api/integration/rfq-dispatch.redis.integration.spec.ts`
+- `packages/database/src/schema/notifications.ts`
+- `packages/database/src/__tests__/notification-outbox.test.ts`
+- `packages/shared-types/src/erp-api/procurement.ts`
+- `packages/shared-types/src/erp-api/procurement.test.ts`
+- `scripts/verify-database-repro.mjs`
+- `supabase/migrations/20260729233017_notification_outbox_foundation.sql`
+- `docs/research/components/rfq-notification-outbox-nest-bullmq.spec.md`
+- the six architecture/operations memory files
+
+Validation:
+
+- Focused shared, database, and API tests pass.
+- Root tests pass: 444 application tests; ordinary database run passes 103
+  tests with 137 intentional disposable-only skips.
+- Sequential root lint and typecheck pass after the production build. The
+  first parallel run only raced Next's generated `.next/types` replacement.
+- Production build passes: Nest bundle and 77/77 Next generated pages.
+- Disposable PostgreSQL 17/Redis 7.4.9 lane passes 55/55 migrations, 240/240
+  zero-skip database assertions, and 7/7 Nest integration tests.
+- Real integration proves atomic replay, one in-app notification, one provider
+  call, active-claim suppression, database attempt ceiling, final dead letter,
+  Redis restart/reconnect, and database-pending recovery after Redis loss.
+- Stable schema SHA-256 is
+  `5429BBD50089170BFCA7E624C928DB6EBEA30E3D2585E26439CEF592710B6E8C`.
+- Actionlint 1.7.12, immutable action-reference checks, both release planners,
+  Gitleaks 8.30.1, and `git diff --check` pass.
+
+Hosted database evidence:
+
+- Project `ERP` is `ACTIVE_HEALTHY` on PostgreSQL 17.6.
+- Ledger is 55/55 at `20260729233017`.
+- New outbox and delivery tables contain zero rows.
+- Three tenant-composite foreign keys are present and validated.
+- `anon` and `authenticated` cannot access either server-only table.
+- `authenticated` cannot insert, update, or delete notifications.
+- Advisor additions are informational only: RLS-with-no-policy for two
+  intentionally fail-closed tables and unused indexes on two empty tables.
+
+Rollback and unresolved:
+
+- Keep automatic routing, its tenant allowlist, and recovery scheduling
+  absent/false. Revert application source if needed; leave the forward
+  migration applied and preserve delivery evidence.
+- Resend configuration is intentionally absent from this disabled milestone.
+- A production canary still requires explicit clean-tenant approval,
+  environment diff, monitoring, reconciliation, and rollback.
+- Vercel Git remains disconnected and no frontend deployment is authorized.

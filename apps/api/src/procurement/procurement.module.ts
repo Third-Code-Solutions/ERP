@@ -14,13 +14,19 @@ import {
 } from './rfq-dispatch.constants'
 import { RfqDispatchProcessor } from './rfq-dispatch.processor'
 import { RfqDispatchQueue } from './rfq-dispatch.queue'
+import { NOTIFICATION_DELIVERY_QUEUE } from './notification-delivery.constants'
+import { NotificationDeliveryProcessor } from './notification-delivery.processor'
+import { NotificationDeliveryQueue } from './notification-delivery.queue'
+import { NotificationDeliveryService } from './notification-delivery.service'
+import { NotificationEmailService } from './notification-email.service'
 
 @Module({
   imports: [
     AuditModule,
     BullModule.registerQueue(
       { name: RFQ_DISPATCH_QUEUE },
-      { name: RFQ_DISPATCH_DEAD_LETTER_QUEUE }
+      { name: RFQ_DISPATCH_DEAD_LETTER_QUEUE },
+      { name: NOTIFICATION_DELIVERY_QUEUE }
     ),
   ],
   controllers: [ProcurementController],
@@ -28,6 +34,10 @@ import { RfqDispatchQueue } from './rfq-dispatch.queue'
     ProcurementService,
     RfqDispatchQueue,
     RfqDispatchProcessor,
+    NotificationDeliveryQueue,
+    NotificationDeliveryProcessor,
+    NotificationDeliveryService,
+    NotificationEmailService,
   ],
 })
 export class ProcurementModule implements NestModule {
