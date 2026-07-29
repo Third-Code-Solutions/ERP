@@ -199,3 +199,13 @@ reach through each other's internals.
   transactional audit triggers.
 - Legacy upload remains default until a disabled-by-default, tenant-scoped
   canary proves compatibility, reconciliation, and rollback.
+
+## Upload access boundary
+
+- Before issuing a signed object-upload URL or recording document metadata,
+  server code loads Project by both authenticated tenant and Project ID.
+- Missing and cross-tenant Projects return the same 404 response.
+- Rejection occurs before quota, Storage, database mutation, parsing, AI, or
+  queue work.
+- Database composite tenant/Project constraints remain required defense in
+  depth; application checks do not replace them.

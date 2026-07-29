@@ -469,3 +469,25 @@ Rollback: keep new route flag false and tenant allowlist empty, stop queue
 consumption, preserve job/evidence/audit records, and retain legacy path.
 Applied schema rollback is a reviewed forward compensation; immutable evidence
 and audit rows are never deleted.
+
+## D-043 -- Uploads prove same-tenant Project access before side effects
+
+Decision: upload sign and complete routes must load Project with both
+authenticated tenant and requested Project ID before quota, Storage,
+document-recording, parsing, AI, or queue work. Missing and cross-tenant
+Projects return the same 404 response.
+
+Reason: storage-path prefix validation proves string shape, not Project
+ownership. Independent tenant and Project foreign keys also do not prove both
+records belong together. Shared `getProject` compounded the gap by querying
+only tenant and comparing requested ID against one returned row.
+
+Validation: require exact generated SQL predicates for tenant and Project ID,
+cross-tenant denial tests for both routes, valid same-tenant compatibility
+tests, full type/lint/test/build gates, and final live authenticated proof after
+an explicitly approved deployment.
+
+Rollback: revert shared query, two route guards, and their tests together.
+No database or provider rollback is needed for source-only work. If deployed,
+promote last known-good Vercel artifact; never disable tenant checks to recover
+an unrelated upload failure.

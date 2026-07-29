@@ -75,8 +75,11 @@ Verified source:
    uniqueness constraint proved for concurrent requests.
 10. `documents` and `scope_items` each reference tenant and project
     independently. The database does not prove that both belong together.
-11. The upload sign and complete routes derive the user tenant, but do not
-    first load the requested Project with both tenant and Project ID.
+11. At this design baseline, upload sign and complete derived user tenant but
+    did not first load requested Project with both tenant and Project ID. A
+    later source-only hardening candidate adds that application guard; live
+    production and composite database integrity remain unchanged until their
+    separately controlled releases.
 12. RLS exists on `documents` and `scope_items`, but elevated server and worker
     connections can bypass it.
 13. Hosted `documents` and `scope_items` have no audit trigger.

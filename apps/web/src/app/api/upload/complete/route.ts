@@ -6,6 +6,7 @@ import { documents, users } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { inngest } from '@/lib/inngest'
 import { parseAndStoreCad } from '@/lib/cad/parse-and-store'
+import { getProject } from '@/lib/project-queries'
 import {
   extractScopeFromVisual,
   type VisualExtractResult,
@@ -90,6 +91,11 @@ export async function POST(req: NextRequest) {
   }
 
   const { storagePath, projectId, fileName, mimeType, sizeBytes, description } = parsed.data
+
+  const project = await getProject(userRow.tenant_id, projectId)
+  if (!project) {
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+  }
 
   const expectedPrefix = `${userRow.tenant_id}/${projectId}/`
   if (!storagePath.startsWith(expectedPrefix)) {
