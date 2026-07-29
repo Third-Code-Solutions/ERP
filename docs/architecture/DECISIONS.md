@@ -674,3 +674,30 @@ tests, and documentation together. The existing whole graph and entity panels
 remain functional. No schema, business row, Storage, queue, backend-provider,
 or deployment rollback is required. If later deployed, promote the retained
 last-known-good Vercel artifact without reconnecting Git.
+
+## D-051 -- Saved Cortex record context is immutable and server-authorized
+
+Decision: store an optional complete canonical source-table and UUID pair on
+the conversation, not a client-selected tenant or internal graph-node ID.
+Authorize the pair before creation, keep it immutable, and reauthorize its
+current node, canonical entity mapping, tenant, and role on every reply and
+history read. Preserve unscoped conversations. Remove authenticated browser
+write policies and grants from Cortex conversation and message tables.
+
+Reason: record-scoped AI cannot remain honest across reloads if focus exists
+only in a URL or React state. Storing a node ID would bind history to an
+internal graph lifecycle, while trusting a browser-supplied tenant or direct
+database write would weaken tenant isolation and audit authority.
+
+Validation: require bounded input tests, create/restore/mismatch/revocation
+route tests, canonical registry and role checks, pair-constraint runtime
+proof, authenticated direct-write denial, 51-migration clean replay, 224/224
+zero-skip database tests, Nest integration, full lint/typecheck/test/build,
+secret and workflow scans, hosted catalog verification, and advisor review.
+
+Rollback: revert application code first if necessary; nullable columns and
+removed browser write grants are backward compatible with the retained live
+frontend. Database rollback is a reviewed compensating forward migration only:
+restore the exact prior grants/policies if direct browser mutation is
+deliberately reauthorized, then remove the constraint/columns only after
+proving no scoped conversation remains. Never edit hosted migration history.

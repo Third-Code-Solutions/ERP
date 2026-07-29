@@ -319,3 +319,23 @@ reach through each other's internals.
   and produce no horizontal overflow at 1440, 768, or 390.
 - Focused graph context remains read-only and cannot approve, post, reverse,
   allocate, or finalize an ERP transaction.
+
+## Cortex conversation-context boundary
+
+- A saved conversation may bind immutably to one canonical ERP record through
+  a complete source-table and UUID pair. Unscoped conversations remain valid.
+- Browser input is an untrusted navigation hint. The server derives tenant and
+  role, resolves the current node, checks canonical source/type ownership, and
+  applies current-role scope before reading or writing conversation data.
+- Missing, mismatched, revoked, and forbidden records return the same
+  non-enumerating response. History must hide context the current user can no
+  longer access.
+- Browser roles may select authorized conversation rows but cannot insert,
+  update, or delete conversations or messages directly. Official writes use
+  server transaction authority.
+- Record context grounds analysis and citations only. AI may explain,
+  summarize, or recommend; it cannot approve, post, reverse, allocate, or
+  finalize ERP transactions.
+- The next presentation slice must expose the active record clearly, preserve
+  saved-conversation semantics, and pass keyboard, responsive, console, and
+  overflow QA before any explicitly approved consolidated Vercel release.

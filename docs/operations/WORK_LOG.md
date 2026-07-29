@@ -1884,3 +1884,80 @@ Rollback and unresolved:
 - Durable conversation focus metadata remains required before record-scoped
   Cortex chat can be honest across saved follow-ups.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Durable Cortex conversation record context
+
+Outcome:
+
+- Added one optional immutable canonical source-table and UUID pair to saved
+  Cortex conversations.
+- Added tenant-, source/type-, and current-role authorization before creating,
+  listing, loading, or replying in a record-scoped conversation.
+- Added non-enumerating denial for missing, mismatched, revoked, and forbidden
+  context, plus 409 denial for client attempts to switch an existing
+  conversation to another record.
+- Grounded the model prompt and deterministic fallback in the authorized
+  focused record.
+- Preserved existing unscoped conversations and the plain-text chat response.
+- Removed authenticated browser write authority from Cortex conversations and
+  messages. Official writes remain server-side.
+- Applied hosted migration
+  `20260729115110_cortex_conversation_record_context.sql` to Supabase project
+  `aqqrtkmtcsfkbyyqxowv`. Hosted ledger is 51/51; ten existing conversations
+  remain and zero have an incomplete context pair.
+- No UI presentation changed. Vercel Git remains disconnected; no Vercel
+  deployment or spend occurred.
+
+Changed files:
+
+- `apps/web/src/app/api/cortex/chat/route.ts`
+- `apps/web/src/app/api/cortex/chat/route.test.ts`
+- `apps/web/src/app/api/cortex/conversations/route.ts`
+- `apps/web/src/app/api/cortex/conversations/route.test.ts`
+- `apps/web/src/app/api/cortex/conversations/[id]/route.ts`
+- `apps/web/src/app/api/cortex/conversations/[id]/route.test.ts`
+- `apps/web/src/lib/cortex/record-context.ts`
+- `apps/web/src/lib/cortex/record-context.test.ts`
+- `packages/database/src/schema/cortex-chat.ts`
+- `packages/database/src/cortex/chat-store.ts`
+- `packages/database/src/__tests__/cortex-conversation-context.test.ts`
+- `packages/database/src/__tests__/cortex-cost-security-hardening.test.ts`
+- `scripts/verify-database-repro.mjs`
+- `supabase/migrations/20260729115110_cortex_conversation_record_context.sql`
+- the six architecture/operations memory files
+
+Validation:
+
+- Focused Web API/context tests -- 16/16 pass.
+- Root lint and typecheck -- pass.
+- Root tests -- 369 pass; 132 writable-database cases skip unless an explicit
+  disposable URL is injected.
+- Root production build -- pass; Nest webpack build passes and Next generates
+  77/77 static steps.
+- Disposable PostgreSQL 17/Redis 7.4.9 lane -- 51/51 migrations, catalog
+  verifier pass, 224/224 database tests with zero skips, Nest database
+  integration pass, and unchanged schema fingerprint
+  `C89987BD5B4E7DAA2F53DDD0036FBE3614D385844078453B052E992516935260`.
+- Runtime database assertions -- complete context pair accepted, half pair
+  rejected, and authenticated direct conversation insert rejected.
+- Hosted catalog -- pair constraint validated; zero authenticated Cortex chat
+  write policies, table grants, or column grants.
+- Supabase advisors -- no new Cortex security finding. Existing security and
+  performance findings remain separately tracked.
+- Gitleaks 8.30.1, Actionlint 1.7.12, diff check, and prohibited external ERP
+  source/brand scan -- clean.
+
+Rollback and unresolved:
+
+- Application rollback is a source revert. The nullable hosted columns and
+  server-only write privileges remain backward compatible with the retained
+  frontend.
+- Database rollback requires a reviewed compensating forward migration; never
+  edit or delete applied migration history.
+- `CortexAgent` does not yet send or display durable record context. That UI
+  wiring is the exact next product slice.
+- A missing leading index for the pre-existing
+  `cortex_conversations.user_id` foreign key and other advisor findings remain
+  outside this milestone.
+- GitHub Actions remains blocked before runner start by account billing.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

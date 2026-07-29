@@ -1,10 +1,24 @@
 # Next Actions
 
-## Exact next action
+## Exact next product slice
+
+Wire the existing Cortex UI to the durable authorized conversation context:
+
+1. Run the `gpt-taste` design preflight before changing presentation.
+2. Derive the focused canonical record only from the authorized URL contract.
+3. Send the complete record-reference pair when creating a conversation.
+4. Display the active record and preserve it when opening saved history.
+5. Prevent silent context switching; require a new conversation for a
+   different record.
+6. Add route, component, keyboard, 1440/768/390, console, and overflow tests.
+7. Keep the source candidate local/GitHub until one consolidated Vercel build
+   is explicitly approved. Do not reconnect Git or create a preview.
+
+## Standing M1 controls
 
 Complete remaining M1 controls without enabling production writes:
 
-1. Treat hosted Supabase migration `20260729054456` as the current 50/50
+1. Treat hosted Supabase migration `20260729115110` as the current 51/51
    baseline. Do not replay it or edit applied migration history.
 2. Treat organization type as constrained tenant profile data only. Never use
    it for roles, capabilities, memberships, approvals, or tenant access.

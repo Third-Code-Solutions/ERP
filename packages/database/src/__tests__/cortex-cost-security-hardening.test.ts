@@ -429,7 +429,7 @@ runtimeSuite('Cortex/cost hardening runtime proof', () => {
     }
   )
 
-  it('exposes read-only graph/provenance and append-only message grants', async () => {
+  it('exposes read-only Cortex grants and server-only chat mutation', async () => {
     const grants = (await sql.unsafe(
       `select
          has_table_privilege('authenticated','cortex_nodes','SELECT') as nodes_read,
@@ -452,7 +452,7 @@ runtimeSuite('Cortex/cost hardening runtime proof', () => {
       provenance_insert: false,
       messages_update: false,
       messages_delete: false,
-      messages_append: true,
+      messages_append: false,
       audit_insert: false,
       anon_nodes_read: false,
       service_nodes_insert: true,

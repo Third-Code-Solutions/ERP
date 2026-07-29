@@ -94,10 +94,7 @@ const requiredPolicies = [
   ['cortex_edges', 'cortex_edges_tenant_read'],
   ['cortex_provenance', 'cortex_provenance_tenant_read'],
   ['cortex_conversations', 'cortex_conversations_owner_read'],
-  ['cortex_conversations', 'cortex_conversations_owner_insert'],
-  ['cortex_conversations', 'cortex_conversations_owner_update'],
   ['cortex_messages', 'cortex_messages_parent_owner_read'],
-  ['cortex_messages', 'cortex_messages_parent_owner_insert'],
   ['audit_log', 'audit_log_tenant_read'],
   ['cost_entries', 'cost_entries_tenant_read'],
   ['cost_entries', 'cost_entries_tenant_insert'],
@@ -748,6 +745,44 @@ try {
         .map((row) => `${row.tablename}.${row.policyname}`)
       return `missing=[${missing.join(',')}], unexpected=[${unexpected.join(',')}], weak=[${weak.join(',')}]`
     }
+  )
+
+  await query(
+    'Cortex conversations have durable paired record context',
+    `select issue
+       from (
+         select 'missing context_ref_table' as issue
+          where not exists (
+            select 1
+              from information_schema.columns
+             where table_schema = 'public'
+               and table_name = 'cortex_conversations'
+               and column_name = 'context_ref_table'
+               and data_type = 'character varying'
+          )
+         union all
+         select 'missing context_ref_id'
+          where not exists (
+            select 1
+              from information_schema.columns
+             where table_schema = 'public'
+               and table_name = 'cortex_conversations'
+               and column_name = 'context_ref_id'
+               and data_type = 'uuid'
+          )
+         union all
+         select 'missing context pair check'
+          where not exists (
+            select 1
+              from pg_constraint
+             where conrelid = 'public.cortex_conversations'::regclass
+               and conname = 'cortex_conversations_context_pair_check'
+               and contype = 'c'
+               and convalidated
+          )
+       ) as problems`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => row.issue).join(', ')
   )
 
   await query(
@@ -1445,16 +1480,6 @@ try {
   )
 
   const minimumAuthenticatedColumnGrants = [
-    ['cortex_conversations', 'tenant_id', 'INSERT'],
-    ['cortex_conversations', 'user_id', 'INSERT'],
-    ['cortex_conversations', 'title', 'INSERT'],
-    ['cortex_conversations', 'title', 'UPDATE'],
-    ['cortex_conversations', 'updated_at', 'UPDATE'],
-    ['cortex_messages', 'tenant_id', 'INSERT'],
-    ['cortex_messages', 'conversation_id', 'INSERT'],
-    ['cortex_messages', 'role', 'INSERT'],
-    ['cortex_messages', 'content', 'INSERT'],
-    ['cortex_messages', 'citations', 'INSERT'],
     ['cost_entries', 'tenant_id', 'INSERT'],
     ['cost_entries', 'project_id', 'INSERT'],
     ['cost_entries', 'cost_code_id', 'INSERT'],
@@ -1972,6 +1997,24 @@ try {
         column_name,
         privilege
       )`,
+    (rows) => rows.length === 0,
+    (rows) =>
+      rows
+        .map(
+          (row) =>
+            `${row.table_name}.${row.column_name}:${row.privilege}`
+        )
+        .join(', ')
+  )
+
+  await query(
+    'authenticated role has no column-level chat mutation grants',
+    `select table_name, column_name, privilege_type as privilege
+       from information_schema.column_privileges
+      where table_schema = 'public'
+        and grantee = 'authenticated'
+        and table_name in ('cortex_conversations', 'cortex_messages')
+        and privilege_type in ('INSERT', 'UPDATE', 'DELETE')`,
     (rows) => rows.length === 0,
     (rows) =>
       rows

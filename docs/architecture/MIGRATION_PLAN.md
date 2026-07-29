@@ -17,7 +17,7 @@ Status: complete on 2026-07-27.
 
 ### M1 — Nest transaction-authority foundation
 
-Status: source published; hosted database reconciled through migration 50;
+Status: source published; hosted database reconciled through migration 51;
 NestJS/Redis deployed on Railway; Next.js deployed on Vercel; live
 Auth/capability/tenant isolation proved without writes; command observability
 and safe source-level rollback selection proved; controlled hosted mutation,
@@ -99,6 +99,14 @@ Production entry status:
   type, safely backfilled existing tenants to `other`, and aligned the shared
   catalog across Web, TypeScript, Drizzle, trigger SQL, tests, and the database
   verifier. Hosted identity/tenant counts remained unchanged.
+- Complete Cortex conversation authority: applied `20260729115110`, added an
+  immutable optional canonical record-reference pair, reauthorized saved
+  context on every read/reply, and revoked authenticated browser writes from
+  Cortex conversations and messages. Existing unscoped history remains valid.
+- Complete local database evidence for that slice: 51-migration clean replay,
+  224/224 zero-skip database tests, authenticated direct-write denial, pair
+  constraint enforcement, Nest database integration, and stable rollback
+  fingerprint.
 - Complete emergency route proof: authenticated Admin `/dashboard` hard reload
   renders KPI and Risk Signals content with zero browser-console errors;
   Vercel records successful route requests and zero runtime errors in the
