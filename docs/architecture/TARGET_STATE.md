@@ -242,3 +242,17 @@ reach through each other's internals.
 - Application filtering supplements PostgreSQL RLS and database authorization;
   it never replaces them. Any new node type requires coordinated database
   policy, mirror, registry, route, and test changes.
+
+## Cortex citation trust boundary
+
+- A grounded answer may expose only citations already authorized for the
+  caller's tenant and current role.
+- The streamed answer body remains backward-compatible `text/plain`; bounded
+  navigation metadata travels in a separate response header.
+- Persisted conversation metadata is an index only. History rendering
+  rehydrates citation node IDs from current graph state and never trusts stored
+  titles, references, Project IDs, or routes.
+- Canonical entity-registry navigation owns record URLs. Unknown or non-routed
+  node types render non-interactive labels instead of guessed links.
+- Citation controls require readable labels, visible focus, 44px mobile
+  targets, bounded text, and zero horizontal overflow.

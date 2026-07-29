@@ -26,6 +26,7 @@ import {
 } from '../cortex/graph'
 import {
   cortexDescribeEntity,
+  getCortexCitationsByNodeIds,
   getCortexContextPack,
   cortexEmbeddingText,
   cortexKeywordAnswer,
@@ -340,6 +341,29 @@ suite('Cortex substrate', () => {
     expect(answer.found).toBe(true)
     expect(answer.summary.length).toBeGreaterThan(0)
     expect(answer.citations.length).toBeGreaterThanOrEqual(1)
+
+    const visible = await getCortexCitationsByNodeIds(
+      DEMO_TENANT,
+      [pack!.node.id],
+      ['project']
+    )
+    expect(visible).toHaveLength(1)
+    expect(visible[0]!.nodeId).toBe(pack!.node.id)
+    expect(visible[0]!.refId).toBe(projectId)
+    expect(
+      await getCortexCitationsByNodeIds(
+        DEMO_TENANT,
+        [pack!.node.id],
+        []
+      )
+    ).toEqual([])
+    expect(
+      await getCortexCitationsByNodeIds(
+        ZERO_UUID,
+        [pack!.node.id],
+        null
+      )
+    ).toEqual([])
   })
 
   it('retrieval returns an explicit "not found" answer for an unknown entity', async () => {

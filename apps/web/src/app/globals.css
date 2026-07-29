@@ -1548,13 +1548,33 @@ a { color: inherit; }
 .cortex-panel__chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .cortex-chip {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 5px;
   max-width: 100%;
+  min-height: 32px;
   padding: 3px 8px;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background: var(--color-neutral-50);
+  text-decoration: none;
+}
+.cortex-chip--link {
+  cursor: pointer;
+  transition:
+    background-color 160ms ease-out,
+    border-color 160ms ease-out,
+    color 160ms ease-out;
+}
+.cortex-chip--link:hover {
+  background: var(--color-info-soft);
+  border-color: var(--color-navy-700);
+}
+.cortex-chip--link:hover .cortex-chip__name {
+  color: var(--color-neutral-900);
+}
+.cortex-chip--link:focus-visible {
+  outline: 2px solid var(--color-navy-700);
+  outline-offset: 2px;
 }
 .cortex-chip__type {
   font-size: 0.625rem;
@@ -1676,13 +1696,27 @@ a { color: inherit; }
 .cortex-agent__chip:hover { background: var(--color-info-soft); }
 .cortex-msg { display: flex; }
 .cortex-msg--user { justify-content: flex-end; }
-.cortex-msg--assistant { justify-content: flex-start; }
+.cortex-msg--assistant {
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: flex-start;
+}
 .cortex-msg__bubble {
   max-width: 84%; padding: 9px 12px; font-size: 0.8125rem; line-height: 1.5; white-space: pre-wrap;
   border-radius: 12px;
 }
 .cortex-msg--user .cortex-msg__bubble { background: var(--color-navy-700); color: white; border-bottom-right-radius: 2px; }
 .cortex-msg--assistant .cortex-msg__bubble { background: var(--color-neutral-100); color: var(--color-neutral-900); border-bottom-left-radius: 2px; }
+.cortex-msg__sources { width: 84%; margin-top: 6px; }
+.cortex-msg__sources-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-neutral-400);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 .cortex-agent__error { font-size: 0.75rem; color: var(--color-danger); text-align: center; }
 .cortex-agent__input { display: flex; gap: 8px; align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--color-border); }
 .cortex-agent__input textarea {
@@ -3659,4 +3693,11 @@ a { color: inherit; }
   }
   .budget-revision-evidence { grid-column: 1 / -1; }
   .budget-revision-evidence .budget-rejected-evidence { grid-column: auto; }
+}
+
+@media (max-width: 640px) {
+  .cortex-chip {
+    min-height: 44px;
+    padding: 8px 10px;
+  }
 }

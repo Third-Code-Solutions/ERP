@@ -494,3 +494,23 @@ matches the repository migration contract:
 - No schema, hosted row, Auth identity, Storage object, provider setting, or
   deployment changed. Live Vercel retains the old maps until one explicitly
   approved consolidated production build.
+
+## Cortex grounded citation navigation candidate
+
+- Cortex chat already generated and persisted grounded citations, but the
+  streamed response exposed only plain text and the conversation UI discarded
+  citation metadata.
+- Source now preserves the existing `text/plain` stream while returning up to
+  eight bounded citations in `X-Cortex-Citations`.
+- New assistant answers and restored conversation history render canonical
+  source-record links through the 48-type entity registry.
+- Conversation history trusts only stored node IDs. It rebuilds title,
+  reference, Project context, and route from current tenant-scoped graph data
+  under the viewer's current role.
+- Missing, superseded, cross-tenant, malformed, and role-forbidden citation
+  nodes are omitted. A role downgrade therefore cannot reveal stale stored
+  metadata.
+- Desktop citation targets have visible keyboard focus. At 390px, targets are
+  44px high and produce no horizontal overflow.
+- No schema, hosted row, Auth identity, Storage object, provider setting, or
+  deployment changed. Vercel Git remains disconnected.

@@ -13,6 +13,7 @@
  */
 import {
   getCortexNodeByRef,
+  getCortexCitationNodesByIds,
   getCortexNeighbors,
   getCortexProvenance,
   searchCortexNodesByTerms,
@@ -27,6 +28,7 @@ export interface Citation {
   refTable: string
   refId: string
   title: string | null
+  projectId: string | null
 }
 
 export interface ContextPack {
@@ -93,14 +95,61 @@ export function cortexEmbeddingText(
     .slice(0, 8000)
 }
 
-function toCitation(node: Pick<CortexNode, 'id' | 'node_type' | 'ref_table' | 'ref_id' | 'title'>): Citation {
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function projectIdFromAttributes(attributes: unknown): string | null {
+  if (
+    typeof attributes !== 'object' ||
+    attributes === null ||
+    !('project_id' in attributes)
+  ) {
+    return null
+  }
+  const projectId = (attributes as { project_id?: unknown }).project_id
+  return typeof projectId === 'string' && UUID_PATTERN.test(projectId)
+    ? projectId
+    : null
+}
+
+type CitationSource = Pick<
+  CortexNode,
+  'id' | 'node_type' | 'ref_table' | 'ref_id' | 'title'
+> & {
+  attributes?: unknown
+  projectId?: string | null
+}
+
+function toCitation(node: CitationSource): Citation {
+  const projectId =
+    typeof node.projectId === 'string' && UUID_PATTERN.test(node.projectId)
+      ? node.projectId
+      : projectIdFromAttributes(node.attributes)
   return {
     nodeId: node.id,
     nodeType: node.node_type,
     refTable: node.ref_table,
     refId: node.ref_id,
     title: node.title,
+    projectId,
   }
+}
+
+/**
+ * Rehydrate stored citation IDs under the caller's current tenant and role
+ * scope. Stored titles and references are never trusted when rendering history.
+ */
+export async function getCortexCitationsByNodeIds(
+  tenantId: string,
+  nodeIds: string[],
+  nodeTypes?: string[] | null
+): Promise<Citation[]> {
+  const nodes = await getCortexCitationNodesByIds(
+    tenantId,
+    nodeIds,
+    nodeTypes
+  )
+  return nodes.map(toCitation)
 }
 
 /**

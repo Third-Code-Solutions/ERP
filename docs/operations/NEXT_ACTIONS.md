@@ -60,6 +60,10 @@ Complete remaining M1 controls without enabling production writes:
   and viewer sessions to verify graph filtering, citation labels, record
   navigation, finance/inventory entity context, and non-enumerating denial.
   Do not buy a separate build for this source-only consistency change.
+- Include grounded citation navigation in that same reviewed SHA. Verify the
+  answer body remains plain text, new and restored citations open the exact
+  authorized record, malformed/stale citations disappear, and a role downgrade
+  removes now-forbidden sources. Do not buy a separate build.
 
 ## Following milestone
 
