@@ -1,8 +1,9 @@
 import { db } from '@third-code-erp/database'
-import { boms, costEntries, invoices, opportunities, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
-import { eq, and, inArray, lt, gte, lte, sum, count, sql, desc } from 'drizzle-orm'
+import { boms, costEntries, dailyTasks, invoices, opportunities, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
+import { eq, and, inArray, lt, gt, gte, lte, sum, count, sql, desc } from 'drizzle-orm'
 import { computeProjectCostSnapshot } from '@third-code-erp/shared-types/cost'
 import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
+import { manilaBoundaries } from '@/lib/operations/cadence-engine'
 
 export interface KpiData {
   activeTcv: number
@@ -11,6 +12,60 @@ export interface KpiData {
   activeDeals: number
   coverageLeads: number
   weightedPipeline: number
+}
+
+export interface MyWorkSummary {
+  dueToday: number
+  overdue: number
+  upcoming: number
+}
+
+export async function getMyWorkSummary(
+  tenantId: string,
+  userId: string,
+  now = new Date()
+): Promise<MyWorkSummary> {
+  const todayStart = manilaBoundaries.startOfDay(now)
+  const todayEnd = manilaBoundaries.endOfDay(now)
+  const weekEnd = new Date(todayEnd.getTime() + 7 * 86_400_000)
+  const base = [
+    eq(dailyTasks.tenant_id, tenantId),
+    eq(dailyTasks.assignee_id, userId),
+    eq(dailyTasks.status, 'pending'),
+  ] as const
+
+  const [todayRows, overdueRows, upcomingRows] = await Promise.all([
+    db
+      .select({ value: count() })
+      .from(dailyTasks)
+      .where(
+        and(
+          ...base,
+          gte(dailyTasks.due_date, todayStart),
+          lte(dailyTasks.due_date, todayEnd)
+        )
+      ),
+    db
+      .select({ value: count() })
+      .from(dailyTasks)
+      .where(and(...base, lt(dailyTasks.due_date, now))),
+    db
+      .select({ value: count() })
+      .from(dailyTasks)
+      .where(
+        and(
+          ...base,
+          gt(dailyTasks.due_date, todayEnd),
+          lte(dailyTasks.due_date, weekEnd)
+        )
+      ),
+  ])
+
+  return {
+    dueToday: Number(todayRows[0]?.value ?? 0),
+    overdue: Number(overdueRows[0]?.value ?? 0),
+    upcoming: Number(upcomingRows[0]?.value ?? 0),
+  }
 }
 
 export interface RepScorecard {

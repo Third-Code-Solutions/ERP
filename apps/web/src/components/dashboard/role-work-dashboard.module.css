@@ -1,0 +1,123 @@
+.section {
+  margin-top: 24px;
+}
+
+.sectionHeader {
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  color: var(--color-navy-900);
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.sectionDescription {
+  color: var(--color-neutral-500);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.workCard {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  min-height: 148px;
+  padding: 20px;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.workCard:hover {
+  background: var(--color-neutral-50);
+  border-color: var(--color-neutral-300);
+  transform: translateY(-1px);
+}
+
+.cardLabel {
+  color: var(--color-neutral-600);
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+.cardCount {
+  color: var(--color-navy-900);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  margin-top: 18px;
+}
+
+.cardCountDanger {
+  color: var(--color-danger);
+}
+
+.cardDetail {
+  color: var(--color-neutral-500);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.quickLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quickLink {
+  align-items: center;
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-navy-800);
+  display: inline-flex;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0 14px;
+  text-decoration: none;
+}
+
+.quickLink:hover {
+  background: var(--color-neutral-50);
+  border-color: var(--color-neutral-300);
+}
+
+@media (max-width: 760px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workCard {
+    min-height: 132px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workCard {
+    transition: none;
+  }
+
+  .workCard:hover {
+    transform: none;
+  }
+}
