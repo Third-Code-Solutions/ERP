@@ -92,6 +92,9 @@ reach through each other's internals.
   reviewed workflow, then stop, deregister, and erase it. Never install it as a
   service, expose production secrets, upload dependency caches/artifacts, or
   execute unreviewed pull-request code.
+- Treat runner deregistration and credential erasure as immediate security
+  gates. Retry non-secret work-directory deletion separately when Windows
+  retains transient file handles.
 - Exercise Nest identity, membership, capability, tenant, concurrency, audit,
   and rollback behavior against that disposable database.
 - Use real Redis for readiness and container smoke checks.

@@ -857,7 +857,15 @@ Provider and CI evidence:
   Gitleaks. It was cancelled only after setup-node's post-job pnpm cache upload
   remained stuck.
 - Remote dependency-cache upload is removed from the self-hosted workflow.
-  A clean rerun and final runner cleanup proof remain pending.
+  Follow-up run `30422175962` passed every step on exact SHA
+  `277e03484c00b6c9c6e27bae7d708302bb6d2e88` in 5m33s.
+- GitHub reports zero registered runners and Windows reports zero runner
+  processes. Credential files are erased from all retained runner directories.
+  Windows still holds non-secret work files open; physical deletion will be
+  retried separately.
+- Vercel still reports zero deployments after both source pushes. Production
+  deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` remains READY; landing,
+  health, and readiness return HTTP 200.
 
 ## 2026-07-28 -- Production dashboard enum-catalog repair
 

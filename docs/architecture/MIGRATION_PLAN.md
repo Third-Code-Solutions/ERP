@@ -104,10 +104,10 @@ Production entry status:
 - Complete cost control: Vercel Git is disconnected and repository guard
   `git.deploymentEnabled=false` is published. The guard push created zero
   Vercel deployments; current production remained READY and HTTP 200.
-- Pending entry evidence: rerun the reviewed transient workflow without remote
-  dependency-cache upload and attach a clean GitHub result. Run `30421480977`
-  passed all substantive gates but was cancelled when the setup-node post-job
-  cache upload hung.
+- Complete entry evidence: self-hosted run `30422175962` passed every gate on
+  exact SHA `277e03484c00b6c9c6e27bae7d708302bb6d2e88` without remote cache
+  or artifact upload. Runner registration and process counts returned to zero;
+  credential files were erased.
 - Keep `ERP_PROJECT_WRITES_VIA_API=false` and the tenant allowlist empty until
   that remote workflow proof is attached.
 

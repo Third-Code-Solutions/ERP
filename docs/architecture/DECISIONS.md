@@ -328,4 +328,5 @@ store; the workflow uploads no dependency cache and no artifacts.
 Reason: run `30421480977` passed every substantive verification step, then
 stalled in setup-node's post-job cache upload. Remote caching adds storage and
 network use without improving correctness or the persistent local runner's
-dependency availability.
+dependency availability. Follow-up run `30422175962` completed all gates and
+post-job actions successfully in 5m33s with remote caching disabled.
