@@ -4,6 +4,7 @@ import { getUserProfile } from '@third-code-erp/auth'
 import { Sidebar } from '@/components/nav/sidebar'
 import { Topbar } from '@/components/nav/topbar'
 import { AccountNotProvisioned } from '@/components/auth/account-not-provisioned'
+import { CortexRouteContext } from '@/components/cortex/cortex-route-context'
 import { canViewPath } from '@/lib/operations/nav-config'
 
 export default async function DashboardLayout({
@@ -53,6 +54,7 @@ export default async function DashboardLayout({
         />
         <main id="main-content" className="app-content">
           {children}
+          <CortexRouteContext pathname={pathname} />
         </main>
       </div>
     </div>

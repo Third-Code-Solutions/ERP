@@ -64,6 +64,11 @@ Complete remaining M1 controls without enabling production writes:
   answer body remains plain text, new and restored citations open the exact
   authorized record, malformed/stale citations disappear, and a role downgrade
   removes now-forbidden sources. Do not buy a separate build.
+- Include operational record context in that same reviewed SHA. Verify one
+  populated and one empty record per role family across CRM, finance,
+  procurement, inventory, claims, variation, punchlist, and warranty. Confirm
+  exact links, Project-panel non-duplication, and non-enumerating denial. Do not
+  buy a separate build.
 
 ## Following milestone
 

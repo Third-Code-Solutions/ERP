@@ -256,3 +256,19 @@ reach through each other's internals.
   node types render non-interactive labels instead of guessed links.
 - Citation controls require readable labels, visible focus, 44px mobile
   targets, bounded text, and zero horizontal overflow.
+
+## Cortex record-context boundary
+
+- Supported operational detail pages expose the same grounded record context
+  without embedding database or business logic in individual React pages.
+- One exact route resolver maps UUID-backed detail paths to canonical Cortex
+  source tables. Unsupported, nested, malformed, and collection paths fail
+  closed.
+- Dashboard route authorization executes first. Cortex entity retrieval then
+  enforces authenticated tenant, source/type ownership, and current-role node
+  scope.
+- Project detail keeps its existing inline panel; layout injection must never
+  duplicate it.
+- Canonical registry routes open exact records when a detail surface exists.
+- Context remains read-only. It cannot approve, post, reverse, allocate, or
+  finalize an ERP transaction.

@@ -261,3 +261,19 @@ Status: source candidate complete; deployment not authorized.
 - After activation, verify exact record navigation and role-downgrade behavior
   with authorized Admin, finance, procurement, estimator, sales, and viewer
   sessions.
+
+## Parallel Cortex operational context slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Resolve exact supported dashboard detail routes to canonical Cortex source
+  tables in one tested server utility.
+- Render one shared context panel after existing page content.
+- Preserve existing Project-detail panel without duplication.
+- Keep collection, create, edit, print, portal, malformed, and unsupported
+  routes unchanged.
+- Preserve dashboard RBAC and entity-API tenant/current-role authorization.
+- Activate only in the next explicitly approved consolidated Vercel build.
+  Keep Git integration disconnected and do not create a separate preview.
+- After activation, verify one populated and one empty record for each role
+  family, exact backlinks, non-enumerating denial, and responsive behavior.

@@ -316,7 +316,7 @@ export const CORTEX_ENTITY_REGISTRY = {
     color: '#059669',
     accessPath: '/finance/cash',
     refTables: ['cash_transactions'],
-    href: list('/finance/cash'),
+    href: direct('/finance/cash'),
   },
   bank_statement: {
     label: 'Bank Statement',

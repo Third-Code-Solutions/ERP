@@ -1503,6 +1503,10 @@ a { color: inherit; }
   padding: 18px;
   box-shadow: var(--shadow-sm);
 }
+.cortex-route-context {
+  width: 100%;
+  margin-top: 24px;
+}
 .cortex-panel__head {
   display: flex;
   align-items: center;
