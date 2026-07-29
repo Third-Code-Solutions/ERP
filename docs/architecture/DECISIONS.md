@@ -400,3 +400,22 @@ Rollback: do not edit applied history or delete tenant data. Disable public
 signup if provisioning regresses, then apply a reviewed forward compensation
 that restores the prior trigger body while retaining or safely deprecating the
 additive profile column.
+
+## D-040 -- Owner-approved architecture supersedes stale bootstrap guidance
+
+Decision: when repository bootstrap guidance conflicts with the explicit
+owner-approved course correction and maintained architecture documents, use the
+current architecture documents. Do not implement obsolete tRPC, PostgreSQL 16,
+pnpm 9, or Inngest-as-target rules. Do not rewrite `AGENTS.md` without the
+owner sign-off that file requires.
+
+Reason: `AGENTS.md` references a missing
+`docs/Third Code ERP_PRD_v1.md` and predates the approved Next.js, NestJS,
+PostgreSQL 17, Redis/BullMQ, and Python-analysis-only architecture. Allowing it
+to redirect new work would reintroduce explicitly rejected architecture.
+
+Validation: repository dependency manifests, deployed topology, hosted database,
+and maintained architecture documents all match the newer architecture.
+
+Rollback: revert this documentation decision only together with an approved,
+internally consistent replacement governance set. Runtime state is unaffected.

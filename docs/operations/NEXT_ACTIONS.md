@@ -31,6 +31,10 @@ Complete remaining M1 controls without enabling production writes:
    the tested rollback procedure before starting M2.
 10. Retry physical deletion of credential-free runner work directories after
    Windows releases their transient file handles.
+11. Before M2 code, obtain owner sign-off for a dedicated `AGENTS.md`
+    reconciliation: remove the missing PRD bootstrap dependency and replace
+    obsolete pnpm 9, PostgreSQL 16, tRPC, and Inngest target rules with the
+    approved architecture. Do not mix that governance rewrite into canary work.
 
 ## Following milestone
 

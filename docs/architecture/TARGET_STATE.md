@@ -26,6 +26,15 @@ Browser
 - Supabase Storage or an equivalent object store holds files; PostgreSQL holds
   tenant-scoped metadata and immutable evidence references.
 
+## Governance source of truth
+
+- Explicit owner-approved architecture decisions and migration documents govern
+  current implementation when older repository instructions conflict.
+- Repository bootstrap files must not reference missing documents or superseded
+  stack choices.
+- Reconcile stale governance in a dedicated reviewed change; do not silently
+  let obsolete pnpm, PostgreSQL, API, or queue rules redirect implementation.
+
 ## Required invariants
 
 1. Every business record has a non-null tenant scope.
