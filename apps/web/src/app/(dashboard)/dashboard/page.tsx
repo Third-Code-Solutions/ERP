@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import {
   getDashboardKpis,
   getStageDistribution,
@@ -7,6 +7,7 @@ import {
   getAlerts,
   getConversionRates,
   getMonthlyForecast,
+  getMyWorkSummary,
 } from '@/lib/dashboard-queries'
 import { KpiCards } from '@/components/dashboard/kpi-cards'
 import { RepScorecardTable } from '@/components/dashboard/rep-scorecard'
@@ -17,19 +18,11 @@ import { ConversionRateTable } from '@/components/dashboard/conversion-rate-tabl
 import { ForecastChart } from '@/components/dashboard/forecast-chart'
 import { ExportCsvButton } from '@/components/dashboard/export-csv-button'
 import { CloseDateFilter } from '@/components/dashboard/close-date-filter'
-import { db } from '@third-code-erp/database'
-import { users } from '@third-code-erp/database/schema'
-import { eq } from 'drizzle-orm'
+import { RoleWorkDashboard } from '@/components/dashboard/role-work-dashboard'
+import { loadDashboardForRole } from '@/lib/dashboard-access'
+import { roleLabel } from '@/lib/operations/nav-config'
 
 export const metadata: Metadata = { title: 'Dashboard' }
-
-async function getTenantId(userId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, userId))
-  return row?.tenant_id ?? null
-}
 
 function greetingFor(date: Date): string {
   const h = date.getHours()
@@ -51,14 +44,11 @@ interface DashboardPageProps {
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const user = await getUser()
-  if (!user) return null
-
-  const tenantId = await getTenantId(user.id)
+  const profile = await requireUserProfile().catch(() => null)
   const renderedAt = new Date()
   const resolvedSearch = (await searchParams) ?? {}
 
-  if (!tenantId) {
+  if (!profile) {
     return (
       <div className="page-header">
         <p className="page-eyebrow">Workspace</p>
@@ -70,14 +60,23 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     )
   }
 
-  const [kpis, stages, reps, alerts, conversionRates, forecast] = await Promise.all([
-    getDashboardKpis(tenantId),
-    getStageDistribution(tenantId),
-    getRepScorecards(tenantId),
-    getAlerts(tenantId),
-    getConversionRates(tenantId),
-    getMonthlyForecast(tenantId, 6),
-  ])
+  const dashboard = await loadDashboardForRole(profile.role, {
+    executive: async () => {
+      const [kpis, stages, reps, alerts, conversionRates, forecast] =
+        await Promise.all([
+          getDashboardKpis(profile.tenantId),
+          getStageDistribution(profile.tenantId),
+          getRepScorecards(profile.tenantId),
+          getAlerts(profile.tenantId),
+          getConversionRates(profile.tenantId),
+          getMonthlyForecast(profile.tenantId, 6),
+        ])
+
+      return { kpis, stages, reps, alerts, conversionRates, forecast }
+    },
+    myWork: () =>
+      getMyWorkSummary(profile.tenantId, profile.user.id, renderedAt),
+  })
 
   const fmt = new Intl.DateTimeFormat('en-PH', {
     weekday: 'long',
@@ -96,6 +95,28 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // dashboard; for now they only flow into ExportCsvButton via the URL.
   void resolvedSearch
 
+  if (dashboard.mode === 'my_work') {
+    return (
+      <>
+        <div className="page-header">
+          <p className="page-eyebrow">Today · {roleLabel(profile.role)}</p>
+          <h1 className="page-title">
+            {greetingFor(renderedAt)}, {firstName(profile.email)}
+          </h1>
+          <p className="page-subtitle">
+            Your assigned work and authorized workspaces for{' '}
+            {fmt.format(renderedAt)}.
+          </p>
+        </div>
+
+        <RoleWorkDashboard role={profile.role} summary={dashboard.data} />
+      </>
+    )
+  }
+
+  const { kpis, stages, reps, alerts, conversionRates, forecast } =
+    dashboard.data
+
   return (
     <>
       <DashboardRealtimeRefresher />
@@ -105,7 +126,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <div>
             <p className="page-eyebrow">Executive Overview</p>
             <h1 className="page-title">
-              {greetingFor(renderedAt)}, {firstName(user.email)}
+              {greetingFor(renderedAt)}, {firstName(profile.email)}
             </h1>
             <p className="page-subtitle">
               Live pipeline, gross profit and project health for {fmt.format(renderedAt)}.
