@@ -3010,3 +3010,21 @@ Rollback and unresolved:
   outbox/delivery slice passes equivalent evidence and a controlled hosted
   canary is explicitly approved.
 - Vercel Git remains disconnected. No frontend build is authorized.
+
+Provider evidence:
+
+- Source commit `dffb6052dde794a80abd8bbb24acc59adcd6fd10` is published on
+  `main` and `agent-02/third-code-erp-landing` under
+  `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway deployment `5e717900-d78a-4472-846f-df5784167354` is SUCCESS for the
+  exact source SHA. Image digest is
+  `sha256:13a83447269e7588cf4141ca02491122e0a5101b24678d1657e69034d4717864`.
+- Live API `/health` and `/ready` return 200; readiness reports PostgreSQL and
+  Redis `ok`. Anonymous dispatch returns 401. Deployment error logs are empty.
+- Railway reports zero `ERP_RFQ_AUTO_DISPATCH*` environment variables.
+- Vercel reports zero deployments after retained baseline timestamp
+  `1785295180454`; Git remains disconnected and no paid frontend build ran.
+- Hosted GitHub Actions run `30498025937` completed with zero executed steps:
+  Actionlint could not start and all dependent jobs were skipped. GitHub
+  reports zero registered self-hosted runners. The complete local and
+  disposable PostgreSQL/Redis evidence above remains the release gate.

@@ -1122,3 +1122,17 @@ matches the repository migration contract:
   restart/reconnect, tenant and role denial, approved-state enforcement, one
   RFQ, one semantic audit, rollback cleanup, and stable schema fingerprint
   `36B8999F16B825D89D8F782CBF28180D074AD677A9E8B2C16B713C79BB931BB6`.
+- Source commit `dffb6052dde794a80abd8bbb24acc59adcd6fd10` is published on
+  both GitHub refs under `kurtgav` and is live on Railway as successful
+  deployment `5e717900-d78a-4472-846f-df5784167354`, image
+  `sha256:13a83447269e7588cf4141ca02491122e0a5101b24678d1657e69034d4717864`.
+- Live `/health` and `/ready` return 200; readiness reports PostgreSQL and Redis
+  `ok`. Anonymous dispatch returns 401, and the deployment error-log query is
+  empty.
+- Railway has zero `ERP_RFQ_AUTO_DISPATCH*` variables. Vercel reports zero
+  deployments after retained baseline timestamp `1785295180454`; Git remains
+  disconnected.
+- Hosted GitHub Actions run `30498025937` executed zero steps because its first
+  hosted job could not start; dependent jobs were skipped. No self-hosted
+  runner remains registered. Local and disposable evidence is authoritative
+  for this release.
