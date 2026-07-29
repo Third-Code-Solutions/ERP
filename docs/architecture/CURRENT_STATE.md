@@ -411,3 +411,25 @@ matches the repository migration contract:
   `main` and `agent-02/third-code-erp-landing` as
   `kurtgav <kurtgavin.design@gmail.com>`. Vercel recorded zero deployments
   after publication.
+
+## M2 document-processing design baseline
+
+- Current upload path was traced from browser upload through Next.js, Inngest,
+  Python, `scope_items`, and draft-BOM creation.
+- Python directly deletes and inserts `scope_items` with `DATABASE_URL`; it
+  also downloads Storage objects with a service-role key.
+- Next.js separately owns inline DXF, visual/AI extraction, scope-row
+  replacement, and draft-BOM writes.
+- BullMQ and Redis are configured in NestJS, but no business queue or processor
+  is registered.
+- Hosted PostgreSQL 17.6 confirms RLS on `documents` and `scope_items`, but
+  neither table has a composite tenant/Project foreign key or audit trigger.
+- Current upload sign and complete routes derive user tenant but do not first
+  prove requested Project belongs to that tenant.
+- Current extraction tests do not cover endpoint authentication, cross-tenant
+  substitution, durable idempotency, queue retries, evidence immutability, or
+  transaction rollback.
+- Original target contract is recorded in
+  `docs/architecture/M2_DOCUMENT_PROCESSING_EVIDENCE_CONTRACT.md`.
+- No code, schema, data, Auth, Storage, queue, provider, or deployment changed
+  during this design milestone.

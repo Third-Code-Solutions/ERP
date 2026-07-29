@@ -153,13 +153,27 @@ Status: source candidate complete; deployment not authorized.
 
 ### M2 — Remove unauthorized worker writes
 
-Status: next.
+Status: design complete; application code blocked by M1 and governance gates.
 
-- Change Python document/DXF processing to return evidence only.
-- Add a Nest command that validates the evidence, authorizes the actor, applies
-  idempotency, and commits accepted scope changes.
-- Queue the processing with BullMQ and persist job/evidence status.
-- Keep the existing user-visible upload flow compatible.
+- Contract:
+  `docs/architecture/M2_DOCUMENT_PROCESSING_EVIDENCE_CONTRACT.md`.
+- M2.1 adds inert shared contracts, database constraints, persisted job and
+  evidence state, explicit capabilities, Nest endpoints, and a BullMQ
+  processor. It routes no user or production traffic.
+- M2.2 removes Python database and Storage service-role authority from the new
+  path. Python returns bounded, immutable, hash-linked CAD evidence.
+- M2.3 makes NestJS validate and transactionally commit pending-review scope
+  rows plus one idempotent draft-BOM result.
+- M2.4 adds a Next.js compatibility adapter behind an exact flag and
+  database-derived tenant allowlist.
+- M2.5 proves one authorized demo-tenant job, duplicate delivery, retry,
+  audit, reconciliation, and rollback before expansion.
+- M2.6 removes the Python/Inngest write path only after every consumer and
+  rollback check passes.
+- M2.7 migrates visual/text extraction through the same evidence boundary.
+- Keep current user-visible upload result fields and completion summary.
+- Do not start M2 application code before M1 canary evidence and separately
+  approved repository-governance reconciliation.
 
 ### M3 — Sensitive project and procurement commands
 

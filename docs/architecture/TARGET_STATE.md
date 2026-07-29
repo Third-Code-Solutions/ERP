@@ -181,3 +181,21 @@ reach through each other's internals.
   artifacts must not emit missing-script console errors.
 - Gate any paid frontend build on green local checks, browser evidence at
   1440/768/390, exact charge disclosure, and explicit user approval.
+
+## Document-processing evidence boundary
+
+- A processing request enters NestJS with verified identity, explicit
+  capability, same-tenant document lookup, and a required idempotency key.
+- PostgreSQL stores processing state machine and immutable evidence.
+- BullMQ carries only an opaque processing-job ID. NestJS reloads tenant,
+  Project, document, actor, and object context from PostgreSQL.
+- Python receives one short-lived exact-object read grant and returns bounded,
+  versioned, hash-linked evidence. It receives no database credential,
+  service-role credential, tenant authority, capability, or approval state.
+- NestJS validates evidence and commits pending-review scope rows inside one
+  actor-stamped transaction.
+- Duplicate delivery returns one durable result and at most one draft BOM.
+- `documents` and `scope_items` use composite tenant/Project constraints and
+  transactional audit triggers.
+- Legacy upload remains default until a disabled-by-default, tenant-scoped
+  canary proves compatibility, reconciliation, and rollback.
