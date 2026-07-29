@@ -701,3 +701,28 @@ frontend. Database rollback is a reviewed compensating forward migration only:
 restore the exact prior grants/policies if direct browser mutation is
 deliberately reauthorized, then remove the constraint/columns only after
 proving no scoped conversation remains. Never edit hosted migration history.
+
+## D-052 -- Cortex chat scope is explicit and cannot switch silently
+
+Decision: resolve URL focus on the server and pass only authorized canonical
+context into the chat client. Show the current scope persistently. Permit
+in-place history restore only when both contexts are null or their canonical
+source-table and UUID pairs match exactly. Render other scopes as explicit
+Cortex navigation. Disable chat when a requested record is unavailable.
+
+Reason: letting React infer scope from raw URL values or silently loading a
+different saved record makes answers appear grounded when the graph and chat
+refer to different business records. Exact-pair comparison preserves immutable
+conversation meaning while keeping navigation understandable.
+
+Validation: require pure equality/route/label tests, focused/company/unavailable
+render tests, existing API context suites, full repository
+lint/typecheck/test/build, authenticated local production QA, exact title and
+scope assertions, visible mobile controls, 1440/768/390 screenshots, zero
+overflow/errors, and test-session revocation.
+
+Rollback: revert the page authorization wiring, context helper, agent
+presentation/history behavior, CSS, tests, and documentation together. The
+durable database/API context contract remains safe and backward compatible.
+No schema or provider rollback is required; Vercel remains on the retained
+last-known-good deployment.

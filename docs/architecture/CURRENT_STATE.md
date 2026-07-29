@@ -193,7 +193,7 @@ matches the repository migration contract:
 - The built API starts independently: `/health` returns 200, an unauthenticated
   Project write returns 401, and `/ready` returns 503 when its deliberately
   absent database and Redis dependencies are unavailable.
-- Fresh workspace tests pass with 369 passing tests; 132 database
+- Fresh workspace tests pass with 375 passing tests; 134 database
   cases are skipped unless a disposable database URL and capability flags are
   explicitly injected.
 - The dedicated fail-closed database lane rebuilds from all 51 migrations and
@@ -654,3 +654,28 @@ matches the repository migration contract:
   disposable-runtime gates remain the verified evidence.
 - Vercel reports zero deployments after the retained production baseline
   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+
+## Cortex conversation-context UI candidate
+
+- The Cortex page now authorizes a requested canonical record server-side
+  before passing it into the chat client. Raw URL focus never becomes trusted
+  chat context.
+- The agent visibly distinguishes `Focused on`, `Company-wide`, and
+  `Record unavailable`. Unauthorized focus disables chat rather than silently
+  falling back to company-wide analysis.
+- New scoped conversations send the complete canonical pair. Existing scoped
+  conversations continue sending the same pair and remain protected by the
+  immutable API contract.
+- Saved history displays each conversation's record scope. Only the exact
+  current canonical pair can load in place; another scope is an explicit link
+  to that Cortex context.
+- Record focus uses record-specific suggestions. Mobile history, suggestion,
+  header, and composer controls meet a 44px minimum target.
+- Source tests cover context equality, route construction, human labels,
+  focused/company/unavailable presentation, and the existing API contracts.
+- Authenticated local production-browser QA passed at 1440, 768, and 390 with
+  exact focused-record display, company-wide restoration, zero page overflow,
+  zero console/page errors, and global one-time-session revocation.
+- No schema, hosted row, Auth user, Storage object, queue, Railway setting, or
+  Vercel deployment changed. This remains a source candidate while Vercel Git
+  is disconnected.

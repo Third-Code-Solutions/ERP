@@ -1930,7 +1930,7 @@ Validation:
 
 - Focused Web API/context tests -- 16/16 pass.
 - Root lint and typecheck -- pass.
-- Root tests -- 369 pass; 132 writable-database cases skip unless an explicit
+- Root tests -- 369 pass; 134 writable-database cases skip unless an explicit
   disposable URL is injected.
 - Root production build -- pass; Nest webpack build passes and Next generates
   77/77 static steps.
@@ -1972,4 +1972,54 @@ Rollback and unresolved:
   `cortex_conversations.user_id` foreign key and other advisor findings remain
   outside this milestone.
 - GitHub Actions remains blocked before runner start by account billing.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Cortex conversation-context presentation
+
+Outcome:
+
+- Authorized URL focus now reaches Cortex chat through a server-derived record
+  context rather than raw browser trust.
+- Added persistent `Focused on`, `Company-wide`, and fail-closed
+  `Record unavailable` states.
+- Added record-specific suggestions and included the canonical pair in chat
+  requests.
+- Added scope labels to saved conversations. Exact matching context restores
+  in place; other scopes navigate explicitly instead of switching silently.
+- Added 44px mobile targets for Cortex header, suggestions, and composer.
+- No database, hosted row, Auth user, Storage object, queue, provider setting,
+  or deployment changed.
+
+Changed files:
+
+- `apps/web/src/app/(dashboard)/cortex/page.tsx`
+- `apps/web/src/components/cortex/cortex-agent.tsx`
+- `apps/web/src/components/cortex/cortex-agent.test.tsx`
+- `apps/web/src/lib/cortex/agent-context.ts`
+- `apps/web/src/lib/cortex/agent-context.test.ts`
+- `apps/web/src/app/globals.css`
+- `apps/web/e2e/cortex-focused-local.spec.ts`
+- the six architecture/operations memory files
+
+Validation:
+
+- TDD red -- missing context helper and absent focus presentation.
+- Focused context/component/API suites -- 22/22 pass.
+- Root lint and typecheck -- pass.
+- Root tests -- 375 pass; 134 disposable-database cases skip in the ordinary
+  no-URL lane and remain covered by the preceding 224/224 zero-skip database
+  release gate.
+- Nest and Next production builds -- pass; Next generates 77/77 static steps.
+- Authenticated local production-browser E2E -- pass using installed Chrome;
+  exact Project focus, record-specific suggestions, company-wide restoration,
+  1440/768/390 screenshots, zero overflow, zero console/page errors, and
+  global one-time-session revocation.
+
+Rollback and unresolved:
+
+- Revert this source/documentation slice. The database/API context boundary
+  remains compatible; no hosted or provider rollback is required.
+- Live activation still requires one explicitly approved consolidated Vercel
+  production build. Do not reconnect Git or create a preview.
+- GitHub-hosted CI remains blocked before step start by account billing.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.

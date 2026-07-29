@@ -7,6 +7,7 @@ import { CortexAgent } from '@/components/cortex/cortex-agent'
 import { CortexIndexButton } from '@/components/cortex/cortex-index-button'
 import { canonicalRole } from '@/lib/operations/nav-config'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
+import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
 
 export const metadata: Metadata = { title: 'Cortex — AI Brain' }
 
@@ -25,6 +26,13 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
     typeof params.refTable === 'string' && typeof params.refId === 'string'
       ? { refTable: params.refTable, refId: params.refId }
       : null
+  const agentContext = focus
+    ? await authorizeCortexRecordContext(
+        profile.tenantId,
+        profile.role,
+        focus
+      )
+    : null
 
   // RBAC: KPIs reflect only what this role may see (admin/owner = everything).
   const stats = await getCortexGraphStats(profile.tenantId, cortexNodeTypeScope(profile.role))
@@ -72,7 +80,10 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
           )}
         </div>
         <div className="cortex-layout__agent">
-          <CortexAgent />
+          <CortexAgent
+            initialContext={agentContext}
+            contextUnavailable={Boolean(focus && !agentContext)}
+          />
         </div>
       </div>
     </div>

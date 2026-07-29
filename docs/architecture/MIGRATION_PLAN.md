@@ -107,6 +107,15 @@ Production entry status:
   224/224 zero-skip database tests, authenticated direct-write denial, pair
   constraint enforcement, Nest database integration, and stable rollback
   fingerprint.
+- Complete in source: Cortex page focus is server-authorized before entering
+  chat; active scope is visible; unavailable focus fails closed; saved history
+  is scope-labeled; and only the exact canonical pair restores in place.
+- Complete local presentation evidence: context/component/API tests, full
+  lint/typecheck/test/build, authenticated production-browser QA at
+  1440/768/390, zero overflow/errors, and global test-session revocation.
+- Pending activation: include this candidate in one explicitly approved
+  consolidated Vercel production build. Do not reconnect Git or create a
+  separate preview.
 - Complete emergency route proof: authenticated Admin `/dashboard` hard reload
   renders KPI and Risk Signals content with zero browser-console errors;
   Vercel records successful route requests and zero runtime errors in the

@@ -339,3 +339,18 @@ reach through each other's internals.
 - The next presentation slice must expose the active record clearly, preserve
   saved-conversation semantics, and pass keyboard, responsive, console, and
   overflow QA before any explicitly approved consolidated Vercel release.
+
+## Cortex conversation-context presentation
+
+- The chat surface always names its scope: one authorized canonical record,
+  company-wide, or unavailable.
+- A requested but unauthorized record cannot silently become a company-wide
+  chat. Input and suggestions fail closed until focus is cleared.
+- Saved threads show their record scope. In-place restore requires exact
+  canonical-pair equality; other contexts use explicit navigation.
+- Starting a new chat preserves the page's authorized record context. Changing
+  records never mutates or rebinds an existing conversation.
+- Record-specific prompts explain, summarize, and identify evidence or linked
+  work only. Presentation cannot approve or finalize an ERP transaction.
+- Keyboard focus remains visible, mobile targets are at least 44px, long titles
+  truncate safely, and 1440/768/390 layouts have no horizontal overflow.
