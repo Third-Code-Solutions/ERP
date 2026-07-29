@@ -144,3 +144,14 @@ reach through each other's internals.
 - Supabase project `aqqrtkmtcsfkbyyqxowv`: PostgreSQL, Auth, and Storage.
 - Python analysis workers remain separately deployable but cannot become
   transaction authorities.
+
+## Onboarding classification boundary
+
+- Organization type is constrained tenant profile data, not authorization.
+- One shared catalog must drive UI options, TypeScript validation, database
+  constraints, provisioning logic, tests, and reproducibility checks.
+- Unrecognized signup metadata must fail safely to `other`.
+- Roles, capabilities, memberships, and tenant access must never be derived
+  from user-editable organization metadata.
+- Applied migrations remain immutable. Any rollback is a reviewed forward
+  compensation while preserving existing tenant and identity rows.

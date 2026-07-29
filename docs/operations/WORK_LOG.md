@@ -1169,3 +1169,70 @@ Rollback and unresolved:
 - Canary creation still requires explicit approval for an unused
   user-controlled email and completion of its confirmation step.
 - Project routing remains disabled and the tenant allowlist remains empty.
+
+## 2026-07-29 -- Signup organization classification persistence
+
+Outcome:
+
+- Added a canonical six-value organization-type domain catalog and reused it
+  in the signup form options and client validation.
+- Added `public.tenants.organization_type` as constrained, non-null tenant
+  profile data with safe default `other`.
+- Updated the hardened Auth provisioning trigger to whitelist signup metadata;
+  tampered values cannot grant authority and fall back to `other`.
+- Applied hosted migration
+  `20260729054456_persist_signup_organization_type.sql` and reconciled the
+  connector-assigned version into the repository ledger.
+- Existing tenants were backfilled to `other`. No Auth user, email, Project,
+  provider variable, or deployment was created.
+
+Changed files:
+
+- `packages/shared-types/src/organization-types.ts`
+- `packages/shared-types/src/index.ts`
+- `apps/web/src/app/(auth)/auth/signup/signup-options.ts`
+- `apps/web/src/app/(auth)/auth/signup/signup-options.test.ts`
+- `apps/web/src/app/(auth)/auth/signup/signup-form.tsx`
+- `packages/database/package.json`
+- `packages/database/src/schema/tenants.ts`
+- `packages/database/src/sql/handle-new-user.sql`
+- `packages/database/src/__tests__/signup-provisioning.test.ts`
+- `scripts/verify-database-repro.mjs`
+- `supabase/migrations/20260729054456_persist_signup_organization_type.sql`
+- `pnpm-lock.yaml`
+- the six architecture/operations memory files
+- `docs/runbooks/project-write-cutover.md`
+
+Validation:
+
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` -- pass.
+- Root suites: shared types 76, Web 69, API 17; database 88 pass and 132
+  expected skips without a disposable `DATABASE_URL`.
+- Release planner tests 7/7; cutover planner tests 6/6; Actionlint 1.7.12;
+  pinned action references; Gitleaks 8.30.1; `git diff --check` -- pass.
+- Disposable PostgreSQL 17/Redis 7.4.9 lane -- 50 migrations, verifier pass,
+  220/220 database tests with zero skips, Nest integration 1/1, schema
+  fingerprint
+  `D9225C443A3B88EC62F777B3C8983992ADC4991C060594671832483903650D37`.
+- Hosted release ledger -- current, 50/50, head `20260729054456`.
+- Hosted row counts before/after -- 13 Auth users, 13 application profiles,
+  2 tenants; unchanged.
+- Hosted organization contract -- `NOT NULL`, default `other`, validated
+  catalog constraint; both existing tenants equal `other`.
+- Hosted signup authority -- `search_path=""`, trigger enabled, client
+  execution denied, `service_role` execution retained.
+- Supabase advisors -- 12 security and 284 performance notices; zero finding
+  tied to the new organization field, constraint, or signup function. Existing
+  advisor backlog remains unresolved.
+
+Rollback and unresolved:
+
+- Applied migration history is immutable. If signup regresses, disable public
+  signup and apply a reviewed forward compensation restoring the prior trigger
+  while retaining or safely deprecating the additive profile column.
+- Canary creation still requires explicit approval for an unused
+  user-controlled email plus confirmation.
+- Project routing remains disabled; tenant allowlist remains empty.
+- Exact next action: complete approved normal signup, email confirmation, and
+  one non-critical Project; then run the redacted cutover planner with
+  `--require-ready`.

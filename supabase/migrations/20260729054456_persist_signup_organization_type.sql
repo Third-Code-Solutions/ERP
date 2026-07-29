@@ -1,10 +1,29 @@
--- ---------------------------------------------------------------------------
--- Auto-provision a workspace + profile row for every new auth user.
+-- Preserve signup business classification as tenant profile data.
 --
--- Signup inserts into auth.users. This trigger atomically creates one tenant
--- and same-ID Admin profile. SECURITY DEFINER is required because
--- supabase_auth_admin cannot write the application tables directly.
--- ---------------------------------------------------------------------------
+-- This value is user-provided onboarding context. It is constrained to the
+-- product catalog and must never grant roles, capabilities, or tenant access.
+
+alter table public.tenants
+  add column organization_type varchar(64)
+  not null
+  default 'other';
+
+alter table public.tenants
+  add constraint tenants_organization_type_check
+  check (
+    organization_type in (
+      'construction',
+      'developer',
+      'design-engineering',
+      'supply-manufacturing',
+      'professional-services',
+      'other'
+    )
+  )
+  not valid;
+
+alter table public.tenants
+  validate constraint tenants_organization_type_check;
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -100,7 +119,6 @@ begin
     base_slug := 'workspace';
   end if;
 
-  -- Stable UUID-derived suffix keeps retries deterministic.
   final_slug :=
     base_slug
     || '-'
@@ -140,11 +158,6 @@ begin
   return new;
 end;
 $$;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
 
 revoke execute on function public.handle_new_user()
   from public, anon, authenticated;

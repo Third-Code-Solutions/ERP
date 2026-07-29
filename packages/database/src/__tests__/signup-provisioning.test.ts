@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ORGANIZATION_TYPES } from '@third-code-erp/shared-types'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
@@ -12,7 +13,7 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const migrationPath = resolve(
   __dirname,
-  '../../../../supabase/migrations/20260729051205_harden_signup_provisioning.sql'
+  '../../../../supabase/migrations/20260729054456_persist_signup_organization_type.sql'
 )
 const migrationSql = readFileSync(migrationPath, 'utf8').toLowerCase()
 
@@ -41,6 +42,21 @@ describe('signup provisioning migration contract', () => {
     )
     expect(migrationSql).toContain('pg_catalog.left(')
     expect(migrationSql).not.toContain('raw_app_meta_data')
+  })
+
+  it('persists only canonical organization types as non-authoritative profile data', () => {
+    expect(migrationSql).toContain(
+      "new.raw_user_meta_data ->> 'organization_type'"
+    )
+    expect(migrationSql).toContain(
+      'add constraint tenants_organization_type_check'
+    )
+    for (const organizationType of ORGANIZATION_TYPES) {
+      expect(migrationSql).toContain(`'${organizationType}'`)
+    }
+    expect(migrationSql).not.toMatch(
+      /organization_type[\s\S]{0,120}(role|capabilit|permission)/
+    )
   })
 
   it('keeps the trigger function unavailable as a public RPC', () => {
@@ -84,7 +100,9 @@ runtimeSuite('signup provisioning runtime proof', () => {
             'full_name',
             'Canary Operator',
             'company_name',
-            'Third Code Canary Works'
+            'Third Code Canary Works',
+            'organization_type',
+            'construction'
           )
         )
         returning id, email
@@ -102,8 +120,9 @@ runtimeSuite('signup provisioning runtime proof', () => {
       const tenant = first(await transaction<{
         name: string
         slug: string
+        organization_type: string
       }[]>`
-        select name, slug
+        select name, slug, organization_type
           from public.tenants
          where id = ${profile.tenant_id}::uuid
       `)
@@ -141,11 +160,12 @@ runtimeSuite('signup provisioning runtime proof', () => {
     expect(result.tenant).toEqual({
       name: 'Third Code Canary Works',
       slug: result.expectedSlug,
+      organization_type: 'construction',
     })
     expect(result.tenantCount).toBe(1)
   })
 
-  it('uses safe bounded fallbacks when email metadata is absent', async () => {
+  it('uses safe fallbacks when email is absent and organization metadata is invalid', async () => {
     const result = await inRollback(sql, async (transaction) => {
       const identity = first(await transaction<{ id: string }[]>`
         insert into auth.users (
@@ -156,28 +176,70 @@ runtimeSuite('signup provisioning runtime proof', () => {
         values (
           gen_random_uuid(),
           null,
-          '{}'::jsonb
+          jsonb_build_object('organization_type', 'admin')
         )
         returning id
       `)
       const profile = first(await transaction<{
+        tenant_id: string
         email: string
         full_name: string
         role: string
       }[]>`
-        select email, full_name, role::text as role
+        select tenant_id, email, full_name, role::text as role
           from public.users
          where id = ${identity.id}::uuid
       `)
+      const tenant = first(await transaction<{
+        organization_type: string
+      }[]>`
+        select organization_type
+          from public.tenants
+         where id = ${profile.tenant_id}::uuid
+      `)
 
-      return { identity, profile }
+      return { identity, profile, tenant }
     })
 
     expect(result.profile).toEqual({
+      tenant_id: result.profile.tenant_id,
       email: `${result.identity.id}@auth.local`,
       full_name: result.identity.id,
       role: 'admin',
     })
+    expect(result.tenant.organization_type).toBe('other')
+  })
+
+  it('retains a validated non-null organization type catalog', async () => {
+    const contract = first(await sql<{
+      column_default: string
+      is_nullable: string
+      convalidated: boolean
+      definition: string
+    }[]>`
+      select
+        column_info.column_default,
+        column_info.is_nullable,
+        constraint_info.convalidated,
+        pg_catalog.pg_get_constraintdef(
+          constraint_info.oid,
+          true
+        ) as definition
+      from information_schema.columns column_info
+      join pg_catalog.pg_constraint constraint_info
+        on constraint_info.conrelid = 'public.tenants'::regclass
+       and constraint_info.conname = 'tenants_organization_type_check'
+      where column_info.table_schema = 'public'
+        and column_info.table_name = 'tenants'
+        and column_info.column_name = 'organization_type'
+    `)
+
+    expect(contract.column_default).toContain('other')
+    expect(contract.is_nullable).toBe('NO')
+    expect(contract.convalidated).toBe(true)
+    for (const organizationType of ORGANIZATION_TYPES) {
+      expect(contract.definition).toContain(organizationType)
+    }
   })
 
   it('retains hardened execution privileges', async () => {

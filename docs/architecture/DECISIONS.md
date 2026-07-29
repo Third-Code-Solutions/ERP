@@ -376,3 +376,27 @@ rows, while an ambient path would broaden privileged name resolution. The
 normal signup trigger can block account creation if it fails, so its complete
 behavior must replay against PostgreSQL and be exercised in database tests
 before creating the dedicated canary.
+
+## D-039 -- Organization type is profile data, never authority
+
+Decision: persist signup `organization_type` on the tenant only after
+normalizing it to the shared product catalog. Enforce the catalog with a
+validated database check constraint and use `other` for missing or unknown
+values. Never derive role, capability, membership, approval authority, or
+tenant access from this user-editable field.
+
+Reason: the signup UI already required business classification, but the
+provisioning trigger discarded it. Persisting constrained profile context
+improves onboarding continuity without creating a metadata-to-authorization
+escalation path. One shared catalog plus database enforcement prevents UI,
+application, and hosted-schema drift.
+
+Validation: migration `20260729054456` is hosted and current at 50/50;
+PostgreSQL 17 clean replay passes; 220/220 database tests run without skips;
+existing identity and tenant counts are unchanged; hosted function privileges
+and trigger state remain hardened.
+
+Rollback: do not edit applied history or delete tenant data. Disable public
+signup if provisioning regresses, then apply a reviewed forward compensation
+that restores the prior trigger body while retaining or safely deprecating the
+additive profile column.
