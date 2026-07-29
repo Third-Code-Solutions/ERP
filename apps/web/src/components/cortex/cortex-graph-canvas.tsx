@@ -63,6 +63,7 @@ interface Props {
   query: string
   groupByType: boolean
   fitNonce: number
+  focusNodeId: string | null
   onSelect: (n: SelectedNode) => void
   onNavigate: (n: SelectedNode) => void
 }
@@ -124,6 +125,7 @@ export function CortexGraphCanvas({
   query,
   groupByType,
   fitNonce,
+  focusNodeId,
   onSelect,
   onNavigate,
 }: Props) {
@@ -136,6 +138,7 @@ export function CortexGraphCanvas({
   const posRef = useRef<Map<string, { x: number; y: number }>>(new Map())
   const camRef = useRef<Camera>({ x: 0, y: 0, k: 1 })
   const hoverRef = useRef<string | null>(null)
+  const focusRef = useRef<string | null>(null)
   const queryRef = useRef<string>('')
   const sizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 })
   const rafRef = useRef<number>(0)
@@ -143,6 +146,7 @@ export function CortexGraphCanvas({
   const [tooltip, setTooltip] = useState<Tooltip | null>(null)
 
   queryRef.current = query.trim().toLowerCase()
+  focusRef.current = focusNodeId
 
   // --- draw -----------------------------------------------------------------
   const draw = useCallback(() => {
@@ -154,9 +158,11 @@ export function CortexGraphCanvas({
     const dpr = window.devicePixelRatio || 1
     const cam = camRef.current
     const hover = hoverRef.current
+    const focusId = focusRef.current
     const adj = adjRef.current
     const q = queryRef.current
-    const neighbors = hover ? adj.get(hover) : undefined
+    const activeId = hover ?? focusId
+    const neighbors = activeId ? adj.get(activeId) : undefined
 
     ctx.save()
     ctx.scale(dpr, dpr)
@@ -170,10 +176,11 @@ export function CortexGraphCanvas({
       const s = l.source as GraphNode
       const t = l.target as GraphNode
       if (s.x == null || s.y == null || t.x == null || t.y == null) continue
-      const active = hover != null && (s.id === hover || t.id === hover)
+      const active =
+        activeId != null && (s.id === activeId || t.id === activeId)
       ctx.strokeStyle = active
         ? 'rgba(186,230,253,0.55)'
-        : hover != null
+        : activeId != null
           ? 'rgba(148,163,184,0.05)'
           : 'rgba(148,163,184,0.16)'
       ctx.beginPath()
@@ -189,10 +196,13 @@ export function CortexGraphCanvas({
       const r = radius(n)
       const col = nodeColor(n.type)
       const isHover = n.id === hover
+      const isFocused = n.id === focusId
       const isNeighbor = neighbors != null && neighbors.has(n.id)
       const matches = q !== '' && (n.title ?? '').toLowerCase().includes(q)
-      const dim = (hover != null && !isHover && !isNeighbor) || (q !== '' && !matches)
-      const focus = isHover || matches
+      const dim =
+        (activeId != null && !isHover && !isFocused && !isNeighbor) ||
+        (q !== '' && !matches && !isFocused)
+      const focus = isHover || isFocused || matches
 
       // glow halo
       ctx.beginPath()
@@ -207,8 +217,10 @@ export function CortexGraphCanvas({
       ctx.fillStyle = col
       ctx.fill()
       if (focus) {
-        ctx.lineWidth = 1.4 / cam.k
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+        ctx.lineWidth = (isFocused ? 2.4 : 1.4) / cam.k
+        ctx.strokeStyle = isFocused
+          ? 'rgba(221,214,254,0.98)'
+          : 'rgba(255,255,255,0.9)'
         ctx.stroke()
       }
 
@@ -276,7 +288,15 @@ export function CortexGraphCanvas({
 
   // --- build / rebuild simulation on data, filter, or layout change ---------
   const filterKey =
-    [...visibleTypes].sort().join(',') + '|' + groupByType + '|' + nodes.length + ':' + links.length
+    [...visibleTypes].sort().join(',') +
+    '|' +
+    groupByType +
+    '|' +
+    nodes.length +
+    ':' +
+    links.length +
+    '|' +
+    (focusNodeId ?? '')
 
   useEffect(() => {
     // snapshot last positions for continuity
@@ -285,7 +305,11 @@ export function CortexGraphCanvas({
     }
 
     const { w, h } = sizeRef.current
-    const cx = (w || 800) / 2
+    const availableWidth =
+      focusNodeId && window.innerWidth > 1100
+        ? Math.max(1, (w || 800) - 300)
+        : w || 800
+    const cx = availableWidth / 2
     const cy = (h || 520) / 2
 
     const visNodes: GraphNode[] = nodes
@@ -313,6 +337,14 @@ export function CortexGraphCanvas({
     adjRef.current = adj
     nodesRef.current = visNodes
     linksRef.current = visLinks
+
+    const focusedNode = focusNodeId ? byId.get(focusNodeId) : undefined
+    if (focusedNode) {
+      focusedNode.x = cx
+      focusedNode.y = cy
+      focusedNode.fx = cx
+      focusedNode.fy = cy
+    }
 
     // type cluster centers for grouped layout
     const types = [...new Set(visNodes.map((n) => n.type))]

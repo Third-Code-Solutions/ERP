@@ -14,9 +14,14 @@ import { cortexHref, cortexColor, CORTEX_TYPE_LABEL } from '@/lib/cortex/href'
 interface GraphPayload {
   nodes: RawNode[]
   links: RawLink[]
+  focusNodeId?: string
 }
 
 type Status = 'loading' | 'empty' | 'error' | 'ready'
+
+interface Props {
+  focus: { refTable: string; refId: string } | null
+}
 
 /**
  * The Cortex graph workspace: an organized, navigable knowledge graph.
@@ -24,7 +29,7 @@ type Status = 'loading' | 'empty' | 'error' | 'ready'
  * node to inspect (drawer), double-click (or "Open record") to jump straight
  * into the ERP record.
  */
-export function CortexGraphView() {
+export function CortexGraphView({ focus }: Props) {
   const router = useRouter()
   const [data, setData] = useState<GraphPayload | null>(null)
   const [status, setStatus] = useState<Status>('loading')
@@ -37,21 +42,39 @@ export function CortexGraphView() {
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch('/api/cortex/graph', { signal: controller.signal })
+    setStatus('loading')
+    const graphUrl = focus
+      ? `/api/cortex/graph?refTable=${encodeURIComponent(focus.refTable)}&refId=${encodeURIComponent(focus.refId)}`
+      : '/api/cortex/graph'
+    fetch(graphUrl, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) throw new Error(String(res.status))
         return (await res.json()) as GraphPayload
       })
       .then((p) => {
         setData(p)
+        const focused = p.focusNodeId
+          ? p.nodes.find((node) => node.id === p.focusNodeId) ?? null
+          : null
+        setSelected(
+          focused
+            ? {
+                refTable: focused.refTable,
+                refId: focused.refId,
+                title: focused.title,
+                type: focused.type,
+                projectId: focused.projectId,
+              }
+            : null
+        )
         setStatus(p.nodes.length === 0 ? 'empty' : 'ready')
       })
       .catch((err: unknown) => {
         if (err instanceof DOMException && err.name === 'AbortError') return
         setStatus('error')
-      })
+    })
     return () => controller.abort()
-  }, [])
+  }, [focus])
 
   const types = useMemo(() => {
     if (!data) return []
@@ -95,6 +118,9 @@ export function CortexGraphView() {
   const openHref = selected
     ? cortexHref({ type: selected.type, refId: selected.refId, projectId: selected.projectId })
     : null
+  const focusedNode = data?.focusNodeId
+    ? data.nodes.find((node) => node.id === data.focusNodeId) ?? null
+    : null
 
   if (status === 'loading') {
     return <div className="cortex-graph-shell cortex-graph-shell--msg">Loading knowledge graph…</div>
@@ -118,6 +144,27 @@ export function CortexGraphView() {
     <div className="cortex-graph-shell">
       {/* Toolbar */}
       <div className="cortex-toolbar">
+        {focusedNode && (
+          <div className="cortex-focusbar" role="status">
+            <span className="cortex-focusbar__eyebrow">Focused record</span>
+            <strong className="cortex-focusbar__title">
+              {focusedNode.title ??
+                CORTEX_TYPE_LABEL[focusedNode.type] ??
+                focusedNode.type}
+            </strong>
+            <span className="cortex-focusbar__meta">
+              {data.links.length} connection
+              {data.links.length === 1 ? '' : 's'} shown
+            </span>
+            <button
+              type="button"
+              className="cortex-focusbar__clear"
+              onClick={() => router.push('/cortex')}
+            >
+              Show all records
+            </button>
+          </div>
+        )}
         <div className="cortex-search">
           <input
             ref={searchRef}
@@ -171,6 +218,7 @@ export function CortexGraphView() {
           query={query}
           groupByType={grouped}
           fitNonce={fitNonce}
+          focusNodeId={data.focusNodeId ?? null}
           onSelect={setSelected}
           onNavigate={navigate}
         />
@@ -193,6 +241,7 @@ export function CortexGraphView() {
               key={`${selected.refTable}/${selected.refId}`}
               refTable={selected.refTable}
               refId={selected.refId}
+              showGraphLink={false}
             />
             {openHref && (
               <button type="button" className="cortex-open-record" onClick={() => navigate(selected)}>

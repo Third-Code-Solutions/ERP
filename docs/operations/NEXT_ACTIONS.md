@@ -77,6 +77,11 @@ Complete remaining M1 controls without enabling production writes:
   evidence on an authorized populated record, all safe future origin labels,
   exact newest-first order, empty state, role-downgrade/cross-tenant denial,
   and absence of every raw provenance field. Do not buy a separate build.
+- Include the focused Cortex neighborhood in that same reviewed SHA. Verify a
+  real record backlink, exact server-derived focus, bounded one-hop response,
+  restricted-role and cross-tenant non-enumerating denial, whole-graph
+  compatibility, and 1440/768/390 console/overflow behavior. Do not reconnect
+  Git or buy a separate preview.
 
 ## Following milestone
 

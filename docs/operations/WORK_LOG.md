@@ -1797,3 +1797,78 @@ Rollback and unresolved:
   payment/spending status. Local full gates are the no-cost verification path.
 - Database integration assertions remain pending a disposable writable target.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Cortex focused neighborhood
+
+Outcome:
+
+- Added an `Open focused graph` backlink to authorized operational record
+  context.
+- Preserved the existing whole-graph API when no focus is supplied.
+- Added complete-pair validation for canonical source table plus UUID.
+- Reauthorized authenticated tenant, source/type ownership, and current-role
+  access before focused retrieval; missing, mismatched, and forbidden records
+  return the same 404.
+- Added a bounded database helper returning the focus plus one visible hop.
+  Focus, edges, and joined neighbors all have explicit tenant and current-row
+  predicates.
+- Added server-derived focus identity, automatic drawer selection, persistent
+  highlight, visible-canvas centering, truthful bounded-count wording, and
+  clear-focus behavior.
+- Browser QA found and fixed Cortex grid intrinsic-width overflow plus the
+  existing tablet topbar and mobile fixed-sidebar overflow.
+- Tablet/mobile now flow the drawer below the graph; narrow screens use a 64px
+  icon navigation rail with accessible link names retained.
+- No schema, business row, password, Storage object, queue, provider setting,
+  or deployment changed. The gated E2E generated and consumed one-time test
+  sessions and globally revoked them after verification.
+
+Changed files:
+
+- `packages/database/src/cortex/graph.ts`
+- `apps/web/src/app/api/cortex/graph/route.ts`
+- `apps/web/src/app/api/cortex/graph/route.test.ts`
+- `apps/web/src/app/(dashboard)/cortex/page.tsx`
+- `apps/web/src/components/cortex/cortex-entity-panel.tsx`
+- `apps/web/src/components/cortex/cortex-graph-view.tsx`
+- `apps/web/src/components/cortex/cortex-graph-canvas.tsx`
+- `apps/web/src/components/nav/topbar.tsx`
+- `apps/web/src/components/nav/profile-menu.tsx`
+- `apps/web/src/app/globals.css`
+- `apps/web/e2e/cortex-focused-local.spec.ts`
+- the six architecture/operations memory files
+- `docs/changesets/2026-07-29-cortex-focused-neighborhood.md`
+
+Validation:
+
+- Focused graph route suite -- 6/6 pass.
+- Root lint and all-package typecheck -- pass.
+- Root tests -- 356 pass; 132 writable-database-gated cases skip because no
+  disposable `DATABASE_URL` was injected.
+- API and Web optimized production build -- pass; Web generated 77/77 static
+  steps.
+- Hosted Supabase read-only evidence -- selected current Project has 78 direct
+  graph edges; no schema or business row changed.
+- Authenticated production-build E2E -- real Project backlink, invalid focus
+  400, authorized focused response 200, exact focus present, at most 81 nodes
+  and 80 links, loaded record drawer, clear-focus compatibility, and global
+  test-session revocation all pass.
+- Browser screenshots at 1440/768/390 -- zero horizontal overflow; focused
+  canvas, responsive drawer, topbar, and mobile icon rail visually reviewed.
+- Browser console and page errors -- zero.
+- Gitleaks 8.30.1, actionlint 1.7.12, diff check, and repository-wide
+  prohibited external ERP source/brand scan -- clean.
+- Vercel provider check -- latest deployment remains
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`; zero new deployments from this work.
+
+Rollback and unresolved:
+
+- Revert this source/documentation milestone; no database or provider rollback
+  is required.
+- Live activation requires one explicitly approved consolidated Vercel build.
+  Do not create a preview, reconnect Git, or spend provider credit.
+- Destructive database integration remains pending a disposable writable
+  target.
+- Durable conversation focus metadata remains required before record-scoped
+  Cortex chat can be honest across saved follow-ups.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

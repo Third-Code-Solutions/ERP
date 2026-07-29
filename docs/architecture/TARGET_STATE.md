@@ -299,3 +299,23 @@ reach through each other's internals.
 - Evidence order remains newest-first and response size remains bounded.
 - Presentation uses a native accessible disclosure with no client mutation,
   approval, posting, or workflow authority.
+
+## Cortex focused-navigation boundary
+
+- A record-to-graph link is an untrusted focus request, not authorization.
+- Focus input must be a canonical source table plus UUID supplied together.
+  Invalid input fails before graph access.
+- The server derives tenant and role from the authenticated profile, resolves
+  the current node, verifies source/type ownership, and returns the same 404
+  for missing, mismatched, or forbidden records.
+- Focused retrieval must recheck tenant and current-row status on the focus,
+  every edge, and every joined neighbor. Role scope is applied before a
+  neighbor can enter the response.
+- Response size is bounded to the focus plus at most 80 direct neighbors.
+  `focusNodeId` is server-derived and must match a returned node.
+- The unfocused whole-graph API remains backward compatible.
+- Presentation must identify the bounded count as shown, keep the exact focus
+  visually persistent, avoid drawer occlusion, preserve keyboard navigation,
+  and produce no horizontal overflow at 1440, 768, or 390.
+- Focused graph context remains read-only and cannot approve, post, reverse,
+  allocate, or finalize an ERP transaction.
