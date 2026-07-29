@@ -1521,8 +1521,15 @@ Validation:
 - gitleaks 8.30.1, actionlint 1.7.12, pinned action-reference checks,
   `git diff --check`, and prohibited external ERP source/brand scan -- pass.
 - Source commit `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59` is authored
-  by `kurtgav <kurtgavin.design@gmail.com>`.
+  by `kurtgav <kurtgavin.design@gmail.com>` and is contained in docs head
+  `cc5733fa98136c500aa2602b9232a6f9ae34df78`; both GitHub refs match.
 - Vercel deployments after retained baseline `1785295180454` -- zero.
+- Railway deployment `733f1197-344a-41d9-ad95-af4fda876242` -- SUCCESS on
+  docs head `cc5733f`; live `/health` is `ok` and `/ready` reports PostgreSQL
+  and Redis `ok`.
+- GitHub Actions run `30471712383` -- failed before any step started because
+  of the account payment/spending-limit restriction; every dependent job has
+  zero executed steps.
 
 Rollback and unresolved:
 

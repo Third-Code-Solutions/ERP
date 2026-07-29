@@ -45,9 +45,10 @@ runtime file remains.
 ## Production prerequisites
 
 - Hosted Supabase is already at the reviewed 54/54 migration baseline.
-- The active Railway API remains successful deployment
-  `94c78bd2-327a-4f6a-a49e-1d77195d850d` from source
-  `f173957559a93eb724daf9eeed3fbbb1c4576baf`.
+- The active Railway API is successful deployment
+  `733f1197-344a-41d9-ad95-af4fda876242` from docs head
+  `cc5733fa98136c500aa2602b9232a6f9ae34df78`, containing candidate source
+  `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59`.
 - The disposable PostgreSQL 17 release gate is 236/236 database tests
   with zero skips.
 - This frontend activation requires no new database migration, API deployment,
@@ -111,6 +112,9 @@ References:
 GitHub Actions run `30467875222` could not start a workflow step because the
 account reports failed payments or an exceeded spending limit. The local gates
 above are the completed evidence; hosted CI is an unresolved external gate.
+
+Latest run `30471712383` has the same external condition: Actionlint failed
+before step start and every dependent job has zero executed steps.
 
 ## Defects caught before release
 
