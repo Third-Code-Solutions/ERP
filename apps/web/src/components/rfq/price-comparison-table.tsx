@@ -9,6 +9,7 @@
  */
 
 interface LineItem {
+  bom_line_item_id?: string
   material_item_id: string | null
   code: string | null
   description: string
@@ -18,6 +19,7 @@ interface LineItem {
 
 interface Quote {
   id: string
+  bom_line_item_id: string | null
   vendor_id: string
   vendor_name: string
   material_item_id: string | null
@@ -39,6 +41,12 @@ function formatPhp(cents: number): string {
 }
 
 function quoteMatchesLine(q: Quote, l: LineItem): boolean {
+  if (
+    l.bom_line_item_id &&
+    q.bom_line_item_id === l.bom_line_item_id
+  ) {
+    return true
+  }
   if (l.material_item_id && q.material_item_id === l.material_item_id) return true
   if (l.code && q.material_code === l.code) return true
   return false

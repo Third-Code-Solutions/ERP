@@ -37,6 +37,7 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 interface RfqLineItemJson {
+  bom_line_item_id?: string
   material_item_id: string | null
   code: string | null
   description: string
@@ -65,8 +66,20 @@ export default async function RfqDetailPage({ params }: PageProps) {
       project_name: projects.name,
     })
     .from(rfqs)
-    .innerJoin(boms, eq(boms.id, rfqs.bom_id))
-    .innerJoin(projects, eq(projects.id, boms.project_id))
+    .innerJoin(
+      boms,
+      and(
+        eq(boms.id, rfqs.bom_id),
+        eq(boms.tenant_id, profile.tenantId)
+      )
+    )
+    .innerJoin(
+      projects,
+      and(
+        eq(projects.id, boms.project_id),
+        eq(projects.tenant_id, profile.tenantId)
+      )
+    )
     .where(and(eq(rfqs.id, id), eq(rfqs.tenant_id, profile.tenantId)))
     .limit(1)
 
@@ -75,6 +88,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
   const quotes = await db
     .select({
       id: rfqQuotes.id,
+      bom_line_item_id: rfqQuotes.bom_line_item_id,
       vendor_id: rfqQuotes.vendor_id,
       vendor_name: vendors.name,
       material_item_id: rfqQuotes.material_item_id,
@@ -86,9 +100,26 @@ export default async function RfqDetailPage({ params }: PageProps) {
       created_at: rfqQuotes.created_at,
     })
     .from(rfqQuotes)
-    .innerJoin(vendors, eq(vendors.id, rfqQuotes.vendor_id))
-    .leftJoin(materialItems, eq(materialItems.id, rfqQuotes.material_item_id))
-    .where(eq(rfqQuotes.rfq_id, id))
+    .innerJoin(
+      vendors,
+      and(
+        eq(vendors.id, rfqQuotes.vendor_id),
+        eq(vendors.tenant_id, profile.tenantId)
+      )
+    )
+    .leftJoin(
+      materialItems,
+      and(
+        eq(materialItems.id, rfqQuotes.material_item_id),
+        eq(materialItems.tenant_id, profile.tenantId)
+      )
+    )
+    .where(
+      and(
+        eq(rfqQuotes.rfq_id, id),
+        eq(rfqQuotes.tenant_id, profile.tenantId)
+      )
+    )
 
   const vendorList = await db
     .select({ id: vendors.id, name: vendors.name })
@@ -105,12 +136,21 @@ export default async function RfqDetailPage({ params }: PageProps) {
   // materialItems join (which gives us material_code on the quote row).
   const coveredKeys = new Set<string>()
   for (const q of quotes) {
+    if (q.bom_line_item_id) {
+      coveredKeys.add(`line:${q.bom_line_item_id}`)
+    }
     if (q.material_item_id) coveredKeys.add(`mi:${q.material_item_id}`)
     if (q.material_code) coveredKeys.add(`code:${q.material_code}`)
   }
   const allLinesCovered =
     lineItems.length > 0 &&
     lineItems.every((l) => {
+      if (
+        l.bom_line_item_id &&
+        coveredKeys.has(`line:${l.bom_line_item_id}`)
+      ) {
+        return true
+      }
       if (l.material_item_id && coveredKeys.has(`mi:${l.material_item_id}`)) return true
       if (l.code && coveredKeys.has(`code:${l.code}`)) return true
       return false
@@ -171,7 +211,10 @@ export default async function RfqDetailPage({ params }: PageProps) {
                 <tbody>
                   {lineItems.map((l, idx) => {
                     const matchedQuotes = quotes.filter((q) =>
-                      (l.material_item_id && q.material_item_id === l.material_item_id) ||
+                      (l.bom_line_item_id &&
+                        q.bom_line_item_id === l.bom_line_item_id) ||
+                      (l.material_item_id &&
+                        q.material_item_id === l.material_item_id) ||
                       (l.code && q.material_code === l.code)
                     )
                     return (
@@ -205,6 +248,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
               rfqId={rfq.id}
               vendors={vendorList}
               lineItems={lineItems.map((l) => ({
+                bom_line_item_id: l.bom_line_item_id,
                 material_item_id: l.material_item_id,
                 code: l.code,
                 description: l.description,
@@ -224,6 +268,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
             ) : (
               <PriceComparisonTable
                 lineItems={lineItems.map((l) => ({
+                  bom_line_item_id: l.bom_line_item_id,
                   material_item_id: l.material_item_id,
                   code: l.code,
                   description: l.description,
@@ -234,6 +279,7 @@ export default async function RfqDetailPage({ params }: PageProps) {
                   id: q.id,
                   vendor_id: q.vendor_id,
                   vendor_name: q.vendor_name,
+                  bom_line_item_id: q.bom_line_item_id,
                   material_item_id: q.material_item_id,
                   material_code: q.material_code,
                   unit_price_cents: q.unit_price_cents,

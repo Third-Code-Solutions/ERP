@@ -68,6 +68,10 @@ function transactionHarness(
       joins.push(condition)
       return chain
     })
+    chain.leftJoin = vi.fn((_table: unknown, condition: unknown) => {
+      joins.push(condition)
+      return chain
+    })
     chain.where = vi.fn((condition: unknown) => {
       conditions.push(condition)
       return chain
@@ -114,6 +118,7 @@ describe('RFQ transaction service', () => {
       [],
       [
         {
+          id: '66666666-6666-4666-8666-666666666666',
           code: 'MAT-001',
           description: 'Concrete board',
           unit: 'pc',
