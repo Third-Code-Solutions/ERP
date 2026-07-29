@@ -311,10 +311,12 @@ matches the repository migration contract:
 - Guard commit `ae373ce6f399e0d4bc5c7ef23537cc4f9b842837` is synchronized to
   `main` and `agent-02/third-code-erp-landing`. Vercel recorded zero
   deployments after that push.
-- Self-hosted run `30421480977` passed every substantive gate on `ae373ce`:
-  locked install, workflow validation, lint, typecheck, unit tests, 48
-  migrations, 212/212 database tests, Nest integration, production build,
-  native smoke, and Gitleaks. The run was cancelled because `setup-node`
-  remained indefinitely in its post-job pnpm cache upload. The self-hosted
-  workflow now disables remote dependency-cache upload; a clean rerun remains
-  required.
+- Self-hosted run `30422175962` is green on exact source SHA
+  `277e03484c00b6c9c6e27bae7d708302bb6d2e88`: locked install, workflow
+  validation, lint, typecheck, unit tests, 48 migrations, 212/212 database
+  tests, Nest integration, production build, native smoke, Gitleaks, and
+  cleanup all passed in 5m33s without dependency-cache or artifact upload.
+- GitHub runner registration and runner-process counts are zero. All retained
+  Windows runner directories are credential-free; Windows still holds their
+  non-secret work files open, so physical directory deletion remains an
+  operator cleanup item.

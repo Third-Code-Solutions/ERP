@@ -24,6 +24,8 @@ the account restriction is removed.
 - PostgreSQL and Redis bind only to `127.0.0.1`.
 - Test database is always `erp_self_hosted_ci`.
 - Workflow uploads no artifacts.
+- Workflow does not upload a dependency cache. The developer-owned machine
+  already retains its pnpm store; remote cache storage is unnecessary.
 
 Do not add `pull_request`, `pull_request_target`, or public-repository triggers
 to this workflow.
@@ -52,6 +54,11 @@ GitHub Actions Runner 2.336.0, validates its SHA-256 digest, registers a unique
 short-lived runner, waits for it to become online, dispatches the manual
 workflow, waits for the result, removes the registration, and deletes the local
 runner work directory.
+
+If Windows retains a transient handle, the script erases runner credentials
+first and warns that the non-secret work directory needs a later cleanup retry.
+Confirm GitHub runner count, local runner-process count, and credential-file
+count are all zero before treating security cleanup as complete.
 
 ## Required green evidence
 

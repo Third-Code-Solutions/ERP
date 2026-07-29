@@ -4,23 +4,21 @@
 
 Complete remaining M1 controls without enabling production writes:
 
-1. Publish the no-remote-cache self-hosted workflow and rerun
-   `.github/workflows/ci-self-hosted.yml` on the exact SHA. Attach the GitHub
-   run ID and confirm the transient runner deregistered and local credentials
-   were erased.
-2. Reconfirm the source push creates zero Vercel deployments. Keep existing
-   READY production online; future Vercel releases remain one explicit manual
-   deployment after green CI.
-3. Keep deployed tenant-canary source at
+1. Keep deployed tenant-canary source at
    `ERP_PROJECT_WRITES_VIA_API=false`; leave the tenant allowlist empty until
-   clean self-hosted GitHub workflow evidence is attached.
-4. After clean CI, perform the provider-level enable/rollback drill for a
+   a single manual Vercel release is explicitly approved.
+2. Before any paid frontend build, confirm the exact expected Vercel charge
+   and obtain user approval. Do not reconnect Git or create a duplicate
+   preview.
+3. After approval, perform the provider-level enable/rollback drill for a
    controlled tenant:
    capture provider configuration, enable exact `true`, prove one compatible
    Web-to-Nest demo command and reconciliation, restore exact `false`, and
    prove the legacy branch is selected.
-5. Record provider release IDs, runtime logs, final data reconciliation, and
+4. Record provider release IDs, runtime logs, final data reconciliation, and
    the tested rollback procedure before starting M2.
+5. Retry physical deletion of credential-free runner work directories after
+   Windows releases their transient file handles.
 
 ## Following milestone
 
