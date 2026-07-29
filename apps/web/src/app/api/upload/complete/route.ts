@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getUser } from '@third-code-erp/auth'
+import { can, getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { documents, users } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { inngest } from '@/lib/inngest'
 import { parseAndStoreCad } from '@/lib/cad/parse-and-store'
 import { getProject } from '@/lib/project-queries'
+import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
   extractScopeFromVisual,
   type VisualExtractResult,
@@ -67,12 +68,15 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
+    .select({ tenant_id: users.tenant_id, role: users.role })
     .from(users)
     .where(eq(users.id, user.id))
 
   if (!userRow?.tenant_id) {
     return NextResponse.json({ error: 'No tenant associated with account' }, { status: 403 })
+  }
+  if (!can(userRow.role, 'document.manage')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   let body: unknown
@@ -110,30 +114,45 @@ export async function POST(req: NextRequest) {
 
   let docId: string
   try {
-    const [doc] = await db
-      .insert(documents)
-      .values({
-        tenant_id: userRow.tenant_id,
-        project_id: projectId,
-        uploaded_by: user.id,
-        document_type: docType,
-        file_name: fileName,
-        storage_path: storagePath,
-        mime_type: mimeType,
-        size_bytes: sizeBytes,
-        description: description ?? null,
-      })
-      .returning({ id: documents.id })
+    docId = await db.transaction(async (tx) => {
+      const [doc] = await tx
+        .insert(documents)
+        .values({
+          tenant_id: userRow.tenant_id,
+          project_id: projectId,
+          uploaded_by: user.id,
+          document_type: docType,
+          file_name: fileName,
+          storage_path: storagePath,
+          mime_type: mimeType,
+          size_bytes: sizeBytes,
+          description: description ?? null,
+        })
+        .returning({ id: documents.id })
 
-    if (!doc) {
-      return NextResponse.json({ error: 'Failed to record document' }, { status: 500 })
-    }
-    docId = doc.id
+      if (!doc) {
+        throw new Error('Document insert returned no row')
+      }
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: userRow.tenant_id,
+        actorId: user.id,
+        entityType: 'document',
+        entityId: doc.id,
+        action: 'create',
+        diff: {
+          project_id: projectId,
+          document_type: docType,
+          size_bytes: sizeBytes,
+        },
+      })
+
+      return doc.id
+    })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown DB error'
     console.error('[upload/complete] documents insert failed:', err)
     return NextResponse.json(
-      { error: `Failed to record document: ${message}` },
+      { error: 'Failed to record document' },
       { status: 500 }
     )
   }

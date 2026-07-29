@@ -1459,3 +1459,59 @@ Rollback and unresolved:
   Bundle it with existing landing candidate; create no duplicate preview.
 - Composite database constraints remain required in M2.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Document mutation authority hardening
+
+Outcome:
+
+- Verified upload sign, upload complete, and document delete authenticated
+  users but did not enforce explicit mutation capability.
+- Added `document.manage` for operational roles and kept `viewer` read-only.
+- Added 403 denial before Project, quota, Storage, database, parser, AI, or
+  queue work for callers without capability.
+- Added actor- and tenant-scoped audit for signed URL issuance.
+- Made document creation and its audit entry one PostgreSQL transaction.
+- Rebuilt document deletion as one locked, tenant-and-Project-bound
+  transaction covering derived scope rows, document row, and audit append.
+- Moved best-effort Storage deletion after successful official transaction.
+- Removed trust in caller Project ID for cache invalidation by using the
+  Project loaded from the deleted record.
+- Changed no React/UI design, schema, hosted data, Auth identity, Storage
+  object, queue, provider setting, or deployment.
+
+Changed files:
+
+- `packages/auth/src/server.ts`
+- `apps/web/src/lib/audit.ts`
+- `apps/web/src/lib/document-capability.test.ts`
+- `apps/web/src/app/api/upload/sign/route.ts`
+- `apps/web/src/app/api/upload/sign/route.test.ts`
+- `apps/web/src/app/api/upload/complete/route.ts`
+- `apps/web/src/app/api/upload/complete/route.test.ts`
+- `apps/web/src/app/(dashboard)/projects/[id]/documents/actions.ts`
+- `apps/web/src/app/(dashboard)/projects/[id]/documents/actions.test.ts`
+- `docs/architecture/M2_DOCUMENT_PROCESSING_EVIDENCE_CONTRACT.md`
+- the six architecture/operations memory files
+- `docs/changesets/2026-07-29-document-mutation-authority.md`
+
+Validation:
+
+- Focused capability, sign, complete, and delete tests -- 26/26 pass.
+- Operational capability matrix and `viewer` denial -- pass.
+- Missing capability denial before side effects -- pass.
+- Audit-failure fail-closed and Storage-after-commit ordering -- pass.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` -- pass.
+- Root tests -- 278 pass; 132 disposable-database-gated cases skip as
+  designed because this source slice did not inject a writable database.
+- Optimized Web build -- 77/77 routes generated.
+- Gitleaks 8.30.1 full-history scan -- no leaks.
+- Prohibited provenance and diff-hygiene checks -- pass.
+
+Rollback and unresolved:
+
+- Revert this source/documentation milestone; runtime and provider state remain
+  unchanged.
+- Live protection requires one explicitly approved consolidated Vercel build.
+- M2 composite constraints, database audit triggers, durable processing
+  evidence, and Nest transaction authority remain required.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

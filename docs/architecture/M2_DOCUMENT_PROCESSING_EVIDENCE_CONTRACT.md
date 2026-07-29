@@ -88,6 +88,12 @@ Verified source:
     immutability, or transaction rollback.
 15. `cadParseQueued` currently mixes “extracted” and “queued” meanings.
 
+16. A later source-only candidate adds explicit `document.manage` checks,
+    audits signed URL issuance, and commits document creation plus audit
+    atomically. Live production, Python authority, processing-row
+    transactions, composite database integrity, and audit triggers remain
+    unchanged until their controlled releases.
+
 ## Authority boundary
 
 ```text

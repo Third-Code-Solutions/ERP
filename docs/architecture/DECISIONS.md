@@ -491,3 +491,29 @@ Rollback: revert shared query, two route guards, and their tests together.
 No database or provider rollback is needed for source-only work. If deployed,
 promote last known-good Vercel artifact; never disable tenant checks to recover
 an unrelated upload failure.
+
+## D-044 -- Document mutations require capability and atomic audit
+
+Decision: define `document.manage` as the server-enforced authority for signed
+upload, document creation, and document deletion. Grant it to operational
+roles and keep `viewer` read-only. Audit signed credential issuance before
+returning it. Commit official document creation or deletion and the
+corresponding hash-chain audit entry in the same PostgreSQL transaction.
+Delete derived document scope rows in the deletion transaction. Start
+non-transactional object cleanup only after the database commit succeeds.
+
+Reason: authentication and tenant derivation do not prove mutation authority.
+Unaudited document changes violate the product authority boundary. Removing a
+Storage object before independent database deletes can also create a broken
+live record when a later write fails.
+
+Validation: require actual capability-matrix tests, missing-capability denials
+before side effects, tenant-and-Project-bound document lookup, audit-failure
+rollback tests, proof that Storage cleanup follows the audit transaction, full
+lint/typecheck/test/build gates, and authenticated live proof only after an
+explicitly approved consolidated deployment.
+
+Rollback: revert the capability, route/action guards, transactional audit
+helper, and tests together. No schema or provider rollback is required for the
+source candidate. If deployed, promote the prior Vercel artifact; do not grant
+mutation authority to `viewer` as an outage workaround.

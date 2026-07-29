@@ -151,6 +151,7 @@ export type ErpCapability =
   | 'pprf.submit'
   | 'site_inspection.submit'
   | 'design.upload'
+  | 'document.manage'
   | 'bom.generate'
   | 'bom.edit'
   | 'bom.approve_internal'
@@ -192,6 +193,20 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   'pprf.submit': ['admin', 'owner', 'sales'],
   'site_inspection.submit': ['admin', 'owner', 'commercial'],
   'design.upload': ['admin', 'owner', 'design'],
+  'document.manage': [
+    'admin',
+    'owner',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'pm',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+    'estimator',
+  ],
   // BOM
   'bom.generate': ['admin', 'owner', 'commercial', 'estimator'],
   'bom.edit': ['admin', 'owner', 'commercial', 'estimator'],

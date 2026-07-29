@@ -209,3 +209,22 @@ reach through each other's internals.
   queue work.
 - Database composite tenant/Project constraints remain required defense in
   depth; application checks do not replace them.
+
+## Document mutation authority boundary
+
+- `document.manage` is an explicit server-enforced capability. Operational
+  roles may manage documents; `viewer` remains read-only.
+- Signed upload credentials are never returned unless identity, tenant,
+  capability, same-tenant Project, quota, Storage issuance, and audit append
+  all succeed.
+- Official document creation and its actor-stamped hash-chain audit entry
+  commit in one PostgreSQL transaction.
+- Document deletion binds document ID, tenant ID, and Project ID in the
+  authoritative query. Derived scope deletion, document deletion, and audit
+  append commit atomically.
+- Object Storage cleanup occurs only after the database transaction succeeds.
+  A cleanup failure may leave an inaccessible orphan object, but cannot leave
+  a live database record pointing to an object deleted before commit.
+- M2 still adds composite database constraints and audit triggers. Application
+  authority checks are immediate defense, not a substitute for database
+  integrity.
