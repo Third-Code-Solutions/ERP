@@ -1,8 +1,10 @@
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  createRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
+  rfqCreateWritesUseCoreApi,
   rfqQuoteWritesUseCoreApi,
   rfqTerminalWritesUseCoreApi,
   transitionRfqThroughCoreApi,
@@ -15,6 +17,13 @@ vi.mock('@third-code-erp/auth', () => ({
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const RFQ_ID = '44444444-4444-4444-8444-444444444444'
+const RFQ_CREATE_RESULT = {
+  rfqId: RFQ_ID,
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  projectId: PROJECT_ID,
+  lineCount: 2,
+  created: true,
+}
 const RFQ_QUOTE_RESULT = {
   quoteId: '55555555-5555-4555-8555-555555555555',
   created: true,
@@ -154,6 +163,86 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_RFQ_QUOTE_WRITES_VIA_API_TENANT_IDS', '*')
     expect(rfqQuoteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(rfqQuoteWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps RFQ creation legacy unless its independent gate matches', () => {
+    vi.stubEnv('ERP_RFQ_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_RFQ_CREATE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(rfqCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_RFQ_CREATE_WRITES_VIA_API', 'TRUE')
+    expect(rfqCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_RFQ_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_RFQ_CREATE_WRITES_VIA_API_TENANT_IDS',
+      `*,${RESULT.tenantId}`
+    )
+    expect(rfqCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv(
+      'ERP_RFQ_CREATE_WRITES_VIA_API_TENANT_IDS',
+      'not-a-uuid'
+    )
+    expect(rfqCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_RFQ_CREATE_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(rfqCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+  })
+
+  it('sends a strict RFQ creation command and validates the result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(RFQ_CREATE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createRfqThroughCoreApi({ bomId: PROJECT_ID })
+    ).resolves.toEqual({
+      ok: true,
+      data: RFQ_CREATE_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/procurement/rfqs',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ bomId: PROJECT_ID }),
+        cache: 'no-store',
+      })
+    )
+  })
+
+  it('fails closed on an invalid RFQ creation result', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...RFQ_CREATE_RESULT,
+            lineCount: -1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }
+        )
+      )
+    )
+
+    await expect(
+      createRfqThroughCoreApi({ bomId: PROJECT_ID })
+    ).resolves.toEqual({
+      ok: false,
+      error:
+        'ERP Core API returned an invalid RFQ creation result.',
+    })
   })
 
   it('sends a strict RFQ quote command and validates the result', async () => {

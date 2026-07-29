@@ -591,3 +591,32 @@ Status: source candidate complete; provider routing disabled.
 Rollback: unset the terminal flag/allowlist or revert this source milestone.
 No database or provider rollback is required because the adapter reuses the
 current integrity schema and remains disabled.
+# 2026-07-30 RFQ creation adapter milestone
+
+Status: source implementation and local release gates complete; production
+cutover disabled.
+
+- Added strict shared RFQ creation command and durable result contracts.
+- Added capability-guarded NestJS `POST /v1/procurement/rfqs`.
+- Added tenant-scoped BOM row locking, replay idempotency, contracted-rate
+  filtering, atomic RFQ creation, and semantic audit.
+- Added an independent Next.js tenant gate with fail-closed no-fallback
+  behavior after Nest selection.
+- Preserved the existing Server Action response, post-commit notification,
+  route revalidation, and background Inngest flow.
+- Kept both creation cutover variables unset.
+- Completed root lint, typecheck, tests, production build, all 54 migrations,
+  236/236 zero-skip database checks, 2/2 Nest integration tests, action
+  validation, release-planner tests, secret scanning, and prohibited external
+  ERP runtime scanning.
+
+Next migration milestone:
+
+1. Specify the automatic BOM-approved RFQ dispatch contract.
+2. Add a NestJS/BullMQ producer-consumer path behind an independent disabled
+   tenant gate.
+3. Preserve the current trusted event behavior during compatibility mode.
+4. Prove retry idempotency, tenant isolation, audit atomicity, dead-letter
+   handling, and Redis recovery against disposable PostgreSQL and Redis.
+5. Do not enable provider flags or deploy the frontend without explicit
+   approval.

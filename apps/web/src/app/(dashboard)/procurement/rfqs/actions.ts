@@ -16,6 +16,7 @@ import { requireUserProfile, can } from '@third-code-erp/auth'
 import {
   createRfqFromBomRecord,
   notifyRfqCreated,
+  type CreatedRfq,
 } from '@/lib/procurement/rfq-service'
 import {
   logRfqQuoteRecord,
@@ -23,7 +24,9 @@ import {
   transitionRfqRecord,
 } from '@/lib/procurement/rfq-workflow-service'
 import {
+  createRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
+  rfqCreateWritesUseCoreApi,
   rfqQuoteWritesUseCoreApi,
   rfqTerminalWritesUseCoreApi,
   transitionRfqThroughCoreApi,
@@ -69,14 +72,26 @@ export async function createRfqFromBom(
   }
 
   try {
-    const result = await createRfqFromBomRecord({
-      bomId,
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      source: 'manual',
-    })
-
-    if ('error' in result) return result
+    let result: CreatedRfq
+    if (rfqCreateWritesUseCoreApi(profile.tenantId)) {
+      const response = await createRfqThroughCoreApi({ bomId })
+      if (!response.ok || !response.data) {
+        return {
+          error:
+            response.error ?? 'RFQ creation was not committed.',
+        }
+      }
+      result = response.data
+    } else {
+      const response = await createRfqFromBomRecord({
+        bomId,
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        source: 'manual',
+      })
+      if ('error' in response) return response
+      result = response
+    }
 
     if (result.created) {
       try {

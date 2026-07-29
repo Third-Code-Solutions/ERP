@@ -88,8 +88,10 @@ suite('Procurement API database integration', () => {
       const projectB = randomUUID()
       const bomA = randomUUID()
       const bomB = randomUUID()
+      const bomCreateA = randomUUID()
       const lineA = randomUUID()
       const lineB = randomUUID()
+      const lineCreateA = randomUUID()
       const vendorA = randomUUID()
       const vendorB = randomUUID()
       const rfqA = randomUUID()
@@ -170,6 +172,13 @@ suite('Procurement API database integration', () => {
           created_by: procurementB,
           status: 'approved',
         },
+        {
+          id: bomCreateA,
+          tenant_id: tenantA,
+          project_id: projectA,
+          created_by: procurementA,
+          status: 'approved',
+        },
       ])
       await transaction.insert(bomLineItems).values([
         {
@@ -185,6 +194,14 @@ suite('Procurement API database integration', () => {
           bom_id: bomB,
           description: 'Line B',
           quantity: 1,
+        },
+        {
+          id: lineCreateA,
+          tenant_id: tenantA,
+          bom_id: bomCreateA,
+          description: 'Creation line A',
+          quantity: 2,
+          unit: 'pcs',
         },
       ])
       await transaction.insert(vendors).values([
@@ -284,6 +301,45 @@ suite('Procurement API database integration', () => {
       }
 
       try {
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs')
+          .send({ bomId: bomCreateA })
+          .expect(401)
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs')
+          .set('Authorization', 'Bearer commercial-a-token')
+          .send({ bomId: bomCreateA })
+          .expect(403)
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs')
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ bomId: bomB })
+          .expect(404)
+
+        const createdRfq = await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs')
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ bomId: bomCreateA })
+          .expect(200)
+        expect(createdRfq.body).toMatchObject({
+          tenantId: tenantA,
+          projectId: projectA,
+          lineCount: 1,
+          created: true,
+        })
+
+        const replayedRfq = await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs')
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ bomId: bomCreateA })
+          .expect(200)
+        expect(replayedRfq.body).toEqual({
+          ...createdRfq.body,
+          created: false,
+        })
+
         await request(app.getHttpServer())
           .post(`/v1/procurement/rfqs/${rfqA}/quotes`)
           .send(command)
@@ -399,6 +455,15 @@ suite('Procurement API database integration', () => {
               eq(auditLog.actor_id, procurementA)
             )
           )
+        const createdRfqRows = await transaction
+          .select()
+          .from(rfqs)
+          .where(
+            and(
+              eq(rfqs.tenant_id, tenantA),
+              eq(rfqs.bom_id, bomCreateA)
+            )
+          )
         const tenantBCancelAudit = await transaction
           .select()
           .from(auditLog)
@@ -421,9 +486,40 @@ suite('Procurement API database integration', () => {
           .limit(1)
 
         expect(quotes).toHaveLength(1)
+        expect(createdRfqRows).toHaveLength(1)
+        expect(createdRfqRows[0]?.id).toBe(createdRfq.body.rfqId)
         expect(quotes[0]?.created_by).toBe(procurementA)
         expect(updatedRfq?.status).toBe('completed')
         expect(cancelledRfq?.status).toBe('cancelled')
+        expect(
+          semanticAudit.filter(
+            (entry) =>
+              entry.entity_type === 'rfq' &&
+              entry.entity_id === createdRfq.body.rfqId &&
+              entry.action === 'create' &&
+              (
+                entry.diff as {
+                  bom_id?: string
+                  line_count?: number
+                  source?: string
+                }
+              ).bom_id === bomCreateA &&
+              (
+                entry.diff as {
+                  bom_id?: string
+                  line_count?: number
+                  source?: string
+                }
+              ).line_count === 1 &&
+              (
+                entry.diff as {
+                  bom_id?: string
+                  line_count?: number
+                  source?: string
+                }
+              ).source === 'manual'
+          )
+        ).toHaveLength(1)
         expect(
           semanticAudit.some(
             (entry) =>

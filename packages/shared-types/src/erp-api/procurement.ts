@@ -1,5 +1,21 @@
 import { z } from 'zod'
 
+export const createRfqCommandSchema = z
+  .object({
+    bomId: z.string().uuid(),
+  })
+  .strict()
+
+export const rfqCreationResultSchema = z
+  .object({
+    rfqId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    lineCount: z.number().int().safe().nonnegative(),
+    created: z.boolean(),
+  })
+  .strict()
+
 export const logRfqQuoteCommandSchema = z
   .object({
     submissionId: z.string().uuid(),
@@ -47,6 +63,12 @@ export const rfqTransitionResultSchema = z
 
 export type LogRfqQuoteCommand = z.infer<
   typeof logRfqQuoteCommandSchema
+>
+export type CreateRfqCommand = z.infer<
+  typeof createRfqCommandSchema
+>
+export type RfqCreationResult = z.infer<
+  typeof rfqCreationResultSchema
 >
 export type RfqQuoteResult = z.infer<typeof rfqQuoteResultSchema>
 export type TransitionRfqCommand = z.infer<

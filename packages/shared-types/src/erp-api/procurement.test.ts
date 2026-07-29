@@ -1,12 +1,53 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createRfqCommandSchema,
   logRfqQuoteCommandSchema,
+  rfqCreationResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   transitionRfqCommandSchema,
 } from './procurement'
 
 const UUID = '11111111-1111-4111-8111-111111111111'
+
+describe('RFQ creation API contracts', () => {
+  it('accepts only a BOM identifier from the caller', () => {
+    expect(createRfqCommandSchema.parse({ bomId: UUID })).toEqual({
+      bomId: UUID,
+    })
+    expect(
+      createRfqCommandSchema.safeParse({
+        bomId: UUID,
+        tenantId: UUID,
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires a strict durable creation result', () => {
+    const result = {
+      rfqId: UUID,
+      tenantId: UUID,
+      projectId: UUID,
+      lineCount: 2,
+      created: true,
+    }
+    expect(rfqCreationResultSchema.safeParse(result).success).toBe(
+      true
+    )
+    expect(
+      rfqCreationResultSchema.safeParse({
+        ...result,
+        source: 'manual',
+      }).success
+    ).toBe(false)
+    expect(
+      rfqCreationResultSchema.safeParse({
+        ...result,
+        lineCount: -1,
+      }).success
+    ).toBe(false)
+  })
+})
 
 describe('RFQ quote API contracts', () => {
   it('accepts the bounded canonical quote command', () => {
