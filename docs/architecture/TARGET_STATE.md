@@ -519,3 +519,7 @@ reach through each other's internals.
 - The current Next.js service is a compatibility implementation. The next
   incremental migration places the same commands behind a disabled NestJS
   procurement adapter before any provider-level cutover.
+
+The disabled quote adapter now exists. Target activation remains a measured
+single-tenant canary only after M1 provider gates; completion and cancellation
+move later as separate, independently verified milestones.

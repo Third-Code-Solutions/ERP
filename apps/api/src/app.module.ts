@@ -19,6 +19,7 @@ import { SupabaseJwtGuard } from './auth/supabase-jwt.guard'
 import { DatabaseModule } from './database/database.module'
 import { HealthController } from './health/health.controller'
 import { ProjectsModule } from './projects/projects.module'
+import { ProcurementModule } from './procurement/procurement.module'
 
 const redisLogger = new Logger('Redis')
 
@@ -54,6 +55,7 @@ class RedisLifecycle implements OnApplicationShutdown {
     DatabaseModule,
     AuthModule,
     ProjectsModule,
+    ProcurementModule,
   ],
   controllers: [HealthController],
   providers: [

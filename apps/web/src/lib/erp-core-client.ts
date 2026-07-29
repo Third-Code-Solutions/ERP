@@ -2,8 +2,11 @@ import 'server-only'
 
 import { randomUUID } from 'node:crypto'
 import {
+  rfqQuoteResultSchema,
   projectUpdateResultSchema,
+  type LogRfqQuoteCommand,
   type ProjectUpdateResult,
+  type RfqQuoteResult,
   type UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
@@ -17,15 +20,16 @@ interface CoreResult<T> {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export function projectWritesUseCoreApi(tenantId: string): boolean {
-  if (process.env.ERP_PROJECT_WRITES_VIA_API !== 'true') return false
-
+function tenantEnabledForCoreApi(
+  tenantId: string,
+  enabled: string | undefined,
+  tenantIds: string | undefined
+): boolean {
+  if (enabled !== 'true') return false
   const normalizedTenantId = tenantId.trim().toLowerCase()
   if (!UUID_PATTERN.test(normalizedTenantId)) return false
 
-  const allowlist = (
-    process.env.ERP_PROJECT_WRITES_VIA_API_TENANT_IDS ?? ''
-  )
+  const allowlist = (tenantIds ?? '')
     .split(',')
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean)
@@ -43,10 +47,26 @@ export function projectWritesUseCoreApi(tenantId: string): boolean {
   return allowlist.includes(normalizedTenantId)
 }
 
-export async function updateProjectThroughCoreApi(
-  projectId: string,
-  command: UpdateProjectCommand
-): Promise<CoreResult<ProjectUpdateResult>> {
+export function projectWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PROJECT_WRITES_VIA_API,
+    process.env.ERP_PROJECT_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function rfqQuoteWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_RFQ_QUOTE_WRITES_VIA_API,
+    process.env.ERP_RFQ_QUOTE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+async function getCoreApiAccess(): Promise<
+  | { ok: true; baseUrl: string; accessToken: string }
+  | { ok: false; error: string }
+> {
   const baseUrl = process.env.ERP_CORE_API_URL?.replace(/\/+$/, '')
   if (!baseUrl) {
     return {
@@ -63,18 +83,35 @@ export async function updateProjectThroughCoreApi(
     return { ok: false, error: 'Unauthorized' }
   }
 
+  return {
+    ok: true,
+    baseUrl,
+    accessToken: session.access_token,
+  }
+}
+
+export async function updateProjectThroughCoreApi(
+  projectId: string,
+  command: UpdateProjectCommand
+): Promise<CoreResult<ProjectUpdateResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
   try {
-    const response = await fetch(`${baseUrl}/v1/projects/${projectId}`, {
-      method: 'PATCH',
-      headers: {
-        authorization: `Bearer ${session.access_token}`,
-        'content-type': 'application/json',
-        'x-request-id': randomUUID(),
-      },
-      body: JSON.stringify(command),
-      cache: 'no-store',
-      signal: AbortSignal.timeout(10_000),
-    })
+    const response = await fetch(
+      `${access.baseUrl}/v1/projects/${projectId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
 
     const body = (await response.json().catch(() => null)) as
       | Record<string, unknown>
@@ -101,6 +138,60 @@ export async function updateProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project change was committed.',
+    }
+  }
+}
+
+export async function logRfqQuoteThroughCoreApi(
+  rfqId: string,
+  command: LogRfqQuoteCommand
+): Promise<CoreResult<RfqQuoteResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/rfqs/${rfqId}/quotes`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Quote submission conflicts with an existing record.'
+            : response.status === 404
+              ? 'RFQ, line, or vendor was not found.'
+              : 'Quote was not committed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = rfqQuoteResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid RFQ quote result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No quote was committed.',
     }
   }
 }

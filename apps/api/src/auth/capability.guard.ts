@@ -13,7 +13,10 @@ import {
 } from './current-principal.decorator'
 import { PUBLIC_ROUTE } from './supabase-jwt.guard'
 
-export const ERP_CAPABILITIES = ['project.update'] as const
+export const ERP_CAPABILITIES = [
+  'project.update',
+  'rfq.dispatch',
+] as const
 export type ErpCapability = (typeof ERP_CAPABILITIES)[number]
 
 const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
@@ -25,6 +28,7 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'sd_pm_pe',
     'pm',
   ],
+  'rfq.dispatch': ['owner', 'admin', 'procurement'],
 }
 
 const CAPABILITIES_KEY = 'third-code-erp:capabilities'

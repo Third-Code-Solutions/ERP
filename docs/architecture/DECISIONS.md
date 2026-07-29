@@ -962,3 +962,16 @@ cross-tenant, duplicate-submission, evidence-deletion, and invalid-transition
 paths. Correct database defects with a reviewed forward migration. Keep
 Vercel Git disconnected and the retained production deployment active until
 one consolidated frontend release is explicitly approved.
+
+## ADR-028: RFQ quote command moves behind a disabled NestJS adapter
+
+Decision: introduce only quote logging in the NestJS modular monolith. Route
+Next.js to it only when an exact feature flag and explicit tenant UUID
+allowlist both match. Never fall back after an enabled API attempt.
+
+Reason: this creates one authoritative, permission-checked transaction
+boundary without a big-bang rewrite or dual-write ambiguity. Existing
+complete/cancel behavior remains unchanged.
+
+Rollback: unset the flag/allowlist or revert this application milestone. No
+schema rollback exists because this milestone adds no migration.

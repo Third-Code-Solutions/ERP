@@ -1,7 +1,9 @@
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
+  rfqQuoteWritesUseCoreApi,
   updateProjectThroughCoreApi,
 } from './erp-core-client'
 
@@ -10,6 +12,12 @@ vi.mock('@third-code-erp/auth', () => ({
 }))
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+const RFQ_ID = '44444444-4444-4444-8444-444444444444'
+const RFQ_QUOTE_RESULT = {
+  quoteId: '55555555-5555-4555-8555-555555555555',
+  created: true,
+  statusChanged: true,
+}
 const RESULT = {
   id: PROJECT_ID,
   tenantId: '22222222-2222-4222-8222-222222222222',
@@ -115,5 +123,63 @@ describe('ERP Core client', () => {
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
       ),
     })
+  })
+
+  it('keeps RFQ quote writes on the legacy path unless its exact flag and tenant match', () => {
+    vi.stubEnv('ERP_RFQ_QUOTE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_RFQ_QUOTE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(rfqQuoteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_RFQ_QUOTE_WRITES_VIA_API', 'TRUE')
+    expect(rfqQuoteWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_RFQ_QUOTE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_RFQ_QUOTE_WRITES_VIA_API_TENANT_IDS',
+      `*,${RESULT.tenantId}`
+    )
+    expect(rfqQuoteWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_RFQ_QUOTE_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(rfqQuoteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(rfqQuoteWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('sends a strict RFQ quote command and validates the result', async () => {
+    const command = {
+      submissionId: '66666666-6666-4666-8666-666666666666',
+      bomLineItemId: '77777777-7777-4777-8777-777777777777',
+      vendorId: '88888888-8888-4888-8888-888888888888',
+      unitPriceCents: 125_050,
+      leadTimeDays: 14,
+      validUntil: '2026-08-31T00:00:00.000Z',
+      notes: 'Includes delivery',
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(RFQ_QUOTE_RESULT), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      logRfqQuoteThroughCoreApi(RFQ_ID, command)
+    ).resolves.toEqual({
+      ok: true,
+      data: RFQ_QUOTE_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/procurement/rfqs/${RFQ_ID}/quotes`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        cache: 'no-store',
+      })
+    )
   })
 })
