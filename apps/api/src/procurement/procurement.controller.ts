@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  HttpCode,
+  HttpStatus,
   Inject,
   Param,
   ParseUUIDPipe,
@@ -8,7 +10,9 @@ import {
 } from '@nestjs/common'
 import type {
   LogRfqQuoteCommand,
+  RfqTransitionResult,
   RfqQuoteResult,
+  TransitionRfqCommand,
 } from '@third-code-erp/shared-types'
 import {
   CurrentPrincipal,
@@ -17,6 +21,7 @@ import {
 import { RequireCapabilities } from '../auth/capability.guard'
 import { LogRfqQuotePipe } from './log-rfq-quote.pipe'
 import { ProcurementService } from './procurement.service'
+import { TransitionRfqPipe } from './transition-rfq.pipe'
 
 @Controller('v1/procurement/rfqs')
 export class ProcurementController {
@@ -33,5 +38,16 @@ export class ProcurementController {
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<RfqQuoteResult> {
     return this.procurement.logQuote(rfqId, command, principal)
+  }
+
+  @Post(':rfqId/transitions')
+  @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('rfq.dispatch')
+  transition(
+    @Param('rfqId', new ParseUUIDPipe()) rfqId: string,
+    @Body(TransitionRfqPipe) command: TransitionRfqCommand,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<RfqTransitionResult> {
+    return this.procurement.transition(rfqId, command, principal)
   }
 }

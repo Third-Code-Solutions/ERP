@@ -4,6 +4,8 @@ import {
   logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
   rfqQuoteWritesUseCoreApi,
+  rfqTerminalWritesUseCoreApi,
+  transitionRfqThroughCoreApi,
   updateProjectThroughCoreApi,
 } from './erp-core-client'
 
@@ -17,6 +19,11 @@ const RFQ_QUOTE_RESULT = {
   quoteId: '55555555-5555-4555-8555-555555555555',
   created: true,
   statusChanged: true,
+}
+const RFQ_TRANSITION_RESULT = {
+  rfqId: RFQ_ID,
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  transitioned: true as const,
 }
 const RESULT = {
   id: PROJECT_ID,
@@ -49,6 +56,7 @@ describe('ERP Core client', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -181,5 +189,91 @@ describe('ERP Core client', () => {
         cache: 'no-store',
       })
     )
+  })
+
+  it('keeps RFQ terminal writes legacy unless its independent gate matches', () => {
+    vi.stubEnv('ERP_RFQ_TERMINAL_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_RFQ_TERMINAL_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(rfqTerminalWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_RFQ_TERMINAL_WRITES_VIA_API', 'TRUE')
+    expect(rfqTerminalWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_RFQ_TERMINAL_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_RFQ_TERMINAL_WRITES_VIA_API_TENANT_IDS',
+      `*,${RESULT.tenantId}`
+    )
+    expect(rfqTerminalWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv(
+      'ERP_RFQ_TERMINAL_WRITES_VIA_API_TENANT_IDS',
+      'not-a-uuid'
+    )
+    expect(rfqTerminalWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_RFQ_TERMINAL_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(rfqTerminalWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+  })
+
+  it('sends a strict RFQ terminal command and validates the result', async () => {
+    const command = {
+      command: 'cancel' as const,
+      reason: 'Supplier withdrew',
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(RFQ_TRANSITION_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      transitionRfqThroughCoreApi(RFQ_ID, command)
+    ).resolves.toEqual({
+      ok: true,
+      data: RFQ_TRANSITION_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/procurement/rfqs/${RFQ_ID}/transitions`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        cache: 'no-store',
+      })
+    )
+  })
+
+  it('fails closed on an invalid RFQ terminal result', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...RFQ_TRANSITION_RESULT,
+            transitioned: false,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }
+        )
+      )
+    )
+
+    await expect(
+      transitionRfqThroughCoreApi(RFQ_ID, {
+        command: 'complete',
+      })
+    ).resolves.toEqual({
+      ok: false,
+      error:
+        'ERP Core API returned an invalid RFQ transition result.',
+    })
   })
 })

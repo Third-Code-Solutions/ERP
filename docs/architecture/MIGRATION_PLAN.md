@@ -571,3 +571,23 @@ authorized.
   authenticated browser/API/database/log/tenant-isolation evidence.
 - Roll back source by reverting this isolated commit. After a later host
   release, roll back to the retained image tag or retained Vercel artifact.
+
+## RFQ terminal NestJS adapter slice
+
+Status: source candidate complete; provider routing disabled.
+
+- Preserve `completeRfq` and `cancelRfq` Server Action behavior.
+- Add one strict Nest command route for complete/cancel with server-derived
+  identity and `rfq.dispatch`.
+- Keep RFQ lock, tenant predicates, state-machine checks, full quote coverage,
+  guarded update, and semantic audit in one PostgreSQL transaction.
+- Route only through an independent exact flag plus strict tenant allowlist.
+  Never fall back after an enabled API attempt.
+- Validate shared, HTTP, service, Web adapter, and real PostgreSQL paths,
+  including cross-tenant denial, conflict, cancel reason evidence, and
+  rollback cleanup.
+- Keep all provider flags absent/false. No Vercel build is required.
+
+Rollback: unset the terminal flag/allowlist or revert this source milestone.
+No database or provider rollback is required because the adapter reuses the
+current integrity schema and remains disabled.

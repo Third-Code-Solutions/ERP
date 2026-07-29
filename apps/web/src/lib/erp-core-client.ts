@@ -2,11 +2,14 @@ import 'server-only'
 
 import { randomUUID } from 'node:crypto'
 import {
-  rfqQuoteResultSchema,
   projectUpdateResultSchema,
+  rfqQuoteResultSchema,
+  rfqTransitionResultSchema,
   type LogRfqQuoteCommand,
   type ProjectUpdateResult,
   type RfqQuoteResult,
+  type RfqTransitionResult,
+  type TransitionRfqCommand,
   type UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
@@ -60,6 +63,16 @@ export function rfqQuoteWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_RFQ_QUOTE_WRITES_VIA_API,
     process.env.ERP_RFQ_QUOTE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function rfqTerminalWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_RFQ_TERMINAL_WRITES_VIA_API,
+    process.env.ERP_RFQ_TERMINAL_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -192,6 +205,62 @@ export async function logRfqQuoteThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No quote was committed.',
+    }
+  }
+}
+
+export async function transitionRfqThroughCoreApi(
+  rfqId: string,
+  command: TransitionRfqCommand
+): Promise<CoreResult<RfqTransitionResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/rfqs/${rfqId}/transitions`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'RFQ transition conflicts with its current state.'
+            : response.status === 404
+              ? 'RFQ was not found.'
+              : 'RFQ transition was not committed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = rfqTransitionResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid RFQ transition result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No RFQ transition was committed.',
     }
   }
 }

@@ -334,6 +334,43 @@ suite('Procurement API database integration', () => {
           .send({ ...command, unitPriceCents: 1 })
           .expect(409)
 
+        await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqB}/transitions`)
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ command: 'complete' })
+          .expect(404)
+
+        const completed = await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqA}/transitions`)
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ command: 'complete' })
+          .expect(200)
+        expect(completed.body).toEqual({
+          rfqId: rfqA,
+          tenantId: tenantA,
+          transitioned: true,
+        })
+
+        await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqA}/transitions`)
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ command: 'complete' })
+          .expect(409)
+
+        const cancelled = await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqB}/transitions`)
+          .set('Authorization', 'Bearer procurement-b-token')
+          .send({
+            command: 'cancel',
+            reason: 'Supplier withdrew',
+          })
+          .expect(200)
+        expect(cancelled.body).toEqual({
+          rfqId: rfqB,
+          tenantId: tenantB,
+          transitioned: true,
+        })
+
         const quotes = await transaction
           .select()
           .from(rfqQuotes)
@@ -362,10 +399,31 @@ suite('Procurement API database integration', () => {
               eq(auditLog.actor_id, procurementA)
             )
           )
+        const tenantBCancelAudit = await transaction
+          .select()
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantB),
+              eq(auditLog.actor_id, procurementB),
+              eq(auditLog.entity_id, rfqB)
+            )
+          )
+        const [cancelledRfq] = await transaction
+          .select({ status: rfqs.status })
+          .from(rfqs)
+          .where(
+            and(
+              eq(rfqs.tenant_id, tenantB),
+              eq(rfqs.id, rfqB)
+            )
+          )
+          .limit(1)
 
         expect(quotes).toHaveLength(1)
         expect(quotes[0]?.created_by).toBe(procurementA)
-        expect(updatedRfq?.status).toBe('quotes_received')
+        expect(updatedRfq?.status).toBe('completed')
+        expect(cancelledRfq?.status).toBe('cancelled')
         expect(
           semanticAudit.some(
             (entry) =>
@@ -379,7 +437,48 @@ suite('Procurement API database integration', () => {
             (entry) =>
               entry.entity_type === 'rfq' &&
               entry.entity_id === rfqA &&
-              entry.action === 'status_change'
+              entry.action === 'status_change' &&
+              (
+                entry.diff as {
+                  from?: string
+                  to?: string
+                }
+              ).from === 'quotes_received' &&
+              (
+                entry.diff as {
+                  from?: string
+                  to?: string
+                }
+              ).to === 'completed'
+          )
+        ).toBe(true)
+        expect(
+          tenantBCancelAudit.some(
+            (entry) =>
+              entry.entity_type === 'rfq' &&
+              entry.entity_id === rfqB &&
+              entry.action === 'status_change' &&
+              (
+                entry.diff as {
+                  from?: string
+                  to?: string
+                  reason?: string
+                }
+              ).from === 'pending' &&
+              (
+                entry.diff as {
+                  from?: string
+                  to?: string
+                  reason?: string
+                }
+              ).to === 'cancelled' &&
+              (
+                entry.diff as {
+                  from?: string
+                  to?: string
+                  reason?: string
+                }
+              ).reason === 'Supplier withdrew'
           )
         ).toBe(true)
       } finally {

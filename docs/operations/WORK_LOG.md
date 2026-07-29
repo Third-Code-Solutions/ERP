@@ -1460,6 +1460,61 @@ Rollback and unresolved:
 - Composite database constraints remain required in M2.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
 
+## 2026-07-30 -- RFQ terminal NestJS adapter
+
+Completed:
+
+- Added strict shared complete/cancel command and success contracts.
+- Added the capability-guarded Nest transition route and parser.
+- Moved tenant lock, terminal state checks, completion coverage validation,
+  guarded update, actor stamp, and semantic audit into one Nest transaction.
+- Added a separate fail-closed Next-to-Nest adapter gate. Existing Server
+  Action results, route revalidation, and post-commit notification behavior
+  remain compatible.
+- Extended real PostgreSQL integration proof through completion,
+  cross-tenant denial, repeat conflict, cancellation, and reason audit.
+- Kept all cutover flags disabled. No UI, database migration, provider
+  configuration, or live data changed.
+
+Changed files:
+
+- `packages/shared-types/src/erp-api/procurement.ts`
+- `packages/shared-types/src/erp-api/procurement.test.ts`
+- `apps/api/src/procurement/transition-rfq.pipe.ts`
+- `apps/api/src/procurement/procurement.controller.ts`
+- `apps/api/src/procurement/procurement.controller.spec.ts`
+- `apps/api/src/procurement/procurement.service.ts`
+- `apps/api/src/procurement/procurement.service.spec.ts`
+- `apps/api/integration/procurement.database.integration.spec.ts`
+- `apps/web/src/lib/erp-core-client.ts`
+- `apps/web/src/lib/erp-core-client.test.ts`
+- `apps/web/src/app/(dashboard)/procurement/rfqs/actions.ts`
+- `apps/web/src/app/(dashboard)/procurement/rfqs/actions.test.ts`
+- `docs/research/components/rfq-terminal-nest-adapter.spec.md`
+- the six architecture/operations memory files
+
+Validation:
+
+- Focused shared, API, and Web contracts: 61/61 pass.
+- Root lint and typecheck: pass.
+- Root application tests: 397/397 pass.
+- Local database tests: 99 pass and 137 credential-dependent checks skip as
+  designed.
+- Production build: pass; 77/77 pages generated.
+- Disposable PostgreSQL 17/Redis 7.4.9 lane: 54/54 migrations, 236/236
+  database tests with zero skips, stable schema fingerprint, and 2/2 Nest
+  database integration tests.
+- Actionlint 1.7.12, pinned action-reference checks, both release planners,
+  Gitleaks 8.30.1, diff check, and product-path ERPNext/Frappe scan: pass.
+
+Rollback and unresolved:
+
+- Source rollback is one revert. Existing RFQ integrity migrations remain
+  forward-only and unchanged.
+- Production flags remain disabled. A provider canary still requires an
+  approved clean tenant and exact environment/monitoring/rollback review.
+- Vercel remains disconnected and no frontend deployment is authorized.
+
 ## 2026-07-30 — Inert NestJS RFQ quote adapter
 
 Completed:

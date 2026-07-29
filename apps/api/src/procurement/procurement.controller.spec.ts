@@ -17,7 +17,7 @@ const COMMAND = {
   unitPriceCents: 12_345,
 }
 
-describe('Procurement RFQ quote HTTP contract', () => {
+describe('Procurement RFQ HTTP contract', () => {
   let close: (() => Promise<void>) | undefined
 
   afterEach(async () => {
@@ -25,13 +25,16 @@ describe('Procurement RFQ quote HTTP contract', () => {
     close = undefined
   })
 
-  async function appFor(logQuote: ReturnType<typeof vi.fn>) {
+  async function appFor(
+    logQuote: ReturnType<typeof vi.fn>,
+    transition = vi.fn()
+  ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [ProcurementController],
       providers: [
         {
           provide: ProcurementService,
-          useValue: { logQuote },
+          useValue: { logQuote, transition },
         },
       ],
     }).compile()
@@ -100,5 +103,53 @@ describe('Procurement RFQ quote HTTP contract', () => {
       })
       .expect(400)
     expect(logQuote).not.toHaveBeenCalled()
+  })
+
+  it('preserves the strict terminal-transition result contract', async () => {
+    const logQuote = vi.fn()
+    const transition = vi.fn().mockResolvedValue({
+      rfqId: RFQ_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      transitioned: true,
+    })
+    const app = await appFor(logQuote, transition)
+
+    const response = await request(app.getHttpServer())
+      .post(`/v1/procurement/rfqs/${RFQ_ID}/transitions`)
+      .send({ command: 'complete' })
+      .expect(200)
+
+    expect(response.body).toEqual({
+      rfqId: RFQ_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      transitioned: true,
+    })
+    expect(transition).toHaveBeenCalledWith(
+      RFQ_ID,
+      { command: 'complete' },
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+    )
+  })
+
+  it('rejects invalid terminal commands before service authority', async () => {
+    const logQuote = vi.fn()
+    const transition = vi.fn()
+    const app = await appFor(logQuote, transition)
+
+    await request(app.getHttpServer())
+      .post(`/v1/procurement/rfqs/${RFQ_ID}/transitions`)
+      .send({
+        command: 'complete',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+      .expect(400)
+    await request(app.getHttpServer())
+      .post(`/v1/procurement/rfqs/${RFQ_ID}/transitions`)
+      .send({ command: 'cancel', reason: ' ' })
+      .expect(400)
+
+    expect(transition).not.toHaveBeenCalled()
   })
 })

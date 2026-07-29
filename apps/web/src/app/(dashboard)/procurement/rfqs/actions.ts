@@ -25,6 +25,8 @@ import {
 import {
   logRfqQuoteThroughCoreApi,
   rfqQuoteWritesUseCoreApi,
+  rfqTerminalWritesUseCoreApi,
+  transitionRfqThroughCoreApi,
 } from '@/lib/erp-core-client'
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -176,18 +178,38 @@ export async function completeRfq(rfqId: string): Promise<{ error?: string }> {
   }
 
   try {
-    const result = await transitionRfqRecord({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      rfqId,
-      command: 'complete',
-    })
-    if ('error' in result) return result
+    let transition: {
+      rfqId: string
+      tenantId: string
+      transitioned: true
+    }
+    if (rfqTerminalWritesUseCoreApi(profile.tenantId)) {
+      const result = await transitionRfqThroughCoreApi(rfqId, {
+        command: 'complete',
+      })
+      if (!result.ok || !result.data) {
+        return {
+          error:
+            result.error ??
+            'RFQ transition was not committed.',
+        }
+      }
+      transition = result.data
+    } else {
+      const result = await transitionRfqRecord({
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        rfqId,
+        command: 'complete',
+      })
+      if ('error' in result) return result
+      transition = result
+    }
 
     try {
       await notifyRfqCompleted({
-        tenantId: result.tenantId,
-        rfqId: result.rfqId,
+        tenantId: transition.tenantId,
+        rfqId: transition.rfqId,
       })
     } catch {
       console.warn('[completeRfq] notification dispatch failed')
@@ -224,14 +246,25 @@ export async function cancelRfq(
   }
 
   try {
-    const result = await transitionRfqRecord({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      rfqId: parsed.data.rfqId,
-      command: 'cancel',
-      reason: parsed.data.reason,
-    })
-    if ('error' in result) return result
+    if (rfqTerminalWritesUseCoreApi(profile.tenantId)) {
+      const result = await transitionRfqThroughCoreApi(
+        parsed.data.rfqId,
+        {
+          command: 'cancel',
+          reason: parsed.data.reason,
+        }
+      )
+      if (!result.ok) return { error: result.error }
+    } else {
+      const result = await transitionRfqRecord({
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        rfqId: parsed.data.rfqId,
+        command: 'cancel',
+        reason: parsed.data.reason,
+      })
+      if ('error' in result) return result
+    }
 
     revalidatePath(`/procurement/rfqs/${rfqId}`)
     revalidatePath('/procurement/rfqs')

@@ -52,8 +52,8 @@ Complete remaining M1 controls without enabling production writes:
    prove the legacy branch is selected.
 9. Record provider release IDs, runtime logs, final data reconciliation, and
    the tested rollback procedure before starting M2.
-10. Retry physical deletion of credential-free runner work directories after
-   Windows releases their transient file handles.
+10. Keep transient runner registration, processes, credentials, and work
+    directories at zero after every disposable verification run.
 11. Before M2 code, obtain owner sign-off for a dedicated `AGENTS.md`
     reconciliation: remove the missing PRD bootstrap dependency and replace
     obsolete pnpm 9, PostgreSQL 16, tRPC, and Inngest target rules with the
@@ -160,20 +160,19 @@ reconciliation gates pass.
 
 ## Next unblocked integrity slice
 
-Add an inert NestJS procurement adapter for the now-defined RFQ commands:
+RFQ quote and terminal NestJS adapters are source-complete and disabled.
+Next safe work:
 
-1. Preserve the existing `logQuote`, `completeRfq`, and `cancelRfq` Server
-   Action result contract.
-2. Add NestJS command DTOs, capability guards, tenant-derived identity, and
-   transaction services for quote/create-terminal transitions.
-3. Reuse the PostgreSQL idempotency, tenant-composite, coverage, audit, and
-   state-machine invariants. Do not duplicate authority in React.
-4. Keep routing disabled by default with an exact boolean and explicit
-   database-derived tenant allowlist.
-5. Add contract, tenant-isolation, retry, concurrency, audit, and rollback
-   tests against disposable PostgreSQL/Redis.
-6. Do not deploy or enable the adapter until M1 canary and provider controls
-   pass. No Vercel build is required for inert source.
+1. Keep `ERP_RFQ_QUOTE_WRITES_VIA_API` and
+   `ERP_RFQ_TERMINAL_WRITES_VIA_API` absent/false everywhere.
+2. Do not enable either allowlist without an approved clean canary tenant,
+   exact baseline capture, monitoring, reconciliation, and tested rollback.
+3. Continue a different bounded backend authority slice that needs no
+   provider write, frontend deployment, or governance bypass.
+4. Preserve compatibility behavior and add real PostgreSQL evidence before
+   removing any Next.js transaction service.
+5. Do not begin broad finance migration, Python write removal, or M2 until
+   their standing approval and canary gates are satisfied.
 
 ## Do not start yet
 
@@ -183,15 +182,17 @@ Add an inert NestJS procurement adapter for the now-defined RFQ commands:
 - No new microservices.
 - No external ERP source, schema, UI, or wording reuse.
 
-## Exact next action after RFQ quote adapter
+## Exact next action after RFQ adapters
 
 1. Keep `ERP_RFQ_QUOTE_WRITES_VIA_API` unset/false everywhere.
-2. Verify M1 Railway/Supabase readiness and a real tenant/auth canary account.
-3. Present the exact tenant UUID, environment changes, monitoring, and
+2. Keep `ERP_RFQ_TERMINAL_WRITES_VIA_API` unset/false everywhere.
+3. Verify M1 Railway/Supabase readiness and a real tenant/auth canary account.
+4. Present the exact tenant UUID, environment changes, monitoring, and
    rollback for approval.
-4. If approved, enable one tenant only and verify quote create/retry/conflict,
-   audit evidence, logs, and unchanged completion/cancellation.
-5. Do not enable wildcard routing or deploy Vercel without explicit approval.
+5. If approved, canary quote and terminal adapters independently. Verify quote
+   create/retry/conflict, covered completion, repeat conflict, cancellation
+   reason evidence, logs, and reconciliation after each gate.
+6. Do not enable wildcard routing or deploy Vercel without explicit approval.
 
 Provider inspection result:
 

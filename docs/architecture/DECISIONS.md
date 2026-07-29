@@ -1021,3 +1021,26 @@ before traffic cutover when a Docker-capable Linux host is available.
 Rollback: revert this application commit. No schema, data, provider, DNS, or
 Supabase rollback is required because this milestone does not deploy or cut
 traffic. Keep the retained Vercel artifact and Git disconnection unchanged.
+
+## ADR-031: RFQ terminal commands use an independent disabled NestJS adapter
+
+Decision: expose completion and cancellation through one strict NestJS
+transition route, while keeping their cutover flag and tenant allowlist
+independent from quote logging. Derive authority from the authenticated
+principal, require `rfq.dispatch`, lock the tenant RFQ, enforce coverage and
+state rules, update with the locked source status, and write audit evidence in
+the same transaction. Never retry through the compatibility writer after an
+API attempt.
+
+Reason: terminal commands must move into the modular-monolith authority
+boundary incrementally without coupling their rollout to quote logging,
+changing visible behavior, or introducing ambiguous dual writes.
+
+Validation: require strict shared contract tests, Nest HTTP and service tests,
+Next branch-selection and failure tests, full repository gates, and a
+zero-skip PostgreSQL 17/Redis lane proving tenant denial, covered completion,
+repeated-transition conflict, cancellation reason audit, and rollback.
+
+Rollback: leave `ERP_RFQ_TERMINAL_WRITES_VIA_API` absent/false and its
+allowlist empty, or revert this source milestone. No schema, data, queue,
+Storage, Python, Vercel, or Supabase rollback is required.

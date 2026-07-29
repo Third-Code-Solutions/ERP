@@ -524,6 +524,12 @@ The disabled quote adapter now exists. Target activation remains a measured
 single-tenant canary only after M1 provider gates; completion and cancellation
 move later as separate, independently verified milestones.
 
+The disabled terminal adapter now also exists. Quote and terminal routing use
+independent exact flags and tenant allowlists so each command family can be
+canaried and rolled back without dual writes. Production activation remains a
+separate owner-approved milestone; the compatibility implementation stays
+authoritative until that proof succeeds.
+
 ## Host-portable public discovery boundary
 
 - One validated origin controls canonical metadata, Open Graph URLs,
