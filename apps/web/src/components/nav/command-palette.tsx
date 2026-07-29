@@ -1,8 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useGSAP } from '@gsap/react'
+import gsap from 'gsap'
 import { useRouter } from 'next/navigation'
 import type { SearchHitType } from '@/app/api/search/search-policy'
+import { stageCortexDraft } from '@/lib/cortex/draft-handoff'
+import {
+  commandPaletteOptionCount,
+  resolveCommandPaletteSelection,
+} from './command-palette-selection'
 
 interface SearchHit {
   type: SearchHitType
@@ -55,16 +62,52 @@ interface Props {
   onClose: () => void
 }
 
+type CommandMode = 'search' | 'ask'
+
 export function CommandPalette({ open, onClose }: Props) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const [q, setQ] = useState('')
+  const [mode, setMode] = useState<CommandMode>('search')
   const [hits, setHits] = useState<SearchHit[]>([])
   const [loading, setLoading] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
   const [hint, setHint] = useState<string | null>(null)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const term = q.trim()
+  const visibleHits = mode === 'search' ? hits : []
+  const canAskCortex = mode === 'ask' && term.length >= 2
+  const optionCount = commandPaletteOptionCount(
+    visibleHits.length,
+    canAskCortex
+  )
+
+  useGSAP(
+    () => {
+      if (
+        !open ||
+        !panelRef.current ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ) {
+        return
+      }
+      gsap.fromTo(
+        panelRef.current,
+        { y: -12, scale: 0.985, opacity: 0 },
+        {
+          y: 0,
+          scale: 1,
+          opacity: 1,
+          duration: 0.24,
+          ease: 'power2.out',
+          clearProps: 'transform,opacity',
+        }
+      )
+    },
+    { dependencies: [open], scope: panelRef, revertOnUpdate: true }
+  )
 
   // Focus the input when the modal opens.
   useEffect(() => {
@@ -78,6 +121,7 @@ export function CommandPalette({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) {
       setQ('')
+      setMode('search')
       setHits([])
       setActiveIdx(0)
       setHint(null)
@@ -86,11 +130,16 @@ export function CommandPalette({ open, onClose }: Props) {
 
   // Debounced search.
   useEffect(() => {
-    if (!open) return
     if (debounceRef.current) window.clearTimeout(debounceRef.current)
     if (abortRef.current) abortRef.current.abort()
 
-    const term = q.trim()
+    if (!open || mode !== 'search') {
+      setHits([])
+      setHint(null)
+      setLoading(false)
+      return
+    }
+
     if (term.length < 2) {
       setHits([])
       setHint(term.length === 0 ? null : 'Type at least 2 characters.')
@@ -130,7 +179,7 @@ export function CommandPalette({ open, onClose }: Props) {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current)
     }
-  }, [q, open])
+  }, [term, open, mode])
 
   const selectHit = useCallback(
     (hit: SearchHit) => {
@@ -139,6 +188,22 @@ export function CommandPalette({ open, onClose }: Props) {
     },
     [onClose, router]
   )
+
+  const askCortex = useCallback(() => {
+    const handoffId = window.crypto.randomUUID()
+    if (!stageCortexDraft(window.sessionStorage, handoffId, term)) {
+      setHint('Could not prepare Cortex. Try again.')
+      return
+    }
+    onClose()
+    router.push(`/cortex?handoff=${encodeURIComponent(handoffId)}`)
+  }, [onClose, router, term])
+
+  useEffect(() => {
+    setActiveIdx((index) =>
+      Math.min(index, Math.max(0, optionCount - 1))
+    )
+  }, [optionCount])
 
   // Keyboard nav.
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -149,7 +214,9 @@ export function CommandPalette({ open, onClose }: Props) {
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActiveIdx((i) => Math.min(hits.length - 1, i + 1))
+      setActiveIdx((i) =>
+        Math.min(Math.max(0, optionCount - 1), i + 1)
+      )
       return
     }
     if (e.key === 'ArrowUp') {
@@ -157,10 +224,20 @@ export function CommandPalette({ open, onClose }: Props) {
       setActiveIdx((i) => Math.max(0, i - 1))
       return
     }
-    if (e.key === 'Enter' && hits[activeIdx]) {
-      e.preventDefault()
-      selectHit(hits[activeIdx])
-      return
+    if (e.key === 'Enter') {
+      const selection = resolveCommandPaletteSelection(
+        activeIdx,
+        visibleHits.length,
+        canAskCortex
+      )
+      if (selection) {
+        e.preventDefault()
+        if (selection.kind === 'hit') {
+          selectHit(visibleHits[selection.index]!)
+        } else {
+          askCortex()
+        }
+      }
     }
   }
 
@@ -189,6 +266,7 @@ export function CommandPalette({ open, onClose }: Props) {
       }}
     >
       <div
+        ref={panelRef}
         role="combobox"
         aria-expanded
         aria-controls="cmdpal-results"
@@ -223,10 +301,15 @@ export function CommandPalette({ open, onClose }: Props) {
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search projects, documents, tasks, records…"
-            aria-label="Search"
+            placeholder={
+              mode === 'search'
+                ? 'Search projects, documents, tasks, records…'
+                : 'Ask across records you can access…'
+            }
+            aria-label={mode === 'search' ? 'Search' : 'Ask Cortex'}
             autoComplete="off"
             spellCheck={false}
+            maxLength={100}
             style={{
               flex: 1,
               border: 0,
@@ -251,32 +334,112 @@ export function CommandPalette({ open, onClose }: Props) {
             ESC
           </kbd>
         </div>
+        <div
+          role="tablist"
+          aria-label="Command mode"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 4,
+            padding: '6px 8px',
+            background: 'var(--color-neutral-50)',
+            borderBottom: '1px solid var(--color-border)',
+          }}
+        >
+          {(
+            [
+              ['search', 'Search records'],
+              ['ask', 'Ask Cortex'],
+            ] as const
+          ).map(([value, label]) => {
+            const selected = mode === value
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => {
+                  setMode(value)
+                  setActiveIdx(0)
+                  window.setTimeout(() => inputRef.current?.focus(), 0)
+                }}
+                style={{
+                  minHeight: 44,
+                  border: selected
+                    ? '1px solid var(--color-navy-100)'
+                    : '1px solid transparent',
+                  borderRadius: 7,
+                  background: selected ? 'white' : 'transparent',
+                  boxShadow: selected
+                    ? '0 1px 3px rgba(15, 45, 74, 0.08)'
+                    : 'none',
+                  color: selected
+                    ? 'var(--color-navy-700)'
+                    : 'var(--color-neutral-500)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 12,
+                  fontWeight: selected ? 650 : 550,
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
 
         <div
           id="cmdpal-results"
           role="listbox"
           style={{ maxHeight: '60vh', overflowY: 'auto' }}
         >
-          {loading && (
+          {mode === 'search' && loading && (
             <div style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}>
               Searching…
             </div>
           )}
-          {!loading && hits.length === 0 && hint && (
+          {mode === 'search' && !loading && hits.length === 0 && hint && (
             <div style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}>
               {hint}
             </div>
           )}
-          {!loading && hits.length === 0 && !hint && q.length < 2 && (
-            <div style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}>
-              <p style={{ margin: 0 }}>Start typing to search across every module you have access to.</p>
-              <p style={{ margin: '8px 0 0', fontSize: 12 }}>
-                Use <kbd style={kbd}>↑</kbd> <kbd style={kbd}>↓</kbd> to navigate,{' '}
-                <kbd style={kbd}>Enter</kbd> to open.
-              </p>
+          {mode === 'search' &&
+            !loading &&
+            hits.length === 0 &&
+            !hint &&
+            q.length < 2 && (
+              <div
+                style={{
+                  padding: 20,
+                  fontSize: 13,
+                  color: 'var(--color-neutral-500)',
+                }}
+              >
+                <p style={{ margin: 0 }}>
+                  Start typing to search across every module you have access
+                  to.
+                </p>
+                <p style={{ margin: '8px 0 0', fontSize: 12 }}>
+                  Use <kbd style={kbd}>↑</kbd> <kbd style={kbd}>↓</kbd> to
+                  navigate, <kbd style={kbd}>Enter</kbd> to open.
+                </p>
+              </div>
+            )}
+          {mode === 'ask' && term.length < 2 && (
+            <div
+              style={{
+                padding: 20,
+                color: 'var(--color-neutral-500)',
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}
+            >
+              Ask about records you can access. Opening Cortex drafts your
+              question; nothing is sent until you press Send.
             </div>
           )}
-          {hits.map((hit, i) => (
+          {visibleHits.map((hit, i) => (
             <button
               type="button"
               key={`${hit.type}-${hit.id}`}
@@ -349,6 +512,89 @@ export function CommandPalette({ open, onClose }: Props) {
               </span>
             </button>
           ))}
+          {canAskCortex && (
+            <button
+              type="button"
+              role="option"
+              aria-selected={activeIdx === visibleHits.length}
+              aria-label={`Ask Cortex: ${term}`}
+              onMouseEnter={() => setActiveIdx(visibleHits.length)}
+              onClick={askCortex}
+              style={{
+                width: '100%',
+                minHeight: 60,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '12px 16px',
+                background:
+                  activeIdx === visibleHits.length
+                    ? 'var(--color-navy-50)'
+                    : 'white',
+                border: 0,
+                borderTop: '1px solid var(--color-border)',
+                textAlign: 'left',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  width: 32,
+                  height: 32,
+                  flex: '0 0 32px',
+                  display: 'grid',
+                  placeItems: 'center',
+                  borderRadius: 8,
+                  background: 'var(--color-navy-700)',
+                  color: 'white',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                }}
+              >
+                AI
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span
+                  style={{
+                    display: 'block',
+                    color: 'var(--color-navy-700)',
+                    fontSize: 13.5,
+                    fontWeight: 650,
+                  }}
+                >
+                  Ask Cortex
+                </span>
+                <span
+                  title={term}
+                  style={{
+                    display: 'block',
+                    marginTop: 2,
+                    color: 'var(--color-neutral-500)',
+                    fontSize: 11.5,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Draft “{term}” in the permissioned AI Brain
+                </span>
+              </span>
+              <span
+                aria-hidden
+                style={{
+                  flex: '0 0 auto',
+                  color: 'var(--color-navy-500)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
+                Open
+              </span>
+            </button>
+          )}
         </div>
       </div>
     </div>

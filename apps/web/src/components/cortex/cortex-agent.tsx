@@ -22,6 +22,7 @@ import {
   filterCortexConversations,
   type CortexAgentContext,
 } from '@/lib/cortex/agent-context'
+import { consumeCortexDraft } from '@/lib/cortex/draft-handoff'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -53,6 +54,7 @@ const RECORD_SUGGESTIONS = [
 interface CortexAgentProps {
   initialContext: CortexAgentContext | null
   initialConversationId?: string | null
+  initialDraftId?: string | null
   contextUnavailable?: boolean
 }
 
@@ -73,6 +75,7 @@ function relativeTime(iso: string): string {
 export function CortexAgent({
   initialContext,
   initialConversationId = null,
+  initialDraftId = null,
   contextUnavailable = false,
 }: CortexAgentProps) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -85,8 +88,10 @@ export function CortexAgent({
   const [historyQuery, setHistoryQuery] = useState('')
   const [isRestoring, setIsRestoring] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const historySearchRef = useRef<HTMLInputElement>(null)
   const initialRestoreRef = useRef<string | null>(null)
+  const initialDraftRef = useRef<string | null>(null)
   const restoreRequestRef = useRef(0)
 
   const syncConversationUrl = useCallback(
@@ -183,6 +188,16 @@ export function CortexAgent({
     initialRestoreRef.current = initialConversationId
     void restoreConversation(initialConversationId)
   }, [contextUnavailable, initialConversationId, restoreConversation])
+
+  useEffect(() => {
+    if (!initialDraftId || initialDraftRef.current === initialDraftId) return
+    initialDraftRef.current = initialDraftId
+    const draft = consumeCortexDraft(window.sessionStorage, initialDraftId)
+    window.history.replaceState(window.history.state, '', '/cortex')
+    if (!draft || contextUnavailable) return
+    setInput(draft)
+    window.requestAnimationFrame(() => inputRef.current?.focus())
+  }, [contextUnavailable, initialDraftId])
 
   function newChat() {
     restoreRequestRef.current += 1
@@ -471,6 +486,7 @@ export function CortexAgent({
       {!historyOpen && (
         <div className="cortex-agent__input">
           <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}

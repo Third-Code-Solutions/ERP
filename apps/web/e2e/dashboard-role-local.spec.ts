@@ -181,6 +181,18 @@ test.describe('permission-aware dashboard', () => {
         if (message.type() === 'error') errors.push(message.text())
       })
       page.on('pageerror', (error) => errors.push(error.message))
+      let cortexChatRequests = 0
+      const commandSearchQueries: string[] = []
+      page.on('request', (request) => {
+        const requestUrl = new URL(request.url())
+        if (requestUrl.pathname === '/api/cortex/chat') {
+          cortexChatRequests += 1
+        }
+        if (requestUrl.pathname === '/api/search') {
+          commandSearchQueries.push(requestUrl.searchParams.get('q') ?? '')
+        }
+      })
+      const cortexDraft = 'Which active project needs attention?'
 
       for (const viewport of [
         { name: 'desktop', width: 1440, height: 1000 },
@@ -211,18 +223,71 @@ test.describe('permission-aware dashboard', () => {
         ).toBeVisible()
         await expect(page.getByRole('link', { name: 'Finance' })).toHaveCount(0)
 
-        if (viewport.name === 'desktop') {
+        await page
+          .getByRole('button', { name: /Open global search/ })
+          .click()
+        const searchInput = page.getByRole('textbox', { name: 'Search' })
+        await searchInput.fill(documentSearchTerm)
+        await expect(
+          page
+            .getByRole('option')
+            .filter({ hasText: tenantDocument.file_name })
+            .first()
+        ).toBeVisible()
+        await page.getByRole('tab', { name: 'Ask Cortex' }).click()
+        const cortexInput = page.getByRole('textbox', {
+          name: 'Ask Cortex',
+        })
+        await cortexInput.fill(cortexDraft)
+        const askCortex = page.getByRole('option', {
+          name: `Ask Cortex: ${cortexDraft}`,
+        })
+        await expect(askCortex).toBeVisible()
+        await page.waitForTimeout(300)
+        expect(commandSearchQueries).not.toContain(cortexDraft)
+        expect(
           await page
-            .getByRole('button', { name: /Open global search/ })
-            .click()
-          const searchInput = page.getByRole('textbox', { name: 'Search' })
-          await searchInput.fill(documentSearchTerm)
+            .getByRole('dialog', { name: 'Command palette' })
+            .evaluate(
+              (dialog) =>
+                dialog.getBoundingClientRect().right - window.innerWidth
+            ),
+          `${viewport.name} command palette overflow`
+        ).toBeLessThanOrEqual(1)
+        if (viewport.name !== 'tablet') {
+          await page.screenshot({
+            path: testInfo.outputPath(
+              `search-cortex-handoff-${viewport.name}.png`
+            ),
+            fullPage: false,
+          })
+        }
+
+        if (viewport.name === 'desktop') {
+          await askCortex.click()
+          await expect(page).toHaveURL(`${baseUrl}/cortex`)
+          const cortexComposer = page.getByRole('textbox', {
+            name: 'Message to Cortex',
+          })
+          await expect(cortexComposer).toHaveValue(cortexDraft)
+          await expect(cortexComposer).toBeFocused()
+          expect(cortexChatRequests).toBe(0)
+          expect(page.url()).not.toContain(encodeURIComponent(cortexDraft))
+          expect(
+            await page.evaluate(() =>
+              Object.keys(window.sessionStorage).some((key) =>
+                key.startsWith('third-code-erp:cortex-draft:')
+              )
+            )
+          ).toBe(false)
+          const dashboardResponse = await page.goto(`${baseUrl}/dashboard`, {
+            waitUntil: 'domcontentloaded',
+          })
+          expect(dashboardResponse?.status()).toBe(200)
           await expect(
-            page
-              .getByRole('option')
-              .filter({ hasText: tenantDocument.file_name })
-              .first()
+            page.getByRole('heading', { name: 'My work' })
           ).toBeVisible()
+        } else {
           await page.keyboard.press('Escape')
           await expect(
             page.getByRole('dialog', { name: 'Command palette' })
