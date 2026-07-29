@@ -354,6 +354,24 @@ Status: source candidate complete; deployment not authorized.
   overflow, and global one-time-session revocation.
 - Activate only in the next explicitly approved consolidated Vercel build.
   Keep Git integration disconnected and do not create a separate preview.
+
+## Parallel private Search-to-Cortex handoff slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Preserve the existing permission-filtered record-search path as the default
+  command-palette mode.
+- Require an explicit Ask mode and prevent it from issuing `/api/search`
+  requests.
+- Move only a bounded draft through same-tab, opaque, five-minute,
+  single-consume browser state; keep prompt text out of URLs and server logs.
+- Accept handoff only for company-wide Cortex, clear the marker URL, prefill
+  and focus the composer, and never auto-send.
+- Verify real authorized search, exact draft transfer, zero search/chat
+  requests during handoff, one-time removal, 1440/768/390 layouts, console
+  output, overflow, and global one-time-session revocation.
+- Activate only in the next explicitly approved consolidated Vercel build.
+  Keep Git integration disconnected and do not create a separate preview.
 - After activation, verify one populated and one empty record for each role
   family, exact backlinks, non-enumerating denial, and responsive behavior.
 

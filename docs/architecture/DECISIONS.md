@@ -857,3 +857,27 @@ overflow, console errors, page errors, and a globally revoked one-time session.
 Rollback: revert source commit `8dc051e`. No schema or provider rollback is
 required because the candidate is not deployed. Rollback restores prior search
 behavior and therefore reopens the identified input, join, and cache risks.
+
+## D-059 -- AI draft handoff uses explicit mode and opaque one-time state
+
+Decision: keep record search and AI drafting as explicit command-palette modes.
+Ask mode makes no search request. Transfer a bounded question through
+same-tab, five-minute, one-time browser state keyed by an opaque UUID; place
+only that UUID in the temporary route. Accept it only for company-wide Cortex,
+consume and remove it once, clear the marker URL, prefill the composer, and
+never auto-send.
+
+Reason: silently treating every unmatched record query as an AI question would
+send user intent into a different system boundary. Putting prompt text in a URL
+would expose it to history, logs, copied links, and analytics. Explicit mode
+and local one-time state preserve user control and minimize disclosure.
+
+Validation: require normalization/expiry/one-time unit tests, keyboard
+selection tests, authenticated real-search preservation, zero Ask-mode search
+requests, zero chat requests before Send, exact composer prefill, prompt-free
+URL, removed storage, 1440/768/390 visual proof, full repository gates, and
+provider no-deployment evidence.
+
+Rollback: revert source commit `8058c8a`. No schema or provider rollback is
+required because the candidate is not deployed. Record search returns to its
+previous behavior and Cortex remains available through its direct route.

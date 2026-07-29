@@ -2317,3 +2317,73 @@ Rollback and unresolved:
 - Live activation still requires one explicitly approved consolidated queued
   Standard Vercel build.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Private Search-to-Cortex handoff
+
+Outcome:
+
+- Added explicit `Search records` and `Ask Cortex` command-palette modes while
+  preserving record search as the default.
+- Prevented Ask mode from issuing `/api/search` requests.
+- Added opaque UUID handoff state in same-tab `sessionStorage`, bounded to 100
+  normalized characters, five minutes, and one consume.
+- Restricted server acceptance to company-wide Cortex without record focus or
+  saved-conversation identity.
+- Prefilled and focused the Cortex composer, removed the draft and temporary
+  route marker, and proved no automatic AI request occurs.
+- Added original component specification, selection/draft unit coverage, and
+  authenticated responsive browser coverage.
+- No database migration, hosted row, role, password, Auth identity, Storage
+  object, queue job, AI call, Railway build, or Vercel deployment changed.
+
+Changed files:
+
+- `apps/web/src/components/nav/command-palette.tsx`
+- `apps/web/src/components/nav/command-palette-selection.ts`
+- `apps/web/src/components/nav/command-palette-selection.test.ts`
+- `apps/web/src/lib/cortex/draft-handoff.ts`
+- `apps/web/src/lib/cortex/draft-handoff.test.ts`
+- `apps/web/src/app/(dashboard)/cortex/page.tsx`
+- `apps/web/src/components/cortex/cortex-agent.tsx`
+- `apps/web/e2e/dashboard-role-local.spec.ts`
+- `docs/research/components/search-cortex-handoff.spec.md`
+- the six architecture/operations memory files
+- `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`
+
+Validation:
+
+- Focused draft/selection/Cortex suites -- 12/12 pass; existing search route
+  suite remains 11/11.
+- Root lint and typecheck -- pass.
+- Root tests -- 408 application tests pass; ordinary no-URL database lane
+  remains 90 pass and 134 skipped, covered by the retained 224/224 zero-skip
+  PostgreSQL 17 release gate.
+- Nest and Next production builds -- pass; Next generates 77/77 static steps.
+- Authenticated viewer local E2E -- pass with real authorized document search,
+  explicit Ask mode, zero question-bearing search request, exact composer
+  prefill/focus, zero chat request, prompt-free final URL, removed draft
+  storage, 1440/768/390 layouts, and zero overflow or console/page errors.
+- One-time viewer session -- globally revoked after QA.
+- Desktop and mobile screenshots -- visually reviewed; clean hierarchy,
+  readable action, and no overflow.
+- gitleaks 8.30.1, actionlint 1.7.12, diff checks, and prohibited external ERP
+  brand/source scan -- pass.
+- Source commit `8058c8a5db18828656fc182939dce7aa06c698af` -- pushed to
+  both repository refs under `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway correctly skipped deployment
+  `e2c6d6a8-82cb-4f19-996f-b67518b9d949` because no watched backend file
+  changed. Active API remains successful deployment
+  `5a84fc30-2b4e-46fa-a505-0b1bb393fef4` at source
+  `e948223b261b7c335ceaad85e359fec68888e84a`.
+- Vercel -- Git remains disconnected and zero deployments exist after retained
+  READY deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- GitHub Actions run `30462707850` -- all jobs contain zero executed steps;
+  account billing/spending block remains external.
+
+Rollback and unresolved:
+
+- Revert source commit `8058c8a`; no provider rollback is needed because the
+  candidate is not deployed.
+- Live activation still requires one explicitly approved consolidated queued
+  Standard Vercel build.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.
