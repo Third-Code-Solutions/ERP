@@ -2132,3 +2132,59 @@ Rollback and unresolved:
   production build. Do not reconnect Git or create a preview.
 - GitHub-hosted CI remains blocked before step start by account billing.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Cost-controlled frontend release candidate
+
+Outcome:
+
+- Disconnected Vercel Git remained verified.
+- Disabled on-demand concurrent builds and selected Standard 4 vCPU/8 GB.
+- Inventoried the complete frontend delta against retained production:
+  31 commits, 64 Web files, 39 runtime files, and 25 test/E2E files.
+- Found a cross-auth-state rate-limit defect through combined browser QA.
+- Isolated anonymous IP buckets from authenticated user buckets.
+- Added a reusable release E2E covering landing response, SEO/GEO metadata,
+  JSON-LD, interactions, responsive layout, mobile targets, and errors.
+- Prepared one-build production validation and instant-rollback instructions.
+- Did not create a Vercel deployment, preview, Railway deployment, database
+  migration, hosted row, Auth identity, Storage object, queue job, or AI call.
+
+Changed files:
+
+- `apps/web/src/middleware.ts`
+- `apps/web/src/lib/request-rate-limit.ts`
+- `apps/web/src/lib/request-rate-limit.test.ts`
+- `apps/web/e2e/frontend-release-local.spec.ts`
+- `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`
+- the six architecture/operations memory files
+
+Validation:
+
+- Root lint and typecheck -- pass.
+- Root tests -- 379 application tests pass.
+- Nest and Next production builds -- pass; Next generates 77/77 static steps.
+- Combined Cortex and public landing browser E2E -- 2/2 pass sequentially.
+- Landing visual QA -- 1440, 768, and 390; zero horizontal overflow, console
+  errors, and page errors.
+- gitleaks 8.30.1 -- pass; no leaks.
+- actionlint 1.7.12 and `git diff --check` -- pass.
+- Prohibited external ERP brand/source scan -- zero matches.
+- Source commit `e53f20d63eb937440c2b29c88c920a543a49a3ef` -- pushed to
+  both repository refs under `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway API -- remains successful deployment
+  `5a84fc30-2b4e-46fa-a505-0b1bb393fef4` at backend source
+  `e948223b261b7c335ceaad85e359fec68888e84a`.
+- Vercel -- zero deployments after retained READY deployment
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- GitHub Actions run `30455237294` -- zero executed steps; account
+  billing/spending block remains external.
+
+Rollback and unresolved:
+
+- Source rollback is a revert of `e53f20d`; no provider rollback is needed
+  because the candidate is not deployed.
+- If the candidate is later activated and fails verification, use Vercel
+  Instant Rollback to `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- Production activation requires explicit approval for one manual queued
+  Standard build.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

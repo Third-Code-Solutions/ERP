@@ -773,3 +773,41 @@ screenshot, no overflow/errors, and global test-session revocation.
 Rollback: revert the filter helper, agent history controls, CSS, tests, and
 documentation together. The conversation API, database, durable context,
 deep links, and provider state remain unchanged.
+
+## D-055 -- Authenticated rate limits use verified user identity
+
+Decision: key anonymous request buckets by IP and authenticated request buckets
+by the verified Supabase user ID. Do not reuse one IP bucket across auth-state
+boundaries or across authenticated users sharing a NAT.
+
+Reason: the authenticated threshold is higher than the anonymous threshold.
+Reusing one IP counter allowed authenticated traffic to make a later anonymous
+request fail immediately and made unrelated users behind one shared address
+consume the same bucket.
+
+Validation: require pure bucket-identity tests, the existing middleware suite,
+full lint/typecheck/test/build, and one sequential browser run that exercises
+authenticated Cortex followed by the public landing page.
+
+Rollback: revert the helper, middleware wiring, tests, and documentation
+together. No schema, API contract, hosted row, provider, or deployment rollback
+is required.
+
+## D-056 -- Frontend releases use one queued Standard build
+
+Decision: keep Vercel Git disconnected, disable on-demand concurrent builds,
+use the Standard 4 vCPU/8 GB machine, and require explicit approval for exactly
+one manual production build. Do not create a duplicate preview.
+
+Reason: the accumulated frontend candidates can be validated in one release
+while keeping provider spend predictable. Queuing prevents accidental
+concurrent builds; Standard build compute has no added charge in the current
+no-on-demand configuration.
+
+Validation: require provider-setting evidence, zero deployments after source
+pushes, one exact candidate SHA, complete local gates, a written production
+test matrix, and a retained rollback deployment before requesting approval.
+
+Rollback: use Vercel Instant Rollback to retained deployment
+`dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`, verify the production alias and core
+routes, and preserve environment configuration. Do not rebuild the old source.

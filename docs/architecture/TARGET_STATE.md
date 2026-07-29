@@ -385,3 +385,27 @@ reach through each other's internals.
   or citation authorization.
 - Keyboard focus is visible, mobile targets are at least 44px, empty results
   are bounded, and the open panel produces no horizontal overflow.
+
+## Shared request-rate-limit identity boundary
+
+- Anonymous requests are bucketed by network address.
+- Authenticated requests are bucketed by verified user identity, not by a
+  shared IP and not by browser-supplied identity.
+- Transitioning from authenticated to anonymous traffic cannot reuse the
+  authenticated counter under a lower anonymous limit.
+- Two authenticated users behind one NAT cannot consume each other's bucket.
+- Rate limiting is defense in depth. Tenant authorization and permission
+  checks remain mandatory for every sensitive route.
+- A future Redis-backed limiter must preserve these identity semantics while
+  adding shared-instance atomicity, bounded retention, and operational metrics.
+
+## Cost-controlled frontend activation boundary
+
+- Git-triggered Vercel deployment stays disabled.
+- Candidate preparation is source-only. Production requires explicit approval.
+- One approved release means one queued Standard production build, no preview,
+  no duplicate deploy, and exact SHA verification.
+- Production acceptance requires public and authenticated browser evidence,
+  runtime-error review, API readiness, release identity, and responsive proof.
+- The retained last-known-good deployment remains the instant-rollback target
+  until the new release is verified.

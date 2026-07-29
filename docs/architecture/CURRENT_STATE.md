@@ -731,3 +731,28 @@ matches the repository migration contract:
   because no watched backend file changed. Vercel reports zero deployments
   after the retained READY baseline. GitHub Actions run `30453629029` started
   zero steps because of the account billing/spending block.
+
+## Cost-controlled frontend release candidate
+
+- The consolidated frontend candidate is
+  `e53f20d63eb937440c2b29c88c920a543a49a3ef`, 31 commits after retained
+  production source `f24e5603a35571f8dcadd43fc09c64d12646a7d0`.
+- The Web delta is fully inventoried: 64 files, comprising 39 runtime files
+  and 25 test/E2E files. No Web runtime file remains unclassified.
+- Vercel Git is disconnected. On-demand concurrent builds are disabled and
+  the next build uses Standard 4 vCPU/8 GB. Vercel documents Standard build
+  compute as no added charge in this queued configuration.
+- No Vercel deployment followed the source push. The retained READY production
+  artifact remains `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- Middleware now isolates anonymous IP buckets from authenticated user buckets.
+  This prevents an authenticated burst from producing a later public 429 and
+  prevents authenticated users behind one shared IP from consuming one bucket.
+- Root lint, typecheck, test, and production build pass. There are 379 passing
+  application tests; Next generates 77/77 static steps. A sequential
+  authenticated Cortex plus public landing browser run passes 2/2.
+- gitleaks, actionlint, diff checks, and prohibited external ERP brand/source
+  scans pass. GitHub-hosted CI remains blocked before step start by the account
+  billing/spending condition.
+- The release and rollback manifest is
+  `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`. Production activation still
+  requires explicit user approval and exactly one manual production build.
