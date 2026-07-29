@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Deterministic pg_dump schema delimiter; not a credential"
+paths = ['''^scripts/ci/run-wsl1-database-lane\.ps1$''']
+regexTarget = "match"
+regexes = ['''--restrict-key=0123456789abcdef0123456789abcdef''']

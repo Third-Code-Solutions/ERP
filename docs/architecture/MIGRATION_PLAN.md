@@ -104,6 +104,12 @@ Production entry status:
 - Pending entry evidence: push the reviewed source, dispatch the same workflow
   through the transient GitHub runner, and attach the GitHub run result. This
   replaces payment as the M1 CI unblocker; it does not bypass the tests.
+- Pending cost control: disconnect Vercel Git auto-deploy before the next
+  source push. Keep the current production artifact live and use one explicit
+  frontend deployment only when a green SHA changes frontend behavior.
+- Prepared `apps/web/vercel.json` with `git.deploymentEnabled=false` as a
+  repository guard. Do not publish it until the provider integration is
+  disconnected; otherwise the guard commit itself may create another build.
 - Keep `ERP_PROJECT_WRITES_VIA_API=false` and the tenant allowlist empty until
   that remote workflow proof is attached.
 

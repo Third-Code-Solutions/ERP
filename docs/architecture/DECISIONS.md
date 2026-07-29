@@ -305,3 +305,16 @@ hosted jobs are rejected before any step executes. Requiring payment or working
 hardware virtualization adds no application correctness evidence. The
 short-lived, reviewed-code-only boundary limits local-machine exposure without
 weakening the actual release checks.
+
+## D-034 -- Vercel releases are explicit and single-artifact
+
+Decision: disable Vercel Git auto-deploy for this project. Git pushes are source
+publication, not deployment authorization. A frontend release occurs only after
+the exact SHA passes CI and a production deployment is explicitly approved.
+Do not create a duplicate feature-branch preview for a SHA already validated
+locally. Prefer promoting an already validated deployment over rebuilding it.
+
+Reason: synchronized pushes to `main` and the feature ref generated two Vercel
+builds per commit, including CI-only and documentation-only changes. The project
+has exhausted included credit and entered on-demand billing. Explicit releases
+reduce compute use and make the deployment decision auditable.

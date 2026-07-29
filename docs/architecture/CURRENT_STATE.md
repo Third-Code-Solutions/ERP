@@ -297,3 +297,23 @@ matches the repository migration contract:
 - Remote self-hosted GitHub workflow proof remains required before the M1
   provider canary. `ERP_PROJECT_WRITES_VIA_API=false`; the tenant allowlist
   remains empty.
+- Self-hosted run `30419341799` proved GitHub billing does not block the free
+  runner. It exposed Windows CRLF conversion in migration SQL and stopped at
+  the fail-closed definition marker before build.
+- Self-hosted run `30419757852` used LF checkout and passed the 48-migration
+  replay, 212/212 database tests, Nest integration, production build, and
+  native Nest smoke. Its final Gitleaks step classified the deterministic
+  `pg_dump --restrict-key` delimiter as a generic API key. A path-and-value
+  specific allowlist is prepared locally.
+- Vercel Git integration currently creates two deployments per synchronized
+  commit: production from `main` and preview from the feature ref. Four CI-only
+  commits created eight READY deployments. No further push or deploy is
+  authorized until automatic Git deployment is disabled.
+- `apps/web/vercel.json` now contains the local fail-closed guard
+  `git.deploymentEnabled=false`. It is intentionally unpushed: provider-side
+  Git disconnection must happen first so publishing the guard cannot create
+  another billed build.
+- Local remediation now passes JSON parsing, PowerShell parsing, Actionlint
+  1.7.12, Gitleaks 8.30.1 across 90 commits, and `git diff --check`. GitHub has
+  zero registered self-hosted runners; no runner process or stale work
+  directory remains.
