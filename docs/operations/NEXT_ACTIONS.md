@@ -5,7 +5,7 @@
 Await explicit approval for one manual queued Standard Vercel production build:
 
 1. Use exact candidate
-   `8058c8a5db18828656fc182939dce7aa06c698af`.
+   `e99b88fd232957ec8a224968ecb63441a2eab9d9`.
 2. Keep Vercel Git disconnected. Do not create a preview.
 3. Reconfirm zero deployments after retained production
    `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
@@ -129,6 +129,12 @@ Complete remaining M1 controls without enabling production writes:
   prompt-free routing, one-time/expiring browser state, exact composer prefill,
   zero chat request before Send, and 1440/768/390 behavior. Do not buy a
   separate build.
+- Include atomic public canvas signing in that same reviewed SHA. Use a new,
+  controlled, non-historical signing session to prove bounded PNG validation,
+  one-shot locking, tenant-scoped source stamp, nullable-actor audit, exact
+  document linkage, replay denial, and compensating Storage cleanup. Do not
+  exercise destructive proof against existing signatures and do not buy a
+  separate build.
 
 ## Following milestone
 
@@ -142,6 +148,18 @@ slice is inert M2.1: contracts, composite tenant constraints, durable
 job/evidence state, explicit capabilities, and a Nest BullMQ processor with no
 caller. Do not begin it until M1 canary and separate `AGENTS.md`
 reconciliation gates pass.
+
+## Next unblocked integrity slice
+
+Correct `createRfqFromBom` system authority without expanding M2:
+
+1. Replace fabricated zero-UUID actor with explicit nullable system actor or
+   propagated verified initiating actor.
+2. Commit RFQ creation and its audit in one transaction.
+3. Keep notification delivery after commit and make retries idempotent.
+4. Preserve tenant-scoped BOM/line/rate-card reads and existing manual role
+   permission.
+5. Add focused failure/retry tests before any source push.
 
 ## Do not start yet
 

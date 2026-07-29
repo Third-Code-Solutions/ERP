@@ -11,17 +11,17 @@ Status: source complete; production deployment not authorized.
 - Retained production source:
   `f24e5603a35571f8dcadd43fc09c64d12646a7d0`
 - Candidate source:
-  `8058c8a5db18828656fc182939dce7aa06c698af`
+  `e99b88fd232957ec8a224968ecb63441a2eab9d9`
 - GitHub refs:
   `main` and `agent-02/third-code-erp-landing`
 - Git identity:
   `kurtgav <kurtgavin.design@gmail.com>`
 - Candidate distance:
-  37 commits; 143 repository files; 14,210 insertions; 723 deletions
+  39 commits; 146 repository files; 15,082 insertions; 844 deletions
 - Web distance:
-  80 files; 7,006 insertions; 582 deletions
+  82 files; 7,600 insertions; 703 deletions
 - Web composition:
-  49 runtime files and 31 test/E2E files
+  50 runtime files and 32 test/E2E files
 
 ## Risk-domain inventory
 
@@ -35,9 +35,10 @@ Status: source complete; production deployment not authorized.
 | Shared shell and rate limit | 6 | navigation, responsive, or shared-IP 429 regression | dashboard shell and anonymous/authenticated sequential flow |
 | Permission-aware dashboard | 5 | executive data exposure to restricted roles | viewer data path, role-safe links, task counts, 1440/768/390 |
 | Universal search | 2 | wildcard fan-out, cross-tenant join, or cache exposure | literal probe, tenant join, RBAC, headers, and command palette |
-| Tests | 31 | release-evidence coverage | unit, route, component, and browser suites |
+| Public signing | 1 | replay, partial write, missing audit, or orphaned Storage | controlled new session, atomic rows/audit, replay denial, cleanup |
+| Tests | 32 | release-evidence coverage | unit, route, component, and browser suites |
 
-All 49 runtime files are assigned to one domain above. No unclassified Web
+All 50 runtime files are assigned to one domain above. No unclassified Web
 runtime file remains.
 
 ## Production prerequisites
@@ -77,7 +78,7 @@ References:
 
 - `pnpm lint` -- pass
 - `pnpm typecheck` -- pass
-- `pnpm test` -- 408 application tests pass
+- `pnpm test` -- 413 application tests pass
 - `pnpm build` -- pass; Next generated 77/77 static steps
 - Combined authenticated Cortex and public landing browser sequence -- 2/2
   pass at one worker
@@ -94,13 +95,17 @@ References:
   question-bearing search request; exact question was prefilled and focused;
   final URL contained no prompt; draft storage was removed; no Cortex chat
   request occurred; 1440/768/390 passed without overflow or console/page error
+- Public signing proof -- 5/5 transaction tests passed; connected local browser
+  rendered the unauthenticated invalid-token state with zero console
+  warnings/errors; success-path production proof remains gated on a newly
+  created controlled signing session
 - `git diff --check` -- pass
 - gitleaks 8.30.1 -- pass; no leaks
 - actionlint 1.7.12 -- pass
 - Prohibited external ERP brand/source scan -- zero matches
 - Vercel deployments after the retained baseline -- zero
 
-GitHub Actions run `30462707850` could not start a workflow step because the
+GitHub Actions run `30464538827` could not start a workflow step because the
 account reports failed payments or an exceeded spending limit. The local gates
 above are the completed evidence; hosted CI is an unresolved external gate.
 
@@ -111,26 +116,32 @@ traffic. A busy authenticated session could therefore make a later public
 request from the same shared IP fail with HTTP 429. Authenticated users behind
 one NAT also shared a bucket.
 
-Candidate `8058c8a` keys anonymous traffic by IP and authenticated traffic by
+Candidate `e99b88f` keys anonymous traffic by IP and authenticated traffic by
 user identity. Unit coverage proves bucket separation. A single sequential
 browser run now passes authenticated Cortex and the public landing page 2/2.
 
 The old dashboard executed executive pipeline, GP, forecast, rep-scorecard, and
 alert reads for every authenticated role even though `/dashboard` is available
-to roles that cannot access `/pipeline/board`. Candidate `8058c8a` selects the
+to roles that cannot access `/pipeline/board`. Candidate `e99b88f` selects the
 data loader before any query. Restricted roles receive only tenant- and
 assignee-scoped pending task counts plus authorized workspace links.
 
 The old universal search escaped `%` and `_` but not a user-supplied
 backslash, omitted tenant predicates on opportunity-account and BOM-project
-joins, and did not explicitly prevent caching. Candidate `8058c8a` treats all
+joins, and did not explicitly prevent caching. Candidate `e99b88f` treats all
 three pattern-control characters literally, rechecks joined tenants, keeps
 role filtering before query fan-out, and returns private/no-store responses.
 
-The old command palette had only record search. Candidate `8058c8a` adds an
+The old command palette had only record search. Candidate `e99b88f` adds an
 explicit Ask mode without mixing questions into search requests. It moves a
 bounded draft through opaque, expiring, one-time same-tab state, keeps prompt
 text out of URLs, clears state on consume, prefills Cortex, and never auto-sends.
+
+The old public signing flow used a fabricated zero-UUID audit actor, ignored
+audit failure, and wrote document, session, and source independently. Candidate
+`e99b88f` validates bounded PNGs, locks/rechecks the one-time session, commits
+tenant-scoped official rows plus nullable-actor audit atomically, denies replay,
+and compensates Storage on failure.
 
 ## One-build activation procedure
 
@@ -138,15 +149,15 @@ Requires explicit user approval:
 
 1. Reconfirm the candidate SHA and all gates above.
 2. Reconfirm Vercel Git is disconnected and zero newer deployments exist.
-3. Trigger exactly one manual production deployment for candidate `8058c8a`.
+3. Trigger exactly one manual production deployment for candidate `e99b88f`.
 4. Do not trigger a preview, redeploy, or second build while the first is
    queued or running.
 5. Confirm READY and the production alias points to the exact new deployment.
 6. Verify public landing metadata, structured data, interactions, and
    responsive layouts.
 7. Verify authenticated dashboard, Cortex scope, citations, focused graph,
-   saved-conversation restore/search, universal search, uploads, and
-   authorization denials.
+   saved-conversation restore/search, universal search, uploads, controlled
+   public signing, replay denial, and authorization denials.
 8. Check runtime errors, console output, health/readiness, and exact release
    identity before declaring activation complete.
 

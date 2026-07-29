@@ -455,3 +455,25 @@ reach through each other's internals.
   explicitly press Send before any AI request.
 - The AI surface remains analysis-only. It cannot approve or finalize an ERP
   transaction.
+
+## Public signing integrity boundary
+
+- A public signing token is the only authority for the external flow. Tenant,
+  entity type, entity ID, source Project, document ID, and audit identity are
+  never accepted from browser input.
+- Signature payloads are bounded and structurally validated before Storage or
+  database work.
+- Storage upload uses a collision-resistant key. Official database state is
+  committed only after the exact signing-session row is locked and its signed,
+  revoked, and expired state is rechecked.
+- Signature document creation, tenant-scoped source stamping, signing-session
+  stamping, and entity audit share one database transaction.
+- An unauthenticated external signer is represented by nullable `actor_id`.
+  Fabricated system users and zero UUIDs are forbidden.
+- Audit failure fails the official signature transaction. Database failure
+  triggers compensating Storage cleanup.
+- Concurrent and replayed submissions cannot create another signature
+  document, source transition, session stamp, or audit.
+- This safe Next.js authority is transitional. The public signing command must
+  move behind NestJS incrementally without weakening the token, transaction,
+  tenant, audit, replay, or cleanup invariants.
