@@ -1,6 +1,26 @@
-import { describe, expect, it } from 'vitest'
+import { NextRequest } from 'next/server'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppRole } from '@third-code-erp/auth'
-import { canSearchEntity } from './search-policy'
+
+const mocks = vi.hoisted(() => ({
+  getUserProfile: vi.fn(),
+}))
+
+vi.mock('@third-code-erp/auth', () => ({
+  getUserProfile: mocks.getUserProfile,
+}))
+
+vi.mock('@third-code-erp/database', () => ({
+  db: {},
+}))
+
+import {
+  canSearchEntity,
+  literalSearchPattern,
+  MAX_SEARCH_QUERY_LENGTH,
+  normalizeSearchQuery,
+} from './search-policy'
+import { GET } from './route'
 
 function allowed(role: AppRole) {
   const types = [
@@ -53,5 +73,62 @@ describe('universal search RBAC', () => {
     expect(canSearchEntity('sales', 'ledger_account')).toBe(false)
     expect(canSearchEntity('viewer', 'journal_entry')).toBe(false)
     expect(canSearchEntity('admin', 'journal_entry')).toBe(true)
+  })
+})
+
+describe('universal search request hardening', () => {
+  beforeEach(() => {
+    mocks.getUserProfile.mockReset()
+  })
+
+  it('trims and bounds user input before query fan-out', () => {
+    expect(normalizeSearchQuery('  concrete  ')).toBe('concrete')
+    expect(normalizeSearchQuery('x'.repeat(150))).toHaveLength(
+      MAX_SEARCH_QUERY_LENGTH
+    )
+    expect(normalizeSearchQuery(null)).toBe('')
+  })
+
+  it('treats PostgreSQL wildcard and escape characters as literal text', () => {
+    expect([...literalSearchPattern('50%_\\')]).toEqual([
+      '%',
+      '5',
+      '0',
+      '\\',
+      '%',
+      '\\',
+      '_',
+      '\\',
+      '\\',
+      '%',
+    ])
+  })
+
+  it('marks unauthenticated and short-query responses private and non-cacheable', async () => {
+    mocks.getUserProfile.mockResolvedValueOnce(null)
+    const unauthenticated = await GET(
+      new NextRequest('http://localhost/api/search?q=project')
+    )
+
+    expect(unauthenticated.status).toBe(401)
+    expect(unauthenticated.headers.get('cache-control')).toContain('private')
+    expect(unauthenticated.headers.get('cache-control')).toContain('no-store')
+    expect(unauthenticated.headers.get('vary')).toBe('Cookie')
+
+    mocks.getUserProfile.mockResolvedValueOnce({
+      role: 'viewer',
+      tenantId: 'tenant-1',
+      user: { id: 'user-1' },
+    })
+    const shortQuery = await GET(
+      new NextRequest('http://localhost/api/search?q=%20x%20')
+    )
+
+    expect(shortQuery.status).toBe(200)
+    expect(await shortQuery.json()).toEqual({
+      hits: [],
+      hint: 'Type at least 2 characters.',
+    })
+    expect(shortQuery.headers.get('cache-control')).toContain('no-store')
   })
 })
