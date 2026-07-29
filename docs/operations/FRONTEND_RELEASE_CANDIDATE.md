@@ -1,6 +1,6 @@
 # Frontend Release Candidate
 
-Prepared: 2026-07-29
+Prepared: 2026-07-30
 
 Status: source complete; production deployment not authorized.
 
@@ -11,17 +11,17 @@ Status: source complete; production deployment not authorized.
 - Retained production source:
   `f24e5603a35571f8dcadd43fc09c64d12646a7d0`
 - Candidate source:
-  `f173957559a93eb724daf9eeed3fbbb1c4576baf`
+  `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59`
 - GitHub refs:
   `main` and `agent-02/third-code-erp-landing`
 - Git identity:
   `kurtgav <kurtgavin.design@gmail.com>`
 - Candidate distance:
-  41 commits; 159 repository files; 16,533 insertions; 1,022 deletions
+  43 commits; 167 repository files; 18,636 insertions; 1,159 deletions
 - Web distance:
-  89 files; 8,597 insertions; 879 deletions
+  94 files; 9,925 insertions; 1,013 deletions
 - Web composition:
-  54 runtime files and 35 test/E2E files
+  58 runtime files and 36 test/E2E files
 
 ## Risk-domain inventory
 
@@ -36,19 +36,19 @@ Status: source complete; production deployment not authorized.
 | Permission-aware dashboard | 5 | executive data exposure to restricted roles | viewer data path, role-safe links, task counts, 1440/768/390 |
 | Universal search | 2 | wildcard fan-out, cross-tenant join, or cache exposure | literal probe, tenant join, RBAC, headers, and command palette |
 | Public signing | 1 | replay, partial write, missing audit, or orphaned Storage | controlled new session, atomic rows/audit, replay denial, cleanup |
-| RFQ dispatch | 4 | tenant bypass, duplicate retry, partial audit, or unwired event | controlled approval, one RFQ/audit, replay suppression, browser-write denial |
-| Tests | 35 | release-evidence coverage | unit, route, component, and browser suites |
+| RFQ workflow | 8 | tenant bypass, duplicate retry, partial audit, invalid transition, or incomplete coverage | controlled dispatch/quote, replay conflict, state graph, audit, browser-write denial |
+| Tests | 36 | release-evidence coverage | unit, route, component, and browser suites |
 
-All 54 runtime files are assigned to one domain above. No unclassified Web
+All 58 runtime files are assigned to one domain above. No unclassified Web
 runtime file remains.
 
 ## Production prerequisites
 
-- Hosted Supabase is already at the reviewed 53/53 migration baseline.
+- Hosted Supabase is already at the reviewed 54/54 migration baseline.
 - The active Railway API remains successful deployment
   `94c78bd2-327a-4f6a-a49e-1d77195d850d` from source
   `f173957559a93eb724daf9eeed3fbbb1c4576baf`.
-- The disposable PostgreSQL 17 release gate is 228/228 database tests
+- The disposable PostgreSQL 17 release gate is 236/236 database tests
   with zero skips.
 - This frontend activation requires no new database migration, API deployment,
   Railway deployment, Storage mutation, or queue change.
@@ -60,10 +60,8 @@ runtime file remains.
 - `apps/web/vercel.json` disables Git-triggered deployment.
 - On-demand concurrent builds are disabled. Builds queue one at a time.
 - Build machine is Standard: 4 vCPU and 8 GB memory.
-- Vercel documents Standard build compute as included at no added build-minute
-  charge when on-demand concurrency is disabled. Expected incremental Standard
-  build compute charge: `$0`. Other separately metered runtime or data transfer
-  usage is outside this build estimate.
+- No `$0` build claim is assumed. Recheck the live account estimate and spend
+  controls immediately before approval; treat an unverified build as billable.
 - Do not create a preview. If explicitly approved, create one manual production
   deployment only.
 - Vercel currently has no deployment checks and rolling releases are disabled.
@@ -79,7 +77,7 @@ References:
 
 - `pnpm lint` -- pass
 - `pnpm typecheck` -- pass
-- `pnpm test` -- 433 application tests pass
+- `pnpm test` -- 453 application tests pass
 - `pnpm build` -- pass; Next generated 77/77 static steps
 - Combined authenticated Cortex and public landing browser sequence -- 2/2
   pass at one worker
@@ -100,9 +98,10 @@ References:
   rendered the unauthenticated invalid-token state with zero console
   warnings/errors; success-path production proof remains gated on a newly
   created controlled signing session
-- RFQ integrity proof -- 15/15 Web tests and 5/5 Drizzle contract tests pass;
-  hosted database is 53/53; browser RFQ/quote writes are denied; live row and
-  duplicate counts remain zero
+- RFQ integrity proof -- 26/26 focused Web tests and 12/12 RFQ database
+  contract/runtime tests pass; hosted database is 54/54; four quote parent
+  constraints are validated; the state trigger is enabled; browser RFQ/quote
+  writes are denied; live RFQ/quote counts remain zero
 - `git diff --check` -- pass
 - gitleaks 8.30.1 -- pass; no leaks
 - actionlint 1.7.12 -- pass
@@ -154,13 +153,20 @@ for the wrong approval event, and had no database retry key. Candidate
 one-result database constraints, post-commit notification, and no direct
 browser mutation privileges.
 
+The old quote flow committed the quote, status change, and audit independently,
+trusted browser material identity, had no durable retry key, and allowed direct
+completion without a locked full-coverage check. Candidate `20d276c` derives
+material from a canonical BOM line, reuses a tenant-scoped submission UUID,
+locks every transition, commits official state and audit atomically, and relies
+on validated tenant-composite constraints plus a PostgreSQL state machine.
+
 ## One-build activation procedure
 
 Requires explicit user approval:
 
 1. Reconfirm the candidate SHA and all gates above.
 2. Reconfirm Vercel Git is disconnected and zero newer deployments exist.
-3. Trigger exactly one manual production deployment for candidate `f173957`.
+3. Trigger exactly one manual production deployment for candidate `20d276c`.
 4. Do not trigger a preview, redeploy, or second build while the first is
    queued or running.
 5. Confirm READY and the production alias points to the exact new deployment.

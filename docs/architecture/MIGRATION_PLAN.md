@@ -182,6 +182,32 @@ Status: source candidate complete; deployment not authorized.
 - Keep Vercel Git disconnected. Publish source only after all local gates pass;
   request no paid build until the user explicitly approves the disclosed cost.
 
+### Parallel RFQ quote-workflow integrity slice
+
+Status: source and hosted database complete on 2026-07-30; frontend activation
+not authorized.
+
+- Replace independent quote/status/audit commits with one row-locked,
+  tenant-scoped transaction service.
+- Preserve Server Action behavior and visible design while deriving authority
+  only from the authenticated profile.
+- Persist stable BOM-line identity and tenant-scoped quote submission
+  idempotency.
+- Enforce tenant-composite quote parents and the explicit RFQ state graph in
+  PostgreSQL.
+- Recheck complete quote coverage under lock before terminal transition.
+- Keep completion notification post-commit and non-authoritative.
+- Prove action/service failure paths, exact retry, key conflict, cross-tenant
+  denial, audit rollback, invalid transition, clean migration replay, and
+  stable schema fingerprint.
+- Apply only the reviewed forward migration. Do not reverse the live
+  cross-tenant, idempotency, or state-machine constraints.
+- Keep Vercel Git disconnected. Include this source in the one consolidated
+  production build only after explicit approval.
+- Next code slice: add an inert NestJS procurement command adapter for the
+  same quote/complete/cancel contract, disabled by default. Do not cut traffic
+  until contract, integration, canary, rollback, and provider gates pass.
+
 ### M2 — Remove unauthorized worker writes
 
 Status: design complete; application code blocked by M1 and governance gates.
