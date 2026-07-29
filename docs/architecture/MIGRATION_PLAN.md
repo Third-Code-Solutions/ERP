@@ -264,6 +264,23 @@ Status: source candidate complete; deployment not authorized.
 - Feature flag, rollback procedure, and data-reconciliation query exercised.
 - Current-state, decisions, work log, and next action updated.
 
+## Consolidated frontend activation
+
+Status: exact source candidate prepared; deployment awaits explicit approval.
+
+- Candidate `e53f20d63eb937440c2b29c88c920a543a49a3ef` contains 31
+  reviewed commits after the retained production source.
+- All 64 changed Web files are inventoried as 39 runtime and 25 test/E2E files.
+- Lint, typecheck, 379 application tests, production builds, combined
+  authenticated/public browser regression, secret scan, workflow scan, and
+  prohibited-source scan pass.
+- Vercel Git remains disconnected. Builds are queued one at a time on Standard
+  4 vCPU/8 GB. No preview or production deployment was created.
+- Activation, production validation, and rollback are defined in
+  `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`.
+- Do not deploy until the user explicitly approves the single manual
+  production build.
+
 ## Parallel Cortex consistency slice
 
 - Keep one 48-type application registry aligned with the versioned database

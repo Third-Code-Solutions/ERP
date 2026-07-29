@@ -2,19 +2,26 @@
 
 ## Exact next product action
 
-Prepare one consolidated frontend activation, but stop before provider spend:
+Await explicit approval for one manual queued Standard Vercel production build:
 
-1. Keep Vercel Git disconnected and confirm zero new deployments.
-2. Review all accumulated frontend candidates on one exact green SHA.
-3. Disclose the expected single Vercel production-build charge.
-4. Obtain explicit user approval before calling any deploy command.
-5. If approved, deploy exactly once without a duplicate preview.
-6. Verify authenticated Cortex scope creation/restoration, citations, focused
+1. Use exact candidate
+   `e53f20d63eb937440c2b29c88c920a543a49a3ef`.
+2. Keep Vercel Git disconnected. Do not create a preview.
+3. Reconfirm zero deployments after retained production
+   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+4. Disclose expected incremental Standard build compute charge: `$0` in the
+   current no-on-demand-concurrency configuration.
+5. Obtain explicit user approval before calling any deploy command.
+6. If approved, trigger exactly one production build and wait for its terminal
+   status. Never duplicate a queued or running build.
+7. Verify authenticated Cortex scope creation/restoration, citations, focused
    graph, saved-conversation deep links, recent-chat search/clear, new-chat URL
-   cleanup, record panels, landing QA, 1440/768/390 layouts, console, runtime
-   errors, analytics, and exact release identity.
-7. If not approved, retain the current READY Vercel artifact and continue only
-   no-cost source/backend work allowed by the standing M1 controls.
+   cleanup, record panels, landing metadata/interactions, 1440/768/390 layouts,
+   console, runtime errors, health/readiness, and exact release identity.
+8. If verification fails, instantly roll back to the retained deployment and
+   verify the production alias and core routes.
+9. If approval is withheld, retain the current READY artifact and continue
+   only no-cost source/backend work allowed by the standing M1 controls.
 
 ## Standing M1 controls
 
