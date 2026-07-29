@@ -7,14 +7,24 @@ import {
   type QueueOptions,
   type WorkerOptions,
 } from 'bullmq'
+import type { ConfigService } from '@nestjs/config'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  type NotificationDeliveryJob,
+  type NotificationDeliveryResult,
   type RfqCreationResult,
   type RfqDispatchDeadLetter,
   type RfqDispatchJob,
 } from '@third-code-erp/shared-types'
 import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { redisConnectionOptions } from '../src/config/environment'
+import {
+  NOTIFICATION_DELIVERY_JOB,
+  notificationDeliveryJobId,
+} from '../src/procurement/notification-delivery.constants'
+import { NotificationDeliveryProcessor } from '../src/procurement/notification-delivery.processor'
+import { NotificationDeliveryQueue } from '../src/procurement/notification-delivery.queue'
+import type { NotificationDeliveryService } from '../src/procurement/notification-delivery.service'
 import {
   RFQ_DISPATCH_DEAD_LETTER_JOB,
   RFQ_DISPATCH_JOB,
@@ -40,6 +50,11 @@ const RESULT: RfqCreationResult = {
   projectId: '99999999-9999-4999-8999-999999999999',
   lineCount: 1,
   created: true,
+}
+const NOTIFICATION_DELIVERY = {
+  deliveryId: '77777777-7777-4777-8777-777777777777',
+  outboxId: '66666666-6666-4666-8666-666666666666',
+  tenantId: PRINCIPAL.tenantId,
 }
 
 const queues: Queue[] = []
@@ -184,7 +199,10 @@ suite('RFQ BullMQ disposable Redis integration', () => {
       .mockRejectedValue(new Error('database unavailable'))
     const processor = new RfqDispatchProcessor(
       { createFromApprovedBom } as unknown as ProcurementService,
-      deadLetterQueue
+      deadLetterQueue,
+      {
+        enqueueOutbox: vi.fn(),
+      } as unknown as NotificationDeliveryQueue
     )
     const worker = new Worker<RfqDispatchJob, RfqCreationResult, string>(
       name,
@@ -262,5 +280,129 @@ suite('RFQ BullMQ disposable Redis integration', () => {
       source: 'bom_approved',
     }, { jobId: secondId })
     await waitForState(queue, secondId, 'completed', 20_000)
+  }, 30_000)
+
+  it('bounds notification retries and persists final dead-letter intent', async () => {
+    const name = queueName('notification-retry')
+    const queue = new Queue<
+      NotificationDeliveryJob,
+      NotificationDeliveryResult,
+      string
+    >(name, { connection: connection() })
+    queues.push(queue)
+    const deliver = vi
+      .fn()
+      .mockRejectedValue(new Error('email provider unavailable'))
+    const markDeadLetter = vi.fn().mockResolvedValue(undefined)
+    const processor = new NotificationDeliveryProcessor({
+      deliver,
+      markDeadLetter,
+    } as unknown as NotificationDeliveryService)
+    const worker = new Worker<
+      NotificationDeliveryJob,
+      NotificationDeliveryResult,
+      string
+    >(name, async (job) => processor.process(job), {
+      connection: connection(),
+    })
+    worker.on('failed', (job, error) => {
+      void processor.onFailed(job, error)
+    })
+    workers.push(worker)
+
+    const jobId = `notification-retry-${randomUUID()}`
+    const data: NotificationDeliveryJob = {
+      schemaVersion: 1,
+      ...NOTIFICATION_DELIVERY,
+    }
+    await queue.add(NOTIFICATION_DELIVERY_JOB, data, {
+      jobId,
+      attempts: 3,
+      backoff: { type: 'fixed', delay: 50 },
+      removeOnFail: false,
+    })
+    await waitForState(queue, jobId, 'failed')
+    const deadline = Date.now() + 5_000
+    while (
+      markDeadLetter.mock.calls.length === 0 &&
+      Date.now() < deadline
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+
+    expect(deliver).toHaveBeenCalledTimes(3)
+    expect(markDeadLetter).toHaveBeenCalledOnce()
+    expect(markDeadLetter).toHaveBeenCalledWith(
+      data,
+      expect.objectContaining({
+        message: 'email provider unavailable',
+      })
+    )
+  }, 20_000)
+
+  it('recovers a database-pending notification after Redis data loss', async () => {
+    const name = queueName('notification-recovery')
+    const queue = new Queue<
+      NotificationDeliveryJob,
+      NotificationDeliveryResult,
+      string
+    >(name, { connection: connection() })
+    queues.push(queue)
+    const deliver = vi.fn().mockImplementation(
+      async (
+        job: NotificationDeliveryJob
+      ): Promise<NotificationDeliveryResult> => ({
+        deliveryId: job.deliveryId,
+        status: 'delivered',
+      })
+    )
+    const worker = new Worker<
+      NotificationDeliveryJob,
+      NotificationDeliveryResult,
+      string
+    >(name, async (job) => deliver(job.data), {
+      connection: connection(),
+    })
+    workers.push(worker)
+
+    const pending = vi
+      .fn()
+      .mockResolvedValue([NOTIFICATION_DELIVERY])
+    const producer = new NotificationDeliveryQueue(
+      queue,
+      {
+        pending,
+        pendingForOutbox: vi.fn(),
+      } as unknown as NotificationDeliveryService,
+      {
+        get: vi.fn().mockReturnValue(false),
+      } as unknown as ConfigService
+    )
+
+    const beforeId = `before-loss-${randomUUID()}`
+    await queue.add(
+      NOTIFICATION_DELIVERY_JOB,
+      {
+        schemaVersion: 1,
+        ...NOTIFICATION_DELIVERY,
+      },
+      { jobId: beforeId }
+    )
+    await waitForState(queue, beforeId, 'completed')
+
+    restartDisposableRedis()
+    await waitForRedis(queue)
+
+    await expect(producer.enqueuePending()).resolves.toBe(1)
+    await waitForState(
+      queue,
+      notificationDeliveryJobId(
+        NOTIFICATION_DELIVERY.deliveryId
+      ),
+      'completed',
+      20_000
+    )
+    expect(pending).toHaveBeenCalledOnce()
+    expect(deliver).toHaveBeenCalledTimes(2)
   }, 30_000)
 })

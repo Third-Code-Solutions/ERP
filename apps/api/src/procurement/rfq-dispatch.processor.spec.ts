@@ -6,6 +6,7 @@ import {
 } from './rfq-dispatch.constants'
 import { RfqDispatchProcessor } from './rfq-dispatch.processor'
 import type { ProcurementService } from './procurement.service'
+import type { NotificationDeliveryQueue } from './notification-delivery.queue'
 
 const JOB_ID =
   'rfq1-22222222-2222-4222-8222-222222222222-88888888-8888-4888-8888-888888888888'
@@ -37,16 +38,21 @@ function harness() {
     projectId: '99999999-9999-4999-8999-999999999999',
     lineCount: 2,
     created: true,
+    notificationOutboxId:
+      '77777777-7777-4777-8777-777777777777',
   })
   const deadLetterAdd = vi.fn().mockResolvedValue({})
+  const enqueueOutbox = vi.fn().mockResolvedValue(2)
   const processor = new RfqDispatchProcessor(
     { createFromApprovedBom } as unknown as ProcurementService,
-    { add: deadLetterAdd } as unknown as Queue
+    { add: deadLetterAdd } as unknown as Queue,
+    { enqueueOutbox } as unknown as NotificationDeliveryQueue
   )
   return {
     processor,
     createFromApprovedBom,
     deadLetterAdd,
+    enqueueOutbox,
   }
 }
 
@@ -62,6 +68,10 @@ describe('RfqDispatchProcessor', () => {
       created: true,
     })
     expect(probe.createFromApprovedBom).toHaveBeenCalledWith(DATA)
+    expect(probe.enqueueOutbox).toHaveBeenCalledWith(
+      DATA.tenantId,
+      '77777777-7777-4777-8777-777777777777'
+    )
   })
 
   it('rejects unsupported or malformed jobs before database authority', async () => {

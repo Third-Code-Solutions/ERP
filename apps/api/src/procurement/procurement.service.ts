@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   ConflictException,
   ForbiddenException,
@@ -9,6 +10,8 @@ import {
   bomLineItems,
   boms,
   materialItems,
+  notificationDeliveries,
+  notificationOutbox,
   rateCards,
   rfqQuotes,
   rfqs,
@@ -55,6 +58,16 @@ interface CreateRfqOptions {
   source: 'manual' | 'bom_approved'
   requireApprovedBom: boolean
   revalidateActor: boolean
+  createNotificationOutbox: boolean
+}
+
+export interface AutomaticRfqCreationResult
+  extends RfqCreationResult {
+  notificationOutboxId: string | null
+}
+
+interface RfqCreationRecordResult extends RfqCreationResult {
+  notificationOutboxId: string | null
 }
 
 function existingLineCount(lineItems: unknown): number {
@@ -127,16 +140,19 @@ export class ProcurementService {
     command: CreateRfqCommand,
     principal: ErpPrincipal
   ): Promise<RfqCreationResult> {
-    return this.createRecord(command, principal, {
+    const result = await this.createRecord(command, principal, {
       source: 'manual',
       requireApprovedBom: false,
       revalidateActor: false,
+      createNotificationOutbox: false,
     })
+    const { notificationOutboxId: _, ...publicResult } = result
+    return publicResult
   }
 
   async createFromApprovedBom(
     job: RfqDispatchJob
-  ): Promise<RfqCreationResult> {
+  ): Promise<AutomaticRfqCreationResult> {
     return this.createRecord(
       { bomId: job.bomId },
       {
@@ -149,6 +165,7 @@ export class ProcurementService {
         source: job.source,
         requireApprovedBom: true,
         revalidateActor: true,
+        createNotificationOutbox: true,
       }
     )
   }
@@ -157,7 +174,7 @@ export class ProcurementService {
     command: CreateRfqCommand,
     principal: ErpPrincipal,
     options: CreateRfqOptions
-  ): Promise<RfqCreationResult> {
+  ): Promise<RfqCreationRecordResult> {
     return this.database.client.transaction(async (transaction) => {
       let authorizedPrincipal = principal
       if (options.revalidateActor) {
@@ -239,12 +256,39 @@ export class ProcurementService {
         .limit(1)
 
       if (existing) {
+        const [outbox] = options.createNotificationOutbox
+          ? await transaction
+              .select({ id: notificationOutbox.id })
+              .from(notificationOutbox)
+              .where(
+                and(
+                  eq(
+                    notificationOutbox.tenant_id,
+                    authorizedPrincipal.tenantId
+                  ),
+                  eq(
+                    notificationOutbox.event_type,
+                    'rfq.created'
+                  ),
+                  eq(
+                    notificationOutbox.aggregate_type,
+                    'rfq'
+                  ),
+                  eq(
+                    notificationOutbox.aggregate_id,
+                    existing.id
+                  )
+                )
+              )
+              .limit(1)
+          : []
         return {
           rfqId: existing.id,
-          tenantId: principal.tenantId,
+          tenantId: authorizedPrincipal.tenantId,
           projectId: bom.project_id,
           lineCount: existingLineCount(existing.line_items),
           created: false,
+          notificationOutboxId: outbox?.id ?? null,
         }
       }
 
@@ -357,8 +401,8 @@ export class ProcurementService {
       }
 
       await this.audit.writeSemantic(transaction, {
-        tenantId: principal.tenantId,
-        actorId: principal.userId,
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
         entityType: 'rfq',
         entityId: created.id,
         action: 'create',
@@ -369,12 +413,68 @@ export class ProcurementService {
         },
       })
 
+      let notificationOutboxId: string | null = null
+      if (options.createNotificationOutbox) {
+        notificationOutboxId = randomUUID()
+        const recipients = await transaction
+          .select({
+            id: users.id,
+            email: users.email,
+          })
+          .from(users)
+          .where(
+            and(
+              eq(
+                users.tenant_id,
+                authorizedPrincipal.tenantId
+              ),
+              eq(users.role, 'procurement')
+            )
+          )
+          .for('share')
+
+        await transaction.insert(notificationOutbox).values({
+          id: notificationOutboxId,
+          tenant_id: authorizedPrincipal.tenantId,
+          event_key: `rfq.created/${created.id}`,
+          event_type: 'rfq.created',
+          aggregate_type: 'rfq',
+          aggregate_id: created.id,
+          payload: {
+            schemaVersion: 1,
+            project_id: bom.project_id,
+            line_count: rfqLines.length,
+          },
+        })
+
+        const deliveries = recipients.flatMap((recipient) =>
+          (['in_app', 'email'] as const).map((channel) => {
+            const deliveryId = randomUUID()
+            return {
+              id: deliveryId,
+              tenant_id: authorizedPrincipal.tenantId,
+              outbox_id: notificationOutboxId!,
+              recipient_user_id: recipient.id,
+              recipient_email: recipient.email,
+              channel,
+              idempotency_key: `rfq-created/${deliveryId}`,
+            }
+          })
+        )
+        if (deliveries.length > 0) {
+          await transaction
+            .insert(notificationDeliveries)
+            .values(deliveries)
+        }
+      }
+
       return {
         rfqId: created.id,
-        tenantId: principal.tenantId,
+        tenantId: authorizedPrincipal.tenantId,
         projectId: bom.project_id,
         lineCount: rfqLines.length,
         created: true,
+        notificationOutboxId,
       }
     })
   }

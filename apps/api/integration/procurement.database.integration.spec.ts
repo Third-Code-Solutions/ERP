@@ -8,6 +8,9 @@ import {
   bomLineItems,
   boms,
   db,
+  notificationDeliveries,
+  notificationOutbox,
+  notifications,
   projects,
   rfqQuotes,
   rfqs,
@@ -18,7 +21,7 @@ import {
 } from '@third-code-erp/database'
 import { and, eq } from 'drizzle-orm'
 import request from 'supertest'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AuditService } from '../src/audit/audit.service'
 import { CapabilityGuard } from '../src/auth/capability.guard'
 import { SupabaseIdentityService } from '../src/auth/supabase-identity.service'
@@ -28,6 +31,8 @@ import {
   type DatabaseTransaction,
 } from '../src/database/database.service'
 import { ProcurementController } from '../src/procurement/procurement.controller'
+import { NotificationDeliveryService } from '../src/procurement/notification-delivery.service'
+import type { NotificationEmailService } from '../src/procurement/notification-email.service'
 import { RfqDispatchQueue } from '../src/procurement/rfq-dispatch.queue'
 import { ProcurementService } from '../src/procurement/procurement.service'
 
@@ -360,6 +365,9 @@ suite('Procurement API database integration', () => {
           lineCount: 1,
           created: true,
         })
+        if (!automatic.notificationOutboxId) {
+          throw new Error('Automatic RFQ outbox was not created')
+        }
         await expect(
           procurementService.createFromApprovedBom({
             schemaVersion: 1,
@@ -399,6 +407,121 @@ suite('Procurement API database integration', () => {
             source: 'bom_approved',
           })
         ).rejects.toMatchObject({ status: 409 })
+
+        const automaticDeliveries = await transaction
+          .select()
+          .from(notificationDeliveries)
+          .where(
+            and(
+              eq(
+                notificationDeliveries.tenant_id,
+                tenantA
+              ),
+              eq(
+                notificationDeliveries.outbox_id,
+                automatic.notificationOutboxId
+              )
+            )
+          )
+        expect(automaticDeliveries).toHaveLength(2)
+        expect(
+          automaticDeliveries
+            .map((delivery) => delivery.channel)
+            .sort()
+        ).toEqual(['email', 'in_app'])
+        expect(
+          automaticDeliveries.every(
+            (delivery) =>
+              delivery.recipient_user_id === procurementA &&
+              delivery.recipient_email ===
+                `procurement-a-${suffix}@integration.test`
+          )
+        ).toBe(true)
+
+        const sendRfqCreated = vi
+          .fn()
+          .mockResolvedValue('provider-message-1')
+        const notificationDelivery =
+          new NotificationDeliveryService(database, {
+            sendRfqCreated,
+          } as unknown as NotificationEmailService)
+        for (const delivery of automaticDeliveries) {
+          const deliveryJob = {
+            schemaVersion: 1 as const,
+            tenantId: tenantA,
+            outboxId: automatic.notificationOutboxId,
+            deliveryId: delivery.id,
+          }
+          await expect(
+            notificationDelivery.deliver(deliveryJob)
+          ).resolves.toEqual({
+            deliveryId: delivery.id,
+            status: 'delivered',
+          })
+          await expect(
+            notificationDelivery.deliver(deliveryJob)
+          ).resolves.toEqual({
+            deliveryId: delivery.id,
+            status: 'already_delivered',
+          })
+        }
+        expect(sendRfqCreated).toHaveBeenCalledTimes(1)
+
+        const emailDelivery = automaticDeliveries.find(
+          (delivery) => delivery.channel === 'email'
+        )
+        if (!emailDelivery) {
+          throw new Error('Automatic RFQ email delivery is missing')
+        }
+        const emailJob = {
+          schemaVersion: 1 as const,
+          tenantId: tenantA,
+          outboxId: automatic.notificationOutboxId,
+          deliveryId: emailDelivery.id,
+        }
+        await transaction
+          .update(notificationDeliveries)
+          .set({
+            status: 'processing',
+            attempt_count: 1,
+            provider_message_id: null,
+            delivered_at: null,
+            processing_started_at: new Date(),
+            updated_at: new Date(),
+          })
+          .where(
+            and(
+              eq(notificationDeliveries.tenant_id, tenantA),
+              eq(notificationDeliveries.id, emailDelivery.id)
+            )
+          )
+        await expect(
+          notificationDelivery.deliver(emailJob)
+        ).resolves.toEqual({
+          deliveryId: emailDelivery.id,
+          status: 'already_processing',
+        })
+        const staleAt = new Date(Date.now() - 10 * 60_000)
+        await transaction
+          .update(notificationDeliveries)
+          .set({
+            attempt_count: 5,
+            processing_started_at: staleAt,
+            updated_at: staleAt,
+          })
+          .where(
+            and(
+              eq(notificationDeliveries.tenant_id, tenantA),
+              eq(notificationDeliveries.id, emailDelivery.id)
+            )
+          )
+        await expect(
+          notificationDelivery.deliver(emailJob)
+        ).resolves.toEqual({
+          deliveryId: emailDelivery.id,
+          status: 'dead_letter',
+        })
+        expect(sendRfqCreated).toHaveBeenCalledTimes(1)
 
         await request(app.getHttpServer())
           .post('/v1/procurement/rfqs/dispatch')
@@ -611,6 +734,30 @@ suite('Procurement API database integration', () => {
               eq(auditLog.entity_id, automatic.rfqId)
             )
           )
+        const automaticOutboxRows = await transaction
+          .select()
+          .from(notificationOutbox)
+          .where(
+            and(
+              eq(notificationOutbox.tenant_id, tenantA),
+              eq(
+                notificationOutbox.aggregate_id,
+                automatic.rfqId
+              )
+            )
+          )
+        const deliveredNotificationRows = await transaction
+          .select()
+          .from(notifications)
+          .where(
+            and(
+              eq(notifications.tenant_id, tenantA),
+              eq(
+                notifications.recipient_user_id,
+                procurementA
+              )
+            )
+          )
         const tenantBCancelAudit = await transaction
           .select()
           .from(auditLog)
@@ -635,6 +782,18 @@ suite('Procurement API database integration', () => {
         expect(quotes).toHaveLength(1)
         expect(createdRfqRows).toHaveLength(1)
         expect(automaticRfqRows).toHaveLength(1)
+        expect(automaticOutboxRows).toHaveLength(1)
+        expect(automaticOutboxRows[0]?.id).toBe(
+          automatic.notificationOutboxId
+        )
+        expect(deliveredNotificationRows).toHaveLength(1)
+        expect(
+          deliveredNotificationRows[0]?.source_delivery_id
+        ).toBe(
+          automaticDeliveries.find(
+            (delivery) => delivery.channel === 'in_app'
+          )?.id
+        )
         expect(
           automaticAudit.filter((entry) => {
             const diff = entry.diff as {

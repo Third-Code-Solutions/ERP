@@ -319,6 +319,12 @@ describe('ProcurementService RFQ creation command', () => {
           is_group: 0,
         },
       ],
+      [
+        {
+          id: PRINCIPAL.userId,
+          email: PRINCIPAL.email,
+        },
+      ],
     ])
 
     await expect(
@@ -334,6 +340,7 @@ describe('ProcurementService RFQ creation command', () => {
       projectId: PROJECT_ID,
       lineCount: 1,
       created: true,
+      notificationOutboxId: expect.any(String),
     })
     expect(probe.audit.stampActor).toHaveBeenCalledWith(
       probe.transactionClient,

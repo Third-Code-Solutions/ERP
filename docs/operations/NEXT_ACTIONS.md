@@ -240,3 +240,20 @@ Provider inspection result:
    browser console, responsive layouts, logs, restart behavior, and rollback.
 5. Present exact DNS, redirect, monitoring, rollback, and cost impact before
    any traffic cutover. Retain Vercel throughout the proof.
+
+## Exact next action after RFQ notification outbox
+
+1. Keep `ERP_RFQ_AUTO_DISPATCH_VIA_API`,
+   `ERP_RFQ_AUTO_DISPATCH_VIA_API_TENANT_IDS`, and
+   `ERP_NOTIFICATION_SWEEP_ENABLED` absent/false.
+2. Do not add `RESEND_API_KEY`, `EMAIL_FROM`, or `ERP_WEB_BASE_URL` for this
+   disabled path until a controlled canary is approved.
+3. Prepare a read-only purchase-order creation authority audit: current
+   Server Actions, direct writes, approval states, money types, tenant
+   constraints, audit behavior, notification side effects, tests, and rollback.
+4. Specify the smallest disabled NestJS purchase-order adapter. Preserve
+   current API/UI behavior and prohibit browser writes to sensitive tables.
+5. Require a clean PostgreSQL 17/Redis lane, full repository gates, and exact
+   provider evidence before deployment.
+6. Keep Vercel Git disconnected. Create no preview or production frontend
+   deployment.

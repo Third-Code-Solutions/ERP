@@ -578,3 +578,20 @@ authoritative until that proof succeeds.
   transactions.
 - Cutover remains tenant-by-tenant, fail-closed, observable, reconciled, and
   reversible without a browser fallback after a selected Nest command begins.
+
+## RFQ notification delivery boundary
+
+- Official RFQ state, semantic audit, notification intent, and recipient
+  snapshots commit atomically in PostgreSQL.
+- Redis jobs contain opaque identities only. Recipient data, business copy,
+  credentials, and provider responses remain outside Redis.
+- PostgreSQL owns delivery idempotency, attempt ceilings, stale-processing
+  recovery, terminal dead-letter evidence, and in-app uniqueness.
+- Delivery revalidates tenant membership and the current procurement role.
+  Python cannot approve, create, notify, or finalize an RFQ transaction.
+- Provider email retries use one stable idempotency key and identical payload.
+  Missing server-only email configuration fails closed.
+- Recovery polling and automatic RFQ routing are independent exact flags,
+  default false, and require a controlled tenant canary before activation.
+- Browser roles may read their authorized notification rows but cannot write
+  official notification, outbox, or delivery state.

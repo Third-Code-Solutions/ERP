@@ -2,6 +2,15 @@ import { z } from 'zod'
 
 export const REDIS_CLIENT = Symbol('THIRD_CODE_ERP_REDIS_CLIENT')
 
+const optionalHttpUrl = z
+  .string()
+  .url()
+  .refine((value) => {
+    const protocol = new URL(value).protocol
+    return protocol === 'http:' || protocol === 'https:'
+  }, 'must use http or https')
+  .optional()
+
 const environmentSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
@@ -12,6 +21,13 @@ const environmentSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(20),
   REDIS_URL: z.string().url(),
   ERP_API_CORS_ORIGINS: z.string().default('http://localhost:3000'),
+  RESEND_API_KEY: z.string().min(20).optional(),
+  EMAIL_FROM: z.string().min(3).max(320).optional(),
+  ERP_WEB_BASE_URL: optionalHttpUrl,
+  ERP_NOTIFICATION_SWEEP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 })
 
 export type Environment = z.infer<typeof environmentSchema>

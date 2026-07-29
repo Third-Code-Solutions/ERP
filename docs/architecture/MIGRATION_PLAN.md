@@ -655,3 +655,34 @@ Next migration milestone:
    Redis.
 5. Keep automatic RFQ routing disabled until controlled hosted canary,
    reconciliation, monitoring, and rollback receive explicit approval.
+
+## 2026-07-30 RFQ notification outbox milestone
+
+Status: implementation, hosted schema, and local release gates complete;
+production routing disabled.
+
+- Added the original outbox, delivery state-machine, retry, provider
+  idempotency, compatibility, and rollback contract before implementation.
+- Added atomic automatic-RFQ outbox and same-tenant procurement-recipient
+  snapshots.
+- Added UUID-only BullMQ delivery jobs, deterministic duplicate suppression,
+  five bounded attempts, dead-letter evidence, and opt-in stale recovery.
+- Added idempotent in-app delivery and fail-closed Resend delivery using
+  server-only configuration.
+- Applied the inert server-only migration to the correct Supabase project and
+  verified zero rows, closed browser privileges, and validated composite
+  constraints.
+- Kept automatic routing, tenant allowlist, and recovery-sweep flags disabled.
+  Existing Inngest behavior remains authoritative.
+
+Next migration milestone:
+
+1. Do not canary automatic RFQ routing without an explicitly approved clean
+   tenant, exact environment diff, baseline, monitoring, reconciliation, and
+   rollback.
+2. Audit and specify purchase-order creation as the next bounded procurement
+   transaction-authority slice.
+3. Preserve current API and UI behavior; add one disabled NestJS adapter only.
+4. Require tenant constraints, exact money types, permission checks, audit,
+   idempotency, and disposable PostgreSQL evidence before any cutover.
+5. Create no Vercel build and keep Vercel Git disconnected.
