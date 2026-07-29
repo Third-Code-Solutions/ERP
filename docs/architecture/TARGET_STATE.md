@@ -272,3 +272,17 @@ reach through each other's internals.
 - Canonical registry routes open exact records when a detail surface exists.
 - Context remains read-only. It cannot approve, post, reverse, allocate, or
   finalize an ERP transaction.
+
+## Cortex relationship-meaning boundary
+
+- A record backlink must communicate both the connected record and why the
+  graph connects it to the current record.
+- Directional labels derive only from canonical server-returned edge types and
+  direction. Unknown edge types receive a neutral bounded label.
+- Relationship rows are assembled only from the tenant- and current-role-
+  filtered context pack. Missing citations are omitted; destinations are never
+  guessed from edge metadata.
+- Canonical entity-registry routing owns navigation. Unsupported records remain
+  readable static context.
+- The response is bounded, read-only, keyboard accessible, responsive, and
+  cannot approve or finalize an ERP transaction.

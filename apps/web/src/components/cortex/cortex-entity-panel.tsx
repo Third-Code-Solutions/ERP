@@ -2,13 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { CortexCitationList } from './cortex-citation-list'
-import type { NavigableCortexCitation } from '@/lib/cortex/citation-header'
+import { CortexRelationshipList } from './cortex-relationship-list'
+import type { CortexEntityResponse } from '@/lib/cortex/entity-response'
 
-interface CortexAnswer {
-  found: boolean
-  summary: string
-  citations: NavigableCortexCitation[]
-}
+type CortexAnswer = CortexEntityResponse
 
 type State =
   | { kind: 'loading' }
@@ -90,6 +87,9 @@ export function CortexEntityPanel({ refTable, refId }: Props) {
               </p>
             ))}
           </div>
+          <CortexRelationshipList
+            relationships={state.answer.relationships ?? []}
+          />
           <div className="cortex-panel__sources">
             <span className="cortex-panel__sources-label">
               {state.answer.citations.length} source

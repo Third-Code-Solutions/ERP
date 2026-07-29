@@ -1540,6 +1540,76 @@ a { color: inherit; }
   margin: 0 0 4px;
 }
 .cortex-panel__summary-line:first-child { font-weight: 600; color: var(--color-neutral-900); }
+.cortex-panel__connections {
+  margin: 14px 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+.cortex-relationships {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cortex-relationship {
+  display: grid;
+  grid-template-columns: minmax(64px, 88px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 7px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-neutral-50);
+  text-decoration: none;
+}
+.cortex-relationship--link {
+  cursor: pointer;
+  transition:
+    background-color 160ms ease-out,
+    border-color 160ms ease-out;
+}
+.cortex-relationship--link:hover {
+  background: var(--color-info-soft);
+  border-color: var(--color-navy-700);
+}
+.cortex-relationship--link:focus-visible {
+  outline: 2px solid var(--color-navy-700);
+  outline-offset: 2px;
+}
+.cortex-relationship__kind {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-navy-700);
+}
+.cortex-relationship__record {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+.cortex-relationship__type {
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-neutral-400);
+}
+.cortex-relationship__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--color-neutral-700);
+}
+.cortex-relationship__origin {
+  font-size: 0.625rem;
+  color: var(--color-neutral-400);
+}
 .cortex-panel__sources-label {
   display: block;
   font-size: 0.6875rem;
@@ -1610,6 +1680,12 @@ a { color: inherit; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cortex-skel-line { animation: none; }
+}
+@media (max-width: 640px) {
+  .cortex-relationships { grid-template-columns: minmax(0, 1fr); }
+  .cortex-relationship {
+    grid-template-columns: minmax(64px, 82px) minmax(0, 1fr) auto;
+  }
 }
 
 /* =========================================================================

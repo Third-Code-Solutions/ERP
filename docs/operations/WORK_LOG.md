@@ -1460,6 +1460,57 @@ Rollback and unresolved:
 - Composite database constraints remain required in M2.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
 
+## 2026-07-29 -- Cortex directional relationship meaning
+
+Outcome:
+
+- Added explicit outgoing/incoming labels for 15 canonical graph edge types
+  plus a fail-safe `Connected` fallback.
+- Extended the existing entity response with at most 12 relationship rows
+  assembled only from role-filtered neighbors and citations.
+- Kept the record authorization gate before neighbor retrieval and preserved
+  existing source/type ownership checks and non-enumerating denial.
+- Added canonical relationship links, static fallback, origin metadata,
+  two-column desktop/tablet layout, and one-column mobile layout.
+- Changed no schema, hosted data, Auth, Storage, queue, backend, provider
+  setting, or deployment. Vercel Git remained disconnected.
+
+Changed files:
+
+- `apps/web/src/lib/cortex/entity-response.ts`
+- `apps/web/src/lib/cortex/entity-response.test.ts`
+- `apps/web/src/app/api/cortex/entity/[refTable]/[refId]/route.ts`
+- `apps/web/src/app/api/cortex/entity/[refTable]/[refId]/route.test.ts`
+- `apps/web/src/components/cortex/cortex-relationship-list.tsx`
+- `apps/web/src/components/cortex/cortex-relationship-list.test.tsx`
+- `apps/web/src/components/cortex/cortex-entity-panel.tsx`
+- `apps/web/src/app/globals.css`
+- `docs/research/components/cortex-relationship-list.spec.md`
+- the six architecture/operations memory files
+- `docs/changesets/2026-07-29-cortex-relationship-meaning.md`
+
+Validation:
+
+- Focused response, route, and render suite -- 11/11 pass.
+- Root lint and all-package typecheck -- pass.
+- Root tests -- 341 pass; 132 writable-database-gated cases skip.
+- API and Web production builds -- pass; Web generated 77/77 static steps.
+- Local production entity API without session -- 401.
+- Built-CSS browser proof at 1440/768/390 -- two/two/one columns, 44px
+  targets, visible two-pixel focus, safe ellipsis, and zero overflow.
+- Browser console -- zero errors and zero warnings after fresh local load.
+
+Rollback and unresolved:
+
+- Revert this source/documentation milestone; runtime and provider state remain
+  unchanged.
+- Authenticated populated-record proof remains pending a controlled valid
+  identity; invalid demo credentials were not bypassed.
+- Live activation requires one explicitly approved consolidated Vercel build.
+  Do not create a separate preview or reconnect Git.
+- Database integration assertions remain pending a disposable writable target.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
 ## 2026-07-29 -- Cortex operational record context
 
 Outcome:
