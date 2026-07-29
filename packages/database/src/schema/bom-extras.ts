@@ -118,7 +118,7 @@ export const rfqs = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenant_id: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
-    bom_id: uuid('bom_id').notNull().references(() => boms.id, { onDelete: 'cascade' }),
+    bom_id: uuid('bom_id').notNull(),
     status: rfqStatusEnum('status').notNull().default('pending'),
     line_items: jsonb('line_items').notNull(), // [{material_item_id, qty, unit}]
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -127,6 +127,15 @@ export const rfqs = pgTable(
   (table) => ({
     tenantIdx: index('idx_rfqs_tenant_id').on(table.tenant_id),
     bomIdx: index('idx_rfqs_bom_id').on(table.bom_id),
+    tenantBomUq: uniqueIndex('ux_rfqs_tenant_bom').on(
+      table.tenant_id,
+      table.bom_id
+    ),
+    bomTenantFk: foreignKey({
+      name: 'rfqs_bom_tenant_fk',
+      columns: [table.tenant_id, table.bom_id],
+      foreignColumns: [boms.tenant_id, boms.id],
+    }).onDelete('cascade'),
   })
 )
 

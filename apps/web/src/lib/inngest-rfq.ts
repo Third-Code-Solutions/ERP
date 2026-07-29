@@ -1,18 +1,21 @@
 /**
  * RFQ auto-dispatch Inngest wiring (REFACTOR.md M3 US-013).
  *
- * When Commercial internally approves a BOM, we want Procurement to start
- * sourcing immediately. The BOM-approval server action emits a
- * `bom/internal_approved` event with `{bomId, tenantId}`; this function
- * picks it up and calls `createRfqFromBom` with `systemTenantId` so the
- * action doesn't require a logged-in actor (no user session in Inngest).
+ * The current producer emits `bom/approved`; the historical
+ * `bom/internal_approved` name remains accepted during migration. Both paths
+ * call the internal server-only transaction service, never the browser-facing
+ * Server Action.
  *
  * Wiring: the main thread registers `onBomInternalApproved` in the existing
  * inngest webhook route alongside the other declared functions.
  */
 
 import { inngest } from './inngest'
-import { createRfqFromBom } from '@/app/(dashboard)/procurement/rfqs/actions'
+import {
+  createRfqFromBomRecord,
+  notifyRfqCreated,
+  type RfqCreationSource,
+} from '@/lib/procurement/rfq-service'
 
 type Step = {
   run: <T>(name: string, fn: () => Promise<T>) => Promise<T>
@@ -21,37 +24,83 @@ type Step = {
 interface BomInternalApprovedEventData {
   bomId: string
   tenantId: string
+  actorId?: string
+}
+
+interface BomApprovedEvent {
+  name: 'bom/approved' | 'bom/internal_approved'
+  data: BomInternalApprovedEventData
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function sourceForEvent(name: BomApprovedEvent['name']): RfqCreationSource {
+  return name === 'bom/approved'
+    ? 'bom_approved_event'
+    : 'bom_internal_approved_event'
+}
+
+export async function handleBomApprovedForRfq({
+  event,
+  step,
+}: {
+  event: BomApprovedEvent
+  step: Step
+}) {
+  const { bomId, tenantId, actorId } = event.data
+
+  if (
+    !UUID_PATTERN.test(bomId ?? '') ||
+    !UUID_PATTERN.test(tenantId ?? '') ||
+    (actorId !== undefined && !UUID_PATTERN.test(actorId))
+  ) {
+    return {
+      skipped: true,
+      reason: 'bomId, tenantId, or actorId invalid',
+    }
+  }
+
+  const result = await step.run('create-rfq', async () => {
+    return createRfqFromBomRecord({
+      bomId,
+      tenantId,
+      actorId: actorId ?? null,
+      source: sourceForEvent(event.name),
+    })
+  })
+
+  if ('error' in result) {
+    return {
+      skipped: true,
+      reason: result.error,
+      bomId,
+      tenantId,
+    }
+  }
+
+  if (result.created) {
+    await step.run('notify-procurement', async () => {
+      await notifyRfqCreated(result)
+    })
+  }
+
+  return {
+    created: result.created,
+    rfqId: result.rfqId,
+    bomId,
+    tenantId,
+  }
 }
 
 export const onBomInternalApproved = inngest.createFunction(
   {
     id: 'on-bom-internal-approved-create-rfq',
     name: 'Auto-create RFQ when BOM is internally approved',
-    triggers: [{ event: 'bom/internal_approved' as const }],
+    triggers: [
+      { event: 'bom/approved' as const },
+      { event: 'bom/internal_approved' as const },
+    ],
   },
-  async ({
-    event,
-    step,
-  }: {
-    event: { data: BomInternalApprovedEventData }
-    step: Step
-  }) => {
-    const { bomId, tenantId } = event.data
-
-    if (!bomId || !tenantId) {
-      return { skipped: true, reason: 'bomId or tenantId missing' }
-    }
-
-    const result = await step.run('create-rfq', async () => {
-      return createRfqFromBom(bomId, { systemTenantId: tenantId })
-    })
-
-    if ('error' in result) {
-      // Non-fatal: log the reason and exit. Common case: BOM had no
-      // non-contracted lines, so no RFQ was needed.
-      return { skipped: true, reason: result.error, bomId, tenantId }
-    }
-
-    return { created: true, rfqId: result.rfqId, bomId, tenantId }
-  }
+  handleBomApprovedForRfq
 )

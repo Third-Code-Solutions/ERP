@@ -164,7 +164,12 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
   try {
     await inngest.send({
       name: 'bom/approved',
-      data: { bomId, projectId, tenantId: userRow.tenant_id },
+      data: {
+        bomId,
+        projectId,
+        tenantId: userRow.tenant_id,
+        actorId: user.id,
+      },
     })
   } catch (err) {
     console.warn('[approveBom] inngest.send failed (approval still persisted):', err)

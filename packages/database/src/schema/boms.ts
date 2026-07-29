@@ -1,4 +1,14 @@
-import { pgTable, uuid, varchar, text, bigint, integer, timestamp, index } from 'drizzle-orm/pg-core'
+import {
+  pgTable,
+  uuid,
+  varchar,
+  text,
+  bigint,
+  integer,
+  timestamp,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 import { bomStatusEnum } from './enums'
 import { tenants } from './tenants'
 import { projects } from './projects'
@@ -34,6 +44,10 @@ export const boms = pgTable(
     projectIdx: index('idx_boms_project_id').on(table.project_id),
     opportunityIdx: index('idx_boms_opportunity_id').on(table.opportunity_id),
     tenantStatusIdx: index('idx_boms_tenant_status').on(table.tenant_id, table.status),
+    tenantIdUniqueIdx: uniqueIndex('ux_boms_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
   })
 )
 

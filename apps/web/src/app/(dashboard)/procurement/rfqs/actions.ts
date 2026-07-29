@@ -6,8 +6,8 @@
  * Procurement workflow that fans out a BOM's non-contracted-rate items to
  * suppliers for live quoting once Commercial internally approves the BOM.
  * The auto-create path is reached via the Inngest event `bom/internal_approved`
- * (see lib/inngest-rfq.ts) — that handler defers to `createRfqFromBomSystem`
- * below so it doesn't need a logged-in actor.
+ * (see lib/inngest-rfq.ts) — that handler uses an internal server-only
+ * transaction service, never this browser-facing action.
  */
 
 import { revalidatePath } from 'next/cache'
@@ -16,15 +16,15 @@ import { z } from 'zod'
 import { requireUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
-  boms,
-  bomLineItems,
   rfqs,
   rfqQuotes,
-  rateCards,
-  materialItems,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
+import {
+  createRfqFromBomRecord,
+  notifyRfqCreated,
+} from '@/lib/procurement/rfq-service'
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -38,158 +38,46 @@ const logQuoteSchema = z.object({
   notes: z.string().optional(),
 })
 
-// Shape of one entry inside rfqs.line_items JSONB. We tolerate older rows
-// that may omit the description by keeping description optional.
-interface RfqLineItemJson {
-  material_item_id: string | null
-  code: string | null
-  description: string
-  qty: number
-  unit: string | null
-}
-
-// ── createRfqFromBom (system + user paths) ────────────────────────────────────
-
-interface CreateOptions {
-  /**
-   * Skip capability check when called from a background job (Inngest). In that
-   * case the caller passes its own tenantId so we don't need a user session.
-   */
-  systemTenantId?: string
-}
+// ── createRfqFromBom (authenticated compatibility action) ────────────────────
 
 /**
- * Reads bom_line_items, filters out lines that already have an active rate
- * card (contracted rates — no need to RFQ those), then creates a single RFQ
- * with the residual list packed into `line_items` JSONB. Returns { rfqId }.
+ * Authenticated compatibility wrapper. Tenant, actor, role, and system mode
+ * are never accepted from the caller.
  */
 export async function createRfqFromBom(
-  bomId: string,
-  opts: CreateOptions = {}
+  bomId: string
 ): Promise<{ rfqId: string } | { error: string }> {
-  // Resolve tenant + actor. System path skips the user profile.
-  let tenantId: string
-  let actorId: string
-
-  if (opts.systemTenantId) {
-    tenantId = opts.systemTenantId
-    actorId = '00000000-0000-0000-0000-000000000000'
-  } else {
-    const profile = await requireUserProfile()
-    if (!can(profile.role, 'rfq.dispatch')) {
-      return { error: `Forbidden: role "${profile.role}" lacks "rfq.dispatch"` }
-    }
-    tenantId = profile.tenantId
-    actorId = profile.user.id
-  }
-
-  // Verify BOM and tenant ownership.
-  const [bom] = await db
-    .select({ id: boms.id, project_id: boms.project_id })
-    .from(boms)
-    .where(and(eq(boms.id, bomId), eq(boms.tenant_id, tenantId)))
-    .limit(1)
-
-  if (!bom) return { error: 'BOM not found' }
-
-  // Pull line items (excluding group headers).
-  const lines = await db
-    .select({
-      id: bomLineItems.id,
-      code: bomLineItems.code,
-      description: bomLineItems.description,
-      unit: bomLineItems.unit,
-      quantity: bomLineItems.quantity,
-      is_group: bomLineItems.is_group,
-    })
-    .from(bomLineItems)
-    .where(
-      and(eq(bomLineItems.bom_id, bomId), eq(bomLineItems.tenant_id, tenantId))
-    )
-
-  const itemLines = lines.filter((l) => l.is_group === 0)
-  if (itemLines.length === 0) {
-    return { error: 'BOM has no line items to RFQ' }
-  }
-
-  // Pull active rate cards in this tenant and index by material_item.code so
-  // we can filter out lines that already have a contracted rate.
-  const contracted = await db
-    .select({
-      code: materialItems.code,
-      material_item_id: materialItems.id,
-    })
-    .from(rateCards)
-    .innerJoin(materialItems, eq(rateCards.material_item_id, materialItems.id))
-    .where(eq(rateCards.tenant_id, tenantId))
-
-  const contractedCodes = new Set<string>()
-  const materialItemIdByCode = new Map<string, string>()
-  for (const c of contracted) {
-    if (c.code) {
-      contractedCodes.add(c.code)
-      materialItemIdByCode.set(c.code, c.material_item_id)
+  const profile = await requireUserProfile()
+  if (!can(profile.role, 'rfq.dispatch')) {
+    return {
+      error: `Forbidden: role "${profile.role}" lacks "rfq.dispatch"`,
     }
   }
 
-  const rfqLines: RfqLineItemJson[] = itemLines
-    .filter((l) => !(l.code && contractedCodes.has(l.code)))
-    .map((l) => ({
-      material_item_id: l.code ? materialItemIdByCode.get(l.code) ?? null : null,
-      code: l.code ?? null,
-      description: l.description,
-      qty: l.quantity,
-      unit: l.unit ?? null,
-    }))
-
-  if (rfqLines.length === 0) {
-    return { error: 'All BOM lines already have contracted rates — no RFQ needed' }
-  }
-
-  const [created] = await db
-    .insert(rfqs)
-    .values({
-      tenant_id: tenantId,
-      bom_id: bomId,
-      status: 'pending',
-      line_items: rfqLines,
+  try {
+    const result = await createRfqFromBomRecord({
+      bomId,
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      source: 'manual',
     })
-    .returning({ id: rfqs.id })
 
-  const rfqId = created!.id
+    if ('error' in result) return result
 
-  await writeAuditLog({
-    tenantId,
-    actorId,
-    entityType: 'rfq',
-    entityId: rfqId,
-    action: 'create',
-    diff: {
-      bom_id: bomId,
-      line_count: rfqLines.length,
-      source: opts.systemTenantId ? 'bom_internal_approved_event' : 'manual',
-    },
-  })
+    if (result.created) {
+      try {
+        await notifyRfqCreated(result)
+      } catch {
+        console.warn('[createRfqFromBom] notification dispatch failed')
+      }
+    }
 
-  await notifyRoles({
-    tenantId,
-    recipientRoles: ['procurement'],
-    subject: `New RFQ awaiting quotes (${rfqLines.length} item${
-      rfqLines.length === 1 ? '' : 's'
-    })`,
-    body: 'A BOM has been internally approved. Source quotes from suppliers.',
-    linkUrl: `/procurement/rfqs/${rfqId}`,
-    alsoEmail: true,
-    templateId: 'rfq-dispatch',
-    templateVars: {
-      project_name: bom.project_id, // page-level lookup is fine; this is just the email tag
-      line_count: rfqLines.length,
-      rfq_url: `/procurement/rfqs/${rfqId}`,
-    },
-  })
-
-  revalidatePath('/procurement/rfqs')
-  return { rfqId }
+    revalidatePath('/procurement/rfqs')
+    return { rfqId: result.rfqId }
+  } catch {
+    console.error('[createRfqFromBom] transaction failed')
+    return { error: 'RFQ could not be created. Try again.' }
+  }
 }
 
 // ── logQuote ─────────────────────────────────────────────────────────────────
