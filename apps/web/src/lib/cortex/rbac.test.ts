@@ -31,6 +31,13 @@ describe('Cortex RBAC — node-type scope', () => {
     expect(f).toContain('stock_movement')
   })
 
+  it('covers nested estimating and procurement records', () => {
+    expect(cortexCanSeeType('estimator', 'bom_line')).toBe(true)
+    expect(cortexCanSeeType('procurement', 'po_line')).toBe(true)
+    expect(cortexCanSeeType('sales', 'bom_line')).toBe(false)
+    expect(cortexCanSeeType('sales', 'po_line')).toBe(false)
+  })
+
   it('sales cannot see finance ledger nodes', () => {
     const s = cortexNodeTypeScope('sales')!
     expect(s).not.toContain('journal_entry')

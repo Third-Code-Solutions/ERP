@@ -1515,3 +1515,56 @@ Rollback and unresolved:
 - M2 composite constraints, database audit triggers, durable processing
   evidence, and Nest transaction authority remain required.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Cortex canonical entity registry
+
+Outcome:
+
+- Reconciled the 48-value Cortex node enum with graph RBAC, display metadata,
+  entity sources, and record navigation.
+- Replaced independent partial maps with one typed registry.
+- Kept four reserved enum types with no UUID-backed mirror table explicitly
+  non-queryable instead of inventing unsupported sources.
+- Added direct record links for active and newer finance/inventory entities,
+  with safe list or Project fallbacks where no detail surface exists.
+- Made the entity endpoint reject unregistered sources, cross-type source
+  pairing, and forbidden types before context retrieval.
+- Reused canonical labels in citation chips.
+- Changed no schema, hosted data, Auth, Storage, queue, provider setting, or
+  deployment.
+
+Changed files:
+
+- `apps/web/src/lib/cortex/entity-registry.ts`
+- `apps/web/src/lib/cortex/entity-registry.test.ts`
+- `apps/web/src/lib/cortex/href.ts`
+- `apps/web/src/lib/cortex/rbac.ts`
+- `apps/web/src/lib/cortex/rbac.test.ts`
+- `apps/web/src/app/api/cortex/entity/[refTable]/[refId]/route.ts`
+- `apps/web/src/app/api/cortex/entity/[refTable]/[refId]/route.test.ts`
+- `apps/web/src/components/cortex/cortex-entity-panel.tsx`
+- the six architecture/operations memory files
+- `docs/changesets/2026-07-29-cortex-entity-registry.md`
+
+Validation:
+
+- Focused registry, RBAC, and entity-route suite -- 24/24 pass.
+- Root lint and all-package typecheck -- pass.
+- Root tests -- 296 pass; 132 disposable-database-gated cases skip because no
+  writable database target was injected.
+- Optimized production build -- pass; 77/77 static-generation steps.
+- Local production smoke -- health 200, readiness 200, unauthenticated
+  finance entity lookup 401.
+- Gitleaks 8.30.1 full-history scan and prohibited-provenance scan -- clean.
+- Hosted read-only inventory -- 48 enum types; 385 current nodes across 14
+  active types.
+
+Rollback and unresolved:
+
+- Revert this source/documentation milestone; runtime and provider state remain
+  unchanged.
+- Live activation requires the single explicitly approved consolidated Vercel
+  build. Do not create a separate preview or reconnect Git.
+- Database Cortex authorization remains authoritative and must be updated with
+  any future enum/mirror addition.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.
