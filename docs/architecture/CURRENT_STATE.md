@@ -512,5 +512,11 @@ matches the repository migration contract:
   metadata.
 - Desktop citation targets have visible keyboard focus. At 390px, targets are
   44px high and produce no horizontal overflow.
-- No schema, hosted row, Auth identity, Storage object, provider setting, or
-  deployment changed. Vercel Git remains disconnected.
+- No schema, hosted row, Auth identity, Storage object, or provider setting
+  changed. Vercel Git remains disconnected and recorded zero deployments.
+- Publishing source commit `59b4c236b8803b3ca19ce012abd78b795e5a1790`
+  triggered Railway because `packages/database` is in the API watch set.
+  Deployment `2991586f-070e-470a-add0-56ce264b74e8` built the NestJS Dockerfile,
+  passed `/ready`, and is live with PostgreSQL and Redis both `ok`.
+- The Next.js citation UI is still source-only. Live Vercel remains deployment
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` at revision `f24e5603a355`.

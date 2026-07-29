@@ -32,5 +32,14 @@ from current tenant-scoped graph data and current-role permissions.
 
 Revert this changeset's database helpers, chat/history adapters, citation
 component, styles, and tests together. Existing message text remains readable.
-No database, Auth, Storage, queue, provider, or deployment rollback is needed.
-If later deployed, promote the retained last-known-good Vercel artifact.
+No database, Auth, Storage, queue, or provider rollback is needed.
+
+Source publication triggered Railway deployment
+`2991586f-070e-470a-add0-56ce264b74e8` because the API watches
+`packages/database`. It built the NestJS Dockerfile and passed live health and
+readiness with PostgreSQL and Redis `ok`. If backend regression is later found,
+redeploy retained artifact `f480586e-fe8d-4214-a33e-7bfdaaa5f38c`.
+
+Vercel recorded zero deployments. The citation UI remains source-only; after a
+future approved activation, promote the retained last-known-good Vercel
+artifact for rollback.

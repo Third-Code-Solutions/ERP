@@ -1582,8 +1582,14 @@ Outcome:
 - Removed trust in stored titles, references, Project IDs, and routes.
 - Omitted malformed, stale, superseded, cross-tenant, and forbidden records.
 - Added visible focus behavior and 44px mobile citation targets.
-- Changed no schema, hosted data, Auth, Storage, queue, provider setting, or
-  deployment. Vercel Git remained disconnected.
+- Changed no schema, hosted data, Auth, Storage, queue, or provider setting.
+  Vercel Git remained disconnected.
+- Source publication triggered one Railway API build because
+  `packages/database` is in the service watch set. Deployment
+  `2991586f-070e-470a-add0-56ce264b74e8` built the NestJS Dockerfile, passed
+  healthcheck, and replaced the prior healthy API artifact.
+- Vercel recorded zero deployments; the Next.js citation UI remains
+  source-only.
 
 Changed files:
 
@@ -1616,11 +1622,15 @@ Validation:
   lookup 401, unauthenticated chat POST 401.
 - Browser CSS proof -- visible desktop focus, exact 44px targets at 390px, no
   horizontal overflow.
+- Railway deployment logs -- Nest build and startup pass; `/health` 200;
+  `/ready` 200 with PostgreSQL and Redis `ok`.
+- Live Vercel remained on revision `f24e5603a355`; health and readiness 200.
 
 Rollback and unresolved:
 
-- Revert this source/documentation milestone; runtime and provider state remain
-  unchanged.
+- For backend rollback, redeploy retained Railway artifact
+  `f480586e-fe8d-4214-a33e-7bfdaaa5f38c` only if the new health/readiness or
+  API compatibility checks regress. Current deployment is healthy.
 - Live activation requires the single explicitly approved consolidated Vercel
   build. Do not create a separate preview or reconnect Git.
 - The database integration assertions remain pending a disposable writable
