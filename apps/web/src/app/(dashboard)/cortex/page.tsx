@@ -17,6 +17,7 @@ interface CortexPageProps {
     refTable?: string | string[]
     refId?: string | string[]
     conversationId?: string | string[]
+    handoff?: string | string[]
   }>
 }
 
@@ -42,6 +43,11 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
   const initialConversationId = parsedConversationId.success
     ? parsedConversationId.data
     : null
+  const parsedHandoffId = z.string().uuid().safeParse(params.handoff)
+  const initialDraftId =
+    !focus && !initialConversationId && parsedHandoffId.success
+      ? parsedHandoffId.data
+      : null
 
   // RBAC: KPIs reflect only what this role may see (admin/owner = everything).
   const stats = await getCortexGraphStats(profile.tenantId, cortexNodeTypeScope(profile.role))
@@ -90,8 +96,10 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
         </div>
         <div className="cortex-layout__agent">
           <CortexAgent
+            key={initialDraftId ?? 'default'}
             initialContext={agentContext}
             initialConversationId={initialConversationId}
+            initialDraftId={initialDraftId}
             contextUnavailable={Boolean(focus && !agentContext)}
           />
         </div>
