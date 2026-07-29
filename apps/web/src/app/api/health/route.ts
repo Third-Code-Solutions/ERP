@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+import { deploymentRevision } from '@/lib/deployment-revision'
+
 export const dynamic = 'force-dynamic'
 
 export function GET() {
@@ -7,7 +9,7 @@ export function GET() {
     {
       ok: true,
       service: 'third-code-erp-web',
-      revision: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? 'local',
+      revision: deploymentRevision(),
       timestamp: new Date().toISOString(),
     },
     {

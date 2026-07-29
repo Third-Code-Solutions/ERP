@@ -53,6 +53,9 @@ jobs:
         run: scripts/ci/run-wsl1-database-lane.ps1
       - name: Production build
         run: pnpm turbo build
+      - name: Smoke Web standalone production runtime
+        shell: powershell
+        run: scripts/ci/smoke-web-standalone.ps1
       - name: Smoke Nest production build
         shell: powershell
         run: scripts/ci/smoke-api.ps1

@@ -1,14 +1,14 @@
 # Deployment
 
 This guide walks through bringing Third Code ERP from an empty cloud account to
-a working production stack. The platform spans four hosted services:
+a working production stack. The reviewed deployment topology is:
 
 | Service | What it runs | Why |
 |---|---|---|
-| Vercel | `apps/web` (Next.js 15) | Edge runtime, ISR, server actions |
+| Vercel or owned Node host | `apps/web` (Next.js 15) | Dynamic SSR, Middleware, route handlers, server actions |
 | Supabase | Postgres, Storage, Auth, Realtime | Single multi-tenant data plane |
 | Inngest | Background jobs + crons | SLA, cadence, warranty automation |
-| Railway | `apps/workers/dxf-parser` (Python) | DXF / Togal parsing offload |
+| Railway | `apps/api` (NestJS) and optional Python analysis | ERP transaction authority and bounded document-processing support |
 
 DocuSeal, Resend, and Semaphore are optional and only need to be
 provisioned when their feature is enabled.
@@ -63,6 +63,63 @@ provisioned when their feature is enabled.
 5. Add the production domain in `Settings → Domains` and update
    `NEXT_PUBLIC_SITE_URL` to match. Portal share links and email CTAs
    use this value.
+
+---
+
+## 2A. Self-hosted Web (No Incremental Cloud Bill)
+
+The Web application is not a static export. It needs a Node.js runtime for
+dynamic SSR, Middleware, route handlers, Server Actions, and the per-request
+CSP nonce. A static-only host is not equivalent.
+
+`apps/web/Dockerfile` builds a non-root Next.js standalone image from the
+monorepo root:
+
+```bash
+docker build \
+  --file apps/web/Dockerfile \
+  --tag third-code-erp-web:<reviewed-sha> \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=<public-anon-key> \
+  --build-arg NEXT_PUBLIC_SITE_URL=https://erp.example.com \
+  --build-arg APP_REVISION=<reviewed-sha> \
+  .
+```
+
+Only public browser configuration belongs in build arguments. Put server
+secrets such as `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, OpenAI keys,
+webhook secrets, and signing secrets in the runtime environment or a protected
+environment file. Never bake them into the image.
+
+```bash
+docker run --detach \
+  --name third-code-erp-web \
+  --restart unless-stopped \
+  --publish 127.0.0.1:3000:3000 \
+  --env-file /etc/third-code-erp/web.env \
+  third-code-erp-web:<reviewed-sha>
+```
+
+Required operating controls:
+
+1. Put a TLS reverse proxy in front of `127.0.0.1:3000`; preserve the original
+   host, protocol, and client forwarding headers.
+2. Build with the exact canonical `NEXT_PUBLIC_SITE_URL`. Add that hostname to
+   Supabase Auth redirect allowlists before traffic cutover.
+3. Set `APP_REVISION` to the reviewed Git SHA. `/api/health` and `/api/ready`
+   expose its first 12 characters for release verification.
+4. Check `/api/health` for process liveness and `/api/ready` for PostgreSQL
+   readiness. Do not route traffic when readiness is 503.
+5. Run `scripts/ci/smoke-web-standalone.ps1` on the Windows self-hosted runner.
+   It creates isolated standalone output and verifies SSR, nonce CSP, robots,
+   sitemap, and manifest without creating a Vercel deployment.
+6. Keep Vercel Git disconnected. Retain the current immutable Vercel
+   production artifact until the alternative host passes authenticated
+   browser, API, database, logs, and tenant-isolation proof.
+
+"No incremental cloud bill" assumes already-owned compute, storage, network,
+TLS, backups, monitoring, power, and operations. It is not a claim that those
+resources have no real cost.
 
 ---
 
@@ -171,18 +228,23 @@ After every production deploy, hit these endpoints in order:
 | `GET /(dashboard)/crm/accounts` | Accounts table renders |
 | `GET /portal/bom/<token>` (with a seeded token) | Client BOM portal loads, no auth required |
 
-If any step fails, check Vercel function logs first, then Supabase
+If any step fails, check the active frontend host logs first, then Supabase
 `Logs → Postgres`.
 
 ---
 
 ## Rollback
 
-Vercel keeps every deployment immutable. To roll back:
+Vercel keeps every deployment immutable. To roll back a Vercel release:
 
 1. Open `vercel.com/<team>/<project>/deployments`.
 2. Find the last known-good deployment.
 3. Click `Promote to Production`.
+
+For a self-hosted frontend release, preserve the previous image tag. Restore
+that exact tag, verify `/api/health` and `/api/ready`, then move reverse-proxy
+traffic back. Until self-host proof is complete, the retained Vercel artifact
+is the external rollback.
 
 The migration ledger does not provide reliable paired down scripts. Never run
 `supabase db reset --linked` against a hosted environment.

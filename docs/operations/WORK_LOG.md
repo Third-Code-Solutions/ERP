@@ -1601,6 +1601,65 @@ Rollback and unresolved:
   queued Standard Vercel build.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
 
+## 2026-07-30 -- Portable self-hosted Web runtime
+
+Outcome:
+
+- Rejected static-only hosting because the application requires dynamic SSR,
+  Middleware, Server Actions, route handlers, and request-specific CSP nonces.
+- Added opt-in Next standalone output while preserving the default local and
+  Vercel-compatible build.
+- Added a non-root Node 22 Alpine Dockerfile and provider-neutral release
+  revision reporting.
+- Added a free self-hosted CI smoke that builds an isolated standalone
+  artifact and verifies process health, SSR landing, nonce CSP, robots,
+  sitemap, and manifest.
+- Kept Vercel Git disconnected. No deployment, DNS, redirect, database,
+  Supabase, Railway, or live-traffic change was made.
+
+Changed files:
+
+- `.github/workflows/ci-self-hosted.yml`
+- `apps/web/Dockerfile`
+- `apps/web/next.config.ts`
+- `apps/web/src/app/api/health/route.ts`
+- `apps/web/src/app/api/ready/route.ts`
+- `apps/web/src/lib/deployment-revision.ts`
+- `apps/web/src/lib/deployment-revision.test.ts`
+- `scripts/ci/smoke-web-standalone.ps1`
+- `docs/DEPLOYMENT.md`
+- the six architecture/operations memory files
+
+Validation and constraints:
+
+- Default Next production build passes with 77/77 generated pages.
+- Isolated standalone build and runtime smoke pass: health, real SSR landing,
+  nonce CSP, robots, sitemap, and manifest.
+- Root lint and typecheck pass.
+- Application suites pass: Shared 79/79, API 26/26, Web 276/276; total 381.
+- Local database suite remains 99 passed and 137 skipped because this
+  source-only slice did not inject disposable database credentials.
+- Default production build passes with Nest compilation and Next 77/77 page
+  generation.
+- Frontend release browser test passes 1/1 in installed Chrome at
+  1440/768/390 with interactions, canonical discovery output, no horizontal
+  overflow, and zero console/page errors.
+- Gitleaks 8.30.1, Actionlint 1.7.12, workflow action-reference checks,
+  database release planner 7/7, Project cutover planner 6/6, and diff checks
+  pass.
+- Vercel deployment inventory remains zero after retained baseline timestamp
+  `1785295180454`; Git integration remains disconnected.
+- Direct Windows standalone build with pnpm's linked layout reaches 77/77 but
+  fails while tracing symlinks with `EPERM`; the committed Windows smoke uses
+  an isolated hoisted layout and passes.
+- Alpine WSL1 cannot directly execute its current PIE Node binary on the old
+  WSL1 kernel. Docker Desktop also cannot start because WSL2 virtualization is
+  disabled. No system feature, firmware setting, or reboot was changed.
+- The Docker image source is reviewed but not locally image-built. A
+  Docker-capable Linux build and image scan remain a pre-cutover gate.
+- Rollback is one application commit. No database or provider rollback exists
+  because nothing live changed.
+
 ## 2026-07-30 -- Host-portable public origin
 
 Outcome:

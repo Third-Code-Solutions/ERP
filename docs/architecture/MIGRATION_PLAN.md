@@ -552,3 +552,22 @@ Status: source candidate complete; deployment not authorized.
   empty state, visible focus, 44px mobile targets, and zero overflow.
 - Activate only in the next explicitly approved consolidated Vercel build.
   Keep Git integration disconnected and do not create a separate preview.
+
+## Portable self-hosted Web runtime slice
+
+Status: source candidate complete; deployment and traffic cutover not
+authorized.
+
+- Preserve the existing Next.js application and API behavior.
+- Add opt-in standalone output and a non-root Node 22 image without changing
+  the default build used by local development or retained Vercel rollback.
+- Expose provider-neutral release identity through liveness and readiness.
+- Prove the isolated standalone server renders the real landing page and
+  returns nonce CSP, canonical robots, sitemap, and manifest output.
+- Do not change DNS, Supabase Auth redirects, Vercel settings, Railway
+  services, or live traffic in this source slice.
+- Before cutover, build the Docker image on a Linux/Docker-capable host, scan
+  it, configure the exact canonical hostname and Auth allowlists, then require
+  authenticated browser/API/database/log/tenant-isolation evidence.
+- Roll back source by reverting this isolated commit. After a later host
+  release, roll back to the retained image tag or retained Vercel artifact.
