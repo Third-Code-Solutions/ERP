@@ -881,3 +881,27 @@ provider no-deployment evidence.
 Rollback: revert source commit `8058c8a`. No schema or provider rollback is
 required because the candidate is not deployed. Record search returns to its
 previous behavior and Cortex remains available through its direct route.
+
+## D-060 -- Public signatures require one locked database transaction
+
+Decision: treat external canvas signing as one official transaction. Validate
+the bounded PNG, derive scope from the hashed session, upload under a random
+key, lock and recheck the exact session, and commit document, tenant-scoped
+source stamp, session stamp, and nullable-actor entity audit together. Remove
+the uploaded object when the database transaction fails.
+
+Reason: the old flow allowed concurrent submissions to pass one unsigned check
+and intentionally let the signature survive a failed audit caused by a
+fabricated zero-UUID actor. Independent writes could leave partial official
+state or orphaned Storage. External actors are legitimately nullable; audit is
+not optional.
+
+Validation: require focused malformed/oversized payload tests, shared
+transaction and tenant-predicate evidence, nullable-actor audit proof,
+audit-failure cleanup, concurrent replay denial, missing-source denial,
+unauthenticated invalid-token browser proof, full repository gates, and
+provider no-deployment evidence.
+
+Rollback: revert source commit `e99b88f`. No schema or provider rollback is
+required because the candidate is not deployed. Rollback restores the
+unaudited partial-write and replay risks and therefore is emergency-only.

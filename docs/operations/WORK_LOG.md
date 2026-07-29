@@ -2387,3 +2387,75 @@ Rollback and unresolved:
 - Live activation still requires one explicitly approved consolidated queued
   Standard Vercel build.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Atomic public canvas signing
+
+Outcome:
+
+- Found that public signing used zero UUID as audit actor, ignored the audit
+  foreign-key failure, and committed document/session/source writes
+  independently.
+- Added 512 KiB PNG bounds, base64 and PNG-signature validation, trimmed
+  bounded signer identity, strict canvas-token shape, and random Storage keys.
+- Added a second signed/revoked/expired check under a row lock.
+- Moved document creation, tenant-scoped source transition, session stamp, and
+  nullable-actor entity audit into one database transaction.
+- Added compensating Storage deletion for database, audit, or concurrent-replay
+  failure.
+- Preserved public URL, visible form, token-hash model, invalid-token state, and
+  successful `{ ok: true }` response.
+- No database migration, hosted row, role, password, Auth identity, durable
+  business row, Storage object, queue job, AI call, Railway build, or Vercel
+  deployment changed during validation.
+
+Changed files:
+
+- `apps/web/src/app/portal/sign/[token]/actions.ts`
+- `apps/web/src/app/portal/sign/[token]/actions.test.ts`
+- `docs/research/components/public-canvas-signing.spec.md`
+- the six architecture/operations memory files
+- `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`
+
+Validation:
+
+- Focused public-signing integrity suite -- 5/5 pass.
+- Root lint and typecheck -- pass.
+- Root tests -- 413 application tests pass; ordinary no-URL database lane
+  remains 90 pass and 134 skipped, covered by the retained 224/224 zero-skip
+  PostgreSQL 17 release gate.
+- Nest and Next production builds -- pass; Next generates 77/77 static steps.
+- Connected local browser -- unauthenticated `/portal/sign/dummy` rendered
+  `Link not found`, returned bounded invalid-link copy, and emitted zero
+  console warnings/errors.
+- Packaged Playwright CLI did not start because its updated bundled Chromium
+  binary is absent locally; no application assertion ran in that attempt.
+  Connected-browser evidence completed the same non-mutating route proof.
+- gitleaks 8.30.1, actionlint 1.7.12, diff checks, and prohibited external ERP
+  brand/source scan -- pass.
+- Source commit `e99b88fd232957ec8a224968ecb63441a2eab9d9` -- pushed to
+  both repository refs under `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway correctly skipped deployment
+  `ebe99b8c-886e-478e-b3bc-30620fbf11cf` because no watched backend file
+  changed. Active API remains successful deployment
+  `5a84fc30-2b4e-46fa-a505-0b1bb393fef4` at source
+  `e948223b261b7c335ceaad85e359fec68888e84a`.
+- Vercel -- Git remains disconnected and zero deployments exist after retained
+  READY deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- GitHub Actions run `30464538827` -- all jobs contain zero executed steps;
+  account billing/spending block remains external.
+
+Rollback and unresolved:
+
+- Revert source commit `e99b88f`; no provider rollback is needed because the
+  candidate is not deployed.
+- Production success-path proof requires a newly created controlled signing
+  session because it writes official signature, document, source, and audit
+  state. Do not use historical demo records.
+- System RFQ creation still uses a fabricated zero-UUID actor and non-atomic
+  create/audit path; schedule separate correction rather than mixing it into
+  public signing.
+- Public signing authority remains in Next.js pending incremental NestJS
+  migration.
+- Live activation still requires one explicitly approved consolidated queued
+  Standard Vercel build.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

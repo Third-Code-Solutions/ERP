@@ -735,10 +735,10 @@ matches the repository migration contract:
 ## Cost-controlled frontend release candidate
 
 - The consolidated frontend candidate is
-  `8058c8a5db18828656fc182939dce7aa06c698af`, 37 commits after retained
+  `e99b88fd232957ec8a224968ecb63441a2eab9d9`, 39 commits after retained
   production source `f24e5603a35571f8dcadd43fc09c64d12646a7d0`.
-- The Web delta is fully inventoried: 80 files, comprising 49 runtime files
-  and 31 test/E2E files. No Web runtime file remains unclassified.
+- The Web delta is fully inventoried: 82 files, comprising 50 runtime files
+  and 32 test/E2E files. No Web runtime file remains unclassified.
 - Vercel Git is disconnected. On-demand concurrent builds are disabled and
   the next build uses Standard 4 vCPU/8 GB. Vercel documents Standard build
   compute as no added charge in this queued configuration.
@@ -747,7 +747,7 @@ matches the repository migration contract:
 - Middleware now isolates anonymous IP buckets from authenticated user buckets.
   This prevents an authenticated burst from producing a later public 429 and
   prevents authenticated users behind one shared IP from consuming one bucket.
-- Root lint, typecheck, test, and production build pass. There are 408 passing
+- Root lint, typecheck, test, and production build pass. There are 413 passing
   application tests; Next generates 77/77 static steps. A sequential
   authenticated Cortex plus public landing browser run passes 2/2.
 - gitleaks, actionlint, diff checks, and prohibited external ERP brand/source
@@ -828,3 +828,33 @@ matches the repository migration contract:
   baseline.
 - No schema, hosted row, Auth identity, Storage object, queue, AI call, active
   Railway build, or Vercel build changed.
+
+## Atomic public canvas-signing candidate
+
+- Public canvas signing previously inserted the signature document, updated
+  the session and source independently, then attempted a separate audit with a
+  fabricated zero-UUID actor and ignored foreign-key failure.
+- The action now bounds and validates the PNG before mutation, derives tenant
+  and entity identity only from the hashed one-time session, resolves a
+  same-tenant source, and uploads under a collision-resistant key.
+- One database transaction locks and rechecks the exact session, inserts the
+  document, updates the tenant-scoped source, marks the session signed, and
+  writes the entity audit with the correct nullable external actor.
+- Concurrent replay fails after the row lock before document or audit creation.
+  Audit or database failure rolls back official state and compensates Storage
+  by removing the uploaded object.
+- Five focused tests prove payload bounds, the shared transaction,
+  tenant-scoped source/session writes, nullable actor, audit-failure cleanup,
+  concurrent replay denial, and missing-source denial.
+- Connected local browser QA rendered the unauthenticated invalid-token state
+  with `Link not found`, zero console warnings/errors, and no mutation.
+- Root lint, typecheck, 413 application tests, Nest/Next production builds,
+  77/77 static-generation steps, gitleaks, actionlint, diff checks, and the
+  prohibited external ERP source/brand scan pass.
+- Source commit `e99b88fd232957ec8a224968ecb63441a2eab9d9` is on both
+  repository refs under `kurtgav <kurtgavin.design@gmail.com>`. Railway skipped
+  deployment `ebe99b8c-886e-478e-b3bc-30620fbf11cf` because no watched backend
+  file changed. Vercel created zero deployments after the retained READY
+  baseline.
+- No schema, hosted row, Auth identity, durable business row, Storage object,
+  queue job, AI call, Railway build, or Vercel build changed during validation.

@@ -372,6 +372,28 @@ Status: source candidate complete; deployment not authorized.
   output, overflow, and global one-time-session revocation.
 - Activate only in the next explicitly approved consolidated Vercel build.
   Keep Git integration disconnected and do not create a separate preview.
+
+## Parallel atomic public-signing slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Preserve the existing public signing URL, form, token hash, and successful
+  response contract.
+- Bound and validate PNG input before mutation.
+- Resolve tenant and source only from the one-time signing session.
+- Upload once, then lock and recheck the exact session inside one database
+  transaction.
+- Commit document, tenant-scoped source transition, session stamp, and
+  nullable-actor entity audit together.
+- On replay, create nothing. On database or audit failure, roll back official
+  state and remove the uploaded object.
+- Verify focused failure/success/replay paths, unauthenticated invalid-token
+  rendering, full repository gates, and provider no-deployment state.
+- Activate only in the next explicitly approved consolidated Vercel build.
+  Use a controlled new canary signing session for production proof; never
+  mutate historical demo signatures.
+- Later NestJS migration must preserve this contract and cannot return
+  transaction authority to Python or the browser.
 - After activation, verify one populated and one empty record for each role
   family, exact backlinks, non-enumerating denial, and responsive behavior.
 
