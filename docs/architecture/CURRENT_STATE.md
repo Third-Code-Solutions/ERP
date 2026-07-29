@@ -193,7 +193,7 @@ matches the repository migration contract:
 - The built API starts independently: `/health` returns 200, an unauthenticated
   Project write returns 401, and `/ready` returns 503 when its deliberately
   absent database and Redis dependencies are unavailable.
-- Fresh workspace tests pass with 375 passing tests; 134 database
+- Fresh workspace tests pass with 376 passing tests; 134 database
   cases are skipped unless a disposable database URL and capability flags are
   explicitly injected.
 - The dedicated fail-closed database lane rebuilds from all 51 migrations and
@@ -679,3 +679,27 @@ matches the repository migration contract:
 - No schema, hosted row, Auth user, Storage object, queue, Railway setting, or
   Vercel deployment changed. This remains a source candidate while Vercel Git
   is disconnected.
+
+## Cortex saved-conversation deep-link candidate
+
+- Cortex accepts an optional UUID `conversationId` query alongside its
+  authorized record focus.
+- A direct saved-chat URL loads through the existing ownership-, tenant-,
+  current-role-, record-context-, and citation-authorized detail API.
+- Restored, history-selected, and newly created conversations synchronize the
+  browser URL without navigation. `New chat` removes only `conversationId` and
+  preserves canonical record focus.
+- Restore uses a latest-request token. A slow earlier response cannot overwrite
+  a newer selection or a user-triggered new chat; composer stays disabled while
+  the active restore is unresolved.
+- Cross-context history links now include both the destination record context
+  and target conversation, reducing restore from two steps to one.
+- Invalid query identifiers never reach the conversation API. A missing,
+  foreign, revoked, or context-mismatched thread renders a bounded error and
+  cannot replace current chat state.
+- Authenticated local production QA covered real page/record authorization and
+  a deterministic intercepted deep-link payload without hosted writes or AI
+  calls. Restore, URL stability, new-chat cleanup, 1440/768/390 overflow,
+  console/page errors, and global session revocation passed.
+- No schema, hosted row, Auth identity, Storage object, queue, provider
+  setting, Railway build, or Vercel deployment changed.

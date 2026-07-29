@@ -2023,3 +2023,54 @@ Rollback and unresolved:
   production build. Do not reconnect Git or create a preview.
 - GitHub-hosted CI remains blocked before step start by account billing.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Cortex saved-conversation deep links
+
+Outcome:
+
+- Added optional UUID `conversationId` parsing to the Cortex page.
+- Added automatic saved-thread restore through the existing authorized detail
+  API.
+- Added URL synchronization after conversation create, history load, direct
+  restore, and new-chat reset.
+- Added latest-request-wins restore handling so a stale response cannot
+  overwrite a newer selection or a cleared chat.
+- Preserved canonical `refTable`/`refId` focus while adding or removing
+  conversation identity.
+- Added target conversation IDs to cross-context history links, reducing
+  restore to one explicit navigation.
+- No hosted write, AI request, schema, Auth identity, Storage object, queue,
+  provider setting, or deployment changed.
+
+Changed files:
+
+- `apps/web/src/app/(dashboard)/cortex/page.tsx`
+- `apps/web/src/components/cortex/cortex-agent.tsx`
+- `apps/web/src/lib/cortex/agent-context.ts`
+- `apps/web/src/lib/cortex/agent-context.test.ts`
+- `apps/web/e2e/cortex-focused-local.spec.ts`
+- the six architecture/operations memory files
+
+Validation:
+
+- TDD red -- context URL omitted conversation identity and URL synchronization
+  helper did not exist.
+- Context helper/component tests -- 7/7 pass.
+- Root lint and typecheck -- pass.
+- Root tests -- 376 pass; 134 disposable-database cases skip in the ordinary
+  no-URL lane and remain covered by the 224/224 zero-skip release gate.
+- Nest and Next production builds -- pass; Next generates 77/77 static steps.
+- Authenticated local production E2E -- real Project focus authorization,
+  deterministic intercepted company-wide conversation restore, two restored
+  messages, stable deep-link URL, new-chat URL cleanup, responsive screenshots,
+  zero overflow, zero console/page errors, and global test-session revocation.
+- Hosted database writes and AI calls during deep-link proof -- zero.
+
+Rollback and unresolved:
+
+- Revert this source/documentation slice. Existing durable context and history
+  remain functional; no hosted or provider rollback is required.
+- Live activation still requires one explicitly approved consolidated Vercel
+  production build. Do not reconnect Git or create a preview.
+- GitHub-hosted CI remains blocked before step start by account billing.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

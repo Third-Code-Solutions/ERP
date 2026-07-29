@@ -726,3 +726,28 @@ presentation/history behavior, CSS, tests, and documentation together. The
 durable database/API context contract remains safe and backward compatible.
 No schema or provider rollback is required; Vercel remains on the retained
 last-known-good deployment.
+
+## D-053 -- Saved Cortex conversations use authorized deep links
+
+Decision: accept a validated UUID `conversationId` query and restore it through
+the existing authorized conversation-detail API. Keep record focus in the URL,
+append conversation identity to cross-context history links, synchronize
+create/load state with `history.replaceState`, and remove only conversation
+identity when starting a new chat. Use a monotonically increasing local request
+token so only the latest restore may commit UI or URL state.
+
+Reason: requiring users to change record context, reopen history, and select
+the same thread adds avoidable friction. An opaque conversation UUID is safe
+as a locator only because server authorization remains decisive and the URL
+contains no tenant, user, prompt, answer, or graph-node data.
+
+Validation: require UUID/encoding/query-preservation tests, full
+lint/typecheck/test/build, existing conversation authorization suites,
+authenticated production-browser restore, message-count and URL assertions,
+new-chat cleanup, responsive screenshots, zero overflow/errors, no hosted
+write or AI call, and global test-session revocation.
+
+Rollback: revert page query parsing, URL helper, agent restore/synchronization,
+E2E assertions, and documentation. Existing history buttons and durable
+conversation context remain functional. No schema, row, Auth, Storage, queue,
+backend, or provider rollback is required.

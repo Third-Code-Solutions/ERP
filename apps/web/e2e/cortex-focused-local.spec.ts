@@ -221,6 +221,55 @@ test.describe('Cortex focused graph', () => {
     await page.waitForURL(`${baseUrl}/cortex`)
     await expect(page.getByText('Focused record')).toHaveCount(0)
     await expect(page.getByText('Company-wide')).toBeVisible()
+
+    const deepLinkConversationId =
+      '33333333-3333-4333-8333-333333333333'
+    await page.route(
+      new RegExp('/api/cortex/conversations$'),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ conversations: [] }),
+        })
+      }
+    )
+    await page.route(
+      new RegExp(
+        `/api/cortex/conversations/${deepLinkConversationId}$`
+      ),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            context: null,
+            messages: [
+              { role: 'user', content: 'Show current priorities.' },
+              {
+                role: 'assistant',
+                content: 'Priorities stay grounded in authorized records.',
+                citations: [],
+              },
+            ],
+          }),
+        })
+      }
+    )
+
+    await page.goto(
+      `${baseUrl}/cortex?conversationId=${deepLinkConversationId}`,
+      { waitUntil: 'domcontentloaded' }
+    )
+    await expect(page.locator('.cortex-msg')).toHaveCount(2)
+    await expect(page.getByText('Show current priorities.')).toBeVisible()
+    await expect(page).toHaveURL(
+      `${baseUrl}/cortex?conversationId=${deepLinkConversationId}`
+    )
+
+    await page.getByTitle('New chat').click()
+    await expect(page).toHaveURL(`${baseUrl}/cortex`)
+    await expect(page.locator('.cortex-msg')).toHaveCount(0)
     expect(consoleErrors).toEqual([])
 
     const logoutResponse = await fetch(

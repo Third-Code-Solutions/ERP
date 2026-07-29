@@ -354,3 +354,20 @@ reach through each other's internals.
   work only. Presentation cannot approve or finalize an ERP transaction.
 - Keyboard focus remains visible, mobile targets are at least 44px, long titles
   truncate safely, and 1440/768/390 layouts have no horizontal overflow.
+
+## Cortex conversation deep-link boundary
+
+- Saved conversations have shareable in-application URLs containing only an
+  opaque UUID plus optional canonical record focus.
+- UUID validation occurs before client restore. URL possession grants no
+  access; the detail API reauthorizes owner, tenant, current role, persisted
+  record context, and citations.
+- Restoring or creating a conversation updates URL state without a page reload.
+  Starting a new chat removes conversation identity while retaining authorized
+  record focus.
+- Restore is latest-request-wins. Stale network responses cannot replace newer
+  conversation state or repopulate a cleared chat.
+- Cross-record history navigation carries the immutable conversation identity
+  and canonical context together. Context mismatch fails closed.
+- URLs never contain tenant ID, user ID, prompt text, answer text, or internal
+  graph-node ID.
