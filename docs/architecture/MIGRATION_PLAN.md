@@ -101,15 +101,13 @@ Production entry status:
   production build, 48-migration PostgreSQL 17 replay, 212/212 database tests
   with zero skips, Nest integration and native runtime smoke, stable schema
   fingerprint, and full-history secret scan.
-- Pending entry evidence: push the reviewed source, dispatch the same workflow
-  through the transient GitHub runner, and attach the GitHub run result. This
-  replaces payment as the M1 CI unblocker; it does not bypass the tests.
-- Pending cost control: disconnect Vercel Git auto-deploy before the next
-  source push. Keep the current production artifact live and use one explicit
-  frontend deployment only when a green SHA changes frontend behavior.
-- Prepared `apps/web/vercel.json` with `git.deploymentEnabled=false` as a
-  repository guard. Do not publish it until the provider integration is
-  disconnected; otherwise the guard commit itself may create another build.
+- Complete cost control: Vercel Git is disconnected and repository guard
+  `git.deploymentEnabled=false` is published. The guard push created zero
+  Vercel deployments; current production remained READY and HTTP 200.
+- Pending entry evidence: rerun the reviewed transient workflow without remote
+  dependency-cache upload and attach a clean GitHub result. Run `30421480977`
+  passed all substantive gates but was cancelled when the setup-node post-job
+  cache upload hung.
 - Keep `ERP_PROJECT_WRITES_VIA_API=false` and the tenant allowlist empty until
   that remote workflow proof is attached.
 

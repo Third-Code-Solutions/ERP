@@ -318,3 +318,14 @@ Reason: synchronized pushes to `main` and the feature ref generated two Vercel
 builds per commit, including CI-only and documentation-only changes. The project
 has exhausted included credit and entered on-demand billing. Explicit releases
 reduce compute use and make the deployment decision auditable.
+
+## D-035 -- Self-hosted verification does not upload dependency caches
+
+Decision: omit `cache: pnpm` from `actions/setup-node` in the transient
+self-hosted workflow. The developer-owned machine already retains its pnpm
+store; the workflow uploads no dependency cache and no artifacts.
+
+Reason: run `30421480977` passed every substantive verification step, then
+stalled in setup-node's post-job cache upload. Remote caching adds storage and
+network use without improving correctness or the persistent local runner's
+dependency availability.
