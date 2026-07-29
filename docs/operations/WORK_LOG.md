@@ -2188,3 +2188,68 @@ Rollback and unresolved:
 - Production activation requires explicit approval for one manual queued
   Standard build.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Permission-aware dashboard
+
+Outcome:
+
+- Found that every role could load `/dashboard` while the page always executed
+  executive pipeline, GP, forecast, rep-scorecard, and alert queries.
+- Added a tested role-mode selector backed by the canonical
+  `/pipeline/board` permission.
+- Made loader selection occur before query invocation.
+- Preserved the full executive dashboard for authorized roles.
+- Added a calm Today surface for restricted roles with tenant- and
+  assignee-scoped pending task counts.
+- Derived quick links from the canonical navigation registry so forbidden
+  workspaces cannot appear.
+- Added an auditable original component specification and gated one-time-link
+  browser coverage.
+- No database migration, hosted row, role, password, Auth identity, Storage
+  object, queue job, AI call, Railway deployment, or Vercel deployment changed.
+
+Changed files:
+
+- `apps/web/src/app/(dashboard)/dashboard/page.tsx`
+- `apps/web/src/lib/dashboard-queries.ts`
+- `apps/web/src/lib/dashboard-access.ts`
+- `apps/web/src/lib/dashboard-access.test.ts`
+- `apps/web/src/components/dashboard/role-work-dashboard.tsx`
+- `apps/web/src/components/dashboard/role-work-dashboard.module.css`
+- `apps/web/src/components/dashboard/role-work-dashboard.test.tsx`
+- `apps/web/e2e/dashboard-role-local.spec.ts`
+- `docs/research/components/role-work-dashboard.spec.md`
+- the six architecture/operations memory files
+- `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`
+
+Validation:
+
+- Role matrix and loader/component suites -- 17/17 pass.
+- Root lint and typecheck -- pass.
+- Root tests -- 396 application tests pass; ordinary no-URL database lane
+  remains 90 pass and 134 skipped, covered by the retained 224/224 zero-skip
+  PostgreSQL 17 release gate.
+- Nest and Next production builds -- pass; Next generates 77/77 static steps.
+- Authenticated viewer local production E2E -- pass at 1440, 768, and 390;
+  only assignee-scoped work and permitted links, no executive metrics or
+  Finance/Pipeline links, zero overflow, zero console/page errors.
+- One-time viewer session -- globally revoked after QA.
+- gitleaks 8.30.1, actionlint 1.7.12, diff checks, and prohibited external ERP
+  brand/source scan -- pass.
+- Source commit `36e618274769ef49a18974dbe3bed8f0b4db7edd` -- pushed to
+  both repository refs under `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway API -- remains successful deployment
+  `5a84fc30-2b4e-46fa-a505-0b1bb393fef4` at backend source
+  `e948223b261b7c335ceaad85e359fec68888e84a`.
+- Vercel -- zero deployments after retained READY deployment
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- GitHub Actions run `30456997160` -- zero executed steps; account
+  billing/spending block remains external.
+
+Rollback and unresolved:
+
+- Revert source commit `36e6182`; no provider rollback is needed because the
+  candidate is not deployed.
+- Live activation still requires one explicitly approved consolidated queued
+  Standard Vercel build.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

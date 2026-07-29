@@ -811,3 +811,26 @@ test matrix, and a retained rollback deployment before requesting approval.
 Rollback: use Vercel Instant Rollback to retained deployment
 `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`, verify the production alias and core
 routes, and preserve environment configuration. Do not rebuild the old source.
+
+## D-057 -- Dashboard chooses authorization mode before querying
+
+Decision: use the canonical `/pipeline/board` role permission to choose between
+the executive dashboard and an assignee-scoped Today dashboard. Invoke only the
+selected loader. Restricted roles receive pending task counts constrained by
+both authenticated tenant and authenticated user.
+
+Reason: `/dashboard` is intentionally available to every role, but this did
+not authorize every role to read pipeline value, GP, forecast, rep performance,
+or executive alerts. Querying restricted data and hiding it later in React
+would still violate least privilege.
+
+Validation: require role-matrix tests, explicit loader non-invocation tests,
+component content/link tests, full lint/typecheck/test/build, and authenticated
+viewer production-browser proof at 1440/768/390 with zero forbidden content,
+overflow, console errors, or page errors.
+
+Rollback: revert the mode helper, Today query/component, dashboard wiring,
+tests, specification, and documentation together. Existing executive
+dashboard behavior returns for all roles, so rollback is functional but
+reopens the identified authorization exposure. No schema or provider rollback
+is required.

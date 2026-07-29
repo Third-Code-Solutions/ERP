@@ -268,10 +268,10 @@ Status: source candidate complete; deployment not authorized.
 
 Status: exact source candidate prepared; deployment awaits explicit approval.
 
-- Candidate `e53f20d63eb937440c2b29c88c920a543a49a3ef` contains 31
+- Candidate `36e618274769ef49a18974dbe3bed8f0b4db7edd` contains 33
   reviewed commits after the retained production source.
-- All 64 changed Web files are inventoried as 39 runtime and 25 test/E2E files.
-- Lint, typecheck, 379 application tests, production builds, combined
+- All 72 changed Web files are inventoried as 44 runtime and 28 test/E2E files.
+- Lint, typecheck, 396 application tests, production builds, combined
   authenticated/public browser regression, secret scan, workflow scan, and
   prohibited-source scan pass.
 - Vercel Git remains disconnected. Builds are queued one at a time on Standard
@@ -280,6 +280,20 @@ Status: exact source candidate prepared; deployment awaits explicit approval.
   `docs/operations/FRONTEND_RELEASE_CANDIDATE.md`.
 - Do not deploy until the user explicitly approves the single manual
   production build.
+
+## Parallel permission-aware Today slice
+
+Status: source candidate complete; deployment not authorized.
+
+- Select dashboard data mode from the verified application role before
+  invoking any query.
+- Preserve the existing executive dashboard only for roles allowed to access
+  `/pipeline/board`.
+- Give restricted roles tenant- and assignee-scoped pending task counts and
+  canonical authorized workspace links.
+- Keep the slice read-only. No new mutation, schema, provider, or AI authority.
+- Include it in the one approved consolidated frontend build and verify at
+  least one executive and one restricted role after activation.
 
 ## Parallel Cortex consistency slice
 
