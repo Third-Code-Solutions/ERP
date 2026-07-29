@@ -2,26 +2,29 @@
 
 ## Exact next product action
 
-Await explicit approval for one manual queued Standard Vercel production build:
+Migrate automatic BOM-approved RFQ dispatch to NestJS/BullMQ without enabling
+production cutover:
 
-1. Use exact candidate
-   `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59`.
-2. Keep Vercel Git disconnected. Do not create a preview.
-3. Reconfirm zero deployments after retained production
-   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
-4. Recheck live provider billing before approval. Treat any unverified build
-   estimate as billable; do not deploy unless the user accepts the exact cap.
-5. Obtain explicit user approval before calling any deploy command.
-6. If approved, trigger exactly one production build and wait for its terminal
-   status. Never duplicate a queued or running build.
-7. Verify authenticated Cortex scope creation/restoration, citations, focused
-   graph, saved-conversation deep links, recent-chat search/clear, new-chat URL
-   cleanup, record panels, landing metadata/interactions, 1440/768/390 layouts,
-   console, runtime errors, health/readiness, and exact release identity.
-8. If verification fails, instantly roll back to the retained deployment and
-   verify the production alias and core routes.
-9. If approval is withheld, retain the current READY artifact and continue
-   only no-cost source/backend work allowed by the standing M1 controls.
+1. Write an original event/job contract before code.
+2. Keep tenant, actor, source, and retry authority server-derived.
+3. Add a BullMQ producer and NestJS consumer inside the modular monolith.
+4. Reuse the Nest RFQ transaction service; do not add a second commit path.
+5. Preserve the current Inngest behavior behind a separate exact tenant gate.
+6. Fail closed after the BullMQ path is selected. Never retry through Inngest.
+7. Prove duplicate delivery, Redis restart, bounded retry, dead-letter,
+   tenant denial, one RFQ, and one audit against disposable PostgreSQL 17 and
+   Redis 7.4.9.
+8. Leave all production cutover flags unset after validation.
+9. Do not reconnect Vercel Git or trigger a frontend build.
+
+## Frontend deployment remains approval-gated
+
+- Keep Vercel Git disconnected. Do not create a preview.
+- Retain production deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- Reconfirm zero newer deployments before any future action.
+- Recheck billing and disclose the exact expected charge.
+- Obtain explicit user approval for one queued Standard production build.
+- Never duplicate a queued or running build.
 
 ## Standing M1 controls
 

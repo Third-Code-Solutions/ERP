@@ -9,7 +9,9 @@ import {
   Post,
 } from '@nestjs/common'
 import type {
+  CreateRfqCommand,
   LogRfqQuoteCommand,
+  RfqCreationResult,
   RfqTransitionResult,
   RfqQuoteResult,
   TransitionRfqCommand,
@@ -19,6 +21,7 @@ import {
   type ErpPrincipal,
 } from '../auth/current-principal.decorator'
 import { RequireCapabilities } from '../auth/capability.guard'
+import { CreateRfqPipe } from './create-rfq.pipe'
 import { LogRfqQuotePipe } from './log-rfq-quote.pipe'
 import { ProcurementService } from './procurement.service'
 import { TransitionRfqPipe } from './transition-rfq.pipe'
@@ -29,6 +32,16 @@ export class ProcurementController {
     @Inject(ProcurementService)
     private readonly procurement: ProcurementService
   ) {}
+
+  @Post()
+  @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('rfq.dispatch')
+  create(
+    @Body(CreateRfqPipe) command: CreateRfqCommand,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<RfqCreationResult> {
+    return this.procurement.create(command, principal)
+  }
 
   @Post(':rfqId/quotes')
   @RequireCapabilities('rfq.dispatch')

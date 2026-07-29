@@ -5,18 +5,23 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import {
+  bomLineItems,
+  boms,
   materialItems,
+  rateCards,
   rfqQuotes,
   rfqs,
   vendors,
 } from '@third-code-erp/database/schema'
 import type {
+  CreateRfqCommand,
   LogRfqQuoteCommand,
+  RfqCreationResult,
   RfqTransitionResult,
   RfqQuoteResult,
   TransitionRfqCommand,
 } from '@third-code-erp/shared-types'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
 import { DatabaseService } from '../database/database.service'
@@ -26,6 +31,19 @@ interface RfqLineItemJson {
   material_item_id?: string | null
   code?: string | null
   description: string
+}
+
+interface CreatedRfqLineItemJson {
+  bom_line_item_id: string
+  material_item_id: string | null
+  code: string | null
+  description: string
+  qty: number
+  unit: string | null
+}
+
+function existingLineCount(lineItems: unknown): number {
+  return Array.isArray(lineItems) ? lineItems.length : 0
 }
 
 function parseLineItems(value: unknown): RfqLineItemJson[] {
@@ -89,6 +107,185 @@ export class ProcurementService {
     @Inject(AuditService)
     private readonly audit: AuditService
   ) {}
+
+  async create(
+    command: CreateRfqCommand,
+    principal: ErpPrincipal
+  ): Promise<RfqCreationResult> {
+    return this.database.client.transaction(async (transaction) => {
+      await this.audit.stampActor(transaction, principal)
+
+      const [bom] = await transaction
+        .select({
+          id: boms.id,
+          project_id: boms.project_id,
+        })
+        .from(boms)
+        .where(
+          and(
+            eq(boms.id, command.bomId),
+            eq(boms.tenant_id, principal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      if (!bom) throw new NotFoundException('BOM not found')
+
+      const [existing] = await transaction
+        .select({
+          id: rfqs.id,
+          line_items: rfqs.line_items,
+        })
+        .from(rfqs)
+        .where(
+          and(
+            eq(rfqs.bom_id, command.bomId),
+            eq(rfqs.tenant_id, principal.tenantId)
+          )
+        )
+        .limit(1)
+
+      if (existing) {
+        return {
+          rfqId: existing.id,
+          tenantId: principal.tenantId,
+          projectId: bom.project_id,
+          lineCount: existingLineCount(existing.line_items),
+          created: false,
+        }
+      }
+
+      const lines = await transaction
+        .select({
+          id: bomLineItems.id,
+          code: bomLineItems.code,
+          description: bomLineItems.description,
+          unit: bomLineItems.unit,
+          quantity: bomLineItems.quantity,
+          is_group: bomLineItems.is_group,
+        })
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.bom_id, command.bomId),
+            eq(bomLineItems.tenant_id, principal.tenantId)
+          )
+        )
+
+      const itemLines = lines.filter((line) => line.is_group === 0)
+      if (itemLines.length === 0) {
+        throw new ConflictException('BOM has no line items to RFQ')
+      }
+
+      const itemCodes = [
+        ...new Set(
+          itemLines
+            .map((line) => line.code)
+            .filter((code): code is string => Boolean(code))
+        ),
+      ]
+      const catalog =
+        itemCodes.length === 0
+          ? []
+          : await transaction
+              .select({
+                code: materialItems.code,
+                material_item_id: materialItems.id,
+                rate_card_id: rateCards.id,
+              })
+              .from(materialItems)
+              .leftJoin(
+                rateCards,
+                and(
+                  eq(
+                    rateCards.material_item_id,
+                    materialItems.id
+                  ),
+                  eq(
+                    rateCards.tenant_id,
+                    principal.tenantId
+                  )
+                )
+              )
+              .where(
+                and(
+                  eq(
+                    materialItems.tenant_id,
+                    principal.tenantId
+                  ),
+                  inArray(materialItems.code, itemCodes)
+                )
+              )
+
+      const contractedCodes = new Set<string>()
+      const materialItemIdByCode = new Map<string, string>()
+      for (const item of catalog) {
+        if (!item.code) continue
+        materialItemIdByCode.set(
+          item.code,
+          item.material_item_id
+        )
+        if (item.rate_card_id) contractedCodes.add(item.code)
+      }
+
+      const rfqLines: CreatedRfqLineItemJson[] = itemLines
+        .filter(
+          (line) =>
+            !(line.code && contractedCodes.has(line.code))
+        )
+        .map((line) => ({
+          bom_line_item_id: line.id,
+          material_item_id: line.code
+            ? materialItemIdByCode.get(line.code) ?? null
+            : null,
+          code: line.code ?? null,
+          description: line.description,
+          qty: line.quantity,
+          unit: line.unit ?? null,
+        }))
+
+      if (rfqLines.length === 0) {
+        throw new ConflictException(
+          'All BOM lines already have contracted rates — no RFQ needed'
+        )
+      }
+
+      const [created] = await transaction
+        .insert(rfqs)
+        .values({
+          tenant_id: principal.tenantId,
+          bom_id: command.bomId,
+          status: 'pending',
+          line_items: rfqLines,
+        })
+        .returning({ id: rfqs.id })
+      if (!created) {
+        throw new Error('RFQ insert returned no record')
+      }
+
+      await this.audit.writeSemantic(transaction, {
+        tenantId: principal.tenantId,
+        actorId: principal.userId,
+        entityType: 'rfq',
+        entityId: created.id,
+        action: 'create',
+        diff: {
+          bom_id: command.bomId,
+          line_count: rfqLines.length,
+          source: 'manual',
+        },
+      })
+
+      return {
+        rfqId: created.id,
+        tenantId: principal.tenantId,
+        projectId: bom.project_id,
+        lineCount: rfqLines.length,
+        created: true,
+      }
+    })
+  }
 
   async logQuote(
     rfqId: string,

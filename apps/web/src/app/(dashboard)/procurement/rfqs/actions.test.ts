@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   can: vi.fn(),
   createRfqFromBomRecord: vi.fn(),
   notifyRfqCreated: vi.fn(),
+  rfqCreateWritesUseCoreApi: vi.fn(),
+  createRfqThroughCoreApi: vi.fn(),
   logRfqQuoteRecord: vi.fn(),
   rfqQuoteWritesUseCoreApi: vi.fn(),
   logRfqQuoteThroughCoreApi: vi.fn(),
@@ -44,6 +46,8 @@ vi.mock('@/lib/procurement/rfq-workflow-service', () => ({
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
+  rfqCreateWritesUseCoreApi: mocks.rfqCreateWritesUseCoreApi,
+  createRfqThroughCoreApi: mocks.createRfqThroughCoreApi,
   rfqQuoteWritesUseCoreApi: mocks.rfqQuoteWritesUseCoreApi,
   logRfqQuoteThroughCoreApi: mocks.logRfqQuoteThroughCoreApi,
   rfqTerminalWritesUseCoreApi:
@@ -89,6 +93,17 @@ describe('RFQ Server Action authority', () => {
       created: true,
     })
     mocks.notifyRfqCreated.mockResolvedValue(undefined)
+    mocks.rfqCreateWritesUseCoreApi.mockReturnValue(false)
+    mocks.createRfqThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        rfqId: RFQ_ID,
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        lineCount: 1,
+        created: true,
+      },
+    })
     mocks.logRfqQuoteRecord.mockResolvedValue({
       quoteId: '99999999-9999-4999-8999-999999999999',
       created: true,
@@ -153,6 +168,43 @@ describe('RFQ Server Action authority', () => {
         'Forbidden: role "procurement" lacks "rfq.dispatch"',
     })
     expect(mocks.createRfqFromBomRecord).not.toHaveBeenCalled()
+  })
+
+  it('uses the independent Nest creation gate without legacy fallback', async () => {
+    mocks.rfqCreateWritesUseCoreApi.mockReturnValue(true)
+
+    await expect(createRfqFromBom(BOM_ID)).resolves.toEqual({
+      rfqId: RFQ_ID,
+    })
+
+    expect(mocks.rfqCreateWritesUseCoreApi).toHaveBeenCalledWith(
+      TENANT_ID
+    )
+    expect(mocks.createRfqThroughCoreApi).toHaveBeenCalledWith({
+      bomId: BOM_ID,
+    })
+    expect(mocks.createRfqFromBomRecord).not.toHaveBeenCalled()
+    expect(mocks.notifyRfqCreated).toHaveBeenCalledWith({
+      rfqId: RFQ_ID,
+      tenantId: TENANT_ID,
+      projectId: PROJECT_ID,
+      lineCount: 1,
+      created: true,
+    })
+  })
+
+  it('fails closed when selected Nest creation is unavailable', async () => {
+    mocks.rfqCreateWritesUseCoreApi.mockReturnValue(true)
+    mocks.createRfqThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No RFQ was created.',
+    })
+
+    await expect(createRfqFromBom(BOM_ID)).resolves.toEqual({
+      error: 'ERP Core API is unavailable. No RFQ was created.',
+    })
+    expect(mocks.createRfqFromBomRecord).not.toHaveBeenCalled()
+    expect(mocks.notifyRfqCreated).not.toHaveBeenCalled()
   })
 
   it('does not duplicate notification when the transaction returns a retry', async () => {

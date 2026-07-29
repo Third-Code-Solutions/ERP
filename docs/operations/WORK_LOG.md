@@ -2854,3 +2854,57 @@ Rollback and unresolved:
 - Frontend activation still requires one explicitly approved consolidated
   queued Standard Vercel build.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+## 2026-07-30 -- Manual BOM-to-RFQ NestJS adapter
+
+Outcome:
+
+- Added strict shared request/result contracts for manual RFQ creation.
+- Added capability-guarded NestJS `POST /v1/procurement/rfqs`.
+- Added tenant-derived authority, BOM row locking, exact replay, contracted
+  rate filtering, pending RFQ insertion, and one atomic semantic audit.
+- Added an independent fail-closed Next.js tenant gate while preserving the
+  existing Server Action contract and post-commit notification.
+- Kept the automatic Inngest path unchanged.
+- Left both creation cutover variables unset.
+- No UI, schema, hosted data, Python, queue, Storage, or Vercel deployment
+  changed.
+
+Changed files:
+
+- `packages/shared-types/src/erp-api/procurement.ts`
+- `packages/shared-types/src/erp-api/procurement.test.ts`
+- `apps/api/src/procurement/create-rfq.pipe.ts`
+- `apps/api/src/procurement/procurement.controller.ts`
+- `apps/api/src/procurement/procurement.controller.spec.ts`
+- `apps/api/src/procurement/procurement.service.ts`
+- `apps/api/src/procurement/procurement.service.spec.ts`
+- `apps/api/integration/procurement.database.integration.spec.ts`
+- `apps/web/src/lib/erp-core-client.ts`
+- `apps/web/src/lib/erp-core-client.test.ts`
+- `apps/web/src/app/(dashboard)/procurement/rfqs/actions.ts`
+- `apps/web/src/app/(dashboard)/procurement/rfqs/actions.test.ts`
+- `docs/research/components/rfq-create-nest-adapter.spec.md`
+- the six architecture/operations memory files
+
+Validation:
+
+- Focused shared, API, Web client, and Server Action suites -- pass.
+- Root lint and typecheck -- pass.
+- Root application tests -- 412 pass.
+- Ordinary database lane -- 99 pass and 137 expected disposable-only skips.
+- Nest and Next production builds -- pass; Next 77/77 static steps.
+- Disposable PostgreSQL 17/Redis 7.4.9 lane -- 54/54 migrations, stable schema
+  fingerprint, 236/236 database assertions with zero skips, and 2/2 Nest
+  database integration tests.
+- Actionlint 1.7.12, pinned action references, release-planner tests, gitleaks
+  8.30.1, diff checks, and prohibited external ERP runtime scan -- pass.
+
+Rollback and unresolved:
+
+- Keep `ERP_RFQ_CREATE_WRITES_VIA_API` unset or exact `false`; tenant allowlist
+  stays empty.
+- Revert this source milestone if needed. No migration or data rollback exists.
+- Production provider evidence will be appended after reviewed publication.
+- Automatic BOM-approved RFQ dispatch remains in Next.js/Inngest. Next safe
+  slice moves it to NestJS/BullMQ behind another disabled tenant gate.
+- Frontend release remains one explicitly approved queued Standard build.

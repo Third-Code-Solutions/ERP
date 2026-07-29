@@ -1052,3 +1052,29 @@ matches the repository migration contract:
   standalone Node artifact and runtime are verified independently.
 - No frontend hostname, Supabase redirect setting, traffic, database, Railway
   service, Vercel setting, or Vercel deployment changed.
+# 2026-07-30 manual BOM-to-RFQ NestJS adapter
+
+- NestJS now exposes authenticated `POST /v1/procurement/rfqs` for manual
+  BOM-to-RFQ creation.
+- Request accepts only `bomId`. Tenant, actor, role, and source come from the
+  verified principal and capability guard.
+- Transaction locks the tenant-scoped BOM, returns exact tenant/BOM replay,
+  filters contracted-rate lines, inserts one pending RFQ, and writes one
+  actor-attributed semantic audit before commit.
+- Next.js preserves the existing `createRfqFromBom(bomId)` Server Action
+  contract through independent fail-closed gates:
+  `ERP_RFQ_CREATE_WRITES_VIA_API` and
+  `ERP_RFQ_CREATE_WRITES_VIA_API_TENANT_IDS`.
+- Both creation gates remain unset. Manual production writes therefore remain
+  on the existing server-only compatibility service until a controlled tenant
+  cutover is approved.
+- Automatic BOM-approval dispatch remains on the existing server-only Inngest
+  path. Moving that background authority to NestJS/BullMQ is the next backend
+  migration slice.
+- No UI, database schema, hosted data, Python, queue, Storage, or Vercel
+  deployment changed in this source milestone.
+- Validation passes: root lint and typecheck; 412 application tests; ordinary
+  database lane 99 pass with 137 expected skips; Nest and Next production
+  builds with 77/77 Next static steps; disposable PostgreSQL 17/Redis 7.4.9
+  replay of 54/54 migrations; 236/236 zero-skip database assertions; and 2/2
+  Nest database integration tests.

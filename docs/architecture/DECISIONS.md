@@ -1044,3 +1044,30 @@ repeated-transition conflict, cancellation reason audit, and rollback.
 Rollback: leave `ERP_RFQ_TERMINAL_WRITES_VIA_API` absent/false and its
 allowlist empty, or revert this source milestone. No schema, data, queue,
 Storage, Python, Vercel, or Supabase rollback is required.
+## D-063 -- Manual RFQ creation uses an independent disabled Nest adapter
+
+Date: 2026-07-30
+
+Decision: Manual BOM-to-RFQ creation is exposed as
+`POST /v1/procurement/rfqs` in NestJS. The caller may supply only the BOM UUID.
+Authenticated principal supplies tenant and actor authority; `rfq.dispatch`
+supplies permission authority; server code supplies `source: manual`.
+
+The transaction locks the tenant-scoped BOM, returns an existing tenant/BOM
+RFQ as an exact replay, filters lines already covered by a contracted rate,
+inserts one pending RFQ, and writes one semantic audit before commit. Existing
+database uniqueness on `(tenant_id, bom_id)` remains the final duplicate
+barrier.
+
+Next.js selects this command only when exact
+`ERP_RFQ_CREATE_WRITES_VIA_API=true` and a valid independent tenant allowlist
+both match. Empty, malformed, mixed wildcard, or unmatched configuration uses
+the compatibility path. Once Nest is selected, errors never fall back to a
+second write path.
+
+Reason: manual creation can migrate independently from quote, terminal, and
+background-worker authority. Separate gates reduce blast radius and prevent a
+partial backend outage from causing duplicate writes.
+
+Rollback: leave the gate unset or set it to exact `false`; revert the source
+commit if needed. No schema or data rollback is required.

@@ -10,6 +10,7 @@ import { ProcurementController } from './procurement.controller'
 import { ProcurementService } from './procurement.service'
 
 const RFQ_ID = '33333333-3333-4333-8333-333333333333'
+const BOM_ID = '88888888-8888-4888-8888-888888888888'
 const COMMAND = {
   submissionId: '66666666-6666-4666-8666-666666666666',
   bomLineItemId: '44444444-4444-4444-8444-444444444444',
@@ -27,14 +28,15 @@ describe('Procurement RFQ HTTP contract', () => {
 
   async function appFor(
     logQuote: ReturnType<typeof vi.fn>,
-    transition = vi.fn()
+    transition = vi.fn(),
+    create = vi.fn()
   ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [ProcurementController],
       providers: [
         {
           provide: ProcurementService,
-          useValue: { logQuote, transition },
+          useValue: { create, logQuote, transition },
         },
       ],
     }).compile()
@@ -65,6 +67,51 @@ describe('Procurement RFQ HTTP contract', () => {
     close = () => app.close()
     return app
   }
+
+  it('preserves the strict RFQ creation result contract', async () => {
+    const create = vi.fn().mockResolvedValue({
+      rfqId: RFQ_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      projectId: '99999999-9999-4999-8999-999999999999',
+      lineCount: 2,
+      created: true,
+    })
+    const app = await appFor(vi.fn(), vi.fn(), create)
+
+    const response = await request(app.getHttpServer())
+      .post('/v1/procurement/rfqs')
+      .send({ bomId: BOM_ID })
+      .expect(200)
+
+    expect(response.body).toEqual({
+      rfqId: RFQ_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      projectId: '99999999-9999-4999-8999-999999999999',
+      lineCount: 2,
+      created: true,
+    })
+    expect(create).toHaveBeenCalledWith(
+      { bomId: BOM_ID },
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+    )
+  })
+
+  it('rejects caller-supplied RFQ creation authority', async () => {
+    const create = vi.fn()
+    const app = await appFor(vi.fn(), vi.fn(), create)
+
+    await request(app.getHttpServer())
+      .post('/v1/procurement/rfqs')
+      .send({
+        bomId: BOM_ID,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+      .expect(400)
+
+    expect(create).not.toHaveBeenCalled()
+  })
 
   it(
     'preserves the strict quote result contract',

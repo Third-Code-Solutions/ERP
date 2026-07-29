@@ -559,3 +559,17 @@ authoritative until that proof succeeds.
 - Vercel remains disconnected and retained as external rollback until the
   alternative hostname passes authenticated, tenant-isolated production
   evidence and traffic cutover receives explicit approval.
+# RFQ transaction-authority progress
+
+- Manual BOM-to-RFQ creation now has a strict, tenant-derived NestJS command
+  behind an independent disabled cutover gate.
+- Quote logging and terminal RFQ transitions already use separate disabled
+  NestJS adapters.
+- Target remains one NestJS procurement authority for manual and automatic
+  RFQ creation, quotes, and state transitions.
+- Automatic creation will move from the transitional Inngest consumer to a
+  Redis/BullMQ job owned by the NestJS modular monolith.
+- Python will not approve, create, complete, cancel, or otherwise finalize RFQ
+  transactions.
+- Cutover remains tenant-by-tenant, fail-closed, observable, reconciled, and
+  reversible without a browser fallback after a selected Nest command begins.

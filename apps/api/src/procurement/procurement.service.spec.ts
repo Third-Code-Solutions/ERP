@@ -20,6 +20,8 @@ const PRINCIPAL: ErpPrincipal = {
   role: 'procurement',
   email: 'procurement@example.test',
 }
+const BOM_ID = '88888888-8888-4888-8888-888888888888'
+const PROJECT_ID = '99999999-9999-4999-8999-999999999999'
 const RFQ_ID = '33333333-3333-4333-8333-333333333333'
 const LINE_ID = '44444444-4444-4444-8444-444444444444'
 const VENDOR_ID = '55555555-5555-4555-8555-555555555555'
@@ -92,6 +94,203 @@ function harness(selectResults: unknown[][]) {
     updateReturning,
   }
 }
+
+describe('ProcurementService RFQ creation command', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('creates only uncovered BOM lines and records one semantic audit', async () => {
+    const probe = harness([
+      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [],
+      [
+        {
+          id: LINE_ID,
+          code: 'CONTRACTED',
+          description: 'Covered line',
+          unit: 'pcs',
+          quantity: 1,
+          is_group: 0,
+        },
+        {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          code: null,
+          description: 'Open line',
+          unit: 'sqm',
+          quantity: 3,
+          is_group: 0,
+        },
+      ],
+      [
+        {
+          code: 'CONTRACTED',
+          material_item_id:
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          rate_card_id:
+            'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        },
+      ],
+    ])
+
+    await expect(
+      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
+    ).resolves.toEqual({
+      rfqId: QUOTE_ID,
+      tenantId: PRINCIPAL.tenantId,
+      projectId: PROJECT_ID,
+      lineCount: 1,
+      created: true,
+    })
+
+    expect(probe.values).toHaveBeenCalledWith({
+      tenant_id: PRINCIPAL.tenantId,
+      bom_id: BOM_ID,
+      status: 'pending',
+      line_items: [
+        {
+          bom_line_item_id:
+            'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          material_item_id: null,
+          code: null,
+          description: 'Open line',
+          qty: 3,
+          unit: 'sqm',
+        },
+      ],
+    })
+    expect(probe.audit.stampActor).toHaveBeenCalledWith(
+      probe.transactionClient,
+      PRINCIPAL
+    )
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      probe.transactionClient,
+      {
+        tenantId: PRINCIPAL.tenantId,
+        actorId: PRINCIPAL.userId,
+        entityType: 'rfq',
+        entityId: QUOTE_ID,
+        action: 'create',
+        diff: {
+          bom_id: BOM_ID,
+          line_count: 1,
+          source: 'manual',
+        },
+      }
+    )
+  })
+
+  it('returns an exact replay without another insert or audit', async () => {
+    const probe = harness([
+      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [
+        {
+          id: RFQ_ID,
+          line_items: [{ description: 'Existing line' }],
+        },
+      ],
+    ])
+
+    await expect(
+      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
+    ).resolves.toEqual({
+      rfqId: RFQ_ID,
+      tenantId: PRINCIPAL.tenantId,
+      projectId: PROJECT_ID,
+      lineCount: 1,
+      created: false,
+    })
+    expect(probe.insert).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('hides a missing or cross-tenant BOM as not found', async () => {
+    const probe = harness([[]])
+
+    await expect(
+      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(probe.insert).not.toHaveBeenCalled()
+  })
+
+  it('rejects a BOM without item lines', async () => {
+    const probe = harness([
+      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [],
+      [
+        {
+          id: LINE_ID,
+          code: null,
+          description: 'Group',
+          unit: null,
+          quantity: 0,
+          is_group: 1,
+        },
+      ],
+    ])
+
+    await expect(
+      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
+    ).rejects.toThrow('BOM has no line items to RFQ')
+    expect(probe.insert).not.toHaveBeenCalled()
+  })
+
+  it('rejects a BOM whose item lines all have contracted rates', async () => {
+    const probe = harness([
+      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [],
+      [
+        {
+          id: LINE_ID,
+          code: 'CONTRACTED',
+          description: 'Covered line',
+          unit: 'pcs',
+          quantity: 1,
+          is_group: 0,
+        },
+      ],
+      [
+        {
+          code: 'CONTRACTED',
+          material_item_id:
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          rate_card_id:
+            'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        },
+      ],
+    ])
+
+    await expect(
+      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(probe.insert).not.toHaveBeenCalled()
+  })
+
+  it('rejects audit failure so the creation transaction can roll back', async () => {
+    const probe = harness([
+      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [],
+      [
+        {
+          id: LINE_ID,
+          code: null,
+          description: 'Open line',
+          unit: 'pcs',
+          quantity: 1,
+          is_group: 0,
+        },
+      ],
+    ])
+    vi.mocked(probe.audit.writeSemantic).mockRejectedValue(
+      new Error('audit unavailable')
+    )
+
+    await expect(
+      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
+    ).rejects.toThrow('audit unavailable')
+    expect(probe.insert).toHaveBeenCalledOnce()
+  })
+})
 
 describe('ProcurementService RFQ quote command', () => {
   beforeEach(() => {

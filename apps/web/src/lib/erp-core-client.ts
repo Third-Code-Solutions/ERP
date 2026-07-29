@@ -2,11 +2,14 @@ import 'server-only'
 
 import { randomUUID } from 'node:crypto'
 import {
+  rfqCreationResultSchema,
   projectUpdateResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
+  type CreateRfqCommand,
   type LogRfqQuoteCommand,
   type ProjectUpdateResult,
+  type RfqCreationResult,
   type RfqQuoteResult,
   type RfqTransitionResult,
   type TransitionRfqCommand,
@@ -63,6 +66,16 @@ export function rfqQuoteWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_RFQ_QUOTE_WRITES_VIA_API,
     process.env.ERP_RFQ_QUOTE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function rfqCreateWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_RFQ_CREATE_WRITES_VIA_API,
+    process.env.ERP_RFQ_CREATE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -151,6 +164,60 @@ export async function updateProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project change was committed.',
+    }
+  }
+}
+
+export async function createRfqThroughCoreApi(
+  command: CreateRfqCommand
+): Promise<CoreResult<RfqCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/rfqs`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'RFQ creation conflicts with the BOM state.'
+            : response.status === 404
+              ? 'BOM was not found.'
+              : 'RFQ was not created.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = rfqCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid RFQ creation result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No RFQ was created.',
     }
   }
 }
