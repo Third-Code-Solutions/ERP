@@ -1078,3 +1078,12 @@ matches the repository migration contract:
   builds with 77/77 Next static steps; disposable PostgreSQL 17/Redis 7.4.9
   replay of 54/54 migrations; 236/236 zero-skip database assertions; and 2/2
   Nest database integration tests.
+- Source commit `b8d1e518e63d0fcf9802efe30b2f1569ad6c6de4` is live on Railway
+  as deployment `5ebaca8a-e1cb-4d25-afb3-a98930046ebc`; health, database, and
+  Redis readiness pass, and the protected create endpoint rejects anonymous
+  access.
+- Free self-hosted GitHub Actions run `30495135107` passed the exact source
+  SHA. The hosted run executed zero steps because of the account billing
+  restriction.
+- Vercel Git is disconnected and no frontend deployment was created. Frontend
+  release remains a single explicitly approved, consolidated deployment.

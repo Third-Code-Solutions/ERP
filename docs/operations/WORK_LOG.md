@@ -2908,3 +2908,27 @@ Rollback and unresolved:
 - Automatic BOM-approved RFQ dispatch remains in Next.js/Inngest. Next safe
   slice moves it to NestJS/BullMQ behind another disabled tenant gate.
 - Frontend release remains one explicitly approved queued Standard build.
+
+Provider evidence:
+
+- Source commit `b8d1e518e63d0fcf9802efe30b2f1569ad6c6de4` is published on
+  `main` and `agent-02/third-code-erp-landing`, authored by
+  `kurtgav <kurtgavin.design@gmail.com>`.
+- Railway deployment `5ebaca8a-e1cb-4d25-afb3-a98930046ebc` is SUCCESS for
+  the exact source SHA. It uses `apps/api/Dockerfile`; image digest is
+  `sha256:341680353751a36c4fdc61c330b31a98c32b0be77aea983b702e7c0bbf1329b2`.
+- Live API `/health` and `/ready` return 200; readiness reports database and
+  Redis `ok`. Anonymous `POST /v1/procurement/rfqs` returns 401. The deployment
+  error-log query returned no entries.
+- Vercel Git remains disconnected. The retained production deployment is
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`; no frontend deployment was created.
+- Hosted GitHub Actions run `30494823225` executed zero steps because the
+  account payment/spending-limit restriction prevented the job from starting.
+- Free transient self-hosted run `30495135107` passed the exact source SHA in
+  15m22s: workflow validation, lint, typecheck, tests, clean PostgreSQL
+  17/Redis verification, production builds, Web and Nest runtime smoke checks,
+  and secret scanning.
+- The transient runner is deregistered; GitHub reports zero registered runners
+  and no runner process remains. Two Windows-locked, credential-free runner
+  work directories retain only non-secret `.runner` metadata and require
+  manual cleanup.
