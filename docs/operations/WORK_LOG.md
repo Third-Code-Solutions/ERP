@@ -1150,6 +1150,14 @@ Validation:
 - Supabase security/performance advisors -- no finding on
   `handle_new_user`; pre-existing function, extension, Auth configuration,
   foreign-key, duplicate-index, and unused-index findings remain backlog.
+- Source commit `72afd93bbd09925d7de9a839b7dd8259db519eac` -- pushed to
+  `main` and `agent-02/third-code-erp-landing` as `kurtgav`.
+- Railway deployment `1a0cd374-7bd1-449c-9083-ecf4598ccd04` -- success;
+  `/health` and `/ready` HTTP 200 with PostgreSQL and Redis ready.
+- Vercel deployment count after publication -- zero; Git remains disconnected.
+- GitHub hosted run `30424816981` -- failed before any Actionlint step and
+  skipped all dependent jobs because of the existing account billing block;
+  local and no-cost disposable validation remains authoritative.
 
 Rollback and unresolved:
 
