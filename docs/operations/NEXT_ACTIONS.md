@@ -1,18 +1,19 @@
 # Next Actions
 
-## Exact next product slice
+## Exact next product action
 
-Wire the existing Cortex UI to the durable authorized conversation context:
+Prepare one consolidated frontend activation, but stop before provider spend:
 
-1. Run the `gpt-taste` design preflight before changing presentation.
-2. Derive the focused canonical record only from the authorized URL contract.
-3. Send the complete record-reference pair when creating a conversation.
-4. Display the active record and preserve it when opening saved history.
-5. Prevent silent context switching; require a new conversation for a
-   different record.
-6. Add route, component, keyboard, 1440/768/390, console, and overflow tests.
-7. Keep the source candidate local/GitHub until one consolidated Vercel build
-   is explicitly approved. Do not reconnect Git or create a preview.
+1. Keep Vercel Git disconnected and confirm zero new deployments.
+2. Review all accumulated frontend candidates on one exact green SHA.
+3. Disclose the expected single Vercel production-build charge.
+4. Obtain explicit user approval before calling any deploy command.
+5. If approved, deploy exactly once without a duplicate preview.
+6. Verify authenticated Cortex scope creation/restoration, citations, focused
+   graph, record panels, landing QA, 1440/768/390 layouts, console, runtime
+   errors, analytics, and exact release identity.
+7. If not approved, retain the current READY Vercel artifact and continue only
+   no-cost source/backend work allowed by the standing M1 controls.
 
 ## Standing M1 controls
 

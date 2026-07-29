@@ -158,7 +158,20 @@ test.describe('Cortex focused graph', () => {
     expect(graph.links.length).toBeLessThanOrEqual(80)
 
     await expect(page.getByText('Focused record')).toBeVisible()
-    await expect(page.getByText('TH/RD CODE FINAL PHASE')).toBeVisible()
+    await expect(
+      page.getByText('TH/RD CODE FINAL PHASE', { exact: true })
+    ).toBeVisible()
+    const agentContext = page.locator(
+      '[data-cortex-agent-context="projects"]'
+    )
+    await expect(agentContext).toContainText('Focused on')
+    await expect(agentContext).toContainText('TH/RD CODE FINAL PHASE')
+    await expect(agentContext).toContainText(
+      'New chats stay with this record'
+    )
+    await expect(
+      page.getByRole('button', { name: 'Summarize this record' })
+    ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Show all records' })).toBeVisible()
     await expect(page.getByRole('complementary', { name: 'Record detail' })).toBeVisible()
     await expect(page.locator('.cortex-panel__skeleton')).toHaveCount(0)
@@ -207,6 +220,7 @@ test.describe('Cortex focused graph', () => {
     await page.getByRole('button', { name: 'Show all records' }).click()
     await page.waitForURL(`${baseUrl}/cortex`)
     await expect(page.getByText('Focused record')).toHaveCount(0)
+    await expect(page.getByText('Company-wide')).toBeVisible()
     expect(consoleErrors).toEqual([])
 
     const logoutResponse = await fetch(

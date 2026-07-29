@@ -1949,6 +1949,50 @@ a { color: inherit; }
 .cortex-agent__spark { font-size: 1.1rem; }
 .cortex-agent__title { font-size: 0.9375rem; font-weight: 600; margin: 0; }
 .cortex-agent__sub { font-size: 0.6875rem; opacity: 0.75; margin: 1px 0 0; }
+.cortex-agent__context {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #ddd6fe;
+  background: #f5f3ff;
+}
+.cortex-agent__context.is-unavailable {
+  border-bottom-color: #fecaca;
+  background: #fef2f2;
+}
+.cortex-agent__context-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.cortex-agent__context-eyebrow {
+  color: #6d28d9;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cortex-agent__context.is-unavailable .cortex-agent__context-eyebrow {
+  color: #b91c1c;
+}
+.cortex-agent__context-title {
+  overflow: hidden;
+  color: var(--color-neutral-900);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cortex-agent__context-note {
+  flex: 0 0 auto;
+  color: var(--color-neutral-500);
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  text-align: right;
+}
 .cortex-agent__log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .cortex-agent__empty { color: var(--color-neutral-500); font-size: 0.8125rem; text-align: center; margin-top: 24px; }
 .cortex-agent__empty p { margin: 0 0 12px; }
@@ -3495,13 +3539,42 @@ a { color: inherit; }
 .cortex-agent__history-empty { font-size: 0.8125rem; color: var(--color-neutral-400); padding: 6px; }
 .cortex-agent__history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .cortex-agent__history-row {
-  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer;
-  text-align: left; background: none; border: none; border-radius: 7px; padding: 8px 9px;
+  width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; cursor: pointer; color: inherit; text-align: left; text-decoration: none;
+  background: none; border: none; border-radius: 7px; padding: 7px 8px;
 }
 .cortex-agent__history-row:hover { background: var(--color-neutral-50); }
 .cortex-agent__history-row.is-active { background: var(--color-info-soft); }
+.cortex-agent__history-row:focus-visible {
+  outline: 2px solid var(--color-navy-700);
+  outline-offset: 1px;
+}
+.cortex-agent__history-row.is-other-context { border: 1px solid transparent; }
+.cortex-agent__history-copy {
+  display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px;
+}
 .cortex-agent__history-title { font-size: 0.8125rem; color: var(--color-neutral-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cortex-agent__history-scope {
+  overflow: hidden; color: var(--color-neutral-400); font-size: 0.6875rem;
+  text-overflow: ellipsis; white-space: nowrap;
+}
 .cortex-agent__history-time { font-size: 0.6875rem; color: var(--color-neutral-400); white-space: nowrap; }
+.cortex-agent__history-open {
+  color: #6d28d9; font-size: 0.6875rem; font-weight: 700; white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .cortex-agent__context {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .cortex-agent__context-note { text-align: left; }
+  .cortex-agent__iconbtn { width: 44px; height: 44px; }
+  .cortex-agent__chip { min-height: 44px; }
+  .cortex-agent__input textarea,
+  .cortex-agent__input button { min-height: 44px; }
+}
 
 /* Cortex — build semantic index control */
 .cortex-index-ctl { display: flex; align-items: center; gap: 8px; }

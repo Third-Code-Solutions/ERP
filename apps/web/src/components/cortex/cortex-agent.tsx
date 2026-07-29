@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { CortexCitationList } from './cortex-citation-list'
 import {
   CORTEX_CITATIONS_HEADER,
@@ -8,6 +8,12 @@ import {
   normalizeCortexCitations,
   type NavigableCortexCitation,
 } from '@/lib/cortex/citation-header'
+import {
+  cortexAgentContextsMatch,
+  cortexAgentContextHref,
+  cortexAgentContextLabel,
+  type CortexAgentContext,
+} from '@/lib/cortex/agent-context'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -19,14 +25,27 @@ interface Conversation {
   title: string | null
   created_at: string
   updated_at: string
+  context: CortexAgentContext | null
 }
 
-const SUGGESTIONS = [
+const COMPANY_SUGGESTIONS = [
   'What changed recently?',
   'Which projects are active?',
   'Summarize the sales pipeline',
   'Any invoices outstanding?',
 ]
+
+const RECORD_SUGGESTIONS = [
+  'Summarize this record',
+  'What changed on this record?',
+  'Show linked records',
+  'What needs attention?',
+]
+
+interface CortexAgentProps {
+  initialContext: CortexAgentContext | null
+  contextUnavailable?: boolean
+}
 
 function relativeTime(iso: string): string {
   const d = new Date(iso).getTime()
@@ -42,7 +61,10 @@ function relativeTime(iso: string): string {
  * turn is stored in the user's DB (cortex_conversations / cortex_messages);
  * past threads load from the history panel so the brain remembers.
  */
-export function CortexAgent() {
+export function CortexAgent({
+  initialContext,
+  contextUnavailable = false,
+}: CortexAgentProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -71,13 +93,27 @@ export function CortexAgent() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function loadConversation(id: string) {
+  async function loadConversation(conversation: Conversation) {
     setError('')
+    if (!cortexAgentContextsMatch(initialContext, conversation.context)) {
+      setError(
+        'This saved chat belongs to a different record. Open that context before continuing.'
+      )
+      return
+    }
     try {
-      const res = await fetch(`/api/cortex/conversations/${id}`)
-      if (!res.ok) return
+      const res = await fetch(
+        `/api/cortex/conversations/${conversation.id}`
+      )
+      if (!res.ok) throw new Error(`Request failed (${res.status})`)
       const data = (await res.json()) as {
+        context: CortexAgentContext | null
         messages: Array<Message & { citations?: unknown }>
+      }
+      if (!cortexAgentContextsMatch(initialContext, data.context)) {
+        throw new Error(
+          'Conversation context changed. Reload Cortex and try again.'
+        )
       }
       setMessages(
         data.messages.map((message) => ({
@@ -86,10 +122,12 @@ export function CortexAgent() {
           citations: normalizeCortexCitations(message.citations),
         }))
       )
-      setConversationId(id)
+      setConversationId(conversation.id)
       setHistoryOpen(false)
-    } catch {
-      setError('Could not load that conversation')
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not load that conversation'
+      )
     }
   }
 
@@ -102,7 +140,7 @@ export function CortexAgent() {
 
   async function send(text: string) {
     const trimmed = text.trim()
-    if (!trimmed || isStreaming) return
+    if (!trimmed || isStreaming || contextUnavailable) return
 
     const next: Message[] = [...messages, { role: 'user', content: trimmed }]
     setMessages([...next, { role: 'assistant', content: '' }])
@@ -114,7 +152,16 @@ export function CortexAgent() {
       const res = await fetch('/api/cortex/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next, conversationId }),
+        body: JSON.stringify({
+          messages: next,
+          conversationId,
+          context: initialContext
+            ? {
+                refTable: initialContext.refTable,
+                refId: initialContext.refId,
+              }
+            : undefined,
+        }),
       })
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string }
@@ -154,6 +201,13 @@ export function CortexAgent() {
     }
   }
 
+  const contextLabel = initialContext
+    ? cortexAgentContextLabel(initialContext)
+    : 'Company-wide'
+  const suggestions = initialContext
+    ? RECORD_SUGGESTIONS
+    : COMPANY_SUGGESTIONS
+
   return (
     <section className="cortex-agent" aria-label="Third Code ERP Cortex">
       <div className="cortex-agent__head">
@@ -178,6 +232,33 @@ export function CortexAgent() {
         </div>
       </div>
 
+      <div
+        className={`cortex-agent__context${contextUnavailable ? ' is-unavailable' : ''}`}
+        {...(initialContext
+          ? { 'data-cortex-agent-context': initialContext.refTable }
+          : {})}
+      >
+        <div className="cortex-agent__context-copy">
+          <span className="cortex-agent__context-eyebrow">
+            {contextUnavailable
+              ? 'Record unavailable'
+              : initialContext
+                ? 'Focused on'
+                : 'Scope'}
+          </span>
+          <strong className="cortex-agent__context-title">
+            {contextUnavailable ? 'Cannot use this record' : contextLabel}
+          </strong>
+        </div>
+        <span className="cortex-agent__context-note">
+          {contextUnavailable
+            ? 'Clear focus to continue'
+            : initialContext
+              ? 'New chats stay with this record'
+              : 'Across records you can access'}
+        </span>
+      </div>
+
       {historyOpen ? (
         <div className="cortex-agent__history">
           <div className="cortex-agent__history-head">Saved conversations</div>
@@ -185,14 +266,47 @@ export function CortexAgent() {
           <ul>
             {conversations.map((c) => (
               <li key={c.id}>
-                <button
-                  type="button"
-                  className={`cortex-agent__history-row${c.id === conversationId ? ' is-active' : ''}`}
-                  onClick={() => void loadConversation(c.id)}
-                >
-                  <span className="cortex-agent__history-title">{c.title || 'Untitled'}</span>
-                  <span className="cortex-agent__history-time">{relativeTime(c.updated_at)}</span>
-                </button>
+                {cortexAgentContextsMatch(initialContext, c.context) ? (
+                  <button
+                    type="button"
+                    className={`cortex-agent__history-row${c.id === conversationId ? ' is-active' : ''}`}
+                    onClick={() => void loadConversation(c)}
+                  >
+                    <span className="cortex-agent__history-copy">
+                      <span className="cortex-agent__history-title">
+                        {c.title || 'Untitled'}
+                      </span>
+                      <span className="cortex-agent__history-scope">
+                        {c.context
+                          ? cortexAgentContextLabel(c.context)
+                          : 'Company-wide'}
+                      </span>
+                    </span>
+                    <span className="cortex-agent__history-time">
+                      {relativeTime(c.updated_at)}
+                    </span>
+                  </button>
+                ) : (
+                  <a
+                    className="cortex-agent__history-row is-other-context"
+                    href={cortexAgentContextHref(c.context)}
+                    aria-label={`Open ${c.context ? cortexAgentContextLabel(c.context) : 'company-wide'} context for ${c.title || 'Untitled'}`}
+                  >
+                    <span className="cortex-agent__history-copy">
+                      <span className="cortex-agent__history-title">
+                        {c.title || 'Untitled'}
+                      </span>
+                      <span className="cortex-agent__history-scope">
+                        {c.context
+                          ? cortexAgentContextLabel(c.context)
+                          : 'Company-wide'}
+                      </span>
+                    </span>
+                    <span className="cortex-agent__history-open">
+                      Open context
+                    </span>
+                  </a>
+                )}
               </li>
             ))}
           </ul>
@@ -201,14 +315,27 @@ export function CortexAgent() {
         <div className="cortex-agent__log" role="log" aria-live="polite">
           {messages.length === 0 && (
             <div className="cortex-agent__empty">
-              <p>Ask anything across your projects, pipeline, BOMs, POs and invoices.</p>
-              <div className="cortex-agent__suggestions">
-                {SUGGESTIONS.map((s) => (
-                  <button key={s} type="button" className="cortex-agent__chip" onClick={() => void send(s)}>
-                    {s}
-                  </button>
-                ))}
-              </div>
+              <p>
+                {contextUnavailable
+                  ? 'This focused record is unavailable. Clear focus before starting a chat.'
+                  : initialContext
+                    ? 'Ask about this record, its changes, evidence, and linked work.'
+                    : 'Ask anything across your projects, pipeline, BOMs, POs and invoices.'}
+              </p>
+              {!contextUnavailable && (
+                <div className="cortex-agent__suggestions">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className="cortex-agent__chip"
+                      onClick={() => void send(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {messages.map((m, i) => (
@@ -248,10 +375,14 @@ export function CortexAgent() {
             onKeyDown={onKeyDown}
             placeholder="Ask Cortex…"
             rows={1}
-            disabled={isStreaming}
+            disabled={isStreaming || contextUnavailable}
             aria-label="Message to Cortex"
           />
-          <button type="button" onClick={() => void send(input)} disabled={isStreaming || !input.trim()}>
+          <button
+            type="button"
+            onClick={() => void send(input)}
+            disabled={isStreaming || contextUnavailable || !input.trim()}
+          >
             {isStreaming ? '…' : 'Send'}
           </button>
         </div>
