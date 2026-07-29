@@ -433,3 +433,20 @@ matches the repository migration contract:
   `docs/architecture/M2_DOCUMENT_PROCESSING_EVIDENCE_CONTRACT.md`.
 - No code, schema, data, Auth, Storage, queue, provider, or deployment changed
   during this design milestone.
+
+## Upload tenant-Project access hardening candidate
+
+- Shared `getProject(tenantId, projectId)` previously queried only by tenant,
+  loaded one arbitrary row, then compared its ID in application code.
+- Upload sign and complete handlers trusted a syntactically valid Project UUID
+  after deriving user tenant. A crafted path could reach quota, Storage, or
+  document work without first proving same-tenant Project ownership.
+- Source candidate now queries Project by tenant and Project ID together.
+- Both upload handlers return non-enumerating `404 Project not found` before
+  quota, signed Storage URL, document insert, CAD/AI parsing, or queue work.
+- Same-tenant signed upload and document-recording contracts remain unchanged.
+- Six focused tests cover exact two-key query, null result, both cross-tenant
+  denials, and both valid-flow compatibility paths.
+- No UI, copy, schema, data, Auth, Storage, queue, provider setting, or
+  deployment changed. Live Vercel still needs one separately approved paid
+  build before this protection is active there.

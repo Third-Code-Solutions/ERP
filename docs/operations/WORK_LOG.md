@@ -1412,3 +1412,50 @@ Rollback and unresolved:
   confirmation, one reversible Project, and a zero-blocker cutover plan.
 - M2 application code still requires separate owner-approved `AGENTS.md`
   reconciliation.
+
+## 2026-07-29 -- Upload tenant-Project access hardening
+
+Outcome:
+
+- Found shared `getProject` queried only tenant, loaded one arbitrary Project,
+  then compared requested ID in application code.
+- Found upload sign and complete routes did not first prove requested Project
+  belongs to authenticated tenant.
+- Fixed shared lookup to query tenant and Project ID together.
+- Added same-tenant Project guard to both upload routes before quota, Storage,
+  document insert, parsing, AI, or queue work.
+- Preserved same-tenant signed-upload and document-recording response behavior.
+- Changed no UI, copy, schema, business data, Auth, Storage, queue, provider
+  setting, or deployment.
+
+Changed files:
+
+- `apps/web/src/lib/project-queries.ts`
+- `apps/web/src/lib/project-queries.test.ts`
+- `apps/web/src/app/api/upload/sign/route.ts`
+- `apps/web/src/app/api/upload/sign/route.test.ts`
+- `apps/web/src/app/api/upload/complete/route.ts`
+- `apps/web/src/app/api/upload/complete/route.test.ts`
+- `docs/architecture/M2_DOCUMENT_PROCESSING_EVIDENCE_CONTRACT.md`
+- the six architecture/operations memory files
+- `docs/changesets/2026-07-29-upload-project-access-hardening.md`
+
+Validation:
+
+- Focused Project-query and upload-route tests -- 6/6 pass.
+- Cross-tenant/missing Project -- 404 before quota, Storage, document insert,
+  parsing, AI, or queue calls.
+- Valid same-tenant sign and complete compatibility paths -- pass.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` -- pass.
+- Root tests -- 256 pass; 132 disposable-database-gated cases skip as designed.
+- Optimized Web build -- 77/77 routes generated.
+- Prohibited provenance and diff-hygiene checks -- pass.
+
+Rollback and unresolved:
+
+- Revert this source/documentation milestone; runtime and provider state remain
+  unchanged.
+- Live protection requires one explicitly approved Vercel production build.
+  Bundle it with existing landing candidate; create no duplicate preview.
+- Composite database constraints remain required in M2.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

@@ -46,6 +46,10 @@ Complete remaining M1 controls without enabling production writes:
 - After deployment, repeat 1440/768/390 browser checks, metadata/JSON-LD,
   interactions, analytics, health/readiness, console, and exact release
   identity before calling the frontend slice complete.
+- Include upload tenant-Project hardening in that same reviewed SHA. After
+  deployment, verify same-tenant signed upload and document recording plus a
+  non-mutating cross-tenant/missing-Project denial. Do not buy a separate build
+  for this security candidate.
 
 ## Following milestone
 

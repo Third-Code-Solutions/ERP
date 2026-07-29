@@ -49,11 +49,15 @@ export async function getProject(tenantId: string, projectId: string) {
   const [row] = await db
     .select()
     .from(projects)
-    .where(eq(projects.tenant_id, tenantId))
+    .where(
+      and(
+        eq(projects.tenant_id, tenantId),
+        eq(projects.id, projectId)
+      )
+    )
     .limit(1)
 
-  if (!row || row.id !== projectId) return null
-  return row
+  return row ?? null
 }
 
 export async function getProjectsFiltered(

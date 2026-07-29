@@ -175,6 +175,17 @@ Status: design complete; application code blocked by M1 and governance gates.
 - Do not start M2 application code before M1 canary evidence and separately
   approved repository-governance reconciliation.
 
+### Parallel upload tenant-access hardening
+
+Status: source candidate complete; deployment not authorized.
+
+- Fix shared Project lookup to query tenant and Project ID together.
+- Require same-tenant Project existence in upload sign and complete routes
+  before quota, Storage, document insert, parsing, AI, or queue work.
+- Preserve valid upload response and UI behavior.
+- Ship only in one consolidated, explicitly approved Vercel production build.
+- Keep M2 composite database constraints as required defense in depth.
+
 ### M3 — Sensitive project and procurement commands
 
 - Migrate approvals, commitments, purchase orders, and inventory commands one

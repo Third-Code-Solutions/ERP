@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
 import { documents, users } from '@third-code-erp/database/schema'
 import { and, eq, sum } from 'drizzle-orm'
+import { getProject } from '@/lib/project-queries'
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB per upload (PRD F2.1)
 const PROJECT_QUOTA_BYTES = 500 * 1024 * 1024 // 500 MB per project (PRD F2.1)
@@ -48,6 +49,11 @@ export async function POST(req: NextRequest) {
   }
 
   const { projectId, fileName, sizeBytes } = parsed.data
+
+  const project = await getProject(userRow.tenant_id, projectId)
+  if (!project) {
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+  }
 
   // Per-project quota check (PRD F2.1: 500 MB per project). Sum existing
   // documents.size_bytes for this (tenant, project) and reject before issuing
