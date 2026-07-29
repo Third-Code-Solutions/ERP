@@ -1610,6 +1610,103 @@ a { color: inherit; }
   font-size: 0.625rem;
   color: var(--color-neutral-400);
 }
+.cortex-evidence {
+  margin: 14px 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+.cortex-evidence__summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+.cortex-evidence__summary::-webkit-details-marker { display: none; }
+.cortex-evidence__summary:focus-visible {
+  outline: 2px solid var(--color-navy-700);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.cortex-evidence__title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-neutral-500);
+}
+.cortex-evidence__count {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--color-neutral-400);
+}
+.cortex-evidence__indicator {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--color-navy-700);
+  transform: rotate(0deg);
+  transition: transform 160ms ease-out;
+}
+.cortex-evidence[open] .cortex-evidence__indicator {
+  transform: rotate(90deg);
+}
+.cortex-evidence__timeline {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.cortex-evidence__event {
+  position: relative;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 0;
+}
+.cortex-evidence__event:not(:last-child)::after {
+  position: absolute;
+  top: 19px;
+  bottom: -5px;
+  left: 3px;
+  width: 1px;
+  content: '';
+  background: var(--color-border);
+}
+.cortex-evidence__dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--color-navy-700);
+}
+.cortex-evidence__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.cortex-evidence__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-neutral-800);
+}
+.cortex-evidence__detail {
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--color-neutral-500);
+}
+.cortex-evidence__time {
+  margin-top: 2px;
+  font-size: 0.625rem;
+  line-height: 1.4;
+  color: var(--color-neutral-400);
+}
 .cortex-panel__sources-label {
   display: block;
   font-size: 0.6875rem;
@@ -1680,6 +1777,7 @@ a { color: inherit; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cortex-skel-line { animation: none; }
+  .cortex-evidence__indicator { transition: none; }
 }
 @media (max-width: 640px) {
   .cortex-relationships { grid-template-columns: minmax(0, 1fr); }

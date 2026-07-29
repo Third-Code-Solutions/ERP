@@ -286,3 +286,16 @@ reach through each other's internals.
   readable static context.
 - The response is bounded, read-only, keyboard accessible, responsive, and
   cannot approve or finalize an ERP transaction.
+
+## Cortex evidence-presentation boundary
+
+- Operational record context exposes a concise evidence trail only after
+  authenticated tenant, source/type, and current-role authorization.
+- Raw provenance remains server-only. Actor IDs, internal origin references,
+  hash-chain values, tenant/subject identifiers, and global sequences are not
+  presentation data.
+- Server maps supported origins to clear user-facing meaning and an ISO
+  timestamp. Unknown origins fail safely; invalid timestamps disappear.
+- Evidence order remains newest-first and response size remains bounded.
+- Presentation uses a native accessible disclosure with no client mutation,
+  approval, posting, or workflow authority.

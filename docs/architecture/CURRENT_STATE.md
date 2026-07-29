@@ -559,3 +559,23 @@ matches the repository migration contract:
 - No schema, hosted row, Auth identity, Storage object, queue, backend, provider
   setting, or deployment changed. This remains a source candidate while Vercel
   Git is disconnected.
+
+## Cortex evidence-trail candidate
+
+- Cortex already stored append-only, tenant-scoped provenance, but operational
+  record panels did not show when or how a node entered the graph.
+- Hosted read-only inspection found 637 node events across all 385 current
+  nodes. Each current node has one to three events; current hosted origins are
+  ERP mutations.
+- Entity response now returns at most six safe evidence events from the
+  existing role-filtered context pack.
+- Server normalization exposes only event kind, label, explanation, and ISO
+  timestamp. Actor ID, origin reference, hashes, sequence, tenant ID, and
+  subject ID never reach browser code.
+- Mutation, document, AI-run, and import origins have explicit human language.
+  Unknown origins fail safely to generic system evidence.
+- Native disclosure remains collapsed by default, keyboard operable, 44px high,
+  responsive, and read-only.
+- No schema, hosted row, Auth identity, Storage object, queue, backend, provider
+  setting, or deployment changed. Hosted Supabase access was aggregate
+  read-only. Vercel Git remains disconnected.

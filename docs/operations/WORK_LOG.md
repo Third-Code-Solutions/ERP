@@ -1739,3 +1739,61 @@ Rollback and unresolved:
 - The database integration assertions remain pending a disposable writable
   target; hosted production was not mutated for this slice.
 - M1 canary and `AGENTS.md` approval blockers remain unchanged.
+
+## 2026-07-29 -- Cortex evidence trail
+
+Outcome:
+
+- Verified hosted Cortex has 637 node-provenance events across every one of
+  385 current nodes; each current node has one to three events.
+- Added server normalization for mutation, document, AI-run, import, and
+  unknown provenance origins.
+- Returned at most six safe evidence events after existing tenant/source/type/
+  role authorization.
+- Prevented actor ID, internal origin reference, hashes, sequence, tenant ID,
+  and subject ID from reaching browser response.
+- Added a collapsed native evidence disclosure with safe explanations, UTC
+  timestamps, 44px target, visible focus, and reduced-motion handling.
+- Changed no schema, hosted data, Auth, Storage, queue, backend, provider
+  setting, or deployment. Hosted Supabase inspection was aggregate read-only.
+
+Changed files:
+
+- `apps/web/src/lib/cortex/entity-response.ts`
+- `apps/web/src/lib/cortex/entity-response.test.ts`
+- `apps/web/src/app/api/cortex/entity/[refTable]/[refId]/route.ts`
+- `apps/web/src/app/api/cortex/entity/[refTable]/[refId]/route.test.ts`
+- `apps/web/src/components/cortex/cortex-evidence-trail.tsx`
+- `apps/web/src/components/cortex/cortex-evidence-trail.test.tsx`
+- `apps/web/src/components/cortex/cortex-entity-panel.tsx`
+- `apps/web/src/app/globals.css`
+- `docs/research/components/cortex-evidence-trail.spec.md`
+- the six architecture/operations memory files
+- `docs/changesets/2026-07-29-cortex-evidence-trail.md`
+
+Validation:
+
+- Focused evidence, response, and entity route suite -- 17/17 pass.
+- Root lint and all-package typecheck -- pass.
+- Root tests -- 350 pass; 132 writable-database-gated cases skip.
+- API and Web production builds -- pass; Web generated 77/77 static steps.
+- Hosted aggregate queries -- 637 node events; 385/385 current nodes covered;
+  one to three events per node.
+- Local production unauthenticated entity lookup -- expected 401.
+- Built-CSS browser proof at 1440/768/390 -- native disclosure, 44px target,
+  visible focus, readable UTC timeline, reduced indicator geometry, and zero
+  page/detail overflow.
+- Browser UI console -- clean before the intentional 401 resource request.
+
+Rollback and unresolved:
+
+- Revert this source/documentation milestone; runtime and provider state remain
+  unchanged.
+- Authenticated populated-record proof remains pending a controlled valid
+  identity; authorization was not bypassed.
+- Live activation requires one explicitly approved consolidated Vercel build.
+  Do not create a separate preview or reconnect Git.
+- GitHub-hosted CI remains externally blocked before job start by account
+  payment/spending status. Local full gates are the no-cost verification path.
+- Database integration assertions remain pending a disposable writable target.
+- M1 canary and `AGENTS.md` approval blockers remain unchanged.

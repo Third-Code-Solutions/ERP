@@ -68,6 +68,7 @@ describe('Cortex entity lookup registry boundary', () => {
       REF_ID,
       {
         neighborLimit: 12,
+        provenanceLimit: 6,
         nodeTypes: expect.arrayContaining([
           'journal_entry',
           'journal_line',
@@ -75,6 +76,7 @@ describe('Cortex entity lookup registry boundary', () => {
       }
     )
     expect(body.relationships).toEqual([])
+    expect(body.evidence).toEqual([])
   })
 
   it('rejects an unregistered source before graph access', async () => {

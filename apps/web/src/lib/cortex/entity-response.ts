@@ -10,11 +10,26 @@ export interface CortexRelationship {
   citation: Citation
 }
 
+export type CortexEvidenceKind =
+  | 'record_change'
+  | 'document'
+  | 'ai_analysis'
+  | 'data_import'
+  | 'system'
+
+export interface CortexEvidenceEvent {
+  kind: CortexEvidenceKind
+  label: string
+  detail: string
+  recordedAt: string
+}
+
 export interface CortexEntityResponse {
   found: boolean
   summary: string
   citations: Citation[]
   relationships: CortexRelationship[]
+  evidence: CortexEvidenceEvent[]
 }
 
 const RELATIONSHIP_LABELS: Record<
@@ -38,6 +53,38 @@ const RELATIONSHIP_LABELS: Record<
   references_doc: { out: 'References', in: 'Referenced by' },
 }
 
+const EVIDENCE_PRESENTATION: Record<
+  string,
+  Omit<CortexEvidenceEvent, 'recordedAt'>
+> = {
+  mutation: {
+    kind: 'record_change',
+    label: 'ERP record change',
+    detail: 'Captured from an authorized ERP record change.',
+  },
+  document: {
+    kind: 'document',
+    label: 'Document evidence',
+    detail: 'Captured from an ingested document.',
+  },
+  ai_run: {
+    kind: 'ai_analysis',
+    label: 'AI analysis',
+    detail: 'Recorded from AI analysis for human review.',
+  },
+  import: {
+    kind: 'data_import',
+    label: 'Data import',
+    detail: 'Captured during an authorized data import.',
+  },
+}
+
+const SYSTEM_EVIDENCE: Omit<CortexEvidenceEvent, 'recordedAt'> = {
+  kind: 'system',
+  label: 'System evidence',
+  detail: 'Recorded by Cortex.',
+}
+
 export function cortexRelationshipLabel(
   edgeType: string,
   direction: 'out' | 'in'
@@ -45,10 +92,29 @@ export function cortexRelationshipLabel(
   return RELATIONSHIP_LABELS[edgeType]?.[direction] ?? 'Connected'
 }
 
+function evidenceTimestamp(value: unknown): string | null {
+  const timestamp =
+    value instanceof Date ? value : new Date(String(value))
+  return Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString()
+}
+
+export function cortexEvidenceEvent(
+  provenance: ContextPack['provenance'][number]
+): CortexEvidenceEvent | null {
+  const recordedAt = evidenceTimestamp(provenance.created_at)
+  if (!recordedAt) return null
+
+  return {
+    ...(EVIDENCE_PRESENTATION[provenance.origin] ?? SYSTEM_EVIDENCE),
+    recordedAt,
+  }
+}
+
 export function cortexEntityResponse(
   pack: ContextPack | null,
   summary: (pack: ContextPack) => string,
-  limit = 12
+  relationshipLimit = 12,
+  evidenceLimit = 6
 ): CortexEntityResponse {
   if (!pack) {
     return {
@@ -56,6 +122,7 @@ export function cortexEntityResponse(
       summary: '',
       citations: [],
       relationships: [],
+      evidence: [],
     }
   }
 
@@ -63,7 +130,7 @@ export function cortexEntityResponse(
     pack.citations.map((citation) => [citation.nodeId, citation])
   )
   const relationships = pack.neighbors
-    .slice(0, Math.max(0, limit))
+    .slice(0, Math.max(0, relationshipLimit))
     .flatMap<CortexRelationship>((neighbor) => {
       const citation = citationsByNodeId.get(neighbor.node.id)
       if (!citation) return []
@@ -83,11 +150,18 @@ export function cortexEntityResponse(
         },
       ]
     })
+  const evidence = pack.provenance
+    .flatMap<CortexEvidenceEvent>((provenance) => {
+      const event = cortexEvidenceEvent(provenance)
+      return event ? [event] : []
+    })
+    .slice(0, Math.max(0, evidenceLimit))
 
   return {
     found: true,
     summary: summary(pack),
     citations: pack.citations,
     relationships,
+    evidence,
   }
 }
