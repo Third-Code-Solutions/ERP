@@ -686,3 +686,39 @@ Next migration milestone:
 4. Require tenant constraints, exact money types, permission checks, audit,
    idempotency, and disposable PostgreSQL evidence before any cutover.
 5. Create no Vercel build and keep Vercel Git disconnected.
+
+## 2026-07-30 controlled production release milestone
+
+Status: complete; schema was already current, frontend promoted, backend
+retained, and automatic Vercel Git deployment disconnected.
+
+- Proved repository and hosted Supabase parity at 55/55. Applied no migration
+  because there was no pending SQL.
+- Completed sequential lint, typecheck, 444 application tests, the production
+  build, Actionlint, immutable action-reference verification, release-planner
+  tests, Gitleaks, and the disposable PostgreSQL 17/Redis 7.4.9 lane.
+- The disposable lane replayed all 55 migrations, passed 240/240 database
+  assertions and 7/7 Nest integration tests, and retained schema fingerprint
+  `5429BBD50089170BFCA7E624C928DB6EBEA30E3D2585E26439CEF592710B6E8C`.
+- Promoted exact source
+  `31c04942a93dce78f165880fb02bdf38d25eb506` through one Vercel preview build
+  and one required production-environment rebuild. No deployment was retried.
+- Reused the already healthy Railway application deployment because the
+  source delta was documentation-only.
+- Verified canonical web and API health/readiness, authenticated dashboard
+  rendering, zero Vercel runtime errors, zero provider HTTP 5xx, and protected
+  RFQ dispatch.
+- Disconnected Vercel Git immediately after production verification.
+
+Next migration milestone:
+
+1. Keep all RFQ automatic-routing, allowlist, and notification-sweep flags
+   absent/false.
+2. Perform the read-only purchase-order transaction-authority audit already
+   defined below; do not combine it with another production release.
+3. Create no new Vercel deployment until application source changes, all gates
+   pass again, and explicit production authorization is recorded.
+4. Keep Vercel Git disconnected. Use one reviewed manual release only when a
+   frontend change is ready.
+5. Preserve Vercel deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` and Railway
+   deployment `50fad0aa-8506-457a-a405-152dc31d2340` as rollback evidence.

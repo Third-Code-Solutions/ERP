@@ -595,3 +595,23 @@ authoritative until that proof succeeds.
   default false, and require a controlled tenant canary before activation.
 - Browser roles may read their authorized notification rows but cannot write
   official notification, outbox, or delivery state.
+
+## Controlled production delivery boundary
+
+- Supabase migration parity must be proven before release. A current 55/55
+  ledger is a no-op release condition, not permission to replay migrations.
+- Railway rebuilds only when watched backend application files changed.
+  Documentation-only repository commits must remain skipped.
+- Vercel production releases are manually initiated from one reviewed SHA
+  after local and disposable-database gates pass. Preview and production build
+  counts are recorded because promotion may rebuild with production-only
+  environment variables.
+- Vercel Git remains disconnected after every approved release. Source pushes
+  alone cannot consume Vercel build resources.
+- A release is complete only after canonical health/readiness, authenticated
+  browser behavior, runtime errors, HTTP 5xx, Railway readiness, Redis,
+  Supabase migration parity, and rollback identity are verified.
+- The frontend rollback target is the immediately previous ready production
+  deployment. The backend rollback target is the previous healthy Railway
+  image; database migrations remain forward-only unless an explicit
+  compensating migration is reviewed.

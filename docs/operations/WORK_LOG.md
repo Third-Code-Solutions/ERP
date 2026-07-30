@@ -3130,3 +3130,78 @@ Rollback and unresolved:
 - A production canary still requires explicit clean-tenant approval,
   environment diff, monitoring, reconciliation, and rollback.
 - Vercel Git remains disconnected and no frontend deployment is authorized.
+
+## 2026-07-30 -- Controlled Supabase, Vercel, and Railway production release
+
+Scope:
+
+- Publish the already validated ERP state to the named production providers.
+- Execute no database or backend mutation when parity and release identity
+  prove they are already current.
+- Bound Vercel billing by creating only the builds required for one production
+  release, then disconnect Git.
+
+Repository and validation:
+
+- Release source:
+  `31c04942a93dce78f165880fb02bdf38d25eb506`, authored by
+  `kurtgav <kurtgavin.design@gmail.com>`, published on `main` and
+  `agent-02/third-code-erp-landing`.
+- Sequential lint and typecheck pass.
+- Sequential tests pass: 88 shared, 64 API, 292 web, and 103 ordinary database
+  tests with 137 intentional disposable-only skips; 444 application tests
+  total.
+- Production build passes: NestJS build and 77/77 Next.js generated pages.
+- Disposable PostgreSQL 17/Redis 7.4.9 lane passes all 55 migrations, 240/240
+  database assertions, 7/7 Nest integration tests, Redis restart/recovery, and
+  schema SHA-256
+  `5429BBD50089170BFCA7E624C928DB6EBEA30E3D2585E26439CEF592710B6E8C`.
+- Actionlint 1.7.12, immutable action-reference verification, both release
+  planners, and Gitleaks 8.30.1 pass.
+
+Supabase:
+
+- Project `aqqrtkmtcsfkbyyqxowv` reports PostgreSQL 17.6 and 55 migrations
+  through `20260729233017_notification_outbox_foundation`.
+- Repository and hosted ledgers match exactly. No migration was executed.
+- `notification_outbox` contains zero rows after release.
+
+Vercel:
+
+- Protected preview `dpl_92JBFVyZjGozKPg2vcu5Hv4wNx9c` is `READY` on exact
+  source `31c04942a93dce78f165880fb02bdf38d25eb506`.
+- Production deployment `dpl_Htv5nb1A8oHbtowQpmrToYQgxDDL` is `READY` on the
+  same source and aliases `https://thirdcode-erp.vercel.app`.
+- Vercel required two total builds: one protected preview and one production
+  rebuild using production environment variables. No retries were created.
+- Root, health, readiness, robots, sitemap, and manifest return 200. Dashboard
+  renders in the authenticated browser without a Server Components error.
+- Web health and readiness report revision `31c04942a93d`; database readiness
+  reports `up`.
+- Production deployment has no runtime-error cluster and no HTTP 5xx.
+- Git connection to `Third-Code-Solutions/ERP` was removed successfully after
+  verification. Future source pushes cannot auto-deploy.
+- Rollback reference:
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+
+Railway:
+
+- Project `a21fd382-80b2-4218-8025-11f420a062e3`, service
+  `c45b3d01-036a-4663-a524-0713d782fce3`, remains online in production.
+- Deployment `50fad0aa-8506-457a-a405-152dc31d2340` remains `SUCCESS` on
+  application source `a93da5f5025677444ca14407c98a189673c952dc`, image
+  `sha256:50d598e279aa8d6b3681a0f2a230ed46d682bdc80e0802ff9bd81023dbd11a55`.
+- Current repository delta is documentation-only, so the later Railway event
+  correctly skipped with `No changes to watched files`.
+- `/health` and `/ready` return 200; PostgreSQL and Redis report `ok`.
+  Anonymous RFQ dispatch returns 401. Last-hour HTTP 5xx query is empty.
+
+Rollback and unresolved:
+
+- Frontend rollback: promote retained deployment
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
+- Backend rollback: retain or redeploy the prior healthy Railway image only if
+  backend behavior regresses; no backend change occurred in this release.
+- Database rollback: none required because no SQL ran.
+- Automatic RFQ routing and notification recovery remain disabled pending a
+  separately approved canary.
