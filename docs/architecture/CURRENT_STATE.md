@@ -1180,3 +1180,34 @@ matches the repository migration contract:
 - No React/UI, Python, Storage, or Vercel deployment changed. Vercel Git
   remains disconnected; Vercel reports zero deployments after retained
   baseline timestamp `1785295180454`.
+
+## 2026-07-30 controlled production release
+
+- Hosted Supabase project `aqqrtkmtcsfkbyyqxowv` remains the PostgreSQL source
+  of truth on PostgreSQL 17.6. Its migration ledger exactly matches the
+  repository at 55/55 through
+  `20260729233017_notification_outbox_foundation.sql`; no SQL was pending or
+  applied during this release. The notification outbox remains empty.
+- Vercel production deployment
+  `dpl_Htv5nb1A8oHbtowQpmrToYQgxDDL` is `READY` on exact source
+  `31c04942a93dce78f165880fb02bdf38d25eb506`, created by `kurtgav`, and owns
+  `https://thirdcode-erp.vercel.app`.
+- Vercel required one protected preview build
+  (`dpl_92JBFVyZjGozKPg2vcu5Hv4wNx9c`) and one production-environment rebuild.
+  No retries or additional deployments were created.
+- Live web `/`, `/api/health`, `/api/ready`, `robots.txt`, `sitemap.xml`, and
+  `manifest.webmanifest` return 200. Health and readiness report revision
+  `31c04942a93d`; readiness reports the database `up`. The authenticated
+  dashboard renders without the previous Server Components exception.
+- Vercel reports no runtime-error cluster and no HTTP 5xx for the production
+  deployment. The previous production deployment
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` is the rollback reference.
+- Vercel Git was disconnected after promotion. Future GitHub pushes cannot
+  trigger automatic Vercel builds.
+- Railway remains online without an unnecessary rebuild. Deployment
+  `50fad0aa-8506-457a-a405-152dc31d2340` is `SUCCESS` on application source
+  `a93da5f5025677444ca14407c98a189673c952dc`; the repository delta to
+  `31c04942a93dce78f165880fb02bdf38d25eb506` is documentation-only.
+- Railway `/health` and `/ready` return 200; readiness reports PostgreSQL and
+  Redis `ok`. Anonymous RFQ dispatch returns 401, and the last-hour HTTP 5xx
+  query is empty.

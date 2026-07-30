@@ -257,3 +257,22 @@ Provider inspection result:
    provider evidence before deployment.
 6. Keep Vercel Git disconnected. Create no preview or production frontend
    deployment.
+
+## Exact next action after the controlled production release
+
+1. Keep Vercel Git disconnected. Do not reconnect automatic deploys.
+2. Create no Vercel deployment for documentation-only commits. The next
+   frontend release requires changed application source, full green gates, and
+   explicit production authorization.
+3. Keep `ERP_RFQ_AUTO_DISPATCH_VIA_API`,
+   `ERP_RFQ_AUTO_DISPATCH_VIA_API_TENANT_IDS`, and
+   `ERP_NOTIFICATION_SWEEP_ENABLED` absent/false.
+4. Begin the read-only purchase-order transaction-authority audit: Server
+   Actions, direct writes, approval state machine, exact money types, tenant
+   constraints, audit, notifications, idempotency, tests, and rollback.
+5. Specify only the smallest disabled NestJS purchase-order adapter after the
+   audit. Preserve current UI and API behavior.
+6. Continue using Supabase project `aqqrtkmtcsfkbyyqxowv` as the source of
+   truth. Apply only migrations proven missing from its ledger.
+7. Retain Vercel deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` and Railway
+   deployment `50fad0aa-8506-457a-a405-152dc31d2340` as rollback evidence.

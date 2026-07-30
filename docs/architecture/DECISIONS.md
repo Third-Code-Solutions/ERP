@@ -1131,3 +1131,33 @@ Rollback: keep all three flags absent/false and revert application source if
 needed. Leave the forward migration and durable evidence in place. Do not
 delete outbox or dead-letter records. Existing Inngest behavior remains
 authoritative while the Nest path is disabled.
+
+## D-066 -- Production releases are manual, parity-first, and cost-bounded
+
+Date: 2026-07-30
+
+Decision: a hosted database release first compares the complete repository
+migration ledger with the target Supabase project. Exact parity means no SQL is
+executed. Railway is not rebuilt when the reviewed source delta does not touch
+its watched application paths.
+
+Vercel production delivery uses an explicitly selected reviewed SHA after all
+local and disposable-service gates pass. Build count and provider identity are
+recorded. If Vercel requires a production-environment rebuild after a protected
+preview, that single required build is allowed; failed or duplicate retries
+are not. Git is disconnected after verification so later pushes cannot create
+automatic builds.
+
+Reason: replaying current migrations, rebuilding unchanged backend content, or
+leaving frontend auto-deploy enabled adds integrity risk and avoidable provider
+cost without changing the released application.
+
+Verification: canonical health/readiness and revision, authenticated browser
+rendering, runtime-error clusters, HTTP 5xx, Railway PostgreSQL/Redis
+readiness, protected command denial, Supabase parity, and exact rollback
+identities are required.
+
+Rollback: immediately restore the previous ready Vercel production deployment
+and retain the current Railway image when the backend did not change. Database
+rollback uses a reviewed forward compensating migration only; never delete
+durable audit or outbox evidence.
