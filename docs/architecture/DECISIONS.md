@@ -1551,3 +1551,14 @@ suppression, scope reconciliation, semantic audit, and transaction rollback.
 Rationale: unit mocks cannot prove the interaction between the worker contract,
 PostgreSQL state machine, tenant composite checks, and audit chain. A rollback
 fixture gives that evidence without mutating hosted demo data.
+
+## D-091 -- Redis is delivery-only for processing jobs (2026-08-02)
+
+Decision: the document-processing queue transports only an opaque job UUID and
+uses BullMQ deduplication for delivery efficiency. PostgreSQL remains the
+authority for claim, attempt count, terminal status, evidence, scope, BOM, and
+audit after duplicate delivery or Redis failure.
+
+Rationale: queue state can be retried, duplicated, or lost. Keeping tenant and
+business payloads out of Redis limits leakage and prevents transport state from
+finalizing an ERP transaction.

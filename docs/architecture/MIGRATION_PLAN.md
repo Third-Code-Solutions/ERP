@@ -1119,3 +1119,12 @@ rollback. CI run `30708078211` passed all executable gates. This is source
 proof only; activation remains blocked by hosted migration drift, duplicate
 Purchase Order data, audit-recovery tenant selection, and missing production
 E2E credentials.
+
+## M2.5 Redis transport proof (2026-08-02)
+
+Added `document-processing.redis.integration.spec.ts`. The real Redis lane
+uses `DocumentProcessingJobQueue`, validates the opaque queue contract, and
+proves duplicate enqueue/delivery results in one transport job and one worker
+execution. CI run `30708445023` passed this test and the processor canary.
+Remaining M2.5 proof is bounded retry/final-failure, stale requeue, and
+recovery after Redis loss; production flags remain closed.

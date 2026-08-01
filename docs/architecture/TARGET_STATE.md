@@ -852,3 +852,8 @@ inside an isolated rollback transaction. A worker response is accepted only
 through the signed request client and evidence schema; duplicate delivery must
 be ignored after terminal success; scope, evidence, audit, and tenant isolation
 must be asserted before any production flag can open.
+
+The BullMQ transport must carry only `{ schemaVersion, jobId }`. Queue-level
+deduplication is delivery protection, not ERP authority; PostgreSQL claim,
+state transition, evidence, commit, and audit remain the source of truth after
+Redis retries, restarts, or data loss.
