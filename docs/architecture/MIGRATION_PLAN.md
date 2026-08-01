@@ -902,3 +902,20 @@ legacy profiles remain.
 Hosted result: 661 rows; database profile 510, legacy JSON profile 40, unknown
 111, broken links 2. Contract tests 3/3 passed; no hosted SQL or deployment
 occurred. Unknown rows remain unrepaired and block canary approval.
+
+## Controlled hosted release attempt (2026-08-01)
+
+- Re-ran the read-only planner: PostgreSQL 17, 55 applied migrations, linear
+  missing suffix of exactly `20260801090000`, `20260801100000`, and
+  `20260801110000`.
+- Preflight found one tenant/PO-number duplicate group containing 12 demo
+  records. The three migrations were submitted as one transaction; the first
+  migration's explicit uniqueness guard rejected the dataset and PostgreSQL
+  rolled back. The ledger remains 55/58. No repair, constraint weakening,
+  audit rewrite, permission change, feature-flag enablement, or deployment
+  followed.
+- Next exact action: obtain an approved, reversible remediation for the
+  duplicate group; rerun the read-only planner and apply the unchanged three
+  migrations atomically only after that decision. Keep provider production
+  promotion and all migrated write flags disabled until the audit recovery and
+  canary gates also clear.

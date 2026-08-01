@@ -722,3 +722,12 @@ history, and cannot clear the canary gate by itself.
 Historical profile verification is also bounded to reviewed algorithms. Rows
 matching neither the current database formula nor the legacy JSON formula are
 unknown evidence and must remain a release blocker until provenance is proven.
+
+## Release invariant (2026-08-01)
+
+The target state requires tenant-scoped Purchase Order number uniqueness before
+the new idempotency authority is enabled. The hosted demo dataset currently
+contains one duplicate group (12 records); its remediation is an explicit data
+decision, not an automatic migration side effect. The three forward migrations
+must apply atomically and be ledger-recorded before any PO workflow flag or
+production promotion is enabled.
