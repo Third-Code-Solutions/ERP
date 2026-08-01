@@ -916,3 +916,8 @@ tenant or business-record authority. Next.js and Inngest retain compatibility
 contracts while `AI_WORKER_URL` is absent; setting it makes Python the sole
 embedding backend for those callers. Chat completion migration remains a
 separate slice.
+
+The reviewed source candidate is `56bb76eb2dc7f4f7f00fbe4690e06323696b0618`;
+GitHub Actions run `30715179369` passed all executable gates. Hosted worker
+enablement remains a separately reviewed deployment after the controlled
+planner is clear.

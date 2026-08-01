@@ -3951,3 +3951,11 @@ skips; typecheck, lint, Next build 78/78 routes, gitleaks, actionlint,
 workflow-ref verification, and diff checks pass. Docker worker smoke was
 blocked before build by local Docker Desktop API HTTP 500. No hosted SQL,
 deployment, provider setting, flag, or business-data mutation occurred.
+
+CI evidence: pushed `56bb76eb2dc7f4f7f00fbe4690e06323696b0618` under `kurtgav`.
+GitHub Actions run `30715179369` completed green, including Postgres 17
+reproducibility, database tests without skips, Nest transaction-boundary
+integration, container smoke, and workspace production build. E2E was skipped
+by the explicit hosted-credential gate. PR #1 remains draft and clean; no
+Supabase, Railway, Vercel, worker, provider, flag, queue, or business-data
+mutation was performed.

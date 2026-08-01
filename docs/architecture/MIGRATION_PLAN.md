@@ -1235,3 +1235,12 @@ not authorized.
 Next: deploy the worker only as a separately reviewed Railway service after
 the controlled planner is clear; then run authenticated worker, provider-cost,
 tenant-isolation, and exact-release-SHA evidence before enabling the URL.
+
+## M2.9 CI evidence checkpoint (2026-08-02)
+
+Reviewed source candidate `56bb76eb2dc7f4f7f00fbe4690e06323696b0618` passed
+GitHub Actions run `30715179369`: static checks, secret scan, full unit suites,
+Postgres reproducibility, Nest transaction integration, container smoke, and
+production build. E2E remains explicitly skipped by hosted-credential gating.
+This green source result does not authorize hosted SQL or provider deployment
+while the controlled planner reports integrity blockers.
