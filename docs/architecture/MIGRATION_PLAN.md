@@ -830,3 +830,24 @@ Read-only reconciliation completed after this slice: PostgreSQL 17 with
 The Next workflow client seam is now implemented and tested (18/18 focused web
 tests), but its delegation flag remains absent/false. Do not treat the client
 contract as a cutover or as notification parity.
+
+## PO workflow notification parity milestone (2026-08-01)
+
+Status: local implementation and disposable proof complete; hosted cutover not
+authorized.
+
+- Added candidate migration `20260801110000_purchase_order_workflow_notifications.sql`
+  with strict payload integrity for Purchase Order workflow events.
+- Added an independent notification feature gate and tenant allowlist. Nest
+  atomically creates role-routed outbox/delivery intent alongside status,
+  audit, and idempotency completion. BullMQ validates and delivers in-app or
+  Resend email notices with stale/retry/dead-letter protections.
+- Full local evidence: 58/58 migrations, 244/244 database assertions without
+  skips, 8/8 Nest/Redis integration tests, shared 94, API 79, web 300, root
+  typecheck/lint, and 77/77 Next pages. Hosted Supabase remains read-only at
+  55/58; no provider release occurred.
+
+Next exact action: keep all PO and notification flags false, review the three
+linear hosted candidates and duplicate/constraint evidence, then authenticate
+Vercel/Railway as `kurtgav` before any one-tenant canary decision. Do not apply
+SQL or deploy while provider sessions are unresolved.

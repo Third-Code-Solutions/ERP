@@ -684,3 +684,14 @@ PostgreSQL 17 replayed all 56 migrations, all 243 database tests executed, and
 all 7 Nest/Redis integration tests passed. Hosted Supabase remains the source
 of truth and must be reconciled read-only before any candidate migration is
 applied.
+
+## Purchase-order workflow notification parity (2026-08-01)
+
+The target authority boundary now includes transactional notification intent:
+Nest commits workflow state, audit evidence, outbox payload, and
+tenant/role-scoped delivery rows together. BullMQ carries only opaque delivery
+identities; PostgreSQL remains the source of truth for retry, stale processing,
+dead-letter, and in-app uniqueness. The notification gate is independent and
+defaults off, so no tenant can activate workflow writes without proven
+notification parity. The current Next Server Actions and visible UI remain the
+rollback path until hosted reconciliation and canary evidence are approved.

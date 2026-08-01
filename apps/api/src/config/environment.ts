@@ -62,6 +62,23 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Workflow writes require durable notification intent and recipients. Both
+  // this flag and its tenant allowlist stay empty until delivery parity is
+  // replayed and a single-tenant canary is explicitly approved.
+  ERP_PO_WORKFLOW_NOTIFICATIONS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_PO_WORKFLOW_NOTIFICATIONS_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
 })
 
 export type Environment = z.infer<typeof environmentSchema>

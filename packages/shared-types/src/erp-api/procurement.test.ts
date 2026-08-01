@@ -4,6 +4,7 @@ import {
   logRfqQuoteCommandSchema,
   notificationDeliveryJobSchema,
   notificationDeliveryResultSchema,
+  purchaseOrderWorkflowNotificationPayloadSchema,
   notificationSweepJobSchema,
   rfqCreationResultSchema,
   rfqDispatchDeadLetterSchema,
@@ -281,6 +282,27 @@ describe('RFQ notification delivery contracts', () => {
       notificationDeliveryResultSchema.safeParse({
         deliveryId: UUID,
         status: 'processing',
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('Purchase Order workflow notification contracts', () => {
+  it('accepts strict tenant-local workflow payloads', () => {
+    const payload = {
+      schemaVersion: 1 as const,
+      purchase_order_id: UUID,
+      action: 'commercial_approve' as const,
+      from_status: 'pending_commercial_approval' as const,
+      to_status: 'pending_scm_issuance' as const,
+    }
+    expect(
+      purchaseOrderWorkflowNotificationPayloadSchema.parse(payload)
+    ).toEqual(payload)
+    expect(
+      purchaseOrderWorkflowNotificationPayloadSchema.safeParse({
+        ...payload,
+        tenant_id: UUID,
       }).success
     ).toBe(false)
   })

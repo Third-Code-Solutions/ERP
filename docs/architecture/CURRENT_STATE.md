@@ -1330,3 +1330,22 @@ matches the repository migration contract:
   workflow request seam and validates the Nest result. No current Server Action
   delegates to it because notification parity and canary evidence are not yet
   complete.
+
+## 2026-08-01 PO workflow notification parity slice
+
+- Added candidate migration `20260801110000_purchase_order_workflow_notifications.sql`.
+  It constrains the tenant-scoped notification outbox payload for the four
+  approval transitions; hosted Supabase remains unchanged.
+- Nest workflow commits now require a separate exact notification flag and
+  tenant allowlist. Each committed transition inserts one outbox intent and
+  role-routed in-app/email delivery rows in the same PostgreSQL transaction;
+  retries replay without duplicating either state or notification intent.
+- BullMQ delivery now validates the payload, tenant aggregate, current role,
+  channel, and idempotent delivery state for Purchase Orders. In-app notices
+  link to the existing Purchase Order route; email uses the existing Resend
+  boundary. No UI or Server Action cutover occurred.
+- Local proof: 58/58 migrations, database 244/244 with zero skips, Nest/Redis
+  integration 8/8, full tests shared 94/API 79/web 300/database 107 plus the
+  normal 137 environment-gated database skips, root typecheck/lint, and 77/77
+  Next production pages all pass. Hosted planner is 55/58 read-only; no SQL
+  or provider deployment was performed.

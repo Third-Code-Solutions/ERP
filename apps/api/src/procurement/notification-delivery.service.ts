@@ -3,6 +3,7 @@ import {
   boms,
   notificationDeliveries,
   notificationOutbox,
+  purchaseOrders,
   notifications,
   projects,
   rfqs,
@@ -11,7 +12,9 @@ import {
 import type {
   NotificationDeliveryJob,
   NotificationDeliveryResult,
+  PurchaseOrderWorkflowNotificationPayload,
 } from '@third-code-erp/shared-types'
+import { purchaseOrderWorkflowNotificationPayloadSchema } from '@third-code-erp/shared-types'
 import {
   and,
   asc,
@@ -27,6 +30,11 @@ import {
 } from '../database/database.service'
 import { NotificationEmailService } from './notification-email.service'
 import { NOTIFICATION_DELIVERY_ATTEMPTS } from './notification-delivery.constants'
+import {
+  PURCHASE_ORDER_WORKFLOW_NOTIFICATION_EVENT,
+  isPurchaseOrderWorkflowNotificationRecipient,
+} from './purchase-order-workflow-notifications'
+import type { ErpRole } from '../auth/current-principal.decorator'
 
 const outboxPayloadSchema = z
   .object({
@@ -42,6 +50,34 @@ interface ClaimedEmailDelivery {
   projectName: string
   recipientEmail: string
   rfqId: string
+}
+
+interface ClaimedPurchaseOrderEmailDelivery {
+  idempotencyKey: string
+  poNumber: string
+  projectName: string
+  recipientEmail: string
+  purchaseOrderId: string
+  payload: PurchaseOrderWorkflowNotificationPayload
+}
+
+function workflowNotificationCopy(
+  payload: PurchaseOrderWorkflowNotificationPayload,
+  poNumber: string,
+  projectName: string
+): { subject: string; body: string } {
+  const actionLabel =
+    payload.action === 'submit_pm_approval'
+      ? 'awaiting PM approval'
+      : payload.action === 'pm_approve'
+        ? 'awaiting commercial approval'
+        : payload.action === 'commercial_approve'
+          ? 'ready for SCM issuance'
+          : 'returned for revision'
+  return {
+    subject: `Purchase Order ${poNumber} ${actionLabel}`,
+    body: `${poNumber} for ${projectName} moved from ${payload.from_status} to ${payload.to_status}.`,
+  }
 }
 
 export interface PendingNotificationDelivery {
@@ -67,6 +103,33 @@ export class NotificationDeliveryService {
   ) {}
 
   async deliver(
+    job: NotificationDeliveryJob
+  ): Promise<NotificationDeliveryResult> {
+    const [event] = await this.database.client
+      .select({ eventType: notificationOutbox.event_type })
+      .from(notificationDeliveries)
+      .innerJoin(
+        notificationOutbox,
+        and(
+          eq(notificationOutbox.id, notificationDeliveries.outbox_id),
+          eq(notificationOutbox.tenant_id, notificationDeliveries.tenant_id)
+        )
+      )
+      .where(
+        and(
+          eq(notificationDeliveries.id, job.deliveryId),
+          eq(notificationDeliveries.outbox_id, job.outboxId),
+          eq(notificationDeliveries.tenant_id, job.tenantId)
+        )
+      )
+      .limit(1)
+    if (event?.eventType === PURCHASE_ORDER_WORKFLOW_NOTIFICATION_EVENT) {
+      return this.deliverPurchaseOrderWorkflow(job)
+    }
+    return this.deliverRfq(job)
+  }
+
+  private async deliverRfq(
     job: NotificationDeliveryJob
   ): Promise<NotificationDeliveryResult> {
     const claim = await this.database.client.transaction(
@@ -328,6 +391,277 @@ export class NotificationDeliveryService {
       deliveryId: job.deliveryId,
       status: 'delivered',
     }
+  }
+
+  private async deliverPurchaseOrderWorkflow(
+    job: NotificationDeliveryJob
+  ): Promise<NotificationDeliveryResult> {
+    const claim = await this.database.client.transaction(
+      async (transaction) => {
+        const [record] = await transaction
+          .select({
+            deliveryId: notificationDeliveries.id,
+            channel: notificationDeliveries.channel,
+            status: notificationDeliveries.status,
+            attemptCount: notificationDeliveries.attempt_count,
+            updatedAt: notificationDeliveries.updated_at,
+            idempotencyKey: notificationDeliveries.idempotency_key,
+            recipientEmail: notificationDeliveries.recipient_email,
+            recipientUserId: notificationDeliveries.recipient_user_id,
+            recipientRole: users.role,
+            eventType: notificationOutbox.event_type,
+            aggregateId: notificationOutbox.aggregate_id,
+            payload: notificationOutbox.payload,
+            poNumber: purchaseOrders.po_number,
+            projectName: projects.name,
+          })
+          .from(notificationDeliveries)
+          .innerJoin(
+            notificationOutbox,
+            and(
+              eq(
+                notificationOutbox.id,
+                notificationDeliveries.outbox_id
+              ),
+              eq(
+                notificationOutbox.tenant_id,
+                notificationDeliveries.tenant_id
+              )
+            )
+          )
+          .innerJoin(
+            users,
+            and(
+              eq(users.id, notificationDeliveries.recipient_user_id),
+              eq(users.tenant_id, notificationDeliveries.tenant_id)
+            )
+          )
+          .innerJoin(
+            purchaseOrders,
+            and(
+              eq(purchaseOrders.id, notificationOutbox.aggregate_id),
+              eq(
+                purchaseOrders.tenant_id,
+                notificationOutbox.tenant_id
+              )
+            )
+          )
+          .innerJoin(
+            projects,
+            and(
+              eq(projects.id, purchaseOrders.project_id),
+              eq(projects.tenant_id, purchaseOrders.tenant_id)
+            )
+          )
+          .where(
+            and(
+              eq(notificationDeliveries.id, job.deliveryId),
+              eq(notificationDeliveries.outbox_id, job.outboxId),
+              eq(notificationDeliveries.tenant_id, job.tenantId)
+            )
+          )
+          .limit(1)
+          .for('update')
+
+        if (!record) throw new Error('Notification delivery not found')
+        if (record.status === 'delivered') {
+          return {
+            kind: 'result' as const,
+            result: {
+              deliveryId: record.deliveryId,
+              status: 'already_delivered' as const,
+            },
+          }
+        }
+        if (record.status === 'dead_letter') {
+          return {
+            kind: 'result' as const,
+            result: {
+              deliveryId: record.deliveryId,
+              status: 'dead_letter' as const,
+            },
+          }
+        }
+        const staleBefore = new Date(Date.now() - 5 * 60_000)
+        if (
+          record.status === 'processing' &&
+          record.updatedAt >= staleBefore
+        ) {
+          return {
+            kind: 'result' as const,
+            result: {
+              deliveryId: record.deliveryId,
+              status: 'already_processing' as const,
+            },
+          }
+        }
+        if (record.attemptCount >= NOTIFICATION_DELIVERY_ATTEMPTS) {
+          await transaction
+            .update(notificationDeliveries)
+            .set({
+              status: 'dead_letter',
+              last_error: 'Delivery attempt limit reached',
+              dead_lettered_at: new Date(),
+              delivered_at: null,
+              updated_at: new Date(),
+            })
+            .where(
+              and(
+                eq(notificationDeliveries.id, record.deliveryId),
+                eq(notificationDeliveries.tenant_id, job.tenantId)
+              )
+            )
+          return {
+            kind: 'result' as const,
+            result: {
+              deliveryId: record.deliveryId,
+              status: 'dead_letter' as const,
+            },
+          }
+        }
+
+        const payload =
+          purchaseOrderWorkflowNotificationPayloadSchema.parse(
+            record.payload
+          )
+        if (
+          record.eventType !==
+            PURCHASE_ORDER_WORKFLOW_NOTIFICATION_EVENT ||
+          record.aggregateId !== payload.purchase_order_id ||
+          !isPurchaseOrderWorkflowNotificationRecipient(
+            record.recipientRole as ErpRole,
+            payload.action,
+            payload.from_status
+          )
+        ) {
+          await transaction
+            .update(notificationDeliveries)
+            .set({
+              status: 'dead_letter',
+              attempt_count: sql`${notificationDeliveries.attempt_count} + 1`,
+              last_error: 'Purchase Order notification recipient is no longer eligible',
+              dead_lettered_at: new Date(),
+              updated_at: new Date(),
+            })
+            .where(
+              and(
+                eq(notificationDeliveries.id, record.deliveryId),
+                eq(notificationDeliveries.tenant_id, job.tenantId)
+              )
+            )
+          return {
+            kind: 'result' as const,
+            result: {
+              deliveryId: record.deliveryId,
+              status: 'dead_letter' as const,
+            },
+          }
+        }
+
+        const now = new Date()
+        await transaction
+          .update(notificationDeliveries)
+          .set({
+            status: 'processing',
+            attempt_count: sql`${notificationDeliveries.attempt_count} + 1`,
+            processing_started_at: now,
+            last_error: null,
+            updated_at: now,
+          })
+          .where(
+            and(
+              eq(notificationDeliveries.id, record.deliveryId),
+              eq(notificationDeliveries.tenant_id, job.tenantId)
+            )
+          )
+
+        if (record.channel === 'in_app') {
+          return {
+            kind: 'in_app' as const,
+            record,
+            payload,
+          }
+        }
+        if (record.channel !== 'email') {
+          throw new Error('Unsupported notification channel')
+        }
+        return {
+          kind: 'email' as const,
+          email: {
+            idempotencyKey: record.idempotencyKey,
+            poNumber: record.poNumber,
+            projectName: record.projectName,
+            recipientEmail: record.recipientEmail,
+            purchaseOrderId: record.aggregateId,
+            payload,
+          } satisfies ClaimedPurchaseOrderEmailDelivery,
+        }
+      }
+    )
+
+    if (claim.kind === 'result') return claim.result
+    if (claim.kind === 'in_app') {
+      const copy = workflowNotificationCopy(
+        claim.payload,
+        claim.record!.poNumber,
+        claim.record!.projectName
+      )
+      await this.database.client.transaction(async (transaction) => {
+        await transaction
+          .insert(notifications)
+          .values({
+            tenant_id: job.tenantId,
+            recipient_user_id: claim.record!.recipientUserId,
+            recipient_email: claim.record!.recipientEmail,
+            channel: 'in_app',
+            subject: copy.subject,
+            body: copy.body,
+            link_url: `/purchase-orders/${claim.payload.purchase_order_id}`,
+            payload: {
+              event: PURCHASE_ORDER_WORKFLOW_NOTIFICATION_EVENT,
+              ...claim.payload,
+            },
+            source_delivery_id: claim.record!.deliveryId,
+          })
+          .onConflictDoNothing({
+            target: [
+              notifications.tenant_id,
+              notifications.source_delivery_id,
+            ],
+          })
+        const [delivered] = await transaction
+          .update(notificationDeliveries)
+          .set({
+            status: 'delivered',
+            delivered_at: new Date(),
+            last_error: null,
+            updated_at: new Date(),
+          })
+          .where(
+            and(
+              eq(notificationDeliveries.id, job.deliveryId),
+              eq(notificationDeliveries.tenant_id, job.tenantId),
+              eq(notificationDeliveries.status, 'processing')
+            )
+          )
+          .returning({ id: notificationDeliveries.id })
+        if (!delivered) {
+          throw new Error(
+            'Notification delivery state changed before completion'
+          )
+        }
+      })
+      return { deliveryId: job.deliveryId, status: 'delivered' }
+    }
+
+    const providerMessageId =
+      await this.email.sendPurchaseOrderWorkflow(claim.email)
+    await this.markDelivered(
+      job.tenantId,
+      job.deliveryId,
+      providerMessageId
+    )
+    return { deliveryId: job.deliveryId, status: 'delivered' }
   }
 
   private async deliverInApp(

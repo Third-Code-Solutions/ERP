@@ -4,6 +4,9 @@ import { randomUUID } from 'node:crypto'
 import {
   auditLog,
   db,
+  notificationDeliveries,
+  notificationOutbox,
+  notifications,
   projects,
   purchaseOrderWorkflowRequests,
   purchaseOrders,
@@ -12,11 +15,13 @@ import {
   type Database,
 } from '@third-code-erp/database'
 import { and, eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConfigService } from '@nestjs/config'
 import { AuditService } from '../src/audit/audit.service'
 import type { DatabaseTransaction } from '../src/database/database.service'
 import { PurchaseOrderWorkflowService } from '../src/procurement/purchase-order-workflow.service'
+import { NotificationDeliveryService } from '../src/procurement/notification-delivery.service'
+import type { NotificationEmailService } from '../src/procurement/notification-email.service'
 import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import type { DatabaseService } from '../src/database/database.service'
 
@@ -60,6 +65,8 @@ suite('Purchase Order workflow database integration', () => {
         const tenantId = randomUUID()
         const pmId = randomUUID()
         const commercialId = randomUUID()
+        const procurementId = randomUUID()
+        const adminId = randomUUID()
         const projectId = randomUUID()
         const purchaseOrderId = randomUUID()
         const suffix = randomUUID().slice(0, 12)
@@ -84,6 +91,20 @@ suite('Purchase Order workflow database integration', () => {
             email: `commercial-${suffix}@integration.test`,
             full_name: 'Workflow Commercial',
             role: 'commercial',
+          },
+          {
+            id: procurementId,
+            tenant_id: tenantId,
+            email: `procurement-${suffix}@integration.test`,
+            full_name: 'Workflow Procurement',
+            role: 'procurement',
+          },
+          {
+            id: adminId,
+            tenant_id: tenantId,
+            email: `admin-${suffix}@integration.test`,
+            full_name: 'Workflow Admin',
+            role: 'admin',
           },
         ])
         await transaction.insert(projects).values({
@@ -110,8 +131,15 @@ suite('Purchase Order workflow database integration', () => {
         })
 
         const config = {
-          get: (key: string) =>
-            key === 'ERP_PO_WORKFLOW_WRITES_ENABLED' ? true : [tenantId],
+          get: (key: string) => {
+            if (
+              key === 'ERP_PO_WORKFLOW_WRITES_ENABLED' ||
+              key === 'ERP_PO_WORKFLOW_NOTIFICATIONS_ENABLED'
+            ) {
+              return true
+            }
+            return [tenantId]
+          },
         } as unknown as ConfigService
         const service = new PurchaseOrderWorkflowService(
           config,
@@ -219,6 +247,49 @@ suite('Purchase Order workflow database integration', () => {
         expect(
           auditRows.filter((entry) => entry.action === 'status_change')
         ).toHaveLength(3)
+        const workflowOutboxes = await transaction
+          .select()
+          .from(notificationOutbox)
+          .where(eq(notificationOutbox.tenant_id, tenantId))
+        expect(workflowOutboxes).toHaveLength(3)
+        expect(
+          workflowOutboxes.every(
+            (outbox) =>
+              outbox.event_type === 'purchase_order.workflow_changed' &&
+              outbox.aggregate_id === purchaseOrderId
+          )
+        ).toBe(true)
+        const workflowDeliveries = await transaction
+          .select()
+          .from(notificationDeliveries)
+          .where(eq(notificationDeliveries.tenant_id, tenantId))
+        expect(workflowDeliveries.length).toBeGreaterThan(0)
+        const sendPurchaseOrderWorkflow = vi
+          .fn()
+          .mockResolvedValue('po-workflow-provider-message')
+        const notificationDelivery = new NotificationDeliveryService(
+          transactionBoundDatabase(transaction),
+          { sendPurchaseOrderWorkflow } as unknown as NotificationEmailService
+        )
+        for (const delivery of workflowDeliveries) {
+          await expect(
+            notificationDelivery.deliver({
+              schemaVersion: 1,
+              tenantId,
+              outboxId: delivery.outbox_id,
+              deliveryId: delivery.id,
+            })
+          ).resolves.toEqual({
+            deliveryId: delivery.id,
+            status: 'delivered',
+          })
+        }
+        const deliveredInApp = await transaction
+          .select()
+          .from(notifications)
+          .where(eq(notifications.tenant_id, tenantId))
+        expect(deliveredInApp.length).toBeGreaterThan(0)
+        expect(sendPurchaseOrderWorkflow).toHaveBeenCalled()
         throw ROLLBACK
       })
     } catch (error) {

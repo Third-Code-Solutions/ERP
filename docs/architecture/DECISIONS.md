@@ -1253,3 +1253,26 @@ suffixes missing; both remain unapplied pending review.
 The Next server-only client has a separate exact workflow delegation flag and
 result validation, but no Server Action calls it yet. This keeps the current
 notification behavior and rollback path intact.
+
+## D-072 -- Transactional PO workflow notification parity (2026-08-01)
+
+Decision: require an independent notification flag and tenant allowlist before
+any Nest Purchase Order workflow write. In the same PostgreSQL transaction,
+persist a strict workflow outbox payload and role-routed in-app/email delivery
+rows. Let BullMQ carry opaque delivery identities and let PostgreSQL own
+idempotency, stale recovery, dead-letter evidence, and in-app uniqueness.
+
+Rationale: a state transition without its approval notification creates an
+operationally inconsistent ERP. Durable intent must commit or roll back with
+the official status/audit result; provider delivery remains retryable and
+non-authoritative. The implementation is original and unrelated to ERPNext
+internals.
+
+Constraints: flags default false, no hosted SQL or provider deployment is
+implied, and the current Server Actions remain rollback authority. Python
+cannot create, approve, notify, issue, receive, or finalize the Purchase
+Order. SCM issuance and supplier-side email remain separate milestones.
+
+Evidence: candidate migration `20260801110000`; 58/58 disposable migrations,
+244/244 database tests without skips, 8/8 Nest/Redis integration tests, full
+shared/API/web suites 94/79/300, root typecheck/lint, and 77/77 Next pages.

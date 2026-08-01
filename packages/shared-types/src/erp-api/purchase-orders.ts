@@ -95,6 +95,9 @@ export const purchaseOrderWorkflowResultSchema = z
 export type PurchaseOrderWorkflowAction = z.infer<
   typeof purchaseOrderWorkflowActionSchema
 >
+export type PurchaseOrderWorkflowStatus = z.infer<
+  typeof purchaseOrderWorkflowStatusSchema
+>
 export type PurchaseOrderWorkflowCommand = z.infer<
   typeof purchaseOrderWorkflowCommandSchema
 >

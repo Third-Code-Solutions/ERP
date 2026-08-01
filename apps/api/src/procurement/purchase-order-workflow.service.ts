@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
@@ -11,21 +11,28 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import {
+  notificationDeliveries,
+  notificationOutbox,
   purchaseOrderWorkflowRequests,
   purchaseOrders,
   users,
 } from '@third-code-erp/database/schema'
 import {
   purchaseOrderWorkflowCommandSchema,
+  purchaseOrderWorkflowNotificationPayloadSchema,
   purchaseOrderWorkflowResultSchema,
   type PurchaseOrderWorkflowCommand,
   type PurchaseOrderWorkflowResult,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, ne } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
 import { DatabaseService } from '../database/database.service'
+import {
+  PURCHASE_ORDER_WORKFLOW_NOTIFICATION_EVENT,
+  purchaseOrderWorkflowNotificationRoles,
+} from './purchase-order-workflow-notifications'
 
 type WorkflowStatus =
   | 'draft'
@@ -171,9 +178,25 @@ export class PurchaseOrderWorkflowService {
         'Purchase Order workflow is not enabled for this tenant; no status change was committed.'
       )
     }
+    const notificationsEnabled = this.config.get<boolean>(
+      'ERP_PO_WORKFLOW_NOTIFICATIONS_ENABLED',
+      false
+    )
+    const notificationTenantIds = this.config.get<string[]>(
+      'ERP_PO_WORKFLOW_NOTIFICATIONS_TENANT_IDS',
+      []
+    )
+    if (
+      !notificationsEnabled ||
+      !notificationTenantIds.includes(principal.tenantId)
+    ) {
+      throw new ServiceUnavailableException(
+        'Purchase Order workflow notifications are not enabled for this tenant; no status change was committed.'
+      )
+    }
 
     const requestHash = commandHash(purchaseOrderId, parsedCommand)
-    return this.database.client.transaction(async (transaction) => {
+    const committed = await this.database.client.transaction(async (transaction) => {
       const [membership] = await transaction
         .select({
           tenantId: users.tenant_id,
@@ -250,7 +273,12 @@ export class PurchaseOrderWorkflowService {
           'Idempotency key was already used with a different Purchase Order workflow command'
         )
       }
-      if (request.state === 'succeeded') return replayResult(request.result)
+      if (request.state === 'succeeded') {
+        return {
+          result: replayResult(request.result),
+          notificationOutboxId: null,
+        }
+      }
       if (request.state !== 'processing') {
         throw new ConflictException(
           'Purchase Order workflow idempotency record has an unsupported state'
@@ -308,6 +336,56 @@ export class PurchaseOrderWorkflowService {
         )
       }
 
+      const notificationPayload =
+        purchaseOrderWorkflowNotificationPayloadSchema.parse({
+          schemaVersion: 1,
+          purchase_order_id: purchaseOrderId,
+          action: parsedCommand.action,
+          from_status: status,
+          to_status: statusAfter,
+        })
+      const notificationOutboxId = randomUUID()
+      const recipientRoles = purchaseOrderWorkflowNotificationRoles(
+        parsedCommand.action,
+        status
+      )
+      const recipients = await transaction
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(
+          and(
+            eq(users.tenant_id, authorizedPrincipal.tenantId),
+            ne(users.id, authorizedPrincipal.userId),
+            inArray(users.role, [...recipientRoles])
+          )
+        )
+        .for('share')
+
+      await transaction.insert(notificationOutbox).values({
+        id: notificationOutboxId,
+        tenant_id: authorizedPrincipal.tenantId,
+        event_key: `purchase-order.workflow_changed/${request.id}`,
+        event_type: PURCHASE_ORDER_WORKFLOW_NOTIFICATION_EVENT,
+        aggregate_type: 'purchase_order',
+        aggregate_id: purchaseOrderId,
+        payload: notificationPayload,
+      })
+
+      const deliveries = recipients.flatMap((recipient) =>
+        (['in_app', 'email'] as const).map((channel) => ({
+          id: randomUUID(),
+          tenant_id: authorizedPrincipal.tenantId,
+          outbox_id: notificationOutboxId,
+          recipient_user_id: recipient.id,
+          recipient_email: recipient.email,
+          channel,
+          idempotency_key: `po-workflow/${notificationOutboxId}/${recipient.id}/${channel}`,
+        }))
+      )
+      if (deliveries.length > 0) {
+        await transaction.insert(notificationDeliveries).values(deliveries)
+      }
+
       const result = purchaseOrderWorkflowResultSchema.parse({
         purchaseOrderId,
         tenantId: authorizedPrincipal.tenantId,
@@ -350,7 +428,8 @@ export class PurchaseOrderWorkflowService {
         },
       })
 
-      return result
+      return { result, notificationOutboxId }
     })
+    return committed.result
   }
 }
