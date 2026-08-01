@@ -1020,3 +1020,22 @@ prior ledger; no provider deployment or flag enablement occurred.
 Next exact action: keep the Nest flag disabled, review the hosted duplicate PO
 and audit recovery blockers, then design a separate canary cutover test before
 retiring the Next compatibility path.
+
+## NestJS CAD processing-job intake (2026-08-01)
+
+Implemented the additive M2.1 intake slice: shared contracts and tests;
+`document_processing_jobs` Drizzle schema and migration
+`20260801140000_document_processing_jobs.sql`; disabled Nest controller,
+service, pipe, opaque BullMQ queue, capability/environment gates, and
+observability mapping; database integration coverage; and clean-room landing
+research artifacts/captures. The route is inert by default and has no worker
+bridge; existing Next upload/parsing behavior is unchanged.
+
+Evidence: focused API 105/105; disposable PostgreSQL 17/Redis 7.4.9 replay
+61/61 migrations, database 253/253 with zero skips, API integration 11/11.
+Full root gates remain the final source milestone check.
+
+Next exact action: add the private Nest-to-Python evidence adapter and durable
+worker state transitions behind a separate false bridge flag. Keep intake
+false, allowlists empty, and the Next compatibility path active until retry,
+stall, idempotency, and canary parity are proven.

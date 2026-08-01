@@ -90,6 +90,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     ) {
       return 'document.cad_evidence_commit'
     }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/documents/:documentId/processing-jobs')
+    ) {
+      return 'document.processing_enqueue'
+    }
     return 'unknown.command'
   }
 

@@ -663,3 +663,20 @@ Rollback never requires reconnecting Vercel Git or creating a paid build.
 - Legacy routing remains independently selectable until canary rollback passes.
 - Full validation includes real PostgreSQL, Redis, Python, API, compatibility,
   audit, and browser evidence.
+
+## M2.1 intake implementation note (2026-08-01)
+
+The first additive slice is present under `apps/api/src/cad` without
+re-routing the existing Next upload. `document_processing_jobs` stores the
+tenant/document/project/actor relationship, strict command fields,
+idempotency hash, bounded warnings, and explicit state timestamps. Nest
+creates/replays that row and exposes a tenant-filtered status read.
+`DocumentProcessingJobQueue` publishes only `{schemaVersion: 1, jobId}` with
+attempts/backoff and transport deduplication.
+
+The processing feature flag and tenant allowlist both default closed. No
+processor is registered yet; this prevents a false end-to-end claim and keeps
+the future Python bridge separately reviewable. The disposable lane proved 61
+migration replays, 253 zero-skip database assertions, and 11 API integration
+assertions. The existing Next compatibility path and worker evidence-only
+boundary remain unchanged.

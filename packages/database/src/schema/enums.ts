@@ -117,6 +117,21 @@ export const documentTypeEnum = pgEnum('document_type', [
   'other',
 ])
 
+export const documentProcessingModeEnum = pgEnum(
+  'document_processing_mode',
+  ['cad']
+)
+
+export const documentProcessingRequestedFormatEnum = pgEnum(
+  'document_processing_requested_format',
+  ['auto', 'dxf', 'dwg']
+)
+
+export const documentProcessingStatusEnum = pgEnum(
+  'document_processing_status',
+  ['queued', 'processing', 'succeeded', 'failed']
+)
+
 // PO status. Legacy values (submitted/confirmed/delivered) retained for
 // back-compat. Current 3-step flow per REFACTOR.md US-Pre-003:
 // draft → pending_pm_approval → pending_commercial_approval →

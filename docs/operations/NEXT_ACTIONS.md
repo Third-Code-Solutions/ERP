@@ -548,3 +548,21 @@ separate and explicitly approved.
    The next hosted action is one read-only controlled-release plan using an
    explicitly approved `AUDIT_RECOVERY_TENANT_ID`; readiness 200 alone is not
    release evidence.
+
+## Exact next action after NestJS CAD processing-job intake (2026-08-01)
+
+1. Keep `ERP_DOCUMENT_PROCESSING_JOBS_ENABLED` absent/false and its tenant
+   allowlist empty. Do not enqueue production jobs; the queue has no worker
+   bridge yet by design.
+2. Implement the private Nest-to-Python evidence adapter with short-lived
+   Storage URLs, signed request context, schema validation, and explicit
+   queued/processing/succeeded/failed transitions. Add retry, stalled-job,
+   duplicate-delivery, and restart integration proof before enabling a flag.
+3. Keep the current Next CAD transaction as compatibility/rollback path and
+   do not apply `20260801140000_document_processing_jobs.sql` (or earlier
+   candidates) to Supabase until duplicate-PO and audit recovery gates clear
+   the controlled release planner.
+4. Do not create a Vercel preview, promote production, redeploy Railway, or
+   reconnect Vercel Git. A future hosted release must be one reviewed SHA,
+   one controlled provider action, and browser/API/data/log evidence within
+   the spend limit.

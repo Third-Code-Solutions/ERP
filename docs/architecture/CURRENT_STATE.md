@@ -1517,3 +1517,24 @@ matches the repository migration contract:
   60 migrations, ran 250/250 database assertions without skips, and ran 10/10
   Nest/Redis integration assertions. Root typecheck, serial lint, production
   build (77/77 pages), Actionlint, Gitleaks, and diff checks passed.
+
+## 2026-08-01 NestJS CAD processing-job intake
+
+- Added strict shared request, opaque queue identity, accepted response, and
+  bounded status contracts. BullMQ carries only schema version and durable job
+  UUID; it never carries tenant, actor, storage path, or source content.
+- Added candidate migration `20260801140000_document_processing_jobs.sql` and
+  Drizzle schema. Jobs are tenant-scoped, idempotent by tenant/key,
+  composite-FK protected, state/timestamp/warning checked, RLS-enabled, and
+  browser-privilege revoked.
+- Added disabled NestJS POST intake and tenant-scoped status read. PostgreSQL
+  membership and `document.process`/`document.processing.read` are rechecked;
+  the transaction derives document project/actor and the server-only queue
+  producer deduplicates opaque transport IDs. No worker processor or Next
+  cutover is enabled.
+- Added clean-room live landing behavior/topology/component artifacts and
+  desktop/mobile captures; no visible UI code or copy changed.
+- Disposable PostgreSQL 17/Redis 7.4.9 replay passed 61 migrations, 253/253
+  database assertions without skips, and 11/11 API integration assertions.
+  Hosted Supabase remains at its prior ledger; no provider flag or deployment
+  changed.
