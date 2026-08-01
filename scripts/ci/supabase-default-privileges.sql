@@ -32,5 +32,8 @@ alter default privileges for role postgres in schema public
 grant select, insert, update, delete
   on table public.projects
   to anon, authenticated;
+grant select
+  on table public.users
+  to anon, authenticated;
 
 commit;
