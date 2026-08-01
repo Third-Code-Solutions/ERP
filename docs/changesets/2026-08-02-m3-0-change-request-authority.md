@@ -27,5 +27,6 @@
 ## Release boundary
 
 Hosted Supabase, Railway, Vercel, flags, queues, worker services, and business
-data remain unchanged while the controlled planner reports pending migrations,
-duplicate Purchase Orders, and missing owner-approved audit recovery scope.
+data remain unchanged while the controlled planner reports 55/63 migrations
+with eight pending versions, duplicate Purchase Orders, and missing
+owner-approved audit recovery scope.
