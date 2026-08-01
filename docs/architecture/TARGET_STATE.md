@@ -735,3 +735,8 @@ production promotion is enabled.
 The target release process now includes a bounded duplicate-remediation report
 before the uniqueness migration. It is evidence-only: an owner must approve a
 reversible record-level remediation before any data mutation is authored.
+
+Runtime clean-room invariant: production web source and public text contain
+only Third Code ERP branding. Legacy vendor markers are prohibited by a web
+runtime regression test; internal provenance documentation is not shipped as
+runtime output.

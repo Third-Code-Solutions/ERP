@@ -1426,3 +1426,11 @@ matches the repository migration contract:
 - Added CI contract coverage in both GitHub workflows. No hosted schema,
   business data, audit history, provider setting, feature flag, or deployment
   changed in this milestone.
+
+## 2026-08-01 clean-room runtime branding guard
+
+- Runtime source/public text was scanned for ABI Ops, ERPNext, and Frappe
+  markers; none were found. Rework references remain limited to internal
+  clean-room provenance comments and migration names.
+- Added `apps/web/src/lib/branding-clean-room.test.ts` to prevent those legacy
+  markers from entering production runtime text. No visible UI copy changed.
