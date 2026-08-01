@@ -627,3 +627,13 @@ separate and explicitly approved.
 4. Once the planner is clear, apply one reviewed migration/SHA release, verify
    RLS/grants/ledger/readiness plus protected API/browser/log evidence, and use
    one reversible provider action under the `kurtgav` spend limit.
+
+## Exact next action after CI run 30707238189 (2026-08-01)
+
+1. Obtain the canonical owner-approved `AUDIT_RECOVERY_TENANT_ID` UUID.
+2. Obtain explicit record-level remediation for the one 12-record tenant/PO
+   duplicate group; do not renumber issued records automatically.
+3. Re-run `node --env-file=apps/web/.env.local scripts/plan-controlled-release.mjs --json`.
+4. Only if status is `clear`, apply one reviewed SHA to Supabase, then deploy
+   Railway and one Vercel production build with spend limits; verify live
+   readiness, protected API/browser flows, logs, and exact release identity.

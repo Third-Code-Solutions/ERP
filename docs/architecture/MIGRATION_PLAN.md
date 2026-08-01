@@ -1097,3 +1097,14 @@ local skips, typecheck, serial lint, Nest/Next production build (77/77
 pages), Actionlint, Gitleaks, diff checks, and Python worker pytest 11/11.
 Activation flags remain false/empty; hosted migration and provider state were
 not changed.
+
+## Release evidence update (2026-08-01)
+
+CI run `30707238189` is green for all executable gates, including the clean
+schema diff, database assertions, Nest/Redis integration, container smoke, and
+production build. E2E remains skipped by explicit credential gating. The
+read-only hosted planner still blocks promotion at 55/62 migrations because
+the first candidate enforces Purchase Order number uniqueness against a
+12-record demo duplicate group; audit recovery also lacks an owner-approved
+tenant UUID. Do not apply SQL or deploy this SHA until those inputs are
+resolved and the planner is rerun.

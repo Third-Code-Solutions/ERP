@@ -836,3 +836,11 @@ locks the job, revalidates actor/document context, computes integer-centavo
 line totals, attaches the BOM ID, and writes semantic audit evidence. A
 separate draft-BOM flag and tenant allowlist stay closed until end-to-end
 processor/retry/canary proof and hosted release gates are approved.
+
+## CI/release parity (2026-08-01)
+
+The reproducibility pipeline compares the clean migration-built public schema
+before applying any CI-only legacy Data API grants needed by historical RLS
+tests. It persists an empty diff artifact even when the pinned Supabase CLI
+reports no changes. Hosted SQL and provider deploys remain gated by the
+read-only ledger, duplicate-data, audit-recovery, and provider checks.

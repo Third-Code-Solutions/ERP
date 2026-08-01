@@ -1594,3 +1594,18 @@ changed.
   workspace typecheck, serial lint, Nest/Next production build (77/77 pages),
   Actionlint, Gitleaks, diff checks, and isolated Python worker pytest 11/11.
   Hosted Supabase, provider flags, and deployments remain unchanged.
+
+## 2026-08-01 Controlled release handoff after CI repair
+
+- Branch `agent-02/third-code-erp-landing` is pushed at
+  `69801292e35499645c38991422b66716d25b5476` under `kurtgav`; draft PR #1
+  targets `main`.
+- GitHub CI run `30707238189` passed Actionlint, secret scan, typecheck, lint,
+  unit tests, Postgres 17/Redis reproducibility, Nest container smoke, and
+  production build. E2E is explicitly skipped because hosted E2E credentials
+  are absent.
+- CI-only legacy role grants run after the migration-only schema diff; no
+  application migration or hosted privilege changed.
+- Read-only hosted planner remains `review_required`: Supabase 55/62, one
+  tenant-scoped 12-record Purchase Order duplicate group, and no approved
+  `AUDIT_RECOVERY_TENANT_ID`. Railway/Vercel readiness are HTTP 200.
