@@ -711,3 +711,10 @@ All new API and Next server audit writes use the same PostgreSQL-compatible
 hash formula as `public.audit_log_trigger()`, and shared verification uses that
 formula as well. Historical mismatches stay immutable and visible to recovery
 review; no release may treat parity code as a historical repair.
+
+## Read-only audit recovery boundary (2026-08-01)
+
+Recovery planning must use a repeatable-read/read-only transaction, opaque
+tenant references, bounded system event buckets, and explicit blocker output.
+The planner cannot emit entity IDs or business values, cannot rewrite audit
+history, and cannot clear the canary gate by itself.

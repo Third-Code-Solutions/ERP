@@ -131,6 +131,8 @@ jobs:
         run: node scripts/verify-database-repro.mjs
       - name: Verify release planner sees a current linear ledger
         run: node scripts/plan-database-release.mjs --require-current
+      - name: Verify read-only audit recovery planner contract
+        run: pnpm test:audit-recovery-plan
       - name: Capture local migration ledger
         shell: bash
         run: |

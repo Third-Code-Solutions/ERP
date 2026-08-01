@@ -1303,3 +1303,17 @@ the source of new divergence without silently altering historical evidence.
 Evidence: fixed parity vector passed; API/web typechecks and serial full tests
 passed; disposable PostgreSQL 17/Redis 7.4.9 replay and integration passed.
 Hosted SQL and provider deployment were not performed.
+
+## D-075 -- Audit recovery reports are read-only and opaque (2026-08-01)
+
+Decision: use the audit recovery planner as the only next-step evidence tool
+for the blocked demo tenant. It must run repeatable-read/read-only, require an
+explicit tenant selector, hide entity IDs/business values, and return a
+non-zero `--require-clear` result while any chain/hash/control blocker exists.
+
+Rationale: recovery analysis must be reproducible without creating a second
+write path or leaking tenant data. A report cannot be treated as a repair or
+canary approval.
+
+Evidence: contract tests 4/4; hosted read-only run reproduced 661 rows, 2 link
+mismatches, and 151 hash mismatches. No database or provider state changed.

@@ -1375,3 +1375,13 @@ matches the repository migration contract:
   137 normal skips, web 300, API 79), disposable PostgreSQL/Redis (58/58
   migrations, 244/244 DB assertions, 8/8 integration), typecheck, lint, and
   build (77/77 pages) passed. Hosted data and provider state remain unchanged.
+
+## 2026-08-01 read-only audit recovery planner
+
+- Added `scripts/plan-audit-recovery.mjs` with opaque tenant references,
+  repeatable-read/read-only transactions, system-label/day mismatch buckets,
+  control checks, and a `--require-clear` release gate. It never prints entity
+  IDs or business values and never writes `audit_log`.
+- Hosted execution reproduced PostgreSQL 17/UTC, 661 audit rows, 2 link
+  mismatches, and 151 hash mismatches. The report is `review_required`; no
+  repair, permission change, migration, or deployment was attempted.

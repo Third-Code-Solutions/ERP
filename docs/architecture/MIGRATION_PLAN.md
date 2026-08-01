@@ -876,3 +876,16 @@ disposable PostgreSQL 17/Redis 7.4.9 58/58 migrations, 244/244 DB assertions,
 8/8 integration; root typecheck/lint/build and 77/77 Next pages passed. Hosted
 forensic review remains read-only and the canary remains blocked by the audit
 findings recorded above.
+
+## Read-only audit recovery planner milestone (2026-08-01)
+
+Added `scripts/plan-audit-recovery.mjs` and its pure contract tests. It
+requires an explicit tenant UUID, runs a repeatable-read/read-only transaction,
+checks PostgreSQL 17 and hardened/non-public audit controls, and reports only
+opaque tenant references, counts, timestamps, and system event labels. The
+`--require-clear` option exits non-zero while historical mismatches remain.
+
+Validation: audit recovery contract 4/4, database-release contract 7/7,
+project-cutover contract 6/6, actionlint passed. Hosted read-only execution
+reproduced 661 rows, 2 link mismatches, 151 hash mismatches, UTC timezone, and
+`review_required`; no SQL or deployment occurred.
