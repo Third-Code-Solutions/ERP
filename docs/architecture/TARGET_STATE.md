@@ -740,3 +740,14 @@ Runtime clean-room invariant: production web source and public text contain
 only Third Code ERP branding. Legacy vendor markers are prohibited by a web
 runtime regression test; internal provenance documentation is not shipped as
 runtime output.
+
+## Controlled release evidence boundary (2026-08-01)
+
+- One read-only release planner must aggregate database ledger parity,
+  duplicate-record safety, audit-chain integrity, and live backend/frontend
+  readiness before a provider release is eligible.
+- A missing evidence source is `review_required`, not an implicit pass. The
+  planner's clear result is a prerequisite for any SQL application, flag
+  enablement, or manual deployment.
+- The planner remains provider-neutral and cost-safe: it cannot invoke a
+  deployment, mutate Supabase, or change Vercel/Railway settings.

@@ -940,3 +940,20 @@ occurred. Unknown rows remain unrepaired and block canary approval.
   remain internal and are not treated as production copy.
 - No UI, database, provider, or deployment change occurred; the guard is part
   of the normal web test suite.
+
+## Controlled release gate aggregator milestone (2026-08-01)
+
+Added a provider-neutral, read-only release gate that composes migration
+parity, Purchase Order duplicate evidence, audit recovery, and Railway/Vercel
+readiness into one explicit result. `--require-clear` fails closed; the tool
+cannot apply SQL, enable flags, change provider settings, or deploy.
+
+Validation: controlled gate contract 4/4; existing release, cutover, audit,
+hash-profile, and duplicate contracts passed; actionlint, gitleaks, typecheck,
+lint, full package tests, and production build (77/77 pages) passed. Hosted
+execution remains `review_required` at 55/58 migrations and one 12-record
+duplicate group; live readiness checks returned 200. No hosted state changed.
+
+Next action: run the gate with the explicitly approved audit tenant selector
+after the owner approves reversible duplicate remediation. Keep all write
+flags, tenant allowlists, and provider deployment operations disabled.

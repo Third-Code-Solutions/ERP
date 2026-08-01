@@ -1434,3 +1434,21 @@ matches the repository migration contract:
   clean-room provenance comments and migration names.
 - Added `apps/web/src/lib/branding-clean-room.test.ts` to prevent those legacy
   markers from entering production runtime text. No visible UI copy changed.
+
+## 2026-08-01 controlled release gate aggregator
+
+- Added `scripts/plan-controlled-release.mjs` and its pure contract helper to
+  combine the existing migration, Purchase Order duplicate, audit, and
+  Railway/Vercel readiness evidence into one read-only decision.
+- The command is fail-closed: `--require-clear` exits non-zero unless every
+  component is clear. It never applies SQL, enables feature flags, changes
+  provider settings, or creates a deployment.
+- Hosted execution reports `review_required` with 55/58 migrations, one
+  duplicate group containing 12 demo records, and a missing explicit audit
+  tenant selector in the current shell. Both live readiness endpoints return
+  HTTP 200. No hosted state changed.
+- Validation: controlled-gate contract 4/4, all existing planner contracts,
+  typecheck, lint, actionlint, gitleaks, full package tests, and production
+  build 77/77 pages passed. The first parallel verification attempt was
+  discarded because build/typecheck raced on `.next/types`; the ordered rerun
+  is the authoritative result.
