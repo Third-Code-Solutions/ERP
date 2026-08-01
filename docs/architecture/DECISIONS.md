@@ -1341,3 +1341,18 @@ transaction is safer than a partially applied schema or fake migration history.
 
 Evidence: the transaction rolled back at the explicit guard; the migration
 ledger stayed at 55/58 and the post-attempt readiness checks remained green.
+
+## D-078 -- Duplicate remediation evidence must be read-only (2026-08-01)
+
+Decision: use a bounded duplicate planner to support owner review instead of
+mutating demo Purchase Orders automatically. The planner emits only opaque
+references, counts, timestamps, statuses, and review order; it never exposes
+PO numbers or UUIDs and never writes.
+
+Rationale: a migration blocker is not authorization to rename, delete, or
+choose a canonical business record. Evidence must be reproducible before a
+forward remediation is designed.
+
+Evidence: hosted planner returned one group with 12 records and
+`review_required`; planner contract tests 4/4 passed and all repository gates
+remained green.

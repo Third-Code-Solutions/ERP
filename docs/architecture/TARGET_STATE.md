@@ -731,3 +731,7 @@ contains one duplicate group (12 records); its remediation is an explicit data
 decision, not an automatic migration side effect. The three forward migrations
 must apply atomically and be ledger-recorded before any PO workflow flag or
 production promotion is enabled.
+
+The target release process now includes a bounded duplicate-remediation report
+before the uniqueness migration. It is evidence-only: an owner must approve a
+reversible record-level remediation before any data mutation is authored.

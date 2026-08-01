@@ -3515,3 +3515,25 @@ Changed files for this milestone: architecture and operations release notes
 only. No business record was renamed or deleted. Exact next action is an
 owner-approved reversible remediation plan for the duplicate group, followed
 by a fresh read-only audit/release gate.
+
+## 2026-08-01 - Purchase Order duplicate-remediation planner
+
+Implemented a read-only release-evidence tool for the hosted migration blocker:
+
+- `scripts/plan-purchase-order-duplicates.mjs` runs in a repeatable-read,
+  read-only transaction and reports bounded duplicate groups.
+- `scripts/lib/purchase-order-duplicate-plan.mjs` provides stable opaque refs,
+  positive-limit parsing, status counts, and release blockers.
+- `scripts/plan-purchase-order-duplicates.test.mjs` covers clear, blocked,
+  truncated, and deterministic output paths.
+- Root scripts and both CI workflows now run the contract test.
+
+Hosted evidence: one duplicate group, 12 records, no truncation; status
+`review_required`. No PO number, UUID, money, note, schema, data, audit row,
+flag, provider setting, or deployment was changed.
+
+Validation: planner contract 4/4, existing release/cutover/audit contracts,
+actionlint, typecheck, serial full tests (95 shared, 107 database with normal
+137 environment skips, 79 API, 300 web), lint, and production build (77/77
+Next pages) passed. Exact next action remains owner-approved reversible data
+remediation, then a fresh DB release planner.

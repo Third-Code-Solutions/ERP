@@ -919,3 +919,15 @@ occurred. Unknown rows remain unrepaired and block canary approval.
   migrations atomically only after that decision. Keep provider production
   promotion and all migrated write flags disabled until the audit recovery and
   canary gates also clear.
+
+## Duplicate remediation evidence milestone (2026-08-01)
+
+- Added a read-only Purchase Order duplicate planner with repeatable-read
+  isolation, opaque references, bounded groups/records, and a `--require-clear`
+  release gate.
+- Hosted result: one duplicate tenant/PO-number group, 12 records, one project,
+  statuses across draft, PM approval, SCM issuance, and issued. No business
+  number or entity ID was printed; no database state changed.
+- Contract tests 4/4, actionlint, typecheck, lint, full serial tests, and
+  production build passed. Next action is owner approval of a reversible data
+  remediation, not weakening the uniqueness migration.

@@ -462,3 +462,16 @@ separate and explicitly approved.
    hash rows and 2 predecessor-link breaks), rerun the canary planner with a
    capability-appropriate actor, and only then request one controlled SHA
    promotion under spend limits.
+
+## Exact next action after duplicate-remediation planner (2026-08-01)
+
+1. Give the owner the opaque duplicate report and obtain an explicit,
+   reversible decision for the 12 demo records. Do not infer a canonical row,
+   rename records, delete records, or weaken the uniqueness guard.
+2. Design one forward data-remediation migration from that approved decision;
+   replay it in disposable PostgreSQL 17 and verify audit/tenant references.
+3. Re-run `plan:purchase-order-duplicates --require-clear` and the hosted
+   migration planner. Only when both are clear, apply the unchanged three PO
+   migrations atomically and verify ledger, schema, RLS, grants, and readiness.
+4. Keep all PO/notification flags false and do not promote Vercel or redeploy
+   Railway until the independent audit recovery and canary gates clear.
