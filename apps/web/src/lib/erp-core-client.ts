@@ -7,13 +7,16 @@ import {
   projectUpdateResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
+  purchaseOrderCreationResultSchema,
   type CreateRfqCommand,
   type LogRfqQuoteCommand,
+  type CreatePurchaseOrderCommand,
   type ProjectUpdateResult,
   type RfqCreationResult,
   type RfqDispatchResult,
   type RfqQuoteResult,
   type RfqTransitionResult,
+  type PurchaseOrderCreationResult,
   type TransitionRfqCommand,
   type UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
@@ -98,6 +101,16 @@ export function rfqTerminalWritesUseCoreApi(
     tenantId,
     process.env.ERP_RFQ_TERMINAL_WRITES_VIA_API,
     process.env.ERP_RFQ_TERMINAL_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function purchaseOrderWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PO_CREATE_WRITES_VIA_API,
+    process.env.ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -230,6 +243,60 @@ export async function createRfqThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No RFQ was created.',
+    }
+  }
+}
+
+export async function createPurchaseOrderThroughCoreApi(
+  command: CreatePurchaseOrderCommand,
+  idempotencyKey: string
+): Promise<CoreResult<PurchaseOrderCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/purchase-orders`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Purchase Order request conflicts with an existing command.'
+            : 'Purchase Order was not committed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = purchaseOrderCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Purchase Order result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No Purchase Order was committed.',
     }
   }
 }

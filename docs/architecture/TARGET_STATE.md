@@ -634,3 +634,13 @@ authoritative until that proof succeeds.
 - Current implementation is intentionally transitional: the Nest route and
   schema contract exist, but adapter is disabled and non-mutating until
   idempotency storage and parity evidence are added.
+## 2026-08-01 evidence added for PO authority
+
+The target modular monolith now has a concrete, disabled first transaction
+slice: one Nest command owns standalone PO creation, PostgreSQL owns the
+idempotency and number constraints, and Next delegates only when both exact
+feature gates and the tenant allowlist match. The transaction is the boundary
+for capability authorization, same-tenant reference checks, integer-centavo
+calculation, audit, and replay. Python remains advisory and cannot finalize a
+PO. The next proof required is disposable PostgreSQL/Redis integration plus a
+single-tenant canary; hosted flags stay false.

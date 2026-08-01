@@ -5,6 +5,8 @@ import type { ConfigService } from '@nestjs/config'
 import type { CreatePurchaseOrderCommand } from '@third-code-erp/shared-types'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
+import type { AuditService } from '../audit/audit.service'
+import type { DatabaseService } from '../database/database.service'
 import { PurchaseOrderCreationService } from './purchase-order-creation.service'
 
 const PRINCIPAL: ErpPrincipal = {
@@ -29,11 +31,17 @@ const COMMAND: CreatePurchaseOrderCommand = {
   ],
 }
 
-function service(enabled = false) {
+function service(enabled = false, tenantIds: string[] = []) {
   const config = {
-    get: vi.fn().mockReturnValue(enabled),
+    get: vi.fn((key: string) =>
+      key === 'ERP_PO_CREATE_WRITES_ENABLED' ? enabled : tenantIds
+    ),
   } as unknown as ConfigService
-  return new PurchaseOrderCreationService(config)
+  return new PurchaseOrderCreationService(
+    config,
+    {} as DatabaseService,
+    {} as AuditService
+  )
 }
 
 describe('PurchaseOrderCreationService migration boundary', () => {
@@ -43,11 +51,11 @@ describe('PurchaseOrderCreationService migration boundary', () => {
     ).rejects.toBeInstanceOf(ServiceUnavailableException)
   })
 
-  it('stays disabled even if the provisional flag is set', async () => {
+  it('stays disabled when no tenant allowlist is present', async () => {
     await expect(
       service(true).create(COMMAND, PRINCIPAL, 'po-create-1')
     ).rejects.toThrow(
-      'Purchase Order command migration is not ready; no Purchase Order was created.'
+      'Purchase Order command is not enabled for this tenant; no Purchase Order was created.'
     )
   })
 })

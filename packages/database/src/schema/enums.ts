@@ -133,6 +133,11 @@ export const purchaseOrderStatusEnum = pgEnum('purchase_order_status', [
   'fully_delivered',
 ])
 
+export const purchaseOrderCreateRequestStateEnum = pgEnum(
+  'purchase_order_create_request_state',
+  ['processing', 'succeeded']
+)
+
 export const invoiceStatusEnum = pgEnum('invoice_status', [
   'draft',
   'issued',

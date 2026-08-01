@@ -61,6 +61,12 @@ describe('Purchase Order creation API contracts', () => {
         lines: [{ ...line, unitCostCents: 1.5 }],
       }).success
     ).toBe(false)
+    expect(
+      createPurchaseOrderCommandSchema.safeParse({
+        projectId: UUID,
+        lines: [{ ...line, quantity: 2_147_483_648 }],
+      }).success
+    ).toBe(false)
   })
 
   it('requires a draft result with server-derived tenant identity', () => {
