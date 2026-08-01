@@ -3788,3 +3788,19 @@ the legacy grant fixture only after that assertion and before database/RLS
 tests. CI now pre-creates the diff artifact because the pinned CLI leaves it
 absent on an empty diff. This keeps the reproducibility check migration-only
 and leaves hosted privileges unchanged.
+
+## 2026-08-01 - CI reproducibility gate green, hosted release still blocked
+
+Pushed CI repair commits `d53509c` and `6980129` under `kurtgav` to
+`agent-02/third-code-erp-landing`. Run `30707238189` passed Actionlint, secret
+scan, typecheck, lint, unit tests, Postgres 17/Redis reproducibility,
+database/RLS assertions, Nest transaction integration, container smoke, and
+production build. E2E remained skipped by explicit credential gating.
+
+The read-only controlled planner was rerun after CI success. It still reports
+`review_required`: hosted Supabase is 55/62 with seven pending migrations;
+the first candidate is blocked by one tenant-scoped duplicate Purchase Order
+number group containing 12 demo records; and no owner-approved
+`AUDIT_RECOVERY_TENANT_ID` is configured. Railway `/ready` and Vercel
+`/api/ready` both returned HTTP 200. No hosted SQL, provider setting, flag,
+deployment, or business data changed.

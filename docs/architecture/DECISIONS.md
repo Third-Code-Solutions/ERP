@@ -1529,3 +1529,14 @@ Rationale: automatically renumbering issued records or guessing a recovery
 tenant could change business history. The owner must choose a reversible,
 record-level remediation before the unique index and subsequent migrations are
 applied. Readiness HTTP 200 alone is not sufficient release evidence.
+
+## D-089 -- CI schema proof excludes test-only grants (2026-08-01)
+
+Decision: run the empty public-schema diff immediately after a clean Supabase
+reset, then apply the narrowly scoped CI-only `anon`/`authenticated` grants
+required by legacy RLS tests. Pre-create the diff artifact because the pinned
+CLI omits it when no changes exist.
+
+Rationale: test compatibility grants are not production schema and must not
+hide migration drift; production migrations and hosted privileges remain the
+source of truth.
