@@ -161,6 +161,31 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS')
   })
 
+  it('keeps document processing recovery scheduling fail-closed and scoped', () => {
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_DOCUMENT_PROCESSING_RECOVERY_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_DOCUMENT_PROCESSING_RECOVERY_TENANT_IDS
+    ).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_PROCESSING_RECOVERY_ENABLED: 'true',
+        ERP_DOCUMENT_PROCESSING_RECOVERY_TENANT_IDS:
+          '33333333-3333-4333-8333-333333333333',
+      }).ERP_DOCUMENT_PROCESSING_RECOVERY_TENANT_IDS
+    ).toEqual(['33333333-3333-4333-8333-333333333333'])
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_PROCESSING_RECOVERY_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_DOCUMENT_PROCESSING_RECOVERY_TENANT_IDS')
+  })
+
   it('keeps the private worker bridge closed and validates its server URL', () => {
     expect(
       validateEnvironment(REQUIRED)

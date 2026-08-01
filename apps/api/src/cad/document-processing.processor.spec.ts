@@ -8,8 +8,11 @@ import type { DocumentProcessingEvidenceService } from './document-processing.ev
 import {
   DOCUMENT_PROCESSING_JOB,
   DOCUMENT_PROCESSING_QUEUE,
+  DOCUMENT_PROCESSING_RECOVERY_JOB,
+  DOCUMENT_PROCESSING_RECOVERY_SCHEDULER,
 } from './document-processing.constants'
 import { DocumentProcessingProcessor } from './document-processing.processor'
+import type { DocumentProcessingJobQueue } from './document-processing.queue'
 import type { DocumentProcessingStateService } from './document-processing.state'
 import type { DocumentProcessingWorkerClient } from './document-processing.worker'
 
@@ -118,6 +121,9 @@ function harness(createDraftBom = false, draftBomEnabled = false) {
   const evidence = {
     persist: vi.fn().mockResolvedValue(EVIDENCE_ID),
   } as unknown as DocumentProcessingEvidenceService
+  const queue = {
+    enqueuePending: vi.fn().mockResolvedValue(2),
+  } as unknown as DocumentProcessingJobQueue
   const values: Record<string, unknown> = {
     ERP_DOCUMENT_PROCESSING_JOBS_ENABLED: true,
     ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED: true,
@@ -128,6 +134,8 @@ function harness(createDraftBom = false, draftBomEnabled = false) {
     ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS: draftBomEnabled
       ? [TENANT_ID]
       : [],
+    ERP_DOCUMENT_PROCESSING_RECOVERY_ENABLED: true,
+    ERP_DOCUMENT_PROCESSING_RECOVERY_TENANT_IDS: [TENANT_ID],
   }
   const config = {
     get: vi.fn((key: string, fallback?: unknown) => values[key] ?? fallback),
@@ -137,9 +145,21 @@ function harness(createDraftBom = false, draftBomEnabled = false) {
     state,
     worker,
     commits,
-    evidence
+    evidence,
+    queue
   )
-  return { processor, state, worker, commits, evidence }
+  return { processor, state, worker, commits, evidence, queue }
+}
+
+function recoveryJob(overrides: Partial<Job> = {}): Job {
+  return {
+    id: DOCUMENT_PROCESSING_RECOVERY_SCHEDULER,
+    name: DOCUMENT_PROCESSING_RECOVERY_JOB,
+    data: { schemaVersion: 1 },
+    attemptsMade: 0,
+    opts: { attempts: 1 },
+    ...overrides,
+  } as Job
 }
 
 describe('DocumentProcessingProcessor', () => {
@@ -203,5 +223,34 @@ describe('DocumentProcessingProcessor', () => {
     expect(probe.state.fail).not.toHaveBeenCalled()
     await probe.processor.onFailed(job({ attemptsMade: 5 }), error)
     expect(probe.state.fail).toHaveBeenCalledWith(JOB_ID, 'processing_failed')
+  })
+
+  it('runs recovery only through the explicitly scoped scheduler job', async () => {
+    const probe = harness()
+
+    await expect(probe.processor.process(recoveryJob())).resolves.toEqual({
+      status: 'succeeded',
+      jobId: DOCUMENT_PROCESSING_RECOVERY_SCHEDULER,
+      recoveredJobs: 2,
+    })
+    expect(probe.queue.enqueuePending).toHaveBeenCalledWith([TENANT_ID])
+    expect(probe.state.claim).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when a recovery scheduler loses its tenant scope', async () => {
+    const probe = harness()
+    const configGet = vi.fn((key: string, fallback?: unknown) => {
+      if (key === 'ERP_DOCUMENT_PROCESSING_RECOVERY_ENABLED') return true
+      if (key === 'ERP_DOCUMENT_PROCESSING_RECOVERY_TENANT_IDS') return []
+      return fallback
+    })
+    ;(probe.processor as unknown as { config: ConfigService }).config.get =
+      configGet
+
+    await expect(probe.processor.process(recoveryJob())).resolves.toEqual({
+      status: 'ignored',
+      jobId: DOCUMENT_PROCESSING_RECOVERY_SCHEDULER,
+    })
+    expect(probe.queue.enqueuePending).not.toHaveBeenCalled()
   })
 })

@@ -172,16 +172,17 @@ suite('document processing BullMQ disposable Redis integration', () => {
     workers.push(worker)
 
     const jobId = randomUUID()
+    const tenantId = randomUUID()
     const state = {
       recoverableJobIds: vi.fn().mockResolvedValue([jobId]),
     }
     const producer = new DocumentProcessingJobQueue(queue, state as never)
 
-    await expect(producer.enqueuePending()).resolves.toBe(1)
+    await expect(producer.enqueuePending([tenantId])).resolves.toBe(1)
     await waitForCompleted(queue, documentProcessingJobId(jobId))
     await queue.obliterate({ force: true })
 
-    await expect(producer.enqueuePending()).resolves.toBe(1)
+    await expect(producer.enqueuePending([tenantId])).resolves.toBe(1)
     await waitForCompleted(queue, documentProcessingJobId(jobId))
     expect(processed).toEqual([jobId, jobId])
     expect(state.recoverableJobIds).toHaveBeenCalledTimes(2)

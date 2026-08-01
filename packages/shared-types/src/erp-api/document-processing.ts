@@ -21,6 +21,13 @@ export const documentProcessingQueueJobSchema = z
   })
   .strict()
 
+/** Internal BullMQ scheduler payload. It carries no tenant or ERP authority. */
+export const documentProcessingRecoveryJobSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+  })
+  .strict()
+
 export const documentProcessingStatusSchema = z
   .object({
     jobId: z.string().uuid(),
@@ -131,6 +138,9 @@ export type DocumentProcessingRequest = z.infer<
 >
 export type DocumentProcessingQueueJob = z.infer<
   typeof documentProcessingQueueJobSchema
+>
+export type DocumentProcessingRecoveryJob = z.infer<
+  typeof documentProcessingRecoveryJobSchema
 >
 export type DocumentProcessingStatus = z.infer<
   typeof documentProcessingStatusSchema

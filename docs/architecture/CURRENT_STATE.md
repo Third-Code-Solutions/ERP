@@ -1659,3 +1659,17 @@ changed.
   Railway `/ready` and Vercel `/api/ready` returned HTTP 200.
 - No Supabase SQL, Railway deploy, Vercel deploy, provider setting, flag, or
   business-data mutation was performed.
+
+## 2026-08-02 M2.6 tenant-scoped recovery scheduler source slice
+
+- Added a BullMQ scheduler for document-processing recovery. It is created only
+  when recovery, intake, worker-bridge, and Nest commit gates are enabled and
+  the recovery tenant allowlist intersects both processing and commit
+  allowlists.
+- Scheduler payloads contain only `{ schemaVersion: 1 }`. The Nest processor
+  calls the PostgreSQL-owned, bounded recovery query and logs the number of
+  transport jobs rebuilt; no recovery path finalizes ERP state.
+- Local validation passed API 120/120, shared contracts, typecheck, serial
+  lint, production build, and diff checks. The new database/Redis integration
+  cases were skipped locally by the explicit credential gate. All hosted flags,
+  SQL, providers, deployments, and business data remain unchanged.

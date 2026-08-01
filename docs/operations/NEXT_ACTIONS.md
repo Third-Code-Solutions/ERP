@@ -661,3 +661,18 @@ separate and explicitly approved.
    one Railway deployment, and one spend-bounded Vercel production action;
    verify database/RLS, readiness, protected API/browser flows, logs, and exact
    release identity after each action.
+
+## Exact next action after M2.6 recovery scheduler source slice (2026-08-02)
+
+1. Keep `ERP_DOCUMENT_PROCESSING_RECOVERY_ENABLED` false/absent and its tenant
+   allowlist empty. Keep processing intake, worker bridge, commit, and all
+   matching tenant gates closed in hosted environments.
+2. Run the disposable CI database/Redis integration lane for the scheduler,
+   stale-claim recovery, retry/final-failure, Redis-loss re-enqueue, and
+   cross-tenant exclusion proof.
+3. Obtain the owner-approved `AUDIT_RECOVERY_TENANT_ID` and record-level
+   remediation for the 12-record tenant Purchase Order duplicate group; rerun
+   the controlled-release planner.
+4. Only after a `clear` planner plus a reviewed canary may one tenant-scoped
+   recovery schedule be enabled. Apply no hosted SQL or provider deploy before
+   that gate.

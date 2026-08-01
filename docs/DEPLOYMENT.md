@@ -161,6 +161,7 @@ It uses `DXF_PARSER_URL` and `PARSER_SHARED_SECRET`, issues a short-lived
 signed Storage URL from the API, and calls `/parse-evidence`; Python receives
 no database or service-role credential. Keep
 `ERP_DOCUMENT_PROCESSING_JOBS_ENABLED`,
+`ERP_DOCUMENT_PROCESSING_RECOVERY_ENABLED`,
 `ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED`, and
 `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED`, and
 `ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED` false with empty tenant allowlists

@@ -429,14 +429,68 @@ suite('document processing processor database integration', () => {
         attempt: 1,
       })
 
+      const otherTenantId = randomUUID()
+      const otherUserId = randomUUID()
+      const otherProjectId = randomUUID()
+      const otherDocumentId = randomUUID()
+      const otherSuffix = randomUUID().slice(0, 12)
+      await transaction.insert(tenants).values({
+        id: otherTenantId,
+        name: 'Other Recovery Tenant',
+        slug: `other-recovery-${otherSuffix}`,
+      })
+      await transaction.insert(users).values({
+        id: otherUserId,
+        tenant_id: otherTenantId,
+        email: `other-recovery-${otherSuffix}@integration.test`,
+        full_name: 'Other Recovery User',
+        role: 'pm',
+      })
+      await transaction.insert(projects).values({
+        id: otherProjectId,
+        tenant_id: otherTenantId,
+        name: 'Other Recovery Project',
+        client: 'Other Recovery Client',
+        status: 'active',
+        project_type: 'mep',
+        created_by: otherUserId,
+      })
+      await transaction.insert(documents).values({
+        id: otherDocumentId,
+        tenant_id: otherTenantId,
+        project_id: otherProjectId,
+        uploaded_by: otherUserId,
+        document_type: 'dxf',
+        file_name: 'other-recovery-plan.dxf',
+        storage_path: `cad/${otherTenantId}/other-recovery-plan.dxf`,
+        mime_type: 'application/dxf',
+        size_bytes: 64,
+      })
+      const otherProcessing = new DocumentProcessingService(
+        configFor(otherTenantId),
+        database,
+        new AuditService()
+      )
+      const otherCreated = await otherProcessing.create(
+        otherDocumentId,
+        { mode: 'cad', requestedFormat: 'dxf', createDraftBom: false },
+        {
+          userId: otherUserId,
+          tenantId: otherTenantId,
+          role: 'pm',
+          email: `other-recovery-${otherSuffix}@integration.test`,
+        },
+        'other-processor-recovery-1'
+      )
+
       await transaction
         .update(documentProcessingJobs)
         .set({ updated_at: new Date(Date.now() - 10 * 60_000) })
         .where(eq(documentProcessingJobs.id, created.status.jobId))
 
-      await expect(state.recoverableJobIds(new Date())).resolves.toEqual([
-        created.status.jobId,
-      ])
+      const recoverable = await state.recoverableJobIds(new Date(), [tenantId])
+      expect(recoverable).toEqual([created.status.jobId])
+      expect(recoverable).not.toContain(otherCreated.status.jobId)
       await expect(state.claim(created.status.jobId)).resolves.toMatchObject({
         jobId: created.status.jobId,
         attempt: 2,

@@ -1575,3 +1575,16 @@ Rationale: Redis loss is expected to be recoverable, while PostgreSQL owns the
 job state machine and tenant-scoped business authority. A bounded source query
 limits recovery pressure and keeps transport retries from becoming a second
 source of truth.
+
+## D-093 -- Recovery scheduler requires execution-gate intersection (2026-08-02)
+
+Decision: create the document-processing recovery scheduler only when recovery,
+processing intake, worker bridge, and Nest evidence-commit gates are enabled.
+The recovery tenant allowlist must intersect both processing and commit tenant
+allowlists. The scheduler payload contains only its schema version; the worker
+uses PostgreSQL to select and re-enqueue opaque job IDs.
+
+Rationale: re-enqueuing while the execution path is disabled would turn a safe
+recovery loop into repeated terminal failures. Requiring the same tenant-scoped
+execution gates keeps transport recovery aligned with the authority that can
+actually finish the ERP transaction.

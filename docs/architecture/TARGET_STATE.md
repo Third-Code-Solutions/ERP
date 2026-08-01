@@ -866,3 +866,13 @@ Redis jobs are recreated through the idempotent queue key; Redis never decides
 ERP completion, failure, evidence, scope, or audit. A periodic recovery
 scheduler requires explicit feature/tenant gates, metrics, and canary review
 before enablement.
+
+## M2.6 recovery scheduler boundary (2026-08-02)
+
+The recovery scheduler is a BullMQ transport trigger, not an ERP authority. It
+is installed only when the recovery, processing-intake, worker-bridge, and
+commit gates are true and the recovery tenant IDs intersect the processing and
+commit tenant allowlists. The scheduler carries no tenant, document, or actor
+data. Its Nest processor asks PostgreSQL to reset stale claims and return a
+bounded opaque UUID batch, then reuses idempotent transport enqueue. Missing
+Redis jobs are recoverable; terminal ERP state remains PostgreSQL-owned.
