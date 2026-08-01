@@ -1,5 +1,28 @@
 # Next Actions
 
+## Immediate hosted release gate
+
+Do not apply the seven pending Supabase migrations or deploy Railway/Vercel
+until the owner supplies:
+
+1. The canonical `AUDIT_RECOVERY_TENANT_ID` UUID for the audit-chain planner.
+2. A record-level decision for the one duplicate Purchase Order-number group
+   (`12` demo records, one tenant, one project). Do not auto-renumber issued
+   records; preserve a reviewable mapping and rollback plan.
+
+Then run the read-only planners again. Only when migration ledger, duplicate
+review, audit recovery, Railway readiness, and Vercel readiness are all clear:
+
+- apply the seven migrations in timestamp order with a captured ledger;
+- run the disposable and hosted verification gates;
+- deploy exactly one reviewed source SHA to Railway and one controlled Vercel
+  production build, after confirming the billing impact;
+- verify live revision identity, readiness, protected flows, browser behavior,
+  database state, logs, and rollback before calling production green.
+
+Current source SHA: `ef1021f0df799014bff79fe782a31507f33969f5` on
+`origin/agent-02/third-code-erp-landing`, authored by `kurtgav`.
+
 ## Exact next product action
 
 Add idempotent automatic-RFQ notification delivery to NestJS/BullMQ without

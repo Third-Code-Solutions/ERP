@@ -819,9 +819,9 @@ credentials, service-role authority, tenant/project identifiers, or ERP state.
 
 The processor retries through BullMQ while PostgreSQL remains authoritative for
 claim, terminal state, duplicate delivery, stale requeue, and failure. Scope
-commit calls the existing Nest transaction service. Draft BOM generation is
-intentionally a separate idempotent command; requests that require it are
-rejected rather than reported as partially complete. All bridge/commit flags
+commit calls the existing Nest transaction service. When requested, scope
+replacement and draft BOM creation share that same idempotent Nest transaction;
+immutable worker evidence is persisted first. All bridge/commit flags
 and tenant allowlists remain closed until disposable Python/API/Redis proof,
 draft-BOM parity, hosted schema reconciliation, audit recovery, duplicate PO
 remediation, and a controlled canary are approved.
