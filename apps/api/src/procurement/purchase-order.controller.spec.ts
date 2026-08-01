@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 import { PurchaseOrderController } from './purchase-order.controller'
 import { PurchaseOrderCreationService } from './purchase-order-creation.service'
+import { PurchaseOrderWorkflowService } from './purchase-order-workflow.service'
 
 const COMMAND = {
   projectId: '33333333-3333-4333-8333-333333333333',
@@ -33,12 +34,17 @@ describe('Purchase Order command HTTP contract', () => {
   })
 
   async function appFor(create = vi.fn()) {
+    const workflow = vi.fn()
     const moduleRef = await Test.createTestingModule({
       controllers: [PurchaseOrderController],
       providers: [
         {
           provide: PurchaseOrderCreationService,
           useValue: { create },
+        },
+        {
+          provide: PurchaseOrderWorkflowService,
+          useValue: { transition: workflow },
         },
       ],
     }).compile()
@@ -118,5 +124,16 @@ describe('Purchase Order command HTTP contract', () => {
       }),
       'po-create-1'
     )
+  }, 30_000)
+
+  it('requires an idempotency key for workflow transitions', async () => {
+    const app = await appFor()
+
+    await request(app.getHttpServer())
+      .post(
+        '/v1/procurement/purchase-orders/55555555-5555-4555-8555-555555555555/workflow'
+      )
+      .send({ action: 'pm_approve' })
+      .expect(400)
   }, 30_000)
 })

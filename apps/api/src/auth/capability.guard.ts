@@ -17,6 +17,7 @@ export const ERP_CAPABILITIES = [
   'project.update',
   'rfq.dispatch',
   'po.create',
+  'po.approve',
 ] as const
 export type ErpCapability = (typeof ERP_CAPABILITIES)[number]
 
@@ -39,6 +40,7 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'pm',
     'procurement',
   ],
+  'po.approve': ['owner', 'admin', 'commercial'],
 }
 
 export function roleHasCapability(

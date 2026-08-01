@@ -10,6 +10,8 @@ import { ProcurementController } from './procurement.controller'
 import { PurchaseOrderController } from './purchase-order.controller'
 import { ProcurementService } from './procurement.service'
 import { PurchaseOrderCreationService } from './purchase-order-creation.service'
+import { PurchaseOrderWorkflowPipe } from './purchase-order-workflow.pipe'
+import { PurchaseOrderWorkflowService } from './purchase-order-workflow.service'
 import {
   RFQ_DISPATCH_DEAD_LETTER_QUEUE,
   RFQ_DISPATCH_QUEUE,
@@ -35,6 +37,8 @@ import { NotificationEmailService } from './notification-email.service'
   providers: [
     ProcurementService,
     PurchaseOrderCreationService,
+    PurchaseOrderWorkflowService,
+    PurchaseOrderWorkflowPipe,
     RfqDispatchQueue,
     RfqDispatchProcessor,
     NotificationDeliveryQueue,

@@ -799,3 +799,26 @@ Status: complete locally; hosted cutover still gated.
 - Remaining gates: read-only hosted Supabase reconciliation, Railway
   readiness/log identity, correct provider account authentication, and a
   reviewed single-tenant canary with both write flags still false by default.
+
+## PO approval workflow authority (2026-08-01)
+
+Status: local implementation and disposable proof complete; hosted migration
+and cutover not authorized.
+
+- Added `20260801100000_purchase_order_workflow_idempotency.sql`, Drizzle
+  schema, strict shared command/result contracts, Nest pipe/controller/service,
+  environment gates, unit tests, and a real PostgreSQL integration test.
+- Supported transitions are intentionally bounded: `draft` → PM approval,
+  PM approval → Commercial approval, Commercial approval → SCM issuance, and
+  rejection back to `draft` from the first two pending states.
+- The service performs no email/outbox side effect and does not issue, receive,
+  or alter the existing Server Action behavior. This preserves rollback by
+  leaving flags false and the legacy path active.
+- Validation: 57/57 migrations, 243/243 database assertions, 8/8 Nest/Redis
+  integration tests, API focused suite 74/74, shared contracts 17/17, API and
+  database typechecks, and root lint passed.
+
+Next exact action: reconcile hosted Supabase read-only against the 57-migration
+repository head, authenticate Vercel/Railway as `kurtgav`, then review a
+single-tenant canary. Do not enable either workflow flag or deploy this source
+before those gates.

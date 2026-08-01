@@ -36,3 +36,68 @@ export type CreatePurchaseOrderCommand = z.infer<
 export type PurchaseOrderCreationResult = z.infer<
   typeof purchaseOrderCreationResultSchema
 >
+
+export const purchaseOrderWorkflowActionSchema = z.enum([
+  'submit_pm_approval',
+  'pm_approve',
+  'commercial_approve',
+  'reject',
+])
+
+export const purchaseOrderWorkflowCommandSchema = z
+  .object({
+    action: purchaseOrderWorkflowActionSchema,
+    reason: z.string().trim().min(1).max(2_000).optional(),
+  })
+  .strict()
+  .superRefine((command, context) => {
+    if (command.action === 'reject' && !command.reason) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reason'],
+        message: 'Rejection reason is required',
+      })
+    }
+    if (command.action !== 'reject' && command.reason) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reason'],
+        message: 'Reason is only accepted when rejecting a Purchase Order',
+      })
+    }
+  })
+
+export const purchaseOrderWorkflowStatusSchema = z.enum([
+  'draft',
+  'pending_pm_approval',
+  'pending_commercial_approval',
+  'pending_scm_issuance',
+  'issued',
+  'partial_delivered',
+  'fully_delivered',
+  'submitted',
+  'confirmed',
+  'partial_delivery',
+  'delivered',
+  'cancelled',
+])
+
+export const purchaseOrderWorkflowResultSchema = z
+  .object({
+    purchaseOrderId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    action: purchaseOrderWorkflowActionSchema,
+    fromStatus: purchaseOrderWorkflowStatusSchema,
+    status: purchaseOrderWorkflowStatusSchema,
+  })
+  .strict()
+
+export type PurchaseOrderWorkflowAction = z.infer<
+  typeof purchaseOrderWorkflowActionSchema
+>
+export type PurchaseOrderWorkflowCommand = z.infer<
+  typeof purchaseOrderWorkflowCommandSchema
+>
+export type PurchaseOrderWorkflowResult = z.infer<
+  typeof purchaseOrderWorkflowResultSchema
+>
