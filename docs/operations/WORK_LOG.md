@@ -3400,3 +3400,9 @@ with strict result validation, exact keyed requests, and 18/18 focused web
 tests. No visible UI or copy changed; no Server Action delegates yet because
 Nest notification parity is a separate gate. The independent client flags are
 absent/false by default.
+
+Final release gates (2026-08-01): root `pnpm typecheck` and `pnpm lint` passed;
+full `pnpm test` passed (shared 93, database 106 with the normal
+environment-gated skips, web 300, API 74); `pnpm build` passed with Nest
+compile and 77/77 Next pages generated. Worktree is clean at commit
+`6c0ce47`. No hosted SQL or provider deployment was performed.
