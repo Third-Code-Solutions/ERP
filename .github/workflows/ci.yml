@@ -145,9 +145,10 @@ jobs:
           supabase migration list --local 2>&1 \
             | tee tmp/database-reproducibility/migration-list.txt
       - name: Capture and assert empty schema diff
-        run: >-
-          supabase db diff --local --schema public
-          --file tmp/database-reproducibility/schema-diff.sql
+        run: |
+          : > tmp/database-reproducibility/schema-diff.sql
+          supabase db diff --local --schema public \
+            --file tmp/database-reproducibility/schema-diff.sql
       - run: >-
           node scripts/assert-empty-schema-diff.mjs
           tmp/database-reproducibility/schema-diff.sql

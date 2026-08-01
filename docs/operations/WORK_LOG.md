@@ -3785,5 +3785,6 @@ were being compared by the schema-diff gate, and the pinned CLI did not create
 the requested `--output` path. Moved the empty schema-diff assertion directly
 after the clean reset, switched it to the pinned CLI `--file` flag, and apply
 the legacy grant fixture only after that assertion and before database/RLS
-tests. This keeps the reproducibility check migration-only and leaves hosted
-privileges unchanged.
+tests. CI now pre-creates the diff artifact because the pinned CLI leaves it
+absent on an empty diff. This keeps the reproducibility check migration-only
+and leaves hosted privileges unchanged.
