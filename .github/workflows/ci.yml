@@ -127,10 +127,10 @@ jobs:
       - name: Rebuild database from zero
         run: |
           supabase db start
+          supabase db reset --local
           psql "$DATABASE_URL" \
             --file scripts/ci/supabase-default-privileges.sql \
             --set ON_ERROR_STOP=1
-          supabase db reset --local
       - name: Verify migration ledger and catalog
         run: node scripts/verify-database-repro.mjs
       - name: Verify release planner sees a current linear ledger

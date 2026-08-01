@@ -3768,4 +3768,6 @@ was changed.
 The first bootstrap retry was rejected by the CLI-owned `auth` schema, so it
 was narrowed to a new `scripts/ci/supabase-default-privileges.sql` fixture
 that creates only missing roles, schema usage, and future-object grants. It
-does not recreate or alter Supabase-managed auth/storage objects.
+does not recreate or alter Supabase-managed auth/storage objects. The fixture
+now runs after the CLI reset and grants only the legacy `public.projects`
+client-role surface required by the RLS proof.
