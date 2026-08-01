@@ -1787,3 +1787,15 @@ provider, flag, queue, or business-data mutation occurred.
   pending forward-only migrations, the duplicate Purchase Order group and
   missing approved recovery tenant remain;
   no hosted SQL, deployment, flag, queue, or business-data mutation occurred.
+
+## 2026-08-02 M3.0 database-backed evidence
+
+- Added `apps/api/integration/change-request.database.integration.spec.ts`.
+  Against disposable PostgreSQL, the test creates two tenants and proves the
+  Change Request command's tenant scope, role denial, idempotent replay and
+  hash conflict, design-recipient notification intent, semantic audit row, and
+  rollback boundary. The suite is explicitly credential-gated and skipped
+  locally because no disposable `DATABASE_URL` was present.
+- API validation now passes 27 files / 126 tests with one explicit integration
+  skip; API typecheck passes. No UI, hosted SQL, provider setting, flag, queue,
+  deployment, or business-data mutation occurred.
