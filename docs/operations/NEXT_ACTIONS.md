@@ -649,3 +649,15 @@ separate and explicitly approved.
    remediation, then rerun the controlled-release planner.
 4. Only a `clear` planner result authorizes one reviewed Supabase migration
    release followed by one spend-bounded Railway/Vercel production action.
+
+## Exact next action after final branch push and release audit (2026-08-02)
+
+1. Keep the pushed SHA `39f6a62c2bf0463ac0fdcf4fe2788cb876f65510` as the
+   reviewed candidate; do not apply hosted SQL or deploy providers.
+2. Obtain owner-approved `AUDIT_RECOVERY_TENANT_ID` and record-level
+   remediation for the 12-record tenant Purchase Order duplicate group.
+3. Re-run `node --env-file=apps/web/.env.local scripts/plan-controlled-release.mjs --json`.
+4. Only a `clear` planner result authorizes one reviewed Supabase migration,
+   one Railway deployment, and one spend-bounded Vercel production action;
+   verify database/RLS, readiness, protected API/browser flows, logs, and exact
+   release identity after each action.

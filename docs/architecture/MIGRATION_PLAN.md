@@ -1141,3 +1141,13 @@ The recovery entry point remains dormant until a periodic scheduler has
 explicit feature and tenant gates, observability, and canary approval. Hosted
 schema drift, duplicate Purchase Order data, and the missing audit-recovery
 tenant selector still block release promotion.
+
+## Final branch push and release audit (2026-08-02)
+
+Reviewed source and architecture/operations memory are pushed at
+`39f6a62c2bf0463ac0fdcf4fe2788cb876f65510`. CI run `30710003798` passed all
+executable gates and the production build; E2E is skipped by explicit hosted
+credential gating. The read-only planner still reports `review_required` for
+55/62 hosted migrations, the 12-record tenant Purchase Order duplicate group,
+and the missing approved `AUDIT_RECOVERY_TENANT_ID`. Do not apply SQL or deploy
+providers until owner inputs clear those gates.
