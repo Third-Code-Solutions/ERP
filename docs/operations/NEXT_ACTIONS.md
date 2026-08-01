@@ -401,3 +401,18 @@ issuance and supplier email on the legacy path until separately migrated.
 4. Re-run the canary planner with an explicitly approved actor that has the
    required capability only after audit integrity is resolved. Do not deploy
    or enable flags while the planner is blocked.
+
+## Exact next action after audit hash parity hardening (2026-08-01)
+
+1. Keep all PO/project/notification write gates and tenant allowlists
+   absent/false. The parity code prevents new divergence but does not repair
+   historical rows.
+2. Prepare a read-only audit recovery report explaining the 2 link mismatches,
+   151 historical hash mismatches, affected writer eras, and an immutable
+   verification/repair strategy. Do not rewrite `audit_log` in this milestone.
+3. Authenticate Railway and Vercel as `kurtgav` /
+   `kurtgavin.design@gmail.com`; verify identity, readiness, logs, rollback,
+   and spend controls before any release.
+4. Re-run the canary planner with a capability-appropriate actor only after
+   audit recovery review passes. Keep provider deployment and flag enablement
+   separate and explicitly approved.

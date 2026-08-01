@@ -1362,3 +1362,16 @@ matches the repository migration contract:
 - No business data, audit rows, permissions, flags, hosted migration, or
   provider deployment was changed. These findings require a separate audit
   recovery review before any canary or write authority decision.
+
+## 2026-08-01 audit hash parity hardening
+
+- The read-only forensic query confirmed that the database trigger hashes
+  `prev_hash + entity_type + entity_id + action + PostgreSQL timestamptz text`,
+  while the API and Next server writers had been using a JSON payload hash.
+- Added one shared database-compatible hash helper and switched both server
+  writers plus chain verification to it. This affects only future audit rows;
+  existing hosted rows were not rewritten.
+- Focused hash tests (17/17), serial full tests (shared 95, database 107 with
+  137 normal skips, web 300, API 79), disposable PostgreSQL/Redis (58/58
+  migrations, 244/244 DB assertions, 8/8 integration), typecheck, lint, and
+  build (77/77 pages) passed. Hosted data and provider state remain unchanged.

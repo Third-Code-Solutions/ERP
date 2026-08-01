@@ -1289,3 +1289,17 @@ auth identity, project audit trigger, hardened audit function, and non-public
 function permissions. It also found 2 predecessor-link mismatches, 151 hash
 mismatches, and no `project.update` capability for the selected actor. No
 database or provider state changed.
+
+## D-074 -- Use the database audit hash formula for future server writes (2026-08-01)
+
+Decision: keep the existing database trigger formula as the compatibility
+authority and make all new API/Next server audit writes plus verification use
+the same formula. Do not rewrite immutable historical rows in this milestone.
+
+Rationale: two hash algorithms made new audit evidence appear invalid even
+when the append-only chain links were present. Aligning future writers removes
+the source of new divergence without silently altering historical evidence.
+
+Evidence: fixed parity vector passed; API/web typechecks and serial full tests
+passed; disposable PostgreSQL 17/Redis 7.4.9 replay and integration passed.
+Hosted SQL and provider deployment were not performed.

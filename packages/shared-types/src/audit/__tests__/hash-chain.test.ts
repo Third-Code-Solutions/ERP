@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest'
-import { computeHash, verifyHashChain, computeDiff } from '../hash-chain'
+import {
+  computeDatabaseAuditHash,
+  computeHash,
+  verifyHashChain,
+  computeDiff,
+} from '../hash-chain'
+
+describe('computeDatabaseAuditHash', () => {
+  it('matches the database trigger formula and timestamp rendering', async () => {
+    const hash = await computeDatabaseAuditHash('genesis', {
+      entity_type: 'projects',
+      entity_id: 'abc123',
+      action: 'create',
+      created_at: new Date('2026-08-01T10:06:26.123Z'),
+    })
+    expect(hash).toBe(
+      'bc788cdf7019ea71cbfcb48a566c583314c46c8d89af3dd45208f74108b49e7e'
+    )
+  })
+})
 
 describe('computeHash', () => {
   it('returns a 64-character hex string', async () => {
@@ -47,7 +66,12 @@ describe('verifyHashChain', () => {
         diff: null,
         created_at: createdAt.toISOString(),
       }
-      const hash = await computeHash(prevHash, rowContent)
+      const hash = await computeDatabaseAuditHash(prevHash, {
+        entity_type: rowContent.entity_type,
+        entity_id: rowContent.entity_id,
+        action: rowContent.action,
+        created_at: createdAt,
+      })
       entries.push({
         id: i,
         prev_hash: prevHash,

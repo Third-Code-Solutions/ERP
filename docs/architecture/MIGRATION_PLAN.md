@@ -861,3 +861,18 @@ passed. The cutover planner remains `blocked` because the tenant audit chain
 has 2 predecessor-link mismatches and 151 hash mismatches, and the selected
 actor lacks `project.update`. No canary, flag enablement, audit repair, hosted
 SQL, or deployment is authorized until those findings are separately reviewed.
+
+## Audit hash parity hardening milestone (2026-08-01)
+
+The API and Next server audit writers previously used the shared JSON hash
+while the database trigger used its concatenated PostgreSQL timestamp formula.
+The shared audit package now exposes a database-compatible helper; both server
+writers and chain verification use it, with a fixed parity vector and UTC
+timestamp normalization. No migration or historical row rewrite is included.
+
+Validation: focused shared audit tests 17/17; serial repository tests shared
+95, database 107 with 137 normal environment-gated skips, web 300, API 79;
+disposable PostgreSQL 17/Redis 7.4.9 58/58 migrations, 244/244 DB assertions,
+8/8 integration; root typecheck/lint/build and 77/77 Next pages passed. Hosted
+forensic review remains read-only and the canary remains blocked by the audit
+findings recorded above.
