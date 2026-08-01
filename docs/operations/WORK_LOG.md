@@ -3255,6 +3255,10 @@ Validation:
 Rollback/unresolved:
 
 - Revert source commit; leave `ERP_PO_CREATE_WRITES_ENABLED` absent/false.
+- Commit `1c41d5e2bb69fb91deb778f76e60e10521d19000` is pushed to
+  `agent-02/third-code-erp-landing` on `Third-Code-Solutions/ERP` under the
+  local `kurtgav` GitHub CLI account. The Codex GitHub connector remains
+  separately authenticated as `jdy1000`; it was not used for the push.
 - Next action: add durable tenant-composite idempotency migration, implement
   Nest standalone transaction, prove disposable PostgreSQL parity, then
   tenant-canary one command. Keep other PO workflows on current path.
