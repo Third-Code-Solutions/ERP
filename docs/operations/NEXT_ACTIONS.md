@@ -20,7 +20,7 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current source SHA: `ef1021f0df799014bff79fe782a31507f33969f5` on
+Current source SHA: `4c166142056ee80c7cb2089afefd6bdcb360db63` on
 `origin/agent-02/third-code-erp-landing`, authored by `kurtgav`.
 
 ## Exact next product action
