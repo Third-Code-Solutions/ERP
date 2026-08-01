@@ -8,6 +8,8 @@ import { RequestObservabilityMiddleware } from '../observability/request-observa
 import { CadEvidenceCommitController } from './cad-evidence-commit.controller'
 import { CadEvidenceCommitPipe } from './cad-evidence-commit.pipe'
 import { CadEvidenceCommitService } from './cad-evidence-commit.service'
+import { DocumentProcessingDraftBomService } from './document-processing.bom'
+import { DocumentProcessingEvidenceService } from './document-processing.evidence'
 import { BullModule } from '@nestjs/bullmq'
 import { DOCUMENT_PROCESSING_QUEUE } from './document-processing.constants'
 import { DocumentProcessingController } from './document-processing.controller'
@@ -28,6 +30,8 @@ import { DocumentProcessingWorkerClient } from './document-processing.worker'
   providers: [
     CadEvidenceCommitPipe,
     CadEvidenceCommitService,
+    DocumentProcessingDraftBomService,
+    DocumentProcessingEvidenceService,
     DocumentProcessingPipe,
     DocumentProcessingProcessor,
     DocumentProcessingService,

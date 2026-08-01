@@ -184,4 +184,29 @@ describe('ERP API environment', () => {
       }).ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED
     ).toBe(true)
   })
+
+  it('keeps draft BOM creation independently fail-closed', () => {
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS
+    ).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED: 'true',
+        ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS:
+          '33333333-3333-4333-8333-333333333333',
+      }).ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED
+    ).toBe(true)
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS')
+  })
 })

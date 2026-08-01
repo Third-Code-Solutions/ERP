@@ -127,6 +127,11 @@ export const documentProcessingRequestedFormatEnum = pgEnum(
   ['auto', 'dxf', 'dwg']
 )
 
+export const documentProcessingFileFormatEnum = pgEnum(
+  'document_processing_file_format',
+  ['dxf', 'dwg']
+)
+
 export const documentProcessingStatusEnum = pgEnum(
   'document_processing_status',
   ['queued', 'processing', 'succeeded', 'failed']

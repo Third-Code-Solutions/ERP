@@ -78,6 +78,7 @@ function toCadWorkerResponse(
 
 export interface DocumentProcessingWorkerResult {
   response: CadWorkerResponse
+  evidence: DocumentProcessingWorkerResponse
   sourceSha256: string
   producer: DocumentProcessingWorkerResponse['producer']
 }
@@ -172,6 +173,7 @@ export class DocumentProcessingWorkerClient {
 
     return {
       response: toCadWorkerResponse(parsed.data, job.documentId),
+      evidence: parsed.data,
       sourceSha256: parsed.data.source_sha256,
       producer: parsed.data.producer,
     }

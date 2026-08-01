@@ -11,6 +11,8 @@ import {
 } from '@third-code-erp/shared-types'
 import type { Job } from 'bullmq'
 import { CadEvidenceCommitService } from './cad-evidence-commit.service'
+import type { DraftBomCommitContext } from './document-processing.bom'
+import { DocumentProcessingEvidenceService } from './document-processing.evidence'
 import {
   DOCUMENT_PROCESSING_ATTEMPTS,
   DOCUMENT_PROCESSING_JOB,
@@ -26,6 +28,7 @@ export interface DocumentProcessingProcessorResult {
   status: 'succeeded' | 'ignored'
   jobId: string
   scopeItemsCreated?: number
+  draftBomId?: string
   sourceSha256?: string
 }
 
@@ -40,7 +43,9 @@ export class DocumentProcessingProcessor extends WorkerHost {
     @Inject(DocumentProcessingWorkerClient)
     private readonly workerClient: DocumentProcessingWorkerClient,
     @Inject(CadEvidenceCommitService)
-    private readonly commits: CadEvidenceCommitService
+    private readonly commits: CadEvidenceCommitService,
+    @Inject(DocumentProcessingEvidenceService)
+    private readonly evidence: DocumentProcessingEvidenceService
   ) {
     super()
   }
@@ -61,32 +66,57 @@ export class DocumentProcessingProcessor extends WorkerHost {
       return { status: 'ignored', jobId: parsed.data.jobId }
     }
 
+    const jobsEnabled = this.config.get<boolean>(
+      'ERP_DOCUMENT_PROCESSING_JOBS_ENABLED',
+      false
+    )
+    const bridgeEnabled = this.config.get<boolean>(
+      'ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED',
+      false
+    )
+    const jobsTenantAllowed = this.config
+      .get<string[]>('ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS', [])
+      .includes(claimed.tenantId)
+    const commitEnabled = this.config.get<boolean>(
+      'ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED',
+      false
+    )
+    const commitTenantAllowed = this.config
+      .get<string[]>('ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS', [])
+      .includes(claimed.tenantId)
     if (
-      !this.config.get<boolean>(
-        'ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED',
-        false
-      ) ||
-      !this.config.get<string[]>('ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS', [])
-        .includes(claimed.tenantId) ||
-      !this.config.get<boolean>(
-        'ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED',
-        false
-      ) ||
-      !this.config
-        .get<string[]>('ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS', [])
-        .includes(claimed.tenantId)
+      !jobsEnabled ||
+      !bridgeEnabled ||
+      !jobsTenantAllowed ||
+      !commitEnabled ||
+      !commitTenantAllowed
     ) {
       throw new DocumentProcessingWorkerError('processing_bridge_disabled')
     }
-
-    // BOM creation is a separate idempotent Nest command. Refuse a request
-    // that asks for it until that command exists; never report a partial
-    // success that silently omits the requested BOM.
-    if (claimed.createDraftBom) {
-      throw new DocumentProcessingWorkerError('draft_bom_not_implemented')
+    const draftBomEnabled = this.config.get<boolean>(
+      'ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED',
+      false
+    )
+    const draftBomTenantAllowed = this.config
+      .get<string[]>('ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS', [])
+      .includes(claimed.tenantId)
+    if (
+      claimed.createDraftBom &&
+      (!draftBomEnabled || !draftBomTenantAllowed)
+    ) {
+      throw new DocumentProcessingWorkerError('draft_bom_disabled')
     }
 
     const extracted = await this.workerClient.extract(claimed)
+    const evidenceId = await this.evidence.persist(claimed, extracted)
+    const draftBomContext: DraftBomCommitContext | undefined =
+      claimed.createDraftBom
+        ? {
+            job: claimed,
+            result: extracted,
+            evidenceId,
+          }
+        : undefined
     const command: CadEvidenceCommitCommand = {
       projectId: claimed.projectId,
       workerResponse: extracted.response,
@@ -100,17 +130,24 @@ export class DocumentProcessingProcessor extends WorkerHost {
         role: claimed.role,
         email: claimed.email,
       },
-      `document-processing:${claimed.jobId}`
+      `document-processing:${claimed.jobId}`,
+      draftBomContext
     )
+    const draftBomId = draftBomContext?.draftBomId
+    if (claimed.createDraftBom && !draftBomId) {
+      throw new DocumentProcessingWorkerError('draft_bom_not_created')
+    }
     await this.state.succeed(
       claimed.jobId,
       commit.scopeItemsCreated,
-      extracted.response.warnings
+      extracted.response.warnings,
+      draftBomId
     )
     return {
       status: 'succeeded',
       jobId: claimed.jobId,
       scopeItemsCreated: commit.scopeItemsCreated,
+      draftBomId,
       sourceSha256: extracted.sourceSha256,
     }
   }

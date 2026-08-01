@@ -1476,3 +1476,42 @@ tenant-substitution risks without a big-bang rewrite. PostgreSQL remains the
 source of truth for state and official scope rows; Redis only delivers opaque
 job identity and retries. Flags and allowlists stay closed until complete
 disposable and hosted release evidence exists.
+
+## D-086 -- Persist evidence before derived CAD writes (2026-08-01)
+
+Decision: store every validated processing attempt in
+`document_processing_evidence` before Nest commits derived scope rows or a
+draft BOM. The row is tenant-scoped, composite-FK protected, bounded, RLS
+enabled, browser-inaccessible, and keyed by `(tenant_id, job_id, attempt)`.
+It stores source hash, producer identity, formats, warnings, and the strict
+worker payload; signed URLs and credentials are never persisted.
+
+Decision: implement draft BOM creation as an independent Nest transaction,
+gated by `ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED` plus an explicit tenant
+allowlist. The transaction locks the job, rechecks actor/document context,
+creates one draft BOM and line set with integer-centavo totals, attaches the
+job ID, and writes semantic audit evidence. Retries replay the existing BOM;
+partial scope-only success is never reported for a BOM request.
+
+Rationale: immutable attempt evidence makes source/hash/audit reconstruction
+possible without granting Python ERP authority. A separate idempotent command
+keeps BOM creation recoverable after scope commit and prevents duplicate
+delivery from creating financial planning records twice. All flags remain
+closed pending end-to-end processor and hosted canary proof.
+
+## D-087 -- Scope and draft BOM commit atomically (2026-08-01)
+
+Correction to D-086's initial sequencing proposal: once a processing attempt
+requests a draft BOM, the existing Nest CAD evidence-commit transaction owns
+both derived scope replacement and draft BOM creation. Evidence persistence
+remains a separate immutable attempt record written first; scope rows, BOM,
+BOM lines, job attachment, idempotency completion, and semantic audit are one
+transaction and one replay boundary. A duplicate delivery reuses the durable
+job/BOM ID rather than creating a second planning record.
+
+Rationale: a separate post-scope BOM transaction could expose a partial
+scope-only success if BOM creation failed. Keeping the derived writes under
+the established idempotency transaction gives PostgreSQL all-or-nothing
+rollback while preserving the evidence-first audit trail. The draft gate and
+tenant allowlist remain closed until hosted schema parity and a controlled
+canary are approved.

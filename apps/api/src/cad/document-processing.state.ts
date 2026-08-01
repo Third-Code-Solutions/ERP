@@ -145,7 +145,8 @@ export class DocumentProcessingStateService {
   async succeed(
     jobId: string,
     scopeItemsCreated: number,
-    warnings: readonly string[] = []
+    warnings: readonly string[] = [],
+    draftBomId?: string | null
   ): Promise<boolean> {
     if (
       !Number.isInteger(scopeItemsCreated) ||
@@ -154,16 +155,18 @@ export class DocumentProcessingStateService {
     ) {
       throw new Error('scope_item_count_out_of_bounds')
     }
+    const update = {
+      status: 'succeeded' as const,
+      scope_item_count: scopeItemsCreated,
+      warnings: boundedWarnings(warnings),
+      failure_code: null,
+      completed_at: new Date(),
+      updated_at: new Date(),
+      ...(draftBomId === undefined ? {} : { draft_bom_id: draftBomId }),
+    }
     const [completed] = await this.database.client
       .update(documentProcessingJobs)
-      .set({
-        status: 'succeeded',
-        scope_item_count: scopeItemsCreated,
-        warnings: boundedWarnings(warnings),
-        failure_code: null,
-        completed_at: new Date(),
-        updated_at: new Date(),
-      })
+      .set(update)
       .where(
         and(
           eq(documentProcessingJobs.id, jobId),

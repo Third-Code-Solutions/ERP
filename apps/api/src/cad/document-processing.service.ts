@@ -153,16 +153,29 @@ export class DocumentProcessingService {
       'ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS',
       []
     )
-    if (
-      !enabled ||
-      !workerBridgeEnabled ||
-      !evidenceCommitEnabled ||
-      !allowedTenantIds.includes(principal.tenantId) ||
-      !commitTenantIds.includes(principal.tenantId)
-    ) {
-      throw new ServiceUnavailableException(
-        'Document processing is not enabled for this tenant; no job was created.'
-      )
+    const draftBomEnabled = this.config.get<boolean>(
+      'ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED',
+      false
+    )
+    const draftBomTenantIds = this.config.get<string[]>(
+      'ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS',
+      []
+    )
+    const baseEnabled =
+      enabled &&
+      workerBridgeEnabled &&
+      evidenceCommitEnabled &&
+      allowedTenantIds.includes(principal.tenantId) &&
+      commitTenantIds.includes(principal.tenantId)
+    const draftGateClosed =
+      parsedRequest.createDraftBom &&
+      (!draftBomEnabled || !draftBomTenantIds.includes(principal.tenantId))
+    if (!baseEnabled || draftGateClosed) {
+      const message =
+        baseEnabled && draftGateClosed
+          ? 'Document processing draft BOM is not enabled for this tenant; no job was created.'
+          : 'Document processing is not enabled for this tenant; no job was created.'
+      throw new ServiceUnavailableException(message)
     }
 
     const hash = requestHash(parsedDocumentId, parsedRequest)

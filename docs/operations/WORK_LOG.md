@@ -3687,3 +3687,36 @@ migrations, 253/253 database assertions, 11/11 API integration), typecheck,
 serial lint, production build (77/77 pages), Actionlint, Gitleaks, and diff
 checks passed. No hosted SQL, flags, provider settings, deployment, or
 business data changed.
+
+## 2026-08-01 - Durable CAD evidence and idempotent draft BOM
+
+Added candidate migration `20260801150000_document_processing_evidence.sql`,
+Drizzle schema, Nest evidence persistence, independent draft-BOM gate, and
+idempotent Nest draft-BOM transaction. Validated worker payload is persisted
+per tenant/job/attempt before scope commit. Draft creation locks the job,
+revalidates actor/document context, writes integer-centavo BOM lines, attaches
+`draft_bom_id`, and emits semantic audit evidence. Replays return the existing
+evidence/BOM; mismatched evidence is rejected.
+
+Validation: focused API processor/worker/service/environment tests 19/19,
+API typecheck, disposable PostgreSQL 17/Redis 7.4.9 lane with 62/62
+migrations, 253/253 database assertions without skips, and 11/11 API
+integration assertions passed. No hosted SQL, flags, provider settings,
+deployments, or business data changed.
+
+## 2026-08-01 - Atomic CAD scope and draft BOM verification
+
+Refactored the processor handoff so a requested draft BOM is passed as a
+context to `CadEvidenceCommitService`; scope replacement, BOM/line creation,
+job attachment, idempotency completion, and semantic audit now share one Nest
+transaction. Replays lock and reuse the existing BOM. The database integration
+probe exercises the same atomic path rather than a separate BOM write.
+
+Validation: disposable PostgreSQL 17/Redis 7.4.9 lane passed 62/62
+migrations, 253/253 database assertions without skips, and 11/11 API/Redis
+integration assertions. Full workspace gates passed: shared 114/114, API
+113/113, web 301/301, database 116 passing with 137 environment-gated local
+skips, workspace typecheck, serial lint, Nest/Next production build (77/77
+pages), Actionlint, Gitleaks, diff checks, and isolated Python worker pytest
+11/11. Hosted Supabase, Railway, Vercel, flags, and business data remain
+unchanged.

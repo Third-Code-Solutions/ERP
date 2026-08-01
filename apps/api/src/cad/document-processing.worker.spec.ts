@@ -80,6 +80,8 @@ describe('DocumentProcessingWorkerClient', () => {
     expect(createSignedUrl).toHaveBeenCalledWith('cad/plan.dxf')
     expect(result.response.document_id).toBe(JOB.documentId)
     expect(result.response.scope_items[0]?.quantity).toBe(2)
+    expect(result.evidence.job_id).toBe(JOB.jobId)
+    expect(result.evidence.items[0]?.item_key).toBe('b'.repeat(64))
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = String(init.body)

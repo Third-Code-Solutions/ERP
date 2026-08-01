@@ -7,6 +7,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
@@ -31,7 +32,14 @@ import { z } from 'zod'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
-import { DatabaseService } from '../database/database.service'
+import {
+  DatabaseService,
+  type DatabaseTransaction,
+} from '../database/database.service'
+import {
+  DocumentProcessingDraftBomService,
+  type DraftBomCommitContext,
+} from './document-processing.bom'
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -93,14 +101,18 @@ export class CadEvidenceCommitService {
   constructor(
     @Inject(ConfigService) private readonly config: ConfigService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(AuditService) private readonly audit: AuditService
+    @Inject(AuditService) private readonly audit: AuditService,
+    @Optional()
+    @Inject(DocumentProcessingDraftBomService)
+    private readonly draftBoms?: DocumentProcessingDraftBomService
   ) {}
 
   async commit(
     documentId: string,
     command: CadEvidenceCommitCommand,
     principal: ErpPrincipal,
-    rawIdempotencyKey: string
+    rawIdempotencyKey: string,
+    draftBomContext?: DraftBomCommitContext
   ): Promise<CadEvidenceCommitResult> {
     const parsed = parseCommand(documentId, command)
     const idempotencyKey = rawIdempotencyKey.trim()
@@ -228,6 +240,9 @@ export class CadEvidenceCommitService {
         )
       }
       if (request.state === 'succeeded') {
+        if (draftBomContext) {
+          await this.ensureDraftBom(transaction, draftBomContext)
+        }
         return replayResult(request.result)
       }
       if (request.state !== 'processing') {
@@ -280,6 +295,10 @@ export class CadEvidenceCommitService {
           .values(rows.slice(i, i + CAD_SCOPE_BATCH_SIZE))
       }
 
+      if (draftBomContext) {
+        await this.ensureDraftBom(transaction, draftBomContext)
+      }
+
       const result = cadEvidenceCommitResultSchema.parse({
         documentId: document.id,
         projectId: document.projectId,
@@ -326,5 +345,23 @@ export class CadEvidenceCommitService {
 
       return result
     })
+  }
+
+  private async ensureDraftBom(
+    transaction: DatabaseTransaction,
+    context: DraftBomCommitContext
+  ): Promise<void> {
+    if (!this.draftBoms) {
+      throw new InternalServerErrorException(
+        'Draft BOM service is not registered'
+      )
+    }
+    const created = await this.draftBoms.createInTransaction(
+      transaction,
+      context.job,
+      context.result,
+      context.evidenceId
+    )
+    context.draftBomId = created.draftBomId
   }
 }

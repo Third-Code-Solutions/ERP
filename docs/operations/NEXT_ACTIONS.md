@@ -571,8 +571,9 @@ separate and explicitly approved.
 
 1. Keep `ERP_DOCUMENT_PROCESSING_JOBS_ENABLED`,
    `ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED`, and
-   `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED` absent/false; keep every matching
-   tenant allowlist empty. Do not enqueue production processing jobs.
+   `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED`, and
+   `ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED` absent/false; keep every
+   matching tenant allowlist empty. Do not enqueue production processing jobs.
 2. Implement durable source/evidence persistence and the separate idempotent
    Nest draft-BOM command before enabling the bridge or accepting
    `createDraftBom=true`; never mark a partial scope-only result complete for a
@@ -584,3 +585,22 @@ separate and explicitly approved.
    review, and provider identity/spend confirmation under `kurtgav`, apply one
    reviewed SHA only. Verify database/RLS/readiness/API/browser/log evidence;
    roll flags back first on any mismatch.
+
+## Exact next action after durable CAD evidence and atomic draft BOM (2026-08-01)
+
+1. Keep `ERP_DOCUMENT_PROCESSING_JOBS_ENABLED`,
+   `ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED`,
+   `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED`, and
+   `ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED` absent/false; keep all matching
+   tenant allowlists empty. Do not enqueue production processing jobs.
+2. Keep the Next CAD transaction as compatibility/rollback authority. The
+   source candidate now persists immutable attempt evidence first, then joins
+   scope and requested BOM writes atomically in Nest; run a dedicated canary
+   only after hosted schema parity and provider gates clear.
+3. Re-run the read-only controlled-release planner with an explicitly approved
+   `AUDIT_RECOVERY_TENANT_ID`. Current hosted migration drift, duplicate PO
+   numbers, and missing audit recovery selector still prohibit Supabase SQL,
+   Railway deployment, Vercel deployment, or flag enablement.
+4. Once the planner is clear, apply one reviewed migration/SHA release, verify
+   RLS/grants/ledger/readiness plus protected API/browser/log evidence, and use
+   one reversible provider action under the `kurtgav` spend limit.
