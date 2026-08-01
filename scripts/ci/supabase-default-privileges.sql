@@ -26,4 +26,11 @@ alter default privileges for role postgres in schema public
 alter default privileges for role postgres in schema public
   grant execute on functions to anon, authenticated, service_role;
 
+-- The legacy Project table predates the repository's explicit privilege
+-- hardening migrations. Supabase's hosted Data API grants it to both client
+-- roles; reproduce that narrow surface for the RLS tests only.
+grant select, insert, update, delete
+  on table public.projects
+  to anon, authenticated;
+
 commit;
