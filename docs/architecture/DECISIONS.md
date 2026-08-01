@@ -1366,3 +1366,19 @@ facing output.
 
 Evidence: the runtime scan found no forbidden markers and the new branding guard
 passed. No visible copy or provider state changed.
+
+## D-080 -- Aggregate release evidence before any deployment (2026-08-01)
+
+Decision: use `scripts/plan-controlled-release.mjs` as the single read-only
+preflight for future provider promotion. It must require current migration
+parity, clear duplicate evidence, clear audit recovery, and verified live
+readiness. Missing evidence remains `review_required`.
+
+Rationale: independent green checks can hide a red data or audit gate, while
+repeated previews consume Vercel budget. One fail-closed report makes the
+release decision reproducible without granting the tool mutation authority.
+
+Evidence: contract 4/4; hosted report correctly blocked 55/58 migrations,
+one duplicate group of 12 records, and missing audit selector while Railway
+and Vercel readiness returned 200. No SQL, flag, provider, or deployment state
+changed.

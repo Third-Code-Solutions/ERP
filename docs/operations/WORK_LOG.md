@@ -3548,3 +3548,28 @@ contiguously in the test source.
 
 Validation: the new Vitest contract passed; no visible UI copy, database,
 provider setting, feature flag, or deployment changed.
+
+## 2026-08-01 - Controlled release gate aggregator
+
+Added `scripts/plan-controlled-release.mjs` plus the pure
+`scripts/lib/controlled-release-plan.mjs` helper and contract tests. The gate
+composes the existing read-only database and duplicate planners, an explicit
+audit planner selector, and live Railway/Vercel readiness probes. It prints a
+bounded decision and never applies SQL, changes flags, changes provider
+settings, or creates a deployment.
+
+Hosted execution: `review_required`; database 55/58, one duplicate group with
+12 demo records, and no `AUDIT_RECOVERY_TENANT_ID` in the current shell. Both
+readiness endpoints returned HTTP 200. No hosted data or provider state
+changed.
+
+Validation: controlled gate 4/4, release/cutover/audit/hash/duplicate
+contracts, actionlint, gitleaks, typecheck, lint, full package tests (95
+shared, 107 database plus 137 normal skips, 79 API, 301 web), and production
+build (77/77 pages). The first parallel run was invalidated because build and
+typecheck raced on generated `.next/types`; ordered build then typecheck is
+the recorded result.
+
+Exact next action: obtain owner-approved reversible remediation for the 12
+duplicate demo records and an explicit audit tenant selector, then rerun the
+controlled gate. Keep provider deployment and all write flags disabled.

@@ -49,6 +49,7 @@ jobs:
           pnpm test:database-release-plan
           pnpm test:project-cutover-plan
           pnpm test:purchase-order-duplicate-plan
+          pnpm test:controlled-release-plan
       - name: Rebuild and verify PostgreSQL 17 database
         shell: powershell
         run: scripts/ci/run-wsl1-database-lane.ps1

@@ -483,3 +483,18 @@ separate and explicitly approved.
 2. Continue the owner-approved duplicate remediation path and independent
    audit recovery path; do not use branding evidence as a production-release
    substitute.
+
+## Exact next action after controlled release gate aggregator (2026-08-01)
+
+1. Keep all PO/project/notification write gates and tenant allowlists absent or
+   false; do not create a Vercel preview, promote production, or redeploy
+   Railway.
+2. Obtain an owner-approved, reversible decision for the one duplicate
+   tenant/PO-number group containing 12 demo records. Do not infer a canonical
+   record or rename/delete data.
+3. Set `AUDIT_RECOVERY_TENANT_ID` only to the explicitly approved tenant UUID,
+   rerun `plan:controlled-release --require-clear`, and review the sanitized
+   audit findings. Do not rewrite immutable audit rows from counts alone.
+4. When the gate is clear, apply the unchanged three candidate migrations in
+   one transaction, verify ledger/RLS/grants/readiness, and request one
+   controlled SHA promotion. Record rollback identity and spend evidence.
