@@ -10,6 +10,7 @@ import {
   DOCUMENT_PROCESSING_MAX_ITEMS,
   DOCUMENT_PROCESSING_MAX_WARNINGS,
 } from '@third-code-erp/shared-types'
+import { DOCUMENT_PROCESSING_RECOVERY_BATCH_SIZE } from './document-processing.constants'
 import { DatabaseService } from '../database/database.service'
 import type { ErpRole } from '../auth/current-principal.decorator'
 
@@ -199,6 +200,38 @@ export class DocumentProcessingStateService {
       )
       .returning({ id: documentProcessingJobs.id })
     return Boolean(failed)
+  }
+
+  /**
+   * Returns queued work that must be present in Redis, while moving stale
+   * processing claims back to queued. PostgreSQL remains authoritative when
+   * Redis has lost transport jobs.
+   */
+  async recoverableJobIds(before: Date): Promise<string[]> {
+    return this.database.client.transaction(async (transaction) => {
+      await transaction
+        .update(documentProcessingJobs)
+        .set({
+          status: 'queued',
+          completed_at: null,
+          updated_at: new Date(),
+        })
+        .where(
+          and(
+            eq(documentProcessingJobs.status, 'processing'),
+            lt(documentProcessingJobs.updated_at, before)
+          )
+        )
+
+      const rows = await transaction
+        .select({ id: documentProcessingJobs.id })
+        .from(documentProcessingJobs)
+        .where(eq(documentProcessingJobs.status, 'queued'))
+        .orderBy(documentProcessingJobs.updated_at)
+        .limit(DOCUMENT_PROCESSING_RECOVERY_BATCH_SIZE)
+
+      return rows.map((row) => row.id)
+    })
   }
 
   async requeueStale(before: Date): Promise<number> {

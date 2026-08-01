@@ -359,4 +359,95 @@ suite('document processing processor database integration', () => {
       .limit(1)
     expect(leaked).toHaveLength(0)
   }, 30_000)
+
+  it('requeues a stale PostgreSQL claim and increments the next attempt', async () => {
+    let probeTenantId = ''
+
+    await alwaysRollback(async (transaction) => {
+      const tenantId = randomUUID()
+      const userId = randomUUID()
+      const projectId = randomUUID()
+      const documentId = randomUUID()
+      const suffix = randomUUID().slice(0, 12)
+      probeTenantId = tenantId
+
+      await transaction.insert(tenants).values({
+        id: tenantId,
+        name: 'Processor Recovery Tenant',
+        slug: `processor-recovery-${suffix}`,
+      })
+      await transaction.insert(users).values({
+        id: userId,
+        tenant_id: tenantId,
+        email: `processor-recovery-${suffix}@integration.test`,
+        full_name: 'Processor Recovery',
+        role: 'pm',
+      })
+      await transaction.insert(projects).values({
+        id: projectId,
+        tenant_id: tenantId,
+        name: 'Processor Recovery Project',
+        client: 'Recovery Client',
+        status: 'active',
+        project_type: 'mep',
+        created_by: userId,
+      })
+      await transaction.insert(documents).values({
+        id: documentId,
+        tenant_id: tenantId,
+        project_id: projectId,
+        uploaded_by: userId,
+        document_type: 'dxf',
+        file_name: 'recovery-plan.dxf',
+        storage_path: `cad/${tenantId}/recovery-plan.dxf`,
+        mime_type: 'application/dxf',
+        size_bytes: 64,
+      })
+
+      const config = configFor(tenantId)
+      const database = transactionBoundDatabase(transaction)
+      const processing = new DocumentProcessingService(
+        config,
+        database,
+        new AuditService()
+      )
+      const principal: ErpPrincipal = {
+        userId,
+        tenantId,
+        role: 'pm',
+        email: `processor-recovery-${suffix}@integration.test`,
+      }
+      const created = await processing.create(
+        documentId,
+        { mode: 'cad', requestedFormat: 'dxf', createDraftBom: false },
+        principal,
+        'processor-recovery-1'
+      )
+      const state = new DocumentProcessingStateService(database)
+      await expect(state.claim(created.status.jobId)).resolves.toMatchObject({
+        jobId: created.status.jobId,
+        attempt: 1,
+      })
+
+      await transaction
+        .update(documentProcessingJobs)
+        .set({ updated_at: new Date(Date.now() - 10 * 60_000) })
+        .where(eq(documentProcessingJobs.id, created.status.jobId))
+
+      await expect(state.recoverableJobIds(new Date())).resolves.toEqual([
+        created.status.jobId,
+      ])
+      await expect(state.claim(created.status.jobId)).resolves.toMatchObject({
+        jobId: created.status.jobId,
+        attempt: 2,
+      })
+    })
+
+    const leaked = await db
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(eq(tenants.id, probeTenantId))
+      .limit(1)
+    expect(leaked).toHaveLength(0)
+  }, 30_000)
 })
