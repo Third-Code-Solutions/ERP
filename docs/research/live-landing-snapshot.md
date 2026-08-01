@@ -1,0 +1,234 @@
+- generic [active] [ref=e1] [box=0,0,1790,9226]:
+  - main [ref=e2] [box=0,0,1790,9226]:
+    - link "Skip to main content" [ref=e3] [cursor=pointer] [box=12,-54,173,44]:
+      - /url: "#main-content"
+    - navigation "Primary navigation" [ref=e4] [box=205,18,1380,68]:
+      - link "Third Code ERP home" [ref=e5] [cursor=pointer] [box=222,33,534,38]:
+        - /url: /
+        - generic [ref=e6] [box=222,33,38,38]: TC
+        - generic [ref=e7] [box=271,33,136,38]:
+          - strong [ref=e8] [box=271,33,136,21]: Third Code ERP
+          - generic [ref=e9] [box=271,56,136,15]: Built for work that compounds
+      - generic [ref=e10] [box=756,43,283,18]:
+        - link "Platform" [ref=e11] [cursor=pointer] [box=756,43,47,18]:
+          - /url: "#platform"
+        - link "Cortex AI" [ref=e12] [cursor=pointer] [box=837,43,51,18]:
+          - /url: "#cortex"
+        - link "Workflows" [ref=e13] [cursor=pointer] [box=921,43,57,18]:
+          - /url: "#workflows"
+        - link "Trust" [ref=e14] [cursor=pointer] [box=1012,43,26,18]:
+          - /url: "#trust"
+      - generic [ref=e15] [box=1038,30,534,44]:
+        - link "Sign in" [ref=e16] [cursor=pointer] [box=1378,43,37,18]:
+          - /url: /auth/login
+        - link "Start guided setup" [ref=e17] [cursor=pointer] [box=1432,30,140,44]:
+          - /url: /auth/signup
+    - generic [ref=e18] [box=0,0,1790,8848]:
+      - generic [ref=e19] [box=95,0,1600,861]:
+        - generic [ref=e21] [box=179,192,659,539]:
+          - paragraph [ref=e22] [box=179,192,627,14]: Construction intelligence, without enterprise software overhead
+          - heading "Run every project with an AI brain that remembers." [level=1] [ref=e23] [box=179,230,627,240]:
+            - generic [ref=e24] [box=179,230,627,80]: Run every project
+            - generic [ref=e25] [box=179,311,627,80]: with an AI brain
+            - generic [ref=e27] [box=179,391,627,80]: that remembers.
+          - paragraph [ref=e28] [box=179,505,627,98]: Third Code ERP connects pipeline, estimates, procurement, delivery, billing, compliance, and company knowledge—so teams see what matters and why.
+          - generic [ref=e29] [box=179,640,627,54]:
+            - link "Start guided setup" [ref=e30] [cursor=pointer] [box=179,640,200,54]:
+              - /url: /auth/signup
+            - link "Open workspace" [ref=e33] [cursor=pointer] [box=391,640,153,54]:
+              - /url: /auth/login
+          - paragraph [ref=e34] [box=179,714,627,17]: Multi-tenant. Permission-aware. Designed for Philippine construction and adaptable operating teams.
+        - generic [ref=e35] [box=766,155,920,613]:
+          - img "Architectural plans, fit-out materials, and a connected operations graph in a construction workspace" [ref=e37] [box=767,156,918,611]
+          - generic [ref=e40] [box=1438,743,159,35]:
+            - generic [ref=e41] [box=1438,743,159,15]: Cortex source chain
+            - strong [ref=e42] [box=1438,761,159,17]: 14 linked records · verified now
+      - generic [ref=e44] [box=-630,862,2250,62]:
+        - generic [ref=e45] [box=-630,885,61,17]: CRM
+        - generic [ref=e47] [box=-540,885,111,17]: Estimating
+        - generic [ref=e49] [box=-402,885,62,17]: BOM
+        - generic [ref=e51] [box=-312,885,131,17]: Procurement
+        - generic [ref=e53] [box=-153,885,99,17]: Projects
+        - generic [ref=e55] [box=-26,885,84,17]: Billing
+        - generic [ref=e57] [box=85,885,119,17]: Compliance
+        - generic [ref=e59] [box=232,885,105,17]: Warranty
+        - generic [ref=e61] [box=365,885,102,17]: Cortex AI
+        - generic [ref=e63] [box=495,885,61,17]: CRM
+        - generic [ref=e65] [box=585,885,111,17]: Estimating
+        - generic [ref=e67] [box=724,885,62,17]: BOM
+        - generic [ref=e69] [box=813,885,131,17]: Procurement
+        - generic [ref=e71] [box=972,885,99,17]: Projects
+        - generic [ref=e73] [box=1099,885,84,17]: Billing
+        - generic [ref=e75] [box=1211,885,119,17]: Compliance
+        - generic [ref=e77] [box=1357,885,105,17]: Warranty
+        - generic [ref=e79] [box=1490,885,102,17]: Cortex AI
+      - generic [ref=e81] [box=205,925,1380,1631]:
+        - generic [ref=e82] [box=205,1135,1380,292]:
+          - paragraph [ref=e83] [box=205,1135,1380,14]: One operating record
+          - heading "Less software to manage. More business to understand." [level=2] [ref=e84] [box=205,1173,844,254]
+          - paragraph [ref=e85] [box=1179,1346,406,82]: Purpose-built depth for construction, with configurable structure for teams that sell, plan, deliver, bill, and support complex work.
+        - generic [ref=e86] [box=205,1521,1380,825]:
+          - article [ref=e87] [box=206,1522,803,823]:
+            - generic [ref=e88] [box=254,1570,707,34]: Permissioned company intelligence
+            - heading "Ask the business. Open the evidence." [level=3] [ref=e93] [box=254,1634,700,100]
+            - paragraph [ref=e94] [box=254,1754,620,50]: Cortex reasons across live ERP records, relationships, documents, history, and approvals while staying inside each user's access.
+            - generic "Example Cortex relationship graph" [ref=e95] [box=254,1858,707,228]:
+              - generic [ref=e96] [box=304,1958,74,36]: Project
+              - generic [ref=e97] [box=530,1895,74,36]: BOM
+              - generic [ref=e98] [box=537,2012,74,36]: PO
+              - generic [ref=e99] [box=837,1899,74,36]: Claim
+              - generic [ref=e100] [box=844,2019,74,36]: Invoice
+            - list [ref=e104] [box=254,2120,707,17]:
+              - listitem [ref=e105] [box=254,2120,99,17]: Source citations
+              - listitem [ref=e108] [box=377,2120,146,17]: Human-approved actions
+              - listitem [ref=e111] [box=548,2120,150,17]: Provenance and freshness
+          - article [ref=e114] [box=1010,1522,574,447]:
+            - generic [ref=e115] [box=1058,1570,478,34]: Connected operations
+            - heading "From first conversation to final warranty." [level=3] [ref=e120] [box=1058,1634,478,100]
+            - generic [ref=e121] [box=1058,1764,478,157]:
+              - generic [ref=e122] [box=1059,1765,159,78]: Win
+              - generic [ref=e123] [box=1218,1765,159,78]: Estimate
+              - generic [ref=e124] [box=1377,1765,159,78]: Buy
+              - generic [ref=e125] [box=1059,1843,159,78]: Build
+              - generic [ref=e126] [box=1218,1843,159,78]: Bill
+              - generic [ref=e127] [box=1377,1843,159,78]: Support
+          - article [ref=e128] [box=1010,1970,574,375]:
+            - generic [ref=e129] [box=1058,2018,478,34]: Controls built into the work
+            - heading "PH-ready compliance without the end-of-month archaeology." [level=3] [ref=e134] [box=1058,2082,478,150]
+            - generic [ref=e135] [box=1058,2262,478,35]:
+              - generic [ref=e136] [box=1058,2262,108,35]: VAT and retention
+              - generic [ref=e137] [box=1174,2262,106,35]: BIR 2307 support
+              - generic [ref=e138] [box=1288,2262,98,35]: Tenant isolation
+              - generic [ref=e139] [box=1394,2262,117,35]: Hash-chained audit
+      - generic [ref=e140] [box=0,2556,1790,1242]:
+        - generic [ref=e141] [box=205,2766,1380,208]:
+          - paragraph [ref=e142] [box=205,2766,1380,14]: Cortex in the flow of work
+          - heading "Search is useful. Context is transformative." [level=2] [ref=e143] [box=205,2805,844,169]
+        - list [ref=e144] [box=205,3068,1380,520]:
+          - listitem [ref=e145] [box=0,0,0,0]:
+            - button "Search every approved record from one calm command surface. Projects, drawings, RFQs, purchase orders, claims, invoices, tasks, and decisions stay connected to their source." [expanded] [ref=e146] [cursor=pointer] [box=206,3069,923,518]:
+              - generic [ref=e151] [box=248,3295,580,250]:
+                - strong [ref=e152] [box=248,3295,580,182]: Search every approved record from one calm command surface.
+                - generic [ref=e153] [box=248,3495,520,50]: Projects, drawings, RFQs, purchase orders, claims, invoices, tasks, and decisions stay connected to their source.
+          - listitem [ref=e154] [box=0,0,0,0]:
+            - button "Understand context" [ref=e155] [cursor=pointer] [box=1129,3069,152,518]
+          - listitem [ref=e160] [box=0,0,0,0]:
+            - button "Move work forward" [ref=e161] [cursor=pointer] [box=1281,3069,152,518]
+          - listitem [ref=e166] [box=0,0,0,0]:
+            - button "Prove every decision" [ref=e167] [cursor=pointer] [box=1432,3069,152,518]
+      - generic [ref=e172] [box=205,3798,1380,2352]:
+        - generic [ref=e173] [box=205,4008,391,618]:
+          - paragraph [ref=e174] [box=205,4008,391,14]: A continuous project record
+          - heading "Each handoff carries its decisions with it." [level=2] [ref=e175] [box=205,4046,391,392]
+          - paragraph [ref=e176] [box=205,4464,391,82]: The next team starts with context, not another spreadsheet and a meeting to reconstruct what happened.
+        - generic [ref=e177] [box=716,4008,869,1932]:
+          - article [ref=e179] [box=716,4008,869,355]:
+            - strong [ref=e181] [box=775,4067,110,20]: Win
+            - generic [ref=e182] [box=943,4067,335,237]:
+              - heading "Turn pipeline into a controlled handoff." [level=3] [ref=e183] [box=943,4067,335,141]
+              - paragraph [ref=e184] [box=943,4230,335,74]: Account, KYC, opportunity, proposal, inspection, and commercial history move together when work is awarded.
+            - list [ref=e185] [box=1336,4067,190,237]:
+              - listitem [ref=e186] [box=1336,4067,190,16]: Role-scoped pipeline
+              - listitem [ref=e189] [box=1336,4097,190,16]: SLA and approval gates
+              - listitem [ref=e192] [box=1336,4127,190,16]: No re-entry at handoff
+          - article [ref=e196] [box=716,4391,869,355]:
+            - strong [ref=e198] [box=775,4450,110,20]: Plan
+            - generic [ref=e199] [box=943,4450,335,237]:
+              - heading "Build scope, cost, and procurement from one record." [level=3] [ref=e200] [box=943,4450,335,141]
+              - paragraph [ref=e201] [box=943,4613,335,74]: Drawings, takeoffs, BOMs, rate cards, RFQs, and purchase orders stay linked from estimate to delivery.
+            - list [ref=e202] [box=1336,4450,190,237]:
+              - listitem [ref=e203] [box=1336,4450,190,16]: Drawing-to-BOM workflow
+              - listitem [ref=e206] [box=1336,4480,190,16]: Supplier comparisons
+              - listitem [ref=e209] [box=1336,4510,190,16]: Approval-ready purchase orders
+          - article [ref=e213] [box=716,4774,869,402]:
+            - strong [ref=e215] [box=775,4833,110,20]: Deliver
+            - generic [ref=e216] [box=943,4833,335,284]:
+              - heading "Keep site execution visible without status theater." [level=3] [ref=e217] [box=943,4833,335,188]
+              - paragraph [ref=e218] [box=943,5043,335,74]: Tasks, progress, photos, permits, deliveries, variation orders, and punchlists form one live project history.
+            - list [ref=e219] [box=1336,4833,190,284]:
+              - listitem [ref=e220] [box=1336,4833,190,16]: Daily work queues
+              - listitem [ref=e223] [box=1336,4863,190,16]: Progress and cost signals
+              - listitem [ref=e226] [box=1336,4893,190,16]: Client-ready reporting
+          - article [ref=e230] [box=716,5204,869,355]:
+            - strong [ref=e232] [box=775,5263,110,20]: Close
+            - generic [ref=e233] [box=943,5263,335,237]:
+              - heading "Finish with billing, turnover, and warranty intact." [level=3] [ref=e234] [box=943,5263,335,141]
+              - paragraph [ref=e235] [box=943,5426,335,74]: Claims, invoices, retention, compliance documents, handover records, and warranty issues remain searchable.
+            - list [ref=e236] [box=1336,5263,190,237]:
+              - listitem [ref=e237] [box=1336,5263,190,16]: PH-ready billing controls
+              - listitem [ref=e240] [box=1336,5293,190,16]: Turnover completeness
+              - listitem [ref=e243] [box=1336,5323,190,16]: Warranty continuity
+      - generic [ref=e248] [box=771,6151,813,752]:
+        - paragraph [ref=e249] [box=871,6251,613,14]: What operating teams need
+        - generic [ref=e250] [box=871,6289,613,386]:
+          - blockquote [ref=e251] [box=871,6289,613,307]: “Show me what needs attention now, then let me open the evidence.”
+          - paragraph [ref=e252] [box=871,6632,613,44]:
+            - strong [ref=e253] [box=871,6632,613,20]: Owner and leadership
+            - generic [ref=e254] [box=871,6658,613,18]: Portfolio health, margin risk, approvals, and forecast
+        - generic [ref=e255] [box=871,6736,613,67]:
+          - generic [ref=e256] [box=871,6773,30,15]: 1 / 4
+          - generic [ref=e257] [box=1388,6759,96,44]:
+            - button "Previous team priority" [ref=e258] [cursor=pointer] [box=1388,6759,44,44]
+            - button "Next team priority" [ref=e261] [cursor=pointer] [box=1440,6759,44,44]
+      - generic [ref=e264] [box=205,6904,1380,986]:
+        - generic [ref=e265] [box=205,7114,357,398]:
+          - paragraph [ref=e266] [box=205,7114,357,14]: Clear before complex
+          - heading "Questions operating teams ask first." [level=2] [ref=e267] [box=205,7152,357,281]
+          - paragraph [ref=e268] [box=205,7460,357,51]: Direct answers. No implementation theater, hidden autonomy, or compliance claims without review.
+        - generic [ref=e269] [box=712,7114,873,566]:
+          - group [ref=e270] [box=712,7115,873,113]:
+            - generic "What does Third Code ERP connect? +" [ref=e271] [cursor=pointer] [box=712,7115,873,112]
+          - group [ref=e272] [box=712,7228,873,113]:
+            - generic "Is it only for construction companies? +" [ref=e273] [cursor=pointer] [box=712,7228,873,112]
+          - group [ref=e274] [box=712,7341,873,113]:
+            - generic "How does Cortex use company knowledge? +" [ref=e275] [cursor=pointer] [box=712,7341,873,112]
+          - group [ref=e276] [box=712,7454,873,113]:
+            - generic "Can the AI post payments or commitments by itself? +" [ref=e277] [cursor=pointer] [box=712,7454,873,112]
+          - group [ref=e278] [box=712,7567,873,113]:
+            - generic "Does it support Philippine construction controls? +" [ref=e279] [cursor=pointer] [box=712,7567,873,112]
+      - generic [ref=e280] [box=205,8130,1380,718]:
+        - paragraph [ref=e281] [box=351,8276,1088,17]: Build an ERP your team can understand on day one.
+        - heading "One company brain. Every project under control." [level=2] [ref=e282] [box=385,8316,1020,294]
+        - generic [ref=e283] [box=351,8648,1088,54]:
+          - link "Start guided setup" [ref=e284] [cursor=pointer] [box=701,8648,200,54]:
+            - /url: /auth/signup
+          - link "Sign in to workspace" [ref=e287] [cursor=pointer] [box=913,8648,176,54]:
+            - /url: /auth/login
+    - generic [ref=e288] [box=205,8848,1380,379]:
+      - generic [ref=e289] [box=205,8958,491,121]:
+        - link "Third Code ERP Third Code Solutions Inc." [ref=e290] [cursor=pointer] [box=205,8958,162,38]:
+          - /url: /
+          - generic [ref=e291] [box=205,8958,38,38]: TC
+          - generic [ref=e292] [box=254,8958,113,38]:
+            - strong [ref=e293] [box=254,8958,113,21]: Third Code ERP
+            - generic [ref=e294] [box=254,8981,113,15]: Third Code Solutions Inc.
+        - paragraph [ref=e295] [box=205,9022,360,43]: AI-native operations software for construction and complex project teams.
+      - generic [ref=e296] [box=768,8958,818,121]:
+        - generic [ref=e297] [box=768,8958,251,121]:
+          - strong [ref=e298] [box=768,8958,251,17]: Platform
+          - link "Overview" [ref=e299] [cursor=pointer] [box=768,8996,251,18]:
+            - /url: "#platform"
+          - link "Cortex AI" [ref=e300] [cursor=pointer] [box=768,9028,251,18]:
+            - /url: "#cortex"
+          - link "Workflows" [ref=e301] [cursor=pointer] [box=768,9060,251,18]:
+            - /url: "#workflows"
+        - generic [ref=e302] [box=1051,8958,251,121]:
+          - strong [ref=e303] [box=1051,8958,251,17]: Access
+          - link "Sign in" [ref=e304] [cursor=pointer] [box=1051,8996,251,18]:
+            - /url: /auth/login
+          - link "Create account" [ref=e305] [cursor=pointer] [box=1051,9028,251,18]:
+            - /url: /auth/signup
+          - link "Get started" [ref=e306] [cursor=pointer] [box=1051,9060,251,18]:
+            - /url: /auth/signup
+        - generic [ref=e307] [box=1334,8958,251,121]:
+          - strong [ref=e308] [box=1334,8958,251,17]: Trust
+          - link "Security" [ref=e309] [cursor=pointer] [box=1334,8996,251,18]:
+            - /url: "#trust"
+          - link "Compliance" [ref=e310] [cursor=pointer] [box=1334,9028,251,18]:
+            - /url: "#trust"
+          - link "Data controls" [ref=e311] [cursor=pointer] [box=1334,9060,251,18]:
+            - /url: "#trust"
+      - generic [ref=e312] [box=205,9150,1380,44]:
+        - generic [ref=e313] [box=205,9179,148,15]: © 2026 Third Code Solutions Inc.
+        - generic [ref=e314] [box=1392,9179,193,15]: Designed and engineered in the Philippines.
+  - alert [ref=e315] [box=-1,9225,1,1]

@@ -771,3 +771,16 @@ Status: implementation complete locally; production cutover not authorized.
 Exit criteria still open: replay all 56 migrations against disposable
 PostgreSQL 17, prove Redis/readiness and real HTTP transaction cases, reconcile
 against hosted schema, then canary one approved tenant with both flags enabled.
+
+## Landing regression milestone (2026-08-01)
+
+Status: complete for source and live evidence; no release was created.
+
+- Added `third-code-landing.test.ts` to protect hero, bento, responsive, and
+  accessibility/SEO invariants.
+- Captured `docs/research/LIVE_LANDING_AUDIT_20260801.md`, the live
+  accessibility snapshot, and the desktop screenshot.
+- Browser verification passed at 1440px and 390px with zero console errors;
+  full web tests are 298 passed.
+- Docker remains unavailable because local hardware virtualization is disabled;
+  disposable PostgreSQL/Redis transaction proof is still the next gate.

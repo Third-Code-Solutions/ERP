@@ -9,6 +9,8 @@
 - **Tablet evidence:** `docs/design-references/third-code-landing-tablet-2026-07-29.png`
 - **Mobile evidence:** `docs/design-references/third-code-landing-mobile-2026-07-29.png`
 - **Interaction model:** scroll, hover, focus, and click
+- **Current live audit:** docs/research/LIVE_LANDING_AUDIT_20260801.md
+- **Current live screenshot:** docs/design-references/live-landing-desktop.png
 
 ## Brand system
 

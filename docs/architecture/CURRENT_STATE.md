@@ -1274,3 +1274,17 @@ matches the repository migration contract:
   Disposable PostgreSQL 17/Redis integration was not run because Docker is
   unavailable on this workstation. No hosted SQL, Vercel deployment, Railway
   deployment, or visible UI change occurred.
+
+## 2026-08-01 live landing regression audit
+
+- The accepted public Third Code ERP landing surface remains the existing
+  Next.js implementation in `apps/web/src/components/marketing`: three-line
+  hero, dense 12-column bento, progressive-disclosure accordion, workflow
+  stack, testimonial carousel, FAQ, CTA, and structured metadata.
+- Live browser evidence at `https://thirdcode-erp.vercel.app/` confirms no
+  horizontal overflow at 1440px or 390px, three hero lines at both widths,
+  accessible accordion/carousel/FAQ state changes, and zero console errors.
+- Source regression coverage now protects the visual contract in
+  `third-code-landing.test.ts`; the full web suite is 298 passed. This is a
+  source-only evidence milestone: no Vercel deployment, Railway release, or
+  hosted Supabase mutation was performed.
