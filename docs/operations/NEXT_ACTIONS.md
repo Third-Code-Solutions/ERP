@@ -328,3 +328,16 @@ Provider inspection result:
    migration preflight warnings, then request explicit release approval for a
    one-tenant canary only after Railway readiness, logs, reconciliation, and
    rollback evidence are green.
+
+## Exact next action after disposable authority proof (2026-08-01)
+
+1. Keep `ERP_PO_CREATE_WRITES_ENABLED` and the matching Next gate false; do not
+   apply migration 20260801090000 to hosted Supabase yet.
+2. Obtain a read-only hosted Supabase migration/catalog comparison and resolve
+   the known 55/56 ledger difference plus defensive-constraint review.
+3. Re-authenticate Railway as `kurtgavin.design@gmail.com` and Vercel with the
+   `kurtgav` account; verify exact project/service identity, current rollback
+   deployment, readiness, logs, and spend controls.
+4. Only after those checks, request an explicit one-tenant canary approval;
+   deploy one controlled release, verify protected HTTP/browser/data flows,
+   then enable flags for that tenant. Keep legacy Server Actions as rollback.

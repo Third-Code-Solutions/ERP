@@ -1213,3 +1213,16 @@ milestone. Backend migration must not regress a validated customer entry point.
 
 Constraints: no Vercel deploy is implied, and no visual change is accepted
 without updated regression evidence.
+
+## D-070: Use owned WSL1 lane for disposable authority proof (2026-08-01)
+
+Decision: use the existing `ThirdCodeERP-Test` Alpine WSL1 distribution for
+local PostgreSQL 17/Redis reproducibility when Docker cannot start. Keep the
+lane disposable, repository-pinned, and outside hosted credentials.
+
+Rationale: it proves migration parity and transaction behavior at zero new
+provider cost while hardware virtualization remains unavailable. Passing local
+proof does not authorize hosted SQL or production flags.
+
+Evidence: 56/56 migrations, 243/243 database tests without skips, and 7/7 Nest
+integration tests passed; schema-before/schema-after SHA-256 matched.
