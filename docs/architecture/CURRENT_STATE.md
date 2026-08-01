@@ -1632,3 +1632,15 @@ changed.
   E2E remains skipped by explicit credential gating.
 - Queue, processing, and all tenant allowlist flags remain closed; no hosted
   SQL, provider setting, deployment, or business data changed.
+
+## 2026-08-02 Document-processing recovery source slice
+
+- Added a PostgreSQL-owned recovery path that resets stale `processing` claims
+  to `queued`, returns at most 100 opaque job UUIDs, and lets the production
+  queue rebuild missing BullMQ transport jobs through its idempotent key.
+- CI run `30709595007` passed stale-claim recovery, bounded retry and terminal
+  failure, Redis-loss re-enqueue, the processor canary, database/API
+  integration, container smoke, workspace checks, Actionlint, secret scan, and
+  production build. E2E remains skipped by explicit credential gating.
+- The recovery entry point is dormant: no periodic scheduler, production
+  enqueue, hosted SQL, provider setting, deployment, or business data changed.

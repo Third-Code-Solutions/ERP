@@ -3830,3 +3830,18 @@ Validation: CI run `30708445023` passed the Redis proof, PostgreSQL processor
 canary, database/API integration, container smoke, workspace gates, and
 production build. E2E remains skipped by explicit credential gating. Hosted
 Supabase, Railway, Vercel, flags, and business data were not changed.
+
+## 2026-08-02 - Document-processing recovery source slice
+
+Added PostgreSQL-owned stale-claim recovery, bounded queued-ID selection, and
+`enqueuePending()` re-enqueue after Redis transport loss. The source slice
+keeps Redis delivery-only and leaves the recovery entry point dormant pending
+an explicit scheduler/flag/tenant design.
+
+The first CI attempt `30709360939` exposed a missing `waitForState` test helper;
+the fix was committed as `f02cbaf`. Final CI run `30709595007` passed the
+PostgreSQL 17/Redis 7.4.9 recovery lane, processor canary, bounded retry and
+terminal failure, Redis-loss re-enqueue, database/API integration, Nest smoke,
+workspace checks, Actionlint, secret scan, and production build. E2E remains
+skipped by explicit credential gating. Hosted Supabase, Railway, Vercel, flags,
+and business data were not changed.
