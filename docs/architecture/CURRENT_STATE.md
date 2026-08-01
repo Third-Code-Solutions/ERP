@@ -1326,3 +1326,7 @@ matches the repository migration contract:
   migrations through `20260729233017`, repository 57/57, and exactly two
   linear missing candidates (`20260801090000`, `20260801100000`). No SQL was
   executed; both candidates require explicit defensive-constraint review.
+- The Next server-only core client now has a strict, separately gated PO
+  workflow request seam and validates the Nest result. No current Server Action
+  delegates to it because notification parity and canary evidence are not yet
+  complete.

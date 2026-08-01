@@ -363,3 +363,8 @@ Hosted read-only evidence now exists: Supabase is PostgreSQL 17 at 55 applied
 migrations, while this branch is 57/57. Only the two reviewed candidate
 suffixes are missing; no hosted migration was executed. Provider identity and
 canary approval remain the next external gates.
+
+The client seam is ready but intentionally unused. Before enabling it, add
+transactional notification intent/recipient parity in Nest, replay that lane,
+then canary only the first four workflow transitions for one tenant. Keep SCM
+issuance and supplier email on the legacy path until separately migrated.

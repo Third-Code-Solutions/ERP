@@ -1249,3 +1249,7 @@ ERPNext code, schemas, text, or internal structure.
 Evidence update: disposable 57-migration replay and 8/8 Nest/Redis
 integration passed. Hosted read-only plan is 55/57 with only the two candidate
 suffixes missing; both remain unapplied pending review.
+
+The Next server-only client has a separate exact workflow delegation flag and
+result validation, but no Server Action calls it yet. This keeps the current
+notification behavior and rollback path intact.

@@ -653,6 +653,10 @@ authoritative until that proof succeeds.
 - Current hosted evidence is intentionally not parity: 55 applied versus the
   repository's 57 migrations. The two candidate migrations are identified by
   version and hash in the operations log; no hosted SQL has run.
+- Next.js has a server-only workflow client contract with its own exact flag
+  and tenant allowlist. It is a preparation seam only; browser calls remain on
+  the current action path until the transaction's notification behavior is
+  equivalent and a canary is approved.
 ## 2026-08-01 evidence added for PO authority
 
 The target modular monolith now has a concrete, disabled first transaction

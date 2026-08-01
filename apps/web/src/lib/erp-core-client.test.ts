@@ -7,11 +7,13 @@ import {
   logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
+  purchaseOrderWorkflowWritesUseCoreApi,
   rfqCreateWritesUseCoreApi,
   rfqAutoDispatchUsesCoreApi,
   rfqQuoteWritesUseCoreApi,
   rfqTerminalWritesUseCoreApi,
   transitionRfqThroughCoreApi,
+  transitionPurchaseOrderThroughCoreApi,
   updateProjectThroughCoreApi,
 } from './erp-core-client'
 
@@ -38,6 +40,13 @@ const PURCHASE_ORDER_RESULT = {
   tenantId: '22222222-2222-4222-8222-222222222222',
   poNumber: 'PO-0001',
   status: 'draft' as const,
+}
+const PURCHASE_ORDER_WORKFLOW_RESULT = {
+  purchaseOrderId: PURCHASE_ORDER_RESULT.purchaseOrderId,
+  tenantId: PURCHASE_ORDER_RESULT.tenantId,
+  action: 'pm_approve' as const,
+  fromStatus: 'pending_pm_approval' as const,
+  status: 'pending_commercial_approval' as const,
 }
 const RFQ_TRANSITION_RESULT = {
   rfqId: RFQ_ID,
@@ -142,6 +151,23 @@ describe('ERP Core client', () => {
     expect(purchaseOrderWritesUseCoreApi(RESULT.tenantId)).toBe(false)
   })
 
+  it('keeps PO workflow delegation fail-closed unless its independent gate matches', () => {
+    vi.stubEnv('ERP_PO_WORKFLOW_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(purchaseOrderWorkflowWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_PO_WORKFLOW_WRITES_VIA_API', 'TRUE')
+    expect(purchaseOrderWorkflowWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PO_WORKFLOW_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(purchaseOrderWorkflowWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(purchaseOrderWorkflowWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('sends an idempotent Purchase Order command and validates result', async () => {
     const command = {
       projectId: PROJECT_ID,
@@ -212,6 +238,38 @@ describe('ERP Core client', () => {
         'po-create-1'
       )
     ).resolves.toEqual({ ok: false, error: 'command disabled' })
+  })
+
+  it('sends a keyed PO workflow command and validates the result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(PURCHASE_ORDER_WORKFLOW_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      transitionPurchaseOrderThroughCoreApi(
+        PURCHASE_ORDER_RESULT.purchaseOrderId,
+        { action: 'pm_approve' },
+        'po-workflow-1'
+      )
+    ).resolves.toEqual({
+      ok: true,
+      data: PURCHASE_ORDER_WORKFLOW_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/procurement/purchase-orders/66666666-6666-4666-8666-666666666666/workflow',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ action: 'pm_approve' }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'po-workflow-1',
+        }),
+      })
+    )
   })
 
   it('forwards a UUID correlation header to the Nest command', async () => {

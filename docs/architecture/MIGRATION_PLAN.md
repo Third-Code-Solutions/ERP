@@ -826,3 +826,7 @@ before those gates.
 Read-only reconciliation completed after this slice: PostgreSQL 17 with
 55 applied migrations; repository 57; missing only the two linear candidates
 `20260801090000` and `20260801100000`; no unexpected history and no SQL run.
+
+The Next workflow client seam is now implemented and tested (18/18 focused web
+tests), but its delegation flag remains absent/false. Do not treat the client
+contract as a cutover or as notification parity.

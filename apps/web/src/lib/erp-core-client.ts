@@ -8,6 +8,7 @@ import {
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   purchaseOrderCreationResultSchema,
+  purchaseOrderWorkflowResultSchema,
   type CreateRfqCommand,
   type LogRfqQuoteCommand,
   type CreatePurchaseOrderCommand,
@@ -17,6 +18,8 @@ import {
   type RfqQuoteResult,
   type RfqTransitionResult,
   type PurchaseOrderCreationResult,
+  type PurchaseOrderWorkflowCommand,
+  type PurchaseOrderWorkflowResult,
   type TransitionRfqCommand,
   type UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
@@ -111,6 +114,16 @@ export function purchaseOrderWritesUseCoreApi(
     tenantId,
     process.env.ERP_PO_CREATE_WRITES_VIA_API,
     process.env.ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function purchaseOrderWorkflowWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PO_WORKFLOW_WRITES_VIA_API,
+    process.env.ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -297,6 +310,69 @@ export async function createPurchaseOrderThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Purchase Order was committed.',
+    }
+  }
+}
+
+/**
+ * Server-only contract seam for approval transitions. The current Server
+ * Actions remain authoritative until notification parity and a canary exist.
+ */
+export async function transitionPurchaseOrderThroughCoreApi(
+  purchaseOrderId: string,
+  command: PurchaseOrderWorkflowCommand,
+  idempotencyKey: string
+): Promise<CoreResult<PurchaseOrderWorkflowResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/purchase-orders/${encodeURIComponent(
+        purchaseOrderId
+      )}/workflow`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Purchase Order workflow conflicts with its current state.'
+            : response.status === 404
+              ? 'Purchase Order was not found.'
+              : 'Purchase Order workflow was not committed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = purchaseOrderWorkflowResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Purchase Order workflow result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No Purchase Order workflow was committed.',
     }
   }
 }
