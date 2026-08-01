@@ -23,6 +23,10 @@
 - Workspace typecheck, serial lint, `git diff --check`, and Next production
   build pass.
 
+CI run `30712546507` passed all executable jobs on commit
+`6d55248110e630ed01c16f903972c8d52ff70af2`; E2E is skipped by explicit hosted
+credential gating.
+
 ## Release gate
 
 Source candidate requires CI evidence and a fresh controlled-release planner
