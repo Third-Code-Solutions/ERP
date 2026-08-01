@@ -8,7 +8,6 @@ export function isUuid(value) {
     )
   )
 }
-
 export function opaqueRef(value) {
   return createHash('sha256').update(value).digest('hex').slice(0, 12)
 }
@@ -40,4 +39,3 @@ export function buildAuditRecoveryBlockers(report) {
 
   return blockers
 }
-

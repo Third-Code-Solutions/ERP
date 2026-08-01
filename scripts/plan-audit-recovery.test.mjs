@@ -29,7 +29,6 @@ test('accepts canonical tenant UUIDs only', () => {
     false
   )
 })
-
 test('keeps tenant references opaque and stable', () => {
   const uuid = '123e4567-e89b-42d3-a456-426614174000'
   assert.equal(opaqueRef(uuid), opaqueRef(uuid))
@@ -61,4 +60,3 @@ test('blocks every historical or control failure', () => {
     'audit trigger function is executable by public API roles',
   ])
 })
-
