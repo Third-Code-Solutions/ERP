@@ -3756,3 +3756,11 @@ license. Replaced that action with the existing checksum-pinned
 This preserves full-history secret scanning without a paid license or any
 runtime/provider change. The PR was pushed again to trigger the corrected CI
 run.
+
+The corrected run then exposed a CI-only RLS setup mismatch: Supabase CLI's
+local reset did not carry the minimal `anon`/`authenticated` default table
+grants used by the repo's WSL reproducibility lane, causing four `projects`
+permission errors. Added the existing test-only
+`scripts/ci/supabase-system-bootstrap.sql` before the reset so both lanes use
+the same system-role bootstrap. No application migration or hosted privilege
+was changed.
