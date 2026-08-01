@@ -1276,3 +1276,16 @@ Order. SCM issuance and supplier-side email remain separate milestones.
 Evidence: candidate migration `20260801110000`; 58/58 disposable migrations,
 244/244 database tests without skips, 8/8 Nest/Redis integration tests, full
 shared/API/web suites 94/79/300, root typecheck/lint, and 77/77 Next pages.
+
+## D-073 -- Block canary on audit-chain integrity (2026-08-01)
+
+Decision: do not enable PO/project write authority or select a canary tenant
+while the read-only cutover planner reports audit predecessor or hash
+mismatches. Repair must be a separately scoped, reviewed operation with its
+own evidence; this milestone performs no repair.
+
+Evidence: PostgreSQL 17 read-only target inspection found the demo target and
+auth identity, project audit trigger, hardened audit function, and non-public
+function permissions. It also found 2 predecessor-link mismatches, 151 hash
+mismatches, and no `project.update` capability for the selected actor. No
+database or provider state changed.

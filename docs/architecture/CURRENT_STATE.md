@@ -1349,3 +1349,16 @@ matches the repository migration contract:
   normal 137 environment-gated database skips, root typecheck/lint, and 77/77
   Next production pages all pass. Hosted planner is 55/58 read-only; no SQL
   or provider deployment was performed.
+
+## 2026-08-01 read-only project canary audit
+
+- The existing demo tenant/project/actor target was inspected in a repeatable
+  read-only transaction on PostgreSQL 17. Auth identity, project audit trigger,
+  hardened audit function, and non-public audit function permissions are all
+  present.
+- Canary status is blocked: the tenant audit chain has 2 predecessor-link
+  mismatches and 151 hash mismatches; the selected actor also lacks the
+  `project.update` capability.
+- No business data, audit rows, permissions, flags, hosted migration, or
+  provider deployment was changed. These findings require a separate audit
+  recovery review before any canary or write authority decision.

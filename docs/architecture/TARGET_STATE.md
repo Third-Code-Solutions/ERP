@@ -695,3 +695,12 @@ dead-letter, and in-app uniqueness. The notification gate is independent and
 defaults off, so no tenant can activate workflow writes without proven
 notification parity. The current Next Server Actions and visible UI remain the
 rollback path until hosted reconciliation and canary evidence are approved.
+
+## Canary integrity gate (2026-08-01)
+
+The target release process requires a read-only tenant audit-chain check before
+any write canary. A blocked result (predecessor-link or hash mismatch, missing
+actor capability, or failed audit controls) stops provider deployment and flag
+enablement; repair is a separate reviewed milestone. Current demo evidence is
+blocked by 2 link mismatches, 151 hash mismatches, and a missing
+`project.update` capability for the selected actor.

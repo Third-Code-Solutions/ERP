@@ -387,3 +387,17 @@ issuance and supplier email on the legacy path until separately migrated.
    workflow and notification flags. Roll back flags first on mismatch.
 5. Keep SCM issuance, supplier-side email, receiving, BOM/grouped creation,
    and UI delegation as separate milestones.
+
+## Exact next action after read-only project canary audit (2026-08-01)
+
+1. Keep every PO/project/notification write gate and tenant allowlist
+   absent/false; keep Vercel Git disconnected and create no deployment.
+2. Open a separate, read-only audit-recovery review for the 2 predecessor-link
+   and 151 hash mismatches. Do not rewrite audit history or add permissions in
+   this milestone; establish provenance and a reviewed repair procedure first.
+3. Authenticate Railway and Vercel as `kurtgav` /
+   `kurtgavin.design@gmail.com`, then verify identity, readiness, logs,
+   rollback, and spend controls. Provider auth remains unresolved.
+4. Re-run the canary planner with an explicitly approved actor that has the
+   required capability only after audit integrity is resolved. Do not deploy
+   or enable flags while the planner is blocked.

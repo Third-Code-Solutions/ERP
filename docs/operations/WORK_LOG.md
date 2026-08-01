@@ -3445,3 +3445,16 @@ Unresolved: provider sessions remain Vercel unauthenticated and Railway
 `joeseffdy@gmail.com`; authenticate as `kurtgav` /
 `kurtgavin.design@gmail.com`, verify readiness/logs/spend controls, and review
 a one-tenant canary. Keep all PO and notification flags false.
+
+## 2026-08-01 - Read-only project canary audit gate
+
+Ran `scripts/plan-project-cutover.mjs --json` against one existing demo
+tenant/project/actor selected read-only from hosted PostgreSQL. The planner
+confirmed PostgreSQL 17, target existence, Auth identity, project audit
+trigger, hardened audit function, and non-public audit function permissions.
+
+Result: `blocked`. The tenant audit chain has 2 predecessor-link mismatches
+and 151 hash mismatches; the selected actor lacks `project.update`. No rows,
+permissions, feature flags, migration ledger, provider session, or deployment
+changed. Next action is a separate audit recovery review, then a fresh
+read-only canary plan; do not enable PO/project writes.

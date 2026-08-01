@@ -851,3 +851,13 @@ Next exact action: keep all PO and notification flags false, review the three
 linear hosted candidates and duplicate/constraint evidence, then authenticate
 Vercel/Railway as `kurtgav` before any one-tenant canary decision. Do not apply
 SQL or deploy while provider sessions are unresolved.
+
+## Read-only canary audit gate (2026-08-01)
+
+The existing demo tenant/project/actor was evaluated without writes on
+PostgreSQL 17. Target existence, Supabase Auth identity, project audit
+trigger, hardened audit function, and non-public audit function permissions
+passed. The cutover planner remains `blocked` because the tenant audit chain
+has 2 predecessor-link mismatches and 151 hash mismatches, and the selected
+actor lacks `project.update`. No canary, flag enablement, audit repair, hosted
+SQL, or deployment is authorized until those findings are separately reviewed.
