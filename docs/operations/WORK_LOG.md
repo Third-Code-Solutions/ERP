@@ -3746,3 +3746,13 @@ Purchase Order-number group contains 12 records, and
 both returned HTTP 200. No SQL, provider setting, flag, deployment, or
 business record changed. Next action requires owner-provided tenant UUID and
 record-level duplicate remediation instructions.
+
+## 2026-08-01 - CI secret-scan cost-free fix
+
+Draft PR #1 exposed a GitHub Actions failure before application tests: the
+organization-scoped `gitleaks/gitleaks-action@v2.3.9` now requires a paid
+license. Replaced that action with the existing checksum-pinned
+`scripts/run-gitleaks.mjs` and removed the obsolete action-reference check.
+This preserves full-history secret scanning without a paid license or any
+runtime/provider change. The PR was pushed again to trigger the corrected CI
+run.
