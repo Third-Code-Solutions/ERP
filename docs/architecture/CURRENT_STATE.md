@@ -1609,3 +1609,15 @@ changed.
 - Read-only hosted planner remains `review_required`: Supabase 55/62, one
   tenant-scoped 12-record Purchase Order duplicate group, and no approved
   `AUDIT_RECOVERY_TENANT_ID`. Railway/Vercel readiness are HTTP 200.
+
+## 2026-08-02 M2.5 processor canary proof
+
+- Added a rollback-only API integration canary that creates a real processing
+  job, calls the signed worker-client boundary, persists immutable evidence,
+  commits through Nest authority, ignores duplicate delivery, verifies scope
+  replacement/audit evidence, and rolls back the fixture.
+- CI run `30708078211` passed the PostgreSQL 17/Redis 7.4.9 lane, database and
+  API integration, container smoke, workspace checks, and production build.
+  E2E remains skipped by explicit credential gating.
+- All processing flags and tenant allowlists remain closed. Hosted Supabase,
+  Railway, Vercel, and business data remain unchanged.

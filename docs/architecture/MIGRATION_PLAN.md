@@ -1108,3 +1108,14 @@ the first candidate enforces Purchase Order number uniqueness against a
 12-record demo duplicate group; audit recovery also lacks an owner-approved
 tenant UUID. Do not apply SQL or deploy this SHA until those inputs are
 resolved and the planner is rerun.
+
+## M2.5 processor canary source proof (2026-08-02)
+
+Added `document-processing-processor.database.integration.spec.ts`. The test
+exercises the actual Nest processor with the database-backed job state,
+signed worker request/response validation, evidence persistence, authority
+commit, duplicate delivery, scope reconciliation, semantic audit, and full
+rollback. CI run `30708078211` passed all executable gates. This is source
+proof only; activation remains blocked by hosted migration drift, duplicate
+Purchase Order data, audit-recovery tenant selection, and missing production
+E2E credentials.

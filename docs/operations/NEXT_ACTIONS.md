@@ -637,3 +637,14 @@ separate and explicitly approved.
 4. Only if status is `clear`, apply one reviewed SHA to Supabase, then deploy
    Railway and one Vercel production build with spend limits; verify live
    readiness, protected API/browser flows, logs, and exact release identity.
+
+## Exact next action after M2.5 processor canary (2026-08-02)
+
+1. Keep all document-processing, evidence-commit, and draft-BOM flags absent or
+   false; keep tenant allowlists empty.
+2. Add the remaining retry/stall/requeue and real Redis duplicate-delivery
+   proof to the canary lane; keep the Next compatibility path authoritative.
+3. Obtain the owner-approved audit tenant UUID and record-level PO duplicate
+   remediation, then rerun the controlled-release planner.
+4. Only a `clear` planner result authorizes one reviewed Supabase migration
+   release followed by one spend-bounded Railway/Vercel production action.

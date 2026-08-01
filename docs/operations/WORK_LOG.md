@@ -3804,3 +3804,17 @@ number group containing 12 demo records; and no owner-approved
 `AUDIT_RECOVERY_TENANT_ID` is configured. Railway `/ready` and Vercel
 `/api/ready` both returned HTTP 200. No hosted SQL, provider setting, flag,
 deployment, or business data changed.
+
+## 2026-08-02 - M2.5 processor canary source proof
+
+Added `apps/api/integration/document-processing-processor.database.integration.spec.ts`.
+The rollback-only canary creates a real tenant-scoped processing job, uses the
+signed worker client with a bounded response, persists evidence, commits scope
+through Nest authority, ignores duplicate delivery, verifies replacement and
+semantic audit, and rolls back all fixture rows.
+
+Validation: CI run `30708078211` passed Actionlint, secret scan, typecheck,
+lint, unit tests, PostgreSQL 17/Redis 7.4.9 database/API integration,
+container smoke, and production build. E2E remains skipped by explicit
+credential gating. Hosted Supabase, Railway, Vercel, flags, and business data
+were not changed.
