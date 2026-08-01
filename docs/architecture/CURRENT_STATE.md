@@ -1536,5 +1536,30 @@ matches the repository migration contract:
   desktop/mobile captures; no visible UI code or copy changed.
 - Disposable PostgreSQL 17/Redis 7.4.9 replay passed 61 migrations, 253/253
   database assertions without skips, and 11/11 API integration assertions.
-  Hosted Supabase remains at its prior ledger; no provider flag or deployment
-  changed.
+Hosted Supabase remains at its prior ledger; no provider flag or deployment
+changed.
+
+## 2026-08-01 NestJS-to-Python CAD evidence bridge
+
+- Added a private `/parse-evidence` worker contract. NestJS signs the exact
+  request body with a shared HMAC, sends no tenant/project/actor authority, and
+  grants Python only a 120-second exact-object Storage URL. The worker returns
+  bounded, hash-linked evidence with deterministic item keys and no ERP write
+  capability.
+- Added server-only API storage URL issuance, response validation, document
+  identity/attempt checks, timeout and response-size bounds, PostgreSQL-backed
+  queued/processing/succeeded/failed transitions, duplicate delivery handling,
+  retry/dead-letter handling, and the disabled BullMQ processor. Scope commits
+  reuse the existing Nest transaction authority; draft-BOM requests fail
+  closed until a separate idempotent Nest BOM command exists.
+- The legacy `/parse` path remains compatibility-only. Its service-role key is
+  optional at worker startup and is required only when that legacy path is
+  called; the new evidence path never receives or logs it.
+- `ERP_DOCUMENT_PROCESSING_JOBS_ENABLED`,
+  `ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED`,
+  `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED`, and all tenant allowlists remain
+  false/empty by default. No Next routing, UI, hosted SQL, provider setting,
+  or deployment changed.
+- Focused shared/API tests passed; TypeScript typecheck and Python source
+  compilation passed. In an isolated temporary venv, the worker suite passes
+  11/11, including private endpoint signature and evidence tests.

@@ -566,3 +566,24 @@ separate and explicitly approved.
    reconnect Vercel Git. A future hosted release must be one reviewed SHA,
    one controlled provider action, and browser/API/data/log evidence within
    the spend limit.
+
+## Exact next action after signed CAD evidence bridge (2026-08-01)
+
+1. Keep `ERP_DOCUMENT_PROCESSING_JOBS_ENABLED`,
+   `ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED`, and
+   `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED` absent/false; keep every matching
+   tenant allowlist empty. Do not enqueue production processing jobs.
+2. Run the disposable PostgreSQL 17/Redis lane with the API processor and a
+   dependency-complete Python worker. Prove HMAC rejection, signed URL expiry,
+   source/item limits, source hash, retry, stale requeue, duplicate delivery,
+   restart, transaction rollback, and schema stability.
+3. Implement the separate idempotent Nest draft-BOM command before accepting
+   `createDraftBom=true`; never mark a partial scope-only result complete for a
+   request that asked for a BOM. Keep Next CAD parsing as rollback authority.
+4. Re-run the read-only controlled-release planner. The current hosted ledger,
+   duplicate PO group, and audit recovery blockers still prohibit Supabase SQL,
+   Railway deployment, Vercel deployment, or any flag enablement.
+5. After owner-approved duplicate remediation, explicit audit selector/recovery
+   review, and provider identity/spend confirmation under `kurtgav`, apply one
+   reviewed SHA only. Verify database/RLS/readiness/API/browser/log evidence;
+   roll flags back first on any mismatch.

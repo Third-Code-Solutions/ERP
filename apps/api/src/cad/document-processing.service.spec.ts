@@ -25,13 +25,20 @@ const REQUEST: DocumentProcessingRequest = {
   createDraftBom: true,
 }
 
-function service(enabled = false, tenantIds: string[] = []) {
+function service(
+  enabled = false,
+  tenantIds: string[] = [],
+  workerBridgeEnabled = false
+) {
   const config = {
-    get: vi.fn((key: string) =>
-      key === 'ERP_DOCUMENT_PROCESSING_JOBS_ENABLED'
-        ? enabled
-        : tenantIds
-    ),
+    get: vi.fn((key: string, fallback?: unknown) => {
+      if (key === 'ERP_DOCUMENT_PROCESSING_JOBS_ENABLED') return enabled
+      if (key === 'ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED') {
+        return workerBridgeEnabled
+      }
+      if (key === 'ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS') return tenantIds
+      return fallback
+    }),
   } as unknown as ConfigService
   const database = { client: { transaction: vi.fn() } } as unknown as DatabaseService
   return new DocumentProcessingService(

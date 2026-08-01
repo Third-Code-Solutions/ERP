@@ -160,4 +160,28 @@ describe('ERP API environment', () => {
       })
     ).toThrow('ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS')
   })
+
+  it('keeps the private worker bridge closed and validates its server URL', () => {
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED
+    ).toBe(false)
+    expect(validateEnvironment(REQUIRED).DXF_PARSER_URL).toBeUndefined()
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED: 'true',
+        DXF_PARSER_URL: 'ftp://parser.example.test',
+      })
+    ).toThrow('DXF_PARSER_URL')
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED: 'true',
+        DXF_PARSER_URL: 'https://parser.example.test',
+        PARSER_SHARED_SECRET: 's'.repeat(20),
+        SUPABASE_SERVICE_ROLE_KEY: 'k'.repeat(20),
+      }).ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED
+    ).toBe(true)
+  })
 })

@@ -1,6 +1,7 @@
 from typing import Literal
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field
 
 
 CadFormat = Literal["dxf", "dwg"]
@@ -35,3 +36,46 @@ class ParseResult(BaseModel):
     # still "dxf" because we converted before extraction.
     parsed_format: CadFormat = "dxf"
     source_format: CadFormat = "dxf"
+
+
+class EvidenceLimits(BaseModel):
+    max_bytes: int = Field(default=100 * 1024 * 1024, gt=0, le=100 * 1024 * 1024)
+    max_items: int = Field(default=5_000, gt=0, le=5_000)
+
+
+class EvidenceRequest(BaseModel):
+    """Private request accepted only from the signed NestJS boundary."""
+
+    job_id: UUID
+    attempt: int = Field(ge=1, le=5)
+    source_url: AnyHttpUrl
+    source_format: CadFormat
+    file_name: str | None = Field(default=None, max_length=255)
+    limits: EvidenceLimits = Field(default_factory=EvidenceLimits)
+
+
+class EvidenceItem(BaseModel):
+    item_key: str = Field(pattern=r"^[0-9a-f]{64}$")
+    code: str | None = Field(default=None, max_length=50)
+    description: str = Field(min_length=1, max_length=4_000)
+    unit: str = Field(min_length=1, max_length=20)
+    quantity: int = Field(gt=0, le=2_147_483_647)
+    recommended_unit_cost_cents: int = Field(ge=0, le=9_000_000_000)
+    notes: str | None = Field(default=None, max_length=2_000)
+
+
+class EvidenceProducer(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    version: str = Field(min_length=1, max_length=100)
+
+
+class EvidenceResult(BaseModel):
+    schema_version: Literal[1] = 1
+    job_id: UUID
+    attempt: int = Field(ge=1, le=5)
+    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    producer: EvidenceProducer
+    source_format: CadFormat
+    parsed_format: CadFormat
+    items: list[EvidenceItem] = Field(max_length=5_000)
+    warnings: list[str] = Field(default_factory=list, max_length=100)

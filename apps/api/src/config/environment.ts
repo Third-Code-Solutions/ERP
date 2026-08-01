@@ -19,6 +19,10 @@ const environmentSchema = z.object({
   DATABASE_URL: z.string().url(),
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(20),
+  // Server-only Storage access for short-lived exact-object URLs. Optional
+  // while every processing flag is closed; the bridge rejects activation
+  // without it at runtime.
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
   REDIS_URL: z.string().url(),
   ERP_API_CORS_ORIGINS: z.string().default('http://localhost:3000'),
   RESEND_API_KEY: z.string().min(20).optional(),
@@ -127,6 +131,14 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Private evidence bridge remains fail-closed until the parser URL, secret,
+  // commit path, disposable canary, and hosted gates are approved together.
+  ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  DXF_PARSER_URL: optionalHttpUrl,
+  PARSER_SHARED_SECRET: z.string().min(20).optional(),
 })
 
 export type Environment = z.infer<typeof environmentSchema>

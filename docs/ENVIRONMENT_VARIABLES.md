@@ -116,3 +116,22 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 Everything else can be omitted; the corresponding feature will either
 no-op or log a stdout warning at first invocation.
+
+## Nest API document-processing bridge (disabled by default)
+
+The incremental signed worker path is server-only. Keep every processing flag
+false and tenant list empty until the controlled release gate is clear.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `DXF_PARSER_URL` | no | API server | Private parser `/parse-evidence` base URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | no* | API server | Issues a 120-second exact-object Storage URL; never sent to Python |
+| `ERP_DOCUMENT_PROCESSING_JOBS_ENABLED` | no | API server | Processing intake gate; default false |
+| `ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS` | no | API server | Explicit processing tenant allowlist; default empty |
+| `ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED` | no | API server | Signed Nest-to-Python bridge gate; default false |
+| `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED` | no | API server | Nest scope commit gate; default false |
+| `ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS` | no | API server | Explicit commit tenant allowlist; default empty |
+
+`PARSER_SHARED_SECRET` must be at least 20 characters when the private bridge
+is activated. Missing URL, secret, service-role key, or matching allowlists
+fail closed; no processing job is accepted.
