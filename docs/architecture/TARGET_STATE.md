@@ -704,3 +704,10 @@ actor capability, or failed audit controls) stops provider deployment and flag
 enablement; repair is a separate reviewed milestone. Current demo evidence is
 blocked by 2 link mismatches, 151 hash mismatches, and a missing
 `project.update` capability for the selected actor.
+
+## Audit hash parity (2026-08-01)
+
+All new API and Next server audit writes use the same PostgreSQL-compatible
+hash formula as `public.audit_log_trigger()`, and shared verification uses that
+formula as well. Historical mismatches stay immutable and visible to recovery
+review; no release may treat parity code as a historical repair.

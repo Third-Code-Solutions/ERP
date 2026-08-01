@@ -15,7 +15,8 @@ export const auditLog = pgTable(
     action: varchar('action', { length: 50 }).notNull(),
     // JSON diff: { field: { before: x, after: y } }
     diff: jsonb('diff'),
-    // Hash chain: SHA256(prev_hash || JSON.stringify(row_content))
+    // Hash chain: SHA256(prev_hash || entity_type || entity_id || action ||
+    // PostgreSQL timestamptz text). Keep this aligned with audit_log_trigger().
     prev_hash: varchar('prev_hash', { length: 64 }).notNull().default('genesis'),
     hash: varchar('hash', { length: 64 }).notNull(),
     ip_address: varchar('ip_address', { length: 45 }),

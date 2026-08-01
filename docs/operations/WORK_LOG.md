@@ -3458,3 +3458,16 @@ and 151 hash mismatches; the selected actor lacks `project.update`. No rows,
 permissions, feature flags, migration ledger, provider session, or deployment
 changed. Next action is a separate audit recovery review, then a fresh
 read-only canary plan; do not enable PO/project writes.
+
+## 2026-08-01 - Audit hash parity hardening milestone
+
+Forensic read-only evidence showed the database trigger and server audit
+writers used different hash inputs. Added `computeDatabaseAuditHash` with
+PostgreSQL UTC timestamp rendering; API `AuditService`, Next `writeAuditLog`,
+and shared `verifyHashChain` now use it. Existing rows remain immutable.
+
+Validation: shared audit 17/17; serial full suite shared 95, database 107 plus
+137 normal skips, web 300, API 79; WSL1 PostgreSQL 17/Redis 7.4.9 58/58
+migrations, 244/244 DB assertions, 8/8 integration; root typecheck/lint/build
+passed and Next generated 77/77 pages. No hosted SQL, audit repair, or
+provider deployment occurred.
