@@ -3902,5 +3902,9 @@ Validation:
   build (78/78 generated routes) pass.
 
 Hosted Supabase, Railway, Vercel, flags, provider settings, and business data
-were not changed. Commit/CI identity and the planner result will be recorded
-after the reviewed push.
+were not changed. Commit `6d55248110e630ed01c16f903972c8d52ff70af2` is pushed
+under `kurtgav`; CI run `30712546507` passed Actionlint, secret scan, typecheck,
+lint, unit tests, Postgres 17/Redis reproducibility, and production build.
+E2E remains skipped by explicit hosted-credential gating. The read-only planner
+still reports 55/62 migrations, the 12-record Purchase Order duplicate group,
+and missing `AUDIT_RECOVERY_TENANT_ID`.

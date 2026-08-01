@@ -1187,8 +1187,10 @@ database-integrity and audit-recovery gates.
   database tests pass 116 with 137 explicit environment-gated skips;
   workspace typecheck, serial lint, and Next production build pass.
 
-Next exact action: commit and push this candidate under `kurtgav`, await the
-source CI lane, then rerun the read-only controlled-release planner. Do not
-apply the seven hosted migrations or deploy Railway/Vercel while the planner
-reports the duplicate Purchase Order group or missing approved
-`AUDIT_RECOVERY_TENANT_ID`.
+Commit `6d55248110e630ed01c16f903972c8d52ff70af2` is pushed under `kurtgav`.
+CI run `30712546507` passed Actionlint, secret scan, typecheck, lint, unit
+tests, Postgres 17/Redis reproducibility, and production build; E2E is skipped
+by explicit hosted-credential gating. Next exact action: rerun the read-only
+controlled-release planner. Do not apply the seven hosted migrations or deploy
+Railway/Vercel while it reports the duplicate Purchase Order group or missing
+approved `AUDIT_RECOVERY_TENANT_ID`.
