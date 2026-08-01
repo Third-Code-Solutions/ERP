@@ -39,6 +39,27 @@ production, set these in Vercel (web), Railway (workers), and Supabase
 | `OPENAI_CHAT_MODEL` | no | server | Defaults to `gpt-4o-mini` | Override for higher-quality answers (costlier) |
 | `ANTHROPIC_API_KEY` | no | server | `console.anthropic.com` | Optional fallback provider for `packages/ai` |
 
+## Python AI Worker (incremental, optional)
+
+When `AI_WORKER_URL` is set, embedding calls use the private Python worker;
+TypeScript OpenAI embeddings are no longer called. Keep the worker URL and
+secret server-only. Omit both variables to retain the current compatibility
+provider during migration.
+
+| Variable | Required | Scope | Where to get | Controls |
+|---|---|---|---|---|
+| `AI_WORKER_URL` | no | server | Private Railway worker URL | Selects Python-owned advisory embeddings |
+| `AI_WORKER_SHARED_SECRET` | no* | server | Generate a random 32-byte secret | Bearer secret between server callers and worker |
+| `AI_WORKER_TIMEOUT_MS` | no | server | Defaults to 15000 | Bounds each worker request |
+
+Worker-only variables belong on the Python service, never in the browser:
+`AI_WORKER_SHARED_SECRET`, `AI_PROVIDER_API_KEY`, `AI_PROVIDER_URL`,
+`AI_EMBEDDING_MODEL`, `AI_EMBEDDING_DIMENSIONS`, `AI_MAX_TEXTS`,
+`AI_MAX_CHARS`, and `AI_PROVIDER_TIMEOUT_SECONDS`.
+
+`OPENAI_API_KEY` remains required for Cortex/chat completions. It is not needed
+for embeddings when a correctly authenticated `AI_WORKER_URL` is configured.
+
 ---
 
 ## Inngest
@@ -139,3 +160,10 @@ false and tenant list empty until the controlled release gate is clear.
 `PARSER_SHARED_SECRET` must be at least 20 characters when the private bridge
 is activated. Missing URL, secret, service-role key, or matching allowlists
 fail closed; no processing job is accepted.
+
+## Python AI worker boundary (source candidate)
+
+`apps/workers/ai` is an advisory-only FastAPI service. It has no database or
+tenant credentials and cannot approve or commit ERP state. Its `/health` route
+is public; `/v1/embeddings` requires the shared bearer secret and bounds input.
+Deployment is separately controlled and is not part of a routine Vercel build.

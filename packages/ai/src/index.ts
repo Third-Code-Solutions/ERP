@@ -12,3 +12,9 @@ export {
 } from './embed'
 export { findSimilar } from './retrieve'
 export type { StoredEmbedding, RetrievalResult } from './retrieve'
+export {
+  embedBatchWithPythonWorker,
+  embedTextWithPythonWorker,
+  isEmbeddingProviderConfigured,
+  isPythonWorkerConfigured,
+} from './python-worker'

@@ -1,4 +1,9 @@
 import { getOpenAI, EMBEDDING_MODEL } from './openai'
+import {
+  embedBatchWithPythonWorker,
+  embedTextWithPythonWorker,
+  isPythonWorkerConfigured,
+} from './python-worker'
 
 const EMBEDDING_CACHE_MAX_ENTRIES = 200
 
@@ -35,6 +40,16 @@ export async function embedText(text: string): Promise<number[]> {
   }
 
   embeddingCacheMisses += 1
+  if (process.env.AI_WORKER_URL?.trim()) {
+    if (!isPythonWorkerConfigured()) {
+      throw new Error(
+        'AI_WORKER_SHARED_SECRET is required when AI_WORKER_URL is set'
+      )
+    }
+    const embedding = await embedTextWithPythonWorker(text)
+    writeCache(cacheKey, embedding)
+    return embedding
+  }
   const openai = getOpenAI()
   const response = await openai.embeddings.create({
     model: EMBEDDING_MODEL,
@@ -67,6 +82,14 @@ export function getEmbeddingCacheStats(): EmbeddingCacheStats {
 
 export async function embedBatch(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return []
+  if (process.env.AI_WORKER_URL?.trim()) {
+    if (!isPythonWorkerConfigured()) {
+      throw new Error(
+        'AI_WORKER_SHARED_SECRET is required when AI_WORKER_URL is set'
+      )
+    }
+    return embedBatchWithPythonWorker(texts)
+  }
   const openai = getOpenAI()
   const response = await openai.embeddings.create({
     model: EMBEDDING_MODEL,

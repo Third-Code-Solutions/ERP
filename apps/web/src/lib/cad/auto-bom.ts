@@ -6,6 +6,7 @@
 // and the queued Inngest function (apps/web/src/lib/inngest.ts).
 
 import { db } from '@third-code-erp/database'
+import { isEmbeddingProviderConfigured } from '@third-code-erp/ai'
 import { boms, bomLineItems, scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like, max, sql } from 'drizzle-orm'
 import {
@@ -102,7 +103,7 @@ export async function calcDraftBomFromScope(
     }
   }
 
-  const useRag = Boolean(process.env.OPENAI_API_KEY)
+  const useRag = isEmbeddingProviderConfigured()
 
   let totalCostCents = 0
   let totalTcvCents = 0

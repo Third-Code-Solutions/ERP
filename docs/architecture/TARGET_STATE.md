@@ -906,3 +906,13 @@ The source candidate is CI-verified at
 test, Postgres reproducibility, Nest transaction, container, and production
 build gates passed. Promotion still requires the controlled planner to clear
 hosted data-integrity blockers.
+
+## Python AI boundary (M2.9, 2026-08-02)
+
+Embedding generation is moving behind a private Python advisory worker. The
+worker accepts only bounded text batches, authenticates callers with a server
+secret, validates model dimensions and ordering, and returns evidence without
+tenant or business-record authority. Next.js and Inngest retain compatibility
+contracts while `AI_WORKER_URL` is absent; setting it makes Python the sole
+embedding backend for those callers. Chat completion migration remains a
+separate slice.

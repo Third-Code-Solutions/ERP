@@ -3935,3 +3935,19 @@ No Supabase, Railway, Vercel, Storage, queue, flag, or business-data mutation
 was performed. Hosted planner blockers remain: 55/62 ledger, one 12-record
 tenant Purchase Order duplicate group, and missing approved
 `AUDIT_RECOVERY_TENANT_ID`.
+
+## 2026-08-02 - M2.9 Python AI advisory boundary
+
+Added `apps/workers/ai` FastAPI service and protocol tests. `/health` is public;
+`/v1/embeddings` requires `AI_WORKER_SHARED_SECRET`, bounds batches and text,
+does not echo input, validates provider order/dimensions, and has no ERP or
+database credentials. Added worker-first client selection in `packages/ai`
+with compatibility fallback only when `AI_WORKER_URL` is absent. RAG similar
+items, auto-BOM, and Inngest embedding refresh now share provider readiness.
+
+Validation: Python 6/6; focused Web 10/10; full Web 316/316; API 120/120;
+shared-types 115/115; database 116 pass with 137 explicit local integration
+skips; typecheck, lint, Next build 78/78 routes, gitleaks, actionlint,
+workflow-ref verification, and diff checks pass. Docker worker smoke was
+blocked before build by local Docker Desktop API HTTP 500. No hosted SQL,
+deployment, provider setting, flag, or business-data mutation occurred.
