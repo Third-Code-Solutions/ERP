@@ -1494,3 +1494,26 @@ matches the repository migration contract:
   ordered lint, production build generated 77/77 pages, and Python source
   bytecode compilation passed. Python pytest was not runnable in this checkout
   because `pytest` is not installed.
+
+## 2026-08-01 NestJS CAD evidence-commit adapter
+
+- Added shared CAD evidence contracts and exact integer line-total helpers in
+  `packages/shared-types/src/erp-api/cad.ts`; the web compatibility contract
+  now re-exports the same parser limits and arithmetic.
+- Added candidate migration `20260801130000_cad_evidence_commit_idempotency.sql`
+  and the matching Drizzle table. It is tenant-scoped, composite-FK protected,
+  RLS-enabled, server-only, and records processing/succeeded idempotency state.
+- Added disabled NestJS `POST /v1/documents/:documentId/cad-evidence` authority.
+  It derives membership from PostgreSQL, requires `document.manage`, validates
+  document/project tenancy, replaces only document-derived scope rows, commits
+  exact totals plus semantic audit in one transaction, and replays/conflict
+  checks idempotency keys. `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED` defaults
+  false and its tenant allowlist defaults empty. Existing Next parsing remains
+  the compatibility path; no UI cutover occurred.
+- Python remains evidence-only. No hosted Supabase SQL, flag, Railway service,
+  Vercel project, or deployment changed.
+- Validation: shared 108/108, database 113 passing with 137 normal skips, API
+  92/92, web 301/301; disposable PostgreSQL 17/Redis 7.4.9 lane replayed all
+  60 migrations, ran 250/250 database assertions without skips, and ran 10/10
+  Nest/Redis integration assertions. Root typecheck, serial lint, production
+  build (77/77 pages), Actionlint, Gitleaks, and diff checks passed.

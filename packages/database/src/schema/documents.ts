@@ -1,4 +1,13 @@
-import { pgTable, uuid, varchar, text, bigint, timestamp, index } from 'drizzle-orm/pg-core'
+import {
+  pgTable,
+  uuid,
+  varchar,
+  text,
+  bigint,
+  timestamp,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 import { documentTypeEnum } from './enums'
 import { tenants } from './tenants'
 import { projects } from './projects'
@@ -22,6 +31,10 @@ export const documents = pgTable(
   },
   (table) => ({
     tenantIdx: index('idx_documents_tenant_id').on(table.tenant_id),
+    tenantIdUniqueIdx: uniqueIndex('ux_documents_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     projectIdx: index('idx_documents_project_id').on(table.project_id),
     uploadedByIdx: index('idx_documents_uploaded_by').on(table.uploaded_by),
     tenantTypeIdx: index('idx_documents_tenant_type').on(table.tenant_id, table.document_type),

@@ -84,6 +84,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     ) {
       return 'project.update'
     }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/documents/:documentId/cad-evidence')
+    ) {
+      return 'document.cad_evidence_commit'
+    }
     return 'unknown.command'
   }
 

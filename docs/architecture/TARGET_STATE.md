@@ -778,3 +778,16 @@ the document's tenant/project relationship and commits derived scope rows,
 exact money totals, replacement semantics, and audit evidence in one database
 transaction. The future Nest adapter will own this same commit contract before
 the transitional Next server path is retired.
+
+## CAD evidence authority target (2026-08-01)
+
+The NestJS modular monolith owns the official CAD evidence commit. Python may
+only read object-storage input and return bounded, schema-validated evidence.
+The Nest command must derive tenant membership from PostgreSQL, enforce
+`document.manage`, lock and validate the document/project relationship, replace
+derived scope rows only for that document, calculate exact integer totals, and
+write idempotency plus semantic audit evidence atomically. The command remains
+behind a false flag and empty tenant allowlist until hosted migration parity,
+duplicate Purchase Order remediation, audit recovery, and the controlled
+provider gate are clear. The existing Next transaction is the rollback path
+until a separate canary proves parity.

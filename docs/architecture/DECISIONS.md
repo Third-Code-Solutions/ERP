@@ -1418,3 +1418,21 @@ the current upload behavior while closing that authority gap.
 Evidence: worker PostgreSQL dependency and `src/db.py` removed; contract tests
 4/4, web tests 305/305, typecheck/lint, 77/77-page build, and Python
 compilation passed. No hosted state or provider deployment changed.
+
+## D-083 -- NestJS owns the future CAD evidence commit (2026-08-01)
+
+Decision: add a disabled NestJS CAD evidence-commit command that reuses the
+shared worker contract and performs tenant validation, derived-row replacement,
+exact line totals, idempotency, and semantic audit in one PostgreSQL
+transaction. Keep Python evidence-only and retain the Next transaction as the
+compatibility/rollback path until a reviewed canary proves parity.
+
+Rationale: moving the authority boundary incrementally preserves current API
+behavior while preventing a parser retry or worker credential from committing
+official ERP records. A server-only idempotency record and composite tenant
+foreign keys make retries and cross-tenant references fail closed.
+
+Evidence: 60-migration disposable PostgreSQL replay, 250/250 zero-skip
+database assertions, 10/10 API integration assertions, full package tests,
+typecheck, lint, production build, Actionlint, and Gitleaks passed. Hosted
+Supabase, Railway, Vercel, feature flags, and business rows were not changed.
