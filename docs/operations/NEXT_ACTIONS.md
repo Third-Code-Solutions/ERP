@@ -533,3 +533,18 @@ separate and explicitly approved.
    is authorized by this source milestone.
 4. Independently resolve the existing hosted migration, duplicate Purchase
    Order, and audit recovery blockers before any production promotion.
+
+## Exact next action after NestJS CAD evidence-commit adapter (2026-08-01)
+
+1. Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED` absent/false and its tenant
+   allowlist empty. Keep Python evidence-only and do not grant it database
+   credentials.
+2. Keep the Next CAD transaction as the compatibility/rollback path. Build a
+   separate parity/canary test before routing any tenant to Nest authority.
+3. Do not apply `20260801130000_cad_evidence_commit_idempotency.sql` (or the
+   earlier candidate migrations) to Supabase until the owner-approved
+   duplicate PO remediation and audit recovery clear the controlled gate.
+4. Do not create Vercel previews, promote production, or redeploy Railway.
+   The next hosted action is one read-only controlled-release plan using an
+   explicitly approved `AUDIT_RECOVERY_TENANT_ID`; readiness 200 alone is not
+   release evidence.

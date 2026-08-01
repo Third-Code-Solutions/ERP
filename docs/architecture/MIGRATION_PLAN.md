@@ -999,3 +999,24 @@ Next exact action: add a NestJS CAD evidence-commit adapter with the same
 contract and transaction tests, then canary it behind a separate false flag;
 do not remove the Next compatibility path until parity and rollback evidence
 are recorded.
+
+## NestJS CAD evidence-commit adapter (2026-08-01)
+
+Implemented the next smallest authority seam without changing visible UI or
+the transitional Next path. Shared Zod contracts bound worker evidence to one
+document, one project, 5,000 lines, bounded strings, and safe integer money.
+NestJS now has a disabled, capability-guarded command with PostgreSQL-derived
+membership, composite tenant references, document-derived replacement,
+idempotency replay/conflict handling, exact totals, and semantic audit in one
+transaction. The Python worker has no database dependency or ERP write path.
+
+Validation: disposable PostgreSQL 17/Redis 7.4.9 replayed all 60 repository
+migrations; 250/250 database assertions executed without skips; 10/10 API
+integration assertions passed, including cross-tenant rejection and rollback.
+Root tests, typecheck, serial lint, production build (77/77 pages),
+Actionlint, Gitleaks, and diff checks passed. Hosted Supabase remains at its
+prior ledger; no provider deployment or flag enablement occurred.
+
+Next exact action: keep the Nest flag disabled, review the hosted duplicate PO
+and audit recovery blockers, then design a separate canary cutover test before
+retiring the Next compatibility path.

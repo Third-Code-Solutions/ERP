@@ -21,6 +21,11 @@ export const roleEnum = pgEnum('role', [
   'viewer',
 ])
 
+export const cadEvidenceCommitRequestStateEnum = pgEnum(
+  'cad_evidence_commit_request_state',
+  ['processing', 'succeeded']
+)
+
 // KYC review status for Account onboarding (REFACTOR M1 US-001..US-003)
 export const kycStatusEnum = pgEnum('kyc_status', [
   'pending',

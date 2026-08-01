@@ -95,6 +95,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // CAD evidence commits stay fail-closed until the Nest transaction is
+  // replayed against hosted schema and canary data.
+  ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
 })
 
 export type Environment = z.infer<typeof environmentSchema>

@@ -3622,3 +3622,22 @@ Validation: worker-contract 4/4; web 50 files/305 tests; web typecheck, lint,
 ordered Next build 77/77 pages, and Python compileall passed. Python pytest was
 not available. No Supabase SQL, Railway deploy, Vercel deploy, flag, or hosted
 data mutation occurred.
+
+## 2026-08-01 - NestJS CAD evidence-commit adapter
+
+Added shared CAD evidence schemas/helpers, the server-only
+`cad_evidence_commit_requests` migration/table, and disabled NestJS
+`POST /v1/documents/:documentId/cad-evidence`. The command derives membership
+from PostgreSQL, enforces `document.manage`, validates tenant/project scope,
+replaces only document-derived rows, computes exact totals, records idempotent
+result plus semantic audit, and fails closed by default. Added HTTP/service/
+migration contracts and a disposable API database integration test. Fixed the
+API role/capability map to include the existing `estimator` role and
+`document.manage` policy; no visible UI changed.
+
+Validation: focused 10/10 API tests; shared 108/108, database 113 passing with
+137 normal skips, web 301/301, root typecheck, serial lint, build 77/77 pages,
+Actionlint, Gitleaks, and `git diff --check` passed. The disposable lane
+replayed 60 migrations, executed database tests 250/250 without skips, and
+passed API integration 10/10. No hosted SQL, flag, provider setting, or
+deployment was performed.

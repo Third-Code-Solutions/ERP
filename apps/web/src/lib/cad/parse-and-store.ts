@@ -22,6 +22,8 @@ import { extractFromDxfText } from './dxf-extractor'
 import { calcDraftBomFromScope, type AutoBomResult } from './auto-bom'
 import { detectCadFormat, fileExtensionOf } from './format-detect'
 import {
+  CAD_SCOPE_BATCH_SIZE,
+  cadScopeLineTotalCents,
   parseWorkerResponse,
   type WorkerParseResponse,
   type WorkerScopeItem,
@@ -54,17 +56,6 @@ export interface ParseAndStoreResult {
   extensionMismatch: boolean
   bom: AutoBomResult | null
   message: string
-}
-
-const SCOPE_BATCH_SIZE = 200
-const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
-
-function safeScopeLineTotalCents(item: WorkerScopeItem): number {
-  const total = BigInt(item.unit_cost_cents) * BigInt(item.quantity)
-  if (total > MAX_SAFE_INTEGER_BIGINT) {
-    throw new Error('CAD parser returned a scope line value outside supported range')
-  }
-  return Number(total)
 }
 
 export async function persistExtractedScopeItems(input: {
@@ -113,15 +104,17 @@ export async function persistExtractedScopeItems(input: {
       unit: item.unit,
       quantity: item.quantity,
       unit_cost_cents: item.unit_cost_cents,
-      line_total_cents: safeScopeLineTotalCents(item),
+      line_total_cents: cadScopeLineTotalCents(item),
       sort_order: index,
       notes:
         `auto-extracted; document:${documentId}` +
         (item.notes ? `; ${item.notes}` : ''),
     }))
 
-    for (let i = 0; i < rows.length; i += SCOPE_BATCH_SIZE) {
-      await tx.insert(scopeItems).values(rows.slice(i, i + SCOPE_BATCH_SIZE))
+    for (let i = 0; i < rows.length; i += CAD_SCOPE_BATCH_SIZE) {
+      await tx
+        .insert(scopeItems)
+        .values(rows.slice(i, i + CAD_SCOPE_BATCH_SIZE))
     }
 
     await writeAuditLogInTransaction(tx, {
