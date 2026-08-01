@@ -1128,3 +1128,16 @@ proves duplicate enqueue/delivery results in one transport job and one worker
 execution. CI run `30708445023` passed this test and the processor canary.
 Remaining M2.5 proof is bounded retry/final-failure, stale requeue, and
 recovery after Redis loss; production flags remain closed.
+
+## M2.5 recovery completion (2026-08-02)
+
+The source slice now proves bounded BullMQ retry/final-failure, PostgreSQL
+stale-claim recovery, and re-enqueue after Redis transport loss. Recovery
+resets stale claims in PostgreSQL and feeds at most 100 opaque IDs through the
+existing idempotent queue transport. CI run `30709595007` passed the full
+executable lane; E2E remains skipped by explicit credential gating.
+
+The recovery entry point remains dormant until a periodic scheduler has
+explicit feature and tenant gates, observability, and canary approval. Hosted
+schema drift, duplicate Purchase Order data, and the missing audit-recovery
+tenant selector still block release promotion.

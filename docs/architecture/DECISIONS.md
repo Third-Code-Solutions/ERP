@@ -1562,3 +1562,16 @@ audit after duplicate delivery or Redis failure.
 Rationale: queue state can be retried, duplicated, or lost. Keeping tenant and
 business payloads out of Redis limits leakage and prevents transport state from
 finalizing an ERP transaction.
+
+## D-092 -- Recover transport from PostgreSQL state (2026-08-02)
+
+Decision: recover document-processing transport from PostgreSQL, never from
+Redis. Stale claims are reset to `queued` in PostgreSQL, and a bounded batch of
+opaque queued UUIDs feeds `enqueuePending()` through the idempotent queue key.
+Recovery cannot mark a job succeeded or failed, write evidence, approve scope,
+or finalize an ERP transaction.
+
+Rationale: Redis loss is expected to be recoverable, while PostgreSQL owns the
+job state machine and tenant-scoped business authority. A bounded source query
+limits recovery pressure and keeps transport retries from becoming a second
+source of truth.

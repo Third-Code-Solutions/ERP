@@ -642,8 +642,9 @@ separate and explicitly approved.
 
 1. Keep all document-processing, evidence-commit, and draft-BOM flags absent or
    false; keep tenant allowlists empty.
-2. Add bounded retry/final-failure, stale requeue, and Redis-loss recovery
-   proof to the canary lane; keep the Next compatibility path authoritative.
+2. Keep the new recovery entry point dormant. Design a periodic recovery
+   scheduler with explicit flag/tenant gates and observability before enabling
+   it; keep the Next compatibility path authoritative.
 3. Obtain the owner-approved audit tenant UUID and record-level PO duplicate
    remediation, then rerun the controlled-release planner.
 4. Only a `clear` planner result authorizes one reviewed Supabase migration

@@ -857,3 +857,12 @@ The BullMQ transport must carry only `{ schemaVersion, jobId }`. Queue-level
 deduplication is delivery protection, not ERP authority; PostgreSQL claim,
 state transition, evidence, commit, and audit remain the source of truth after
 Redis retries, restarts, or data loss.
+
+## M2.5 recovery boundary (2026-08-02)
+
+Recovery uses a bounded PostgreSQL query: stale `processing` claims are reset
+to `queued`, then at most 100 queued opaque UUIDs are offered to BullMQ. Missing
+Redis jobs are recreated through the idempotent queue key; Redis never decides
+ERP completion, failure, evidence, scope, or audit. A periodic recovery
+scheduler requires explicit feature/tenant gates, metrics, and canary review
+before enablement.
