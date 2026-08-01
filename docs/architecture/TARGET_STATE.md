@@ -631,9 +631,10 @@ authoritative until that proof succeeds.
 - Redis/BullMQ carries only opaque notification identities after commit. Python
   may recommend or analyze, never create, approve, issue, receive, or finalize
   a Purchase Order.
-- Current implementation is intentionally transitional: the Nest route and
-  schema contract exist, but adapter is disabled and non-mutating until
-  idempotency storage and parity evidence are added.
+- Current implementation is intentionally transitional: the Nest route,
+  durable idempotency storage, and transaction parity are proven in disposable
+  PostgreSQL/Redis, but the adapter remains disabled and non-mutating until
+  provider readiness, hosted schema reconciliation, and a canary are approved.
 ## 2026-08-01 evidence added for PO authority
 
 The target modular monolith now has a concrete, disabled first transaction
@@ -653,3 +654,11 @@ progressive disclosure, keyboard-accessible carousel/FAQ, and Organization /
 SoftwareApplication / FAQPage structured data. Any future visual change must
 carry source regression coverage plus desktop/mobile browser evidence before a
 provider deployment is considered.
+
+## Authority proof evidence (2026-08-01)
+
+The first standalone PO transaction slice has disposable runtime evidence:
+PostgreSQL 17 replayed all 56 migrations, all 243 database tests executed, and
+all 7 Nest/Redis integration tests passed. Hosted Supabase remains the source
+of truth and must be reconciled read-only before any candidate migration is
+applied.

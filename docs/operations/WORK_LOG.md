@@ -3329,3 +3329,27 @@ virtualization, not by a test failure.
 Next action: keep the landing surface stable and run the full 56-migration
 PostgreSQL 17/Redis transaction proof on an already available owned Linux or
 CI runner, with no new paid provider commitment.
+
+## 2026-08-01 - disposable PostgreSQL/Redis authority proof
+
+Objective: replace Docker-only integration blockage with a no-cost disposable
+runtime and prove the first Nest transaction boundary end to end.
+
+Completed:
+
+- Ran `scripts/ci/run-wsl1-database-lane.ps1` in Alpine WSL1 distro
+  `ThirdCodeERP-Test`.
+- Rebuilt PostgreSQL 17 database from zero and applied all 56 migrations;
+  ledger exactly matched repository and schema hash remained unchanged across
+  the test run.
+- Executed database tests 243/243 with zero skips.
+- Executed Nest integration tests 7/7: tenant/auth, idempotency, rollback,
+  audit, Redis restart, and Redis data-loss recovery.
+
+Validation: lane exited 0; schema SHA-256
+`427DEBE7531E969D9142C618180FB896FFE12C55C654655256DF1BA7647F2384`. Only
+known Redis memory-overcommit warning remains. No hosted Supabase SQL,
+Vercel deployment, or Railway deployment occurred.
+
+Next action: perform read-only Supabase reconciliation and obtain correct
+`kurtgav` Vercel/Railway provider sessions before any controlled canary.

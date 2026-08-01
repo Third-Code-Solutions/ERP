@@ -783,4 +783,19 @@ Status: complete for source and live evidence; no release was created.
 - Browser verification passed at 1440px and 390px with zero console errors;
   full web tests are 298 passed.
 - Docker remains unavailable because local hardware virtualization is disabled;
-  disposable PostgreSQL/Redis transaction proof is still the next gate.
+  disposable PostgreSQL/Redis proof was completed through the owned WSL1 lane
+  recorded below.
+
+## Disposable authority proof (2026-08-01)
+
+Status: complete locally; hosted cutover still gated.
+
+- Owned Alpine WSL1 lane rebuilt PostgreSQL 17 and Redis 7.4.9 without paid
+  services or Docker.
+- All 56 migrations applied from zero; release planner reported 56/56 current
+  and schema-before/schema-after hashes matched.
+- Database tests passed 243/243 without skips; Nest integration passed 7/7,
+  including PO idempotency/rollback and BullMQ Redis recovery.
+- Remaining gates: read-only hosted Supabase reconciliation, Railway
+  readiness/log identity, correct provider account authentication, and a
+  reviewed single-tenant canary with both write flags still false by default.

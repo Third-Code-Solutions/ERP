@@ -1271,9 +1271,9 @@ matches the repository migration contract:
   55 applied migrations through 20260729233017, and one linear missing suffix:
   20260801090000. The planner flags its defensive drop-constraint statements
   for explicit review; no SQL was executed.
-  Disposable PostgreSQL 17/Redis integration was not run because Docker is
-  unavailable on this workstation. No hosted SQL, Vercel deployment, Railway
-  deployment, or visible UI change occurred.
+  Disposable PostgreSQL 17/Redis integration was initially blocked because
+  Docker is unavailable on this workstation. A later owned Alpine WSL1 lane
+  completed the proof without hosted SQL or provider mutation.
 
 ## 2026-08-01 live landing regression audit
 
@@ -1288,3 +1288,16 @@ matches the repository migration contract:
   `third-code-landing.test.ts`; the full web suite is 298 passed. This is a
   source-only evidence milestone: no Vercel deployment, Railway release, or
   hosted Supabase mutation was performed.
+
+## 2026-08-01 disposable database and queue proof
+
+- `scripts/ci/run-wsl1-database-lane.ps1 -Distribution ThirdCodeERP-Test`
+  rebuilt the disposable PostgreSQL 17 database from zero, applied all 56
+  repository migrations, seeded it, and verified an exact migration ledger and
+  schema hash `427DEBE7531E969D9142C618180FB896FFE12C55C654655256DF1BA7647F2384`.
+- Database suite executed 243/243 tests with zero environment skips. Nest
+  integration executed 7/7 tests covering tenant/auth boundaries, idempotency,
+  rollback, audit, and BullMQ Redis restart/data-loss recovery.
+- Redis 7.4.9 was built and run in the disposable WSL1 distro. WSL reported
+  only the known memory-overcommit warning; no hosted SQL, Vercel deployment,
+  or Railway deployment occurred.
