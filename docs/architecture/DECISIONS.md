@@ -1664,3 +1664,16 @@ Rationale: this moves a sensitive business write toward Nest/PostgreSQL without
 a big-bang UI rewrite, prevents retry duplicates, preserves current behavior
 while flags are closed, and makes tenant/RBAC/audit correctness testable before
 any hosted migration or provider promotion.
+
+## D-100 -- M3.0 source candidate passed executable release gates (2026-08-02)
+
+Decision: record commit `765285a57d37885980f01774bffdb27676a203e0` and GitHub
+Actions run `30717165544` as the reviewed M3.0 source candidate. The run passed
+static checks, secret scan, unit tests, Postgres 17 migration/schema replay,
+database tests without skips, Nest transaction integration, container smoke,
+and production build; E2E remains credential-gated.
+
+Rationale: source reproducibility and transaction-boundary evidence are now
+proven without weakening the independent hosted release planner. Supabase SQL,
+Railway/Vercel deploys, flags, queues, and business-data writes remain blocked
+until hosted ledger, duplicate-data, and audit-recovery findings are cleared.

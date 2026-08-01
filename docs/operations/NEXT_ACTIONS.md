@@ -751,11 +751,10 @@ separate and explicitly approved.
 
 ## Exact next action after M3.0 Change Request boundary (2026-08-02)
 
-1. Run the full workspace lint, tests, production build, clean migration
-   replay/schema diff, secret scan, actionlint, and workflow-reference checks;
-   keep both Change Request gates false/empty.
-2. Push the reviewed source branch under `kurtgav`, wait for green CI, and
-   rerun the read-only controlled-release planner.
+1. Keep the reviewed source commit `765285a57d37885980f01774bffdb27676a203e0`
+   and green CI run `30717165544`; keep both Change Request gates false/empty.
+2. Rerun the read-only controlled-release planner and capture its current
+   blocker JSON before any hosted mutation.
 3. Do not apply `20260802090000_change_request_create_idempotency.sql`, deploy
    Railway/Vercel, or enable the compatibility seam while the planner reports
    seven pending hosted migrations, the 12-record duplicate Purchase Order

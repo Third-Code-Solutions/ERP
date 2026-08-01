@@ -1256,8 +1256,12 @@ semantic audit record. `change_request.create` is explicit and mapped to
 owner/admin/sales. Next.js receives a client seam only; the existing action
 remains live until a reviewed canary.
 
-Validation so far: shared 3/3, database 3/3, Nest 5/5, Web client 20/20,
-workspace typecheck, and `git diff --check` pass. Remaining release work is
-full lint/test/build, migration replay, CI, and documentation evidence. Do
-not apply the new migration to hosted Supabase or deploy providers while the
-controlled planner remains `review_required`.
+Validation complete for the source slice: shared 3/3, database 3/3, Nest
+5/5, Web client 20/20, environment 11/11, serial API 125/125, workspace
+typecheck/lint, production build 78/78 routes, secret scan, actionlint,
+workflow refs, and diff checks pass. GitHub Actions run `30717165544` for
+commit `765285a57d37885980f01774bffdb27676a203e0` also passed the zero-to-
+current Postgres 17 replay, schema diff, database tests without skips, Nest
+transaction integration, container smoke, and production build; E2E remains
+credential-gated. Do not apply the new migration to hosted Supabase or deploy
+providers while the controlled planner remains `review_required`.

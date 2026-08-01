@@ -1773,8 +1773,16 @@ provider, flag, queue, or business-data mutation occurred.
   still authoritative because both core feature flags and tenant allowlists
   default closed. No UI cutover occurred.
 - Focused evidence: shared contract 3/3, database schema/migration 3/3, Nest
-  command/controller 5/5, Web client 20/20, workspace typecheck, and diff
-  checks pass. Full release validation and CI are pending this source slice.
+  command/controller 5/5, Web client 20/20, environment 11/11, workspace
+  typecheck, lint, build 78/78 routes, secret scan, actionlint, workflow refs,
+  and diff checks pass. Serial API validation is 27 files/125 tests; the
+  parallel local lane had one unrelated existing 5-second controller timeout,
+  while CI passed the complete unit lane.
+- Source commit `765285a57d37885980f01774bffdb27676a203e0` passed GitHub Actions
+  run `30717165544`: Postgres 17 zero-to-current replay, schema diff,
+  database tests without skips, Nest transaction integration, production
+  container smoke, and production build all passed. E2E remains skipped by
+  explicit hosted-credential gating.
 - The new migration is local-only. Hosted Supabase remains 55/62, the
   duplicate Purchase Order group and missing approved recovery tenant remain;
   no hosted SQL, deployment, flag, queue, or business-data mutation occurred.
