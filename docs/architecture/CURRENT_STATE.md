@@ -1783,6 +1783,7 @@ provider, flag, queue, or business-data mutation occurred.
   database tests without skips, Nest transaction integration, production
   container smoke, and production build all passed. E2E remains skipped by
   explicit hosted-credential gating.
-- The new migration is local-only. Hosted Supabase remains 55/62, the
-  duplicate Purchase Order group and missing approved recovery tenant remain;
+- The new migration is local-only. Hosted Supabase remains 55/63 with eight
+  pending forward-only migrations, the duplicate Purchase Order group and
+  missing approved recovery tenant remain;
   no hosted SQL, deployment, flag, queue, or business-data mutation occurred.
