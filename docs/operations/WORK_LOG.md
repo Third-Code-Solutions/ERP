@@ -3873,3 +3873,11 @@ processor tests, workspace typecheck, serial lint, production build, and diff
 checks passed. Database/Redis integration files were collected but skipped
 locally because the explicit integration credential gate is absent. Hosted
 Supabase, Railway, Vercel, flags, and business data were not changed.
+
+CI run `30711326355` for commit `0ff4ece8449c882436f90c0dcb45edfc67765da4`
+passed the full executable lane, including Postgres 17/Redis recovery,
+cross-tenant exclusion, production build, and container smoke. E2E remains
+skipped by explicit hosted-credential gating. The read-only release planner
+still reports 55/62 hosted migrations, one 12-record tenant Purchase Order
+duplicate group, and a missing approved `AUDIT_RECOVERY_TENANT_ID`; no hosted
+SQL, provider action, flag, deployment, or business-data mutation occurred.

@@ -676,3 +676,13 @@ separate and explicitly approved.
 4. Only after a `clear` planner plus a reviewed canary may one tenant-scoped
    recovery schedule be enabled. Apply no hosted SQL or provider deploy before
    that gate.
+
+## Exact next action after M2.6 CI evidence (2026-08-02)
+
+1. Treat `0ff4ece8449c882436f90c0dcb45edfc67765da4` as the reviewed M2.6
+   candidate; keep every recovery and processing gate closed in hosted envs.
+2. Obtain the owner-approved `AUDIT_RECOVERY_TENANT_ID` and record-level
+   remediation for the 12-record tenant Purchase Order duplicate group.
+3. Re-run the read-only controlled-release planner. Only `clear` authorizes a
+   tenant-scoped canary, one reviewed Supabase migration, and one spend-bounded
+   Railway/Vercel production action with browser/API/data/log evidence.

@@ -1673,3 +1673,16 @@ changed.
   lint, production build, and diff checks. The new database/Redis integration
   cases were skipped locally by the explicit credential gate. All hosted flags,
   SQL, providers, deployments, and business data remain unchanged.
+
+## 2026-08-02 M2.6 CI and release-gate evidence
+
+- Pushed M2.6 at `0ff4ece8449c882436f90c0dcb45edfc67765da4` under `kurtgav`.
+  CI run `30711326355` passed Actionlint, secret scan, typecheck, lint, unit
+  tests, Postgres 17/Redis reproducibility (including cross-tenant recovery),
+  production build, and container smoke. E2E remains skipped by explicit
+  hosted-credential gating.
+- The read-only planner remains `review_required`: hosted Supabase is 55/62
+  with seven pending migrations, one tenant-scoped 12-record Purchase Order
+  duplicate group, and no approved `AUDIT_RECOVERY_TENANT_ID`. Railway and
+  Vercel readiness are HTTP 200; no hosted SQL, flag, provider setting,
+  deployment, or business-data mutation was performed.

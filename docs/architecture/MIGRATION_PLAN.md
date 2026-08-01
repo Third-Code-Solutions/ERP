@@ -1162,3 +1162,9 @@ shared, typecheck, lint, build, and diff checks pass; database/Redis integration
 requires the CI credential lane. The scheduler remains disabled by default and
 must not be enabled until hosted migration, audit, duplicate-PO, and canary
 gates clear.
+
+CI run `30711326355` then passed the complete executable lane, including the
+Postgres 17/Redis recovery and cross-tenant exclusion proof, production build,
+and container smoke. E2E remains skipped by explicit hosted-credential gating.
+The read-only hosted planner is still `review_required` at 55/62 migrations;
+do not apply SQL or deploy providers until the owner inputs clear it.
