@@ -444,3 +444,21 @@ separate and explicitly approved.
 4. Only after a reviewed recovery decision and provider gates pass, rerun the
    profile verifier and canary planner with an authorized actor, then request
    one controlled release.
+
+## Exact next action after controlled hosted release gate (2026-08-01)
+
+1. Keep `ERP_PO_CREATE_WRITES_ENABLED`, `ERP_PO_WORKFLOW_WRITES_ENABLED`,
+   `ERP_PO_WORKFLOW_NOTIFICATIONS_ENABLED`, and
+   `ERP_NOTIFICATION_SWEEP_ENABLED` absent/false; keep all tenant allowlists
+   empty. Do not promote the Vercel preview or redeploy Railway production.
+2. Obtain an owner-approved, reversible remediation for the one duplicate
+   tenant/PO-number group (12 demo records). Do not rename/delete records or
+   weaken the uniqueness guard by inference.
+3. After remediation approval, rerun the read-only planner and preflight, then
+   apply the unchanged three migrations atomically with ledger recording and
+   verify schema, RLS, grants, and readiness. Roll back the transaction on any
+   mismatch.
+4. Resolve the independent audit recovery blockers (111 unknown historical
+   hash rows and 2 predecessor-link breaks), rerun the canary planner with a
+   capability-appropriate actor, and only then request one controlled SHA
+   promotion under spend limits.

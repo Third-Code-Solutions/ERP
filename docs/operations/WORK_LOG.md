@@ -3492,3 +3492,26 @@ tests. Hosted read-only verification classified 661 rows as: database formula
 510, legacy JSON formula 40, unknown 111, with 2 predecessor-link breaks.
 `--require-current` remains blocked. No row rewrite, permission change,
 migration, flag enablement, or provider deployment occurred.
+
+## 2026-08-01 - Controlled hosted release gate
+
+Pushed the reviewed branch under `kurtgav` at `ca9ff6d`. A single Vercel
+preview reached `Ready`; Preview Protection prevented anonymous endpoint
+verification, so no production promotion was made. Railway production stayed
+on its active deployment and `/health` plus `/ready` remained 200.
+
+Validation and release attempt:
+
+- Read-only planner: PostgreSQL 17, hosted 55/58, linear missing suffix of
+  exactly three migrations, no unexpected versions or later-after-gap rows.
+- Preflight: one duplicate tenant/PO-number group containing 12 demo records;
+  target idempotency tables and notification constraint absent.
+- Applied all three reviewed SQL files inside one PostgreSQL transaction. The
+  first migration's explicit uniqueness guard rejected the duplicate group;
+  PostgreSQL rolled back. The hosted ledger still reports 55/58 and no schema,
+  data, audit, permission, flag, or deployment mutation followed.
+
+Changed files for this milestone: architecture and operations release notes
+only. No business record was renamed or deleted. Exact next action is an
+owner-approved reversible remediation plan for the duplicate group, followed
+by a fresh read-only audit/release gate.

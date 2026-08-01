@@ -1327,3 +1327,17 @@ unknown, not repairable by inference, and remain a hard canary blocker.
 Evidence: hosted read-only profile verification found 510 database-profile
 rows, 40 legacy-JSON rows, 111 unknown rows, and 2 broken predecessor links.
 The verifier's 3/3 contract tests passed; no audit or provider state changed.
+
+## D-077 -- Never weaken Purchase Order uniqueness to force a release (2026-08-01)
+
+Decision: keep the candidate migration's tenant-scoped Purchase Order number
+uniqueness guard unchanged. The hosted demo data contains one duplicate group
+of 12 records, so the atomic 55-to-58 migration attempt must fail closed until
+an owner-approved data remediation is defined.
+
+Rationale: silently renaming, deleting, or allowing duplicate official numbers
+would alter business meaning and undermine the idempotent authority. A failed
+transaction is safer than a partially applied schema or fake migration history.
+
+Evidence: the transaction rolled back at the explicit guard; the migration
+ledger stayed at 55/58 and the post-attempt readiness checks remained green.

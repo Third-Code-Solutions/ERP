@@ -1394,3 +1394,22 @@ matches the repository migration contract:
   legacy JSON profile, 111 match neither reviewed profile, and 2 chain links
   are broken. `--require-current` remains non-zero; this is evidence for
   recovery review, not permission to rewrite immutable history.
+
+## 2026-08-01 controlled release gate
+
+- Branch `agent-02/third-code-erp-landing` is pushed under the requested
+  `kurtgav` GitHub identity at commit `ca9ff6d`. One Vercel preview for that
+  SHA reached `Ready`; Preview Protection redirected anonymous health checks,
+  so preview runtime health was not overstated. Vercel production remains on
+  revision `31c04942a93d`.
+- Railway production remains on the active RFQ-notification deployment
+  `50fad0aa-8506-457a-a405-152dc31d2340`; `/health` and `/ready` returned 200,
+  with database and Redis ready. No production redeploy was triggered.
+- The reviewed 55-to-58 Supabase suffix was attempted as one transaction. The
+  first migration intentionally stopped on one duplicate tenant/PO-number
+  group containing 12 demo records. PostgreSQL rolled back the transaction;
+  the hosted ledger remains 55/58 and no schema, business data, audit rows,
+  permissions, or flags were changed.
+- Do not rename/delete those records or weaken the uniqueness guard without an
+  explicit data-remediation decision. The duplicate and historical audit
+  integrity blockers keep PO authority and production promotion disabled.
