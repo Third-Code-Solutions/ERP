@@ -54,3 +54,14 @@
   script.
 - The primary hero image uses responsive fetch priority without a duplicate
   preload; decorative and below-fold copies remain lazy.
+
+## 2026-08-01 live regression evidence
+
+- https://thirdcode-erp.vercel.app/ renders at 1440px and 390px with a
+  three-line H1 and no horizontal overflow.
+- The 12-column dense bento resolves to 24 occupied cells.
+- Accordion, manual carousel, and native FAQ disclosure retain state through
+  browser interaction; console error and warning count is zero.
+- Canonical, Open Graph, and Organization/SoftwareApplication/FAQPage
+  structured data are present. Full evidence lives in
+  docs/research/LIVE_LANDING_AUDIT_20260801.md.

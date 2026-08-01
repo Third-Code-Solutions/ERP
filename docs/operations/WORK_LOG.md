@@ -3304,3 +3304,28 @@ action/form/core-client/gates/tests, and the six required architecture and
 operations memory files. The exact next action is the disposable
 PostgreSQL 17/Redis proof described in NEXT_ACTIONS.md; no provider release is
 authorized by this milestone.
+
+## 2026-08-01 - live landing regression milestone
+
+Objective: verify and protect the existing public landing surface while
+continuing the incremental ERP authority migration.
+
+Completed:
+
+- Audited the live landing page at desktop and mobile widths with browser
+  automation, including accordion, carousel, FAQ, metadata, and console checks.
+- Added `apps/web/src/components/marketing/third-code-landing.test.ts`.
+- Added durable evidence in `docs/research/LIVE_LANDING_AUDIT_20260801.md`,
+  `docs/research/live-landing-snapshot.md`, and
+  `docs/design-references/live-landing-desktop.png`.
+- Updated landing behavior/spec and architecture/operations memory files.
+
+Validation: focused landing test 3/3; full web suite 298 passed; web
+typecheck passed; live browser checks passed with zero console errors. No
+Vercel, Railway, or hosted Supabase mutation occurred. Disposable
+PostgreSQL/Redis proof remains blocked by disabled local hardware
+virtualization, not by a test failure.
+
+Next action: keep the landing surface stable and run the full 56-migration
+PostgreSQL 17/Redis transaction proof on an already available owned Linux or
+CI runner, with no new paid provider commitment.

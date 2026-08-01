@@ -313,3 +313,18 @@ Provider inspection result:
 4. After review and readiness/log/reconciliation/rollback evidence, enable the
    Nest and Next gates for one approved demo tenant only. Keep the legacy path
    available and revert flags immediately on any mismatch.
+
+## Exact next action after landing regression milestone (2026-08-01)
+
+1. Keep Vercel Git disconnected and do not create a preview or production
+   deployment while this source-only milestone is being reviewed.
+2. Keep both PO write flags false; do not apply the candidate migration to
+   hosted Supabase project `aqqrtkmtcsfkbyyqxowv`.
+3. Use an already available owned Linux or CI runner (no new paid service) to
+   replay all 56 migrations against PostgreSQL 17 with Redis and run the real
+   PO commit/replay/conflict/rollback/cross-tenant/audit/number-concurrency/
+   centavo probes.
+4. Reconcile the disposable schema with Supabase's 55/55 ledger, review the
+   migration preflight warnings, then request explicit release approval for a
+   one-tenant canary only after Railway readiness, logs, reconciliation, and
+   rollback evidence are green.

@@ -644,3 +644,12 @@ for capability authorization, same-tenant reference checks, integer-centavo
 calculation, audit, and replay. Python remains advisory and cannot finalize a
 PO. The next proof required is disposable PostgreSQL/Redis integration plus a
 single-tenant canary; hosted flags stay false.
+
+## Landing surface evidence (2026-08-01)
+
+Treat the public landing page as a stable product boundary while backend
+authority migrates. Preserve the measured three-line hero, dense bento grid,
+progressive disclosure, keyboard-accessible carousel/FAQ, and Organization /
+SoftwareApplication / FAQPage structured data. Any future visual change must
+carry source regression coverage plus desktop/mobile browser evidence before a
+provider deployment is considered.

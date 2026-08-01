@@ -1200,3 +1200,16 @@ browser or Python worker must not finalize a transaction. A candidate migration
 is intentionally not applied to hosted Supabase until disposable integration
 proof and a canary rollback plan exist. This is original code and schema,
 independent of ERPNext internals.
+
+## D-069: Preserve the accepted landing architecture during backend migration (2026-08-01)
+
+Decision: keep the current Third Code ERP landing composition and visual
+language stable while ERP write authority moves incrementally into NestJS.
+Protect it with source invariants and live desktop/mobile browser evidence.
+
+Rationale: the public surface already meets its responsive, accessibility, and
+SEO contract; a rewrite would add release risk without improving the current
+milestone. Backend migration must not regress a validated customer entry point.
+
+Constraints: no Vercel deploy is implied, and no visual change is accepted
+without updated regression evidence.
