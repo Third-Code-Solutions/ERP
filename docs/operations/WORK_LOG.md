@@ -3471,3 +3471,16 @@ Validation: shared audit 17/17; serial full suite shared 95, database 107 plus
 migrations, 244/244 DB assertions, 8/8 integration; root typecheck/lint/build
 passed and Next generated 77/77 pages. No hosted SQL, audit repair, or
 provider deployment occurred.
+
+## 2026-08-01 - Read-only audit recovery planner milestone
+
+Added `scripts/plan-audit-recovery.mjs`, `scripts/lib/audit-recovery-plan.mjs`,
+and `scripts/plan-audit-recovery.test.mjs`. The planner uses an explicit
+tenant selector, read-only repeatable-read isolation, opaque refs, bounded
+system event buckets, hardened-function checks, and `--require-clear`.
+
+Validation: planner contract 4/4, existing release/cutover contracts 7/7 and
+6/6, actionlint passed. Hosted read-only run: PostgreSQL 17/UTC, 661 audit
+rows, 2 predecessor-link mismatches, 151 hash mismatches, status
+`review_required`. No audit rows, permissions, flags, migrations, or provider
+deployments changed.

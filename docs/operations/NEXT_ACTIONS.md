@@ -415,4 +415,18 @@ issuance and supplier email on the legacy path until separately migrated.
    and spend controls before any release.
 4. Re-run the canary planner with a capability-appropriate actor only after
    audit recovery review passes. Keep provider deployment and flag enablement
-   separate and explicitly approved.
+separate and explicitly approved.
+
+## Exact next action after read-only audit recovery planner (2026-08-01)
+
+1. Keep all PO/project/notification write gates and tenant allowlists
+   absent/false. Treat the hosted planner's `review_required` status as a hard
+   release blocker.
+2. Use the sanitized day/system-label buckets to identify which historical
+   writers produced the 151 hash mismatches and 2 link mismatches. Produce a
+   reviewed, immutable recovery procedure; do not rewrite `audit_log` yet.
+3. Authenticate Railway and Vercel as `kurtgav` /
+   `kurtgavin.design@gmail.com`; verify exact project/service, readiness, logs,
+   rollback, and spend controls. No deploy while either session is unresolved.
+4. Only after audit recovery approval and provider evidence, re-run the planner
+   with a capability-appropriate actor and request one controlled canary.
