@@ -17,7 +17,6 @@ def _get_supabase_url() -> str:
 
 
 class Settings(BaseSettings):
-    database_url: str
     supabase_url: str = ""
     supabase_service_role_key: str = ""
     storage_bucket: str = "documents"
@@ -50,17 +49,3 @@ if not settings.supabase_url:
     )
 if not settings.supabase_service_role_key:
     raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY is required")
-
-# Strip postgres-js / pgbouncer query params that psycopg rejects.
-# Drizzle/postgres-js uses ?pgbouncer=true to disable prepared statements when
-# connecting through the Supabase transaction pooler. psycopg treats unknown
-# query keys as errors.
-if settings.database_url:
-    import re
-
-    settings.database_url = re.sub(
-        r"([?&])pgbouncer=true(&)?",
-        lambda m: m.group(1) if m.group(2) else "",
-        settings.database_url,
-    )
-    settings.database_url = settings.database_url.rstrip("?&")

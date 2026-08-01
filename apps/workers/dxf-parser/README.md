@@ -13,7 +13,8 @@ pnpm dev:worker
 ```
 
 This launches the worker on `http://localhost:8000` against your
-`apps/web/.env.local` (database + Supabase credentials are reused).
+`apps/web/.env.local` (Supabase Storage credentials are reused; no database
+credentials are needed).
 
 After the worker is running, add this to `apps/web/.env.local`:
 
@@ -34,7 +35,9 @@ result with the auto-drafted BOM.
   - From source: <https://www.gnu.org/software/libredwg/>
 
 The worker pre-flight script (`run-local.sh`) checks for these and offers
-guidance if anything is missing.
+guidance if anything is missing. The worker only reads source files from
+Storage and returns extracted evidence; it never connects to PostgreSQL or
+writes ERP records.
 
 ## API
 
@@ -56,12 +59,12 @@ Deploy to Railway, Fly.io, Render, or any platform that runs Docker.
 The provided `Dockerfile` installs Python + libredwg-tools and runs uvicorn
 on `$PORT`. Set:
 
-- `DATABASE_URL` (the same Postgres URL the web app uses)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
 Then point `DXF_PARSER_URL` (in the web app's environment) at the deployed
-worker's URL.
+worker's URL. The authenticated web application validates and commits returned
+scope items inside its tenant-scoped transaction.
 
 ## Without the worker
 

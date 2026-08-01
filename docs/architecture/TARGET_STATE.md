@@ -768,3 +768,13 @@ supplier-bill matching, and reversal stay separate explicit workflows. The
 Nest command remains behind a false flag and empty tenant allowlist until the
 hosted migration, audit recovery, duplicate remediation, and controlled
 provider gate are independently clear.
+
+## CAD document-processing boundary (2026-08-01)
+
+Python is a document-processing adapter, not an ERP transaction authority. It
+may download a tenant-scoped source file from object storage, convert or parse
+it, and return bounded extraction evidence. The application authority validates
+the document's tenant/project relationship and commits derived scope rows,
+exact money totals, replacement semantics, and audit evidence in one database
+transaction. The future Nest adapter will own this same commit contract before
+the transitional Next server path is retired.

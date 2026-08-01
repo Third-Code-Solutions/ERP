@@ -519,3 +519,17 @@ separate and explicitly approved.
    verify RLS/grants/ledger/readiness, then request a separate one-tenant
    receiving canary. Do not remove the Server Action until parity and rollback
    evidence are recorded.
+
+## Exact next action after CAD parser authority boundary (2026-08-01)
+
+1. Keep the worker evidence-only in every environment; do not restore
+   `DATABASE_URL`, `psycopg`, or a Python ERP write helper.
+2. Add a NestJS CAD evidence-commit adapter that reuses the shared response
+   contract and transaction invariants. Prove tenant isolation, replacement,
+   exact totals, audit evidence, malformed response rejection, and rollback in
+   disposable PostgreSQL before enabling any flag.
+3. Keep the current Next transaction path as the compatibility/rollback path;
+   no UI change, hosted SQL, Railway deploy, Vercel deploy, or worker promotion
+   is authorized by this source milestone.
+4. Independently resolve the existing hosted migration, duplicate Purchase
+   Order, and audit recovery blockers before any production promotion.

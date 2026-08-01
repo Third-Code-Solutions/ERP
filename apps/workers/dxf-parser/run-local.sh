@@ -6,8 +6,7 @@
 #      macOS:  brew install libredwg
 #      Debian: apt-get install libredwg-tools
 #   2. Python 3.11+ on PATH
-#   3. /Users/hoon/erp/apps/web/.env.local containing:
-#        DATABASE_URL=...
+#   3. apps/web/.env.local containing:
 #        NEXT_PUBLIC_SUPABASE_URL=...
 #        SUPABASE_SERVICE_ROLE_KEY=...
 #
@@ -48,7 +47,7 @@ if [[ -f "$ENV_FILE" ]]; then
   source "$ENV_FILE"
   set +a
 else
-  echo "⚠ No env file at $ENV_FILE — worker may fail to download or persist."
+  echo "⚠ No env file at $ENV_FILE — worker may fail to download source files."
 fi
 
 # Set up venv

@@ -1,5 +1,10 @@
 import { Inngest } from 'inngest'
 
+import {
+  parseWorkerResponse,
+  type WorkerParseResponse,
+} from '@/lib/cad/worker-contract'
+
 export const inngest = new Inngest({ id: 'third-code-erp' })
 
 // =============================================================================
@@ -9,9 +14,11 @@ export const inngest = new Inngest({ id: 'third-code-erp' })
 // Flow:
 //   1. /api/upload accepts a .dxf or .dwg file → emits `document/cad.uploaded`
 //   2. parseCadDrawing fn calls the Python worker; worker converts DWG→DXF if
-//      needed, runs ezdxf extraction, writes scope_items rows.
-//   3. On success, the parser fn emits `cad/parsed` with the extracted count.
-//   4. calcDraftBomFromScope fn loads the new scope items, runs pgvector
+//      needed, runs ezdxf extraction, and returns evidence.
+//   3. The application boundary validates that evidence and commits scope_items
+//      in a tenant-scoped transaction.
+//   4. On success, the parser fn emits `cad/parsed` with the extracted count.
+//   5. calcDraftBomFromScope fn loads the new scope items, runs pgvector
 //      similarity search against historical embedded BOM line items, and
 //      writes a draft BOM with calculated unit costs and totals.
 // =============================================================================
@@ -82,10 +89,21 @@ export const parseCadDrawing = inngest.createFunction(
         const detail = await res.text().catch(() => '')
         throw new Error(`CAD parser returned ${res.status}: ${detail}`)
       }
-      return res.json() as Promise<{ count?: number; source_format?: 'dxf' | 'dwg' }>
+      return parseWorkerResponse(await res.json(), documentId)
     })
 
-    const scopeItemsCreated = result.count ?? 0
+    const parsedResult: WorkerParseResponse = result
+    const scopeItemsCreated = await step.run('persist-cad-scope-items', async () => {
+      const { persistExtractedScopeItems } = await import('@/lib/cad/parse-and-store')
+      return persistExtractedScopeItems({
+        tenantId,
+        projectId,
+        documentId,
+        actorId: null,
+        sourceFormat: parsedResult.source_format,
+        items: parsedResult.scope_items,
+      })
+    })
 
     if (scopeItemsCreated > 0) {
       await step.run('emit-cad-parsed', async () => {
@@ -96,7 +114,7 @@ export const parseCadDrawing = inngest.createFunction(
             projectId,
             tenantId,
             scopeItemsCreated,
-            sourceFormat: result.source_format ?? cadFormat,
+            sourceFormat: parsedResult.source_format,
           },
         })
       })

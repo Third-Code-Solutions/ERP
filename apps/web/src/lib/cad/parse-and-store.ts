@@ -14,12 +14,19 @@
 
 import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
-import { scopeItems } from '@third-code-erp/database/schema'
+import { documents, scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
+import { z } from 'zod'
 
 import { extractFromDxfText } from './dxf-extractor'
 import { calcDraftBomFromScope, type AutoBomResult } from './auto-bom'
 import { detectCadFormat, fileExtensionOf } from './format-detect'
+import {
+  parseWorkerResponse,
+  type WorkerParseResponse,
+  type WorkerScopeItem,
+} from './worker-contract'
+import { writeAuditLogInTransaction } from '@/lib/audit'
 
 export interface ParseAndStoreInput {
   tenantId: string
@@ -27,6 +34,7 @@ export interface ParseAndStoreInput {
   documentId: string
   storagePath: string
   fileName: string
+  actorId?: string | null
 }
 
 export type ParseStatus =
@@ -49,6 +57,89 @@ export interface ParseAndStoreResult {
 }
 
 const SCOPE_BATCH_SIZE = 200
+const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
+
+function safeScopeLineTotalCents(item: WorkerScopeItem): number {
+  const total = BigInt(item.unit_cost_cents) * BigInt(item.quantity)
+  if (total > MAX_SAFE_INTEGER_BIGINT) {
+    throw new Error('CAD parser returned a scope line value outside supported range')
+  }
+  return Number(total)
+}
+
+export async function persistExtractedScopeItems(input: {
+  tenantId: string
+  projectId: string
+  documentId: string
+  actorId?: string | null
+  sourceFormat: 'dxf' | 'dwg'
+  items: WorkerScopeItem[]
+}): Promise<number> {
+  const tenantId = z.string().uuid().parse(input.tenantId)
+  const projectId = z.string().uuid().parse(input.projectId)
+  const documentId = z.string().uuid().parse(input.documentId)
+  const actorId = input.actorId ? z.string().uuid().parse(input.actorId) : null
+
+  return db.transaction(async (tx) => {
+    const [document] = await tx
+      .select({ id: documents.id })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.id, documentId),
+          eq(documents.tenant_id, tenantId),
+          eq(documents.project_id, projectId)
+        )
+      )
+      .limit(1)
+    if (!document) throw new Error('CAD document is outside tenant project scope')
+
+    await tx
+      .delete(scopeItems)
+      .where(
+        and(
+          eq(scopeItems.tenant_id, tenantId),
+          eq(scopeItems.project_id, projectId),
+          like(scopeItems.notes, `%document:${documentId}%`)
+        )
+      )
+
+    const rows = input.items.map((item, index) => ({
+      tenant_id: tenantId,
+      project_id: projectId,
+      created_by: actorId,
+      code: item.code,
+      description: item.description,
+      unit: item.unit,
+      quantity: item.quantity,
+      unit_cost_cents: item.unit_cost_cents,
+      line_total_cents: safeScopeLineTotalCents(item),
+      sort_order: index,
+      notes:
+        `auto-extracted; document:${documentId}` +
+        (item.notes ? `; ${item.notes}` : ''),
+    }))
+
+    for (let i = 0; i < rows.length; i += SCOPE_BATCH_SIZE) {
+      await tx.insert(scopeItems).values(rows.slice(i, i + SCOPE_BATCH_SIZE))
+    }
+
+    await writeAuditLogInTransaction(tx, {
+      tenantId,
+      actorId,
+      entityType: 'document',
+      entityId: documentId,
+      action: 'update',
+      diff: {
+        scope_items_replaced: rows.length,
+        source: 'cad_parser_worker',
+        source_format: input.sourceFormat,
+      },
+    })
+
+    return rows.length
+  })
+}
 
 export async function parseAndStoreCad(
   input: ParseAndStoreInput
@@ -95,10 +186,20 @@ export async function parseAndStoreCad(
           fileName,
         })
 
-        // Worker writes scope_items itself. Now run the auto-BOM inline so the
-        // user sees an extracted scope + draft BOM in the same request.
+        const scopeItemsCreated = await persistExtractedScopeItems({
+          tenantId,
+          projectId,
+          documentId,
+          actorId: input.actorId,
+          sourceFormat: workerResult.source_format,
+          items: workerResult.scope_items,
+        })
+
+        // Commit the worker evidence in the application transaction, then run
+        // the auto-BOM inline so the user sees an extracted scope + draft BOM
+        // in the same request.
         let bom: AutoBomResult | null = null
-        if (workerResult.count > 0) {
+        if (scopeItemsCreated > 0) {
           try {
             bom = await calcDraftBomFromScope({ tenantId, projectId, documentId })
           } catch (err) {
@@ -111,7 +212,7 @@ export async function parseAndStoreCad(
 
         return {
           status: 'extracted',
-          scopeItemsCreated: workerResult.count,
+          scopeItemsCreated,
           warnings: workerResult.warnings,
           layerCount: 0,
           entityCount: 0,
@@ -179,41 +280,18 @@ export async function parseAndStoreCad(
   const dxfText = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
   const extraction = extractFromDxfText(dxfText)
 
-  // Replace any prior auto-extracted rows for this document
-  await db
-    .delete(scopeItems)
-    .where(
-      and(
-        eq(scopeItems.tenant_id, tenantId),
-        eq(scopeItems.project_id, projectId),
-        like(scopeItems.notes, `%document:${documentId}%`)
-      )
-    )
-
-  if (extraction.items.length > 0) {
-    const rows = extraction.items.map((item, idx) => ({
-      tenant_id: tenantId,
-      project_id: projectId,
-      code: item.code,
-      description: item.description,
-      unit: item.unit,
-      quantity: item.quantity,
-      unit_cost_cents: item.unit_cost_cents,
-      line_total_cents: item.unit_cost_cents * item.quantity,
-      sort_order: idx,
-      notes:
-        `auto-extracted; document:${documentId}` +
-        (item.notes ? `; ${item.notes}` : ''),
-    }))
-
-    for (let i = 0; i < rows.length; i += SCOPE_BATCH_SIZE) {
-      await db.insert(scopeItems).values(rows.slice(i, i + SCOPE_BATCH_SIZE))
-    }
-  }
+  const scopeItemsCreated = await persistExtractedScopeItems({
+    tenantId,
+    projectId,
+    documentId,
+    actorId: input.actorId,
+    sourceFormat: 'dxf',
+    items: extraction.items,
+  })
 
   // 5. Auto-BOM (non-fatal if it errors)
   let bom: AutoBomResult | null = null
-  if (extraction.items.length > 0) {
+  if (scopeItemsCreated > 0) {
     try {
       bom = await calcDraftBomFromScope({ tenantId, projectId, documentId })
     } catch (err) {
@@ -230,7 +308,7 @@ export async function parseAndStoreCad(
 
   return {
     status: 'extracted',
-    scopeItemsCreated: extraction.items.length,
+    scopeItemsCreated,
     warnings: extraction.warnings,
     layerCount: extraction.layerCount,
     entityCount: extraction.entityCount,
@@ -245,12 +323,6 @@ export async function parseAndStoreCad(
 // Backward-compat alias — old name was DXF-specific
 export const parseAndStoreDxf = parseAndStoreCad
 
-interface DwgWorkerResponse {
-  count: number
-  warnings: string[]
-  source_format?: string
-}
-
 interface DwgWorkerCallArgs {
   parserUrl: string
   documentId: string
@@ -262,7 +334,7 @@ interface DwgWorkerCallArgs {
 
 const WORKER_TIMEOUT_MS = 90_000 // DWG conversion can take a while on big files
 
-async function callDwgWorker(args: DwgWorkerCallArgs): Promise<DwgWorkerResponse> {
+async function callDwgWorker(args: DwgWorkerCallArgs): Promise<WorkerParseResponse> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), WORKER_TIMEOUT_MS)
   try {
@@ -289,16 +361,7 @@ async function callDwgWorker(args: DwgWorkerCallArgs): Promise<DwgWorkerResponse
       const text = await res.text().catch(() => '')
       throw new Error(`worker returned ${res.status}: ${text.slice(0, 200)}`)
     }
-    const json = (await res.json()) as {
-      count?: number
-      warnings?: string[]
-      source_format?: string
-    }
-    return {
-      count: typeof json.count === 'number' ? json.count : 0,
-      warnings: Array.isArray(json.warnings) ? json.warnings : [],
-      source_format: json.source_format,
-    }
+    return parseWorkerResponse(await res.json(), args.documentId)
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error(`worker timed out after ${WORKER_TIMEOUT_MS / 1000}s`)

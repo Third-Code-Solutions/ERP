@@ -1475,3 +1475,22 @@ matches the repository migration contract:
   build 77/77 pages passed. The first parallel verification attempt was
   discarded because build/typecheck raced on `.next/types`; the ordered rerun
   is the authoritative result.
+
+## 2026-08-01 CAD parser write-authority removal
+
+- Removed the Python worker's PostgreSQL dependency and direct `scope_items`
+  write path. The worker now reads source files from Supabase Storage, performs
+  document extraction, and returns bounded evidence only.
+- Added a shared response contract that checks document identity, item count,
+  formats, warning limits, quantity/cost bounds, and a maximum of 5,000 items.
+- The Next application validates the source document inside the tenant/project
+  scope, replaces only that document's derived rows, computes exact integer
+  line totals, and writes semantic audit evidence in one transaction. Uploads
+  pass the authenticated actor; queued Inngest parsing uses an explicit
+  system-attributed null actor rather than accepting worker authority.
+- Existing upload/API behavior and UI remain unchanged. No hosted database,
+  feature flag, Railway service, Vercel project, or deployment changed.
+- Validation: web contract 4/4, web suite 50 files/305 tests, web typecheck,
+  ordered lint, production build generated 77/77 pages, and Python source
+  bytecode compilation passed. Python pytest was not runnable in this checkout
+  because `pytest` is not installed.
