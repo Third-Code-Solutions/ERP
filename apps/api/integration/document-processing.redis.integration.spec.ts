@@ -47,6 +47,21 @@ async function waitForCompleted(
   throw new Error(`Job ${jobId} did not complete`)
 }
 
+async function waitForState(
+  queue: Queue,
+  jobId: string,
+  expected: 'completed' | 'failed',
+  timeoutMs = 15_000
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const job = await queue.getJob(jobId)
+    if (job && (await job.getState()) === expected) return
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  throw new Error(`Job ${jobId} did not reach ${expected}`)
+}
+
 afterEach(async () => {
   await Promise.allSettled(
     workers.splice(0).map((worker) => worker.close(true))
