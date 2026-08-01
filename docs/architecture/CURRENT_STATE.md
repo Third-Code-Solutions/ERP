@@ -1686,3 +1686,21 @@ changed.
   duplicate group, and no approved `AUDIT_RECOVERY_TENANT_ID`. Railway and
   Vercel readiness are HTTP 200; no hosted SQL, flag, provider setting,
   deployment, or business-data mutation was performed.
+
+## 2026-08-02 Cortex source-grounded search slice
+
+- Added `GET /api/cortex/search`, a tenant-session-bound keyword retrieval
+  surface over current Cortex nodes. The role-derived node-type scope is passed
+  to the database query; request input cannot select a tenant or widen access.
+- Results include source node identity, registry label, freshness, summary, and
+  a validated Cortex deep link. Nodes whose type/ref-table pair is not in the
+  registry are omitted rather than exposed as generic records.
+- Added a debounced graph-toolbar search dropdown. It searches titles and
+  summaries through the server without embedding or LLM calls while typing,
+  limiting provider spend and Vercel function work.
+- Escaped PostgreSQL ILIKE wildcard characters in shared Cortex keyword
+  retrieval. Focused Cortex/search/graph tests pass 22/22; full Web tests pass 306/306;
+  database tests pass 116 with 137 explicit environment-gated skips;
+  workspace typecheck, serial lint, and Next production build pass.
+- Hosted Supabase, Railway, Vercel, flags, provider settings, and business data
+  remain unchanged pending the controlled release planner blockers.

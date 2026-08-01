@@ -686,3 +686,18 @@ separate and explicitly approved.
 3. Re-run the read-only controlled-release planner. Only `clear` authorizes a
    tenant-scoped canary, one reviewed Supabase migration, and one spend-bounded
    Railway/Vercel production action with browser/API/data/log evidence.
+
+## Exact next action after M2.7 Cortex source-grounded search (2026-08-02)
+
+1. Run the final source diff/secret checks, commit only the reviewed Cortex
+   route, tests, graph UI, shared retrieval hardening, and six memory updates;
+   push under `kurtgav`.
+2. Wait for the source CI lane and record its exact SHA/results. E2E remains
+   explicitly skipped unless hosted credentials are supplied.
+3. Rerun `node --env-file=apps/web/.env.local scripts/plan-controlled-release.mjs --json`.
+   Current 55/62 ledger, duplicate Purchase Order group, and missing approved
+   `AUDIT_RECOVERY_TENANT_ID` still prohibit hosted SQL or deploys.
+4. Only a `clear` planner plus approved canary authorizes one reviewed Supabase
+   migration release, one Railway deployment, and one spend-bounded Vercel
+   production action. Verify readiness, protected API/browser behavior, logs,
+   data invariants, and exact release identity after each action.

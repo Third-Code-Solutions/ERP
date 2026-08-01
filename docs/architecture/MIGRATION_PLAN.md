@@ -1168,3 +1168,27 @@ Postgres 17/Redis recovery and cross-tenant exclusion proof, production build,
 and container smoke. E2E remains skipped by explicit hosted-credential gating.
 The read-only hosted planner is still `review_required` at 55/62 migrations;
 do not apply SQL or deploy providers until the owner inputs clear it.
+
+## M2.7 Cortex source-grounded search (2026-08-02)
+
+Status: source candidate implemented; hosted release blocked by existing
+database-integrity and audit-recovery gates.
+
+- Added a tenant-session-bound `GET /api/cortex/search` keyword route with
+  role-derived node-type scope, registry/ref-table validation, source metadata,
+  freshness, and safe deep links.
+- Added a debounced graph-toolbar result surface. Typing uses only the local
+  keyword route; no embedding or LLM call occurs per keystroke, controlling
+  Vercel execution and provider spend.
+- Hardened shared Cortex ILIKE retrieval by escaping wildcard characters.
+- Preserved canonical ERP authority: Cortex search reads derived graph rows and
+  cannot approve, mutate, or finalize business transactions.
+- Focused Cortex/search/graph tests pass 22/22; full Web tests pass 306/306;
+  database tests pass 116 with 137 explicit environment-gated skips;
+  workspace typecheck, serial lint, and Next production build pass.
+
+Next exact action: commit and push this candidate under `kurtgav`, await the
+source CI lane, then rerun the read-only controlled-release planner. Do not
+apply the seven hosted migrations or deploy Railway/Vercel while the planner
+reports the duplicate Purchase Order group or missing approved
+`AUDIT_RECOVERY_TENANT_ID`.
