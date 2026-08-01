@@ -3,12 +3,9 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # System deps:
-#   gcc, libpq-dev   — psycopg C extensions
 #   libredwg-tools   — provides /usr/bin/dwg2dxf for DWG→DXF conversion
 #                      (open-source, AGPL-licensed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
     libredwg-tools \
     && rm -rf /var/lib/apt/lists/*
 

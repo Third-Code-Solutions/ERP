@@ -204,6 +204,7 @@ export async function POST(req: NextRequest) {
         documentId: docId,
         storagePath,
         fileName,
+        actorId: user.id,
       })
       cadParseQueued = result.status === 'extracted'
       cadResult = {

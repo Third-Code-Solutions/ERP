@@ -19,7 +19,6 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
-from src.db import write_scope_items
 from src.models import ParseRequest, ParseResult
 from src.parsers.dwg_converter import (
     DwgConversionError,
@@ -107,18 +106,10 @@ async def parse(
     if extractor.warnings:
         logger.warning("Extraction warnings: %s", extractor.warnings)
 
-    try:
-        count = await write_scope_items(
-            project_id=req.project_id,
-            tenant_id=req.tenant_id,
-            document_id=req.document_id,
-            items=scope_items,
-        )
-    except Exception as exc:
-        logger.error("DB write failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"DB write failed: {exc}") from exc
-
-    logger.info("Wrote %d scope items for document %s", count, req.document_id)
+    # Python is document-processing authority only. It returns extracted
+    # evidence; the tenant-authorized application boundary commits it.
+    count = len(scope_items)
+    logger.info("Extracted %d scope items for document %s", count, req.document_id)
 
     return ParseResult(
         document_id=req.document_id,

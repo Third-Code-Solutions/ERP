@@ -3601,3 +3601,24 @@ The first focused integration assertion counted the database trigger audit
 row alongside the semantic row; it was corrected to assert the semantic diff,
 then passed. No hosted SQL, data, provider setting, flag, or deployment
 changed.
+
+## 2026-08-01 - CAD parser authority boundary
+
+Removed the Python worker's direct PostgreSQL/`scope_items` write path and
+deleted its database helper/dependency. Added a bounded worker response
+contract; the Next application now validates the document belongs to the
+tenant/project, replaces only derived rows for that document, computes exact
+integer line totals, and records audit evidence transactionally. The upload
+route passes the authenticated actor; Inngest uses the same commit function
+with a null system actor.
+
+Changed files: `apps/workers/dxf-parser/{src/main.py,src/config.py,src/db.py,
+pyproject.toml,Dockerfile,README.md,run-local.sh,.env.example}`;
+`apps/web/src/lib/cad/{parse-and-store.ts,worker-contract.ts,
+worker-contract.test.ts}`; `apps/web/src/lib/inngest.ts`; and the upload
+completion route.
+
+Validation: worker-contract 4/4; web 50 files/305 tests; web typecheck, lint,
+ordered Next build 77/77 pages, and Python compileall passed. Python pytest was
+not available. No Supabase SQL, Railway deploy, Vercel deploy, flag, or hosted
+data mutation occurred.

@@ -1401,3 +1401,20 @@ Evidence: 59-migration PostgreSQL 17 replay, zero-skip database lane, API
 integration create/replay/conflicting-key/rollback proof, full TypeScript/
 lint/test/build gates, and migration-contract coverage passed. Hosted Supabase,
 Railway, Vercel, feature flags, and business rows were not changed.
+
+## D-082 -- Python CAD parsing cannot commit ERP records (2026-08-01)
+
+Decision: keep Python limited to Storage-backed document processing and bounded
+extraction evidence. Tenant/project validation, derived `scope_items`
+replacement, exact line totals, and audit logging belong to the application
+transaction. The existing Next path is transitional; the future Nest adapter
+must preserve the same contract before cutover.
+
+Rationale: a worker supplied with tenant identifiers must not be able to write
+official ERP records, bypass tenant authorization, or create an unaudited retry
+path. A shared response schema and transactional application commit preserve
+the current upload behavior while closing that authority gap.
+
+Evidence: worker PostgreSQL dependency and `src/db.py` removed; contract tests
+4/4, web tests 305/305, typecheck/lint, 77/77-page build, and Python
+compilation passed. No hosted state or provider deployment changed.

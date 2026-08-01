@@ -977,3 +977,25 @@ not mutated: its read-only ledger remains 55/59, with the prior three PO
 candidate migrations plus this inventory migration missing. No Railway or
 Vercel release was created. The next action is hosted owner-gated data/audit
 remediation, not enabling this route.
+
+## Milestone: CAD worker becomes evidence-only (2026-08-01)
+
+Scope: remove the Python worker's direct database write authority while keeping
+the existing upload and queued parsing behavior stable.
+
+Changed: worker configuration/dependencies no longer include PostgreSQL;
+`src/db.py` was removed; the worker returns `ParseResult` evidence; the web
+application validates a shared contract and commits derived scope rows through
+one tenant-scoped transaction with exact line totals and audit logging; the
+authenticated upload path supplies the actor; Inngest uses the same commit
+boundary.
+
+Validation: 4/4 worker-contract tests, 50 web test files/305 tests, web
+typecheck/lint, ordered Next production build (77/77 pages), and Python source
+compilation. Python pytest remains unavailable because the checkout has no
+pytest installation. No hosted SQL or provider deployment was performed.
+
+Next exact action: add a NestJS CAD evidence-commit adapter with the same
+contract and transaction tests, then canary it behind a separate false flag;
+do not remove the Next compatibility path until parity and rollback evidence
+are recorded.
