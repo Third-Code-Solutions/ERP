@@ -737,3 +737,14 @@ separate and explicitly approved.
    tenant/RBAC, spend, logs, and exact-SHA checks before setting the worker URL.
 4. Migrate chat completions separately; Python output remains advisory and can
    never approve or finalize ERP transactions.
+
+## Exact next action after M2.9 CI evidence (2026-08-02)
+
+1. Keep `56bb76eb2dc7f4f7f00fbe4690e06323696b0618` as the reviewed source
+   candidate; CI run `30715179369` is green and E2E remains credential-gated.
+2. Rerun the read-only controlled-release planner. Do not apply hosted SQL or
+   deploy Railway/Vercel/AI worker while it reports the seven pending
+   migrations, duplicate Purchase Orders, or missing approved recovery tenant.
+3. After `clear`, perform one reviewed worker/service canary and one
+   spend-bounded provider action with readiness, protected-flow, data, logs,
+   tenant isolation, and exact release-SHA evidence.

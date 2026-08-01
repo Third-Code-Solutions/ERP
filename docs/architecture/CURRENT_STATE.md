@@ -1749,3 +1749,11 @@ passed. No hosted provider or business-data mutation occurred.
   Docker Desktop returned HTTP 500 before build.
 - No hosted SQL, worker deployment, provider setting, flag, or business-data
   mutation occurred. Controlled planner blockers remain unchanged.
+
+CI evidence (2026-08-02): commit `56bb76eb2dc7f4f7f00fbe4690e06323696b0618`
+passed GitHub Actions run `30715179369` under `kurtgav`. Actionlint, secret
+scan, typecheck, lint, unit tests, Postgres 17 reproducibility, database tests
+without skips, Nest transaction-boundary integration, production container
+smoke, and workspace production build all passed. E2E remained skipped by the
+explicit hosted-credential gate. No Supabase, Railway, Vercel, worker,
+provider, flag, queue, or business-data mutation occurred.

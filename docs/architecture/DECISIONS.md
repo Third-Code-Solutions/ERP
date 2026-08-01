@@ -1639,3 +1639,14 @@ temporary compatibility fallback.
 Rationale: honor the target architecture without a big-bang cutover or broken
 RAG behavior. Python remains advisory-only; NestJS/PostgreSQL still own every
 official ERP transaction, audit, and tenant-scoped write.
+
+## D-098 -- M2.9 source candidate passed executable release gates (2026-08-02)
+
+Decision: record `56bb76eb2dc7f4f7f00fbe4690e06323696b0618` and GitHub Actions
+run `30715179369` as the reviewed M2.9 source candidate. Hosted deployment,
+worker URL enablement, Supabase SQL, flags, and business-data writes remain
+separately gated by the read-only controlled-release planner.
+
+Rationale: a green source pipeline proves reproducibility and build safety but
+does not prove hosted data integrity, provider authorization, or production
+runtime identity.
