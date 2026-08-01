@@ -718,3 +718,7 @@ Recovery planning must use a repeatable-read/read-only transaction, opaque
 tenant references, bounded system event buckets, and explicit blocker output.
 The planner cannot emit entity IDs or business values, cannot rewrite audit
 history, and cannot clear the canary gate by itself.
+
+Historical profile verification is also bounded to reviewed algorithms. Rows
+matching neither the current database formula nor the legacy JSON formula are
+unknown evidence and must remain a release blocker until provenance is proven.

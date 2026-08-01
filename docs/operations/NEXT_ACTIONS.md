@@ -430,3 +430,17 @@ separate and explicitly approved.
    rollback, and spend controls. No deploy while either session is unresolved.
 4. Only after audit recovery approval and provider evidence, re-run the planner
    with a capability-appropriate actor and request one controlled canary.
+
+## Exact next action after audit hash profile verification (2026-08-01)
+
+1. Keep all PO/project/notification write gates and tenant allowlists
+   absent/false. The 111 unknown rows and 2 link breaks are hard blockers.
+2. Trace the 40 legacy-JSON rows and 111 unknown rows to reviewed writer
+   versions and provenance using read-only evidence. Do not infer or rewrite
+   immutable history from counts alone.
+3. Authenticate Railway and Vercel as `kurtgav` /
+   `kurtgavin.design@gmail.com`; verify exact project/service, readiness, logs,
+   rollback, and spend controls. No deploy while sessions are unresolved.
+4. Only after a reviewed recovery decision and provider gates pass, rerun the
+   profile verifier and canary planner with an authorized actor, then request
+   one controlled release.

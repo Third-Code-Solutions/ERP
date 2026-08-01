@@ -889,3 +889,16 @@ Validation: audit recovery contract 4/4, database-release contract 7/7,
 project-cutover contract 6/6, actionlint passed. Hosted read-only execution
 reproduced 661 rows, 2 link mismatches, 151 hash mismatches, UTC timezone, and
 `review_required`; no SQL or deployment occurred.
+
+## Audit hash profile verification milestone (2026-08-01)
+
+Added `scripts/verify-audit-hash-profiles.mjs` and contract tests. The tool
+reads the selected tenant's immutable audit rows in a repeatable-read/read-only
+transaction and classifies only the current PostgreSQL formula, the historical
+JSON writer formula, both, or unknown. It prints no entity IDs or business
+values and exits non-zero with `--require-current` whenever links or unknown/
+legacy profiles remain.
+
+Hosted result: 661 rows; database profile 510, legacy JSON profile 40, unknown
+111, broken links 2. Contract tests 3/3 passed; no hosted SQL or deployment
+occurred. Unknown rows remain unrepaired and block canary approval.
