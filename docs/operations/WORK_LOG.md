@@ -3720,3 +3720,15 @@ skips, workspace typecheck, serial lint, Nest/Next production build (77/77
 pages), Actionlint, Gitleaks, diff checks, and isolated Python worker pytest
 11/11. Hosted Supabase, Railway, Vercel, flags, and business data remain
 unchanged.
+
+## 2026-08-01 - Source release handoff
+
+Committed and pushed the reviewed source slice as
+`9a773d4e692a4d2471416d14887cbab907f57a04` on
+`origin/agent-02/third-code-erp-landing`, authored by `kurtgav`.
+The read-only controlled-release planner remains `review_required`: hosted
+Supabase is 55/62 migrations with seven candidates pending, one duplicate
+Purchase Order-number group contains 12 demo records, and
+`AUDIT_RECOVERY_TENANT_ID` is not approved/configured. Railway and Vercel
+readiness endpoints remain HTTP 200, but no hosted SQL, flag, deployment, or
+business-data mutation was performed.
