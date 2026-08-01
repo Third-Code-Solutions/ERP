@@ -131,6 +131,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Recovery scheduling is closed by default and must be scoped to explicit
+  // tenant UUIDs before any Redis scheduler is created.
+  ERP_DOCUMENT_PROCESSING_RECOVERY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_PROCESSING_RECOVERY_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Private evidence bridge remains fail-closed until the parser URL, secret,
   // commit path, disposable canary, and hosted gates are approved together.
   ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED: z

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   documentProcessingAcceptedSchema,
   documentProcessingQueueJobSchema,
+  documentProcessingRecoveryJobSchema,
   documentProcessingRequestSchema,
   documentProcessingStatusSchema,
   documentProcessingWorkerRequestSchema,
@@ -45,6 +46,18 @@ describe('document processing contracts', () => {
       documentProcessingQueueJobSchema.parse({
         schemaVersion: 1,
         jobId: JOB_ID,
+        tenantId: DOCUMENT_ID,
+      })
+    ).toThrow()
+  })
+
+  it('keeps recovery scheduler payload free of tenant and job authority', () => {
+    expect(
+      documentProcessingRecoveryJobSchema.parse({ schemaVersion: 1 })
+    ).toEqual({ schemaVersion: 1 })
+    expect(() =>
+      documentProcessingRecoveryJobSchema.parse({
+        schemaVersion: 1,
         tenantId: DOCUMENT_ID,
       })
     ).toThrow()

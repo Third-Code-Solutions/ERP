@@ -1151,3 +1151,14 @@ credential gating. The read-only planner still reports `review_required` for
 55/62 hosted migrations, the 12-record tenant Purchase Order duplicate group,
 and the missing approved `AUDIT_RECOVERY_TENANT_ID`. Do not apply SQL or deploy
 providers until owner inputs clear those gates.
+
+## M2.6 tenant-scoped recovery scheduler source candidate (2026-08-02)
+
+Added explicit recovery env gates and tenant allowlist intersection, a BullMQ
+job scheduler, an opaque scheduler contract, and a Nest processor branch that
+rebuilds transport from PostgreSQL state. The query resets stale claims and
+returns at most 100 queued IDs only for the approved tenant scope. Local API,
+shared, typecheck, lint, build, and diff checks pass; database/Redis integration
+requires the CI credential lane. The scheduler remains disabled by default and
+must not be enabled until hosted migration, audit, duplicate-PO, and canary
+gates clear.

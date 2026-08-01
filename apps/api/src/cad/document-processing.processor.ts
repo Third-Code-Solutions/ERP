@@ -3,10 +3,11 @@ import {
   Processor,
   WorkerHost,
 } from '@nestjs/bullmq'
-import { Inject, Logger } from '@nestjs/common'
+import { Inject, Logger, Optional } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import {
   documentProcessingQueueJobSchema,
+  documentProcessingRecoveryJobSchema,
   type CadEvidenceCommitCommand,
 } from '@third-code-erp/shared-types'
 import type { Job } from 'bullmq'
@@ -17,7 +18,10 @@ import {
   DOCUMENT_PROCESSING_ATTEMPTS,
   DOCUMENT_PROCESSING_JOB,
   DOCUMENT_PROCESSING_QUEUE,
+  DOCUMENT_PROCESSING_RECOVERY_JOB,
+  DOCUMENT_PROCESSING_RECOVERY_SCHEDULER,
 } from './document-processing.constants'
+import { DocumentProcessingJobQueue } from './document-processing.queue'
 import {
   DocumentProcessingWorkerClient,
   DocumentProcessingWorkerError,
@@ -28,6 +32,7 @@ export interface DocumentProcessingProcessorResult {
   status: 'succeeded' | 'ignored'
   jobId: string
   scopeItemsCreated?: number
+  recoveredJobs?: number
   draftBomId?: string
   sourceSha256?: string
 }
@@ -45,7 +50,10 @@ export class DocumentProcessingProcessor extends WorkerHost {
     @Inject(CadEvidenceCommitService)
     private readonly commits: CadEvidenceCommitService,
     @Inject(DocumentProcessingEvidenceService)
-    private readonly evidence: DocumentProcessingEvidenceService
+    private readonly evidence: DocumentProcessingEvidenceService,
+    @Optional()
+    @Inject(DocumentProcessingJobQueue)
+    private readonly queue?: DocumentProcessingJobQueue
   ) {
     super()
   }
@@ -53,6 +61,71 @@ export class DocumentProcessingProcessor extends WorkerHost {
   async process(
     job: Job<unknown, DocumentProcessingProcessorResult, string>
   ): Promise<DocumentProcessingProcessorResult> {
+    if (job.name === DOCUMENT_PROCESSING_RECOVERY_JOB) {
+      const parsed = documentProcessingRecoveryJobSchema.safeParse(job.data)
+      if (!parsed.success) {
+        throw new Error('Invalid document processing recovery job data')
+      }
+
+      const enabled = this.config.get<boolean>(
+        'ERP_DOCUMENT_PROCESSING_RECOVERY_ENABLED',
+        false
+      )
+      const jobsEnabled = this.config.get<boolean>(
+        'ERP_DOCUMENT_PROCESSING_JOBS_ENABLED',
+        false
+      )
+      const bridgeEnabled = this.config.get<boolean>(
+        'ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED',
+        false
+      )
+      const commitEnabled = this.config.get<boolean>(
+        'ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED',
+        false
+      )
+      const recoveryTenantIds = this.config.get<string[]>(
+        'ERP_DOCUMENT_PROCESSING_RECOVERY_TENANT_IDS',
+        []
+      )
+      const jobTenantSet = new Set(
+        this.config.get<string[]>('ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS', [])
+      )
+      const commitTenantSet = new Set(
+        this.config.get<string[]>(
+          'ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS',
+          []
+        )
+      )
+      const tenantIds = [...new Set(recoveryTenantIds)].filter((tenantId) =>
+        jobTenantSet.has(tenantId) && commitTenantSet.has(tenantId)
+      )
+      if (
+        !enabled ||
+        !jobsEnabled ||
+        !bridgeEnabled ||
+        !commitEnabled ||
+        tenantIds.length === 0
+      ) {
+        return {
+          status: 'ignored',
+          jobId: DOCUMENT_PROCESSING_RECOVERY_SCHEDULER,
+        }
+      }
+      if (!this.queue) {
+        throw new Error('Document processing recovery queue is unavailable')
+      }
+
+      const enqueued = await this.queue.enqueuePending(tenantIds)
+      this.logger.log(
+        `Document processing recovery enqueued ${enqueued} job(s) for ${tenantIds.length} tenant scope(s)`
+      )
+      return {
+        status: 'succeeded',
+        jobId: DOCUMENT_PROCESSING_RECOVERY_SCHEDULER,
+        recoveredJobs: enqueued,
+      }
+    }
+
     if (job.name !== DOCUMENT_PROCESSING_JOB) {
       throw new Error(`Unsupported document processing job: ${job.name}`)
     }

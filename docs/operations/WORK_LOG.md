@@ -3859,3 +3859,17 @@ The read-only release planner remains `review_required`: hosted Supabase is
 duplicate group remains, and no approved `AUDIT_RECOVERY_TENANT_ID` exists.
 Railway `/ready` and Vercel `/api/ready` returned HTTP 200. No hosted SQL,
 provider setting, deployment, flag, or business-data mutation was performed.
+
+## 2026-08-02 - M2.6 tenant-scoped recovery scheduler
+
+Added closed-by-default recovery scheduling for document-processing. BullMQ
+creates the scheduler only when recovery, intake, worker-bridge, and Nest commit
+gates are true and the recovery tenant IDs intersect processing and commit
+allowlists. The scheduler payload is schema-version-only; the processor calls
+the bounded PostgreSQL recovery query and logs rebuilt transport counts.
+
+Validation: shared contract tests 7/7, API full suite 120/120, focused queue and
+processor tests, workspace typecheck, serial lint, production build, and diff
+checks passed. Database/Redis integration files were collected but skipped
+locally because the explicit integration credential gate is absent. Hosted
+Supabase, Railway, Vercel, flags, and business data were not changed.

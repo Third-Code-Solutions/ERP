@@ -4,7 +4,7 @@ import {
   documents,
   users,
 } from '@third-code-erp/database/schema'
-import { and, eq, lt, or } from 'drizzle-orm'
+import { and, eq, inArray, lt, or } from 'drizzle-orm'
 import {
   DOCUMENT_PROCESSING_MAX_ATTEMPTS,
   DOCUMENT_PROCESSING_MAX_ITEMS,
@@ -207,7 +207,13 @@ export class DocumentProcessingStateService {
    * processing claims back to queued. PostgreSQL remains authoritative when
    * Redis has lost transport jobs.
    */
-  async recoverableJobIds(before: Date): Promise<string[]> {
+  async recoverableJobIds(
+    before: Date,
+    tenantIds: readonly string[]
+  ): Promise<string[]> {
+    const scopedTenantIds = [...new Set(tenantIds)]
+    if (scopedTenantIds.length === 0) return []
+
     return this.database.client.transaction(async (transaction) => {
       await transaction
         .update(documentProcessingJobs)
@@ -219,14 +225,20 @@ export class DocumentProcessingStateService {
         .where(
           and(
             eq(documentProcessingJobs.status, 'processing'),
-            lt(documentProcessingJobs.updated_at, before)
+            lt(documentProcessingJobs.updated_at, before),
+            inArray(documentProcessingJobs.tenant_id, scopedTenantIds)
           )
         )
 
       const rows = await transaction
         .select({ id: documentProcessingJobs.id })
         .from(documentProcessingJobs)
-        .where(eq(documentProcessingJobs.status, 'queued'))
+        .where(
+          and(
+            eq(documentProcessingJobs.status, 'queued'),
+            inArray(documentProcessingJobs.tenant_id, scopedTenantIds)
+          )
+        )
         .orderBy(documentProcessingJobs.updated_at)
         .limit(DOCUMENT_PROCESSING_RECOVERY_BATCH_SIZE)
 
