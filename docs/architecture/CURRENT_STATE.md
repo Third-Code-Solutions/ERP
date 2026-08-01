@@ -1447,6 +1447,29 @@ matches the repository migration contract:
   duplicate group containing 12 demo records, and a missing explicit audit
   tenant selector in the current shell. Both live readiness endpoints return
   HTTP 200. No hosted state changed.
+
+## 2026-08-01 Stock Receipt draft authority slice
+
+- Added candidate migration `20260801120000_stock_receipt_create_idempotency.sql`.
+  The repository now contains 59 ordered migrations; the hosted Supabase
+  ledger remains unchanged at 55/59 and the four missing migrations are still
+  a release blocker.
+- Added disabled NestJS `POST /v1/inventory/stock-receipts` authority with
+  `inventory.manage` capability checks, database-derived tenant membership,
+  exact micro-unit quantity and centavo valuation, same-tenant PO/Warehouse/
+  Delivery validation, durable idempotency, semantic audit, and one database
+  transaction. Posting and reversal remain the existing database workflows.
+- Added the server-only `stock_receipt_create_requests` table with tenant
+  composite foreign keys, state-payload checks, RLS, and browser privilege
+  revocation. `ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED` defaults false and
+  its tenant allowlist defaults empty. Existing Inventory Server Actions remain
+  authoritative and unchanged; no frontend cutover occurred.
+- Validation for this source milestone: shared-types 104/104, database
+  110/110 with normal environment-gated skips, API 85/85, web 301/301;
+  production build generated 77/77 pages; TypeScript checks, serial lint,
+  Actionlint, Gitleaks, migration replay, and the disposable Nest inventory
+  integration passed. No hosted database, provider setting, flag, or
+  deployment changed.
 - Validation: controlled-gate contract 4/4, all existing planner contracts,
   typecheck, lint, actionlint, gitleaks, full package tests, and production
   build 77/77 pages passed. The first parallel verification attempt was

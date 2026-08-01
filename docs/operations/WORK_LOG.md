@@ -3573,3 +3573,31 @@ the recorded result.
 Exact next action: obtain owner-approved reversible remediation for the 12
 duplicate demo records and an explicit audit tenant selector, then rerun the
 controlled gate. Keep provider deployment and all write flags disabled.
+
+## 2026-08-01 - Stock Receipt draft authority slice
+
+Added the disabled inventory command seam:
+
+- `supabase/migrations/20260801120000_stock_receipt_create_idempotency.sql`;
+- `packages/database/src/schema/stock-receipt-create-requests.ts` plus enum/
+  index exports;
+- `packages/shared-types/src/erp-api/inventory.ts` and exact-arithmetic tests;
+- `apps/api/src/inventory/*`, capability policy, environment flags, HTTP/service
+  tests, and `apps/api/integration/inventory.database.integration.spec.ts`.
+
+The service derives the actor from tenant membership, validates active
+project/global warehouses and accepted same-PO deliveries, maps tracked PO
+lines, computes integer micro-unit/centavo values, and commits the request,
+draft receipt, lines, result, and semantic audit atomically. Conflicting
+idempotency keys are rejected; retries replay the original result. Existing
+browser receiving writes were not rerouted.
+
+Validation: production build (API webpack and Next 77/77 pages), root
+typecheck, serial lint, full package tests (shared 104, database 110 plus 137
+normal skips, API 85, web 301), Actionlint, Gitleaks, migration contract, and
+the disposable PostgreSQL 17/Redis 7.4.9 lane (59 migrations, database suite
+without skips, API integration including the new Stock Receipt proof) passed.
+The first focused integration assertion counted the database trigger audit
+row alongside the semantic row; it was corrected to assert the semantic diff,
+then passed. No hosted SQL, data, provider setting, flag, or deployment
+changed.

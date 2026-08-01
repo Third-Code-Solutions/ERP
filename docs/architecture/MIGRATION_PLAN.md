@@ -957,3 +957,23 @@ duplicate group; live readiness checks returned 200. No hosted state changed.
 Next action: run the gate with the explicitly approved audit tenant selector
 after the owner approves reversible duplicate remediation. Keep all write
 flags, tenant allowlists, and provider deployment operations disabled.
+
+## Stock Receipt draft authority milestone (2026-08-01)
+
+Implemented the smallest safe inventory receiving seam without changing the
+existing UI or Server Action behavior:
+
+- migration `20260801120000_stock_receipt_create_idempotency.sql`;
+- Drizzle table/enums and shared Zod command/result contracts;
+- disabled NestJS inventory module, controller, validation pipe, and atomic
+  creation service;
+- `inventory.manage` capability plus fail-closed API environment flags;
+- HTTP, service-boundary, shared exact-arithmetic, migration-contract, and
+  disposable PostgreSQL integration coverage.
+
+The disposable lane replayed all 59 migrations and passed its schema verifier,
+database tests without skips, and API integration tests. Hosted Supabase was
+not mutated: its read-only ledger remains 55/59, with the prior three PO
+candidate migrations plus this inventory migration missing. No Railway or
+Vercel release was created. The next action is hosted owner-gated data/audit
+remediation, not enabling this route.

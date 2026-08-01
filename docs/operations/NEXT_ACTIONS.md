@@ -498,3 +498,24 @@ separate and explicitly approved.
 4. When the gate is clear, apply the unchanged three candidate migrations in
    one transaction, verify ledger/RLS/grants/readiness, and request one
    controlled SHA promotion. Record rollback identity and spend evidence.
+
+## Exact next action after Stock Receipt draft authority (2026-08-01)
+
+1. Keep `ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED` absent/false and its
+   tenant allowlist empty. Keep all PO/workflow/notification/project flags
+   false; existing Server Actions remain the rollback path.
+2. Do not apply `20260801120000_stock_receipt_create_idempotency.sql` (or the
+   three earlier PO candidates) to Supabase until the owner-approved duplicate
+   remediation and independent audit recovery are complete. Current hosted
+   ledger is 55/59; candidate migrations are not a production release.
+3. Re-run `node --env-file=apps/web/.env.local scripts/plan-controlled-release.mjs
+   --json` with an explicitly approved `AUDIT_RECOVERY_TENANT_ID`; require a
+   clear result before any provider action. Readiness 200 alone is not enough.
+4. Keep Vercel Git disconnected and create no preview/production deployment;
+   keep Railway production on its current healthy rollback deployment. A
+   future release must be one reviewed SHA, one provider action, and a
+   browser/API/data/logs verification under the spend limit.
+5. After hosted gates clear, apply the unchanged migrations atomically,
+   verify RLS/grants/ledger/readiness, then request a separate one-tenant
+   receiving canary. Do not remove the Server Action until parity and rollback
+   evidence are recorded.

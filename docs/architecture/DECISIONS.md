@@ -1382,3 +1382,22 @@ Evidence: contract 4/4; hosted report correctly blocked 55/58 migrations,
 one duplicate group of 12 records, and missing audit selector while Railway
 and Vercel readiness returned 200. No SQL, flag, provider, or deployment state
 changed.
+
+## D-081 -- Keep Stock Receipt draft creation disabled behind exact authority (2026-08-01)
+
+Decision: add a separate NestJS Stock Receipt draft-creation command with an
+exact decimal boundary, tenant-composite idempotency record, same-tenant
+reference validation, semantic audit, and database transaction. Keep the
+command disabled by default and leave the existing Server Action as the
+compatibility path. Do not combine draft creation with posting, ledger,
+supplier-bill matching, reversal, or frontend cutover.
+
+Rationale: receiving is a sensitive inventory write, but the hosted migration
+ledger, duplicate PO data, and audit recovery are not release-clear. A small
+server-only seam provides testable authority and rollback without guessing at
+hosted data or incurring provider deployments.
+
+Evidence: 59-migration PostgreSQL 17 replay, zero-skip database lane, API
+integration create/replay/conflicting-key/rollback proof, full TypeScript/
+lint/test/build gates, and migration-contract coverage passed. Hosted Supabase,
+Railway, Vercel, feature flags, and business rows were not changed.

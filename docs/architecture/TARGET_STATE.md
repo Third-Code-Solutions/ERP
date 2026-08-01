@@ -751,3 +751,20 @@ runtime output.
   enablement, or manual deployment.
 - The planner remains provider-neutral and cost-safe: it cannot invoke a
   deployment, mutate Supabase, or change Vercel/Railway settings.
+
+## Inventory receiving authority boundary (2026-08-01)
+
+The target receiving flow creates only a tenant-scoped `draft` Stock Receipt
+through NestJS. The command accepts no tenant or actor authority from the
+browser, derives membership from PostgreSQL, and commits the request, receipt,
+lines, idempotency result, and semantic audit in one transaction. Quantities
+are parsed as integer micro-units and values as exact centavos; PostgreSQL
+constraints and inventory triggers remain the final integrity boundary.
+
+The idempotency record is server-only and replay returns the original result;
+conflicting reuse is rejected. A rejected or failed transaction leaves no
+receipt, lines, request completion, or semantic audit. Posting, ledger effects,
+supplier-bill matching, and reversal stay separate explicit workflows. The
+Nest command remains behind a false flag and empty tenant allowlist until the
+hosted migration, audit recovery, duplicate remediation, and controlled
+provider gate are independently clear.
