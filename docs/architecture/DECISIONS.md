@@ -1588,3 +1588,16 @@ Rationale: re-enqueuing while the execution path is disabled would turn a safe
 recovery loop into repeated terminal failures. Requiring the same tenant-scoped
 execution gates keeps transport recovery aligned with the authority that can
 actually finish the ERP transaction.
+
+## D-094 -- Cortex search is keyword-first and source-validated (2026-08-02)
+
+Decision: expose Cortex keyword retrieval through a tenant-session-bound route.
+Apply the caller's role-derived node-type scope in the database query, validate
+each returned node against the entity registry/ref-table pair, and return only
+source metadata plus a safe deep link. The interactive graph may debounce this
+route, but must not invoke embeddings or an LLM on every keystroke.
+
+Rationale: derived graph search improves discoverability without widening
+authorization or adding provider spend to normal navigation. Cortex remains a
+read-only projection; NestJS/PostgreSQL remains the authority for official ERP
+transactions and audit state.

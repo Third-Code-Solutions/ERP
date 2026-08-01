@@ -17,6 +17,19 @@ interface GraphPayload {
   focusNodeId?: string
 }
 
+interface CortexSearchHit {
+  id: string
+  nodeType: string
+  label: string
+  title: string
+  summary: string | null
+  href: string | null
+  refTable: string
+  refId: string
+  freshness: string
+  source: 'cortex'
+}
+
 type Status = 'loading' | 'empty' | 'error' | 'ready'
 
 interface Props {
@@ -38,6 +51,8 @@ export function CortexGraphView({ focus }: Props) {
   const [grouped, setGrouped] = useState(false)
   const [fitNonce, setFitNonce] = useState(0)
   const [selected, setSelected] = useState<SelectedNode | null>(null)
+  const [searchHits, setSearchHits] = useState<CortexSearchHit[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -75,6 +90,41 @@ export function CortexGraphView({ focus }: Props) {
     })
     return () => controller.abort()
   }, [focus])
+
+  // Server retrieval searches titles + summaries across the full tenant graph;
+  // debounce so typing never floods the API or an external provider.
+  useEffect(() => {
+    const term = query.trim()
+    if (term.length < 2) {
+      setSearchHits([])
+      setSearchLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      setSearchLoading(true)
+      fetch(`/api/cortex/search?q=${encodeURIComponent(term)}`, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(String(res.status))
+          return (await res.json()) as { hits?: CortexSearchHit[] }
+        })
+        .then((payload) => setSearchHits(payload.hits ?? []))
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === 'AbortError') return
+          setSearchHits([])
+        })
+        .finally(() => setSearchLoading(false))
+    }, 220)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [query])
 
   const types = useMemo(() => {
     if (!data) return []
@@ -174,6 +224,42 @@ export function CortexGraphView({ focus }: Props) {
             placeholder="Search records…  (press /)"
             aria-label="Search the graph"
           />
+          {(searchLoading || searchHits.length > 0) && query.trim().length >= 2 && (
+            <div
+              className="cortex-search-results"
+              role="listbox"
+              aria-label="Cortex search results"
+            >
+              {searchLoading && (
+                <div className="cortex-search-results__status">
+                  Finding source records...
+                </div>
+              )}
+              {!searchLoading &&
+                searchHits.map((hit) => (
+                  <button
+                    key={hit.id}
+                    type="button"
+                    className="cortex-search-result"
+                    onClick={() => hit.href && router.push(hit.href)}
+                    disabled={!hit.href}
+                    role="option"
+                  >
+                    <span className="cortex-search-result__title">
+                      {hit.title}
+                    </span>
+                    <span className="cortex-search-result__meta">
+                      {hit.label} - {hit.freshness}
+                    </span>
+                    {hit.summary && (
+                      <span className="cortex-search-result__summary">
+                        {hit.summary}
+                      </span>
+                    )}
+                  </button>
+                ))}
+            </div>
+          )}
         </div>
         <div className="cortex-legend">
           {types.map(([t, n]) => {

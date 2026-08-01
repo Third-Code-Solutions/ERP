@@ -876,3 +876,18 @@ commit tenant allowlists. The scheduler carries no tenant, document, or actor
 data. Its Nest processor asks PostgreSQL to reset stale claims and return a
 bounded opaque UUID batch, then reuses idempotent transport enqueue. Missing
 Redis jobs are recoverable; terminal ERP state remains PostgreSQL-owned.
+
+## Cortex search boundary (2026-08-02)
+
+Cortex search is a read-only, tenant-scoped retrieval surface. The authenticated
+profile supplies tenant and role; the request supplies only a bounded query.
+Role-derived node-type scope is applied in PostgreSQL because the server
+database role bypasses RLS. Every result must pass the Cortex entity registry's
+type/ref-table check before a deep link, summary, freshness, or source citation
+is returned.
+
+Interactive graph search may debounce keyword requests, but it must not call an
+embedding or LLM provider per keystroke. Semantic retrieval remains an explicit
+Cortex chat operation with provider availability and spend controls. Search
+never writes ERP state, creates approvals, or treats derived graph data as the
+canonical record; official transactions remain Nest/PostgreSQL-owned.

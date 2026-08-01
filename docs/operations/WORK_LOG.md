@@ -3881,3 +3881,26 @@ skipped by explicit hosted-credential gating. The read-only release planner
 still reports 55/62 hosted migrations, one 12-record tenant Purchase Order
 duplicate group, and a missing approved `AUDIT_RECOVERY_TENANT_ID`; no hosted
 SQL, provider action, flag, deployment, or business-data mutation occurred.
+
+## 2026-08-02 - M2.7 Cortex source-grounded search
+
+Added `apps/web/src/app/api/cortex/search/route.ts` and focused tests. The route
+derives tenant and role from the authenticated profile, applies the Cortex
+node-type scope in the database query, validates registry/ref-table ownership,
+and returns source-cited record metadata plus safe deep links. Added a debounced
+graph-toolbar dropdown so operators can find summaries and titles across the
+full tenant graph without an embedding/LLM request per keystroke. Escaped ILIKE
+wildcards in the shared Cortex retrieval helper.
+
+Validation:
+
+- Focused Cortex/search/graph/search-policy tests: 22/22 pass.
+- Web suite: 306/306 pass.
+- Database suite: 116 pass; 137 cases explicitly skipped without the injected
+  integration database/Redis credentials.
+- Workspace typecheck, serial lint, `git diff --check`, and Next production
+  build (78/78 generated routes) pass.
+
+Hosted Supabase, Railway, Vercel, flags, provider settings, and business data
+were not changed. Commit/CI identity and the planner result will be recorded
+after the reviewed push.
