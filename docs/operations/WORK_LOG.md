@@ -3262,3 +3262,35 @@ Rollback/unresolved:
 - Next action: add durable tenant-composite idempotency migration, implement
   Nest standalone transaction, prove disposable PostgreSQL parity, then
   tenant-canary one command. Keep other PO workflows on current path.
+## 2026-08-01 - standalone PO transaction/idempotency milestone
+
+Objective: move the smallest official PO write behind a transaction-safe Nest
+boundary without changing the existing UI or default API behavior.
+
+Completed:
+
+- Added migration candidate 20260801090000, Drizzle schema, tenant-composite
+  idempotency checks, RLS/service-only grants, and tenant PO-number uniqueness.
+- Implemented capability recheck, idempotency replay/conflict handling,
+  same-tenant reference validation, advisory numbering lock, bounded exact
+  centavo math, line insertion, semantic audit, and atomic result persistence.
+- Added exact API/Next feature gates, UUID tenant allowlists, stable hidden
+  request keys, and fail-closed delegation.
+
+Validation:
+
+- Database: 106 passed, 137 environment-gated skips.
+- API: 70 passed.
+- Web focused client: 16 passed; full web suite: 295 passed.
+- Typechecks for database, API, web, and shared contracts passed.
+- Root lint, typecheck, test, and production build passed (77/77 Next pages
+  and Nest compile).
+- Docker integration was unavailable because the local Docker engine pipe could
+  not be reached. Hosted Supabase stayed at 55/55; no hosted SQL or provider
+  deployment was performed.
+- Read-only Supabase release planner: PostgreSQL 17, linear 55/56 ledger,
+  missing only 20260801090000; no migration SQL executed. Conservative SQL
+  review flags the migration's drop-constraint statements.
+
+Unresolved: run real PostgreSQL 17/Redis replay, rollback, cross-tenant, audit,
+number-concurrency, and centavo-boundary probes before enabling one tenant.

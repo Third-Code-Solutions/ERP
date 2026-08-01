@@ -53,6 +53,10 @@ export const purchaseOrders = pgTable(
     vendorIdx: index('idx_purchase_orders_vendor_id').on(table.vendor_id),
     tenantStatusIdx: index('idx_purchase_orders_tenant_status').on(table.tenant_id, table.status),
     poNumberIdx: index('idx_purchase_orders_po_number').on(table.tenant_id, table.po_number),
+    poNumberUniqueIdx: uniqueIndex('ux_purchase_orders_tenant_po_number').on(
+      table.tenant_id,
+      table.po_number
+    ),
   })
 )
 

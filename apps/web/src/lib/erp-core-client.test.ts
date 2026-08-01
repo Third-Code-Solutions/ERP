@@ -2,9 +2,11 @@ import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createRfqThroughCoreApi,
+  createPurchaseOrderThroughCoreApi,
   dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
+  purchaseOrderWritesUseCoreApi,
   rfqCreateWritesUseCoreApi,
   rfqAutoDispatchUsesCoreApi,
   rfqQuoteWritesUseCoreApi,
@@ -30,6 +32,12 @@ const RFQ_QUOTE_RESULT = {
   quoteId: '55555555-5555-4555-8555-555555555555',
   created: true,
   statusChanged: true,
+}
+const PURCHASE_ORDER_RESULT = {
+  purchaseOrderId: '66666666-6666-4666-8666-666666666666',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  poNumber: 'PO-0001',
+  status: 'draft' as const,
 }
 const RFQ_TRANSITION_RESULT = {
   rfqId: RFQ_ID,
@@ -110,6 +118,100 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PROJECT_WRITES_VIA_API_TENANT_IDS', '*')
     expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(projectWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Purchase Order writes fail-closed unless its independent gate matches', () => {
+    vi.stubEnv('ERP_PO_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(purchaseOrderWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_PO_CREATE_WRITES_VIA_API', 'TRUE')
+    expect(purchaseOrderWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PO_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS', '')
+    expect(purchaseOrderWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv(
+      'ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS',
+      'not-a-uuid'
+    )
+    expect(purchaseOrderWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+  })
+
+  it('sends an idempotent Purchase Order command and validates result', async () => {
+    const command = {
+      projectId: PROJECT_ID,
+      vendorId: null,
+      deliveryDate: null,
+      notes: null,
+      lines: [
+        {
+          description: 'Concrete',
+          quantity: 1,
+          unitCostCents: 10_000,
+          costCodeId: '77777777-7777-4777-8777-777777777777',
+        },
+      ],
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(PURCHASE_ORDER_RESULT), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createPurchaseOrderThroughCoreApi(command, 'po-create-1')
+    ).resolves.toEqual({ ok: true, data: PURCHASE_ORDER_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/procurement/purchase-orders',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'po-create-1',
+        }),
+      })
+    )
+  })
+
+  it('does not fall back to a direct write when core rejects the command', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ message: 'command disabled' }), {
+          status: 503,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    )
+
+    await expect(
+      createPurchaseOrderThroughCoreApi(
+        {
+          projectId: PROJECT_ID,
+          vendorId: null,
+          deliveryDate: null,
+          notes: null,
+          lines: [
+            {
+              description: 'Concrete',
+              quantity: 1,
+              unitCostCents: 10_000,
+              costCodeId: '77777777-7777-4777-8777-777777777777',
+            },
+          ],
+        },
+        'po-create-1'
+      )
+    ).resolves.toEqual({ ok: false, error: 'command disabled' })
   })
 
   it('forwards a UUID correlation header to the Nest command', async () => {

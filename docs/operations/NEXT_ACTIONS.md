@@ -298,3 +298,18 @@ Provider inspection result:
 6. Migrate PO approval, issuance, receiving, and BOM/grouped generation as
    separate bounded slices. Do not combine them with frontend redesign or a
    Vercel deployment.
+
+## Exact next action after standalone PO transaction seam (2026-08-01)
+
+1. Keep both PO write flags false and keep Vercel Git disconnected; create no
+   Vercel preview/production deployment and no Railway release.
+2. Start disposable PostgreSQL 17 and Redis when Docker is available, replay
+   all 56 repository migrations, and run real API probes for first commit,
+   exact retry replay, conflicting key, rollback, cross-tenant rejection,
+   audit, concurrent number allocation, and centavo bounds.
+3. Compare the disposable schema and migration ledger with Supabase project
+   aqqrtkmtcsfkbyyqxowv without applying SQL. Resolve any preflight duplicate
+   PO numbers before considering a hosted migration.
+4. After review and readiness/log/reconciliation/rollback evidence, enable the
+   Nest and Next gates for one approved demo tenant only. Keep the legacy path
+   available and revert flags immediately on any mismatch.

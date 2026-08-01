@@ -19,7 +19,12 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, desc, eq, inArray, max, sql } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  createPurchaseOrderThroughCoreApi,
+  purchaseOrderWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
+import type { CreatePurchaseOrderCommand } from '@third-code-erp/shared-types'
 import {
   computeEWT,
   computeRetention,
@@ -323,6 +328,48 @@ export async function createStandalonePo(
   }
   if (lines.some((line) => !line.costCodeId)) {
     return { error: 'Every Purchase Order line requires a Cost Code' }
+  }
+
+  if (purchaseOrderWritesUseCoreApi(profile.tenantId)) {
+    const idempotencyKey = str(formData.get('idempotency_key'))
+    if (!idempotencyKey) {
+      return {
+        error: 'Retry token is required for the Purchase Order command.',
+      }
+    }
+    const parsedDeliveryDate = deliveryDate
+      ? new Date(`${deliveryDate}T00:00:00.000Z`)
+      : null
+    if (parsedDeliveryDate && Number.isNaN(parsedDeliveryDate.getTime())) {
+      return { error: 'Delivery date is invalid' }
+    }
+    const command: CreatePurchaseOrderCommand = {
+      projectId,
+      vendorId: vendorId ?? null,
+      deliveryDate: parsedDeliveryDate?.toISOString() ?? null,
+      notes: notes ?? null,
+      lines: lines.map((line) => ({
+        code: line.code || undefined,
+        description: line.description.trim(),
+        unit: line.unit || undefined,
+        quantity: line.quantity,
+        unitCostCents: line.unit_cost_cents,
+        costCodeId: line.costCodeId,
+      })),
+    }
+    const result = await createPurchaseOrderThroughCoreApi(
+      command,
+      idempotencyKey
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'Purchase Order could not be created through ERP Core.',
+      }
+    }
+    revalidatePath('/purchase-orders')
+    return { id: result.data.purchaseOrderId }
   }
 
   const selectedCodeIds = [...new Set(lines.map((line) => line.costCodeId))]

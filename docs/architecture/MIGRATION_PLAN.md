@@ -755,3 +755,19 @@ Next migration milestone:
    do not combine them into one release.
 5. Keep Vercel Git disconnected and create no deployment for this source-only
    backend milestone.
+## Milestone: standalone PO idempotency and transaction seam (2026-08-01)
+
+Status: implementation complete locally; production cutover not authorized.
+
+- Added candidate migration 20260801090000 with tenant-composite request
+  idempotency and PO-number uniqueness.
+- Added Drizzle schema and contract tests.
+- Implemented the Nest transaction with locks, bounded integer-centavo math,
+  same-tenant validation, semantic audit, and exact replay.
+- Added server-only API/Next tenant gates and stable client idempotency keys.
+- Hosted Supabase remains 55/55; Vercel Git remains disconnected; no provider
+  deployment was created.
+
+Exit criteria still open: replay all 56 migrations against disposable
+PostgreSQL 17, prove Redis/readiness and real HTTP transaction cases, reconcile
+against hosted schema, then canary one approved tenant with both flags enabled.

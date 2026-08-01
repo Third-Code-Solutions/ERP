@@ -36,10 +36,32 @@ describe('ERP API environment', () => {
       validateEnvironment(REQUIRED).ERP_PO_CREATE_WRITES_ENABLED
     ).toBe(false)
     expect(
+      validateEnvironment(REQUIRED).ERP_PO_CREATE_WRITES_TENANT_IDS
+    ).toEqual([])
+    expect(
       validateEnvironment({
         ...REQUIRED,
         ERP_PO_CREATE_WRITES_ENABLED: 'true',
+        ERP_PO_CREATE_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
       }).ERP_PO_CREATE_WRITES_ENABLED
     ).toBe(true)
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PO_CREATE_WRITES_ENABLED: 'true',
+        ERP_PO_CREATE_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222, 33333333-3333-4333-8333-333333333333',
+      }).ERP_PO_CREATE_WRITES_TENANT_IDS
+    ).toEqual([
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333',
+    ])
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PO_CREATE_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_PO_CREATE_WRITES_TENANT_IDS')
   })
 })

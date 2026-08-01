@@ -1239,7 +1239,38 @@ matches the repository migration contract:
   lint, root typecheck, `git diff --check`, and production build (Nest compile
   plus 77/77 Next pages). Disposable database/Redis release lane was not
   rerun because this slice changes no schema or migration.
-- Remaining authority risks: BOM/grouped PO creation is not one transaction,
-  PO number allocation is not yet an idempotent command contract, receiving
-  and state updates are not yet atomic with semantic audit, and direct Server
-  Action writes remain authoritative until a tenant-scoped cutover.
+- Remaining authority risks: BOM/grouped PO creation and legacy PO-number
+  allocation are not one transaction, receiving and state updates are not yet
+  atomic with semantic audit, and direct Server Action writes remain
+  authoritative until a tenant-scoped cutover. Standalone create has a
+  disabled candidate transaction seam documented below.
+
+## 2026-08-01 standalone purchase-order transaction seam
+
+- Candidate migration 20260801090000 adds tenant-scoped purchase-order
+  idempotency requests, a processing/succeeded state check, composite
+  tenant-to-purchase-order and tenant-to-user foreign keys, RLS, service-only
+  grants, and a tenant-composite unique PO-number index. It deliberately
+  preflights duplicate existing numbers and fails closed. Repository head now
+  contains 56 migrations; hosted Supabase remains at 55/55 and was not changed.
+- The Nest service now performs the official standalone create inside one
+  PostgreSQL transaction: rechecks tenant membership and po.create capability,
+  locks and replays an idempotency request, rejects a conflicting request hash,
+  validates same-tenant project/vendor/cost-code references, takes a tenant
+  advisory number lock, calculates integer centavos with bounded bigint
+  arithmetic, inserts the PO and lines, writes semantic audit, and commits the
+  replay result atomically.
+- API writes require the exact ERP_PO_CREATE_WRITES_ENABLED flag plus an explicit
+  UUID tenant allowlist. The Next client requires its own exact flag and
+  allowlist, supplies a stable idempotency key, and fails closed on API errors;
+  the legacy Server Action path remains the default until a canary is approved.
+- Static schema, database, API, shared-contract, and focused web tests pass;
+  the full web suite is 295 passed. Root lint, typecheck, test, and production
+  build also pass.
+- Read-only release planning against Supabase confirms PostgreSQL 17,
+  55 applied migrations through 20260729233017, and one linear missing suffix:
+  20260801090000. The planner flags its defensive drop-constraint statements
+  for explicit review; no SQL was executed.
+  Disposable PostgreSQL 17/Redis integration was not run because Docker is
+  unavailable on this workstation. No hosted SQL, Vercel deployment, Railway
+  deployment, or visible UI change occurred.

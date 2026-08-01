@@ -1187,3 +1187,16 @@ Railway deployment is implied.
 Rollback: revert source commit. Existing Server Actions remain authoritative,
 and `ERP_PO_CREATE_WRITES_ENABLED` stays absent/false. No database rollback is
 required because this milestone adds no migration.
+## D-068: Tenant-scoped idempotent standalone PO command (2026-08-01)
+
+Decision: keep the existing Server Action as the default and introduce a
+disabled Nest transaction seam behind exact feature flags and UUID tenant
+allow-lists. Persist request hash, state, result, actor, and tenant in
+PostgreSQL; lock the request row for replay/conflict handling; use an advisory
+tenant lock for PO numbering; and commit PO, lines, audit, and result together.
+
+Rationale: retries must never duplicate money or official ERP records, and a
+browser or Python worker must not finalize a transaction. A candidate migration
+is intentionally not applied to hosted Supabase until disposable integration
+proof and a canary rollback plan exist. This is original code and schema,
+independent of ERPNext internals.

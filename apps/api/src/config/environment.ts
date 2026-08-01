@@ -34,6 +34,18 @@ const environmentSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // Empty by default. A write can only be enabled for explicitly listed
+  // tenant UUIDs after migration and canary evidence exist.
+  ERP_PO_CREATE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
 })
 
 export type Environment = z.infer<typeof environmentSchema>

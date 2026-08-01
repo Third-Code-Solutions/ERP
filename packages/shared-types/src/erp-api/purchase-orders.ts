@@ -5,7 +5,7 @@ const purchaseOrderLineSchema = z
     code: z.string().trim().max(50).optional(),
     description: z.string().trim().min(1).max(2_000),
     unit: z.string().trim().max(20).optional(),
-    quantity: z.number().int().positive().safe(),
+    quantity: z.number().int().positive().max(2_147_483_647),
     unitCostCents: z.number().int().nonnegative().safe(),
     costCodeId: z.string().uuid(),
   })
