@@ -128,7 +128,7 @@ jobs:
         run: |
           supabase db start
           psql "$DATABASE_URL" \
-            --file scripts/ci/supabase-system-bootstrap.sql \
+            --file scripts/ci/supabase-default-privileges.sql \
             --set ON_ERROR_STOP=1
           supabase db reset --local
       - name: Verify migration ledger and catalog

@@ -3764,3 +3764,8 @@ permission errors. Added the existing test-only
 `scripts/ci/supabase-system-bootstrap.sql` before the reset so both lanes use
 the same system-role bootstrap. No application migration or hosted privilege
 was changed.
+
+The first bootstrap retry was rejected by the CLI-owned `auth` schema, so it
+was narrowed to a new `scripts/ci/supabase-default-privileges.sql` fixture
+that creates only missing roles, schema usage, and future-object grants. It
+does not recreate or alter Supabase-managed auth/storage objects.
