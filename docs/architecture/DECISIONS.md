@@ -1436,3 +1436,23 @@ Evidence: 60-migration disposable PostgreSQL replay, 250/250 zero-skip
 database assertions, 10/10 API integration assertions, full package tests,
 typecheck, lint, production build, Actionlint, and Gitleaks passed. Hosted
 Supabase, Railway, Vercel, feature flags, and business rows were not changed.
+
+## D-084 -- Durable CAD processing intake is Nest-owned (2026-08-01)
+
+Decision: add an additive, disabled NestJS processing-job intake. The command
+accepts only `{mode, requestedFormat, createDraftBom}` plus a required
+Idempotency-Key. PostgreSQL derives tenant, project, document, and actor
+relationships; a composite-FK/RLS-protected row is created or replayed in one
+transaction. BullMQ receives only `{schemaVersion, jobId}` and deduplicates by
+opaque transport ID. Status reads are bounded and tenant-filtered.
+
+Rationale: a queue message must not become a second authority or leak tenant
+and storage context. Persisting the job before enqueue makes Redis loss
+recoverable by retry, while keeping worker credentials and official ERP writes
+out of the Python adapter. The processor bridge remains a separate gate
+because enabling intake without a proven worker would strand jobs.
+
+Evidence: 61-migration PostgreSQL 17 replay, 253/253 zero-skip database
+assertions, 11/11 API integration assertions, focused HTTP/service/queue
+contracts, and typecheck passed. Hosted Supabase, Railway, Vercel, flags, and
+business rows were unchanged.

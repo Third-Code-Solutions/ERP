@@ -20,6 +20,8 @@ export const ERP_CAPABILITIES = [
   'po.approve',
   'inventory.manage',
   'document.manage',
+  'document.process',
+  'document.processing.read',
 ] as const
 export type ErpCapability = (typeof ERP_CAPABILITIES)[number]
 
@@ -57,6 +59,24 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'safety',
     'cx',
     'estimator',
+  ],
+  'document.process': [
+    'owner',
+    'admin',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'sales',
+    'design',
+    'estimator',
+  ],
+  'document.processing.read': [
+    'owner',
+    'admin',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'sales',
   ],
 }
 

@@ -137,4 +137,27 @@ describe('ERP API environment', () => {
       })
     ).toThrow('ERP_INVENTORY_RECEIPT_CREATE_WRITES_TENANT_IDS')
   })
+
+  it('keeps document processing intake fail-closed', () => {
+    expect(
+      validateEnvironment(REQUIRED).ERP_DOCUMENT_PROCESSING_JOBS_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED).ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS
+    ).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_PROCESSING_JOBS_ENABLED: 'true',
+        ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS:
+          '33333333-3333-4333-8333-333333333333',
+      }).ERP_DOCUMENT_PROCESSING_JOBS_ENABLED
+    ).toBe(true)
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS')
+  })
 })

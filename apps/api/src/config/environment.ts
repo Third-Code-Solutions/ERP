@@ -111,6 +111,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Processing intake stays fail-closed until a Nest worker bridge and
+  // disposable/hosted canary prove the full evidence path.
+  ERP_DOCUMENT_PROCESSING_JOBS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
 })
 
 export type Environment = z.infer<typeof environmentSchema>

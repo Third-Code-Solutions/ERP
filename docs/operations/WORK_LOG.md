@@ -3641,3 +3641,21 @@ Actionlint, Gitleaks, and `git diff --check` passed. The disposable lane
 replayed 60 migrations, executed database tests 250/250 without skips, and
 passed API integration 10/10. No hosted SQL, flag, provider setting, or
 deployment was performed.
+
+## 2026-08-01 - NestJS CAD processing-job intake
+
+Added the first durable M2.1 processing seam. Shared contracts are strict and
+bounded; the job row is tenant-scoped, idempotent, composite-FK protected,
+RLS-enabled, and server-only. Nest derives membership and document project,
+rechecks processing/read capabilities, stamps actor context, and returns
+queued/replayed state. BullMQ receives only an opaque job UUID with
+retry/backoff and duplicate suppression. The worker bridge is intentionally
+not registered; no flag or caller can activate this slice by default.
+
+Also recorded the live landing behavior/topology/component audit with 1440px
+desktop and 390px mobile screenshots. No landing UI code changed.
+
+Validation: focused API 105/105; disposable PostgreSQL 17/Redis 7.4.9 lane
+replayed 61 migrations, passed 253/253 database assertions without skips, and
+passed 11/11 API integration assertions. Hosted Supabase, Railway, Vercel,
+flags, and business data were not changed.

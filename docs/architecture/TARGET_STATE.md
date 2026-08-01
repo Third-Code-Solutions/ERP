@@ -791,3 +791,18 @@ behind a false flag and empty tenant allowlist until hosted migration parity,
 duplicate Purchase Order remediation, audit recovery, and the controlled
 provider gate are clear. The existing Next transaction is the rollback path
 until a separate canary proves parity.
+
+## CAD processing intake target (2026-08-01)
+
+The NestJS modular monolith is the only accepted entry point for CAD job
+creation. A tenant-authorized user submits a strict command with an
+Idempotency-Key; PostgreSQL derives the document project and actor membership,
+commits one durable queued job, and stamps audit context. A server-only BullMQ
+producer carries only the opaque job UUID.
+
+Status reads return bounded state without storage paths, tenant authority,
+worker payloads, or credentials. The future processor will lock the job,
+obtain a short-lived object-storage URL, call the Python evidence adapter, and
+route every official scope/BOM write back through Nest transactions. The
+intake flag and tenant allowlist stay false/empty until worker retry, stalled
+job, and canary evidence exist.
