@@ -20,11 +20,24 @@ const COMMAND: PurchaseOrderWorkflowCommand = {
   action: 'commercial_approve',
 }
 
-function service(enabled = false, tenantIds: string[] = []) {
+function service(
+  enabled = false,
+  tenantIds: string[] = [],
+  notificationsEnabled = false,
+  notificationTenantIds: string[] = []
+) {
   const config = {
-    get: vi.fn((key: string) =>
-      key === 'ERP_PO_WORKFLOW_WRITES_ENABLED' ? enabled : tenantIds
-    ),
+    get: vi.fn((key: string) => {
+      if (key === 'ERP_PO_WORKFLOW_WRITES_ENABLED') return enabled
+      if (key === 'ERP_PO_WORKFLOW_WRITES_TENANT_IDS') return tenantIds
+      if (key === 'ERP_PO_WORKFLOW_NOTIFICATIONS_ENABLED') {
+        return notificationsEnabled
+      }
+      if (key === 'ERP_PO_WORKFLOW_NOTIFICATIONS_TENANT_IDS') {
+        return notificationTenantIds
+      }
+      return undefined
+    }),
   } as unknown as ConfigService
   return new PurchaseOrderWorkflowService(
     config,
@@ -55,6 +68,19 @@ describe('PurchaseOrderWorkflowService migration boundary', () => {
       )
     ).rejects.toThrow(
       'Purchase Order workflow is not enabled for this tenant; no status change was committed.'
+    )
+  })
+
+  it('requires notification parity for an explicitly allowed workflow tenant', async () => {
+    await expect(
+      service(true, [PRINCIPAL.tenantId]).transition(
+        '33333333-3333-4333-8333-333333333333',
+        COMMAND,
+        PRINCIPAL,
+        'po-workflow-1'
+      )
+    ).rejects.toThrow(
+      'Purchase Order workflow notifications are not enabled for this tenant; no status change was committed.'
     )
   })
 })

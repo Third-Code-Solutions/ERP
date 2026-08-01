@@ -3406,3 +3406,42 @@ full `pnpm test` passed (shared 93, database 106 with the normal
 environment-gated skips, web 300, API 74); `pnpm build` passed with Nest
 compile and 77/77 Next pages generated. Worktree is clean at commit
 `6c0ce47`. No hosted SQL or provider deployment was performed.
+
+## 2026-08-01 - PO workflow notification parity milestone
+
+Objective: make the disabled Nest Purchase Order approval boundary preserve
+transactional notification intent and role routing without changing visible UI
+or the current Server Action path.
+
+Completed:
+
+- Added candidate migration `20260801110000_purchase_order_workflow_notifications.sql`
+  with strict Purchase Order workflow payload integrity.
+- Added independent `ERP_PO_WORKFLOW_NOTIFICATIONS_ENABLED` and tenant
+  allowlist gates, default false/empty. A workflow transition now requires
+  both write and notification gates, then commits status, audit, outbox, and
+  role-routed in-app/email delivery rows atomically.
+- Added BullMQ delivery support with payload/aggregate/current-role checks,
+  stale processing and dead-letter handling, idempotent in-app inserts, and a
+  bounded Resend Purchase Order workflow email.
+- Added shared contracts, recipient-routing tests, email tests, and a real
+  database integration probe for commit/replay/rollback and delivery.
+
+Validation:
+
+- Disposable Alpine WSL1 lane: PostgreSQL 17, Redis 7.4.9, 58/58 migrations;
+  database 244/244 without skips; Nest/Redis integration 8/8; schema hash
+  `F7F4A6AF4ABDDCF233B207D7652382A256D102F987A1670162DAB44C911EA243`.
+- Full serial `pnpm exec turbo test --concurrency=1 --force`: shared 94, API
+  79, web 300, database 107 with 137
+  normal environment-gated skips. Root typecheck, lint, and build passed;
+  Nest compiled and Next generated 77/77 pages.
+- Read-only Supabase planner: PostgreSQL 17, 55 applied, repository 58,
+  missing exactly the three linear candidates 20260801090000,
+  20260801100000, and 20260801110000; no SQL executed. Vercel and Railway
+  were not deployed.
+
+Unresolved: provider sessions remain Vercel unauthenticated and Railway
+`joeseffdy@gmail.com`; authenticate as `kurtgav` /
+`kurtgavin.design@gmail.com`, verify readiness/logs/spend controls, and review
+a one-tenant canary. Keep all PO and notification flags false.

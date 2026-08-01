@@ -368,3 +368,22 @@ The client seam is ready but intentionally unused. Before enabling it, add
 transactional notification intent/recipient parity in Nest, replay that lane,
 then canary only the first four workflow transitions for one tenant. Keep SCM
 issuance and supplier email on the legacy path until separately migrated.
+
+## Exact next action after PO workflow notification parity (2026-08-01)
+
+1. Keep `ERP_PO_CREATE_WRITES_ENABLED`, `ERP_PO_WORKFLOW_WRITES_ENABLED`,
+   `ERP_PO_WORKFLOW_NOTIFICATIONS_ENABLED`, and
+   `ERP_NOTIFICATION_SWEEP_ENABLED` absent/false; keep all matching
+   tenant allowlists empty. Existing Server Actions remain rollback authority.
+2. Reconcile Supabase project `aqqrtkmtcsfkbyyqxowv` read-only against all 58
+   repository migrations. Review the three linear candidates, hashes, duplicate
+   PO numbers, constraint behavior, RLS, and service grants; execute no SQL.
+3. Authenticate Vercel and Railway as `kurtgav` /
+   `kurtgavin.design@gmail.com`. Verify exact project/service identity,
+   current revision, readiness, runtime logs, rollback identity, and spend
+   controls before any release.
+4. If explicitly approved, deploy one controlled SHA once, verify protected
+   HTTP/browser/data/audit/notification flows, then enable only one tenant's
+   workflow and notification flags. Roll back flags first on mismatch.
+5. Keep SCM issuance, supplier-side email, receiving, BOM/grouped creation,
+   and UI delegation as separate milestones.

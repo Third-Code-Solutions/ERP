@@ -11,6 +11,22 @@ const INPUT = {
   rfqId: '33333333-3333-4333-8333-333333333333',
 }
 
+const PO_INPUT = {
+  idempotencyKey:
+    'po-workflow/88888888-8888-4888-8888-888888888888/admin/email',
+  poNumber: 'PO-0042',
+  projectName: 'HQ <Fit-out>',
+  recipientEmail: 'commercial@example.test',
+  purchaseOrderId: '33333333-3333-4333-8333-333333333333',
+  payload: {
+    schemaVersion: 1 as const,
+    purchase_order_id: '33333333-3333-4333-8333-333333333333',
+    action: 'commercial_approve' as const,
+    from_status: 'pending_commercial_approval' as const,
+    to_status: 'pending_scm_issuance' as const,
+  },
+}
+
 function service(
   values: Record<string, string | undefined>
 ): NotificationEmailService {
@@ -97,6 +113,40 @@ describe('NotificationEmailService', () => {
     )
     await expect(email.sendRfqCreated(INPUT)).rejects.not.toThrow(
       'recipient and provider detail'
+    )
+  })
+
+  it('sends escaped Purchase Order workflow email with provider idempotency', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 'po-email-provider-id' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const email = service({
+      RESEND_API_KEY: 're_test_key_long_enough',
+      EMAIL_FROM: 'Third Code ERP <erp@example.test>',
+      ERP_WEB_BASE_URL: 'https://thirdcode-erp.example.test',
+    })
+
+    await expect(email.sendPurchaseOrderWorkflow(PO_INPUT)).resolves.toBe(
+      'po-email-provider-id'
+    )
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(request.headers).toMatchObject({
+      'Idempotency-Key': PO_INPUT.idempotencyKey,
+    })
+    const body = JSON.parse(String(request.body)) as {
+      html: string
+      text: string
+      to: string[]
+    }
+    expect(body.to).toEqual([PO_INPUT.recipientEmail])
+    expect(body.html).toContain('HQ &lt;Fit-out&gt;')
+    expect(body.html).not.toContain('HQ <Fit-out>')
+    expect(body.text).toContain(
+      'https://thirdcode-erp.example.test/purchase-orders/33333333-3333-4333-8333-333333333333'
     )
   })
 })

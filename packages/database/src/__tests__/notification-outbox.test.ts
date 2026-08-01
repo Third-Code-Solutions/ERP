@@ -17,6 +17,13 @@ const migrationSql = readFileSync(
   ),
   'utf8'
 ).toLowerCase()
+const workflowMigrationSql = readFileSync(
+  resolve(
+    __dirname,
+    '../../../../supabase/migrations/20260801110000_purchase_order_workflow_notifications.sql'
+  ),
+  'utf8'
+).toLowerCase()
 
 describe('notification outbox foundation', () => {
   it('creates durable tenant-scoped intent and delivery state', () => {
@@ -64,6 +71,18 @@ describe('notification outbox foundation', () => {
     )
     expect(migrationSql).toContain(
       'alter table public.notification_deliveries enable row level security'
+    )
+  })
+
+  it('constrains Purchase Order workflow payloads without changing RFQ events', () => {
+    expect(workflowMigrationSql).toContain(
+      'notification_outbox_purchase_order_workflow_payload'
+    )
+    expect(workflowMigrationSql).toContain(
+      "event_type <> 'purchase_order.workflow_changed'"
+    )
+    expect(workflowMigrationSql).toContain(
+      "payload->>'purchase_order_id' = aggregate_id::text"
     )
   })
 

@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  purchaseOrderWorkflowActionSchema,
+  purchaseOrderWorkflowStatusSchema,
+} from './purchase-orders'
 
 export const createRfqCommandSchema = z
   .object({
@@ -73,6 +77,16 @@ export const notificationDeliveryResultSchema = z
   })
   .strict()
 
+export const purchaseOrderWorkflowNotificationPayloadSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    purchase_order_id: z.string().uuid(),
+    action: purchaseOrderWorkflowActionSchema,
+    from_status: purchaseOrderWorkflowStatusSchema,
+    to_status: purchaseOrderWorkflowStatusSchema,
+  })
+  .strict()
+
 export const logRfqQuoteCommandSchema = z
   .object({
     submissionId: z.string().uuid(),
@@ -144,6 +158,9 @@ export type NotificationSweepJob = z.infer<
 >
 export type NotificationDeliveryResult = z.infer<
   typeof notificationDeliveryResultSchema
+>
+export type PurchaseOrderWorkflowNotificationPayload = z.infer<
+  typeof purchaseOrderWorkflowNotificationPayloadSchema
 >
 export type RfqQuoteResult = z.infer<typeof rfqQuoteResultSchema>
 export type TransitionRfqCommand = z.infer<
