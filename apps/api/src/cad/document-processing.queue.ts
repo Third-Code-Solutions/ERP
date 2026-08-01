@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bullmq'
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable, Optional } from '@nestjs/common'
 import {
   documentProcessingQueueJobSchema,
   type DocumentProcessingQueueJob,
@@ -10,8 +10,10 @@ import {
   DOCUMENT_PROCESSING_BACKOFF_MS,
   DOCUMENT_PROCESSING_JOB,
   DOCUMENT_PROCESSING_QUEUE,
+  DOCUMENT_PROCESSING_STALE_AFTER_MS,
   documentProcessingJobId,
 } from './document-processing.constants'
+import { DocumentProcessingStateService } from './document-processing.state'
 
 export interface DocumentProcessingEnqueueResult {
   jobId: string
@@ -22,7 +24,10 @@ export interface DocumentProcessingEnqueueResult {
 export class DocumentProcessingJobQueue {
   constructor(
     @InjectQueue(DOCUMENT_PROCESSING_QUEUE)
-    private readonly queue: Queue<DocumentProcessingQueueJob, void, string>
+    private readonly queue: Queue<DocumentProcessingQueueJob, void, string>,
+    @Optional()
+    @Inject(DocumentProcessingStateService)
+    private readonly state?: DocumentProcessingStateService
   ) {}
 
   async enqueue(jobId: string): Promise<DocumentProcessingEnqueueResult> {
@@ -60,6 +65,23 @@ export class DocumentProcessingJobQueue {
     }
 
     return { jobId: parsed.data.jobId, enqueued: true }
+  }
+
+  /** Rebuilds missing Redis transport jobs from PostgreSQL-owned state. */
+  async enqueuePending(): Promise<number> {
+    if (!this.state) {
+      throw new Error('Document processing recovery state is unavailable')
+    }
+    const staleBefore = new Date(
+      Date.now() - DOCUMENT_PROCESSING_STALE_AFTER_MS
+    )
+    const jobIds = await this.state.recoverableJobIds(staleBefore)
+    let enqueued = 0
+    for (const jobId of jobIds) {
+      const result = await this.enqueue(jobId)
+      if (result.enqueued) enqueued += 1
+    }
+    return enqueued
   }
 }
 

@@ -41,4 +41,19 @@ describe('DocumentProcessingJobQueue', () => {
     })
     expect(queue.add).not.toHaveBeenCalled()
   })
+
+  it('rebuilds missing transport jobs from PostgreSQL-owned IDs', async () => {
+    const queue = {
+      getJob: vi.fn().mockResolvedValue(undefined),
+      add: vi.fn().mockResolvedValue({ id: 'transport-id' }),
+    } as unknown as Queue
+    const state = {
+      recoverableJobIds: vi.fn().mockResolvedValue([JOB_ID]),
+    }
+    const producer = new DocumentProcessingJobQueue(queue, state as never)
+
+    await expect(producer.enqueuePending()).resolves.toBe(1)
+    expect(state.recoverableJobIds).toHaveBeenCalledWith(expect.any(Date))
+    expect(queue.add).toHaveBeenCalledOnce()
+  })
 })
