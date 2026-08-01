@@ -3294,3 +3294,13 @@ Validation:
 
 Unresolved: run real PostgreSQL 17/Redis replay, rollback, cross-tenant, audit,
 number-concurrency, and centavo-boundary probes before enabling one tenant.
+
+Source evidence: commit 0252937402925c88e657982b5e60ec914e851c74 pushed by
+kurtgav to Third-Code-Solutions/ERP branch
+agent-02/third-code-erp-landing. Changed files are the candidate Supabase
+migration, database enum/table/index/schema exports and contract test, Nest
+environment/service/unit tests, shared command bounds/tests, Next server
+action/form/core-client/gates/tests, and the six required architecture and
+operations memory files. The exact next action is the disposable
+PostgreSQL 17/Redis proof described in NEXT_ACTIONS.md; no provider release is
+authorized by this milestone.
