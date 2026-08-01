@@ -1161,3 +1161,29 @@ Rollback: immediately restore the previous ready Vercel production deployment
 and retain the current Railway image when the backend did not change. Database
 rollback uses a reviewed forward compensating migration only; never delete
 durable audit or outbox evidence.
+
+## D-067 -- Purchase-order authority moves through a disabled Nest boundary
+
+Date: 2026-08-01
+
+Decision: keep existing Next.js PO Server Actions operational, but enforce
+tenant-derived capability checks and same-tenant project/vendor references at
+their current write boundary. Add strict NestJS
+`POST /v1/procurement/purchase-orders` contract with required
+`Idempotency-Key`, but keep service fail-closed and non-mutating until durable
+tenant-composite idempotency record and complete PostgreSQL transaction parity
+are proven.
+
+Reason: immediate cutover would leave duplicate retries, partial BOM/group
+creation, and approval/receiving state changes without equivalent authority
+evidence. Disabled contract makes intended boundary testable while preserving
+live behavior and avoiding unsafe fallback or provider release.
+
+Constraints: no client-supplied tenant or actor fields; Nest capability guard
+must authorize every command; PostgreSQL remains source of truth; Redis cannot
+be idempotency authority; Python cannot finalize ERP state; no Vercel or
+Railway deployment is implied.
+
+Rollback: revert source commit. Existing Server Actions remain authoritative,
+and `ERP_PO_CREATE_WRITES_ENABLED` stays absent/false. No database rollback is
+required because this milestone adds no migration.

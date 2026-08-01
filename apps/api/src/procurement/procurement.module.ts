@@ -7,7 +7,9 @@ import { BullModule } from '@nestjs/bullmq'
 import { AuditModule } from '../audit/audit.module'
 import { RequestObservabilityMiddleware } from '../observability/request-observability.middleware'
 import { ProcurementController } from './procurement.controller'
+import { PurchaseOrderController } from './purchase-order.controller'
 import { ProcurementService } from './procurement.service'
+import { PurchaseOrderCreationService } from './purchase-order-creation.service'
 import {
   RFQ_DISPATCH_DEAD_LETTER_QUEUE,
   RFQ_DISPATCH_QUEUE,
@@ -29,9 +31,10 @@ import { NotificationEmailService } from './notification-email.service'
       { name: NOTIFICATION_DELIVERY_QUEUE }
     ),
   ],
-  controllers: [ProcurementController],
+  controllers: [ProcurementController, PurchaseOrderController],
   providers: [
     ProcurementService,
+    PurchaseOrderCreationService,
     RfqDispatchQueue,
     RfqDispatchProcessor,
     NotificationDeliveryQueue,
@@ -44,6 +47,6 @@ export class ProcurementModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestObservabilityMiddleware)
-      .forRoutes(ProcurementController)
+      .forRoutes(ProcurementController, PurchaseOrderController)
   }
 }

@@ -30,4 +30,16 @@ describe('ERP API environment', () => {
       })
     ).toThrow('ERP_NOTIFICATION_SWEEP_ENABLED')
   })
+
+  it('keeps purchase-order command writes disabled by default', () => {
+    expect(
+      validateEnvironment(REQUIRED).ERP_PO_CREATE_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PO_CREATE_WRITES_ENABLED: 'true',
+      }).ERP_PO_CREATE_WRITES_ENABLED
+    ).toBe(true)
+  })
 })

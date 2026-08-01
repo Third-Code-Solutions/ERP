@@ -28,6 +28,12 @@ const environmentSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // PO command boundary stays fail-closed until idempotency and full
+  // transaction parity are proven in a later migration slice.
+  ERP_PO_CREATE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 })
 
 export type Environment = z.infer<typeof environmentSchema>

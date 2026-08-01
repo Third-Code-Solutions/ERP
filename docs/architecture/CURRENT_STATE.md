@@ -1211,3 +1211,35 @@ matches the repository migration contract:
 - Railway `/health` and `/ready` return 200; readiness reports PostgreSQL and
   Redis `ok`. Anonymous RFQ dispatch returns 401, and the last-hour HTTP 5xx
   query is empty.
+
+## 2026-08-01 purchase-order authority audit and bounded adapter
+
+- Purchase-order reads and writes remain in Next.js Server Actions. The main
+  write surface is `apps/web/src/app/(dashboard)/procurement/actions.ts`:
+  standalone/BOM/grouped creation, cost-code edits, state transitions,
+  approvals, issuance, and receiving.
+- Existing actions derive tenant and actor from the authenticated server
+  profile, but prior creation, legacy transition, and receiving entry points
+  did not consistently enforce capability checks. This milestone closes those
+  gaps with `po.create` and new `po.receive` checks. Project and vendor IDs are
+  now verified against the caller tenant before PO creation.
+- PO money is stored as PostgreSQL integer centavos (`bigint` mapped to
+  numbers). Standalone line input now rejects non-integer quantities/prices;
+  the existing BOM path still needs a transaction-authority rewrite.
+- NestJS now exposes original contract boundary
+  `POST /v1/procurement/purchase-orders`, guarded by `po.create`, strict Zod
+  command validation, and required `Idempotency-Key` header. Service is
+  deliberately fail-closed and performs no database mutation until durable
+  idempotency and full transaction parity exist.
+- `ERP_PO_CREATE_WRITES_ENABLED` defaults to `false`; even `true` cannot enable
+  provisional service. No browser action calls this endpoint yet. No SQL,
+  Supabase, Vercel, Railway, Python, Storage, or UI design change occurred.
+- Focused and full gates pass: 453 application tests (91 shared, 70 API,
+  292 web), plus 103 database tests with 137 environment-gated skips; root
+  lint, root typecheck, `git diff --check`, and production build (Nest compile
+  plus 77/77 Next pages). Disposable database/Redis release lane was not
+  rerun because this slice changes no schema or migration.
+- Remaining authority risks: BOM/grouped PO creation is not one transaction,
+  PO number allocation is not yet an idempotent command contract, receiving
+  and state updates are not yet atomic with semantic audit, and direct Server
+  Action writes remain authoritative until a tenant-scoped cutover.

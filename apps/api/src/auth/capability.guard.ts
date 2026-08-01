@@ -16,6 +16,7 @@ import { PUBLIC_ROUTE } from './supabase-jwt.guard'
 export const ERP_CAPABILITIES = [
   'project.update',
   'rfq.dispatch',
+  'po.create',
 ] as const
 export type ErpCapability = (typeof ERP_CAPABILITIES)[number]
 
@@ -29,6 +30,15 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'pm',
   ],
   'rfq.dispatch': ['owner', 'admin', 'procurement'],
+  // Kept intentionally narrow while the PO command is disabled by default.
+  'po.create': [
+    'owner',
+    'admin',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'procurement',
+  ],
 }
 
 export function roleHasCapability(
