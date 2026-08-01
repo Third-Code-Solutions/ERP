@@ -642,7 +642,7 @@ separate and explicitly approved.
 
 1. Keep all document-processing, evidence-commit, and draft-BOM flags absent or
    false; keep tenant allowlists empty.
-2. Add the remaining retry/stall/requeue and real Redis duplicate-delivery
+2. Add bounded retry/final-failure, stale requeue, and Redis-loss recovery
    proof to the canary lane; keep the Next compatibility path authoritative.
 3. Obtain the owner-approved audit tenant UUID and record-level PO duplicate
    remediation, then rerun the controlled-release planner.

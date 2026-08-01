@@ -1621,3 +1621,14 @@ changed.
   E2E remains skipped by explicit credential gating.
 - All processing flags and tenant allowlists remain closed. Hosted Supabase,
   Railway, Vercel, and business data remain unchanged.
+
+## 2026-08-02 M2.5 Redis delivery proof
+
+- Added a real BullMQ/Redis integration test for the document-processing queue.
+  It publishes only the opaque job UUID, validates the queue payload, and
+  proves duplicate enqueue/delivery produces one worker execution.
+- CI run `30708445023` passed the Redis proof together with the PostgreSQL
+  processor canary, database/API integration, container smoke, and build.
+  E2E remains skipped by explicit credential gating.
+- Queue, processing, and all tenant allowlist flags remain closed; no hosted
+  SQL, provider setting, deployment, or business data changed.

@@ -3818,3 +3818,15 @@ lint, unit tests, PostgreSQL 17/Redis 7.4.9 database/API integration,
 container smoke, and production build. E2E remains skipped by explicit
 credential gating. Hosted Supabase, Railway, Vercel, flags, and business data
 were not changed.
+
+## 2026-08-02 - M2.5 Redis transport proof
+
+Added `apps/api/integration/document-processing.redis.integration.spec.ts`.
+The real BullMQ/Redis lane publishes only `{schemaVersion, jobId}`, validates
+the production queue class, and proves duplicate enqueue/delivery produces one
+worker execution. The queue is isolated and obliterated after the test.
+
+Validation: CI run `30708445023` passed the Redis proof, PostgreSQL processor
+canary, database/API integration, container smoke, workspace gates, and
+production build. E2E remains skipped by explicit credential gating. Hosted
+Supabase, Railway, Vercel, flags, and business data were not changed.
