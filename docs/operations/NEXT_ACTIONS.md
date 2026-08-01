@@ -711,3 +711,15 @@ separate and explicitly approved.
 3. After a `clear` planner and canary, choose either one controlled hosted
    promotion or a separately reviewed Nest read adapter; verify tenant/RBAC,
    readiness, source provenance, provider spend, logs, and exact release SHA.
+
+## Exact next action after M2.8 CI evidence (2026-08-02)
+
+1. Treat `fa283f94376aacd8f7febd9324b162697571efa1` and CI run
+   `30713863937` as the reviewed source candidate; all executable gates passed.
+2. Rerun the read-only controlled-release planner and resolve its three
+   current blockers: seven hosted migrations, the 12-record tenant Purchase
+   Order duplicate group, and owner approval for `AUDIT_RECOVERY_TENANT_ID`.
+3. Until the planner is `clear`, perform no hosted SQL, Railway deploy,
+   Vercel deploy, feature-flag enablement, or business-data mutation. After a
+   clear planner, use one reviewed canary and one spend-bounded provider action
+   with readiness, protected-flow, data, log, and exact-SHA evidence.

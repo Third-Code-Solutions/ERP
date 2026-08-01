@@ -1614,3 +1614,15 @@ the route never approves, writes, or finalizes a BOM.
 Rationale: this makes the current user-visible RAG path safe and testable
 without a big-bang frontend/API cutover. A later Nest read adapter can preserve
 the contract once the Railway API release is independently verified.
+
+## D-096 -- CI verification precedes hosted promotion (2026-08-02)
+
+Decision: treat commit `fa283f94376aacd8f7febd9324b162697571efa1` as the M2.8
+source candidate only after GitHub Actions run `30713863937` passes the full
+executable lane. A green source lane does not override the read-only hosted
+release planner; Supabase SQL, Railway deploy, Vercel deploy, flags, and
+business-data writes remain gated by current hosted integrity evidence.
+
+Rationale: separate source correctness from provider mutation and avoid an
+unbounded or billing-producing release while hosted migration, duplicate PO,
+and audit-recovery blockers remain unresolved.
