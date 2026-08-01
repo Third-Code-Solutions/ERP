@@ -17,11 +17,13 @@
     "test:project-cutover-plan": "node --test scripts/plan-project-cutover.test.mjs",
     "test:audit-recovery-plan": "node --test scripts/plan-audit-recovery.test.mjs",
     "test:audit-hash-profiles": "node --test scripts/verify-audit-hash-profiles.test.mjs",
+    "test:purchase-order-duplicate-plan": "node --test scripts/plan-purchase-order-duplicates.test.mjs",
     "ci:actionlint": "node scripts/run-actionlint.mjs",
     "ci:gitleaks": "node scripts/run-gitleaks.mjs",
     "plan:database-release": "node scripts/plan-database-release.mjs",
     "plan:project-cutover": "node scripts/plan-project-cutover.mjs",
     "plan:audit-recovery": "node scripts/plan-audit-recovery.mjs",
+    "plan:purchase-order-duplicates": "node scripts/plan-purchase-order-duplicates.mjs",
     "verify:audit-hash-profiles": "node scripts/verify-audit-hash-profiles.mjs",
     "verify:workflow-action-refs": "node scripts/verify-workflow-action-refs.mjs",
     "clean": "turbo clean && find . -name 'node_modules' -type d -not -path './.git/*' -exec rm -rf {} + 2>/dev/null; find . -name '.next' -type d -exec rm -rf {} + 2>/dev/null; true"

@@ -1413,3 +1413,16 @@ matches the repository migration contract:
 - Do not rename/delete those records or weaken the uniqueness guard without an
   explicit data-remediation decision. The duplicate and historical audit
   integrity blockers keep PO authority and production promotion disabled.
+
+## 2026-08-01 read-only Purchase Order duplicate planner
+
+- Added `scripts/plan-purchase-order-duplicates.mjs` and its pure contract
+  helpers/tests. The planner uses a repeatable-read/read-only transaction,
+  stable opaque tenant/group/record references, bounded output, timestamps,
+  statuses, and deterministic review order.
+- Hosted execution confirms one duplicate tenant/PO-number group containing 12
+  records. The report prints no PO number, UUID, money, note, or other business
+  value; it returns `review_required` and never writes.
+- Added CI contract coverage in both GitHub workflows. No hosted schema,
+  business data, audit history, provider setting, feature flag, or deployment
+  changed in this milestone.

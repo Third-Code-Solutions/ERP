@@ -135,6 +135,8 @@ jobs:
         run: pnpm test:audit-recovery-plan
       - name: Verify audit hash profile contract
         run: pnpm test:audit-hash-profiles
+      - name: Verify Purchase Order duplicate planner contract
+        run: pnpm test:purchase-order-duplicate-plan
       - name: Capture local migration ledger
         shell: bash
         run: |
