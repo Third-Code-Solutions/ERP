@@ -3391,3 +3391,12 @@ applied head `20260729233017`; repository 57; missing exactly
 `20260801100000_purchase_order_workflow_idempotency.sql`; unexpected history
 0; applied-after-gap 0; no SQL executed. SHA-256 candidates are recorded by
 the planner; both carry the conservative `drop-object` review flag.
+
+## 2026-08-01 - server-only PO workflow client seam
+
+Added `purchaseOrderWorkflowWritesUseCoreApi` and
+`transitionPurchaseOrderThroughCoreApi` to the server-only Next core client,
+with strict result validation, exact keyed requests, and 18/18 focused web
+tests. No visible UI or copy changed; no Server Action delegates yet because
+Nest notification parity is a separate gate. The independent client flags are
+absent/false by default.
