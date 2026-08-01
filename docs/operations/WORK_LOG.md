@@ -3779,3 +3779,11 @@ failed only on two WSL-specific Redis-restart cases: GitHub-hosted Linux has no
 conditionally skipped unless the WSL restart contract is present; ordinary
 BullMQ/Redis integration remains enabled, and the WSL lane still proves restart
 recovery.
+
+The following CI retry exposed that the test-only `projects`/`users` grants
+were being compared by the schema-diff gate, and the pinned CLI did not create
+the requested `--output` path. Moved the empty schema-diff assertion directly
+after the clean reset, switched it to the pinned CLI `--file` flag, and apply
+the legacy grant fixture only after that assertion and before database/RLS
+tests. This keeps the reproducibility check migration-only and leaves hosted
+privileges unchanged.

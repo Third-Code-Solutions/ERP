@@ -128,9 +128,6 @@ jobs:
         run: |
           supabase db start
           supabase db reset --local
-          psql "$DATABASE_URL" \
-            --file scripts/ci/supabase-default-privileges.sql \
-            --set ON_ERROR_STOP=1
       - name: Verify migration ledger and catalog
         run: node scripts/verify-database-repro.mjs
       - name: Verify release planner sees a current linear ledger
@@ -147,6 +144,18 @@ jobs:
           set -o pipefail
           supabase migration list --local 2>&1 \
             | tee tmp/database-reproducibility/migration-list.txt
+      - name: Capture and assert empty schema diff
+        run: >-
+          supabase db diff --local --schema public
+          --file tmp/database-reproducibility/schema-diff.sql
+      - run: >-
+          node scripts/assert-empty-schema-diff.mjs
+          tmp/database-reproducibility/schema-diff.sql
+      - name: Apply CI-only legacy Data API grants
+        run: |
+          psql "$DATABASE_URL" \
+            --file scripts/ci/supabase-default-privileges.sql \
+            --set ON_ERROR_STOP=1
       - name: Run database tests without skips
         run: >-
           pnpm --filter @third-code-erp/database exec vitest run
@@ -201,13 +210,6 @@ jobs:
               http://127.0.0.1:3091/v1/projects/33333333-3333-4333-8333-333333333333
           )"
           test "$status" = "401"
-      - name: Capture and assert empty schema diff
-        run: >-
-          supabase db diff --local --schema public
-          --output tmp/database-reproducibility/schema-diff.sql
-      - run: >-
-          node scripts/assert-empty-schema-diff.mjs
-          tmp/database-reproducibility/schema-diff.sql
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

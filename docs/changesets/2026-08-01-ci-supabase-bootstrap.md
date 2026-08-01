@@ -8,4 +8,8 @@ auth/storage objects are left untouched. After reset it grants only the
 legacy `public.projects` client-role surface required by the RLS proof.
 It also grants read-only access to the legacy `public.users` table so
 tenant/role policy subqueries can evaluate under `authenticated`.
+The schema-diff assertion now runs immediately after reset and before this
+test-only grant fixture, so CI does not mistake test permissions for a
+production migration change. The diff is saved with the CLI's file flag,
+which is supported by the pinned Supabase CLI version.
 Production migrations and hosted privileges are unchanged.
