@@ -1385,3 +1385,12 @@ matches the repository migration contract:
 - Hosted execution reproduced PostgreSQL 17/UTC, 661 audit rows, 2 link
   mismatches, and 151 hash mismatches. The report is `review_required`; no
   repair, permission change, migration, or deployment was attempted.
+
+## 2026-08-01 audit hash profile verification
+
+- `scripts/verify-audit-hash-profiles.mjs` compares historical rows only with
+  the current PostgreSQL trigger formula and the legacy JSON writer formula.
+- Hosted read-only result: 510 rows match the database profile, 40 match the
+  legacy JSON profile, 111 match neither reviewed profile, and 2 chain links
+  are broken. `--require-current` remains non-zero; this is evidence for
+  recovery review, not permission to rewrite immutable history.

@@ -12,6 +12,42 @@ export function opaqueRef(value) {
   return createHash('sha256').update(value).digest('hex').slice(0, 12)
 }
 
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+export function databaseAuditHash(row) {
+  return sha256(
+    row.prevHash +
+      row.entityType +
+      row.entityId +
+      row.action +
+      row.createdAtText
+  )
+}
+
+export function legacyJsonAuditHash(row) {
+  return sha256(
+    JSON.stringify({
+      prev: row.prevHash,
+      entity_type: row.entityType,
+      entity_id: row.entityId,
+      action: row.action,
+      diff: row.diff,
+      created_at: row.createdAtIso,
+    })
+  )
+}
+
+export function classifyAuditHash(row) {
+  const current = row.hash === databaseAuditHash(row)
+  const legacy = row.hash === legacyJsonAuditHash(row)
+  if (current && legacy) return 'both'
+  if (current) return 'database'
+  if (legacy) return 'legacy_json'
+  return 'unknown'
+}
+
 export function buildAuditRecoveryBlockers(report) {
   const blockers = []
 

@@ -3484,3 +3484,11 @@ Validation: planner contract 4/4, existing release/cutover contracts 7/7 and
 rows, 2 predecessor-link mismatches, 151 hash mismatches, status
 `review_required`. No audit rows, permissions, flags, migrations, or provider
 deployments changed.
+
+## 2026-08-01 - Audit hash profile verification milestone
+
+Added `scripts/verify-audit-hash-profiles.mjs` and its pure profile contract
+tests. Hosted read-only verification classified 661 rows as: database formula
+510, legacy JSON formula 40, unknown 111, with 2 predecessor-link breaks.
+`--require-current` remains blocked. No row rewrite, permission change,
+migration, flag enablement, or provider deployment occurred.

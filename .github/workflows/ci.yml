@@ -133,6 +133,8 @@ jobs:
         run: node scripts/plan-database-release.mjs --require-current
       - name: Verify read-only audit recovery planner contract
         run: pnpm test:audit-recovery-plan
+      - name: Verify audit hash profile contract
+        run: pnpm test:audit-hash-profiles
       - name: Capture local migration ledger
         shell: bash
         run: |

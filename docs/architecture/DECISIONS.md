@@ -1317,3 +1317,13 @@ canary approval.
 
 Evidence: contract tests 4/4; hosted read-only run reproduced 661 rows, 2 link
 mismatches, and 151 hash mismatches. No database or provider state changed.
+
+## D-076 -- Unknown audit hash profiles block recovery (2026-08-01)
+
+Decision: classify historical audit rows against only the current PostgreSQL
+trigger formula and the legacy JSON writer formula. Rows matching neither are
+unknown, not repairable by inference, and remain a hard canary blocker.
+
+Evidence: hosted read-only profile verification found 510 database-profile
+rows, 40 legacy-JSON rows, 111 unknown rows, and 2 broken predecessor links.
+The verifier's 3/3 contract tests passed; no audit or provider state changed.
