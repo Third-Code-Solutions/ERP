@@ -650,6 +650,9 @@ authoritative until that proof succeeds.
 - The hosted migration and flags remain gated by read-only Supabase
   reconciliation, provider identity, readiness/log checks, and a reviewed
   single-tenant canary.
+- Current hosted evidence is intentionally not parity: 55 applied versus the
+  repository's 57 migrations. The two candidate migrations are identified by
+  version and hash in the operations log; no hosted SQL has run.
 ## 2026-08-01 evidence added for PO authority
 
 The target modular monolith now has a concrete, disabled first transaction

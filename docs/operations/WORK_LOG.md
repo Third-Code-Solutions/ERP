@@ -3384,3 +3384,10 @@ Validation:
 Next action: read-only hosted Supabase reconciliation at migration 57, then
 provider identity/readiness/log verification. Keep workflow flags false and
 do not deploy until a single-tenant canary is explicitly reviewed.
+
+Hosted read-only reconciliation (2026-08-01): PostgreSQL 17; applied 55;
+applied head `20260729233017`; repository 57; missing exactly
+`20260801090000_purchase_order_create_idempotency.sql` and
+`20260801100000_purchase_order_workflow_idempotency.sql`; unexpected history
+0; applied-after-gap 0; no SQL executed. SHA-256 candidates are recorded by
+the planner; both carry the conservative `drop-object` review flag.
