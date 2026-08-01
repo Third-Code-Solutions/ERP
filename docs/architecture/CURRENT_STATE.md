@@ -35,6 +35,14 @@ successful build.
 The authorized Supabase target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17 and
 matches the repository migration contract:
 
+The historical 54/54 baseline below is retained as the last fully reconciled
+hosted baseline. The current source branch has seven additional forward-only
+migrations through `20260801150000_document_processing_evidence.sql`; the
+read-only release planner on 2026-08-01 reports 55/62 applied, with no
+unexpected or out-of-order versions. The hosted release remains blocked until
+the duplicate Purchase Order-number group and audit-recovery tenant are
+resolved by the owner; no SQL has been applied for the seven-migration set.
+
 - Migration ledger: 54 of 54 applied; no missing or unexpected versions.
 - Catalog: 86 public tables and 315 RLS policies.
 - Verifier: all 30 protected-table groups, constraints, triggers, privileges,

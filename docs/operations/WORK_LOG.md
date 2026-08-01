@@ -3732,3 +3732,17 @@ Purchase Order-number group contains 12 demo records, and
 `AUDIT_RECOVERY_TENANT_ID` is not approved/configured. Railway and Vercel
 readiness endpoints remain HTTP 200, but no hosted SQL, flag, deployment, or
 business-data mutation was performed.
+
+## 2026-08-01 - Controlled release recheck
+
+Re-ran the read-only controlled-release planner after the final atomic CAD
+source handoff. The source worktree and remote branch are clean at
+`ef1021f0df799014bff79fe782a31507f33969f5`; author identity remains
+`kurtgav <kurtgavin.design@gmail.com>`. The planner still reports
+`review_required`: hosted Supabase is 55/62 migrations with candidates
+`20260801090000` through `20260801150000`, one tenant-scoped duplicate
+Purchase Order-number group contains 12 records, and
+`AUDIT_RECOVERY_TENANT_ID` is absent. Railway `/ready` and Vercel `/api/ready`
+both returned HTTP 200. No SQL, provider setting, flag, deployment, or
+business record changed. Next action requires owner-provided tenant UUID and
+record-level duplicate remediation instructions.

@@ -4,6 +4,18 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## Current source/release handoff (2026-08-01)
+
+The reviewed CAD evidence and atomic draft-BOM slice is published on
+`agent-02/third-code-erp-landing` at `ef1021f0df799014bff79fe782a31507f33969f5`
+under `kurtgav <kurtgavin.design@gmail.com>`. Source gates are green. The
+controlled hosted release is intentionally `review_required`: Supabase is
+55/62 migrations with seven forward-only candidates, one tenant-scoped
+Purchase Order-number duplicate group contains 12 demo records, and
+`AUDIT_RECOVERY_TENANT_ID` is not configured. Railway and Vercel readiness are
+HTTP 200, but no hosted SQL, flags, provider settings, or deployments were
+changed.
+
 ## Milestones
 
 ### M0 — Baseline audit

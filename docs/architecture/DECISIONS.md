@@ -1515,3 +1515,17 @@ the established idempotency transaction gives PostgreSQL all-or-nothing
 rollback while preserving the evidence-first audit trail. The draft gate and
 tenant allowlist remain closed until hosted schema parity and a controlled
 canary are approved.
+
+## D-088 -- Do not bypass hosted release gates (2026-08-01)
+
+Decision: a source-green branch may be pushed for review, but hosted Supabase
+migrations and Railway/Vercel deployments remain withheld while the controlled
+release planner reports any integrity blocker. In the current snapshot, the
+Purchase Order uniqueness migration cannot run because one tenant has 12 demo
+records sharing a number, and audit-chain recovery cannot be assessed without
+an owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+
+Rationale: automatically renumbering issued records or guessing a recovery
+tenant could change business history. The owner must choose a reversible,
+record-level remediation before the unique index and subsequent migrations are
+applied. Readiness HTTP 200 alone is not sufficient release evidence.
