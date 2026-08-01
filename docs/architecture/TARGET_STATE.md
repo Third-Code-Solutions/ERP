@@ -932,3 +932,9 @@ and audit evidence. The browser never supplies tenant or actor authority.
 Promotion requires a clean migration replay, hosted ledger reconciliation, a
 single-tenant canary, and exact runtime evidence; the default flags remain
 closed.
+
+The disposable database contract is executable in
+`apps/api/integration/change-request.database.integration.spec.ts`: one
+transaction proves tenant and capability denial, replay/hash behavior,
+design-role notification intent, semantic audit linkage, and rollback. Hosted
+promotion still requires the independent release planner to clear.

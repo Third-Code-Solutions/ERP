@@ -1265,3 +1265,17 @@ current Postgres 17 replay, schema diff, database tests without skips, Nest
 transaction integration, container smoke, and production build; E2E remains
 credential-gated. Do not apply the new migration to hosted Supabase or deploy
 providers while the controlled planner remains `review_required`.
+
+## M3.0 database evidence checkpoint (2026-08-02)
+
+Added a disposable PostgreSQL integration contract for the Change Request
+authority. It uses a transaction-bound Nest database service and rolls back
+all probe rows. The evidence checks two-tenant isolation, viewer denial,
+opportunity ownership, idempotent replay, conflicting-key rejection, one
+design notification, one semantic audit entry, and zero tenant-B writes.
+The local run is explicitly skipped without disposable database credentials;
+the source typecheck and serial API suite pass (126 tests, one skipped).
+
+Next: run this integration lane in CI (where Postgres 17 is disposable), then
+rerun the read-only hosted planner. Keep the command flags and migration
+closed until the planner is `clear` and a tenant canary is approved.

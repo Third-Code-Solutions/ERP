@@ -3978,3 +3978,18 @@ transaction integration, container smoke, and production build. E2E remains
 credential-gated. No hosted Supabase, Railway, Vercel, feature flag, queue,
 provider, or business-data mutation was performed. Hosted planner blockers
 remain unchanged.
+
+## 2026-08-02 - M3.0 Change Request database evidence
+
+Added `apps/api/integration/change-request.database.integration.spec.ts`.
+The disposable PostgreSQL probe seeds two tenants and validates tenant/RBAC
+denial, same-key replay, conflicting-key rejection, one design notification,
+one semantic audit row, and full transaction rollback. Local execution was
+explicitly skipped because disposable `DATABASE_URL` credentials are absent;
+API typecheck passed and the serial API lane passed 27 files / 126 tests with
+one integration skip. No hosted database, deployment, provider setting, flag,
+queue, or business-data mutation occurred.
+
+Landing browser audit also rechecked the live public page at 1440px and 390px:
+title and Third Code ERP branding were present, console errors were zero, and
+no public ERPNext/Frappe trace was observed. Vercel Git remains disconnected.

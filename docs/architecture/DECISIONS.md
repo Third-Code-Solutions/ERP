@@ -1677,3 +1677,16 @@ Rationale: source reproducibility and transaction-boundary evidence are now
 proven without weakening the independent hosted release planner. Supabase SQL,
 Railway/Vercel deploys, flags, queues, and business-data writes remain blocked
 until hosted ledger, duplicate-data, and audit-recovery findings are cleared.
+
+## D-101 -- Change Request database evidence remains disposable (2026-08-02)
+
+Decision: prove the M3.0 command against disposable PostgreSQL before any
+hosted migration or cutover. The integration probe uses a transaction-bound
+Nest service, seeds two tenants, asserts idempotency and tenant/RBAC behavior,
+checks exactly one design notification and semantic audit row, and forces a
+rollback. It never targets the hosted Supabase URL and remains credential
+gated in local runs.
+
+Rationale: mocked tests cannot establish composite foreign keys, RLS-era
+privilege boundaries, notification uniqueness, or audit-chain interaction.
+Disposable evidence adds confidence without mutating demo production data.

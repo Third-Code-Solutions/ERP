@@ -762,3 +762,17 @@ separate and explicitly approved.
 4. After a `clear` planner, use one tenant-scoped canary proving idempotency,
    tenant/RBAC isolation, notification intent, audit chain, readiness, logs,
    and exact release identity before any UI cutover.
+
+## Exact next action after M3.0 database evidence (2026-08-02)
+
+1. Run `apps/api/integration/change-request.database.integration.spec.ts` in
+   the disposable PostgreSQL 17 CI lane and retain the no-skips result.
+2. Keep `ERP_CHANGE_REQUEST_WRITES_ENABLED` false/empty and do not apply
+   `20260802090000_change_request_create_idempotency.sql` to hosted Supabase.
+3. Re-run `node --env-file=apps/web/.env.local scripts/plan-controlled-release.mjs --json`.
+   Current blockers remain the eight hosted migrations, the 12-record tenant
+   Purchase Order duplicate group, and missing owner-approved
+   `AUDIT_RECOVERY_TENANT_ID`.
+4. Only a `clear` planner plus canary approval authorizes one reviewed
+   Supabase migration and one spend-bounded Railway/Vercel action. Keep Vercel
+   Git disconnected and do not create preview or duplicate production builds.
