@@ -1540,3 +1540,14 @@ CLI omits it when no changes exist.
 Rationale: test compatibility grants are not production schema and must not
 hide migration drift; production migrations and hosted privileges remain the
 source of truth.
+
+## D-090 -- Processor canary must be rollback-only (2026-08-02)
+
+Decision: prove the M2.5 processor path with an isolated PostgreSQL fixture and
+real Nest state/evidence/commit services before enabling any production tenant.
+The canary must include signed worker-boundary validation, duplicate delivery
+suppression, scope reconciliation, semantic audit, and transaction rollback.
+
+Rationale: unit mocks cannot prove the interaction between the worker contract,
+PostgreSQL state machine, tenant composite checks, and audit chain. A rollback
+fixture gives that evidence without mutating hosted demo data.

@@ -844,3 +844,11 @@ before applying any CI-only legacy Data API grants needed by historical RLS
 tests. It persists an empty diff artifact even when the pinned Supabase CLI
 reports no changes. Hosted SQL and provider deploys remain gated by the
 read-only ledger, duplicate-data, audit-recovery, and provider checks.
+
+## M2.5 canary boundary (2026-08-02)
+
+The first canary must run the real Nest processor and PostgreSQL state machine
+inside an isolated rollback transaction. A worker response is accepted only
+through the signed request client and evidence schema; duplicate delivery must
+be ignored after terminal success; scope, evidence, audit, and tenant isolation
+must be asserted before any production flag can open.
