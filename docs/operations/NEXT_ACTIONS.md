@@ -276,3 +276,25 @@ Provider inspection result:
    truth. Apply only migrations proven missing from its ledger.
 7. Retain Vercel deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` and Railway
    deployment `50fad0aa-8506-457a-a405-152dc31d2340` as rollback evidence.
+
+## Exact next action after 2026-08-01 PO authority milestone
+
+1. Keep Vercel Git disconnected. Create no Vercel preview or production
+   deployment; this milestone hardened server-only PO actions and added a
+   disabled backend contract, with no release authorization.
+2. Keep `ERP_PO_CREATE_WRITES_ENABLED` absent/false. Do not allow any tenant
+   to call provisional Nest PO route until it has durable idempotency and a
+   committed transaction implementation.
+3. Design one tenant-composite idempotency migration for standalone PO create;
+   replay full 56-migration candidate set in disposable PostgreSQL 17 and
+   prove duplicate-request, rollback, tenant-isolation, audit, and budget
+   assertions before applying hosted SQL.
+4. Implement Nest standalone PO transaction with row locks, exact money
+   calculation, same-tenant references, line inserts, audit, and original
+   result replay. Python remains advisory only.
+5. Add server-only tenant allowlist and Next fail-closed client for standalone
+   create command. Canary one approved demo tenant only after Railway
+   readiness, logs, reconciliation, and rollback evidence pass.
+6. Migrate PO approval, issuance, receiving, and BOM/grouped generation as
+   separate bounded slices. Do not combine them with frontend redesign or a
+   Vercel deployment.

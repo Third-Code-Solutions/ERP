@@ -13,8 +13,75 @@ import {
   rfqTransitionResultSchema,
   transitionRfqCommandSchema,
 } from './procurement'
+import {
+  createPurchaseOrderCommandSchema,
+  purchaseOrderCreationResultSchema,
+} from './purchase-orders'
 
 const UUID = '11111111-1111-4111-8111-111111111111'
+
+describe('Purchase Order creation API contracts', () => {
+  it('accepts tenant-free commands with bounded integer centavo lines', () => {
+    const command = {
+      projectId: UUID,
+      vendorId: null,
+      deliveryDate: null,
+      notes: 'Concrete package',
+      lines: [
+        {
+          code: 'CONC-01',
+          description: 'Ready-mix concrete',
+          unit: 'm3',
+          quantity: 4,
+          unitCostCents: 12_500,
+          costCodeId: UUID,
+        },
+      ],
+    }
+    expect(createPurchaseOrderCommandSchema.parse(command)).toEqual(command)
+  })
+
+  it('rejects caller authority and unsafe money', () => {
+    const line = {
+      description: 'Concrete',
+      quantity: 1,
+      unitCostCents: 100,
+      costCodeId: UUID,
+    }
+    expect(
+      createPurchaseOrderCommandSchema.safeParse({
+        projectId: UUID,
+        lines: [line],
+        tenantId: UUID,
+      }).success
+    ).toBe(false)
+    expect(
+      createPurchaseOrderCommandSchema.safeParse({
+        projectId: UUID,
+        lines: [{ ...line, unitCostCents: 1.5 }],
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires a draft result with server-derived tenant identity', () => {
+    expect(
+      purchaseOrderCreationResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        poNumber: 'PO-0001',
+        status: 'draft',
+      }).success
+    ).toBe(true)
+    expect(
+      purchaseOrderCreationResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        poNumber: 'PO-0001',
+        status: 'issued',
+      }).success
+    ).toBe(false)
+  })
+})
 
 describe('RFQ creation API contracts', () => {
   it('accepts only a BOM identifier from the caller', () => {

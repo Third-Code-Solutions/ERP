@@ -3205,3 +3205,56 @@ Rollback and unresolved:
 - Database rollback: none required because no SQL ran.
 - Automatic RFQ routing and notification recovery remain disabled pending a
   separately approved canary.
+
+## 2026-08-01 PO authority audit and disabled Nest adapter
+
+Objective: close immediate PO authorization gaps and define smallest safe
+NestJS migration seam without changing live UI/API behavior or consuming a
+provider deployment.
+
+Findings:
+
+- `apps/web/src/app/(dashboard)/procurement/actions.ts` remains direct-write
+  authority for PO creation, lines, cost-code edits, transitions, approval
+  stamps, supplier issuance, and receiving.
+- Tenant filters existed on most queries, but capability checks were missing
+  on several creation/legacy/receiving entry points. BOM creation also did not
+  verify supplied project/vendor belonged to caller tenant.
+- Existing PO number allocation and BOM/grouped creation are not yet a single
+  idempotent PostgreSQL transaction. This remains a cutover blocker.
+
+Changes:
+
+- Added `po.receive` to shared web permission matrix.
+- Added `po.create` to Nest capability guard matrix.
+- Hardened current Server Actions with profile-derived actor/tenant,
+  `po.create`/`po.receive` checks, same-tenant project/vendor validation, and
+  integer centavo line validation.
+- Added shared strict PO command/result schemas, `CreatePurchaseOrderPipe`,
+  `PurchaseOrderController`, and `PurchaseOrderCreationService`.
+- Added five tests covering disabled service behavior, required idempotency
+  header, rejection of caller authority fields, and validated principal
+  forwarding. Adapter service always fails closed; it writes nothing.
+- Added defensive runtime parsing for standalone PO line payloads: non-array,
+  null, primitive, non-integer, and negative values are rejected before any
+  cost-code lookup or write.
+
+Validation:
+
+- Shared-types: 91 tests passed.
+- API: 70 tests passed.
+- Web: 292 tests passed.
+- Database: 103 tests passed; 137 disposable-environment tests skipped because
+  this local gate had no `DATABASE_URL`.
+- Root lint and typecheck passed.
+- Production build passed: Nest webpack compile and Next 77/77 pages.
+- `git diff --check` passed; no migration or provider deployment was run.
+- No SQL, hosted Supabase migration, Vercel build, Railway deployment, or
+  browser UI mutation performed.
+
+Rollback/unresolved:
+
+- Revert source commit; leave `ERP_PO_CREATE_WRITES_ENABLED` absent/false.
+- Next action: add durable tenant-composite idempotency migration, implement
+  Nest standalone transaction, prove disposable PostgreSQL parity, then
+  tenant-canary one command. Keep other PO workflows on current path.

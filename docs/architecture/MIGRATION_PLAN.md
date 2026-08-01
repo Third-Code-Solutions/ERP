@@ -722,3 +722,36 @@ Next migration milestone:
    frontend change is ready.
 5. Preserve Vercel deployment `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` and Railway
    deployment `50fad0aa-8506-457a-a405-152dc31d2340` as rollback evidence.
+
+## 2026-08-01 purchase-order authority milestone
+
+Status: audit complete; source hardening and disabled Nest contract complete;
+no hosted schema or provider deployment performed.
+
+- Audited all PO write entry points, including BOM/grouped/standalone creation,
+  cost-code assignment, legacy/current transitions, approvals, issuance, and
+  receiving. Confirmed direct Server Action writes remain authoritative.
+- Added tenant-derived capability enforcement to existing PO write actions and
+  same-tenant project/vendor checks before creation. Added `po.receive` to the
+  permission matrix.
+- Added strict shared command/result schemas, a Nest pipe, controller, service,
+  and tests for `POST /v1/procurement/purchase-orders`. Service fails closed
+  and performs no write; route is not selected by any tenant.
+- Kept `ERP_PO_CREATE_WRITES_ENABLED=false` by default and did not add it to
+  Railway/Vercel environments. No migration was created or applied.
+- Full source gates pass: 453 application tests, lint, typecheck, and 77/77
+  production pages. Database/Redis disposable lane remains valid from prior
+  schema-only release and was not rerun.
+
+Next migration milestone:
+
+1. Design and apply one tenant-composite idempotency table/migration only
+   after disposable PostgreSQL proof and hosted parity review.
+2. Implement standalone PO transaction in Nest with row locks, same-tenant
+   references, budget constraints, semantic audit, and replay tests.
+3. Add server-only tenant allowlist gate in Next action, fail closed on API
+   outage, and cut over one approved demo tenant with reconciliation.
+4. Migrate approval, issuance, receiving, and grouped/BOM creation separately;
+   do not combine them into one release.
+5. Keep Vercel Git disconnected and create no deployment for this source-only
+   backend milestone.

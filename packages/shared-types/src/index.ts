@@ -7,6 +7,7 @@ export * from './bom/schemas'
 export * from './audit/hash-chain'
 export * from './erp-api/projects'
 export * from './erp-api/procurement'
+export * from './erp-api/purchase-orders'
 // BOM calculations exported via './bom' subpath to avoid BasisPoints conflict
 export {
   lineTotal,

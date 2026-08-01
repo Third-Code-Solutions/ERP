@@ -615,3 +615,22 @@ authoritative until that proof succeeds.
   deployment. The backend rollback target is the previous healthy Railway
   image; database migrations remain forward-only unless an explicit
   compensating migration is reviewed.
+
+## Purchase-order transaction boundary
+
+- Browser forms submit validated commands to NestJS; React and Next.js Server
+  Actions do not directly commit `purchase_orders`, `po_line_items`, approval
+  stamps, receipts, or supplier-issuance state.
+- NestJS derives tenant and actor from the verified Supabase principal, checks
+  capability and state-machine transitions, validates same-tenant project,
+  vendor, cost-code, and line references, then commits PO plus lines plus
+  semantic audit in one PostgreSQL transaction.
+- Money remains integer centavos or exact PostgreSQL decimal types; client
+  totals are never trusted. Every retry carries a tenant-composite durable
+  idempotency key and returns the original result without a duplicate PO.
+- Redis/BullMQ carries only opaque notification identities after commit. Python
+  may recommend or analyze, never create, approve, issue, receive, or finalize
+  a Purchase Order.
+- Current implementation is intentionally transitional: the Nest route and
+  schema contract exist, but adapter is disabled and non-mutating until
+  idempotency storage and parity evidence are added.

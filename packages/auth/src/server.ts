@@ -161,6 +161,7 @@ export type ErpCapability =
   | 'po.create'
   | 'po.approve'
   | 'po.issue'
+  | 'po.receive'
   | 'sd.daily_tasks'
   | 'punchlist.manage'
   | 'warranty.manage'
@@ -219,6 +220,7 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   'po.create': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm', 'procurement'],
   'po.approve': ['admin', 'owner', 'commercial'],
   'po.issue': ['admin', 'owner', 'procurement'],
+  'po.receive': ['admin', 'owner', 'procurement', 'finance'],
   // Construction
   'sd.daily_tasks': ['admin', 'owner', 'sd_pm_pe', 'pm', 'safety'],
   'punchlist.manage': ['admin', 'owner', 'sd_pm_pe', 'pm', 'cx'],
