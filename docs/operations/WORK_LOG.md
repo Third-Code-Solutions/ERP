@@ -3923,3 +3923,15 @@ Focused route tests passed 6/6. No hosted SQL, Storage, queue, provider
 setting, deployment, or business-data mutation occurred. Remaining release
 gate is unchanged: 55/62 hosted migrations, one 12-record duplicate Purchase
 Order group, and missing approved `AUDIT_RECOVERY_TENANT_ID`.
+
+## 2026-08-02 - M2.8 CI evidence
+
+Pushed `fa283f94376aacd8f7febd9324b162697571efa1` under `kurtgav`.
+GitHub Actions run `30713863937` completed green. Passed Actionlint, secret
+scan, lint, typecheck, unit tests, Postgres 17 zero-to-current rebuild and
+schema diff, database tests without skips, Nest transaction-boundary
+integration, production container smoke, and workspace production build.
+No Supabase, Railway, Vercel, Storage, queue, flag, or business-data mutation
+was performed. Hosted planner blockers remain: 55/62 ledger, one 12-record
+tenant Purchase Order duplicate group, and missing approved
+`AUDIT_RECOVERY_TENANT_ID`.

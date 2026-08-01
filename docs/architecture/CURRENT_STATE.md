@@ -1721,3 +1721,10 @@ changed.
   behavior. Updated the story index to point at the real Inngest refresh path.
 - No hosted SQL, Storage, queue, provider setting, deployment, or business-data
   mutation occurred.
+
+CI evidence (2026-08-02): commit `fa283f94376aacd8f7febd9324b162697571efa1`
+passed GitHub Actions run `30713863937` under `kurtgav`. Actionlint, secret
+scan, lint, typecheck, unit tests, Postgres 17 reproducibility, migration and
+schema-diff checks, database tests without skips, Nest transaction-boundary
+integration, production container smoke, and workspace production build all
+passed. No hosted provider or business-data mutation occurred.

@@ -900,3 +900,9 @@ requires the same BOM visibility policy as the UI, caps result count and
 similarity range, returns provenance, and fails closed when OpenAI or vector
 retrieval is unavailable. Embeddings remain derived evidence; pricing,
 approval, and official ERP transactions stay in the NestJS/PostgreSQL path.
+
+The source candidate is CI-verified at
+`fa283f94376aacd8f7febd9324b162697571efa1` (run `30713863937`): full static,
+test, Postgres reproducibility, Nest transaction, container, and production
+build gates passed. Promotion still requires the controlled planner to clear
+hosted data-integrity blockers.

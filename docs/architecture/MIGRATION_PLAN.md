@@ -1205,3 +1205,12 @@ to a safe 503. The client contract remains unchanged for empty and configured
 responses; the new `source` field makes provenance explicit. Next step is a
 Nest read adapter only after hosted release evidence and API deployment
 identity are available.
+
+## M2.8 evidence checkpoint (2026-08-02)
+
+`fa283f94376aacd8f7febd9324b162697571efa1` is the reviewed source candidate.
+GitHub Actions run `30713863937` passed all executable gates, including a
+zero-to-current Postgres rebuild, empty schema diff, database tests without
+skips, Nest transaction integration, container smoke, and production build.
+Keep the Next compatibility route in place until the hosted planner clears;
+do not apply hosted migrations or deploy providers from this checkpoint.
