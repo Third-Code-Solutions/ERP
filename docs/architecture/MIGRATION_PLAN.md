@@ -822,3 +822,7 @@ Next exact action: reconcile hosted Supabase read-only against the 57-migration
 repository head, authenticate Vercel/Railway as `kurtgav`, then review a
 single-tenant canary. Do not enable either workflow flag or deploy this source
 before those gates.
+
+Read-only reconciliation completed after this slice: PostgreSQL 17 with
+55 applied migrations; repository 57; missing only the two linear candidates
+`20260801090000` and `20260801100000`; no unexpected history and no SQL run.

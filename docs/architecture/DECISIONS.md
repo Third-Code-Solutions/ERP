@@ -1245,3 +1245,7 @@ Constraints: no browser or Python finalization, no hosted migration until
 read-only reconciliation, no provider deployment implied, and no fallback
 after a canary command begins. The original implementation is independent of
 ERPNext code, schemas, text, or internal structure.
+
+Evidence update: disposable 57-migration replay and 8/8 Nest/Redis
+integration passed. Hosted read-only plan is 55/57 with only the two candidate
+suffixes missing; both remain unapplied pending review.

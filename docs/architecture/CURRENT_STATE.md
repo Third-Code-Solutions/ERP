@@ -1322,3 +1322,7 @@ matches the repository migration contract:
   replay, state/capability, audit, rollback, and tenant isolation assertions.
 - Hosted Supabase was not changed. Vercel and Railway were not deployed;
   provider sessions still require the correct `kurtgav` identity.
+- Fresh read-only hosted reconciliation reports PostgreSQL 17, 55 applied
+  migrations through `20260729233017`, repository 57/57, and exactly two
+  linear missing candidates (`20260801090000`, `20260801100000`). No SQL was
+  executed; both candidates require explicit defensive-constraint review.
