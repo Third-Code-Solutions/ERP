@@ -3,6 +3,9 @@ import 'reflect-metadata'
 import { randomUUID } from 'node:crypto'
 import {
   db,
+  bomLineItems,
+  boms,
+  documentProcessingEvidence,
   documentProcessingJobs,
   documents,
   projects,
@@ -14,8 +17,15 @@ import { and, eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { AuditService } from '../src/audit/audit.service'
+import { CadEvidenceCommitService } from '../src/cad/cad-evidence-commit.service'
+import {
+  DocumentProcessingDraftBomService,
+  type DraftBomCommitContext,
+} from '../src/cad/document-processing.bom'
 import { DocumentProcessingService } from '../src/cad/document-processing.service'
+import { DocumentProcessingEvidenceService } from '../src/cad/document-processing.evidence'
 import { DocumentProcessingStateService } from '../src/cad/document-processing.state'
+import type { DocumentProcessingWorkerResult } from '../src/cad/document-processing.worker'
 import {
   DatabaseService,
   type DatabaseTransaction,
@@ -161,17 +171,23 @@ suite('document processing job database integration', () => {
         role: 'commercial',
         email: `processing-b-${suffix}@integration.test`,
       }
-        const config = {
-          get: vi.fn((key: string, fallback?: unknown) => {
-            if (key === 'ERP_DOCUMENT_PROCESSING_JOBS_ENABLED') return true
-            if (key === 'ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED') {
-              return true
-            }
-            if (key === 'ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED') return true
-            if (key === 'ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS') {
-              return [tenantA]
-            }
-            if (key === 'ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS') {
+      const config = {
+        get: vi.fn((key: string, fallback?: unknown) => {
+          if (key === 'ERP_DOCUMENT_PROCESSING_JOBS_ENABLED') return true
+          if (key === 'ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED') {
+            return true
+          }
+          if (key === 'ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED') return true
+          if (key === 'ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS') {
+            return [tenantA]
+          }
+          if (key === 'ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED') {
+            return true
+          }
+          if (key === 'ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS') {
+            return [tenantA]
+          }
+          if (key === 'ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS') {
             return [tenantA]
           }
           return fallback
@@ -285,6 +301,171 @@ suite('document processing job database integration', () => {
         warnings: ['bounded warning'],
       })
       await expect(state.claim(second.status.jobId)).resolves.toBeNull()
+
+      const third = await service.create(
+        documentA,
+        request,
+        principalA,
+        'processing-integration-3'
+      )
+      const thirdClaim = await state.claim(third.status.jobId)
+      expect(thirdClaim?.attempt).toBe(1)
+      if (!thirdClaim) throw new Error('third processing job was not claimed')
+
+      const workerResult: DocumentProcessingWorkerResult = {
+        evidence: {
+          schema_version: 1,
+          job_id: third.status.jobId,
+          attempt: 1,
+          source_sha256: 'a'.repeat(64),
+          producer: {
+            name: 'third-code-cad-extractor',
+            version: '0.3.0',
+          },
+          source_format: 'dxf',
+          parsed_format: 'dxf',
+          items: [
+            {
+              item_key: 'b'.repeat(64),
+              code: 'DIFFUSER',
+              description: 'Office diffuser',
+              unit: 'unit',
+              quantity: 2,
+              recommended_unit_cost_cents: 125,
+              notes: 'CAD evidence',
+            },
+          ],
+          warnings: ['CAD warning'],
+        },
+        response: {
+          document_id: documentA,
+          scope_items: [
+            {
+              code: 'DIFFUSER',
+              description: 'Office diffuser',
+              unit: 'unit',
+              quantity: 2,
+              unit_cost_cents: 125,
+              notes: 'CAD evidence',
+            },
+          ],
+          count: 1,
+          warnings: ['CAD warning'],
+          parsed_format: 'dxf',
+          source_format: 'dxf',
+        },
+        sourceSha256: 'a'.repeat(64),
+        producer: {
+          name: 'third-code-cad-extractor',
+          version: '0.3.0',
+        },
+      }
+      const evidenceService = new DocumentProcessingEvidenceService(
+        transactionBoundDatabase(transaction)
+      )
+      const evidenceId = await evidenceService.persist(
+        thirdClaim,
+        workerResult
+      )
+      await expect(
+        evidenceService.persist(thirdClaim, workerResult)
+      ).resolves.toBe(evidenceId)
+
+      const commitService = new CadEvidenceCommitService(
+        config as never,
+        transactionBoundDatabase(transaction),
+        new AuditService(),
+        new DocumentProcessingDraftBomService(
+          new AuditService()
+        )
+      )
+      const draftBomContext: DraftBomCommitContext = {
+        job: thirdClaim,
+        result: workerResult,
+        evidenceId,
+      }
+      const commitResult = await commitService.commit(
+        documentA,
+        {
+          projectId: projectA,
+          workerResponse: workerResult.response,
+        },
+        principalA,
+        'processing-integration-3',
+        draftBomContext
+      )
+      expect(draftBomContext.draftBomId).toBeDefined()
+      const replayContext: DraftBomCommitContext = {
+        job: thirdClaim,
+        result: workerResult,
+        evidenceId,
+      }
+      await expect(
+        commitService.commit(
+          documentA,
+          {
+            projectId: projectA,
+            workerResponse: workerResult.response,
+          },
+          principalA,
+          'processing-integration-3',
+          replayContext
+        )
+      ).resolves.toEqual(commitResult)
+      expect(replayContext.draftBomId).toBe(draftBomContext.draftBomId)
+      await expect(
+        state.succeed(
+          third.status.jobId,
+          commitResult.scopeItemsCreated,
+          workerResult.evidence.warnings,
+          draftBomContext.draftBomId
+        )
+      ).resolves.toBe(true)
+      await expect(service.status(third.status.jobId, principalA)).resolves.toMatchObject({
+        status: 'succeeded',
+        draftBomId: draftBomContext.draftBomId,
+      })
+
+      const evidenceRows = await transaction
+        .select()
+        .from(documentProcessingEvidence)
+        .where(
+          and(
+            eq(documentProcessingEvidence.tenant_id, tenantA),
+            eq(documentProcessingEvidence.job_id, third.status.jobId)
+          )
+        )
+      const bomRows = await transaction
+        .select()
+        .from(boms)
+        .where(
+          and(
+            eq(boms.tenant_id, tenantA),
+            eq(boms.id, draftBomContext.draftBomId as string)
+          )
+        )
+      const bomLines = await transaction
+        .select()
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.tenant_id, tenantA),
+            eq(bomLineItems.bom_id, draftBomContext.draftBomId as string)
+          )
+        )
+      expect(evidenceRows).toHaveLength(1)
+      expect(evidenceRows[0]).toMatchObject({
+        tenant_id: tenantA,
+        document_id: documentA,
+        project_id: projectA,
+        attempt: 1,
+        source_sha256: 'a'.repeat(64),
+        item_count: 1,
+      })
+      expect(bomRows).toHaveLength(1)
+      expect(bomRows[0]?.total_cost_cents).toBe(250)
+      expect(bomLines).toHaveLength(1)
+      expect(bomLines[0]?.line_total_cents).toBe(250)
     })
 
     const leaked = await db

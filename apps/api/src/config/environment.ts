@@ -137,6 +137,22 @@ const environmentSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // Draft BOM creation has its own gate. A processing job requesting a BOM
+  // is rejected at intake unless this flag and tenant allowlist both match.
+  ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_PROCESSING_DRAFT_BOM_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   DXF_PARSER_URL: optionalHttpUrl,
   PARSER_SHARED_SECRET: z.string().min(20).optional(),
 })

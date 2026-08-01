@@ -1065,3 +1065,23 @@ migrations, 253/253 database assertions without skips, 11/11 API integration
 assertions, and an unchanged schema hash. Ordered full tests, typecheck,
 serial lint, production build, Actionlint, Gitleaks, and diff checks also pass;
 all hosted gates remain fail-closed.
+
+## M2.4 durable evidence and draft BOM source candidate (2026-08-01)
+
+Added migration `20260801150000_document_processing_evidence.sql`, strict
+Drizzle schema, evidence-attempt persistence, independent draft-BOM gate, and
+idempotent Nest draft-BOM transaction. Evidence is persisted before scope
+commit; duplicate attempt payloads replay only when hash, producer, formats,
+and validated payload match. BOM creation locks the processing job, creates
+one draft plus line rows with exact integer totals, attaches `draft_bom_id`,
+and writes semantic audit evidence. No Python or browser path can create a
+BOM.
+
+Validation: disposable PostgreSQL 17/Redis 7.4.9 lane passed 62/62
+migrations, 253/253 database assertions without skips, and 11/11 API
+integration assertions. Full workspace gates also passed: shared 114/114,
+API 113/113, web 301/301, database 116 passing with 137 environment-gated
+local skips, typecheck, serial lint, Nest/Next production build (77/77
+pages), Actionlint, Gitleaks, diff checks, and Python worker pytest 11/11.
+Activation flags remain false/empty; hosted migration and provider state were
+not changed.

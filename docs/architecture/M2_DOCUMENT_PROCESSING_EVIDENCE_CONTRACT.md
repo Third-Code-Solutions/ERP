@@ -436,9 +436,11 @@ transaction:
 11. Record result count and accepted evidence.
 12. Transition to `committed`.
 
-Draft BOM generation is a separate idempotent Nest command keyed by processing
-job. It may run after scope commit and update the job with one durable draft
-BOM ID. A retry must return the same draft, never allocate another version.
+Draft BOM generation is an idempotent Nest operation keyed by processing job.
+For a request that asks for a BOM, it runs inside the same transaction as
+derived scope replacement and idempotency completion, then updates the job
+with one durable draft BOM ID. A retry must return the same draft, never
+allocate another version.
 
 ## Compatibility behavior
 
@@ -481,8 +483,8 @@ a visual redesign.
 - Duplicate queue delivery: return durable existing job/commit result.
 - Database unavailable: retry without asking Python to approve anything.
 - Audit failure: transaction rolls back.
-- Draft-BOM failure: scope commit remains durable; job exposes a sanitized
-  follow-up warning and the BOM command can retry idempotently.
+- Draft-BOM failure: the derived scope/BOM/idempotency transaction rolls back;
+  immutable evidence remains and a retry can replay the attempt safely.
 - Cross-tenant lookup: return 404 and write no business row.
 - Lost Redis: readiness fails; PostgreSQL state remains authoritative.
 - Storage deletion after queueing: fail safely; do not reuse old evidence
@@ -693,9 +695,24 @@ Python returns bounded source-hashed evidence with deterministic item keys and
 does not receive database credentials, tenant/project authority, or ERP state.
 
 Nest validates the response and reuses the existing CAD evidence commit
-transaction for scope rows only when all processing/bridge/commit flags and
-tenant allowlists are explicitly enabled. BullMQ retries transient failures;
+transaction for derived scope rows. BullMQ retries transient failures;
 PostgreSQL marks terminal failure only after the final attempt, and duplicate
-delivery of a terminal job is a no-op. Draft-BOM requests fail closed until a
-separate idempotent Nest BOM command exists. The processor is registered in
-source, but every activation gate remains false/empty.
+delivery of a terminal job is a no-op. Draft-BOM requests fail closed until
+the independent draft-BOM gate and tenant allowlist are opened. The processor
+is registered in source, but every activation gate remains false/empty.
+
+## M2.4 durable evidence and draft BOM implementation note (2026-08-01)
+
+`document_processing_evidence` now records each validated worker attempt before
+derived scope commit. Persistence is idempotent per tenant/job/attempt and
+rejects a replay whose hash, producer, format, or payload differs. The raw
+strict response is retained without signed URLs or credentials.
+
+When `createDraftBom=true`, the processor requires the independent draft-BOM
+flag and tenant allowlist, then passes a context to the existing Nest commit
+transaction. That transaction locks the job, rechecks the tenant
+actor/document relationship, replaces scope rows, creates one draft BOM and
+line set with exact integer-centavo totals, attaches `draft_bom_id`, and writes
+semantic audit evidence. A failure rolls back all derived writes while the
+immutable evidence row remains. A retry replays the existing idempotency/BOM
+record; no partial success is returned. The gates remain closed.

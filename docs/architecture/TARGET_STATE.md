@@ -825,3 +825,14 @@ rejected rather than reported as partially complete. All bridge/commit flags
 and tenant allowlists remain closed until disposable Python/API/Redis proof,
 draft-BOM parity, hosted schema reconciliation, audit recovery, duplicate PO
 remediation, and a controlled canary are approved.
+
+## Durable evidence and draft-BOM completion (2026-08-01)
+
+Each processing attempt persists validated, hash-linked worker evidence in a
+tenant-scoped PostgreSQL table before any derived scope or BOM write. Evidence
+contains no signed URL, credential, tenant authority, or ERP write command.
+NestJS creates at most one draft BOM per processing job in a transaction that
+locks the job, revalidates actor/document context, computes integer-centavo
+line totals, attaches the BOM ID, and writes semantic audit evidence. A
+separate draft-BOM flag and tenant allowlist stay closed until end-to-end
+processor/retry/canary proof and hosted release gates are approved.

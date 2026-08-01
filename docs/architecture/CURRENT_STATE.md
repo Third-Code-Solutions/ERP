@@ -1563,3 +1563,26 @@ changed.
 - Focused shared/API tests passed; TypeScript typecheck and Python source
   compilation passed. In an isolated temporary venv, the worker suite passes
   11/11, including private endpoint signature and evidence tests.
+
+## 2026-08-01 Durable CAD evidence and draft BOM source slice
+
+- Added candidate migration `20260801150000_document_processing_evidence.sql`
+  and tenant-scoped Drizzle schema. Each processing attempt stores validated
+  source hash, producer, formats, warnings, bounded worker payload, and
+  document/project/job composite-FK context. RLS remains enabled and browser
+  privileges remain revoked.
+- Added Nest evidence persistence with attempt replay mismatch detection.
+  The processor persists evidence before scope commit, then creates an
+  idempotent draft BOM in one Nest transaction when requested. BOM and line
+  totals use integer centavos; job `draft_bom_id` is durable and duplicate
+  delivery returns the existing BOM.
+- Added independent closed-by-default
+  `ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED` flag and tenant allowlist. A
+  request asking for a BOM is rejected at intake when that gate is closed.
+- Disposable PostgreSQL 17/Redis 7.4.9 replay passed 62 migrations, 253/253
+  database assertions without skips, and 11/11 API integration assertions.
+- Full workspace verification passed: shared 114/114, API 113/113, web
+  301/301, database 116 passing with 137 environment-gated local skips,
+  workspace typecheck, serial lint, Nest/Next production build (77/77 pages),
+  Actionlint, Gitleaks, diff checks, and isolated Python worker pytest 11/11.
+  Hosted Supabase, provider flags, and deployments remain unchanged.
