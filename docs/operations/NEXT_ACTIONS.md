@@ -699,3 +699,15 @@ separate and explicitly approved.
    migration release, one Railway deployment, and one spend-bounded Vercel
    production action. Verify readiness, protected API/browser behavior, logs,
    data invariants, and exact release identity after each action.
+
+## Exact next action after M2.8 RAG suggestion hardening (2026-08-02)
+
+1. Run full workspace validation and CI for the RAG route candidate; keep the
+   existing Next compatibility path and all AI/provider feature flags closed or
+   absent in hosted environments unless already approved.
+2. Rerun the read-only controlled-release planner. Do not apply the seven
+   pending Supabase migrations or deploy Railway/Vercel while it reports the
+   duplicate Purchase Order group or missing `AUDIT_RECOVERY_TENANT_ID`.
+3. After a `clear` planner and canary, choose either one controlled hosted
+   promotion or a separately reviewed Nest read adapter; verify tenant/RBAC,
+   readiness, source provenance, provider spend, logs, and exact release SHA.

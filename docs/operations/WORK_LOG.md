@@ -3908,3 +3908,18 @@ lint, unit tests, Postgres 17/Redis reproducibility, and production build.
 E2E remains skipped by explicit hosted-credential gating. The read-only planner
 still reports 55/62 migrations, the 12-record Purchase Order duplicate group,
 and missing `AUDIT_RECOVERY_TENANT_ID`.
+
+## 2026-08-02 - M2.8 RAG suggestion hardening
+
+Hardened `apps/web/src/app/api/ai/similar-items/route.ts` and added its six-test
+route contract. The endpoint now uses `getUserProfile`, denies roles without
+BOM visibility, bounds descriptions to 5–300 characters, returns private
+no-store responses, filters non-finite/out-of-range similarities, identifies
+approved-BOM history, and fails closed on provider/vector outages. Updated the
+story index from the stale `apps/workers/rag-indexer` path to the actual
+Inngest embedding refresh path.
+
+Focused route tests passed 6/6. No hosted SQL, Storage, queue, provider
+setting, deployment, or business-data mutation occurred. Remaining release
+gate is unchanged: 55/62 hosted migrations, one 12-record duplicate Purchase
+Order group, and missing approved `AUDIT_RECOVERY_TENANT_ID`.

@@ -1601,3 +1601,16 @@ Rationale: derived graph search improves discoverability without widening
 authorization or adding provider spend to normal navigation. Cortex remains a
 read-only projection; NestJS/PostgreSQL remains the authority for official ERP
 transactions and audit state.
+
+## D-095 -- RAG suggestions are bounded read-only evidence
+
+Decision: keep BOM similarity suggestions behind the existing Next compatibility
+route for this incremental slice, but authorize from the authenticated profile,
+reuse the BOM visibility policy, validate a 5–300 character description before
+embedding, cap results to five finite scores at or above 0.75, and identify each
+result as approved-BOM history. Provider or vector failures return a safe 503;
+the route never approves, writes, or finalizes a BOM.
+
+Rationale: this makes the current user-visible RAG path safe and testable
+without a big-bang frontend/API cutover. A later Nest read adapter can preserve
+the contract once the Railway API release is independently verified.

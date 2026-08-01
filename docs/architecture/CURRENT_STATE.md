@@ -1708,3 +1708,16 @@ changed.
   skipped by explicit hosted-credential gating.
 - Hosted Supabase, Railway, Vercel, flags, provider settings, and business data
   remain unchanged pending the controlled release planner blockers.
+
+## 2026-08-02 M2.8 RAG suggestion boundary
+
+- Hardened `POST /api/ai/similar-items`: profile-derived tenant and BOM-view
+  authorization, safe JSON/Zod bounds (5–300 characters), private no-store
+  responses, finite score filtering, and fail-closed provider/database errors.
+- Suggestions identify `approved_bom_history`; the endpoint is read-only and
+  cannot approve, price-commit, or otherwise mutate an ERP transaction.
+- Added six route tests covering authentication, role denial, malformed input,
+  provider absence, tenant-scoped result shaping, audit attempt, and outage
+  behavior. Updated the story index to point at the real Inngest refresh path.
+- No hosted SQL, Storage, queue, provider setting, deployment, or business-data
+  mutation occurred.
