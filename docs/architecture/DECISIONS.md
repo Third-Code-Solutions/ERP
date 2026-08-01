@@ -1626,3 +1626,16 @@ business-data writes remain gated by current hosted integrity evidence.
 Rationale: separate source correctness from provider mutation and avoid an
 unbounded or billing-producing release while hosted migration, duplicate PO,
 and audit-recovery blockers remain unresolved.
+
+## D-097 -- Python owns embedding generation behind an explicit boundary (2026-08-02)
+
+Decision: introduce `apps/workers/ai` as the Python-owned advisory embedding
+boundary. It receives only bounded text, requires a private bearer secret, and
+returns validated vectors. When `AI_WORKER_URL` is configured, shared
+TypeScript embedding helpers use Python and fail closed on incomplete worker
+configuration. With no URL, the existing TypeScript OpenAI path remains a
+temporary compatibility fallback.
+
+Rationale: honor the target architecture without a big-bang cutover or broken
+RAG behavior. Python remains advisory-only; NestJS/PostgreSQL still own every
+official ERP transaction, audit, and tenant-scoped write.

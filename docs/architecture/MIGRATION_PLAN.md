@@ -1214,3 +1214,24 @@ zero-to-current Postgres rebuild, empty schema diff, database tests without
 skips, Nest transaction integration, container smoke, and production build.
 Keep the Next compatibility route in place until the hosted planner clears;
 do not apply hosted migrations or deploy providers from this checkpoint.
+
+## M2.9 Python AI advisory worker (2026-08-02)
+
+Status: source candidate implemented; worker deployment and hosted enablement
+not authorized.
+
+- Added a standalone FastAPI `/v1/embeddings` worker with private bearer auth,
+  bounded input, provider timeout, response-shape/dimension validation, and
+  no database or ERP write capability.
+- Added a TypeScript worker client and worker-first selection in the shared
+  embedding helper. Existing OpenAI TypeScript behavior remains unchanged when
+  `AI_WORKER_URL` is absent; partial worker configuration fails closed.
+- Updated BOM RAG, auto-BOM, and Inngest refresh gates to use the shared
+  provider-availability check.
+- Python 6/6 tests, focused Web 10/10 tests, full workspace tests, typecheck,
+  lint, build, secret scan, actionlint, and workflow-reference validation pass.
+  Docker smoke is pending local Docker engine recovery.
+
+Next: deploy the worker only as a separately reviewed Railway service after
+the controlled planner is clear; then run authenticated worker, provider-cost,
+tenant-isolation, and exact-release-SHA evidence before enabling the URL.

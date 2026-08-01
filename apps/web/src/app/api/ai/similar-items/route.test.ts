@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   execute: vi.fn(),
   embedText: vi.fn(),
+  isEmbeddingProviderConfigured: vi.fn(),
   serializeEmbedding: vi.fn(),
   writeAuditLog: vi.fn(),
 }))
@@ -19,6 +20,7 @@ vi.mock('@third-code-erp/database', () => ({
 
 vi.mock('@third-code-erp/ai', () => ({
   embedText: mocks.embedText,
+  isEmbeddingProviderConfigured: mocks.isEmbeddingProviderConfigured,
   serializeEmbedding: mocks.serializeEmbedding,
 }))
 
@@ -55,6 +57,7 @@ describe('BOM similar-item retrieval boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.OPENAI_API_KEY = 'test-key'
+    mocks.isEmbeddingProviderConfigured.mockReturnValue(true)
     mocks.getUserProfile.mockResolvedValue(profile())
     mocks.embedText.mockResolvedValue([0.1, 0.2])
     mocks.serializeEmbedding.mockReturnValue('[0.1,0.2]')
@@ -113,6 +116,7 @@ describe('BOM similar-item retrieval boundary', () => {
     await expect((await request({ description: '   ' })).json()).resolves.toEqual({ items: [] })
 
     delete process.env.OPENAI_API_KEY
+    mocks.isEmbeddingProviderConfigured.mockReturnValue(false)
     const response = await request({ description: 'Copper pipe' })
 
     expect(response.status).toBe(200)

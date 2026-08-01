@@ -99,7 +99,7 @@ moving parts.
 | Capability | UI Surface | Server / Worker | Tables | Status |
 |---|---|---|---|---|
 | Hash-chained audit log | n/a (read-only UI in admin) | `supabase/migrations/20260509164538_audit_triggers.sql` | `audit_log` | Live |
-| RAG retrieval (BOM suggestions) | BOM editor right rail | `apps/web/src/app/api/ai/similar-items/route.ts`, `apps/web/src/lib/inngest.ts` | `embeddings` | Live (no-op without `OPENAI_API_KEY`) |
+| RAG retrieval (BOM suggestions) | BOM editor right rail | `apps/web/src/app/api/ai/similar-items/route.ts`, `apps/web/src/lib/inngest.ts`, `apps/workers/ai` | `embeddings` | Live (Python worker optional; compatibility fallback) |
 | Signing (canvas + DocuSeal) | `/portal/sign/[token]`, turnover flow | `portal/sign/[token]/actions.ts`, `/api/webhooks/docuseal` | `signature_sessions` | Live |
 | Resend email notifications | none (background) | Inngest `sla.tick`, `permits.staleness`, `warranty.cnps` | `notifications` | Live (no-ops without `RESEND_API_KEY`) |
 | Semaphore SMS | none (background) | Inngest `sla.tick`, `warranty.cnps` | `notifications` | Dev-stub |

@@ -177,9 +177,9 @@ export const embedBomLineItems = inngest.createFunction(
   }) => {
     const { bomId, tenantId } = event.data
 
-    const apiKey = process.env.OPENAI_API_KEY
-    if (!apiKey) {
-      return { skipped: true, reason: 'OPENAI_API_KEY not configured' }
+    const { isEmbeddingProviderConfigured } = await import('@third-code-erp/ai')
+    if (!isEmbeddingProviderConfigured()) {
+      return { skipped: true, reason: 'AI embedding provider not configured' }
     }
 
     const count = await step.run('embed-line-items', async () => {

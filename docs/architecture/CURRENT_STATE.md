@@ -1728,3 +1728,24 @@ scan, lint, typecheck, unit tests, Postgres 17 reproducibility, migration and
 schema-diff checks, database tests without skips, Nest transaction-boundary
 integration, production container smoke, and workspace production build all
 passed. No hosted provider or business-data mutation occurred.
+
+## 2026-08-02 M2.9 Python AI advisory boundary
+
+- Added `apps/workers/ai`, a private FastAPI embeddings worker with strict
+  bearer authentication, bounded batches/text, provider response validation,
+  generic validation errors, and public liveness only.
+- Worker has no PostgreSQL, Supabase, Storage, tenant, approval, or ERP
+  transaction authority. It returns model-derived evidence only.
+- Added worker-first selection to `packages/ai`; when `AI_WORKER_URL` is set,
+  TypeScript embedding calls require the shared secret and use Python. When
+  URL is absent, existing TypeScript OpenAI behavior remains the compatibility
+  fallback. RAG route, auto-BOM, and embedding refresh now use one provider
+  readiness check.
+- Python tests pass 6/6; Web AI boundary tests pass 10/10; full workspace
+  tests pass Web 316/316, API 120/120, shared-types 115/115, database 116
+  passing with 137 explicit local integration skips. Typecheck, serial lint,
+  production build (78/78 routes), gitleaks, actionlint, workflow-ref checks,
+  and diff checks pass. Docker worker smoke was not runnable because local
+  Docker Desktop returned HTTP 500 before build.
+- No hosted SQL, worker deployment, provider setting, flag, or business-data
+  mutation occurred. Controlled planner blockers remain unchanged.

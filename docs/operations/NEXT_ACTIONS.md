@@ -723,3 +723,17 @@ separate and explicitly approved.
    Vercel deploy, feature-flag enablement, or business-data mutation. After a
    clear planner, use one reviewed canary and one spend-bounded provider action
    with readiness, protected-flow, data, log, and exact-SHA evidence.
+
+## Exact next action after M2.9 Python AI boundary (2026-08-02)
+
+1. Keep `AI_WORKER_URL` absent in hosted web environments until the Python
+   worker is separately deployed, authenticated, health-checked, and cost
+   bounded. Keep TypeScript compatibility provider behavior unchanged.
+2. Resolve the existing controlled-release blockers: seven hosted migrations,
+   the 12-record tenant Purchase Order duplicate group, and owner approval for
+   `AUDIT_RECOVERY_TENANT_ID`; rerun the read-only planner.
+3. After a `clear` planner, deploy one reviewed Python worker service and run
+   authenticated `/health` plus `/v1/embeddings` contract, provider timeout,
+   tenant/RBAC, spend, logs, and exact-SHA checks before setting the worker URL.
+4. Migrate chat completions separately; Python output remains advisory and can
+   never approve or finalize ERP transactions.

@@ -3,7 +3,11 @@ import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { sql } from 'drizzle-orm'
-import { embedText, serializeEmbedding } from '@third-code-erp/ai'
+import {
+  embedText,
+  isEmbeddingProviderConfigured,
+  serializeEmbedding,
+} from '@third-code-erp/ai'
 import { writeAuditLog } from '@/lib/audit'
 import { canSearchEntity } from '@/app/api/search/search-policy'
 
@@ -95,7 +99,7 @@ export async function POST(req: NextRequest) {
   }
   const description = parsed.data.description
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!isEmbeddingProviderConfigured()) {
     await auditQuery(profile, description, {
       result_count: 0,
       top_score: null,
