@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createRfqThroughCoreApi,
   createPurchaseOrderThroughCoreApi,
+  createChangeRequestThroughCoreApi,
   dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderWorkflowWritesUseCoreApi,
+  changeRequestWritesUseCoreApi,
   rfqCreateWritesUseCoreApi,
   rfqAutoDispatchUsesCoreApi,
   rfqQuoteWritesUseCoreApi,
@@ -166,6 +168,63 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS', '*')
     expect(purchaseOrderWorkflowWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(purchaseOrderWorkflowWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Change Request delegation fail-closed unless its independent gate matches', () => {
+    vi.stubEnv('ERP_CHANGE_REQUEST_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_CHANGE_REQUEST_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(changeRequestWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_CHANGE_REQUEST_WRITES_VIA_API', 'TRUE')
+    expect(changeRequestWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_CHANGE_REQUEST_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_CHANGE_REQUEST_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(changeRequestWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(changeRequestWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('sends an idempotent Change Request command and validates result', async () => {
+    const result = {
+      changeRequestId: '66666666-6666-4666-8666-666666666666',
+      tenantId: RESULT.tenantId,
+      status: 'open' as const,
+      created: true,
+    }
+    const command = {
+      requestedByName: 'Client PM',
+      description: 'Move the wall.',
+      priority: 'minor' as const,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createChangeRequestThroughCoreApi(
+        '33333333-3333-4333-8333-333333333333',
+        command,
+        'change-request-1'
+      )
+    ).resolves.toEqual({ ok: true, data: result })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/crm/opportunities/33333333-3333-4333-8333-333333333333/change-requests',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'change-request-1',
+        }),
+      })
+    )
   })
 
   it('sends an idempotent Purchase Order command and validates result', async () => {

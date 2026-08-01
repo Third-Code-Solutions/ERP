@@ -88,6 +88,29 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_PO_WORKFLOW_WRITES_TENANT_IDS')
   })
 
+  it('keeps Change Request command writes disabled and tenant-scoped', () => {
+    expect(
+      validateEnvironment(REQUIRED).ERP_CHANGE_REQUEST_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED).ERP_CHANGE_REQUEST_WRITES_TENANT_IDS
+    ).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CHANGE_REQUEST_WRITES_ENABLED: 'true',
+        ERP_CHANGE_REQUEST_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      }).ERP_CHANGE_REQUEST_WRITES_ENABLED
+    ).toBe(true)
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CHANGE_REQUEST_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_CHANGE_REQUEST_WRITES_TENANT_IDS')
+  })
+
   it('keeps Purchase Order workflow notifications fail-closed', () => {
     expect(
       validateEnvironment(REQUIRED)

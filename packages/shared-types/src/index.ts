@@ -11,6 +11,7 @@ export * from './erp-api/inventory'
 export * from './erp-api/purchase-orders'
 export * from './erp-api/cad'
 export * from './erp-api/document-processing'
+export * from './erp-api/change-requests'
 // BOM calculations exported via './bom' subpath to avoid BasisPoints conflict
 export {
   lineTotal,

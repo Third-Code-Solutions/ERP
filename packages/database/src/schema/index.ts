@@ -24,6 +24,7 @@ export * from './account-kyc'
 export * from './pprf'
 export * from './site-inspections'
 export * from './design'
+export * from './change-request-create-requests'
 // Phase 3 (M3 BOM Engine — extras)
 export * from './bom-extras'
 // Phase 4 (M4 Pre-Construction)

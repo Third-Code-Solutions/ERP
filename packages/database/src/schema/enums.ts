@@ -274,6 +274,11 @@ export const stockReceiptCreateRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const changeRequestCreateRequestStateEnum = pgEnum(
+  'change_request_create_request_state',
+  ['processing', 'succeeded']
+)
+
 export const stockLedgerEventTypeEnum = pgEnum('stock_ledger_event_type', [
   'receipt',
   'receipt_reversal',

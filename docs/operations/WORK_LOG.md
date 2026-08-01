@@ -3959,3 +3959,17 @@ integration, container smoke, and workspace production build. E2E was skipped
 by the explicit hosted-credential gate. PR #1 remains draft and clean; no
 Supabase, Railway, Vercel, worker, provider, flag, queue, or business-data
 mutation was performed.
+
+## 2026-08-02 - M3.0 Change Request command boundary
+
+Added the closed-by-default NestJS Change Request command, shared Zod
+contract, explicit `change_request.create` capability, tenant-scoped
+idempotency migration/table, atomic design notifications, semantic audit, and
+the server-only Web client seam. Existing Next Server Action behavior and UI
+were not replaced.
+
+Focused validation: shared contract 3/3; database schema/migration 3/3; Nest
+service/controller 5/5; Web client 20/20; workspace typecheck and diff checks
+pass. Full release validation and CI are the next action. No hosted Supabase,
+Railway, Vercel, feature flag, queue, provider, or business-data mutation was
+performed. Hosted planner blockers remain unchanged.

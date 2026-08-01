@@ -1650,3 +1650,17 @@ separately gated by the read-only controlled-release planner.
 Rationale: a green source pipeline proves reproducibility and build safety but
 does not prove hosted data integrity, provider authorization, or production
 runtime identity.
+
+## D-099 -- Change Request commands remain gated and idempotent (2026-08-02)
+
+Decision: introduce the NestJS Change Request command as a closed-by-default
+compatibility boundary. The opportunity path parameter is authoritative; the
+body cannot provide tenant or actor identity. PostgreSQL records a tenant/key
+request hash and result, while the same transaction creates the request,
+design-role in-app intent, and audit evidence. Replays return the validated
+stored result; hash mismatches conflict.
+
+Rationale: this moves a sensitive business write toward Nest/PostgreSQL without
+a big-bang UI rewrite, prevents retry duplicates, preserves current behavior
+while flags are closed, and makes tenant/RBAC/audit correctness testable before
+any hosted migration or provider promotion.

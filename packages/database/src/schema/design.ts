@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, timestamp, boolean, index, pgEnum } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, integer, timestamp, boolean, index, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { opportunities } from './opportunities'
 import { users } from './users'
@@ -71,6 +71,7 @@ export const changeRequests = pgTable(
   (table) => ({
     tenantIdx: index('idx_change_requests_tenant_id').on(table.tenant_id),
     oppIdx: index('idx_change_requests_opportunity_id').on(table.opportunity_id),
+    tenantIdUniqueIdx: uniqueIndex('ux_change_requests_tenant_id_id').on(table.tenant_id, table.id),
   })
 )
 

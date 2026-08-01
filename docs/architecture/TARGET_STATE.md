@@ -921,3 +921,14 @@ The reviewed source candidate is `56bb76eb2dc7f4f7f00fbe4690e06323696b0618`;
 GitHub Actions run `30715179369` passed all executable gates. Hosted worker
 enablement remains a separately reviewed deployment after the controlled
 planner is clear.
+
+## Change Request command authority (M3.0, 2026-08-02)
+
+Client Change Requests follow the modular-monolith command pattern: Next.js
+keeps the current compatibility action, while NestJS exposes a separately
+gated, tenant-scoped command with PostgreSQL idempotency, explicit capability
+authorization, same-opportunity design-file validation, atomic in-app intent,
+and audit evidence. The browser never supplies tenant or actor authority.
+Promotion requires a clean migration replay, hosted ledger reconciliation, a
+single-tenant canary, and exact runtime evidence; the default flags remain
+closed.
