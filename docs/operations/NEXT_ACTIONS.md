@@ -475,3 +475,11 @@ separate and explicitly approved.
    migrations atomically and verify ledger, schema, RLS, grants, and readiness.
 4. Keep all PO/notification flags false and do not promote Vercel or redeploy
    Railway until the independent audit recovery and canary gates clear.
+
+## Exact next action after clean-room branding guard (2026-08-01)
+
+1. Keep the runtime branding test in the normal web test suite. Any future
+   clean-room capability or UI slice must pass it before release review.
+2. Continue the owner-approved duplicate remediation path and independent
+   audit recovery path; do not use branding evidence as a production-release
+   substitute.

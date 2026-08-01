@@ -1356,3 +1356,13 @@ forward remediation is designed.
 Evidence: hosted planner returned one group with 12 records and
 `review_required`; planner contract tests 4/4 passed and all repository gates
 remained green.
+
+## D-079 -- Guard runtime branding, preserve internal provenance (2026-08-01)
+
+Decision: production runtime source and public text must not contain ABI Ops,
+ERPNext, or Frappe markers. Internal migration names/comments may retain
+clean-room provenance needed for engineering traceability; they are not user
+facing output.
+
+Evidence: the runtime scan found no forbidden markers and the new branding guard
+passed. No visible copy or provider state changed.

@@ -3537,3 +3537,14 @@ actionlint, typecheck, serial full tests (95 shared, 107 database with normal
 137 environment skips, 79 API, 300 web), lint, and production build (77/77
 Next pages) passed. Exact next action remains owner-approved reversible data
 remediation, then a fresh DB release planner.
+
+## 2026-08-01 - Clean-room runtime branding guard
+
+Scanned `apps/web/src` and text assets under `apps/web/public` for residual
+ABI Ops, ERPNext, and Frappe markers. No runtime occurrences were found. Added
+`apps/web/src/lib/branding-clean-room.test.ts`, which recursively checks future
+runtime text while constructing forbidden tokens without embedding them
+contiguously in the test source.
+
+Validation: the new Vitest contract passed; no visible UI copy, database,
+provider setting, feature flag, or deployment changed.

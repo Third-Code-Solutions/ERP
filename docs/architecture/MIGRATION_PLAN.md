@@ -931,3 +931,12 @@ occurred. Unknown rows remain unrepaired and block canary approval.
 - Contract tests 4/4, actionlint, typecheck, lint, full serial tests, and
   production build passed. Next action is owner approval of a reversible data
   remediation, not weakening the uniqueness migration.
+
+## Clean-room runtime branding milestone (2026-08-01)
+
+- Scanned runtime source and text assets for ABI Ops, ERPNext, and Frappe
+  markers; none were found.
+- Added a recursive web branding regression test. Rework provenance comments
+  remain internal and are not treated as production copy.
+- No UI, database, provider, or deployment change occurred; the guard is part
+  of the normal web test suite.
