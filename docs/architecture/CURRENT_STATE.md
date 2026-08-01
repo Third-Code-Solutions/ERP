@@ -1301,3 +1301,24 @@ matches the repository migration contract:
 - Redis 7.4.9 was built and run in the disposable WSL1 distro. WSL reported
   only the known memory-overcommit warning; no hosted SQL, Vercel deployment,
   or Railway deployment occurred.
+
+## 2026-08-01 PO approval workflow authority slice
+
+- Added candidate migration `20260801100000_purchase_order_workflow_idempotency.sql`;
+  repository head is now 57 migrations. It creates a tenant-scoped,
+  service-only request ledger for `submit_pm_approval`, `pm_approve`,
+  `commercial_approve`, and `reject`.
+- NestJS now exposes the disabled route
+  `POST /v1/procurement/purchase-orders/:purchaseOrderId/workflow`. The service
+  rechecks tenant membership and action capability, locks the PO and request,
+  enforces the explicit state machine, stamps approvers, writes semantic audit,
+  and replays the original result atomically. SCM issuance, supplier email,
+  receiving, and browser delegation remain outside this slice.
+- `ERP_PO_WORKFLOW_WRITES_ENABLED` and
+  `ERP_PO_WORKFLOW_WRITES_TENANT_IDS` default false/empty. Existing Next Server
+  Actions remain authoritative; no tenant is selected for cutover.
+- Disposable WSL1 proof reran all 57 migrations: database tests 243/243 with
+  zero skips and Nest/Redis integration 8/8, including real workflow commit,
+  replay, state/capability, audit, rollback, and tenant isolation assertions.
+- Hosted Supabase was not changed. Vercel and Railway were not deployed;
+  provider sessions still require the correct `kurtgav` identity.

@@ -64,4 +64,27 @@ describe('ERP API environment', () => {
       })
     ).toThrow('ERP_PO_CREATE_WRITES_TENANT_IDS')
   })
+
+  it('keeps purchase-order workflow writes disabled by default', () => {
+    expect(
+      validateEnvironment(REQUIRED).ERP_PO_WORKFLOW_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED).ERP_PO_WORKFLOW_WRITES_TENANT_IDS
+    ).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PO_WORKFLOW_WRITES_ENABLED: 'true',
+        ERP_PO_WORKFLOW_WRITES_TENANT_IDS:
+          '33333333-3333-4333-8333-333333333333',
+      }).ERP_PO_WORKFLOW_WRITES_ENABLED
+    ).toBe(true)
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PO_WORKFLOW_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_PO_WORKFLOW_WRITES_TENANT_IDS')
+  })
 })

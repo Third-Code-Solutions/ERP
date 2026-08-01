@@ -1226,3 +1226,22 @@ proof does not authorize hosted SQL or production flags.
 
 Evidence: 56/56 migrations, 243/243 database tests without skips, and 7/7 Nest
 integration tests passed; schema-before/schema-after SHA-256 matched.
+
+## D-071 -- PO approval transitions use a separate disabled authority slice
+
+Date: 2026-08-01
+
+Decision: keep PO approval, issuance, and receiving separate. Add only the
+first four approval transitions to a NestJS transaction boundary, guarded by
+an exact feature flag and tenant allowlist, with a PostgreSQL request ledger.
+Leave the current Next Server Actions authoritative until a reviewed canary.
+
+Rationale: approval stamps and state transitions need the same tenant lock,
+idempotency, audit, and rollback evidence as PO creation, while supplier email
+and SCM issuance add external side effects that require a separate outbox
+milestone. A bounded disabled slice reduces blast radius and provider cost.
+
+Constraints: no browser or Python finalization, no hosted migration until
+read-only reconciliation, no provider deployment implied, and no fallback
+after a canary command begins. The original implementation is independent of
+ERPNext code, schemas, text, or internal structure.

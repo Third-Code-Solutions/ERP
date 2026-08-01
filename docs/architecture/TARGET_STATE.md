@@ -635,6 +635,21 @@ authoritative until that proof succeeds.
   durable idempotency storage, and transaction parity are proven in disposable
   PostgreSQL/Redis, but the adapter remains disabled and non-mutating until
   provider readiness, hosted schema reconciliation, and a canary are approved.
+
+## Purchase-order approval workflow slice (2026-08-01)
+
+- The target state-machine authority now has a second disabled Nest boundary
+  for PM submission, PM approval, Commercial approval, and rejection.
+- PostgreSQL owns a tenant-composite idempotency ledger for each workflow
+  command. The service locks the request and PO, rechecks membership and the
+  action capability, commits status/stamps/audit/result together, and returns
+  the saved result on retry.
+- Issuance, supplier notification, receiving, BOM/grouped generation, and
+  browser cutover remain separate milestones. Python cannot approve or finalize
+  any of them.
+- The hosted migration and flags remain gated by read-only Supabase
+  reconciliation, provider identity, readiness/log checks, and a reviewed
+  single-tenant canary.
 ## 2026-08-01 evidence added for PO authority
 
 The target modular monolith now has a concrete, disabled first transaction

@@ -138,6 +138,16 @@ export const purchaseOrderCreateRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const purchaseOrderWorkflowActionEnum = pgEnum(
+  'purchase_order_workflow_action',
+  ['submit_pm_approval', 'pm_approve', 'commercial_approve', 'reject']
+)
+
+export const purchaseOrderWorkflowRequestStateEnum = pgEnum(
+  'purchase_order_workflow_request_state',
+  ['processing', 'succeeded']
+)
+
 export const invoiceStatusEnum = pgEnum('invoice_status', [
   'draft',
   'issued',

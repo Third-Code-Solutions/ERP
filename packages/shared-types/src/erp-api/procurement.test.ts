@@ -15,6 +15,8 @@ import {
 } from './procurement'
 import {
   createPurchaseOrderCommandSchema,
+  purchaseOrderWorkflowCommandSchema,
+  purchaseOrderWorkflowResultSchema,
   purchaseOrderCreationResultSchema,
 } from './purchase-orders'
 
@@ -84,6 +86,66 @@ describe('Purchase Order creation API contracts', () => {
         tenantId: UUID,
         poNumber: 'PO-0001',
         status: 'issued',
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('Purchase Order workflow API contracts', () => {
+  it('requires a reason only for rejection and excludes caller authority', () => {
+    expect(
+      purchaseOrderWorkflowCommandSchema.parse({
+        action: 'pm_approve',
+      })
+    ).toEqual({ action: 'pm_approve' })
+    expect(
+      purchaseOrderWorkflowCommandSchema.parse({
+        action: 'reject',
+        reason: '  Missing scope confirmation  ',
+      })
+    ).toEqual({
+      action: 'reject',
+      reason: 'Missing scope confirmation',
+    })
+    expect(
+      purchaseOrderWorkflowCommandSchema.safeParse({
+        action: 'reject',
+      }).success
+    ).toBe(false)
+    expect(
+      purchaseOrderWorkflowCommandSchema.safeParse({
+        action: 'pm_approve',
+        tenantId: UUID,
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires a tenant-scoped status transition result', () => {
+    expect(
+      purchaseOrderWorkflowResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        action: 'pm_approve',
+        fromStatus: 'pending_pm_approval',
+        status: 'pending_commercial_approval',
+      }).success
+    ).toBe(true)
+    expect(
+      purchaseOrderWorkflowResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        action: 'pm_approve',
+        fromStatus: 'draft',
+        status: 'pending_commercial_approval',
+      }).success
+    ).toBe(true)
+    expect(
+      purchaseOrderWorkflowResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        action: 'pm_approve',
+        fromStatus: 'pending_pm_approval',
+        status: 'not-a-status',
       }).success
     ).toBe(false)
   })

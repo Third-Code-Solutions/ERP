@@ -341,3 +341,20 @@ Provider inspection result:
 4. Only after those checks, request an explicit one-tenant canary approval;
    deploy one controlled release, verify protected HTTP/browser/data flows,
    then enable flags for that tenant. Keep legacy Server Actions as rollback.
+
+## Exact next action after PO approval workflow slice (2026-08-01)
+
+1. Keep `ERP_PO_CREATE_WRITES_ENABLED` and
+   `ERP_PO_WORKFLOW_WRITES_ENABLED` absent/false; keep both tenant allowlists
+   empty. Existing Server Actions remain the rollback path.
+2. Reconcile Supabase project `aqqrtkmtcsfkbyyqxowv` read-only against all 57
+   repository migrations. Apply no SQL until the ledger, duplicate checks,
+   constraint review, and RLS/grant evidence are recorded.
+3. Authenticate Vercel and Railway with `kurtgav`
+   (`kurtgavin.design@gmail.com`), verify exact project/service identity,
+   current revision, readiness, runtime logs, and spend controls.
+4. Run the full local gates again on the reviewed SHA. If a canary is approved,
+   deploy once, verify protected HTTP/browser/data/audit behavior, then enable
+   only the selected tenant workflow flag. Roll back flags first on mismatch.
+5. Keep SCM issuance/email, receiving, BOM/grouped creation, and UI cutover as
+   separate milestones; do not bundle them into this release.

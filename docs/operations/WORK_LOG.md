@@ -3353,3 +3353,34 @@ Vercel deployment, or Railway deployment occurred.
 
 Next action: perform read-only Supabase reconciliation and obtain correct
 `kurtgav` Vercel/Railway provider sessions before any controlled canary.
+
+## 2026-08-01 - PO approval workflow authority slice
+
+Objective: move the smallest approval state machine into NestJS without
+changing current UI behavior or enabling production writes.
+
+Completed:
+
+- Added candidate migration `20260801100000_purchase_order_workflow_idempotency.sql`
+  and Drizzle schema with tenant-composite foreign keys, RLS, and service-only
+  grants.
+- Added strict shared contracts and Nest route/service for submit, PM approve,
+  Commercial approve, and first-two-step rejection. The service locks the
+  request and PO, rechecks membership/capability, commits stamps/status/audit,
+  and replays idempotently. No issuance or email side effect is included.
+- Added exact disabled workflow flags, controller/pipe/unit/contract tests,
+  and a real database integration test covering commit, replay, state guard,
+  audit, rollback, and tenant isolation.
+
+Validation:
+
+- WSL1 disposable lane: 57 migrations; database 243/243 with zero skips;
+  Nest/Redis integration 8/8; schema before/after hash matched.
+- API focused suite 74/74; shared contract suite 17/17; API/database
+  typechecks and root lint passed.
+- Hosted Supabase, Vercel, and Railway were not mutated. Provider auth still
+  needs `kurtgav` / `kurtgavin.design@gmail.com`.
+
+Next action: read-only hosted Supabase reconciliation at migration 57, then
+provider identity/readiness/log verification. Keep workflow flags false and
+do not deploy until a single-tenant canary is explicitly reviewed.
