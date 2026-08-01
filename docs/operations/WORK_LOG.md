@@ -3772,3 +3772,10 @@ does not recreate or alter Supabase-managed auth/storage objects. The fixture
 now runs after the CLI reset and grants only the legacy `public.projects`
 and `public.users` client-role surfaces required by the RLS proof and cost
 policy subqueries.
+
+The next hosted run then reached the Nest integration stage and correctly
+failed only on two WSL-specific Redis-restart cases: GitHub-hosted Linux has no
+`ERP_REDIS_TEST_DISTRIBUTION` or repo-local Redis binary. Those cases are now
+conditionally skipped unless the WSL restart contract is present; ordinary
+BullMQ/Redis integration remains enabled, and the WSL lane still proves restart
+recovery.

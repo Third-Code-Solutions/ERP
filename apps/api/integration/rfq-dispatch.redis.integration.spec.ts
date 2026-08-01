@@ -37,6 +37,11 @@ const integrationEnabled =
   Boolean(process.env.REDIS_URL) &&
   process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = integrationEnabled ? describe : describe.skip
+const redisRestartEnabled =
+  integrationEnabled &&
+  process.env.ERP_REDIS_RESTART_EXPECTED === '1' &&
+  Boolean(process.env.ERP_REDIS_TEST_DISTRIBUTION)
+const restartSuite = redisRestartEnabled ? describe : describe.skip
 const PRINCIPAL: ErpPrincipal = {
   userId: '11111111-1111-4111-8111-111111111111',
   tenantId: '22222222-2222-4222-8222-222222222222',
@@ -244,7 +249,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     })
   }, 20_000)
 
-  it('reconnects and processes after disposable Redis restarts', async () => {
+  restartSuite('reconnects and processes after disposable Redis restarts', async () => {
     const name = queueName('restart')
     const queue = new Queue<RfqDispatchJob, RfqCreationResult, string>(
       name,
@@ -340,7 +345,7 @@ suite('RFQ BullMQ disposable Redis integration', () => {
     )
   }, 20_000)
 
-  it('recovers a database-pending notification after Redis data loss', async () => {
+  restartSuite('recovers a database-pending notification after Redis data loss', async () => {
     const name = queueName('notification-recovery')
     const queue = new Queue<
       NotificationDeliveryJob,
