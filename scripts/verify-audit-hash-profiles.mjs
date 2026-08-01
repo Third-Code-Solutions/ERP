@@ -37,7 +37,6 @@ if (!isUuid(tenantId)) {
   console.error('AUDIT_RECOVERY_TENANT_ID must be a canonical UUID')
   process.exit(1)
 }
-
 const postgres = createRequire(
   join(repoRoot, 'packages', 'database', 'package.json')
 )('postgres')
@@ -217,4 +216,3 @@ try {
 } finally {
   await sql.end({ timeout: 1 })
 }
-

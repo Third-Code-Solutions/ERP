@@ -22,7 +22,6 @@ test('classifies the current database formula', () => {
     'database'
   )
 })
-
 test('classifies the legacy JSON formula', () => {
   assert.equal(
     classifyAuditHash({ ...base, hash: legacyJsonAuditHash(base) }),
@@ -36,4 +35,3 @@ test('does not classify an unknown hash as a reviewed profile', () => {
     'unknown'
   )
 })
-
