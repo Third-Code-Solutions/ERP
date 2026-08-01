@@ -3968,8 +3968,13 @@ idempotency migration/table, atomic design notifications, semantic audit, and
 the server-only Web client seam. Existing Next Server Action behavior and UI
 were not replaced.
 
-Focused validation: shared contract 3/3; database schema/migration 3/3; Nest
-service/controller 5/5; Web client 20/20; workspace typecheck and diff checks
-pass. Full release validation and CI are the next action. No hosted Supabase,
-Railway, Vercel, feature flag, queue, provider, or business-data mutation was
-performed. Hosted planner blockers remain unchanged.
+Validation: shared contract 3/3; database schema/migration 3/3; Nest
+service/controller 5/5; Web client 20/20; environment 11/11; serial API
+27 files/125 tests; workspace typecheck/lint; production build 78/78 routes;
+secret scan; actionlint; workflow refs; and diff checks pass. Source commit
+`765285a57d37885980f01774bffdb27676a203e0` passed CI run `30717165544`,
+including Postgres 17 replay/schema diff, database tests without skips, Nest
+transaction integration, container smoke, and production build. E2E remains
+credential-gated. No hosted Supabase, Railway, Vercel, feature flag, queue,
+provider, or business-data mutation was performed. Hosted planner blockers
+remain unchanged.
