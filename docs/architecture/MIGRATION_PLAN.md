@@ -1194,3 +1194,14 @@ by explicit hosted-credential gating. Next exact action: rerun the read-only
 controlled-release planner. Do not apply the seven hosted migrations or deploy
 Railway/Vercel while it reports the duplicate Purchase Order group or missing
 approved `AUDIT_RECOVERY_TENANT_ID`.
+
+## M2.8 RAG suggestion hardening (2026-08-02)
+
+Implemented the smallest safe RAG slice before moving the feature into a
+dedicated Nest module: the existing Next compatibility endpoint now derives
+tenant and role from the session, gates BOM visibility, bounds provider input,
+returns only finite high-confidence approved-history matches, and maps outages
+to a safe 503. The client contract remains unchanged for empty and configured
+responses; the new `source` field makes provenance explicit. Next step is a
+Nest read adapter only after hosted release evidence and API deployment
+identity are available.

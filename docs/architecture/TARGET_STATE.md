@@ -891,3 +891,12 @@ embedding or LLM provider per keystroke. Semantic retrieval remains an explicit
 Cortex chat operation with provider availability and spend controls. Search
 never writes ERP state, creates approvals, or treats derived graph data as the
 canonical record; official transactions remain Nest/PostgreSQL-owned.
+
+## RAG suggestions boundary (2026-08-02)
+
+BOM suggestions are a bounded, tenant-session-authorized read path over
+approved-BOM embeddings. The route validates input before any provider call,
+requires the same BOM visibility policy as the UI, caps result count and
+similarity range, returns provenance, and fails closed when OpenAI or vector
+retrieval is unavailable. Embeddings remain derived evidence; pricing,
+approval, and official ERP transactions stay in the NestJS/PostgreSQL path.
