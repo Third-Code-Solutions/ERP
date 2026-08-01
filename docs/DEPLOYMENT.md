@@ -156,6 +156,17 @@ can still be created manually.
 4. Expose a public URL. Set Vercel's `PARSER_URL` to that value.
 5. Smoke test: `curl -X POST $PARSER_URL/health` returns `{"ok": true}`.
 
+The incremental NestJS processing bridge is separate from this legacy caller.
+It uses `DXF_PARSER_URL` and `PARSER_SHARED_SECRET`, issues a short-lived
+signed Storage URL from the API, and calls `/parse-evidence`; Python receives
+no database or service-role credential. Keep
+`ERP_DOCUMENT_PROCESSING_JOBS_ENABLED`,
+`ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED`, and
+`ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED` false with empty tenant allowlists
+until the disposable lane, hosted migration planner, audit recovery, duplicate
+PO review, and provider release checks are clear. Do not enable this bridge as
+part of a routine deployment.
+
 ---
 
 ## 5. DocuSeal (Optional)

@@ -49,6 +49,18 @@ POST /parse
   }
   Response: { count, scope_items, warnings, parsed_format, source_format }
 
+POST /parse-evidence
+  Private NestJS-only endpoint. Requires:
+    X-Third-Code-Request-Timestamp
+    X-Third-Code-Request-Id (the processing job UUID)
+    X-Third-Code-Request-Signature (HMAC-SHA256 over timestamp.request-id.raw-body)
+  Body: {
+    job_id, attempt, source_url, source_format, file_name?,
+    limits: { max_bytes, max_items }
+  }
+  Response: bounded hash-linked evidence with no tenant, project, actor,
+  database, Storage credential, or source URL fields.
+
 GET /health
   Response: { status: "ok", dwg_support: true|false }
 ```
@@ -57,10 +69,16 @@ GET /health
 
 Deploy to Railway, Fly.io, Render, or any platform that runs Docker.
 The provided `Dockerfile` installs Python + libredwg-tools and runs uvicorn
-on `$PORT`. Set:
+on `$PORT`. For the legacy `/parse` compatibility endpoint, set:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+
+The private `/parse-evidence` path uses only the short-lived signed URL issued
+by NestJS and does not require a service-role key. Set `PARSER_SHARED_SECRET`
+for that endpoint; a missing secret rejects all private requests. Keep the
+legacy endpoint isolated until every caller has moved to the signed evidence
+contract.
 
 Then point `DXF_PARSER_URL` (in the web app's environment) at the deployed
 worker's URL. The authenticated web application validates and commits returned

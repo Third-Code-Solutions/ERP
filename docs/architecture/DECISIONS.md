@@ -1456,3 +1456,23 @@ Evidence: 61-migration PostgreSQL 17 replay, 253/253 zero-skip database
 assertions, 11/11 API integration assertions, focused HTTP/service/queue
 contracts, and typecheck passed. Hosted Supabase, Railway, Vercel, flags, and
 business rows were unchanged.
+
+## D-085 -- Sign the private CAD evidence request at Nest (2026-08-01)
+
+Decision: the NestJS processor is the only component allowed to resolve a
+document-processing job. It issues a 120-second exact-object Supabase Storage
+URL and signs the exact JSON body with an HMAC containing timestamp and job
+UUID. Python verifies that signature before downloading, enforces byte/item
+limits, hashes the source, and returns bounded deterministic evidence only.
+
+The legacy bearer `/parse` endpoint remains a compatibility path while callers
+are migrated. Its service-role credential is not required by the new private
+endpoint and is never sent through Redis or the evidence request. The Nest
+processor uses the existing transaction-authority commit service and refuses
+draft-BOM requests until a separate idempotent BOM command is available.
+
+Rationale: signed exact-object access closes the worker credential and
+tenant-substitution risks without a big-bang rewrite. PostgreSQL remains the
+source of truth for state and official scope rows; Redis only delivers opaque
+job identity and retries. Flags and allowlists stay closed until complete
+disposable and hosted release evidence exists.

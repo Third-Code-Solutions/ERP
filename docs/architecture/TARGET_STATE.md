@@ -806,3 +806,22 @@ obtain a short-lived object-storage URL, call the Python evidence adapter, and
 route every official scope/BOM write back through Nest transactions. The
 intake flag and tenant allowlist stay false/empty until worker retry, stalled
 job, and canary evidence exist.
+
+## Signed CAD evidence bridge (2026-08-01)
+
+The target private worker boundary is now source-implemented. A PostgreSQL
+claim is the only source of tenant, project, actor, document path, and attempt
+context. NestJS issues a 120-second exact-object signed URL and signs the raw
+request body with an HMAC request ID bound to the processing job. Python can
+read and parse that object only; it returns bounded evidence, source hash,
+producer identity, and deterministic item keys. It cannot receive database
+credentials, service-role authority, tenant/project identifiers, or ERP state.
+
+The processor retries through BullMQ while PostgreSQL remains authoritative for
+claim, terminal state, duplicate delivery, stale requeue, and failure. Scope
+commit calls the existing Nest transaction service. Draft BOM generation is
+intentionally a separate idempotent command; requests that require it are
+rejected rather than reported as partially complete. All bridge/commit flags
+and tenant allowlists remain closed until disposable Python/API/Redis proof,
+draft-BOM parity, hosted schema reconciliation, audit recovery, duplicate PO
+remediation, and a controlled canary are approved.

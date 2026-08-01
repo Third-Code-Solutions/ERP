@@ -1,6 +1,8 @@
 # M2 Document Processing Evidence Contract
 
-Status: design complete; implementation not started.
+Status: M2.1 intake and M2.3 signed bridge source candidates implemented;
+evidence persistence, idempotent draft-BOM authority, compatibility cutover,
+and production activation remain pending. No hosted state changed.
 
 This is an original Third Code ERP contract derived from repository and hosted
 catalog evidence. It defines the smallest safe migration from direct worker
@@ -674,9 +676,26 @@ creates/replays that row and exposes a tenant-filtered status read.
 `DocumentProcessingJobQueue` publishes only `{schemaVersion: 1, jobId}` with
 attempts/backoff and transport deduplication.
 
-The processing feature flag and tenant allowlist both default closed. No
-processor is registered yet; this prevents a false end-to-end claim and keeps
-the future Python bridge separately reviewable. The disposable lane proved 61
+The processing feature flag and tenant allowlist both default closed. At the
+M2.1 boundary no processor was registered; the later M2.3 source candidate is
+documented below and remains separately gated. The disposable lane proved 61
 migration replays, 253 zero-skip database assertions, and 11 API integration
 assertions. The existing Next compatibility path and worker evidence-only
 boundary remain unchanged.
+
+## M2.3 signed bridge implementation note (2026-08-01)
+
+The private NestJS processor now claims the durable job in PostgreSQL, derives
+tenant/project/document/actor context, issues a 120-second exact-object
+Storage URL, and sends a timestamp/job-bound HMAC request to Python's
+`/parse-evidence` endpoint. The queue remains `{schemaVersion, jobId}` only.
+Python returns bounded source-hashed evidence with deterministic item keys and
+does not receive database credentials, tenant/project authority, or ERP state.
+
+Nest validates the response and reuses the existing CAD evidence commit
+transaction for scope rows only when all processing/bridge/commit flags and
+tenant allowlists are explicitly enabled. BullMQ retries transient failures;
+PostgreSQL marks terminal failure only after the final attempt, and duplicate
+delivery of a terminal job is a no-op. Draft-BOM requests fail closed until a
+separate idempotent Nest BOM command exists. The processor is registered in
+source, but every activation gate remains false/empty.

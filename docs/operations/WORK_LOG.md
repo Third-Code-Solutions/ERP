@@ -3659,3 +3659,31 @@ Validation: focused API 105/105; disposable PostgreSQL 17/Redis 7.4.9 lane
 replayed 61 migrations, passed 253/253 database assertions without skips, and
 passed 11/11 API integration assertions. Hosted Supabase, Railway, Vercel,
 flags, and business data were not changed.
+
+## 2026-08-01 - Signed Nest-to-Python CAD evidence bridge
+
+Added the next M2 source slice without changing the public upload path:
+
+- `packages/shared-types/src/erp-api/document-processing.ts` now defines
+  bounded private request/evidence schemas and limits.
+- `apps/workers/dxf-parser/src/{main.py,models.py,storage.py,config.py}` adds
+  HMAC-authenticated `/parse-evidence`, exact-object signed-URL download,
+  source hashing, deterministic item keys, bounded evidence, and optional
+  legacy service-role compatibility.
+- `apps/api/src/cad/document-processing.{storage,worker,state,processor}.ts`
+  adds server-only signed URL issuance, request signing/response validation,
+  PostgreSQL claim/state transitions, retry/dead-letter handling, and the
+  disabled BullMQ processor. `cad.module.ts` registers the provider set.
+- `apps/api/src/config/environment.ts` adds closed-by-default bridge, parser
+  URL/secret, and optional server-only Storage credentials. Processing intake
+  now requires the bridge and CAD commit flags plus matching tenant allowlists.
+- Added focused worker/processor/shared contracts and extended the disposable
+  processing integration for claim/fail/succeed/replay behavior.
+
+Validation: shared contract tests 6/6, API suite 111/111, API typecheck,
+Python source bytecode compilation, isolated worker pytest 11/11, full ordered
+repository tests, disposable PostgreSQL 17/Redis 7.4.9 replay (61/61
+migrations, 253/253 database assertions, 11/11 API integration), typecheck,
+serial lint, production build (77/77 pages), Actionlint, Gitleaks, and diff
+checks passed. No hosted SQL, flags, provider settings, deployment, or
+business data changed.

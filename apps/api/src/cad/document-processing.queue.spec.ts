@@ -23,7 +23,7 @@ describe('DocumentProcessingJobQueue', () => {
       { schemaVersion: 1, jobId: JOB_ID },
       expect.objectContaining({
         jobId: `document-processing1-${JOB_ID}`,
-        attempts: 3,
+        attempts: 5,
         backoff: { type: 'exponential', delay: 1_000 },
       })
     )

@@ -5,7 +5,7 @@ app can be reused without renaming.
 
 import os
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _get_supabase_url() -> str:
@@ -27,8 +27,7 @@ class Settings(BaseSettings):
     # callers. The web app sends it via Authorization: Bearer <secret>.
     parser_shared_secret: str = ""
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
 
 
 settings = Settings()  # type: ignore[call-arg]
@@ -47,5 +46,3 @@ if not settings.supabase_url:
     raise RuntimeError(
         "supabase_url is required (set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL)"
     )
-if not settings.supabase_service_role_key:
-    raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY is required")

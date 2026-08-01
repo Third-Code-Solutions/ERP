@@ -1039,3 +1039,29 @@ Next exact action: add the private Nest-to-Python evidence adapter and durable
 worker state transitions behind a separate false bridge flag. Keep intake
 false, allowlists empty, and the Next compatibility path active until retry,
 stall, idempotency, and canary parity are proven.
+
+## M2.3 signed Nest-to-Python evidence bridge (2026-08-01)
+
+Status: source candidate implemented; activation and hosted release blocked.
+
+- Private `/parse-evidence` accepts only a timestamp/job-bound HMAC request.
+- NestJS resolves the tenant-scoped job/document in PostgreSQL, issues a
+  short-lived exact-object Storage URL, validates the bounded response, and
+  invokes the existing Nest CAD evidence commit transaction.
+- BullMQ carries only the opaque job UUID. PostgreSQL claim, retry, terminal
+  failure, duplicate delivery, and stale requeue state remain authoritative.
+- Python returns source hash, producer identity, deterministic item keys, and
+  bounded evidence. It receives no ERP identifiers, database URL, or service
+  role for the new path. The old `/parse` endpoint remains compatibility-only.
+- `createDraftBom=true` fails closed until an idempotent Nest BOM command is
+  implemented; the bridge cannot report a partial success.
+- No migration, UI, Next routing, hosted SQL, provider setting, flag, or
+  deployment changed in this source slice.
+
+Source validation so far: shared 6/6 focused contract tests, API 111/111
+focused/full-package tests, API typecheck, isolated worker pytest 11/11, and
+Python compileall. The disposable PostgreSQL 17/Redis 7.4.9 lane passed 61/61
+migrations, 253/253 database assertions without skips, 11/11 API integration
+assertions, and an unchanged schema hash. Ordered full tests, typecheck,
+serial lint, production build, Actionlint, Gitleaks, and diff checks also pass;
+all hosted gates remain fail-closed.

@@ -137,11 +137,29 @@ export class DocumentProcessingService {
       'ERP_DOCUMENT_PROCESSING_JOBS_ENABLED',
       false
     )
+    const workerBridgeEnabled = this.config.get<boolean>(
+      'ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED',
+      false
+    )
+    const evidenceCommitEnabled = this.config.get<boolean>(
+      'ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED',
+      false
+    )
     const allowedTenantIds = this.config.get<string[]>(
       'ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS',
       []
     )
-    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+    const commitTenantIds = this.config.get<string[]>(
+      'ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS',
+      []
+    )
+    if (
+      !enabled ||
+      !workerBridgeEnabled ||
+      !evidenceCommitEnabled ||
+      !allowedTenantIds.includes(principal.tenantId) ||
+      !commitTenantIds.includes(principal.tenantId)
+    ) {
       throw new ServiceUnavailableException(
         'Document processing is not enabled for this tenant; no job was created.'
       )

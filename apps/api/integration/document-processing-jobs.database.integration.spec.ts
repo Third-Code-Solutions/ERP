@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { AuditService } from '../src/audit/audit.service'
 import { DocumentProcessingService } from '../src/cad/document-processing.service'
+import { DocumentProcessingStateService } from '../src/cad/document-processing.state'
 import {
   DatabaseService,
   type DatabaseTransaction,
@@ -160,10 +161,17 @@ suite('document processing job database integration', () => {
         role: 'commercial',
         email: `processing-b-${suffix}@integration.test`,
       }
-      const config = {
-        get: vi.fn((key: string, fallback?: unknown) => {
-          if (key === 'ERP_DOCUMENT_PROCESSING_JOBS_ENABLED') return true
-          if (key === 'ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS') {
+        const config = {
+          get: vi.fn((key: string, fallback?: unknown) => {
+            if (key === 'ERP_DOCUMENT_PROCESSING_JOBS_ENABLED') return true
+            if (key === 'ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED') {
+              return true
+            }
+            if (key === 'ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED') return true
+            if (key === 'ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS') {
+              return [tenantA]
+            }
+            if (key === 'ERP_DOCUMENT_PROCESSING_JOBS_TENANT_IDS') {
             return [tenantA]
           }
           return fallback
@@ -239,6 +247,44 @@ suite('document processing job database integration', () => {
         status: 'queued',
         attempt_count: 0,
       })
+
+      const state = new DocumentProcessingStateService(
+        transactionBoundDatabase(transaction)
+      )
+      const claimed = await state.claim(first.status.jobId)
+      expect(claimed).toMatchObject({
+        jobId: first.status.jobId,
+        tenantId: tenantA,
+        documentId: documentA,
+        attempt: 1,
+      })
+      expect(await state.fail(first.status.jobId, 'worker_unavailable')).toBe(
+        true
+      )
+      await expect(service.status(first.status.jobId, principalA)).resolves.toMatchObject({
+        status: 'failed',
+        attempts: 1,
+        failureCode: 'worker_unavailable',
+      })
+
+      const second = await service.create(
+        documentA,
+        { ...request, createDraftBom: false },
+        principalA,
+        'processing-integration-2'
+      )
+      const secondClaim = await state.claim(second.status.jobId)
+      expect(secondClaim?.attempt).toBe(1)
+      expect(await state.succeed(second.status.jobId, 2, ['bounded warning'])).toBe(
+        true
+      )
+      await expect(service.status(second.status.jobId, principalA)).resolves.toMatchObject({
+        status: 'succeeded',
+        attempts: 1,
+        scopeItemsCreated: 2,
+        warnings: ['bounded warning'],
+      })
+      await expect(state.claim(second.status.jobId)).resolves.toBeNull()
     })
 
     const leaked = await db
