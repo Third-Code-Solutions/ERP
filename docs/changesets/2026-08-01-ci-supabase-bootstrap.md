@@ -11,5 +11,6 @@ tenant/role policy subqueries can evaluate under `authenticated`.
 The schema-diff assertion now runs immediately after reset and before this
 test-only grant fixture, so CI does not mistake test permissions for a
 production migration change. The diff is saved with the CLI's file flag,
-which is supported by the pinned Supabase CLI version.
+which is supported by the pinned Supabase CLI version; CI pre-creates the
+artifact because this CLI leaves the file absent when no changes are found.
 Production migrations and hosted privileges are unchanged.
