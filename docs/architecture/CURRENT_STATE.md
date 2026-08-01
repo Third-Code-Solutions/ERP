@@ -1757,3 +1757,24 @@ without skips, Nest transaction-boundary integration, production container
 smoke, and workspace production build all passed. E2E remained skipped by the
 explicit hosted-credential gate. No Supabase, Railway, Vercel, worker,
 provider, flag, queue, or business-data mutation occurred.
+
+## 2026-08-02 M3.0 Change Request command boundary
+
+- Added a closed-by-default NestJS command at
+  `POST /v1/crm/opportunities/:opportunityId/change-requests`.
+- The path supplies opportunity authority; the body accepts only bounded
+  requester, description, priority, and optional same-opportunity design-file
+  fields. Membership, tenant, capability, idempotency hash, transaction,
+  notification, and audit checks run in Nest/PostgreSQL.
+- Added tenant-scoped `change_request_create_requests` idempotency state,
+  composite parent protection, RLS/browser privilege revocation, and an
+  explicit `change_request.create` capability for owner/admin/sales.
+- The Next client has a compatibility seam, but the existing Server Action is
+  still authoritative because both core feature flags and tenant allowlists
+  default closed. No UI cutover occurred.
+- Focused evidence: shared contract 3/3, database schema/migration 3/3, Nest
+  command/controller 5/5, Web client 20/20, workspace typecheck, and diff
+  checks pass. Full release validation and CI are pending this source slice.
+- The new migration is local-only. Hosted Supabase remains 55/62, the
+  duplicate Purchase Order group and missing approved recovery tenant remain;
+  no hosted SQL, deployment, flag, queue, or business-data mutation occurred.

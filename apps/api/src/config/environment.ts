@@ -50,6 +50,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Client Change Request authority stays fail-closed until hosted schema
+  // reconciliation and a tenant-scoped canary are explicitly approved.
+  ERP_CHANGE_REQUEST_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CHANGE_REQUEST_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Approval transitions stay fail-closed until hosted reconciliation and a
   // tenant-scoped canary are explicitly approved.
   ERP_PO_WORKFLOW_WRITES_ENABLED: z

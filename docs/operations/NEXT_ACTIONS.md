@@ -748,3 +748,18 @@ separate and explicitly approved.
 3. After `clear`, perform one reviewed worker/service canary and one
    spend-bounded provider action with readiness, protected-flow, data, logs,
    tenant isolation, and exact release-SHA evidence.
+
+## Exact next action after M3.0 Change Request boundary (2026-08-02)
+
+1. Run the full workspace lint, tests, production build, clean migration
+   replay/schema diff, secret scan, actionlint, and workflow-reference checks;
+   keep both Change Request gates false/empty.
+2. Push the reviewed source branch under `kurtgav`, wait for green CI, and
+   rerun the read-only controlled-release planner.
+3. Do not apply `20260802090000_change_request_create_idempotency.sql`, deploy
+   Railway/Vercel, or enable the compatibility seam while the planner reports
+   seven pending hosted migrations, the 12-record duplicate Purchase Order
+   group, or missing approved `AUDIT_RECOVERY_TENANT_ID`.
+4. After a `clear` planner, use one tenant-scoped canary proving idempotency,
+   tenant/RBAC isolation, notification intent, audit chain, readiness, logs,
+   and exact release identity before any UI cutover.

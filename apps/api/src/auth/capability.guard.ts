@@ -18,6 +18,7 @@ export const ERP_CAPABILITIES = [
   'rfq.dispatch',
   'po.create',
   'po.approve',
+  'change_request.create',
   'inventory.manage',
   'document.manage',
   'document.process',
@@ -45,6 +46,7 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'procurement',
   ],
   'po.approve': ['owner', 'admin', 'commercial'],
+  'change_request.create': ['owner', 'admin', 'sales'],
   'inventory.manage': ['owner', 'admin', 'procurement'],
   'document.manage': [
     'owner',

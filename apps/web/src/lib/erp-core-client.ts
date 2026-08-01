@@ -9,6 +9,7 @@ import {
   rfqTransitionResultSchema,
   purchaseOrderCreationResultSchema,
   purchaseOrderWorkflowResultSchema,
+  changeRequestCreationResultSchema,
   type CreateRfqCommand,
   type LogRfqQuoteCommand,
   type CreatePurchaseOrderCommand,
@@ -22,6 +23,8 @@ import {
   type PurchaseOrderWorkflowResult,
   type TransitionRfqCommand,
   type UpdateProjectCommand,
+  type CreateChangeRequestCommand,
+  type ChangeRequestCreationResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 
@@ -124,6 +127,14 @@ export function purchaseOrderWorkflowWritesUseCoreApi(
     tenantId,
     process.env.ERP_PO_WORKFLOW_WRITES_VIA_API,
     process.env.ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function changeRequestWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_CHANGE_REQUEST_WRITES_VIA_API,
+    process.env.ERP_CHANGE_REQUEST_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -534,6 +545,70 @@ export async function transitionRfqThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No RFQ transition was committed.',
+    }
+  }
+}
+
+/**
+ * Server-only contract seam for Client Change Requests. The current Server
+ * Action remains authoritative while the closed gate is validated in a
+ * tenant-scoped canary.
+ */
+export async function createChangeRequestThroughCoreApi(
+  opportunityId: string,
+  command: CreateChangeRequestCommand,
+  idempotencyKey: string
+): Promise<CoreResult<ChangeRequestCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/opportunities/${encodeURIComponent(
+        opportunityId
+      )}/change-requests`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Change Request conflicts with an existing command.'
+            : response.status === 404
+              ? 'Opportunity or design file was not found.'
+              : 'Change Request was not committed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = changeRequestCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Change Request result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No Change Request was committed.',
     }
   }
 }

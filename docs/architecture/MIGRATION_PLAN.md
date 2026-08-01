@@ -1244,3 +1244,20 @@ Postgres reproducibility, Nest transaction integration, container smoke, and
 production build. E2E remains explicitly skipped by hosted-credential gating.
 This green source result does not authorize hosted SQL or provider deployment
 while the controlled planner reports integrity blockers.
+
+## M3.0 Change Request authority slice (2026-08-02)
+
+Implemented the smallest safe backend authority seam for US-009. The new
+`change_request_create_requests` migration is forward-only and server-only;
+its tenant/key uniqueness and composite parent foreign key make retries
+deterministic. Nest validates the opportunity and optional design file inside
+one transaction, inserts design-role in-app notification intent, and writes a
+semantic audit record. `change_request.create` is explicit and mapped to
+owner/admin/sales. Next.js receives a client seam only; the existing action
+remains live until a reviewed canary.
+
+Validation so far: shared 3/3, database 3/3, Nest 5/5, Web client 20/20,
+workspace typecheck, and `git diff --check` pass. Remaining release work is
+full lint/test/build, migration replay, CI, and documentation evidence. Do
+not apply the new migration to hosted Supabase or deploy providers while the
+controlled planner remains `review_required`.
