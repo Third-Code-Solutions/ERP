@@ -1543,3 +1543,27 @@ Source/CI evidence: commit `6121740ea2a3db189e7cc1c5e83f970db73f6b74` is
 pushed under `kurtgav`; CI run `30740581304` passed all executable jobs. The
 next gate is read-only hosted planner revalidation, not migration application
 or provider deployment.
+
+## M3.10 - BOM-to-Purchase Order authority (completed source slice)
+
+Scope delivered:
+
+- Add strict shared BOM-to-PO commands/results, Nest validation, and the
+  tenant-authorized `POST /v1/procurement/purchase-orders/from-bom` boundary.
+- Reuse the existing PO-create idempotency table; commit membership/RBAC,
+  BOM/project/vendor/line validation, exact cent amounts, PO/line inserts,
+  BOM lock, replay result, and semantic audit in one transaction.
+- Add independent Next canary/API write gates and a stable browser retry key.
+  Selected core failures never invoke the compatibility direct writer. Keep
+  the existing grouped-by-supplier flow out of scope.
+
+Validation: local focused contracts and full workspace lint/typecheck/tests pass;
+Web and Nest production builds pass; CI run `30741816314` passes all executable
+jobs including 67/67 migrations, 260/260 database assertions, Nest integration,
+and production build. E2E remains credential-gated.
+
+Release boundary: no migration was added, so no hosted SQL is authorized. Keep
+`ERP_PO_BOM_CREATE_WRITES_VIA_API`,
+`ERP_PO_BOM_CREATE_WRITES_ENABLED`, and both UUID allowlists false/empty until
+the hosted planner, duplicate-PO review, audit-recovery tenant, readiness, exact
+SHA, and rollback gates clear. Do not deploy Railway or Vercel for this slice.

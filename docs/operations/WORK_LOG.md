@@ -4293,3 +4293,42 @@ Exact next action: re-run the read-only release planners and keep all
 Stock Receipt post/reverse canaries closed. Do not apply hosted SQL or trigger
 a provider build until the owner supplies the duplicate mapping, audit
 recovery tenant, and explicit spend-bounded promotion approval.
+
+## 2026-08-02 - M3.10 BOM-to-Purchase Order authority
+
+Implemented and pushed commit
+`82d9d5092d8aeebf2e803b2937914b7356ff2f21` on
+`origin/agent-02/third-code-erp-landing` under GitHub account `kurtgav`.
+The single-PO-from-BOM path now has a strict Nest command, tenant/RBAC and row
+locks, exact cent calculations, existing-table idempotency, BOM lock, copied
+line provenance, semantic audit, and a closed-by-default Next canary with a
+stable browser retry key. Grouped-by-supplier creation remains legacy.
+
+Validation:
+
+- Focused shared/API/Web contracts: 20/20, 24/24, and 40/40 tests passed.
+- Full local workspace: lint, typecheck, API 30 files / 145 tests, Web 58 /
+  357 tests, shared 10 / 124 tests, Actionlint, Gitleaks, release-plan tests,
+  Web 78-route production build, Nest production build, and diff checks passed.
+- GitHub Actions run `30741816314` passed every executable job: Actionlint,
+  unit tests, secret scan, typecheck, lint, PostgreSQL 17/Redis reproducibility
+  (67/67 migrations and 260/260 DB assertions), Nest integration, and build.
+  E2E was skipped by its explicit hosted-credential gate.
+
+Hosted read-only evidence after the push:
+
+- Supabase `aqqrtkmtcsfkbyyqxowv` is ACTIVE_HEALTHY PostgreSQL 17.6; connector
+  ledger shows 55 applied migrations while source has 67. No hosted SQL ran.
+- Railway `/health` and `/ready` returned HTTP 200; readiness reports
+  `database=ok` and `redis=ok`.
+- Vercel root, `/api/health`, and `/api/ready` returned HTTP 200 at revision
+  `31c04942a93d`. Vercel Git remains disconnected for spend control; no new
+  production deployment was created.
+- Existing hosted blockers remain: twelve pending migrations, the recorded
+  12-record duplicate Purchase Order group, and missing owner-approved
+  `AUDIT_RECOVERY_TENANT_ID`. All BOM-to-PO flags and tenant lists remain
+  false/empty.
+
+Exact next action: migrate grouped-by-supplier BOM-to-PO creation only after a
+separate command/idempotency design, then re-run the hosted read-only planner.
+Do not apply Supabase SQL or trigger Railway/Vercel while the blockers remain.

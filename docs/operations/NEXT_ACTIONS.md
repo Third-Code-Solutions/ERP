@@ -20,11 +20,11 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current source SHA: `6121740ea2a3db189e7cc1c5e83f970db73f6b74` on
+Current source SHA: `82d9d5092d8aeebf2e803b2937914b7356ff2f21` on
 `origin/agent-02/third-code-erp-landing`, authored by `kurtgav`. CI run
-`30740581304` is green for every executable job; E2E remains credential-gated.
+`30741816314` is green for every executable job; E2E remains credential-gated.
 
-## Exact next product action
+## Historical product action (completed RFQ outbox slice)
 
 Add idempotent automatic-RFQ notification delivery to NestJS/BullMQ without
 enabling production cutover:
@@ -45,6 +45,24 @@ enabling production cutover:
    disposable PostgreSQL 17 and Redis 7.4.9.
 7. Leave `ERP_RFQ_AUTO_DISPATCH_VIA_API` and its tenant allowlist unset.
 8. Do not reconnect Vercel Git or trigger a frontend build.
+
+## Exact next product action
+
+Migrate grouped-by-supplier BOM-to-Purchase Order creation as a separate,
+small source slice. Do not enable the single-BOM or grouped canary yet:
+
+1. Specify the grouped command/result contract, supplier grouping rules,
+   cost-code mapping, partial-failure behavior, and rollback before coding.
+2. Reuse or extend tenant-scoped idempotency only if one retry key can replay
+   the complete group without creating a partial second set of POs.
+3. Move all number allocation, PO/line inserts, BOM locking, and audit into a
+   Nest transaction; browser actions must remain adapters only.
+4. Add disposable PostgreSQL 17/Redis integration coverage for replay,
+   tenant denial, supplier validation, exact cents, and audit evidence.
+5. Keep `ERP_PO_BOM_CREATE_WRITES_VIA_API`,
+   `ERP_PO_BOM_CREATE_WRITES_ENABLED`, and every tenant allowlist false/empty.
+6. Do not apply hosted SQL, reconnect Vercel Git, or trigger Railway/Vercel
+   builds while the hosted release planner is `review_required`.
 
 ## Frontend deployment remains approval-gated
 
@@ -935,6 +953,20 @@ Git disconnected and do not create preview or duplicate production builds.
 5. Only after those checks perform one spend-bounded Railway action and one
    Vercel production action. Keep Vercel Git disconnected; avoid previews and
    duplicate builds; verify live browser/API/logs before declaring green.
+
+## Exact next action after M3.10 BOM-to-PO source/CI evidence (2026-08-02)
+
+1. Treat commit `82d9d5092d8aeebf2e803b2937914b7356ff2f21` and CI run
+   `30741816314` as the reviewed source candidate. All executable CI jobs pass;
+   E2E remains credential-gated.
+2. Keep both BOM-to-PO selectors, both API write gates, and all UUID tenant
+   lists false/empty. The grouped-by-supplier path is not covered by this
+   command and must not be routed through it.
+3. Re-run the read-only Supabase ledger, duplicate-PO, audit-recovery,
+   Railway-readiness, and Vercel-readiness checks before any hosted action.
+4. Obtain owner-approved duplicate mapping and `AUDIT_RECOVERY_TENANT_ID`,
+   then require explicit spend-bounded approval for one migration release and
+   one production provider action. No provider deployment is authorized now.
 
 ## Exact next action after M3.9 Stock Receipt post/reversal source slice (2026-08-02)
 

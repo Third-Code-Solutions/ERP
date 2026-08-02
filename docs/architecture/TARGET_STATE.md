@@ -1113,3 +1113,23 @@ The forward-only idempotency migration is source-complete and replayed in the
 disposable PostgreSQL 17 lane. Hosted Supabase remains a separate release gate
 until its migration ledger, duplicate-PO review, audit-recovery tenant,
 readiness, exact SHA, and rollback evidence are clear.
+
+## BOM-to-Purchase Order authority (M3.10, 2026-08-02)
+
+The canonical single-PO-from-BOM command is a tenant-scoped Nest transaction.
+The browser may submit only BOM/project/vendor/date intent plus an opaque retry
+key. Nest derives actor and tenant membership, requires `po.create`, locks the
+approved BOM and related rows, copies the authoritative lines, allocates the
+tenant PO number, locks the BOM, and records the idempotency result and semantic
+audit in the same PostgreSQL transaction. PostgreSQL constraints and the
+existing request table remain the integrity boundary; Python/AI cannot create,
+approve, or finalize a PO.
+
+The Next selector
+`ERP_PO_BOM_CREATE_WRITES_VIA_API` with
+`ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS` is exact-true plus explicit UUID
+allowlist, false/empty by default. Core-side
+`ERP_PO_BOM_CREATE_WRITES_ENABLED` and its UUID allowlist are independently
+closed. On core rejection or outage, the selected path fails closed. The
+grouped-by-supplier BOM path is intentionally not folded into this command and
+requires its own authority/replay design before canarying.
