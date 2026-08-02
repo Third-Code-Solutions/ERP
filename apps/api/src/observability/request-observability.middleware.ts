@@ -111,6 +111,14 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     if (
       request.method === 'POST' &&
       routePath.endsWith(
+        '/v1/procurement/deliveries/:deliveryScheduleId/site-preparation/start'
+      )
+    ) {
+      return 'procurement.delivery_site_preparation_start'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
         '/v1/procurement/deliveries/:deliveryScheduleId/inspection/start'
       )
     ) {

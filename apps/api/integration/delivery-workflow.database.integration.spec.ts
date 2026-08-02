@@ -181,6 +181,16 @@ suite('Delivery workflow database integration', () => {
               if (key === 'ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS') {
                 return [tenantId]
               }
+              if (
+                key === 'ERP_DELIVERY_SITE_PREPARATION_START_WRITES_ENABLED'
+              ) {
+                return true
+              }
+              if (
+                key === 'ERP_DELIVERY_SITE_PREPARATION_START_WRITES_TENANT_IDS'
+              ) {
+                return [tenantId]
+              }
               if (key === 'ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED') {
                 return true
               }
@@ -522,6 +532,51 @@ suite('Delivery workflow database integration', () => {
           )
         ).toBe(true)
 
+        const preparationFirst = await service.startSitePreparation(
+          cancellableDeliveryId,
+          {},
+          principal,
+          'delivery-site-preparation-integration-1'
+        )
+        const preparationReplay = await service.startSitePreparation(
+          cancellableDeliveryId,
+          {},
+          principal,
+          'delivery-site-preparation-integration-1'
+        )
+        expect(preparationFirst).toEqual(preparationReplay)
+        expect(preparationFirst).toMatchObject({
+          deliveryScheduleId: cancellableDeliveryId,
+          tenantId,
+          action: 'start_site_preparation',
+          fromStatus: 'scheduled',
+          status: 'site_preparing',
+        })
+
+        const preparationRequest = await transaction
+          .select({
+            state: deliveryWorkflowRequests.state,
+            result: deliveryWorkflowRequests.result,
+            action: deliveryWorkflowRequests.action,
+          })
+          .from(deliveryWorkflowRequests)
+          .where(
+            and(
+              eq(deliveryWorkflowRequests.tenant_id, tenantId),
+              eq(
+                deliveryWorkflowRequests.idempotency_key,
+                'delivery-site-preparation-integration-1'
+              )
+            )
+          )
+        expect(preparationRequest).toEqual([
+          {
+            state: 'succeeded',
+            result: preparationFirst,
+            action: 'start_site_preparation',
+          },
+        ])
+
         const cancellationCommand = { reason: 'Supplier could not confirm date' }
         const cancellationFirst = await service.cancelDelivery(
           cancellableDeliveryId,
@@ -540,7 +595,7 @@ suite('Delivery workflow database integration', () => {
           deliveryScheduleId: cancellableDeliveryId,
           tenantId,
           action: 'cancel_delivery',
-          fromStatus: 'scheduled',
+          fromStatus: 'site_preparing',
           status: 'cancelled',
           cancellationReason: 'Supplier could not confirm date',
         })
@@ -612,7 +667,7 @@ suite('Delivery workflow database integration', () => {
             (row) =>
               row.action === 'status_change' &&
               (row.diff as { from?: string; to?: string }).from ===
-                'scheduled' &&
+                'site_preparing' &&
               (row.diff as { from?: string; to?: string }).to === 'cancelled'
           )
         ).toBe(true)
@@ -646,6 +701,27 @@ suite('Delivery workflow database integration', () => {
             'delivery-inspection-cross-tenant-1'
           )
         ).rejects.toThrow('Delivery not found')
+        await expect(
+          service.startSitePreparation(
+            otherDeliveryId,
+            {},
+            principal,
+            'delivery-site-preparation-cross-tenant-1'
+          )
+        ).rejects.toThrow('Delivery not found')
+        await expect(
+          service.startSitePreparation(
+            cancellableDeliveryId,
+            {},
+            {
+              ...principal,
+              userId: viewerId,
+              role: 'viewer',
+              email: `viewer-${suffix}@integration.test`,
+            },
+            'delivery-site-preparation-viewer-1'
+          )
+        ).rejects.toThrow()
         await expect(
           service.startInspection(
             deliveryId,

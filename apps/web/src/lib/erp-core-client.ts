@@ -20,6 +20,7 @@ import {
   stockReceiptPostingResultSchema,
   stockReceiptReversalResultSchema,
   deliveryReceiptResultSchema,
+  deliveryStartSitePreparationResultSchema,
   deliveryStartInspectionResultSchema,
   deliveryInspectionCompleteResultSchema,
   deliveryCancelResultSchema,
@@ -56,6 +57,8 @@ import {
   type StockReceiptReversalResult,
   type DeliveryReceiptCommand,
   type DeliveryReceiptResult,
+  type DeliveryStartSitePreparationCommand,
+  type DeliveryStartSitePreparationResult,
   type DeliveryStartInspectionCommand,
   type DeliveryStartInspectionResult,
   type DeliveryInspectionCompleteCommand,
@@ -248,6 +251,16 @@ export function deliveryReceiptWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_DELIVERY_RECEIPT_WRITES_VIA_API,
     process.env.ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function deliverySitePreparationStartWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DELIVERY_SITE_PREPARATION_START_WRITES_VIA_API,
+    process.env.ERP_DELIVERY_SITE_PREPARATION_START_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -701,6 +714,64 @@ export async function recordDeliveryReceiptThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No delivery receipt was committed.',
+    }
+  }
+}
+
+export async function startDeliverySitePreparationThroughCoreApi(
+  deliveryScheduleId: string,
+  command: DeliveryStartSitePreparationCommand,
+  idempotencyKey: string
+): Promise<CoreResult<DeliveryStartSitePreparationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/deliveries/${encodeURIComponent(
+        deliveryScheduleId
+      )}/site-preparation/start`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Delivery site preparation conflicts with its current state.'
+            : response.status === 404
+              ? 'Delivery was not found.'
+              : 'Delivery site preparation was not started.'
+      return { ok: false, error: message }
+    }
+    const parsed = deliveryStartSitePreparationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid delivery site-preparation result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No delivery site preparation was started.',
     }
   }
 }

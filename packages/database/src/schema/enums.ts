@@ -206,6 +206,7 @@ export const deliveryWorkflowActionEnum = pgEnum(
     'start_inspection',
     'complete_inspection',
     'cancel_delivery',
+    'start_site_preparation',
   ]
 )
 
