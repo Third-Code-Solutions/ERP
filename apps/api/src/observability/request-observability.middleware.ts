@@ -102,6 +102,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     ) {
       return 'finance.journal_post'
     }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/journals/:journalEntryId/reverse')
+    ) {
+      return 'finance.journal_reverse'
+    }
     return 'unknown.command'
   }
 

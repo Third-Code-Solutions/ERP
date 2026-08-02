@@ -9,6 +9,14 @@ Status: observed from the live deployment at `https://thirdcode-erp.vercel.app/`
 - Tablet capture: not collected in this pass; treat tablet layout as an explicit QA gap.
 - Screenshots: `docs/design-references/thirdcode-erp-live-desktop.png` and `docs/design-references/thirdcode-erp-live-mobile.png`.
 
+### 2026-08-02 production recheck
+
+- Rechecked `https://thirdcode-erp.vercel.app/` with browser automation at 1440x900 and 390x844.
+- Full-page captures: `docs/design-references/third-code-erp-production-desktop.png` and `docs/design-references/third-code-erp-production-mobile.png`.
+- Production title remains `Construction ERP with a permission-aware AI brain`; visible brand remains Third Code ERP / Third Code Solutions Inc.
+- Accessibility snapshot confirmed the expected public route links (`/auth/login`, `/auth/signup`) and section anchors (`#platform`, `#cortex`, `#workflows`, `#trust`). No vendor branding was observed.
+- Current page scroll height was approximately 9,311 CSS px at the browser's 1775px-wide default viewport. Treat the earlier 1440px measurements as the stable responsive baseline; the 2026-08-02 capture is evidence, not a design change.
+
 ## Navigation
 
 - A rounded, fixed navigation bar is visible at the top of the page.

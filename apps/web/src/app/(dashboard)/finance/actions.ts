@@ -16,7 +16,9 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   financeJournalPostWritesUseCoreApi,
+  financeJournalReverseWritesUseCoreApi,
   postJournalEntryThroughCoreApi,
+  reverseJournalEntryThroughCoreApi,
 } from '@/lib/erp-core-client'
 
 export interface FinanceActionResult {
@@ -565,7 +567,7 @@ export async function reverseJournalEntry(input: {
   entryId: string
   reason: string
   postingDate: string
-}): Promise<FinanceActionResult> {
+}, idempotencyKey?: string): Promise<FinanceActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.post')
@@ -588,6 +590,33 @@ export async function reverseJournalEntry(input: {
       )
       .limit(1)
     if (!entry) return { ok: false, error: 'Journal entry not found' }
+
+    if (financeJournalReverseWritesUseCoreApi(profile.tenantId)) {
+      const coreResult = await reverseJournalEntryThroughCoreApi(
+        parsed.entryId,
+        {
+          reason: parsed.reason,
+          postingDate: parsed.postingDate,
+        },
+        idempotencyKey?.trim() || randomUUID()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Journal entry was not reversed. No reversal was committed.',
+        }
+      }
+      revalidatePath('/finance')
+      revalidatePath(`/finance/journals/${parsed.entryId}`)
+      revalidatePath('/finance/ledger')
+      return {
+        ok: true,
+        id: coreResult.data.reversalJournalEntryId,
+        number: coreResult.data.reversalNumber,
+      }
+    }
 
     const rows = await db.execute<{
       reversal_entry_id: string

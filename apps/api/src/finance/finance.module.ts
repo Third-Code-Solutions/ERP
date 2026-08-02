@@ -3,16 +3,18 @@ import { AuditModule } from '../audit/audit.module'
 import { RequestObservabilityMiddleware } from '../observability/request-observability.middleware'
 import { JournalPostController } from './journal-post.controller'
 import { JournalPostService } from './journal-post.service'
+import { JournalReverseController } from './journal-reverse.controller'
+import { JournalReverseService } from './journal-reverse.service'
 
 @Module({
   imports: [AuditModule],
-  controllers: [JournalPostController],
-  providers: [JournalPostService],
+  controllers: [JournalPostController, JournalReverseController],
+  providers: [JournalPostService, JournalReverseService],
 })
 export class FinanceModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestObservabilityMiddleware)
-      .forRoutes(JournalPostController)
+      .forRoutes(JournalPostController, JournalReverseController)
   }
 }

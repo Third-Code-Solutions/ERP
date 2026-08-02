@@ -24,6 +24,7 @@ export function JournalActions({
   const [reason, setReason] = useState('')
   const [postingDate, setPostingDate] = useState(defaultDate)
   const postIdempotencyKeyRef = useRef<string | null>(null)
+  const reverseIdempotencyKeyRef = useRef<string | null>(null)
 
   if (status === 'draft') {
     return (
@@ -98,11 +99,14 @@ export function JournalActions({
             event.preventDefault()
             setError(null)
             startTransition(async () => {
+              if (!reverseIdempotencyKeyRef.current) {
+                reverseIdempotencyKeyRef.current = globalThis.crypto.randomUUID()
+              }
               const result = await reverseJournalEntry({
                 entryId,
                 reason,
                 postingDate,
-              })
+              }, reverseIdempotencyKeyRef.current)
               if (!result.ok || !result.id) {
                 setError(result.error ?? 'Reversal failed')
                 return

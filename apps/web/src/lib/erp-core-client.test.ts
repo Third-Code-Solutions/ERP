@@ -30,7 +30,9 @@ import {
   transitionPurchaseOrderThroughCoreApi,
   updateProjectThroughCoreApi,
   financeJournalPostWritesUseCoreApi,
+  financeJournalReverseWritesUseCoreApi,
   postJournalEntryThroughCoreApi,
+  reverseJournalEntryThroughCoreApi,
   documentProcessingJobsUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
   getDocumentProcessingStatusThroughCoreApi,
@@ -119,6 +121,12 @@ const JOURNAL_POST_RESULT = {
   journalEntryId: '77777777-7777-4777-8777-777777777777',
   tenantId: '22222222-2222-4222-8222-222222222222',
   postedNumber: 'JE-2026-000001',
+}
+const JOURNAL_REVERSE_RESULT = {
+  journalEntryId: JOURNAL_POST_RESULT.journalEntryId,
+  tenantId: JOURNAL_POST_RESULT.tenantId,
+  reversalJournalEntryId: '88888888-8888-4888-8888-888888888888',
+  reversalNumber: 'JE-2026-000002',
 }
 const RFQ_TRANSITION_RESULT = {
   rfqId: RFQ_ID,
@@ -522,6 +530,26 @@ describe('ERP Core client', () => {
     expect(financeJournalPostWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
+  it('keeps finance journal reversal delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeJournalReverseWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API', 'TRUE')
+    expect(financeJournalReverseWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(financeJournalReverseWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(financeJournalReverseWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('keeps document processing delegation fail-closed unless its exact gate matches', () => {
     vi.stubEnv('ERP_DOCUMENT_PROCESSING_VIA_API', 'true')
     vi.stubEnv(
@@ -811,6 +839,41 @@ describe('ERP Core client', () => {
         }),
         headers: expect.objectContaining({
           'Idempotency-Key': 'journal-post-1',
+        }),
+      })
+    )
+  })
+
+  it('sends an idempotent journal reversal command and validates result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(JOURNAL_REVERSE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      reverseJournalEntryThroughCoreApi(
+        JOURNAL_REVERSE_RESULT.journalEntryId,
+        {
+          reason: 'Correct duplicate accrual',
+          postingDate: '2026-08-02',
+        },
+        'journal-reverse-1'
+      )
+    ).resolves.toEqual({ ok: true, data: JOURNAL_REVERSE_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/finance/journals/${JOURNAL_REVERSE_RESULT.journalEntryId}/reverse`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          reason: 'Correct duplicate accrual',
+          postingDate: '2026-08-02',
+        }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'journal-reverse-1',
         }),
       })
     )
