@@ -1723,3 +1723,15 @@ authority.
 Rationale: fresh-schema reproducibility proves source correctness, not hosted
 data correctness. The duplicate Purchase Order group and missing approved
 audit-recovery tenant still require owner-level decisions before mutation.
+
+## D-105 -- Cut over only supported Purchase Order approval states (2026-08-02)
+
+Decision: route draft submission, PM approval, and Commercial approval through
+the existing Nest workflow command behind the closed tenant allowlist. Keep SCM
+issuance and rejection on legacy actions until their command/state/notification
+parity is implemented and tested.
+
+Rationale: partial cutover must not silently change authorization or supplier
+side effects. Nest already provides idempotency, state-machine checks,
+notification intent, and audit authority for the three supported actions;
+unsupported states remain explicit compatibility work.
