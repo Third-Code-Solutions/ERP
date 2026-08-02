@@ -326,8 +326,7 @@ export class PurchaseOrderWorkflowService {
           status: purchaseOrders.status,
           poNumber: purchaseOrders.po_number,
           totalCents: purchaseOrders.total_cents,
-          supplierEmail: vendors.email,
-          supplierName: vendors.name,
+          vendorId: purchaseOrders.vendor_id,
           projectName: projects.name,
         })
         .from(purchaseOrders)
@@ -336,13 +335,6 @@ export class PurchaseOrderWorkflowService {
           and(
             eq(projects.id, purchaseOrders.project_id),
             eq(projects.tenant_id, purchaseOrders.tenant_id)
-          )
-        )
-        .leftJoin(
-          vendors,
-          and(
-            eq(vendors.id, purchaseOrders.vendor_id),
-            eq(vendors.tenant_id, purchaseOrders.tenant_id)
           )
         )
         .where(
@@ -354,6 +346,24 @@ export class PurchaseOrderWorkflowService {
         .limit(1)
         .for('update')
       if (!po) throw new NotFoundException('Purchase Order not found')
+
+      let supplierEmail: string | null = null
+      let supplierName: string | null = null
+      if (po.vendorId) {
+        const [vendor] = await transaction
+          .select({ email: vendors.email, name: vendors.name })
+          .from(vendors)
+          .where(
+            and(
+              eq(vendors.id, po.vendorId),
+              eq(vendors.tenant_id, authorizedPrincipal.tenantId)
+            )
+          )
+          .limit(1)
+          .for('share')
+        supplierEmail = vendor?.email ?? null
+        supplierName = vendor?.name ?? null
+      }
 
       const status = po.status as WorkflowStatus
       if (!canPerform(parsedCommand.action, status, role)) {
@@ -445,9 +455,9 @@ export class PurchaseOrderWorkflowService {
 
       let supplierOutboxId: string | null = null
       if (parsedCommand.action === 'scm_issue') {
-        const recipientEmail = supplierEmailSnapshot(po.supplierEmail)
-        const supplierName = po.supplierName?.trim() ?? ''
-        if (recipientEmail && supplierName.length > 0) {
+        const recipientEmail = supplierEmailSnapshot(supplierEmail)
+        const supplierNameSnapshot = supplierName?.trim() ?? ''
+        if (recipientEmail && supplierNameSnapshot.length > 0) {
           supplierOutboxId = randomUUID()
           const supplierPayload =
             purchaseOrderSupplierIssuedPayloadSchema.parse({
@@ -471,7 +481,7 @@ export class PurchaseOrderWorkflowService {
               purchase_order_id: purchaseOrderId,
               created_by: authorizedPrincipal.userId,
               recipient_email: recipientEmail,
-              supplier_name: supplierName.slice(0, 255),
+              supplier_name: supplierNameSnapshot.slice(0, 255),
               po_number: po.poNumber,
               project_name: po.projectName,
               total_cents: po.totalCents,
