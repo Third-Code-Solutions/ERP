@@ -4147,3 +4147,27 @@ Read-only planner at `2026-08-02T06:45:15Z`: `review_required`; Supabase
 group, zero audit rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and
 Vercel readiness returned HTTP 200; no hosted Supabase SQL, Railway/Vercel
 deployment, finance flag, queue, provider, or business-data mutation occurred.
+
+## 2026-08-02 - M3.6 Cortex external-model privacy boundary
+
+Implemented and pushed `08f1315` under `kurtgav`:
+
+- Added `apps/web/src/lib/cortex/redaction.ts` with deterministic redaction for
+  emails, TIN formats, and Philippine mobile numbers plus stable SHA-256 text
+  hashes.
+- Applied the redaction to graph prompt records, focused context, embedding
+  input, and every model message. Conversation titles are redacted when first
+  created; authorized chat history and in-product fallback behavior remain.
+- Replaced raw Cortex audit prompt text with started/completed phases, model or
+  fallback outcome, prompt/response hashes, redacted previews, and counts.
+- Added direct unit and route assertions proving identifiers do not reach the
+  embedding or chat-model call and are absent from audit previews. Landing UI
+  was intentionally untouched.
+
+Validation: focused 10 tests, full Web 55 files / 332 tests, Web typecheck,
+workspace lint, and production build (78/78 routes) passed. No Supabase
+migration or provider mutation occurred. Read-only planner at
+`2026-08-02T06:55:43.181Z` remains `review_required` at 55/66 hosted
+migrations, with one 12-record duplicate-PO group, zero audit rows, and
+missing `AUDIT_RECOVERY_TENANT_ID`; Railway/Vercel readiness are HTTP 200 and
+Vercel revision remains `31c04942a93d`.

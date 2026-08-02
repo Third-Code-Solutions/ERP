@@ -898,3 +898,19 @@ Git disconnected and do not create preview or duplicate production builds.
    Vercel production action. Keep Vercel Git disconnected; avoid previews and
    duplicate builds; verify live protected flow, data, logs, and exact release
    identity before declaring production green.
+
+## Exact next action after M3.6 Cortex privacy boundary (2026-08-02)
+
+1. Treat source commit `08f1315` as a review candidate; run the full CI matrix
+   before any provider action. Keep all finance/PO write flags and tenant
+   allowlists false/empty.
+2. Do not apply hosted migrations or deploy Railway/Vercel while the planner
+   remains `review_required` (55/66, 12 duplicate Purchase Orders, zero audit
+   rows, and missing `AUDIT_RECOVERY_TENANT_ID`).
+3. Obtain owner-approved duplicate-PO mapping and audit-recovery tenant;
+   re-run the read-only planner and review the complete forward migration set.
+4. After the planner clears, validate the Cortex redaction behavior in a
+   designated demo tenant with protected browser/API checks, prompt/audit
+   hashes, role-negative retrieval, readiness, exact SHA, and rollback proof.
+5. Only then perform one spend-bounded Railway/Vercel production action; keep
+   Vercel Git disconnected and avoid preview/duplicate builds.

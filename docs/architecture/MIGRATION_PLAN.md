@@ -1423,3 +1423,26 @@ Purchase Order group, zero audit rows, and missing `AUDIT_RECOVERY_TENANT_ID`.
 The two finance write gates and tenant allowlists remain false/empty. Next
 action: obtain owner data/audit decisions, re-run the planner, then review one
 controlled forward migration set before any Railway/Vercel action.
+
+## M3.6 - Cortex external-model privacy boundary (completed source slice)
+
+Scope delivered:
+
+- Add a reusable deterministic redaction policy for direct identifiers and
+  apply it to graph prompt context, semantic embedding input, and all chat
+  message turns sent to the external model.
+- Replace raw Cortex query text in audit metadata with started/completed
+  phases, stable prompt/response hashes, model/fallback outcome, redacted
+  previews, source counts, and citation counts.
+- Preserve tenant/RBAC retrieval, deterministic grounded fallback, durable
+  authorized chat history, and the existing public landing design.
+
+Evidence: source commit `08f1315`; focused Cortex tests 10/10, full Web suite
+55 files / 332 tests, and Web typecheck passed. No migration was added. No
+hosted SQL or provider deployment occurred; the finance and PO write gates
+remain closed.
+
+Release boundary: this is source evidence only. Re-run the read-only planner
+before any hosted release; current blockers remain 11 pending migrations,
+duplicate Purchase Orders, zero audit rows, and missing
+`AUDIT_RECOVERY_TENANT_ID`.

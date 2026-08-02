@@ -1805,3 +1805,17 @@ creating a second posting implementation or changing live behavior. Fresh
 schema replay and green CI cannot resolve the hosted migration gap, 12-record
 Purchase Order duplicate group, zero audit evidence, or missing
 `AUDIT_RECOVERY_TENANT_ID`; those remain owner-controlled release blockers.
+
+## D-111 -- Redact Cortex prompts before external model calls (2026-08-02)
+
+Decision: apply a deterministic direct-identifier redaction pass to Cortex
+graph context, semantic embedding queries, and all user/assistant prompt turns
+before they reach an external model. Audit only redacted previews and stable
+prompt/response hashes, with explicit started/completed phases and model/fallback
+outcomes. Do not change the visible landing or tenant/RBAC retrieval contract.
+
+Rationale: tenant isolation limits which records a user may access but does not
+make raw PII safe to export to a model provider. A small, tested boundary
+reduces direct-identifier exposure while retaining useful construction context
+and the deterministic grounded fallback. No AI output gains transaction
+authority from this change.
