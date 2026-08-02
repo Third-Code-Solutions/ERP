@@ -4218,8 +4218,9 @@ Implemented the closed-by-default Stock Receipt handoff under `kurtgav`:
 Local validation: focused 31/31 tests, full Web 58 files / 348 tests, workspace
 lint, Web typecheck, `git diff --check`, and production build 78/78 routes
 passed. No Supabase migration, hosted SQL, Railway/Vercel deployment, flag,
-queue, provider, or business-data mutation occurred. CI is pending; E2E remains
-credential-gated.
+queue, provider, or business-data mutation occurred. GitHub Actions run
+`30739156350` passed all executable jobs on exact SHA
+`3f4bca7d6a1416f751599ba268f4c0fad565a73f`; E2E remains credential-gated.
 
 Read-only hosted planner remains `review_required`: Supabase 55/66 with eleven
 pending migrations, one 12-record duplicate Purchase Order group, zero audit

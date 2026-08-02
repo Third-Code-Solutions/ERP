@@ -2032,7 +2032,8 @@ provider, flag, queue, or business-data mutation occurred.
   allowlist remain false/empty by default.
 - Local evidence: focused 31/31 tests, full Web 58 files / 348 tests,
   workspace lint, Web typecheck, and production build 78/78 routes passed.
-  CI is pending for the pushed source candidate; E2E remains credential-gated.
+  GitHub Actions run `30739156350` passed all executable jobs on exact SHA
+  `3f4bca7d6a1416f751599ba268f4c0fad565a73f`; E2E remains credential-gated.
 - Hosted planner remains `review_required` at Supabase 55/66 migrations with
   eleven pending, one 12-record duplicate Purchase Order group, zero audit
   rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Live readiness/revision is

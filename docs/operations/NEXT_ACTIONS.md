@@ -940,8 +940,9 @@ Git disconnected and do not create preview or duplicate production builds.
 1. Keep `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` and
    `ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS` false/empty. Do not apply hosted
    migrations or deploy Railway/Vercel while the planner is `review_required`.
-2. Push the reviewed M3.8 source/docs candidate under `kurtgav`; inspect the
-   complete CI result. E2E remains credential-gated.
+2. Source/docs candidate `3f4bca7` is pushed under `kurtgav`; CI run
+   `30739156350` passed all executable jobs on the exact SHA. E2E remains
+   credential-gated.
 3. Obtain owner-approved canonical mapping for the 12 duplicate Purchase
    Orders and a valid `AUDIT_RECOVERY_TENANT_ID`; re-run the read-only planner
    until all eleven pending migrations and data/audit blockers clear.
