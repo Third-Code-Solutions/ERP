@@ -93,6 +93,36 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_PO_BOM_CREATE_WRITES_TENANT_IDS')
   })
 
+  it('keeps grouped BOM Purchase Order writes disabled and tenant-scoped', () => {
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_PO_BOM_GROUPED_CREATE_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS
+    ).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PO_BOM_GROUPED_CREATE_WRITES_ENABLED: 'true',
+        ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_PO_BOM_GROUPED_CREATE_WRITES_ENABLED: true,
+      ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS')
+  })
+
   it('keeps purchase-order workflow writes disabled by default', () => {
     expect(
       validateEnvironment(REQUIRED).ERP_PO_WORKFLOW_WRITES_ENABLED

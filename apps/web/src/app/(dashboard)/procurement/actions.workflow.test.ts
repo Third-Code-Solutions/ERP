@@ -7,7 +7,9 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   purchaseOrderWorkflowWritesUseCoreApi: vi.fn(),
   purchaseOrderBomWritesUseCoreApi: vi.fn(),
+  purchaseOrderBomGroupedWritesUseCoreApi: vi.fn(),
   createPurchaseOrderFromBomThroughCoreApi: vi.fn(),
+  createPurchaseOrdersGroupedFromBomThroughCoreApi: vi.fn(),
   transitionPurchaseOrderThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
 }))
@@ -58,9 +60,13 @@ vi.mock('@/lib/operations/notifications', () => ({
 vi.mock('@/lib/erp-core-client', () => ({
   createPurchaseOrderFromBomThroughCoreApi:
     mocks.createPurchaseOrderFromBomThroughCoreApi,
+  createPurchaseOrdersGroupedFromBomThroughCoreApi:
+    mocks.createPurchaseOrdersGroupedFromBomThroughCoreApi,
   createPurchaseOrderThroughCoreApi: vi.fn(),
   purchaseOrderBomWritesUseCoreApi:
     mocks.purchaseOrderBomWritesUseCoreApi,
+  purchaseOrderBomGroupedWritesUseCoreApi:
+    mocks.purchaseOrderBomGroupedWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi: vi.fn(),
   purchaseOrderWorkflowWritesUseCoreApi:
     mocks.purchaseOrderWorkflowWritesUseCoreApi,
@@ -81,6 +87,7 @@ vi.mock('next/cache', () => ({
 
 import {
   createPoFromBom,
+  createPosFromBomGrouped,
   commercialApprovePo,
   pmApprovePo,
   rejectPoApproval,
@@ -274,5 +281,75 @@ describe('Purchase Order workflow compatibility seam', () => {
       error: 'Retry token is required for the BOM Purchase Order command.',
     })
     expect(mocks.createPurchaseOrderFromBomThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('routes grouped BOM-to-PO creation through Nest with stable retry key', async () => {
+    mocks.purchaseOrderBomGroupedWritesUseCoreApi.mockReturnValue(true)
+    mocks.createPurchaseOrdersGroupedFromBomThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        tenantId: TENANT_ID,
+        bomId: BOM_ID,
+        purchaseOrderIds: [PO_ID],
+        groups: [
+          {
+            vendorId: '66666666-6666-4666-8666-666666666666',
+            vendorName: 'Supplier',
+            lineCount: 1,
+            subtotalCents: 10_000,
+          },
+        ],
+      },
+    })
+    const where = vi.fn().mockResolvedValue([
+      {
+        id: BOM_ID,
+        status: 'approved',
+        project_id: PROJECT_ID,
+      },
+    ])
+    const from = vi.fn().mockReturnValue({ where })
+    mocks.select.mockReturnValue({ from })
+
+    await expect(
+      createPosFromBomGrouped(BOM_ID, 'grouped-bom-po-retry-1')
+    ).resolves.toEqual({
+      created_po_ids: [PO_ID],
+      groups: [
+        {
+          vendor_id: '66666666-6666-4666-8666-666666666666',
+          vendor_name: 'Supplier',
+          line_count: 1,
+          subtotal_cents: 10_000,
+        },
+      ],
+    })
+
+    expect(mocks.createPurchaseOrdersGroupedFromBomThroughCoreApi).toHaveBeenCalledWith(
+      { bomId: BOM_ID },
+      'grouped-bom-po-retry-1'
+    )
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/purchase-orders')
+  })
+
+  it('requires retry key when grouped BOM core canary is selected', async () => {
+    mocks.purchaseOrderBomGroupedWritesUseCoreApi.mockReturnValue(true)
+    const where = vi.fn().mockResolvedValue([
+      {
+        id: BOM_ID,
+        status: 'approved',
+        project_id: PROJECT_ID,
+      },
+    ])
+    const from = vi.fn().mockReturnValue({ where })
+    mocks.select.mockReturnValue({ from })
+
+    await expect(createPosFromBomGrouped(BOM_ID)).resolves.toEqual({
+      error:
+        'Retry token is required for the grouped BOM Purchase Order command.',
+    })
+    expect(
+      mocks.createPurchaseOrdersGroupedFromBomThroughCoreApi
+    ).not.toHaveBeenCalled()
   })
 })

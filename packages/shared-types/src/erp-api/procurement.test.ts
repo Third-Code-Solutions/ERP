@@ -17,8 +17,10 @@ import {
 } from './procurement'
 import {
   createPurchaseOrderFromBomCommandSchema,
+  createPurchaseOrdersGroupedFromBomCommandSchema,
   createPurchaseOrderCommandSchema,
   purchaseOrderBomCreationResultSchema,
+  purchaseOrdersGroupedFromBomResultSchema,
   purchaseOrderWorkflowCommandSchema,
   purchaseOrderWorkflowResultSchema,
   purchaseOrderSupplierIssuedPayloadSchema,
@@ -119,6 +121,40 @@ describe('Purchase Order creation API contracts', () => {
       createPurchaseOrderFromBomCommandSchema.safeParse({
         ...command,
         actorId: UUID,
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts a strict grouped BOM command and server-derived result', () => {
+    const command = { bomId: UUID }
+    expect(
+      createPurchaseOrdersGroupedFromBomCommandSchema.parse(command)
+    ).toEqual(command)
+    expect(
+      purchaseOrdersGroupedFromBomResultSchema.safeParse({
+        tenantId: UUID,
+        bomId: UUID,
+        purchaseOrderIds: [UUID],
+        groups: [
+          {
+            vendorId: UUID,
+            vendorName: 'Vendor A',
+            lineCount: 1,
+            subtotalCents: 12_500,
+          },
+          {
+            vendorId: null,
+            vendorName: 'Unassigned (no rate card match)',
+            lineCount: 1,
+            subtotalCents: 0,
+          },
+        ],
+      }).success
+    ).toBe(true)
+    expect(
+      createPurchaseOrdersGroupedFromBomCommandSchema.safeParse({
+        ...command,
+        tenantId: UUID,
       }).success
     ).toBe(false)
   })

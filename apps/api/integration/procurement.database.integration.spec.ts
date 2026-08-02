@@ -8,16 +8,19 @@ import {
   bomLineItems,
   boms,
   db,
+  materialItems,
   notificationDeliveries,
   notificationOutbox,
   notifications,
   poLineItems,
   purchaseOrderCreateRequests,
   purchaseOrders,
+  rateCards,
   projects,
   rfqQuotes,
   rfqs,
   tenants,
+  unitsOfMeasure,
   users,
   vendors,
   type Database,
@@ -100,15 +103,20 @@ suite('Procurement API database integration', () => {
       const bomA = randomUUID()
       const bomB = randomUUID()
       const bomCreateA = randomUUID()
+      const bomGroupedA = randomUUID()
       const bomAutoA = randomUUID()
       const bomDraftA = randomUUID()
       const lineA = randomUUID()
       const lineB = randomUUID()
       const lineCreateA = randomUUID()
+      const lineGroupedA = randomUUID()
       const lineAutoA = randomUUID()
       const lineDraftA = randomUUID()
       const vendorA = randomUUID()
       const vendorB = randomUUID()
+      const unitA = randomUUID()
+      const materialA = randomUUID()
+      const rateCardA = randomUUID()
       const rfqA = randomUUID()
       const rfqB = randomUUID()
       const submissionId = randomUUID()
@@ -196,6 +204,13 @@ suite('Procurement API database integration', () => {
           total_cost_cents: 25_000,
         },
         {
+          id: bomGroupedA,
+          tenant_id: tenantA,
+          project_id: projectA,
+          created_by: procurementA,
+          status: 'approved',
+        },
+        {
           id: bomAutoA,
           tenant_id: tenantA,
           project_id: projectA,
@@ -236,6 +251,17 @@ suite('Procurement API database integration', () => {
           line_total_cents: 25_000,
         },
         {
+          id: lineGroupedA,
+          tenant_id: tenantA,
+          bom_id: bomGroupedA,
+          code: 'MAT-GROUP-A',
+          description: 'Grouped line A',
+          quantity: 2,
+          unit: 'pcs',
+          unit_cost_cents: 10_000,
+          line_total_cents: 20_000,
+        },
+        {
           id: lineAutoA,
           tenant_id: tenantA,
           bom_id: bomAutoA,
@@ -264,6 +290,29 @@ suite('Procurement API database integration', () => {
           name: `Vendor B ${suffix}`,
         },
       ])
+      await transaction.insert(unitsOfMeasure).values({
+        id: unitA,
+        tenant_id: tenantA,
+        code: 'pcs',
+        name: 'Pieces',
+        created_by: procurementA,
+      })
+      await transaction.insert(materialItems).values({
+        id: materialA,
+        tenant_id: tenantA,
+        code: 'MAT-GROUP-A',
+        description: 'Grouped material A',
+        unit: 'pcs',
+        base_uom_id: unitA,
+        created_by: procurementA,
+      })
+      await transaction.insert(rateCards).values({
+        id: rateCardA,
+        tenant_id: tenantA,
+        material_item_id: materialA,
+        vendor_id: vendorA,
+        unit_price_cents: 10_000,
+      })
       await transaction.insert(rfqs).values([
         {
           id: rfqA,
@@ -314,6 +363,8 @@ suite('Procurement API database integration', () => {
           get: (key: string, fallback?: unknown) => {
             if (key === 'ERP_PO_BOM_CREATE_WRITES_ENABLED') return true
             if (key === 'ERP_PO_BOM_CREATE_WRITES_TENANT_IDS') return [tenantA]
+            if (key === 'ERP_PO_BOM_GROUPED_CREATE_WRITES_ENABLED') return true
+            if (key === 'ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS') return [tenantA]
             return fallback
           },
         } as unknown as ConfigService,
@@ -452,6 +503,103 @@ suite('Procurement API database integration', () => {
       expect(lockedBom?.status).toBe('locked')
       expect(bomPurchaseOrderRequests).toHaveLength(1)
       expect(bomPurchaseOrderRequests[0]?.state).toBe('succeeded')
+
+      const groupedBomCommand = { bomId: bomGroupedA } as const
+      const groupedResult = await purchaseOrderCreation.createGroupedFromBom(
+        groupedBomCommand,
+        {
+          userId: procurementA,
+          tenantId: tenantA,
+          role: 'procurement',
+          email: `procurement-a-${suffix}@integration.test`,
+        },
+        'grouped-bom-po-integration-1'
+      )
+      expect(groupedResult).toMatchObject({
+        tenantId: tenantA,
+        bomId: bomGroupedA,
+        purchaseOrderIds: expect.arrayContaining([expect.any(String)]),
+        groups: [
+          {
+            vendorId: vendorA,
+            vendorName: `Vendor A ${suffix}`,
+            lineCount: 1,
+            subtotalCents: 20_000,
+          },
+        ],
+      })
+      await expect(
+        purchaseOrderCreation.createGroupedFromBom(
+          groupedBomCommand,
+          {
+            userId: procurementA,
+            tenantId: tenantA,
+            role: 'procurement',
+            email: `procurement-a-${suffix}@integration.test`,
+          },
+          'grouped-bom-po-integration-1'
+        )
+      ).resolves.toEqual(groupedResult)
+      const groupedPoId = groupedResult.purchaseOrderIds[0]
+      const [groupedPo] = await transaction
+        .select()
+        .from(purchaseOrders)
+        .where(
+          and(
+            eq(purchaseOrders.tenant_id, tenantA),
+            eq(purchaseOrders.id, groupedPoId)
+          )
+        )
+        .limit(1)
+      const groupedLines = await transaction
+        .select()
+        .from(poLineItems)
+        .where(
+          and(
+            eq(poLineItems.tenant_id, tenantA),
+            eq(poLineItems.po_id, groupedPoId)
+          )
+        )
+      const [lockedGroupedBom] = await transaction
+        .select({ status: boms.status })
+        .from(boms)
+        .where(
+          and(eq(boms.tenant_id, tenantA), eq(boms.id, bomGroupedA))
+        )
+        .limit(1)
+      const groupedRequests = await transaction
+        .select()
+        .from(purchaseOrderCreateRequests)
+        .where(
+          and(
+            eq(purchaseOrderCreateRequests.tenant_id, tenantA),
+            eq(
+              purchaseOrderCreateRequests.idempotency_key,
+              'grouped-bom-po-integration-1'
+            )
+          )
+        )
+      expect(groupedPo).toMatchObject({
+        tenant_id: tenantA,
+        project_id: projectA,
+        vendor_id: vendorA,
+        subtotal_cents: 20_000,
+        vat_cents: 2_400,
+        withholding_tax_cents: 400,
+        total_cents: 22_000,
+        status: 'draft',
+      })
+      expect(groupedLines).toHaveLength(1)
+      expect(groupedLines[0]).toMatchObject({
+        tenant_id: tenantA,
+        bom_line_item_id: lineGroupedA,
+        quantity: 2,
+        unit_cost_cents: 10_000,
+        line_total_cents: 20_000,
+      })
+      expect(lockedGroupedBom?.status).toBe('locked')
+      expect(groupedRequests).toHaveLength(1)
+      expect(groupedRequests[0]?.state).toBe('succeeded')
 
       const command = {
         submissionId,

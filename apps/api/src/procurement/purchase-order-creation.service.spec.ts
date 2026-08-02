@@ -5,6 +5,7 @@ import type { ConfigService } from '@nestjs/config'
 import type {
   CreatePurchaseOrderCommand,
   CreatePurchaseOrderFromBomCommand,
+  CreatePurchaseOrdersGroupedFromBomCommand,
 } from '@third-code-erp/shared-types'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
@@ -42,18 +43,24 @@ const BOM_COMMAND: CreatePurchaseOrderFromBomCommand = {
   notes: null,
 }
 
+const GROUPED_BOM_COMMAND: CreatePurchaseOrdersGroupedFromBomCommand = {
+  bomId: BOM_COMMAND.bomId,
+}
+
 function service(enabled = false, tenantIds: string[] = []) {
   const config = {
     get: vi.fn((key: string) => {
       if (
         key === 'ERP_PO_CREATE_WRITES_ENABLED' ||
-        key === 'ERP_PO_BOM_CREATE_WRITES_ENABLED'
+        key === 'ERP_PO_BOM_CREATE_WRITES_ENABLED' ||
+        key === 'ERP_PO_BOM_GROUPED_CREATE_WRITES_ENABLED'
       ) {
         return enabled
       }
       if (
         key === 'ERP_PO_CREATE_WRITES_TENANT_IDS' ||
-        key === 'ERP_PO_BOM_CREATE_WRITES_TENANT_IDS'
+        key === 'ERP_PO_BOM_CREATE_WRITES_TENANT_IDS' ||
+        key === 'ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS'
       ) {
         return tenantIds
       }
@@ -93,6 +100,28 @@ describe('PurchaseOrderCreationService migration boundary', () => {
       service(true).createFromBom(BOM_COMMAND, PRINCIPAL, 'bom-po-create-1')
     ).rejects.toThrow(
       'BOM Purchase Order command is not enabled for this tenant; no Purchase Order was created.'
+    )
+  })
+
+  it('fails closed by default for grouped BOM-to-PO creation', async () => {
+    await expect(
+      service().createGroupedFromBom(
+        GROUPED_BOM_COMMAND,
+        PRINCIPAL,
+        'grouped-bom-po-create-1'
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+
+  it('keeps grouped BOM-to-PO creation disabled without its tenant allowlist', async () => {
+    await expect(
+      service(true).createGroupedFromBom(
+        GROUPED_BOM_COMMAND,
+        PRINCIPAL,
+        'grouped-bom-po-create-1'
+      )
+    ).rejects.toThrow(
+      'Grouped BOM Purchase Order command is not enabled for this tenant; no Purchase Orders were created.'
     )
   })
 })

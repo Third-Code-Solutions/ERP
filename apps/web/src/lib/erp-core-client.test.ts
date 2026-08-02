@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createRfqThroughCoreApi,
   createPurchaseOrderFromBomThroughCoreApi,
+  createPurchaseOrdersGroupedFromBomThroughCoreApi,
   createPurchaseOrderThroughCoreApi,
   createStockReceiptThroughCoreApi,
   postStockReceiptThroughCoreApi,
@@ -13,6 +14,7 @@ import {
   projectWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
+  purchaseOrderBomGroupedWritesUseCoreApi,
   stockReceiptCreateWritesUseCoreApi,
   stockReceiptPostWritesUseCoreApi,
   stockReceiptReverseWritesUseCoreApi,
@@ -62,6 +64,19 @@ const PURCHASE_ORDER_BOM_RESULT = {
   bomId: '99999999-9999-4999-8999-999999999999',
   poNumber: 'PO-0001',
   status: 'draft' as const,
+}
+const PURCHASE_ORDER_BOM_GROUPED_RESULT = {
+  tenantId: PURCHASE_ORDER_RESULT.tenantId,
+  bomId: '99999999-9999-4999-8999-999999999999',
+  purchaseOrderIds: [PURCHASE_ORDER_RESULT.purchaseOrderId],
+  groups: [
+    {
+      vendorId: '77777777-7777-4777-8777-777777777777',
+      vendorName: 'Supplier',
+      lineCount: 1,
+      subtotalCents: 10_000,
+    },
+  ],
 }
 const PURCHASE_ORDER_WORKFLOW_RESULT = {
   purchaseOrderId: PURCHASE_ORDER_RESULT.purchaseOrderId,
@@ -234,6 +249,23 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS', '*')
     expect(purchaseOrderBomWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(purchaseOrderBomWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps grouped BOM Purchase Order delegation fail-closed unless its gate matches', () => {
+    vi.stubEnv('ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(purchaseOrderBomGroupedWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API', 'TRUE')
+    expect(purchaseOrderBomGroupedWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(purchaseOrderBomGroupedWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(purchaseOrderBomGroupedWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps PO workflow delegation fail-closed unless its independent gate matches', () => {
@@ -1065,5 +1097,36 @@ describe('ERP Core client', () => {
       error:
         'ERP Core API returned an invalid RFQ transition result.',
     })
+  })
+
+  it('sends an idempotent grouped BOM Purchase Order command and validates result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(PURCHASE_ORDER_BOM_GROUPED_RESULT), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const command = { bomId: PURCHASE_ORDER_BOM_RESULT.bomId }
+    await expect(
+      createPurchaseOrdersGroupedFromBomThroughCoreApi(
+        command,
+        'grouped-bom-po-create-1'
+      )
+    ).resolves.toEqual({
+      ok: true,
+      data: PURCHASE_ORDER_BOM_GROUPED_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/procurement/purchase-orders/from-bom/grouped',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'grouped-bom-po-create-1',
+        }),
+      })
+    )
   })
 })
