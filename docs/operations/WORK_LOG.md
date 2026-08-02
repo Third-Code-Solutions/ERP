@@ -4048,3 +4048,32 @@ including Postgres 17 replay, 256/256 database tests without skips, Nest smoke,
 and production build. E2E stayed credential-gated. Railway/Vercel readiness
 returned 200; planner remains `review_required`; no hosted DB/provider state
 changed.
+
+## 2026-08-02 - M3.3 Purchase Order rejection seam
+
+Implemented and pushed `16904f0` under `kurtgav`:
+
+- Nest `PurchaseOrderWorkflowService` now authorizes and commits `reject` from
+  `pending_scm_issuance` as well as the existing PM/Commercial pending states,
+  returning the record to `draft` with idempotency, notification intent, and
+  semantic audit in one transaction.
+- Updated notification recipient routing and added forward-only migration
+  `20260802100000_purchase_order_workflow_scm_rejection.sql` for the outbox
+  payload constraint.
+- The Next Server Action preserves tenant/status/role validation and uses the
+  core client only for allowlisted tenants; the browser rejection action now
+  holds a stable retry key until success. SCM supplier issuance remains legacy
+  pending an outbox-owned email contract. Visible UI design/copy is unchanged.
+
+Validation passed locally: Web 54 files / 326 tests, API 27 files / 127 tests,
+database 20 files / 120 tests with 137 local integration skips, workspace
+typecheck/lint, production build 78/78 routes, actionlint, gitleaks,
+workflow-reference verification, migration files-only verification, and diff
+checks. GitHub Actions run `30733959058` passed all executable jobs, including
+Postgres 17 replay/schema diff, no-skip database tests, Nest integration and
+container smoke, and build; E2E stayed credential-gated.
+
+Hosted planner remains `review_required` (55/64 migrations, nine pending;
+one 12-record Purchase Order duplicate group; missing
+`AUDIT_RECOVERY_TENANT_ID`). No hosted Supabase SQL, Railway/Vercel deploy,
+feature flag, queue, provider setting, or business-data mutation occurred.

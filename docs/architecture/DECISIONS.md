@@ -1745,3 +1745,19 @@ approved audit-recovery tenant.
 
 Rationale: source reproducibility and provider readiness cannot prove hosted
 data integrity or owner intent for irreversible business-record remediation.
+
+## D-107 -- Complete Purchase Order rejection parity before issuance cutover (2026-08-02)
+
+Decision: route rejection from PM, Commercial, and SCM-pending states through
+the existing Nest workflow command behind the same closed tenant allowlist.
+Use one stable browser idempotency key per rejection, and extend the outbox
+payload constraint with a forward-only migration. Keep SCM issuance on the
+legacy action until supplier email dispatch, evidence stamping, retries,
+dead-letter handling, and audit are represented by a server-owned outbox
+contract.
+
+Rationale: rejection has no external supplier side effect and can therefore
+share the proven transactional command boundary. Issuance currently does, so
+cutting it over without an equivalent outbox would risk duplicate or lost
+supplier messages. CI run `30733959058` proves fresh-schema reproducibility;
+hosted planner blockers still control promotion.
