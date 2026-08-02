@@ -1221,3 +1221,21 @@ failures never fall back. Inspection result/acceptance, site preparation, and
 cancellation remain separate later commands. Hosted migration drift,
 duplicate demo data, audit recovery, readiness, exact SHA, rollback, and
 spend approval remain independent promotion gates.
+
+## Delivery inspection-completion authority (M3.15, 2026-08-02)
+
+Inspection completion is a Nest-owned terminal delivery command at
+`POST /v1/procurement/deliveries/:deliveryScheduleId/inspection/complete`.
+The browser submits only the inspection result and bounded defect/acceptance
+notes plus an opaque idempotency key. Nest derives tenant and actor, rechecks
+`delivery.receive`, locks the `inspecting` schedule and pending inspection,
+requires defect notes for `fail`, records the inspection outcome, transitions
+the schedule to `accepted` or `rejected`, and commits exact replay data plus
+semantic audit in one transaction. Python/AI cannot finalize this state.
+
+The compatibility action selects Nest only for exact-`true` plus UUID-allowlist
+configuration; API and Next gates are false/empty by default and selected core
+failures never fall back. Delivery cancellation and later stock/three-way
+matching effects remain separate commands. Hosted migration drift, duplicate
+demo data, audit recovery, readiness, exact SHA, rollback, and spend approval
+remain independent promotion gates.

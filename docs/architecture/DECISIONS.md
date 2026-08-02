@@ -2002,3 +2002,29 @@ Source is pushed as `08567b8b4b529f43126925ff67df132e15f71818`. GitHub run
 `30746647147` failed before executable steps, and no hosted migration or
 provider mutation occurred. All four inspection-start flags remain
 false/empty.
+
+## D-121 -- Reuse delivery ledger for inspection completion (2026-08-02)
+
+Decision: add `complete_inspection` to the existing
+`delivery_workflow_action` enum and expose
+`POST /v1/procurement/deliveries/:deliveryScheduleId/inspection/complete` as a
+closed-by-default Nest command. The browser sends only result, bounded notes,
+and an opaque idempotency key. Nest derives tenant and actor, rechecks
+`delivery.receive`, locks the `inspecting` schedule and pending inspection,
+requires defect evidence for `fail`, commits inspection plus accepted/rejected
+status, stores exact replay, and writes semantic audit in one transaction.
+Selected core failures never invoke the direct writer.
+
+Rationale: inspection completion is an official terminal delivery decision;
+two independent browser writes could leave inspection history and delivery
+status inconsistent or duplicate a decision after a lost response. Reusing
+the existing tenant-scoped ledger keeps receipt, start, and completion under
+one replay boundary while distinct enum actions preserve audit semantics.
+Notifications and later stock/three-way matching remain separate concerns.
+
+Validation and release boundary: local full suites, typecheck, lint, builds,
+release-plan tests, Actionlint, Gitleaks, and diff checks passed. The guarded
+database integration was skipped without its explicit environment. Source is
+pushed as `67beedab53680238f785e0947d90588eedd71e3e`; GitHub run
+`30748096044` failed before executable steps; no hosted migration or provider
+mutation occurred. All four inspection-completion flags remain false/empty.

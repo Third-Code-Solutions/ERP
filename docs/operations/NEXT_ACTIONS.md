@@ -2,7 +2,7 @@
 
 ## Immediate hosted release gate
 
-Do not apply the fifteen pending Supabase migrations or deploy Railway/Vercel
+Do not apply the sixteen pending Supabase migrations or deploy Railway/Vercel
 until the owner supplies:
 
 1. The canonical `AUDIT_RECOVERY_TENANT_ID` UUID for the audit-chain planner.
@@ -13,19 +13,49 @@ until the owner supplies:
 Then run the read-only planners again. Only when migration ledger, duplicate
 review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 
-- apply all fourteen pending migrations in timestamp order with a captured ledger;
+- apply all sixteen pending migrations in timestamp order with a captured ledger;
 - run the disposable and hosted verification gates;
 - deploy exactly one reviewed source SHA to Railway and one controlled Vercel
   production build, after confirming the billing impact;
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current source SHA: `08567b8b4b529f43126925ff67df132e15f71818` on
+Current source SHA: `67beedab53680238f785e0947d90588eedd71e3e` on
 `origin/agent-02/third-code-erp-landing`, authored by `kurtgav`. Corrected CI
-run `30746647147` failed before any job step and all other jobs were skipped;
+run `30748096044` failed before any job step and all other jobs were skipped;
 the external GitHub account payment/spending-limit gate remains unresolved.
-Local gates are recorded in the work log. Source now has 70 migrations versus
+Local gates are recorded in the work log. Source now has 71 migrations versus
 55 hosted.
+
+## Exact next action after M3.15 delivery inspection-completion source slice
+
+1. Treat source `67beedab53680238f785e0947d90588eedd71e3e` as the reviewed
+   pushed candidate. Local executable gates pass; the guarded database
+   integration remains unexecuted because its explicit Postgres/Redis
+   environment was not supplied, and GitHub run `30748096044` has no
+   executable job evidence due the external account gate.
+2. Keep
+   `ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED`,
+   `ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS`,
+   `ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API`,
+   `ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS`,
+   `ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_ENABLED`,
+   `ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS`,
+   `ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API`, and
+   `ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API_TENANT_IDS` false/empty.
+   Do not apply migrations `20260802160000_delivery_inspection_start_workflow.sql`
+   or `20260802170000_delivery_inspection_complete_workflow.sql`.
+3. Obtain owner-approved canonical mapping for the one 12-record duplicate
+   Purchase Order group and a valid `AUDIT_RECOVERY_TENANT_ID`; restore CI
+   billing authorization; provide the guarded Postgres/Redis integration
+   environment; rerun the read-only hosted planner and disposable database
+   lane.
+4. Only after a clear planner, exact-SHA readiness, rollback evidence, and
+   explicit spend-bounded Supabase/Railway/Vercel authorization may one hosted
+   migration and one production action occur. Keep Vercel Git disconnected;
+   avoid previews and duplicate builds.
+
+Source now has 71 migrations versus 55 hosted.
 
 ## Exact next action after M3.14 delivery inspection-start source slice
 
