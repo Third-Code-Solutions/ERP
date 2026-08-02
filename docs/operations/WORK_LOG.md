@@ -1,5 +1,16 @@
 # Work Log
 
+## 2026-08-03 - GitHub source publication checkpoint
+
+- Fast-forwarded `origin/main` and `origin/agent-02/third-code-erp-landing` to
+  reviewed head `04b2ee84f9e192edb14c105e50b5280cdeb41570` using the active
+  `kurtgav <kurtgavin.design@gmail.com>` GitHub identity.
+- Verified remote refs and GitHub `main` SHA. No Supabase SQL, Railway release,
+  Vercel deployment, feature flag, or hosted data changed.
+- Release remains blocked until owner supplies a reversible mapping for the
+  12-record tenant-scoped `PO-0002` duplicate group and the canonical
+  `AUDIT_RECOVERY_TENANT_ID`.
+
 ## 2026-08-02 — M3.17 delivery site-preparation start authority
 
 Completed source milestone:

@@ -4,6 +4,14 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## 2026-08-03 source publication checkpoint
+
+Reviewed source head `04b2ee84f9e192edb14c105e50b5280cdeb41570` is now published
+to both `origin/main` and `origin/agent-02/third-code-erp-landing` under
+`kurtgav <kurtgavin.design@gmail.com>`. This checkpoint changed GitHub source
+only. Supabase, Railway, Vercel, feature flags, and hosted data remain
+unchanged.
+
 ## M3.17 source update (2026-08-02)
 
 The reviewed source commit `0b7cb532b0b3a32f687f58437f2756259ba68c27` adds the
