@@ -121,7 +121,7 @@ export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
   function reject() {
     const reason = prompt('Reason for rejection? This returns the PO to draft.')
     if (!reason || !reason.trim()) return
-    run(() => rejectPoApproval(poId, reason))
+    run(() => rejectPoApproval(poId, reason, workflowKey('reject')), 'reject')
   }
 
   // Current flow first.

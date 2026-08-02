@@ -40,17 +40,15 @@ import {
 
 type PoCapability = 'po.create' | 'po.approve' | 'po.issue' | 'po.receive'
 
-type CorePurchaseOrderWorkflowAction = Exclude<
-  PurchaseOrderWorkflowAction,
-  'reject'
->
+type CorePurchaseOrderWorkflowAction = PurchaseOrderWorkflowAction
 
 async function transitionPurchaseOrderThroughCoreIfEnabled(
   profile: Awaited<ReturnType<typeof getUserProfile>>,
   poId: string,
   projectId: string | null,
   action: CorePurchaseOrderWorkflowAction,
-  idempotencyKey?: string
+  idempotencyKey?: string,
+  reason?: string
 ): Promise<{ error?: string } | null> {
   if (!profile || !purchaseOrderWorkflowWritesUseCoreApi(profile.tenantId)) {
     return null
@@ -62,7 +60,7 @@ async function transitionPurchaseOrderThroughCoreIfEnabled(
       : randomUUID()
   const result = await transitionPurchaseOrderThroughCoreApi(
     poId,
-    { action },
+    reason ? { action, reason } : { action },
     key
   )
   if (!result.ok || !result.data) {
@@ -1231,7 +1229,8 @@ export async function scmIssuePo(poId: string): Promise<{ error?: string }> {
 /** Reject an in-flight approval at any pending step. Returns PO to draft. */
 export async function rejectPoApproval(
   poId: string,
-  reason: string
+  reason: string,
+  idempotencyKey?: string
 ): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -1265,6 +1264,16 @@ export async function rejectPoApproval(
   if (!allowedRoles.includes(profile.role)) {
     return { error: `Forbidden: role "${profile.role}" cannot reject at step "${po.status}"` }
   }
+
+  const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
+    profile,
+    poId,
+    po.project_id,
+    'reject',
+    idempotencyKey,
+    trimmed
+  )
+  if (coreResult) return coreResult
 
   const now = new Date()
   await db

@@ -205,9 +205,12 @@ suite('Purchase Order workflow database integration', () => {
             purchaseOrderId,
             { action: 'reject', reason: 'Too late' },
             commercialPrincipal,
-            'workflow-commercial-1'
+            'workflow-reject-1'
           )
-        ).rejects.toMatchObject({ status: 409 })
+        ).resolves.toMatchObject({
+          fromStatus: 'pending_scm_issuance',
+          status: 'draft',
+        })
 
         const [po] = await transaction
           .select({ status: purchaseOrders.status })
@@ -239,19 +242,19 @@ suite('Purchase Order workflow database integration', () => {
               eq(auditLog.entity_id, purchaseOrderId)
             )
           )
-        expect(po?.status).toBe('pending_scm_issuance')
-        expect(requests).toHaveLength(3)
+        expect(po?.status).toBe('draft')
+        expect(requests).toHaveLength(4)
         expect(requests.every((request) => request.state === 'succeeded')).toBe(
           true
         )
         expect(
           auditRows.filter((entry) => entry.action === 'status_change')
-        ).toHaveLength(3)
+        ).toHaveLength(4)
         const workflowOutboxes = await transaction
           .select()
           .from(notificationOutbox)
           .where(eq(notificationOutbox.tenant_id, tenantId))
-        expect(workflowOutboxes).toHaveLength(3)
+        expect(workflowOutboxes).toHaveLength(4)
         expect(
           workflowOutboxes.every(
             (outbox) =>

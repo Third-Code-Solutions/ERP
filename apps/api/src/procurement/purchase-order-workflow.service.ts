@@ -103,10 +103,13 @@ function canPerform(
   }
   return (
     (status === 'pending_pm_approval' ||
-      status === 'pending_commercial_approval') &&
+      status === 'pending_commercial_approval' ||
+      status === 'pending_scm_issuance') &&
     (status === 'pending_pm_approval'
       ? roleHasCapability(role, 'po.create')
-      : roleHasCapability(role, 'po.approve'))
+      : status === 'pending_commercial_approval'
+        ? roleHasCapability(role, 'po.approve')
+        : roleHasCapability(role, 'po.create'))
   )
 }
 
@@ -129,7 +132,8 @@ function nextStatus(
   if (
     action === 'reject' &&
     (status === 'pending_pm_approval' ||
-      status === 'pending_commercial_approval')
+      status === 'pending_commercial_approval' ||
+      status === 'pending_scm_issuance')
   ) {
     return 'draft'
   }

@@ -24,6 +24,13 @@ const workflowMigrationSql = readFileSync(
   ),
   'utf8'
 ).toLowerCase()
+const workflowExtensionMigrationSql = readFileSync(
+  resolve(
+    __dirname,
+    '../../../../supabase/migrations/20260802100000_purchase_order_workflow_scm_rejection.sql'
+  ),
+  'utf8'
+).toLowerCase()
 
 describe('notification outbox foundation', () => {
   it('creates durable tenant-scoped intent and delivery state', () => {
@@ -83,6 +90,15 @@ describe('notification outbox foundation', () => {
     )
     expect(workflowMigrationSql).toContain(
       "payload->>'purchase_order_id' = aggregate_id::text"
+    )
+  })
+
+  it('extends the workflow payload contract for SCM-step rejection', () => {
+    expect(workflowExtensionMigrationSql).toContain(
+      'drop constraint if exists notification_outbox_purchase_order_workflow_payload'
+    )
+    expect(workflowExtensionMigrationSql).toContain(
+      "'pending_scm_issuance'"
     )
   })
 
