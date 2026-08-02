@@ -6,6 +6,10 @@ import { documents, users } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { inngest } from '@/lib/inngest'
 import { parseAndStoreCad } from '@/lib/cad/parse-and-store'
+import {
+  documentProcessingJobsUseCoreApi,
+  enqueueDocumentProcessingThroughCoreApi,
+} from '@/lib/erp-core-client'
 import { getProject } from '@/lib/project-queries'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
@@ -193,11 +197,81 @@ export async function POST(req: NextRequest) {
         bomGpMarginBps: number
         ragMatches: number
         aiEstimateMatches: number
+        processingJobId?: string | null
       }
     | undefined
 
   if (cadFormat) {
     try {
+      // Binary DWG canary: once explicitly selected, Nest owns the worker
+      // bridge and the official scope-item commit. Never fall back to the
+      // legacy Next-side writer after this gate is selected.
+      if (
+        cadFormat === 'dwg' &&
+        documentProcessingJobsUseCoreApi(userRow.tenant_id)
+      ) {
+        const coreResult = await enqueueDocumentProcessingThroughCoreApi(
+          docId,
+          {
+            mode: 'cad',
+            requestedFormat: 'dwg',
+            // Draft BOM enablement remains an independent Nest canary.
+            createDraftBom: false,
+          },
+          `cad-processing-${docId}`
+        )
+
+        const data = coreResult.data
+        if (!coreResult.ok || !data) {
+          const error = coreResult.error ?? 'Document processing was not queued.'
+          cadParseWarning = error
+          cadResult = {
+            status: 'processing-unavailable',
+            scopeItemsCreated: 0,
+            warnings: [error],
+            layerCount: 0,
+            entityCount: 0,
+            detectedFormat: 'dwg',
+            dwgVersion: null,
+            extensionMismatch: false,
+            message:
+              'DWG uploaded. No scope items were committed because ERP Core processing was unavailable.',
+            bomId: null,
+            bomTcvCents: 0,
+            bomCostCents: 0,
+            bomGpMarginBps: 0,
+            ragMatches: 0,
+            aiEstimateMatches: 0,
+            processingJobId: null,
+          }
+        } else {
+          cadParseQueued =
+            data.status === 'queued' || data.status === 'processing'
+          const statusData =
+            'scopeItemsCreated' in data ? data : null
+          cadResult = {
+            status: data.status,
+            scopeItemsCreated: statusData?.scopeItemsCreated ?? 0,
+            warnings: statusData?.warnings ?? [],
+            layerCount: 0,
+            entityCount: 0,
+            detectedFormat: 'dwg',
+            dwgVersion: null,
+            extensionMismatch: false,
+            message:
+              statusData?.status === 'succeeded'
+                ? `DWG processed by ERP Core · ${statusData.scopeItemsCreated} scope item${statusData.scopeItemsCreated === 1 ? '' : 's'} committed.`
+                : 'DWG processing queued in ERP Core. Scope items will appear when the job completes.',
+            bomId: statusData?.draftBomId ?? null,
+            bomTcvCents: 0,
+            bomCostCents: 0,
+            bomGpMarginBps: 0,
+            ragMatches: 0,
+            aiEstimateMatches: 0,
+            processingJobId: data.jobId,
+          }
+        }
+      } else {
       const result = await parseAndStoreCad({
         tenantId: userRow.tenant_id,
         projectId,
@@ -247,6 +321,7 @@ export async function POST(req: NextRequest) {
           // Logged for ops; intentionally not propagated to UI.
           console.warn('[upload/complete] background DWG queue failed:', err)
         }
+      }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)

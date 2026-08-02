@@ -19,6 +19,9 @@ import {
   updateProjectThroughCoreApi,
   financeJournalPostWritesUseCoreApi,
   postJournalEntryThroughCoreApi,
+  documentProcessingJobsUseCoreApi,
+  enqueueDocumentProcessingThroughCoreApi,
+  getDocumentProcessingStatusThroughCoreApi,
 } from './erp-core-client'
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -61,6 +64,26 @@ const RFQ_TRANSITION_RESULT = {
   rfqId: RFQ_ID,
   tenantId: '22222222-2222-4222-8222-222222222222',
   transitioned: true as const,
+}
+const DOCUMENT_ID = '88888888-8888-4888-8888-888888888888'
+const DOCUMENT_PROCESSING_JOB_ID = '99999999-9999-4999-8999-999999999999'
+const DOCUMENT_PROCESSING_ACCEPTED = {
+  jobId: DOCUMENT_PROCESSING_JOB_ID,
+  status: 'queued' as const,
+  documentId: DOCUMENT_ID,
+  createdAt: '2026-08-02T00:00:00.000Z',
+}
+const DOCUMENT_PROCESSING_STATUS = {
+  jobId: DOCUMENT_PROCESSING_JOB_ID,
+  documentId: DOCUMENT_ID,
+  status: 'succeeded' as const,
+  attempts: 1,
+  scopeItemsCreated: 3,
+  draftBomId: null,
+  warnings: [],
+  failureCode: null,
+  createdAt: '2026-08-02T00:00:00.000Z',
+  updatedAt: '2026-08-02T00:01:00.000Z',
 }
 const RESULT = {
   id: PROJECT_ID,
@@ -195,6 +218,76 @@ describe('ERP Core client', () => {
     )
     expect(financeJournalPostWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(financeJournalPostWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps document processing delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_DOCUMENT_PROCESSING_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DOCUMENT_PROCESSING_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(documentProcessingJobsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_DOCUMENT_PROCESSING_VIA_API', 'TRUE')
+    expect(documentProcessingJobsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_DOCUMENT_PROCESSING_VIA_API', 'true')
+    vi.stubEnv('ERP_DOCUMENT_PROCESSING_TENANT_IDS', '*')
+    expect(documentProcessingJobsUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(documentProcessingJobsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('queues idempotent document processing and validates accepted output', async () => {
+    const command = {
+      mode: 'cad' as const,
+      requestedFormat: 'dwg' as const,
+      createDraftBom: false,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DOCUMENT_PROCESSING_ACCEPTED), {
+        status: 202,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      enqueueDocumentProcessingThroughCoreApi(
+        DOCUMENT_ID,
+        command,
+        'cad-processing-1'
+      )
+    ).resolves.toEqual({ ok: true, data: DOCUMENT_PROCESSING_ACCEPTED })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/documents/${DOCUMENT_ID}/processing-jobs`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'cad-processing-1',
+        }),
+      })
+    )
+  })
+
+  it('reads tenant-scoped document processing status through core', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DOCUMENT_PROCESSING_STATUS), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getDocumentProcessingStatusThroughCoreApi(DOCUMENT_PROCESSING_JOB_ID)
+    ).resolves.toEqual({ ok: true, data: DOCUMENT_PROCESSING_STATUS })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/document-processing-jobs/${DOCUMENT_PROCESSING_JOB_ID}`,
+      expect.objectContaining({ method: 'GET' })
+    )
   })
 
   it('keeps Change Request delegation fail-closed unless its independent gate matches', () => {

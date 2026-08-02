@@ -8,6 +8,11 @@ export interface CadUploadResult {
   status:
     | 'extracted'
     | 'binary-dwg-pending'
+    | 'queued'
+    | 'processing'
+    | 'succeeded'
+    | 'failed'
+    | 'processing-unavailable'
     | 'unknown-format'
     | 'download-failed'
     | 'no-items'
@@ -29,6 +34,7 @@ export interface CadUploadResult {
   bomGpMarginBps: number
   ragMatches: number
   aiEstimateMatches: number
+  processingJobId?: string | null
 }
 
 export interface CompleteResponse {
@@ -88,6 +94,94 @@ async function notifyComplete(args: {
     throw new Error(data.error ?? `Failed to record upload (${res.status})`)
   }
   return res.json()
+}
+
+interface DocumentProcessingStatusResponse {
+  jobId: string
+  documentId: string
+  status: 'queued' | 'processing' | 'succeeded' | 'failed'
+  attempts: number
+  scopeItemsCreated: number
+  draftBomId: string | null
+  warnings: string[]
+  failureCode: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+async function readDocumentProcessingStatus(
+  jobId: string
+): Promise<DocumentProcessingStatusResponse> {
+  const response = await fetch(`/api/document-processing/${encodeURIComponent(jobId)}`, {
+    method: 'GET',
+    cache: 'no-store',
+  })
+  const body = (await response.json().catch(() => null)) as
+    | DocumentProcessingStatusResponse
+    | { error?: string }
+    | null
+  if (!response.ok) {
+    throw new Error(
+      body && 'error' in body && body.error
+        ? body.error
+        : `Document processing status unavailable (${response.status})`
+    )
+  }
+  if (!body || !('jobId' in body) || !('status' in body)) {
+    throw new Error('Document processing status response was invalid')
+  }
+  return body
+}
+
+function applyDocumentProcessingStatus(
+  completed: CompleteResponse,
+  status: DocumentProcessingStatusResponse
+): CompleteResponse {
+  const existing = completed.cadResult
+  if (!existing) return completed
+  const failed = status.status === 'failed'
+  const message =
+    status.status === 'succeeded'
+      ? `DWG processed by ERP Core - ${status.scopeItemsCreated} scope item${status.scopeItemsCreated === 1 ? '' : 's'} committed.`
+      : failed
+        ? status.failureCode ?? 'DWG processing failed.'
+        : existing.message
+  return {
+    ...completed,
+    cadParseQueued: false,
+    ...(failed && status.failureCode
+      ? { cadParseWarning: status.failureCode }
+      : {}),
+    cadResult: {
+      ...existing,
+      status: status.status,
+      scopeItemsCreated: status.scopeItemsCreated,
+      warnings: status.warnings,
+      bomId: status.draftBomId,
+      processingJobId: status.jobId,
+      message,
+    },
+  }
+}
+
+async function waitForDocumentProcessing(
+  jobId: string,
+  onProgress: (message: string) => void
+): Promise<DocumentProcessingStatusResponse> {
+  const maxPolls = 60
+  for (let attempt = 0; attempt < maxPolls; attempt += 1) {
+    const status = await readDocumentProcessingStatus(jobId)
+    if (status.status === 'succeeded' || status.status === 'failed') {
+      return status
+    }
+    onProgress(
+      status.status === 'processing'
+        ? 'Processing DWG in ERP Core...'
+        : 'DWG processing queued in ERP Core...'
+    )
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  throw new Error('DWG processing is taking longer than expected. Check the document status.')
 }
 
 export type UploadPhase =
@@ -190,20 +284,32 @@ export function useCadUpload({
           })
 
           setLastResult(completed)
+          let finalResult = completed
+          if (
+            completed.cadParseQueued &&
+            completed.cadResult?.processingJobId
+          ) {
+            const status = await waitForDocumentProcessing(
+              completed.cadResult.processingJobId,
+              setProgress
+            )
+            finalResult = applyDocumentProcessingStatus(completed, status)
+            setLastResult(finalResult)
+          }
           setPhase('done')
-          setProgress(formatCompletionProgress(completed))
+          setProgress(formatCompletionProgress(finalResult))
           // cadParseWarning indicates a hard infrastructure failure (DB write
           // succeeded but a side effect crashed). The friendly "worker pending"
           // state is not an error — it's an expected status and the message is
           // already in cadResult.message via formatCompletionProgress.
           if (
-            completed.cadParseWarning &&
-            completed.cadResult?.status !== 'binary-dwg-pending'
+            finalResult.cadParseWarning &&
+            finalResult.cadResult?.status !== 'binary-dwg-pending'
           ) {
-            setError(completed.cadParseWarning)
+            setError(finalResult.cadParseWarning)
           }
 
-          onComplete?.(completed)
+          onComplete?.(finalResult)
           if (refreshOnComplete) router.refresh()
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Upload failed'
@@ -252,7 +358,7 @@ export function formatCompletionProgress(completed: CompleteResponse): string {
     const r = completed.cadResult
     const label = fmtLabel(r.detectedFormat)
 
-    if (r.status === 'extracted') {
+    if (r.status === 'extracted' || r.status === 'succeeded') {
       const parts = [
         `${label}: ${r.scopeItemsCreated} scope item${r.scopeItemsCreated === 1 ? '' : 's'} extracted`,
       ]
@@ -276,6 +382,9 @@ export function formatCompletionProgress(completed: CompleteResponse): string {
       // verbatim so users see whether the worker is unconfigured, unreachable,
       // or actively converting.
       return r.message || `DWG${r.dwgVersion ? ` (${r.dwgVersion})` : ''} stored.`
+    }
+    if (r.status === 'queued' || r.status === 'processing') {
+      return r.message || 'DWG processing queued in ERP Core...'
     }
     // Vision branches (no-items / ai-not-configured / too-large / error) ship
     // a human-readable, actionable message in r.message — surface it directly
