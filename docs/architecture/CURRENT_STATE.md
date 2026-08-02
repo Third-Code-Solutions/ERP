@@ -1897,3 +1897,36 @@ provider, flag, queue, or business-data mutation occurred.
   records, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and Vercel
   readiness remain HTTP 200; no hosted SQL, deployment, flag, queue, provider,
   or business-data mutation occurred.
+
+## 2026-08-02 M3.4 SCM issuance and supplier delivery authority
+
+- Source commits `21a152d` and `52b6288` add `scm_issue` to the Nest Purchase
+  Order state machine (`pending_scm_issuance -> issued`) with exact capability
+  checks (`po.issue`), tenant-scoped idempotency, transactional audit, and a
+  closed-by-default Next compatibility seam. The visible SCM button, copy,
+  layout, and design are unchanged; it only carries a stable retry key.
+- Migration `20260802110000_purchase_order_supplier_issuance.sql` adds the
+  server-owned supplier-issued outbox child and tenant-scoped delivery table.
+  The delivery snapshots recipient, supplier, PO, project, and integer cents;
+  browser roles have no privileges. BullMQ uses a separate deterministic job
+  namespace with bounded retry/dead-letter handling. Resend receives the same
+  idempotency key on retry; success stamps `supplier_email_sent_at` and an
+  append-only audit evidence row. Missing/invalid vendor email commits the
+  status but records `supplier_email_queued=false` without sending mail.
+- CI run `30735228348` passed all executable jobs on SHA `52b6288`: Actionlint,
+  secret scan, lint, typecheck, unit tests, Postgres 17 zero-to-current replay,
+  empty schema diff, no-skip database tests, Nest transaction integration,
+  container smoke, and production build. E2E remains credential-gated. The
+  first run `30735062767` correctly failed on PostgreSQL's nullable-side
+  `FOR UPDATE` rule; the follow-up split the PO/project lock from the vendor
+  share lock and passed.
+- Local focused evidence: API 27 files / 129 tests, Web 54 / 326, database 20
+  / 121 with 137 explicit credential-gated skips, shared contracts 9 / 119;
+  workspace lint, typecheck, and production build (78/78 routes) passed. The
+  default parallel workspace test had one unrelated 5-second stock-receipt
+  timeout; the isolated API suite passed with a 15-second timeout.
+- Read-only hosted planner remains `review_required`: Supabase is 55/65 with
+  ten pending migrations, one duplicate Purchase Order group with 12 records,
+  and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and Vercel readiness remain
+  HTTP 200; no hosted SQL, deployment, flag, queue, provider, or business-data
+  mutation occurred.
