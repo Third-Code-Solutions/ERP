@@ -2152,8 +2152,8 @@ credential-gated. This is source-ready, not a hosted release.
   compatibility adapter. An exact-`true` plus UUID allowlist routes through
   Nest and never falls back after a core failure. The site-prep panel retains
   its current copy/layout/design and only holds one opaque browser retry key.
-- Local source evidence: shared 127/127, API 32 files / 157 tests, Web 58
-  files / 363 tests, database 129 assertions with the new migration contract,
+- Local source evidence: shared 127/127, API 32 files / 157 tests, Web 59
+  files / 366 tests, database 129 assertions with the new migration contract,
   workspace lint/typecheck, Nest/Web production builds, Actionlint, Gitleaks,
   release-plan tests, and diff checks passed. The delivery database integration
   is explicit-gate skipped locally because no `DATABASE_URL`/integration flag

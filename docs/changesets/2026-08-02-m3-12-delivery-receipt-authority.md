@@ -20,7 +20,7 @@ copy, and layout unchanged.
 
 ## Validation
 
-- Shared 127/127, API 157/157, Web 363/363 local tests.
+- Shared 127/127, API 157/157, Web 366/366 local tests.
 - Database migration contract passed; disposable delivery integration is
   explicit-gate skipped locally without `DATABASE_URL`.
 - Workspace lint/typecheck, Next 78-route build, Nest build, Actionlint,
