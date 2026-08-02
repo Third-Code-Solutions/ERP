@@ -4,12 +4,16 @@ import {
   createRfqThroughCoreApi,
   createPurchaseOrderThroughCoreApi,
   createStockReceiptThroughCoreApi,
+  postStockReceiptThroughCoreApi,
+  reverseStockReceiptThroughCoreApi,
   createChangeRequestThroughCoreApi,
   dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   stockReceiptCreateWritesUseCoreApi,
+  stockReceiptPostWritesUseCoreApi,
+  stockReceiptReverseWritesUseCoreApi,
   purchaseOrderWorkflowWritesUseCoreApi,
   changeRequestWritesUseCoreApi,
   rfqCreateWritesUseCoreApi,
@@ -62,6 +66,21 @@ const STOCK_RECEIPT_RESULT = {
   tenantId: '22222222-2222-4222-8222-222222222222',
   status: 'draft' as const,
   lineCount: 1,
+}
+const STOCK_RECEIPT_POST_RESULT = {
+  stockReceiptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  status: 'posted' as const,
+  receiptNumber: 'SR-2026-000001',
+  journalEntryId: '77777777-7777-4777-8777-777777777777',
+  journalEntryNumber: 'JE-2026-000001',
+}
+const STOCK_RECEIPT_REVERSE_RESULT = {
+  stockReceiptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  status: 'reversed' as const,
+  reversalJournalEntryId: '88888888-8888-4888-8888-888888888888',
+  reversalJournalEntryNumber: 'JE-2026-000002',
 }
 const JOURNAL_POST_RESULT = {
   journalEntryId: '77777777-7777-4777-8777-777777777777',
@@ -231,6 +250,19 @@ describe('ERP Core client', () => {
     expect(stockReceiptCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
   })
 
+  it('keeps Stock Receipt post and reverse delegation independently fail-closed', () => {
+    vi.stubEnv('ERP_INVENTORY_RECEIPT_POST_VIA_API', 'true')
+    vi.stubEnv('ERP_INVENTORY_RECEIPT_POST_TENANT_IDS', RESULT.tenantId)
+    expect(stockReceiptPostWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    vi.stubEnv('ERP_INVENTORY_RECEIPT_POST_VIA_API', 'TRUE')
+    expect(stockReceiptPostWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_INVENTORY_RECEIPT_REVERSE_VIA_API', 'true')
+    vi.stubEnv('ERP_INVENTORY_RECEIPT_REVERSE_TENANT_IDS', '*')
+    expect(stockReceiptReverseWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(stockReceiptReverseWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('sends an idempotent Stock Receipt command and validates result', async () => {
     const command = {
       warehouseId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -301,6 +333,59 @@ describe('ERP Core client', () => {
       ok: false,
       error: 'ERP Core API returned an invalid Stock Receipt result.',
     })
+  })
+
+  it('sends and validates Stock Receipt post and reverse commands', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(STOCK_RECEIPT_POST_RESULT), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(STOCK_RECEIPT_REVERSE_RESULT), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      postStockReceiptThroughCoreApi(
+        STOCK_RECEIPT_RESULT.stockReceiptId,
+        { postingDate: '2026-08-02' },
+        'stock-receipt-post-1'
+      )
+    ).resolves.toEqual({ ok: true, data: STOCK_RECEIPT_POST_RESULT })
+    await expect(
+      reverseStockReceiptThroughCoreApi(
+        STOCK_RECEIPT_RESULT.stockReceiptId,
+        { postingDate: '2026-08-02', reason: 'Supplier correction' },
+        'stock-receipt-reverse-1'
+      )
+    ).resolves.toEqual({ ok: true, data: STOCK_RECEIPT_REVERSE_RESULT })
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `https://erp-api.example.test/v1/inventory/stock-receipts/${STOCK_RECEIPT_RESULT.stockReceiptId}/post`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'stock-receipt-post-1',
+        }),
+      })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `https://erp-api.example.test/v1/inventory/stock-receipts/${STOCK_RECEIPT_RESULT.stockReceiptId}/reverse`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'stock-receipt-reverse-1',
+        }),
+      })
+    )
   })
 
   it('keeps finance journal posting delegation fail-closed unless its exact gate matches', () => {

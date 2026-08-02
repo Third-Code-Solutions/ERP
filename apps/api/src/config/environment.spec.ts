@@ -186,6 +186,41 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_INVENTORY_RECEIPT_CREATE_WRITES_TENANT_IDS')
   })
 
+  it('keeps Stock Receipt posting and reversal fail-closed', () => {
+    const parsed = validateEnvironment(REQUIRED)
+    expect(parsed.ERP_INVENTORY_RECEIPT_POST_WRITES_ENABLED).toBe(false)
+    expect(parsed.ERP_INVENTORY_RECEIPT_POST_WRITES_TENANT_IDS).toEqual([])
+    expect(parsed.ERP_INVENTORY_RECEIPT_REVERSE_WRITES_ENABLED).toBe(false)
+    expect(parsed.ERP_INVENTORY_RECEIPT_REVERSE_WRITES_TENANT_IDS).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_INVENTORY_RECEIPT_POST_WRITES_ENABLED: 'true',
+        ERP_INVENTORY_RECEIPT_POST_WRITES_TENANT_IDS:
+          '33333333-3333-4333-8333-333333333333',
+        ERP_INVENTORY_RECEIPT_REVERSE_WRITES_ENABLED: 'true',
+        ERP_INVENTORY_RECEIPT_REVERSE_WRITES_TENANT_IDS:
+          '44444444-4444-4444-8444-444444444444',
+      })
+    ).toMatchObject({
+      ERP_INVENTORY_RECEIPT_POST_WRITES_ENABLED: true,
+      ERP_INVENTORY_RECEIPT_POST_WRITES_TENANT_IDS: [
+        '33333333-3333-4333-8333-333333333333',
+      ],
+      ERP_INVENTORY_RECEIPT_REVERSE_WRITES_ENABLED: true,
+      ERP_INVENTORY_RECEIPT_REVERSE_WRITES_TENANT_IDS: [
+        '44444444-4444-4444-8444-444444444444',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_INVENTORY_RECEIPT_POST_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_INVENTORY_RECEIPT_POST_WRITES_TENANT_IDS')
+  })
+
   it('keeps document processing intake fail-closed', () => {
     expect(
       validateEnvironment(REQUIRED).ERP_DOCUMENT_PROCESSING_JOBS_ENABLED

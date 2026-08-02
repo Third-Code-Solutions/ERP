@@ -3,6 +3,10 @@ import {
   createStockReceiptCommandSchema,
   quantityToMicros,
   receiptLineTotal,
+  stockReceiptPostCommandSchema,
+  stockReceiptPostingResultSchema,
+  stockReceiptReverseCommandSchema,
+  stockReceiptReversalResultSchema,
 } from './inventory'
 
 const UUID = '11111111-1111-4111-8111-111111111111'
@@ -68,5 +72,50 @@ describe('Stock Receipt command contract', () => {
         ],
       })
     ).toThrow('Date must be a real calendar date')
+  })
+
+  it('keeps post and reverse workflow contracts strict', () => {
+    expect(
+      stockReceiptPostCommandSchema.parse({ postingDate: '2026-08-02' })
+    ).toEqual({ postingDate: '2026-08-02' })
+    expect(
+      stockReceiptReverseCommandSchema.parse({
+        postingDate: '2026-08-02',
+        reason: 'Supplier correction',
+      })
+    ).toEqual({
+      postingDate: '2026-08-02',
+      reason: 'Supplier correction',
+    })
+    expect(() =>
+      stockReceiptReverseCommandSchema.parse({
+        postingDate: '2026-08-02',
+        reason: 'no',
+      })
+    ).toThrow()
+  })
+
+  it('validates posted and reversed result identities', () => {
+    const resultBase = {
+      stockReceiptId: '33333333-3333-4333-8333-333333333333',
+      tenantId: '22222222-2222-4222-8222-222222222222',
+    }
+    expect(
+      stockReceiptPostingResultSchema.parse({
+        ...resultBase,
+        status: 'posted',
+        receiptNumber: 'SR-2026-000001',
+        journalEntryId: '44444444-4444-4444-8444-444444444444',
+        journalEntryNumber: 'JE-2026-000001',
+      }).status
+    ).toBe('posted')
+    expect(
+      stockReceiptReversalResultSchema.parse({
+        ...resultBase,
+        status: 'reversed',
+        reversalJournalEntryId: '55555555-5555-4555-8555-555555555555',
+        reversalJournalEntryNumber: 'JE-2026-000002',
+      }).status
+    ).toBe('reversed')
   })
 })

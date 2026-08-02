@@ -1507,3 +1507,34 @@ missing `AUDIT_RECOVERY_TENANT_ID`. After owner mapping and audit-tenant
 inputs, re-run the planner and validate one demo tenant (RBAC, PO/warehouse/
 delivery binding, micros/cents, idempotent retry, audit, readiness, exact SHA,
 and rollback) before any provider promotion.
+
+## M3.9 - Stock Receipt post/reversal authority (completed source slice)
+
+Scope delivered:
+
+- Add strict shared post/reverse commands and result contracts plus Nest
+  `inventory.post_receipt` routes with tenant membership/RBAC rechecks.
+- Add durable tenant-scoped post/reverse idempotency, composite foreign keys,
+  state/result constraints, forced RLS, and service-only privileges in
+  `20260802130000_stock_receipt_workflow_idempotency.sql`.
+- Keep the existing PostgreSQL posting/reversal functions as numbering, ledger,
+  fiscal-period, and state authority. Nest commits the function result,
+  idempotency state, and semantic audit in one transaction; exact retries replay
+  without a second posting or reversal.
+- Add independent Next canary selectors and stable browser retry refs. Selected
+  core paths fail closed and never fall back to direct RPCs; visible inventory
+  UI/copy/design remain unchanged.
+
+Local evidence: focused shared/API/Web/database contract tests passed; full API
+30 files / 140 tests, Web 58 files / 353 tests, and shared 10 files / 123 tests
+passed. Workspace lint/typecheck and production build 78/78 routes passed;
+Actionlint, Gitleaks, diff checks, and the disposable WSL1 PostgreSQL 17 /
+Redis 7.4.9 lane passed 67/67 migrations, 260/260 DB assertions without skips,
+and 18/18 Nest/Redis integration assertions. One existing Redis-loss test
+flaked once and passed on the immediate retry.
+
+Release boundary: no hosted SQL or provider deployment. Supabase remains at
+55 applied migrations while source has 67; the aggregate duplicate-PO report
+is 1 group / 12 records and the owner still must provide
+`AUDIT_RECOVERY_TENANT_ID`. Railway/Vercel readiness are healthy, but this
+planner state keeps every inventory write gate and provider action closed.

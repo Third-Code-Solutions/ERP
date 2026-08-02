@@ -131,6 +131,36 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Stock Receipt posting/reversal stay fail-closed until the workflow
+  // idempotency migration, disposable transaction proof, and canary pass.
+  ERP_INVENTORY_RECEIPT_POST_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_INVENTORY_RECEIPT_POST_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  ERP_INVENTORY_RECEIPT_REVERSE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_INVENTORY_RECEIPT_REVERSE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // CAD evidence commits stay fail-closed until the Nest transaction is
   // replayed against hosted schema and canary data.
   ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED: z

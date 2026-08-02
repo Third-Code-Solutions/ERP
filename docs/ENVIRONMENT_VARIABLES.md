@@ -165,9 +165,13 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_DOCUMENT_PROCESSING_TENANT_IDS` | no | Next server | Strict UUID allowlist for the handoff; default empty |
 | `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` | no | Next server | Selects the Stock Receipt Next-to-Nest handoff; default false |
 | `ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Receipt creation; default empty |
+| `ERP_INVENTORY_RECEIPT_POST_VIA_API` | no | Next server | Selects the Stock Receipt post Next-to-Nest handoff; default false |
+| `ERP_INVENTORY_RECEIPT_POST_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Receipt posting; default empty |
+| `ERP_INVENTORY_RECEIPT_REVERSE_VIA_API` | no | Next server | Selects the Stock Receipt reverse Next-to-Nest handoff; default false |
+| `ERP_INVENTORY_RECEIPT_REVERSE_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Receipt reversal; default empty |
 
-Keep both frontend variables false/empty unless a controlled demo-tenant
-cutover is approved. Selecting either core path is fail-closed and never falls
+Keep all frontend canary variables false/empty unless a controlled demo-tenant
+cutover is approved. Selecting any core path is fail-closed and never falls
 back to a direct legacy write after the command is selected.
 
 `PARSER_SHARED_SECRET` must be at least 20 characters when the private bridge

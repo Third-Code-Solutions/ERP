@@ -1851,3 +1851,24 @@ tenant-authorized writer with exact quantity/cost handling, replay protection,
 and audit. A fallback would create duplicate-write risk during a lost response
 or core outage. The allowlisted canary preserves current behavior elsewhere and
 requires no schema change in this source slice.
+
+## D-114 -- Keep Stock Receipt post/reversal canaries closed until hosted review (2026-08-02)
+
+Decision: add separate Nest commands for Stock Receipt posting and reversal,
+with `inventory.post_receipt` authorization, tenant-composite durable
+idempotency, existing PostgreSQL function authority, and same-transaction
+semantic audit. Route Next only for exact-`true` plus UUID-allowlisted tenants;
+otherwise preserve the existing direct Server Action path. If a selected core
+request fails, return the failure and never fall back to a second writer.
+Keep `ERP_INVENTORY_RECEIPT_POST_VIA_API`,
+`ERP_INVENTORY_RECEIPT_REVERSE_VIA_API`, their API-side write gates, and all
+tenant lists false/empty by default.
+
+Rationale: posting and reversal change inventory and accounting evidence, so a
+browser or React component cannot remain an official writer. Existing database
+functions already own numbering, balance, fiscal-period, and state checks;
+reusing them avoids a second ledger implementation. Durable result replay
+prevents duplicate effects after lost responses. The source and disposable
+database lanes are green, but hosted migration parity, duplicate Purchase
+Order review, audit-recovery ownership, and exact rollback evidence remain
+independent promotion gates.

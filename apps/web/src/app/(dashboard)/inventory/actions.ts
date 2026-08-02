@@ -15,7 +15,11 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   createStockReceiptThroughCoreApi,
+  postStockReceiptThroughCoreApi,
+  reverseStockReceiptThroughCoreApi,
   stockReceiptCreateWritesUseCoreApi,
+  stockReceiptPostWritesUseCoreApi,
+  stockReceiptReverseWritesUseCoreApi,
 } from '@/lib/erp-core-client'
 import { quantityToMicros, receiptLineTotal } from './quantity'
 
@@ -388,6 +392,7 @@ export async function deleteStockReceiptDraft(
 export async function postStockReceipt(input: {
   receiptId: string
   postingDate: string
+  idempotencyKey?: string
 }): Promise<InventoryActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -395,6 +400,36 @@ export async function postStockReceipt(input: {
     const parsed = z
       .object({ receiptId: uuidSchema, postingDate: dateSchema })
       .parse(input)
+    if (stockReceiptPostWritesUseCoreApi(profile.tenantId)) {
+      const idempotencyKey = idempotencyKeySchema.safeParse(input.idempotencyKey)
+      if (!idempotencyKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Stock Receipt command.',
+        }
+      }
+      const result = await postStockReceiptThroughCoreApi(
+        parsed.receiptId,
+        { postingDate: parsed.postingDate },
+        idempotencyKey.data
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Stock Receipt could not be posted through ERP Core.',
+        }
+      }
+      revalidateInventory(parsed.receiptId)
+      revalidatePath('/finance')
+      revalidatePath('/finance/ledger')
+      return {
+        ok: true,
+        id: result.data.stockReceiptId,
+        number: result.data.receiptNumber,
+      }
+    }
     const rows = await db.execute<{
       stock_receipt_id: string
       receipt_number: string
@@ -425,6 +460,7 @@ export async function reverseStockReceipt(input: {
   receiptId: string
   postingDate: string
   reason: string
+  idempotencyKey?: string
 }): Promise<InventoryActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -436,6 +472,35 @@ export async function reverseStockReceipt(input: {
         reason: z.string().trim().min(3).max(500),
       })
       .parse(input)
+    if (stockReceiptReverseWritesUseCoreApi(profile.tenantId)) {
+      const idempotencyKey = idempotencyKeySchema.safeParse(input.idempotencyKey)
+      if (!idempotencyKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Stock Receipt command.',
+        }
+      }
+      const result = await reverseStockReceiptThroughCoreApi(
+        parsed.receiptId,
+        {
+          postingDate: parsed.postingDate,
+          reason: parsed.reason,
+        },
+        idempotencyKey.data
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Stock Receipt could not be reversed through ERP Core.',
+        }
+      }
+      revalidateInventory(parsed.receiptId)
+      revalidatePath('/finance')
+      revalidatePath('/finance/ledger')
+      return { ok: true, id: result.data.stockReceiptId }
+    }
     await db.execute(sql`
       select *
       from public.reverse_stock_receipt(

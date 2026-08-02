@@ -67,11 +67,57 @@ export const stockReceiptCreationResultSchema = z
   })
   .strict()
 
+export const stockReceiptPostCommandSchema = z
+  .object({
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const stockReceiptReverseCommandSchema = z
+  .object({
+    postingDate: isoDateSchema,
+    reason: z.string().trim().min(3).max(500),
+  })
+  .strict()
+
+export const stockReceiptPostingResultSchema = z
+  .object({
+    stockReceiptId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('posted'),
+    receiptNumber: z.string().regex(/^SR-\d{4}-\d{6}$/),
+    journalEntryId: z.string().uuid(),
+    journalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
+  })
+  .strict()
+
+export const stockReceiptReversalResultSchema = z
+  .object({
+    stockReceiptId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('reversed'),
+    reversalJournalEntryId: z.string().uuid(),
+    reversalJournalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
+  })
+  .strict()
+
 export type CreateStockReceiptCommand = z.infer<
   typeof createStockReceiptCommandSchema
 >
 export type StockReceiptCreationResult = z.infer<
   typeof stockReceiptCreationResultSchema
+>
+export type StockReceiptPostCommand = z.infer<
+  typeof stockReceiptPostCommandSchema
+>
+export type StockReceiptReverseCommand = z.infer<
+  typeof stockReceiptReverseCommandSchema
+>
+export type StockReceiptPostingResult = z.infer<
+  typeof stockReceiptPostingResultSchema
+>
+export type StockReceiptReversalResult = z.infer<
+  typeof stockReceiptReversalResultSchema
 >
 
 export const MICRO_UNITS_PER_WHOLE = 1_000_000n
