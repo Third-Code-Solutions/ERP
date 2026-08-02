@@ -25,7 +25,7 @@ Validation:
 - Database: 137 passed; 137 guarded RLS/Cortex/integration tests skipped
   without `DATABASE_URL`.
 - Web: 59 files, 388 passed.
-- Focused API contracts: 63/63 passed with `--testTimeout=30000`.
+- Focused API contracts: 64/64 passed with `--testTimeout=30000`.
 - API/web typecheck, Nest build, release planner (7/7), controlled release
   planner (4/4), actionlint, and gitleaks passed.
 - Guarded delivery database integration invoked and correctly skipped without

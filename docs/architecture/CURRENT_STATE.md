@@ -16,7 +16,7 @@ key are source-complete. The migration is
 feature flag, provider setting, or deployment changed.
 
 Local evidence: shared types 137/137, database 137 passed with 137 guarded
-tests skipped, web 59 files/388 passed, focused API contracts 63/63 passed
+tests skipped, web 59 files/388 passed, focused API contracts 64/64 passed
 with a 30-second test timeout, API and web typechecks passed, Nest build
 passed, release-plan/actionlint/gitleaks checks passed, and the guarded
 database integration was invoked and skipped without `DATABASE_URL`. Next
