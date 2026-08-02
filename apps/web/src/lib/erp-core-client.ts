@@ -8,6 +8,7 @@ import {
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   purchaseOrderCreationResultSchema,
+  purchaseOrderBomCreationResultSchema,
   purchaseOrderWorkflowResultSchema,
   changeRequestCreationResultSchema,
   journalPostResultSchema,
@@ -20,12 +21,14 @@ import {
   type CreateStockReceiptCommand,
   type LogRfqQuoteCommand,
   type CreatePurchaseOrderCommand,
+  type CreatePurchaseOrderFromBomCommand,
   type ProjectUpdateResult,
   type RfqCreationResult,
   type RfqDispatchResult,
   type RfqQuoteResult,
   type RfqTransitionResult,
   type PurchaseOrderCreationResult,
+  type PurchaseOrderBomCreationResult,
   type PurchaseOrderWorkflowCommand,
   type PurchaseOrderWorkflowResult,
   type TransitionRfqCommand,
@@ -133,6 +136,16 @@ export function purchaseOrderWritesUseCoreApi(
     tenantId,
     process.env.ERP_PO_CREATE_WRITES_VIA_API,
     process.env.ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function purchaseOrderBomWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PO_BOM_CREATE_WRITES_VIA_API,
+    process.env.ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -390,6 +403,63 @@ export async function createPurchaseOrderThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Purchase Order was committed.',
+    }
+  }
+}
+
+export async function createPurchaseOrderFromBomThroughCoreApi(
+  command: CreatePurchaseOrderFromBomCommand,
+  idempotencyKey: string
+): Promise<CoreResult<PurchaseOrderBomCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/purchase-orders/from-bom`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'BOM Purchase Order request conflicts with the BOM state.'
+            : response.status === 404
+              ? 'BOM was not found.'
+              : 'BOM Purchase Order was not committed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = purchaseOrderBomCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid BOM Purchase Order result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No BOM Purchase Order was committed.',
     }
   }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition, useState, useEffect, useCallback } from 'react'
+import { useTransition, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   addBomLineItem,
@@ -186,6 +186,8 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
   const [forecastTcvCents, setForecastTcvCents] = useState<number | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const poRetryKeyRef = useRef<string | null>(null)
+  const poRetryInputRef = useRef<string | null>(null)
   const [justification, setJustification] = useState<{
     lineItemId: string
     fieldChanged: string
@@ -281,10 +283,28 @@ export function BomBuilder({ projectId, bom, vendors = [] }: BomBuilderProps) {
     if (!bom) return
     setProcurementError('')
     startTransition(async () => {
-      const result = await createPoFromBom(bom.id, projectId, poForm.vendorId || null, poForm.deliveryDate || null)
+      const retryInput = [
+        bom.id,
+        projectId,
+        poForm.vendorId,
+        poForm.deliveryDate,
+      ].join('|')
+      if (poRetryInputRef.current !== retryInput) {
+        poRetryInputRef.current = retryInput
+        poRetryKeyRef.current = globalThis.crypto.randomUUID()
+      }
+      const result = await createPoFromBom(
+        bom.id,
+        projectId,
+        poForm.vendorId || null,
+        poForm.deliveryDate || null,
+        poRetryKeyRef.current ?? undefined
+      )
       if ('error' in result) {
         setProcurementError(result.error)
       } else {
+        poRetryInputRef.current = null
+        poRetryKeyRef.current = null
         router.push(`/purchase-orders/${result.id}`)
       }
     })

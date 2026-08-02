@@ -30,11 +30,37 @@ export const purchaseOrderCreationResultSchema = z
   })
   .strict()
 
+export const createPurchaseOrderFromBomCommandSchema = z
+  .object({
+    bomId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    vendorId: z.string().uuid().nullable().optional(),
+    deliveryDate: z.string().datetime({ offset: true }).nullable().optional(),
+    notes: z.string().trim().max(2_000).nullable().optional(),
+  })
+  .strict()
+
+export const purchaseOrderBomCreationResultSchema = z
+  .object({
+    purchaseOrderId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    bomId: z.string().uuid(),
+    poNumber: z.string().min(1).max(50),
+    status: z.literal('draft'),
+  })
+  .strict()
+
 export type CreatePurchaseOrderCommand = z.infer<
   typeof createPurchaseOrderCommandSchema
 >
 export type PurchaseOrderCreationResult = z.infer<
   typeof purchaseOrderCreationResultSchema
+>
+export type CreatePurchaseOrderFromBomCommand = z.infer<
+  typeof createPurchaseOrderFromBomCommandSchema
+>
+export type PurchaseOrderBomCreationResult = z.infer<
+  typeof purchaseOrderBomCreationResultSchema
 >
 
 export const purchaseOrderWorkflowActionSchema = z.enum([

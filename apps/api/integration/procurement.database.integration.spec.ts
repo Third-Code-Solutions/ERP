@@ -11,6 +11,9 @@ import {
   notificationDeliveries,
   notificationOutbox,
   notifications,
+  poLineItems,
+  purchaseOrderCreateRequests,
+  purchaseOrders,
   projects,
   rfqQuotes,
   rfqs,
@@ -33,8 +36,10 @@ import {
 import { ProcurementController } from '../src/procurement/procurement.controller'
 import { NotificationDeliveryService } from '../src/procurement/notification-delivery.service'
 import type { NotificationEmailService } from '../src/procurement/notification-email.service'
+import { PurchaseOrderCreationService } from '../src/procurement/purchase-order-creation.service'
 import { RfqDispatchQueue } from '../src/procurement/rfq-dispatch.queue'
 import { ProcurementService } from '../src/procurement/procurement.service'
+import type { ConfigService } from '@nestjs/config'
 
 const integrationEnabled =
   Boolean(process.env.DATABASE_URL) &&
@@ -188,6 +193,7 @@ suite('Procurement API database integration', () => {
           project_id: projectA,
           created_by: procurementA,
           status: 'approved',
+          total_cost_cents: 25_000,
         },
         {
           id: bomAutoA,
@@ -226,6 +232,8 @@ suite('Procurement API database integration', () => {
           description: 'Creation line A',
           quantity: 2,
           unit: 'pcs',
+          unit_cost_cents: 12_500,
+          line_total_cents: 25_000,
         },
         {
           id: lineAutoA,
@@ -301,6 +309,17 @@ suite('Procurement API database integration', () => {
         },
       }
       const database = transactionBoundDatabase(transaction)
+      const purchaseOrderCreation = new PurchaseOrderCreationService(
+        {
+          get: (key: string, fallback?: unknown) => {
+            if (key === 'ERP_PO_BOM_CREATE_WRITES_ENABLED') return true
+            if (key === 'ERP_PO_BOM_CREATE_WRITES_TENANT_IDS') return [tenantA]
+            return fallback
+          },
+        } as unknown as ConfigService,
+        database,
+        new AuditService()
+      )
       const moduleRef = await Test.createTestingModule({
         controllers: [ProcurementController],
         providers: [
@@ -340,6 +359,99 @@ suite('Procurement API database integration', () => {
       await app.init()
       const procurementService =
         moduleRef.get(ProcurementService)
+
+      const bomPurchaseOrderCommand = {
+        bomId: bomCreateA,
+        projectId: projectA,
+        vendorId: vendorA,
+        deliveryDate: null,
+        notes: null,
+      } as const
+      const createdBomPurchaseOrder =
+        await purchaseOrderCreation.createFromBom(
+          bomPurchaseOrderCommand,
+          {
+            userId: procurementA,
+            tenantId: tenantA,
+            role: 'procurement',
+            email: `procurement-a-${suffix}@integration.test`,
+          },
+          'bom-po-integration-1'
+        )
+      expect(createdBomPurchaseOrder).toMatchObject({
+        tenantId: tenantA,
+        bomId: bomCreateA,
+        status: 'draft',
+      })
+      await expect(
+        purchaseOrderCreation.createFromBom(
+          bomPurchaseOrderCommand,
+          {
+            userId: procurementA,
+            tenantId: tenantA,
+            role: 'procurement',
+            email: `procurement-a-${suffix}@integration.test`,
+          },
+          'bom-po-integration-1'
+        )
+      ).resolves.toEqual(createdBomPurchaseOrder)
+      const [createdBomPurchaseOrderRow] = await transaction
+        .select()
+        .from(purchaseOrders)
+        .where(
+          and(
+            eq(purchaseOrders.tenant_id, tenantA),
+            eq(purchaseOrders.id, createdBomPurchaseOrder.purchaseOrderId)
+          )
+        )
+        .limit(1)
+      const createdBomPurchaseOrderLines = await transaction
+        .select()
+        .from(poLineItems)
+        .where(
+          and(
+            eq(poLineItems.tenant_id, tenantA),
+            eq(poLineItems.po_id, createdBomPurchaseOrder.purchaseOrderId)
+          )
+        )
+      const [lockedBom] = await transaction
+        .select({ status: boms.status })
+        .from(boms)
+        .where(and(eq(boms.tenant_id, tenantA), eq(boms.id, bomCreateA)))
+        .limit(1)
+      const bomPurchaseOrderRequests = await transaction
+        .select()
+        .from(purchaseOrderCreateRequests)
+        .where(
+          and(
+            eq(purchaseOrderCreateRequests.tenant_id, tenantA),
+            eq(
+              purchaseOrderCreateRequests.idempotency_key,
+              'bom-po-integration-1'
+            )
+          )
+        )
+      expect(createdBomPurchaseOrderRow).toMatchObject({
+        tenant_id: tenantA,
+        project_id: projectA,
+        vendor_id: vendorA,
+        subtotal_cents: 25_000,
+        vat_cents: 3_000,
+        withholding_tax_cents: 500,
+        total_cents: 27_500,
+        status: 'draft',
+      })
+      expect(createdBomPurchaseOrderLines).toHaveLength(1)
+      expect(createdBomPurchaseOrderLines[0]).toMatchObject({
+        tenant_id: tenantA,
+        bom_line_item_id: lineCreateA,
+        quantity: 2,
+        unit_cost_cents: 12_500,
+        line_total_cents: 25_000,
+      })
+      expect(lockedBom?.status).toBe('locked')
+      expect(bomPurchaseOrderRequests).toHaveLength(1)
+      expect(bomPurchaseOrderRequests[0]?.state).toBe('succeeded')
 
       const command = {
         submissionId,

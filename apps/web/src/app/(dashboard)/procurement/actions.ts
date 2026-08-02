@@ -21,7 +21,9 @@ import {
 import { and, desc, eq, inArray, max, sql } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 import {
+  createPurchaseOrderFromBomThroughCoreApi,
   createPurchaseOrderThroughCoreApi,
+  purchaseOrderBomWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderWorkflowWritesUseCoreApi,
   transitionPurchaseOrderThroughCoreApi,
@@ -139,7 +141,8 @@ export async function createPoFromBom(
   bomId: string,
   projectId: string,
   vendorId: string | null,
-  deliveryDate: string | null
+  deliveryDate: string | null,
+  idempotencyKey?: string
 ): Promise<{ id: string } | { error: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -161,6 +164,42 @@ export async function createPoFromBom(
   if (bom.status === 'draft') return { error: 'BOM must be approved before generating a PO' }
   if (bom.project_id !== projectId) {
     return { error: 'BOM belongs to a different project' }
+  }
+
+  if (purchaseOrderBomWritesUseCoreApi(profile.tenantId)) {
+    const retryKey = idempotencyKey?.trim()
+    if (!retryKey) {
+      return {
+        error: 'Retry token is required for the BOM Purchase Order command.',
+      }
+    }
+    const parsedDeliveryDate = deliveryDate
+      ? new Date(`${deliveryDate}T00:00:00.000Z`)
+      : null
+    if (parsedDeliveryDate && Number.isNaN(parsedDeliveryDate.getTime())) {
+      return { error: 'Delivery date is invalid' }
+    }
+    const result = await createPurchaseOrderFromBomThroughCoreApi(
+      {
+        bomId,
+        projectId,
+        vendorId,
+        deliveryDate: parsedDeliveryDate?.toISOString() ?? null,
+        notes: null,
+      },
+      retryKey
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'BOM Purchase Order could not be created through ERP Core.',
+      }
+    }
+    revalidatePath('/purchase-orders')
+    revalidatePath(`/projects/${projectId}`)
+    revalidatePath(`/projects/${projectId}/bom`)
+    return { id: result.data.purchaseOrderId }
   }
 
   const [project] = await db
