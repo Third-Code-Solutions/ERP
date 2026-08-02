@@ -57,7 +57,9 @@ suite('Delivery receipt workflow database integration', () => {
         const viewerId = randomUUID()
         const otherUserId = randomUUID()
         const projectId = randomUUID()
+        const otherProjectId = randomUUID()
         const purchaseOrderId = randomUUID()
+        const otherPurchaseOrderId = randomUUID()
         const deliveryId = randomUUID()
         const otherDeliveryId = randomUUID()
         const suffix = randomUUID().slice(0, 12)
@@ -108,12 +110,34 @@ suite('Delivery receipt workflow database integration', () => {
           total_sqm: 100,
           created_by: procurementId,
         })
+        await transaction.insert(projects).values({
+          id: otherProjectId,
+          tenant_id: otherTenantId,
+          name: 'Other receipt project',
+          client: 'Other receipt client',
+          status: 'active',
+          project_type: 'mep',
+          total_sqm: 100,
+          created_by: otherUserId,
+        })
         await transaction.insert(purchaseOrders).values({
           id: purchaseOrderId,
           tenant_id: tenantId,
           project_id: projectId,
           created_by: procurementId,
           po_number: 'PO-RECEIPT-0001',
+          status: 'issued',
+          subtotal_cents: 10_000,
+          vat_cents: 1_200,
+          withholding_tax_cents: 200,
+          total_cents: 11_000,
+        })
+        await transaction.insert(purchaseOrders).values({
+          id: otherPurchaseOrderId,
+          tenant_id: otherTenantId,
+          project_id: otherProjectId,
+          created_by: otherUserId,
+          po_number: 'PO-RECEIPT-OTHER-0001',
           status: 'issued',
           subtotal_cents: 10_000,
           vat_cents: 1_200,
@@ -135,7 +159,7 @@ suite('Delivery receipt workflow database integration', () => {
           {
             id: otherDeliveryId,
             tenant_id: otherTenantId,
-            purchase_order_id: purchaseOrderId,
+            purchase_order_id: otherPurchaseOrderId,
             status: 'in_transit',
             created_by: otherUserId,
           },
