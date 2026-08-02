@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createStockReceipt } from './actions'
 
@@ -67,6 +67,7 @@ export function StockReceiptForm({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const retryKeyRef = useRef<string | null>(null)
   const [purchaseOrderId, setPurchaseOrderId] = useState(
     purchaseOrders[0]?.id ?? ''
   )
@@ -106,6 +107,8 @@ export function StockReceiptForm({
         if (!valid) return
         setError(null)
         startTransition(async () => {
+          const idempotencyKey = retryKeyRef.current ?? crypto.randomUUID()
+          retryKeyRef.current = idempotencyKey
           const result = await createStockReceipt({
             purchaseOrderId,
             warehouseId,
@@ -114,11 +117,13 @@ export function StockReceiptForm({
             receivedDate,
             notes,
             lines: selectedLines,
+            idempotencyKey,
           })
           if (!result.ok || !result.id) {
             setError(result.error ?? 'Could not create Stock Receipt.')
             return
           }
+          retryKeyRef.current = null
           router.push(`/inventory/receipts/${result.id}`)
         })
       }}

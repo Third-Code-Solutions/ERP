@@ -163,10 +163,12 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 |---|---|---|---|
 | `ERP_DOCUMENT_PROCESSING_VIA_API` | no | Next server | Selects the binary-DWG Next-to-Nest handoff; default false |
 | `ERP_DOCUMENT_PROCESSING_TENANT_IDS` | no | Next server | Strict UUID allowlist for the handoff; default empty |
+| `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` | no | Next server | Selects the Stock Receipt Next-to-Nest handoff; default false |
+| `ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Receipt creation; default empty |
 
 Keep both frontend variables false/empty unless a controlled demo-tenant
-cutover is approved. Selecting the core path is fail-closed and never falls
-back to the legacy Next CAD writer.
+cutover is approved. Selecting either core path is fail-closed and never falls
+back to a direct legacy write after the command is selected.
 
 `PARSER_SHARED_SECRET` must be at least 20 characters when the private bridge
 is activated. Missing URL, secret, service-role key, or matching allowlists

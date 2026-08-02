@@ -13,7 +13,9 @@ import {
   journalPostResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
+  stockReceiptCreationResultSchema,
   type CreateRfqCommand,
+  type CreateStockReceiptCommand,
   type LogRfqQuoteCommand,
   type CreatePurchaseOrderCommand,
   type ProjectUpdateResult,
@@ -32,6 +34,7 @@ import {
   type DocumentProcessingAccepted,
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
+  type StockReceiptCreationResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 
@@ -152,6 +155,16 @@ export function financeJournalPostWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API,
     process.env.ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function stockReceiptCreateWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_RECEIPT_CREATE_VIA_API,
+    process.env.ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS
   )
 }
 
@@ -353,6 +366,60 @@ export async function createPurchaseOrderThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Purchase Order was committed.',
+    }
+  }
+}
+
+export async function createStockReceiptThroughCoreApi(
+  command: CreateStockReceiptCommand,
+  idempotencyKey: string
+): Promise<CoreResult<StockReceiptCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/stock-receipts`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Stock Receipt conflicts with existing inventory evidence.'
+            : 'Stock Receipt was not committed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = stockReceiptCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Stock Receipt result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No Stock Receipt was committed.',
     }
   }
 }

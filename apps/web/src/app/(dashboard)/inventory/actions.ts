@@ -13,6 +13,10 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import {
+  createStockReceiptThroughCoreApi,
+  stockReceiptCreateWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 import { quantityToMicros, receiptLineTotal } from './quantity'
 
 export interface InventoryActionResult {
@@ -24,6 +28,7 @@ export interface InventoryActionResult {
 
 const uuidSchema = z.string().uuid()
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+const idempotencyKeySchema = z.string().trim().min(1).max(200)
 
 const createReceiptSchema = z.object({
   warehouseId: uuidSchema,
@@ -213,7 +218,7 @@ export async function configureInventoryItem(
 }
 
 export async function createStockReceipt(
-  input: z.input<typeof createReceiptSchema>
+  input: z.input<typeof createReceiptSchema> & { idempotencyKey?: string }
 ): Promise<InventoryActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -222,6 +227,38 @@ export async function createStockReceipt(
     const lineIds = parsed.lines.map((line) => line.poLineItemId)
     if (new Set(lineIds).size !== lineIds.length) {
       throw new Error('Each Purchase Order line may appear once per Stock Receipt.')
+    }
+
+    if (stockReceiptCreateWritesUseCoreApi(profile.tenantId)) {
+      const idempotencyKey = idempotencyKeySchema.safeParse(input.idempotencyKey)
+      if (!idempotencyKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Stock Receipt command.',
+        }
+      }
+      const result = await createStockReceiptThroughCoreApi(
+        {
+          warehouseId: parsed.warehouseId,
+          purchaseOrderId: parsed.purchaseOrderId,
+          deliveryScheduleId: parsed.deliveryScheduleId || null,
+          supplierDeliveryReference: parsed.supplierDeliveryReference || null,
+          receivedDate: parsed.receivedDate,
+          notes: parsed.notes || null,
+          lines: parsed.lines,
+        },
+        idempotencyKey.data
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Stock Receipt could not be created through ERP Core.',
+        }
+      }
+      revalidateInventory(result.data.stockReceiptId)
+      return { ok: true, id: result.data.stockReceiptId }
     }
 
     const sourceLines = await db

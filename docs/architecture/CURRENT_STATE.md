@@ -2016,3 +2016,24 @@ provider, flag, queue, or business-data mutation occurred.
   eleven pending, one 12-record duplicate Purchase Order group, zero audit
   rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway/Vercel readiness are
   still HTTP 200 and the live revision is unchanged.
+
+## 2026-08-02 M3.8 Stock Receipt creation authority
+
+- The Next inventory Server Action now has a closed-by-default selector for
+  `POST /v1/inventory/stock-receipts`. An explicitly allowlisted tenant sends
+  a strict shared command to Nest; the selected path has no direct-write
+  fallback. All other tenants preserve the existing transaction path.
+- The Nest service remains the official transaction authority: tenant/RBAC
+  checks, PO/warehouse/delivery binding, exact micros/cents, idempotency, and
+  audit are committed in PostgreSQL. The browser keeps one opaque retry key
+  across a transient failure and resets it only after a successful result.
+- No migration, hosted SQL, provider deployment, flag, queue, or business-data
+  mutation occurred. `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` and its tenant
+  allowlist remain false/empty by default.
+- Local evidence: focused 31/31 tests, full Web 58 files / 348 tests,
+  workspace lint, Web typecheck, and production build 78/78 routes passed.
+  CI is pending for the pushed source candidate; E2E remains credential-gated.
+- Hosted planner remains `review_required` at Supabase 55/66 migrations with
+  eleven pending, one 12-record duplicate Purchase Order group, zero audit
+  rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Live readiness/revision is
+  unchanged.
