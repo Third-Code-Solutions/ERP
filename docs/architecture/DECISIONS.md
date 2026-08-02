@@ -1872,3 +1872,21 @@ prevents duplicate effects after lost responses. The source and disposable
 database lanes are green, but hosted migration parity, duplicate Purchase
 Order review, audit-recovery ownership, and exact rollback evidence remain
 independent promotion gates.
+
+## D-115 -- Route single BOM-to-PO creation through Nest without fallback (2026-08-02)
+
+Decision: add a separate Nest command for creating one Purchase Order from an
+approved or locked BOM. Reuse `purchase_order_create_requests` with a command
+hash, lock the tenant-scoped source rows, copy lines and approved budget
+cost-code mappings, lock an approved BOM, and write the PO/BOM audit evidence in
+one transaction. Route Next only for exact-true plus UUID-allowlisted tenants;
+otherwise preserve the existing Server Action. Core rejection or outage never
+falls back to a second writer. Keep grouped-by-supplier creation separate.
+
+Rationale: BOM-to-PO is an official financial/procurement transaction and the
+old browser writer performed number allocation, inserts, BOM locking, and audit
+as separate operations. A single Nest transaction gives tenant/RBAC authority,
+exact idempotent replay, and a reversible canary without changing visible UI or
+requiring a new table. The source and disposable database lanes are green, but
+hosted migration/data review and spend-bounded provider approval remain
+independent release gates.

@@ -2074,3 +2074,36 @@ pushed to `origin/agent-02/third-code-erp-landing` under `kurtgav`. CI run
 `30740581304` passed every executable job, including the 67-migration
 PostgreSQL 17/Redis reproducibility lane and production build; E2E remains
 credential-gated. This is source-ready, not a hosted release.
+
+## 2026-08-02 M3.10 BOM-to-Purchase Order authority
+
+- Added strict shared BOM-to-PO command/result contracts and the Nest route
+  `POST /v1/procurement/purchase-orders/from-bom`. Nest now owns the selected
+  transaction: membership/capability recheck, tenant-scoped BOM/project/vendor
+  and line locks, approved-budget cost-code lookup, exact cent calculations,
+  PO number allocation, line copy, BOM locking, idempotent replay, and semantic
+  audit evidence.
+- The existing `purchase_order_create_requests` table is reused for the new
+  command. The Next Server Action remains a compatibility adapter and routes
+  only an exact-`true` plus UUID-allowlisted tenant through Nest; selected
+  failures never fall back to a second writer. The BOM builder retains one
+  opaque retry key across transient failure without visible UI/copy changes.
+- No schema migration, hosted SQL, provider deployment, queue, business-data
+  mutation, or feature-flag change occurred. Both BOM-to-PO selectors and API
+  write gates remain false/empty by default. Grouped-by-supplier PO creation
+  remains a separate legacy path for a later slice.
+- Local evidence: API 30 files / 145 tests, Web 58 files / 357 tests, shared
+  10 files / 124 tests, workspace lint/typecheck, Actionlint, Gitleaks, release
+  planner tests, API/Web production builds, and diff checks passed. The local
+  database integration is environment-gated; CI executed it against the full
+  disposable PostgreSQL 17/Redis lane.
+- GitHub Actions run `30741816314` passed Actionlint, unit tests, secret scan,
+  typecheck, lint, 67/67 migration reproducibility, 260/260 database
+  assertions, Nest integration, and production build. E2E remains skipped by
+  the explicit hosted-credential gate.
+- Fresh hosted read-only checks: Supabase is ACTIVE_HEALTHY PostgreSQL 17.6
+  with 55 applied migrations versus 67 source; the previously recorded
+  duplicate-PO/audit-recovery blockers remain unresolved. Railway `/health`
+  and `/ready` are HTTP 200 with database/Redis `ok`; Vercel root, `/api/health`,
+  and `/api/ready` are HTTP 200 at revision `31c04942a93d`. No provider build
+  or production release was triggered.
