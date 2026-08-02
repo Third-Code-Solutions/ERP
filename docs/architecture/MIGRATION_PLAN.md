@@ -1394,3 +1394,32 @@ and missing `AUDIT_RECOVERY_TENANT_ID`. No hosted SQL, provider deployment,
 flag, queue, or business-data mutation occurred. Next action: obtain owner
 mapping/audit tenant inputs, re-run the read-only planner, then review the
 forward-only migration set as one controlled database release.
+
+## M3.5 - Finance journal posting authority (completed source slice)
+
+Scope delivered:
+
+- Add a strict shared journal-post command/result contract and a Nest
+  `finance.post` capability with a closed-by-default tenant gate.
+- Add tenant-scoped idempotency storage, composite foreign keys, state/result
+  checks, forced RLS, and service-role-only privileges in
+  `20260802120000_finance_journal_post_idempotency.sql`.
+- Move official posting authority into a Nest transaction that locks the
+  tenant membership and journal, calls the existing database posting function,
+  persists/replays the result, and writes semantic audit evidence. Keep the
+  database function as the ledger authority and the Next action as a
+  compatibility seam.
+- Carry a stable browser retry key without changing visible finance UI.
+
+Evidence: source commit `97106ba`; CI run `30736271967` passed all executable
+jobs, including fresh Postgres 17 replay, empty schema diff, no-skip database
+tests, Nest transaction/container smoke, unit tests, typecheck, lint, secret
+scan, and production build. E2E remains credential-gated. Local serial suites
+and build also passed.
+
+Release boundary: no hosted SQL or provider deployment. The read-only planner
+now reports 55/66 hosted migrations (eleven pending), one 12-record duplicate
+Purchase Order group, zero audit rows, and missing `AUDIT_RECOVERY_TENANT_ID`.
+The two finance write gates and tenant allowlists remain false/empty. Next
+action: obtain owner data/audit decisions, re-run the planner, then review one
+controlled forward migration set before any Railway/Vercel action.

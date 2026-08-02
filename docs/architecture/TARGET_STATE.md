@@ -1024,3 +1024,23 @@ The source/CI proof is complete in commits `21a152d` / `52b6288` and run
 planner reports 55/65 migrations, 12 duplicate Purchase Orders, and no
 `AUDIT_RECOVERY_TENANT_ID`. No production flag, SQL, queue, provider, or
 business-data mutation is authorized until those owner decisions are complete.
+
+## Finance journal posting authority (M3.5, 2026-08-02)
+
+The target boundary for manual journal posting is a Nest command, not a React
+component or direct browser write. A compatibility Server Action may validate
+the current screen and call core only for an explicit tenant canary; otherwise
+it retains the existing legacy RPC path without changing visible behavior.
+
+Nest must authorize the tenant membership and `finance.post` capability under a
+row lock, accept an opaque `Idempotency-Key`, and commit the idempotency record,
+database posting call, result replay, and semantic audit in one PostgreSQL
+transaction. The existing `post_journal_entry` function remains the sole
+ledger authority for numbering, fiscal-period checks, balance checks, and the
+posted state. Tenant composite keys and forced RLS prevent cross-tenant
+replay. The two gates and tenant lists remain closed until hosted migration and
+data-review gates clear. Python/AI may analyze or recommend but never post.
+
+Source/CI proof is complete in commit `97106ba` and run `30736271967`; this is
+not hosted promotion evidence while the planner reports 55/66 migrations,
+duplicate Purchase Orders, and missing audit-recovery authority.
