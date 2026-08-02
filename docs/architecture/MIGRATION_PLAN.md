@@ -1662,3 +1662,37 @@ Release gate: keep all four journal-reversal flags false/empty. Do not apply
 `20260802150000_finance_journal_reverse_idempotency.sql`, deploy Railway or
 Vercel, or reconnect Vercel Git until the hosted planner, duplicate mapping,
 audit-recovery tenant, readiness, exact SHA, rollback, and spend gates clear.
+
+## M3.14 - Delivery inspection-start authority (completed source slice)
+
+1. Extend the existing `delivery_workflow_action` enum with
+   `start_inspection`; keep the tenant/idempotency ledger and its forced-RLS,
+   service-only boundary unchanged.
+2. Add the closed-by-default Nest inspection-start command. Recheck
+   membership and `delivery.receive`, preflight tenant visibility, lock the
+   `received` schedule, insert a pending inspection, transition to
+   `inspecting`, persist the exact result, and write semantic audit in one
+   transaction.
+3. Route the existing Server Action through Nest only for exact-`true` plus
+   UUID-allowlisted tenants. Keep one opaque retry key and fail closed after a
+   selected core error; preserve the visible delivery panel.
+4. Prove strict contracts, replay/conflict behavior, RBAC, tenant isolation,
+   audit, and migration reproducibility before any canary.
+
+Evidence: source `08567b8b4b529f43126925ff67df132e15f71818` is pushed under
+`kurtgav`. Local shared/database/API/Web suites, typecheck, lint, Nest/Web
+builds, release-plan tests, Actionlint, Gitleaks, and diff checks passed. The
+database integration was explicitly invoked but skipped without the guarded
+PostgreSQL environment. GitHub run `30746647147` failed before job execution,
+so local evidence is authoritative for this slice and hosted promotion stays
+gated.
+
+Release gate: keep
+`ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED`,
+`ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS`,
+`ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API`, and
+`ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS` false/empty. Do not
+apply `20260802160000_delivery_inspection_start_workflow.sql`, deploy Railway
+or Vercel, or reconnect Vercel Git until the hosted planner, duplicate-data
+mapping, audit-recovery tenant, readiness, exact SHA, rollback, and
+spend-bounded provider gates clear.

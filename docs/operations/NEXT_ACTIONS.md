@@ -2,7 +2,7 @@
 
 ## Immediate hosted release gate
 
-Do not apply the fourteen pending Supabase migrations or deploy Railway/Vercel
+Do not apply the fifteen pending Supabase migrations or deploy Railway/Vercel
 until the owner supplies:
 
 1. The canonical `AUDIT_RECOVERY_TENANT_ID` UUID for the audit-chain planner.
@@ -20,12 +20,34 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current source SHA: `441ec74c0c776022c2a41485ff45ae2907dbb3ef` on
+Current source SHA: `08567b8b4b529f43126925ff67df132e15f71818` on
 `origin/agent-02/third-code-erp-landing`, authored by `kurtgav`. Corrected CI
-run `30745515593` was blocked before any job step because GitHub account
-payments/spending-limit state prevented Actionlint from starting; all other
-jobs were skipped. Local gates are recorded in the work log. Source now has
-69 migrations versus 55 hosted.
+run `30746647147` failed before any job step and all other jobs were skipped;
+the external GitHub account payment/spending-limit gate remains unresolved.
+Local gates are recorded in the work log. Source now has 70 migrations versus
+55 hosted.
+
+## Exact next action after M3.14 delivery inspection-start source slice
+
+1. Treat source `08567b8b4b529f43126925ff67df132e15f71818` as the reviewed
+   pushed candidate. Local executable gates pass; the guarded database
+   integration remains unexecuted because its explicit Postgres environment
+   was not supplied, and GitHub run `30746647147` has no executable job
+   evidence due the external account gate.
+2. Keep
+   `ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED`,
+   `ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS`,
+   `ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API`, and
+   `ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS` false/empty. Do
+   not apply migration `20260802160000_delivery_inspection_start_workflow.sql`.
+3. Obtain owner-approved canonical mapping for the one 12-record duplicate
+   Purchase Order group and a valid `AUDIT_RECOVERY_TENANT_ID`; restore CI
+   billing authorization; rerun the read-only hosted planner and disposable
+   database lane.
+4. Only after a clear planner, exact-SHA readiness, rollback evidence, and
+   explicit spend-bounded Supabase/Railway/Vercel authorization may one hosted
+   migration and one production action occur. Keep Vercel Git disconnected;
+   avoid previews and duplicate builds.
 
 ## Historical product action (completed RFQ outbox slice)
 

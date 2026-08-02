@@ -1203,3 +1203,21 @@ second writer. The migration is source-complete and disposable-integration
 ready, but hosted Supabase migration drift, duplicate demo data, audit
 recovery, readiness, exact SHA, rollback, and provider spend approval remain
 independent release gates.
+
+## Delivery inspection-start authority (M3.14, 2026-08-02)
+
+Inspection start is the next Nest-owned delivery state command at
+`POST /v1/procurement/deliveries/:deliveryScheduleId/inspection/start`.
+The browser submits an empty strict command and an opaque idempotency key.
+Nest derives tenant and actor from the authenticated principal, rechecks
+`delivery.receive`, locks the same-tenant schedule, permits only `received`,
+creates the pending inspection, moves the schedule to `inspecting`, and
+commits the exact replay result plus semantic audit in one transaction. The
+existing delivery workflow ledger is reused with a new action enum value.
+
+The compatibility action selects Nest only for exact-`true` plus UUID-allowlist
+configuration; API and Next gates are false/empty by default and selected core
+failures never fall back. Inspection result/acceptance, site preparation, and
+cancellation remain separate later commands. Hosted migration drift,
+duplicate demo data, audit recovery, readiness, exact SHA, rollback, and
+spend approval remain independent promotion gates.

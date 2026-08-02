@@ -1975,3 +1975,30 @@ PostgreSQL integration requires the explicit disposable environment. GitHub
 run `30745515593` was blocked before job execution by account
 payment/spending-limit state. Hosted migration/data/audit review and
 spend-bounded provider approval remain independent; no hosted state changed.
+
+## D-120 -- Reuse delivery ledger for inspection start (2026-08-02)
+
+Decision: add `start_inspection` to the existing
+`delivery_workflow_action` enum and expose
+`POST /v1/procurement/deliveries/:deliveryScheduleId/inspection/start` as a
+closed-by-default Nest command. The command accepts only an empty strict body
+and an opaque idempotency key, rechecks same-tenant membership and
+`delivery.receive`, locks a `received` schedule, inserts the pending
+inspection, transitions it to `inspecting`, and commits replay data plus
+semantic audit in one transaction. The existing Server Action selects it only
+for exact-`true` plus UUID allowlist and never falls back after selection.
+
+Rationale: inspection start is an official delivery state change and must not
+be a browser-side sequence of inspection insert plus schedule update. Reusing
+the already tenant-scoped ledger avoids another idempotency table while the
+action enum keeps receipt and inspection requests distinguishable. Later
+inspection result/acceptance and cancellation commands remain separate so the
+delivery rewrite stays incremental.
+
+Validation and release boundary: local focused/full suites, typecheck, lint,
+build, release-plan tests, Actionlint, Gitleaks, and diff checks passed; the
+guarded database integration was skipped without its explicit environment.
+Source is pushed as `08567b8b4b529f43126925ff67df132e15f71818`. GitHub run
+`30746647147` failed before executable steps, and no hosted migration or
+provider mutation occurred. All four inspection-start flags remain
+false/empty.

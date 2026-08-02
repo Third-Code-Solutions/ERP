@@ -2229,3 +2229,35 @@ credential-gated. This is source-ready, not a hosted release.
   migrations and does not contain the new ledger or enum; Railway and Vercel
   readiness remain the prior HTTP-200 snapshot; no hosted SQL, business data,
   provider setting, or deployment was performed.
+
+## 2026-08-02 M3.14 delivery inspection-start authority
+
+- Added the strict empty-body inspection-start contract and migration
+  `20260802160000_delivery_inspection_start_workflow.sql`. It extends the
+  existing tenant-scoped `delivery_workflow_action` enum with
+  `start_inspection`; no new ledger or privilege surface is introduced.
+- Added Nest `POST /v1/procurement/deliveries/:deliveryScheduleId/inspection/start`.
+  The service is closed by default, rechecks same-tenant membership and
+  `delivery.receive`, claims the existing idempotency key, locks a `received`
+  schedule, inserts the pending inspection, changes the schedule to
+  `inspecting`, stores the exact replay result, and writes semantic audit in
+  one PostgreSQL transaction.
+- The existing delivery panel remains the compatibility adapter. An exact
+  `true` plus UUID allowlist is required to select Nest; selected failures
+  fail closed. The panel holds one opaque retry key; visible copy, layout,
+  route topology, and design tokens are unchanged.
+- Local evidence: shared 11 files / 131 tests; database 25 files / 133
+  executable assertions with 3 environment-gated suites skipped; API 34
+  files / 173 serial tests; Web 59 files / 373 tests; focused delivery,
+  typecheck, lint, Nest/Web production builds, release-plan tests, Actionlint,
+  Gitleaks, and diff checks passed. The delivery database integration was
+  explicitly run and skipped because no `DATABASE_URL` plus
+  `ERP_API_INTEGRATION_EXPECTED=1` was supplied.
+- Source commit `08567b8b4b529f43126925ff67df132e15f71818` is pushed under
+  `kurtgav`. GitHub run `30746647147` failed before any job step and skipped
+  every other job; it is not executable source evidence and the external
+  account payment/spending-limit gate remains unresolved.
+- Hosted state remains unchanged: Supabase is ACTIVE_HEALTHY PostgreSQL 17.6
+  with 55 applied / 70 source migrations and does not contain the new enum
+  value. No hosted SQL, business-data repair, feature-flag enablement,
+  Railway deployment, Vercel deployment, or provider-setting change occurred.
