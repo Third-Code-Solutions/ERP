@@ -15,6 +15,9 @@ previews instead of raw user text.
 - Focused Cortex route/redaction tests: 10 passed.
 - Full Web suite: 55 files / 332 tests passed.
 - Web typecheck passed.
+- CI run `30736912185` passed all executable jobs, including clean Postgres
+  17/Redis reproducibility, Nest transaction/container smoke, and production
+  build. E2E remains credential-gated.
 - No database migration or hosted/provider mutation.
 - Landing UI and public clean-room branding were unchanged.
 
