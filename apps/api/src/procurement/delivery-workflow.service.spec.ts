@@ -21,7 +21,9 @@ function service(
   inspectionStartEnabled = false,
   inspectionStartTenantIds: string[] = [],
   inspectionCompleteEnabled = false,
-  inspectionCompleteTenantIds: string[] = []
+  inspectionCompleteTenantIds: string[] = [],
+  cancelEnabled = false,
+  cancelTenantIds: string[] = []
 ) {
   const config = {
     get: vi.fn((key: string) => {
@@ -38,6 +40,12 @@ function service(
       }
       if (key === 'ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS') {
         return inspectionCompleteTenantIds
+      }
+      if (key === 'ERP_DELIVERY_CANCEL_WRITES_ENABLED') {
+        return cancelEnabled
+      }
+      if (key === 'ERP_DELIVERY_CANCEL_WRITES_TENANT_IDS') {
+        return cancelTenantIds
       }
       return undefined
     }),
@@ -149,6 +157,41 @@ describe('DeliveryWorkflowService migration boundary', () => {
       service().completeInspection(
         '33333333-3333-4333-8333-333333333333',
         { result: 'pass' },
+        PRINCIPAL,
+        ' '
+      )
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('keeps delivery cancellation closed by default without touching the database', async () => {
+    await expect(
+      service().cancelDelivery(
+        '33333333-3333-4333-8333-333333333333',
+        { reason: 'Supplier delay' },
+        PRINCIPAL,
+        'delivery-cancel-1'
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+
+  it('stays closed when the cancellation tenant allowlist is empty', async () => {
+    await expect(
+      service(false, [], false, [], false, [], true).cancelDelivery(
+        '33333333-3333-4333-8333-333333333333',
+        { reason: 'Supplier delay' },
+        PRINCIPAL,
+        'delivery-cancel-1'
+      )
+    ).rejects.toThrow(
+      'Delivery cancellation is not enabled for this tenant; no delivery was updated.'
+    )
+  })
+
+  it('validates cancellation idempotency keys before the feature gate', async () => {
+    await expect(
+      service().cancelDelivery(
+        '33333333-3333-4333-8333-333333333333',
+        { reason: 'Supplier delay' },
         PRINCIPAL,
         ' '
       )

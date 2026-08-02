@@ -10,7 +10,7 @@ import { DeliveryWorkflowService } from './delivery-workflow.service'
 
 const DELIVERY_ID = '33333333-3333-4333-8333-333333333333'
 
-describe('Delivery receipt HTTP contract', () => {
+describe('Delivery workflow HTTP contract', () => {
   let close: (() => Promise<void>) | undefined
 
   afterEach(async () => {
@@ -21,14 +21,20 @@ describe('Delivery receipt HTTP contract', () => {
   async function appFor(
     recordReceipt = vi.fn(),
     startInspection = vi.fn(),
-    completeInspection = vi.fn()
+    completeInspection = vi.fn(),
+    cancelDelivery = vi.fn()
   ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [DeliveryWorkflowController],
       providers: [
         {
           provide: DeliveryWorkflowService,
-          useValue: { recordReceipt, startInspection, completeInspection },
+          useValue: {
+            recordReceipt,
+            startInspection,
+            completeInspection,
+            cancelDelivery,
+          },
         },
       ],
     }).compile()
@@ -239,6 +245,76 @@ describe('Delivery receipt HTTP contract', () => {
         userId: '11111111-1111-4111-8111-111111111111',
       }),
       'delivery-inspection-complete-1'
+    )
+  })
+
+  it('requires an idempotency key for delivery cancellation', async () => {
+    const cancelDelivery = vi.fn()
+    const app = await appFor(vi.fn(), vi.fn(), vi.fn(), cancelDelivery)
+
+    await request(app.getHttpServer())
+      .post(`/v1/procurement/deliveries/${DELIVERY_ID}/cancel`)
+      .send({ reason: 'Supplier delay' })
+      .expect(400)
+
+    expect(cancelDelivery).not.toHaveBeenCalled()
+  })
+
+  it('rejects authority fields for delivery cancellation', async () => {
+    const cancelDelivery = vi.fn()
+    const app = await appFor(vi.fn(), vi.fn(), vi.fn(), cancelDelivery)
+
+    await request(app.getHttpServer())
+      .post(`/v1/procurement/deliveries/${DELIVERY_ID}/cancel`)
+      .set('Idempotency-Key', 'delivery-cancel-1')
+      .send({
+        reason: 'Supplier delay',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+      .expect(400)
+
+    expect(cancelDelivery).not.toHaveBeenCalled()
+  })
+
+  it('requires a non-empty cancellation reason', async () => {
+    const cancelDelivery = vi.fn()
+    const app = await appFor(vi.fn(), vi.fn(), vi.fn(), cancelDelivery)
+
+    await request(app.getHttpServer())
+      .post(`/v1/procurement/deliveries/${DELIVERY_ID}/cancel`)
+      .set('Idempotency-Key', 'delivery-cancel-1')
+      .send({ reason: '   ' })
+      .expect(400)
+
+    expect(cancelDelivery).not.toHaveBeenCalled()
+  })
+
+  it('forwards the strict cancellation command, principal, and trimmed key', async () => {
+    const cancelDelivery = vi.fn().mockResolvedValue({
+      deliveryScheduleId: DELIVERY_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      action: 'cancel_delivery',
+      fromStatus: 'in_transit',
+      status: 'cancelled',
+      cancellationReason: 'Supplier delay',
+      cancelledAt: '2026-08-02T12:00:00.000Z',
+    })
+    const app = await appFor(vi.fn(), vi.fn(), vi.fn(), cancelDelivery)
+
+    await request(app.getHttpServer())
+      .post(`/v1/procurement/deliveries/${DELIVERY_ID}/cancel`)
+      .set('Idempotency-Key', ' delivery-cancel-1 ')
+      .send({ reason: 'Supplier delay' })
+      .expect(200)
+
+    expect(cancelDelivery).toHaveBeenCalledWith(
+      DELIVERY_ID,
+      { reason: 'Supplier delay' },
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        userId: '11111111-1111-4111-8111-111111111111',
+      }),
+      'delivery-cancel-1'
     )
   })
 })

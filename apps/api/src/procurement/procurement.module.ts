@@ -8,6 +8,7 @@ import { AuditModule } from '../audit/audit.module'
 import { RequestObservabilityMiddleware } from '../observability/request-observability.middleware'
 import { ProcurementController } from './procurement.controller'
 import { DeliveryReceiptPipe } from './delivery-receipt.pipe'
+import { DeliveryCancelPipe } from './delivery-cancel.pipe'
 import { DeliveryInspectionCompletePipe } from './delivery-inspection-complete.pipe'
 import { DeliveryStartInspectionPipe } from './delivery-start-inspection.pipe'
 import { DeliveryWorkflowController } from './delivery-workflow.controller'
@@ -50,6 +51,7 @@ import { NotificationEmailService } from './notification-email.service'
     PurchaseOrderWorkflowPipe,
     DeliveryWorkflowService,
     DeliveryReceiptPipe,
+    DeliveryCancelPipe,
     DeliveryInspectionCompletePipe,
     DeliveryStartInspectionPipe,
     RfqDispatchQueue,

@@ -81,3 +81,37 @@ export type DeliveryInspectionCompleteCommand = z.infer<
 export type DeliveryInspectionCompleteResult = z.infer<
   typeof deliveryInspectionCompleteResultSchema
 >
+
+export const deliveryCancelCommandSchema = z
+  .object({
+    reason: z
+      .string()
+      .trim()
+      .min(1, 'Cancellation reason is required')
+      .max(4_000),
+  })
+  .strict()
+
+export const deliveryCancelResultSchema = z
+  .object({
+    deliveryScheduleId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    action: z.literal('cancel_delivery'),
+    fromStatus: z.enum([
+      'scheduled',
+      'site_preparing',
+      'site_ready',
+      'in_transit',
+      'received',
+      'inspecting',
+    ]),
+    status: z.literal('cancelled'),
+    cancellationReason: z.string().trim().min(1).max(4_000),
+    cancelledAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+
+export type DeliveryCancelCommand = z.infer<
+  typeof deliveryCancelCommandSchema
+>
+export type DeliveryCancelResult = z.infer<typeof deliveryCancelResultSchema>

@@ -17,6 +17,8 @@ import {
   users,
 } from '@third-code-erp/database/schema'
 import {
+  deliveryCancelCommandSchema,
+  deliveryCancelResultSchema,
   deliveryInspectionCompleteCommandSchema,
   deliveryInspectionCompleteResultSchema,
   deliveryReceiptCommandSchema,
@@ -25,6 +27,8 @@ import {
   deliveryStartInspectionResultSchema,
   type DeliveryInspectionCompleteCommand,
   type DeliveryInspectionCompleteResult,
+  type DeliveryCancelCommand,
+  type DeliveryCancelResult,
   type DeliveryReceiptCommand,
   type DeliveryReceiptResult,
   type DeliveryStartInspectionCommand,
@@ -38,6 +42,15 @@ import { DatabaseService } from '../database/database.service'
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+const CANCELLABLE_DELIVERY_STATUSES = new Set([
+  'scheduled',
+  'site_preparing',
+  'site_ready',
+  'in_transit',
+  'received',
+  'inspecting',
+])
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -95,6 +108,20 @@ function completeInspectionCommandHash(
     .digest('hex')
 }
 
+function cancelDeliveryCommandHash(
+  deliveryScheduleId: string,
+  command: DeliveryCancelCommand
+): string {
+  return createHash('sha256')
+    .update(
+      canonicalJson({
+        deliveryScheduleId,
+        command,
+      })
+    )
+    .digest('hex')
+}
+
 function replayResult(value: unknown): DeliveryReceiptResult {
   const parsed = deliveryReceiptResultSchema.safeParse(value)
   if (!parsed.success) {
@@ -124,6 +151,16 @@ function replayInspectionCompleteResult(
   if (!parsed.success) {
     throw new InternalServerErrorException(
       'Delivery inspection completion idempotency result is invalid'
+    )
+  }
+  return parsed.data
+}
+
+function replayDeliveryCancelResult(value: unknown): DeliveryCancelResult {
+  const parsed = deliveryCancelResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new InternalServerErrorException(
+      'Delivery cancellation idempotency result is invalid'
     )
   }
   return parsed.data
@@ -886,6 +923,236 @@ export class DeliveryWorkflowService {
           inspection_result: parsedCommand.result,
           defect_notes: parsedCommand.defectNotes ?? null,
           acceptance_notes: parsedCommand.acceptanceNotes ?? null,
+          idempotency_key_hash: requestHash,
+        },
+      })
+
+      return result
+    })
+  }
+
+  async cancelDelivery(
+    deliveryScheduleId: string,
+    command: DeliveryCancelCommand,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<DeliveryCancelResult> {
+    if (!UUID_PATTERN.test(deliveryScheduleId)) {
+      throw new BadRequestException('Invalid delivery schedule id')
+    }
+    const parsedCommand = deliveryCancelCommandSchema.parse(command)
+    const idempotencyKey = rawIdempotencyKey.trim()
+    if (idempotencyKey.length === 0 || idempotencyKey.length > 256) {
+      throw new BadRequestException('Invalid Idempotency-Key header')
+    }
+
+    const enabled = this.config.get<boolean>(
+      'ERP_DELIVERY_CANCEL_WRITES_ENABLED',
+      false
+    )
+    const allowedTenantIds = this.config.get<string[]>(
+      'ERP_DELIVERY_CANCEL_WRITES_TENANT_IDS',
+      []
+    )
+    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+      throw new ServiceUnavailableException(
+        'Delivery cancellation is not enabled for this tenant; no delivery was updated.'
+      )
+    }
+
+    const requestHash = cancelDeliveryCommandHash(
+      deliveryScheduleId,
+      parsedCommand
+    )
+    return this.database.client.transaction(async (transaction) => {
+      const [membership] = await transaction
+        .select({
+          tenantId: users.tenant_id,
+          role: users.role,
+          email: users.email,
+        })
+        .from(users)
+        .where(
+          and(
+            eq(users.id, principal.userId),
+            eq(users.tenant_id, principal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      const role = membership?.role as ErpRole | undefined
+      if (
+        !membership ||
+        !role ||
+        !roleHasCapability(role, 'delivery.receive')
+      ) {
+        throw new ForbiddenException()
+      }
+      const authorizedPrincipal: ErpPrincipal = {
+        userId: principal.userId,
+        tenantId: membership.tenantId,
+        role,
+        email: membership.email,
+      }
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+
+      const [visibleSchedule] = await transaction
+        .select({ id: deliverySchedules.id })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+      if (!visibleSchedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+
+      await transaction
+        .insert(deliveryWorkflowRequests)
+        .values({
+          tenant_id: authorizedPrincipal.tenantId,
+          delivery_schedule_id: deliveryScheduleId,
+          action: 'cancel_delivery',
+          idempotency_key: idempotencyKey,
+          request_hash: requestHash,
+          created_by: authorizedPrincipal.userId,
+        })
+        .onConflictDoNothing({
+          target: [
+            deliveryWorkflowRequests.tenant_id,
+            deliveryWorkflowRequests.idempotency_key,
+          ],
+        })
+
+      const [request] = await transaction
+        .select({
+          id: deliveryWorkflowRequests.id,
+          requestHash: deliveryWorkflowRequests.request_hash,
+          state: deliveryWorkflowRequests.state,
+          result: deliveryWorkflowRequests.result,
+        })
+        .from(deliveryWorkflowRequests)
+        .where(
+          and(
+            eq(
+              deliveryWorkflowRequests.tenant_id,
+              authorizedPrincipal.tenantId
+            ),
+            eq(deliveryWorkflowRequests.idempotency_key, idempotencyKey)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      if (!request) {
+        throw new InternalServerErrorException(
+          'Delivery cancellation idempotency record was not created'
+        )
+      }
+      if (request.requestHash !== requestHash) {
+        throw new ConflictException(
+          'Idempotency key was already used with a different delivery cancellation command'
+        )
+      }
+      if (request.state === 'succeeded') {
+        return replayDeliveryCancelResult(request.result)
+      }
+      if (request.state !== 'processing') {
+        throw new ConflictException(
+          'Delivery cancellation idempotency record has an unsupported state'
+        )
+      }
+
+      const [schedule] = await transaction
+        .select({
+          id: deliverySchedules.id,
+          status: deliverySchedules.status,
+        })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!schedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+      if (!CANCELLABLE_DELIVERY_STATUSES.has(schedule.status)) {
+        throw new ConflictException(
+          `Cannot cancel — delivery is already ${schedule.status}`
+        )
+      }
+
+      const now = new Date()
+      const [updated] = await transaction
+        .update(deliverySchedules)
+        .set({
+          status: 'cancelled',
+          cancelled_at: now,
+          cancelled_by: authorizedPrincipal.userId,
+          cancellation_reason: parsedCommand.reason,
+          updated_at: now,
+        })
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId),
+            eq(deliverySchedules.status, schedule.status)
+          )
+        )
+        .returning({ id: deliverySchedules.id })
+      if (!updated) {
+        throw new ConflictException(
+          'Delivery changed before its cancellation was committed'
+        )
+      }
+
+      const result = deliveryCancelResultSchema.parse({
+        deliveryScheduleId,
+        tenantId: authorizedPrincipal.tenantId,
+        action: 'cancel_delivery',
+        fromStatus: schedule.status,
+        status: 'cancelled',
+        cancellationReason: parsedCommand.reason,
+        cancelledAt: now.toISOString(),
+      })
+      const [completed] = await transaction
+        .update(deliveryWorkflowRequests)
+        .set({
+          state: 'succeeded',
+          result,
+          completed_at: now,
+        })
+        .where(
+          and(
+            eq(deliveryWorkflowRequests.id, request.id),
+            eq(deliveryWorkflowRequests.state, 'processing')
+          )
+        )
+        .returning({ id: deliveryWorkflowRequests.id })
+      if (!completed) {
+        throw new InternalServerErrorException(
+          'Delivery cancellation idempotency record changed before completion'
+        )
+      }
+
+      await this.audit.writeSemantic(transaction, {
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
+        entityType: 'delivery_schedule',
+        entityId: deliveryScheduleId,
+        action: 'status_change',
+        diff: {
+          from: schedule.status,
+          to: 'cancelled',
+          cancellation_reason: parsedCommand.reason,
           idempotency_key_hash: requestHash,
         },
       })

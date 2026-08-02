@@ -31,6 +31,8 @@ import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
 import {
   completeDeliveryInspectionThroughCoreApi,
+  cancelDeliveryThroughCoreApi,
+  deliveryCancelWritesUseCoreApi,
   deliveryInspectionCompleteWritesUseCoreApi,
   deliveryInspectionStartWritesUseCoreApi,
   startDeliveryInspectionThroughCoreApi,
@@ -617,7 +619,8 @@ export async function completeInspection(
 
 export async function cancelDelivery(
   scheduleId: string,
-  reason: string
+  reason: string,
+  idempotencyKey?: string
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   const forbid = guardScheduling(profile.role)
@@ -630,6 +633,29 @@ export async function cancelDelivery(
 
   const row = await loadSchedule(scheduleId, profile.tenantId)
   if (!row) return { error: 'Delivery not found' }
+
+  if (deliveryCancelWritesUseCoreApi(profile.tenantId)) {
+    const key = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
+    if (!key.success) {
+      return {
+        error: 'Retry token is required for the delivery cancellation command.',
+      }
+    }
+    const result = await cancelDeliveryThroughCoreApi(
+      scheduleId,
+      { reason: trimmed },
+      key.data
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'Delivery could not be cancelled through ERP Core.',
+      }
+    }
+    revalidate(scheduleId)
+    return {}
+  }
 
   if (TERMINAL.has(row.status as DeliveryStatus)) {
     return { error: `Cannot cancel — delivery is already ${row.status}` }
