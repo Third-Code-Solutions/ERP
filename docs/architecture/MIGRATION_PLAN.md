@@ -1482,3 +1482,27 @@ mapping and audit-tenant inputs, re-run the planner, then validate one demo
 tenant end to end (queue, signed evidence, scope commit, status polling,
 RBAC-negative, audit, readiness, exact SHA, and rollback) before any provider
 promotion.
+
+## M3.8 - Stock Receipt creation authority (completed source slice)
+
+Scope delivered:
+
+- Add the Next selector `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` with strict
+  `ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS` allowlisting.
+- Route selected Stock Receipt creates through the existing Nest transaction
+  contract with normalized nullable fields and fail-closed error handling.
+- Carry one opaque browser idempotency key across retries without changing the
+  visible receipt form. Add client/action contract tests and environment docs.
+
+Evidence: focused 31/31 tests, full Web 58 files / 348 tests, workspace lint,
+Web typecheck, and production build 78/78 routes passed. No database migration
+was added and no hosted SQL/provider action occurred. CI is pending for the
+source candidate; E2E remains credential-gated.
+
+Release boundary: keep both inventory selector variables false/empty. The
+hosted planner remains `review_required` at 55/66 migrations, with eleven
+pending, one 12-record duplicate Purchase Order group, zero audit rows, and
+missing `AUDIT_RECOVERY_TENANT_ID`. After owner mapping and audit-tenant
+inputs, re-run the planner and validate one demo tenant (RBAC, PO/warehouse/
+delivery binding, micros/cents, idempotent retry, audit, readiness, exact SHA,
+and rollback) before any provider promotion.

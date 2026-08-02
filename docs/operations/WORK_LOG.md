@@ -4202,3 +4202,27 @@ The read-only hosted planner remains `review_required` at 55/66 migrations,
 with eleven pending, one 12-record duplicate Purchase Order group, zero audit
 rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Live readiness/revision is
 unchanged.
+
+## 2026-08-02 - M3.8 Stock Receipt creation authority
+
+Implemented the closed-by-default Stock Receipt handoff under `kurtgav`:
+
+- Added the shared Next-to-Nest client for
+  `POST /v1/inventory/stock-receipts`, strict tenant canary flags, and
+  fail-closed result validation.
+- Updated the inventory Server Action to normalize nullable fields, require a
+  retry key only for the selected core path, and avoid direct-write fallback.
+- Added a stable browser retry key to the existing receipt form without
+  changing visible UI/copy. Added 31 focused contract/action tests and env docs.
+
+Local validation: focused 31/31 tests, full Web 58 files / 348 tests, workspace
+lint, Web typecheck, `git diff --check`, and production build 78/78 routes
+passed. No Supabase migration, hosted SQL, Railway/Vercel deployment, flag,
+queue, provider, or business-data mutation occurred. CI is pending; E2E remains
+credential-gated.
+
+Read-only hosted planner remains `review_required`: Supabase 55/66 with eleven
+pending migrations, one 12-record duplicate Purchase Order group, zero audit
+rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Live readiness/revision is
+unchanged. Exact next action: push this source/docs candidate, inspect CI, then
+re-run the planner before any provider action.

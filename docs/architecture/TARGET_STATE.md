@@ -1075,3 +1075,18 @@ proxy, but it must never write CAD scope items or fall back to its legacy
 writer. The selector `ERP_DOCUMENT_PROCESSING_VIA_API` and UUID allowlist
 `ERP_DOCUMENT_PROCESSING_TENANT_IDS` stay disabled until hosted planner,
 worker, evidence, RBAC, and rollback gates are proven.
+
+## Stock Receipt creation authority (M3.8, 2026-08-02)
+
+The target boundary for creating a Stock Receipt is a tenant-scoped Nest
+command. Nest owns `inventory.manage` authorization, PO/warehouse/delivery
+same-tenant validation, exact decimal conversion, remaining-quantity
+concurrency checks, tenant-local idempotency, and semantic audit. PostgreSQL
+constraints and the existing inventory transaction remain the integrity
+authority; Python/AI can advise but never commits inventory evidence.
+
+Next may remain a compatibility adapter while the command is canaried. Its
+selector and strict UUID allowlist are independently closed by default. Once
+selected, a failed core request is returned to the user and never falls back
+to a second writer. The form supplies one stable opaque retry key so a lost
+response can be replayed safely without duplicate receipt creation.

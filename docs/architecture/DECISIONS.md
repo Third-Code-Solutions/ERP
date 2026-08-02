@@ -1835,3 +1835,19 @@ tenant/RBAC checks, idempotency, audit, and official scope-item commits. A
 fallback would create two writers and could silently bypass those controls.
 The canary preserves current behavior for every non-allowlisted tenant while
 making the migration seam executable and reversible without a schema change.
+
+## D-113 -- Route Stock Receipt creation through Nest without fallback (2026-08-02)
+
+Decision: add the independent frontend selector
+`ERP_INVENTORY_RECEIPT_CREATE_VIA_API` and strict UUID allowlist
+`ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS`, both closed by default. For an
+explicitly selected tenant, Next sends the Stock Receipt command to Nest with
+an opaque `Idempotency-Key`; core rejection or unavailability returns a safe
+error and never invokes the legacy direct writer. The existing form and copy
+remain unchanged.
+
+Rationale: inventory creation is an official ERP transaction and must have one
+tenant-authorized writer with exact quantity/cost handling, replay protection,
+and audit. A fallback would create duplicate-write risk during a lost response
+or core outage. The allowlisted canary preserves current behavior elsewhere and
+requires no schema change in this source slice.

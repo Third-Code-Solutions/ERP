@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createRfqThroughCoreApi,
   createPurchaseOrderThroughCoreApi,
+  createStockReceiptThroughCoreApi,
   createChangeRequestThroughCoreApi,
   dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
+  stockReceiptCreateWritesUseCoreApi,
   purchaseOrderWorkflowWritesUseCoreApi,
   changeRequestWritesUseCoreApi,
   rfqCreateWritesUseCoreApi,
@@ -54,6 +56,12 @@ const PURCHASE_ORDER_WORKFLOW_RESULT = {
   action: 'pm_approve' as const,
   fromStatus: 'pending_pm_approval' as const,
   status: 'pending_commercial_approval' as const,
+}
+const STOCK_RECEIPT_RESULT = {
+  stockReceiptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  status: 'draft' as const,
+  lineCount: 1,
 }
 const JOURNAL_POST_RESULT = {
   journalEntryId: '77777777-7777-4777-8777-777777777777',
@@ -198,6 +206,101 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS', '*')
     expect(purchaseOrderWorkflowWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(purchaseOrderWorkflowWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Stock Receipt delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_INVENTORY_RECEIPT_CREATE_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(stockReceiptCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_INVENTORY_RECEIPT_CREATE_VIA_API', 'TRUE')
+    expect(stockReceiptCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_INVENTORY_RECEIPT_CREATE_VIA_API', 'true')
+    vi.stubEnv('ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS', '*')
+    expect(stockReceiptCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(stockReceiptCreateWritesUseCoreApi('not-a-uuid')).toBe(false)
+
+    vi.stubEnv(
+      'ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS',
+      `*,${RESULT.tenantId}`
+    )
+    expect(stockReceiptCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+  })
+
+  it('sends an idempotent Stock Receipt command and validates result', async () => {
+    const command = {
+      warehouseId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      purchaseOrderId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      deliveryScheduleId: null,
+      supplierDeliveryReference: 'DR-000184',
+      receivedDate: '2026-08-02',
+      notes: null,
+      lines: [
+        {
+          poLineItemId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          quantity: '12.500000',
+        },
+      ],
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(STOCK_RECEIPT_RESULT), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createStockReceiptThroughCoreApi(command, 'stock-receipt-1')
+    ).resolves.toEqual({ ok: true, data: STOCK_RECEIPT_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/inventory/stock-receipts',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'stock-receipt-1',
+        }),
+      })
+    )
+  })
+
+  it('fails closed when Stock Receipt core returns an invalid result', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ...STOCK_RECEIPT_RESULT, lineCount: 0 }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    )
+
+    await expect(
+      createStockReceiptThroughCoreApi(
+        {
+          warehouseId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          purchaseOrderId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          receivedDate: '2026-08-02',
+          lines: [
+            {
+              poLineItemId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+              quantity: '1',
+            },
+          ],
+        },
+        'stock-receipt-1'
+      )
+    ).resolves.toEqual({
+      ok: false,
+      error: 'ERP Core API returned an invalid Stock Receipt result.',
+    })
   })
 
   it('keeps finance journal posting delegation fail-closed unless its exact gate matches', () => {
