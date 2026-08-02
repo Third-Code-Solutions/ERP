@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   where: vi.fn(),
   getProject: vi.fn(),
   parseAndStoreCad: vi.fn(),
+  documentProcessingJobsUseCoreApi: vi.fn(),
+  enqueueDocumentProcessingThroughCoreApi: vi.fn(),
   extractScopeFromVisual: vi.fn(),
   send: vi.fn(),
   transaction: vi.fn(),
@@ -36,6 +38,12 @@ vi.mock('@/lib/project-queries', () => ({
 
 vi.mock('@/lib/cad/parse-and-store', () => ({
   parseAndStoreCad: mocks.parseAndStoreCad,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  documentProcessingJobsUseCoreApi: mocks.documentProcessingJobsUseCoreApi,
+  enqueueDocumentProcessingThroughCoreApi:
+    mocks.enqueueDocumentProcessingThroughCoreApi,
 }))
 
 vi.mock('@/lib/vision/extract-from-visual', () => ({
@@ -74,6 +82,7 @@ describe('completed document upload Project access', () => {
         callback({ insert: mocks.insert })
     )
     mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
+    mocks.documentProcessingJobsUseCoreApi.mockReturnValue(false)
   })
 
   it('rejects a role without document mutation capability before request work', async () => {
@@ -189,6 +198,104 @@ describe('completed document upload Project access', () => {
     )
     expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
     expect(mocks.extractScopeFromVisual).not.toHaveBeenCalled()
+  })
+
+  it('delegates binary DWG processing to Nest when the tenant canary is enabled', async () => {
+    const documentId = '44444444-4444-4444-8444-444444444444'
+    mocks.getProject.mockResolvedValue({
+      id: OTHER_PROJECT_ID,
+      tenant_id: TENANT_ID,
+    })
+    mocks.returning.mockResolvedValue([{ id: documentId }])
+    mocks.documentProcessingJobsUseCoreApi.mockReturnValue(true)
+    mocks.enqueueDocumentProcessingThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        jobId: '55555555-5555-4555-8555-555555555555',
+        status: 'queued',
+        documentId,
+        createdAt: '2026-08-02T00:00:00.000Z',
+      },
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/drawing.dwg`,
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'drawing.dwg',
+          mimeType: 'application/acad',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      id: documentId,
+      cadParseQueued: true,
+      cadResult: {
+        status: 'queued',
+        scopeItemsCreated: 0,
+        detectedFormat: 'dwg',
+        processingJobId: '55555555-5555-4555-8555-555555555555',
+      },
+    })
+    expect(mocks.enqueueDocumentProcessingThroughCoreApi).toHaveBeenCalledWith(
+      documentId,
+      {
+        mode: 'cad',
+        requestedFormat: 'dwg',
+        createDraftBom: false,
+      },
+      `cad-processing-${documentId}`
+    )
+    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+
+  it('fails closed without falling back to a Next-side scope write when core rejects the canary', async () => {
+    const documentId = '44444444-4444-4444-8444-444444444444'
+    mocks.getProject.mockResolvedValue({
+      id: OTHER_PROJECT_ID,
+      tenant_id: TENANT_ID,
+    })
+    mocks.returning.mockResolvedValue([{ id: documentId }])
+    mocks.documentProcessingJobsUseCoreApi.mockReturnValue(true)
+    mocks.enqueueDocumentProcessingThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No document processing job was created.',
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/drawing.dwg`,
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'drawing.dwg',
+          mimeType: 'application/acad',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      id: documentId,
+      cadParseQueued: false,
+      cadParseWarning:
+        'ERP Core API is unavailable. No document processing job was created.',
+      cadResult: {
+        status: 'processing-unavailable',
+        scopeItemsCreated: 0,
+      },
+    })
+    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
+    expect(mocks.send).not.toHaveBeenCalled()
   })
 
   it('fails closed before extraction when document audit cannot commit', async () => {

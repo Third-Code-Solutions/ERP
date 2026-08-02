@@ -11,6 +11,8 @@ import {
   purchaseOrderWorkflowResultSchema,
   changeRequestCreationResultSchema,
   journalPostResultSchema,
+  documentProcessingAcceptedSchema,
+  documentProcessingStatusSchema,
   type CreateRfqCommand,
   type LogRfqQuoteCommand,
   type CreatePurchaseOrderCommand,
@@ -27,6 +29,9 @@ import {
   type CreateChangeRequestCommand,
   type ChangeRequestCreationResult,
   type JournalPostResult,
+  type DocumentProcessingAccepted,
+  type DocumentProcessingRequest,
+  type DocumentProcessingStatus,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 
@@ -147,6 +152,21 @@ export function financeJournalPostWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API,
     process.env.ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+/**
+ * Binary-CAD processing is delegated only for an explicit tenant canary.
+ * The Nest service owns the worker bridge, evidence commit, and draft-BOM
+ * gates; this client flag only selects the authority boundary in Next.
+ */
+export function documentProcessingJobsUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DOCUMENT_PROCESSING_VIA_API,
+    process.env.ERP_DOCUMENT_PROCESSING_TENANT_IDS
   )
 }
 
@@ -621,6 +641,129 @@ export async function createChangeRequestThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Change Request was committed.',
+    }
+  }
+}
+
+export type DocumentProcessingCoreResult =
+  | DocumentProcessingAccepted
+  | DocumentProcessingStatus
+
+function parseDocumentProcessingResult(
+  body: unknown
+): DocumentProcessingCoreResult | null {
+  const accepted = documentProcessingAcceptedSchema.safeParse(body)
+  if (accepted.success) return accepted.data
+  const status = documentProcessingStatusSchema.safeParse(body)
+  return status.success ? status.data : null
+}
+
+export async function enqueueDocumentProcessingThroughCoreApi(
+  documentId: string,
+  request: DocumentProcessingRequest,
+  idempotencyKey: string
+): Promise<CoreResult<DocumentProcessingCoreResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/documents/${encodeURIComponent(
+        documentId
+      )}/processing-jobs`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(request),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as unknown
+    if (!response.ok) {
+      const detail =
+        typeof body === 'object' &&
+        body !== null &&
+        'message' in body &&
+        typeof body.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Document processing conflicts with an existing command.'
+            : response.status === 404
+              ? 'Document was not found.'
+              : 'Document processing was not queued.'
+      return { ok: false, error: detail }
+    }
+
+    const parsed = parseDocumentProcessingResult(body)
+    if (!parsed) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid document processing result.',
+      }
+    }
+    return { ok: true, data: parsed }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No document processing job was created.',
+    }
+  }
+}
+
+export async function getDocumentProcessingStatusThroughCoreApi(
+  jobId: string
+): Promise<CoreResult<DocumentProcessingStatus>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/document-processing-jobs/${encodeURIComponent(
+        jobId
+      )}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as unknown
+    if (!response.ok) {
+      const detail =
+        typeof body === 'object' &&
+        body !== null &&
+        'message' in body &&
+        typeof body.message === 'string'
+          ? body.message
+          : response.status === 404
+            ? 'Document processing job was not found.'
+            : 'Document processing status is unavailable.'
+      return { ok: false, error: detail }
+    }
+    const parsed = documentProcessingStatusSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid document processing status.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Processing status is unavailable.',
     }
   }
 }
