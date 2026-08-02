@@ -4178,3 +4178,27 @@ database tests, Nest transaction/container smoke, and production build for
 the M3.6 candidate. E2E remained skipped by the explicit hosted-credential
 gate. No hosted SQL, deployment, feature flag, queue, provider, or
 business-data mutation occurred.
+
+## 2026-08-02 - M3.7 CAD processing authority handoff
+
+Implemented and pushed `0cfb72a` under `kurtgav`:
+
+- Added a closed-by-default frontend canary for binary DWG uploads using
+  `ERP_DOCUMENT_PROCESSING_VIA_API` plus a strict UUID tenant allowlist.
+- Added the Next-to-Nest job handoff, authenticated status proxy, bounded
+  polling, accepted/status contracts, and fail-closed behavior with no legacy
+  writer fallback after core selection. Existing visible upload UI/copy is
+  preserved.
+- Added route/client/formatter tests and environment documentation. No
+  migration was needed; Python remains signed/read-only evidence input.
+
+Local validation: focused 4 files / 36 tests, full Web 57 files / 342 tests,
+workspace lint, Web typecheck, and production build 78/78 routes passed.
+GitHub Actions run `30738075103` is the source candidate; E2E remains
+credential-gated. No hosted Supabase SQL, Railway/Vercel deployment, queue,
+flag, provider, or business-data mutation occurred.
+
+The read-only hosted planner remains `review_required` at 55/66 migrations,
+with eleven pending, one 12-record duplicate Purchase Order group, zero audit
+rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Live readiness/revision is
+unchanged.

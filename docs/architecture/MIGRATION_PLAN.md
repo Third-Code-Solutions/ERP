@@ -1452,3 +1452,33 @@ CI evidence: run `30736912185` passed all executable jobs for source commit
 Postgres 17/Redis reproducibility lane (including Nest transaction/container
 smoke), and production build all passed. E2E remains skipped by explicit
 hosted-credential gating. CI green is not hosted-release authorization.
+
+## M3.7 - CAD processing authority handoff (completed source slice)
+
+Scope delivered:
+
+- Add a closed-by-default Next selector and strict tenant allowlist for the
+  binary-DWG canary. Default tenants and non-DWG formats preserve the current
+  behavior.
+- Delegate selected jobs to Nest/BullMQ through the existing signed
+  document-processing contract. If core rejects or is unavailable, return a
+  durable processing-unavailable result; never invoke the legacy Next CAD
+  writer after core selection.
+- Add the authenticated status proxy and bounded browser polling so the
+  existing upload surface can show queued, processing, succeeded, or failed
+  state without moving business logic into React.
+
+Evidence: commit `0cfb72a`; focused 36/36 tests, full Web 57 files / 342 tests,
+lint, typecheck, and production build 78/78 routes passed. GitHub Actions run
+`30738075103` is the source candidate gate; E2E remains credential-gated. No
+database migration was added and no hosted SQL/provider action occurred.
+
+Release boundary: leave `ERP_DOCUMENT_PROCESSING_VIA_API` and
+`ERP_DOCUMENT_PROCESSING_TENANT_IDS` false/empty, together with all API-side
+processing, evidence, worker-bridge, and draft-BOM gates. The hosted planner
+is still `review_required` at 55/66 migrations with a 12-record duplicate PO
+group, zero audit rows, and missing `AUDIT_RECOVERY_TENANT_ID`. After owner
+mapping and audit-tenant inputs, re-run the planner, then validate one demo
+tenant end to end (queue, signed evidence, scope commit, status polling,
+RBAC-negative, audit, readiness, exact SHA, and rollback) before any provider
+promotion.

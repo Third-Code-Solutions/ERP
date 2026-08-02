@@ -914,3 +914,23 @@ Git disconnected and do not create preview or duplicate production builds.
    hashes, role-negative retrieval, readiness, exact SHA, and rollback proof.
 5. Only then perform one spend-bounded Railway/Vercel production action; keep
    Vercel Git disconnected and avoid preview/duplicate builds.
+
+## Exact next action after M3.7 CAD processing authority handoff (2026-08-02)
+
+1. Treat source commit `0cfb72a` and CI run `30738075103` as the reviewed
+   candidate. Keep `ERP_DOCUMENT_PROCESSING_VIA_API`,
+   `ERP_DOCUMENT_PROCESSING_TENANT_IDS`, and every API-side processing,
+   evidence, worker-bridge, and draft-BOM gate false/empty.
+2. Do not apply hosted migrations or deploy Railway/Vercel while the planner
+   remains `review_required` (55/66, eleven pending, duplicate Purchase
+   Orders, zero audit rows, missing `AUDIT_RECOVERY_TENANT_ID`).
+3. Obtain the owner-approved canonical mapping for the 12 duplicate POs and a
+   valid audit-recovery tenant; re-run the read-only planner and review the
+   complete forward migration set.
+4. After a clear planner, validate one designated demo tenant with binary DWG
+   queue/status polling, signed Python evidence, scope-item commit, draft-BOM
+   off/on isolation, RBAC-negative, idempotent retry, audit, readiness,
+   exact-SHA, and rollback evidence.
+5. Only after those checks perform one spend-bounded Railway action and one
+   Vercel production action. Keep Vercel Git disconnected; avoid previews and
+   duplicate builds; verify live browser/API/logs before declaring green.

@@ -1060,3 +1060,18 @@ response hash, redacted preview, source/citation counts, and context metadata.
 Failures in audit persistence remain observable and fail open for read-only
 chat; they never authorize a mutation. This slice changes no visible landing
 surface and introduces no hosted schema mutation.
+
+## CAD processing authority handoff (M3.7, 2026-08-02)
+
+The target upload boundary is a tenant-scoped Nest command. An explicit,
+closed-by-default Next canary may create the document record, then submit a
+binary DWG processing job to Nest/BullMQ. Nest owns authorization, signed
+Python evidence intake, scope-item/draft-BOM commits, idempotency, and audit;
+Python remains advisory/read-only and the browser remains presentation-only.
+
+The Next compatibility adapter must fail closed when the core command is
+selected: it may report a queued/processing state and poll a validated status
+proxy, but it must never write CAD scope items or fall back to its legacy
+writer. The selector `ERP_DOCUMENT_PROCESSING_VIA_API` and UUID allowlist
+`ERP_DOCUMENT_PROCESSING_TENANT_IDS` stay disabled until hosted planner,
+worker, evidence, RBAC, and rollback gates are proven.

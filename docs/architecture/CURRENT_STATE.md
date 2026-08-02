@@ -1991,3 +1991,28 @@ provider, flag, queue, or business-data mutation occurred.
   scan, Postgres 17/Redis reproducibility, Nest transaction/container smoke,
   and production build. E2E remains skipped by the explicit hosted-credential
   gate. This CI result does not authorize a hosted cutover.
+
+## 2026-08-02 M3.7 CAD processing authority handoff
+
+- Commit `0cfb72a` adds the closed-by-default frontend selector
+  `ERP_DOCUMENT_PROCESSING_VIA_API` plus strict UUID allowlist
+  `ERP_DOCUMENT_PROCESSING_TENANT_IDS`. Only binary DWG uploads for an
+  explicitly listed tenant use the Nest document-processing command; all
+  other formats and tenants retain the existing compatibility path.
+- The canary creates the document through the existing server boundary, then
+  delegates processing to `POST /v1/documents/:documentId/processing-jobs`.
+  Next has no legacy-writer fallback when the core command is selected. A
+  tenant-scoped status proxy at `/api/document-processing/:jobId` polls the
+  Nest/BullMQ result so evidence, scope-item commits, and optional draft BOM
+  stay under the core transaction boundary.
+- No schema migration, hosted SQL, provider deployment, feature flag, queue,
+  or business-data mutation occurred. The frontend selector and all API-side
+  processing/evidence/draft gates remain false/empty by default. Python stays
+  signed, read-only evidence input; it does not approve or finalize ERP data.
+- Local focused evidence: 4 files / 36 tests; full Web 57 files / 342 tests;
+  lint, typecheck, and production build (78/78 routes) passed. GitHub Actions
+  run `30738075103` is the source candidate gate; E2E remains credential-gated.
+- Hosted planner remains `review_required`: Supabase 55/66 migrations,
+  eleven pending, one 12-record duplicate Purchase Order group, zero audit
+  rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway/Vercel readiness are
+  still HTTP 200 and the live revision is unchanged.

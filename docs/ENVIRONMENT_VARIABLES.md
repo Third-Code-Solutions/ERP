@@ -157,6 +157,17 @@ false and tenant list empty until the controlled release gate is clear.
 | `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED` | no | API server | Nest scope commit gate; default false |
 | `ERP_CAD_EVIDENCE_COMMIT_WRITES_TENANT_IDS` | no | API server | Explicit commit tenant allowlist; default empty |
 
+The Next.js upload compatibility selector is separate from the API-side gates:
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_DOCUMENT_PROCESSING_VIA_API` | no | Next server | Selects the binary-DWG Next-to-Nest handoff; default false |
+| `ERP_DOCUMENT_PROCESSING_TENANT_IDS` | no | Next server | Strict UUID allowlist for the handoff; default empty |
+
+Keep both frontend variables false/empty unless a controlled demo-tenant
+cutover is approved. Selecting the core path is fail-closed and never falls
+back to the legacy Next CAD writer.
+
 `PARSER_SHARED_SECRET` must be at least 20 characters when the private bridge
 is activated. Missing URL, secret, service-role key, or matching allowlists
 fail closed; no processing job is accepted.
