@@ -1110,7 +1110,10 @@ export async function commercialApprovePo(
 }
 
 /** SCM issues the PO → status 'issued', supplier email dispatched. */
-export async function scmIssuePo(poId: string): Promise<{ error?: string }> {
+export async function scmIssuePo(
+  poId: string,
+  idempotencyKey?: string
+): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
@@ -1139,6 +1142,15 @@ export async function scmIssuePo(poId: string): Promise<{ error?: string }> {
   if (po.status !== 'pending_scm_issuance') {
     return { error: `PO not in SCM issuance state (${po.status})` }
   }
+
+  const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
+    profile,
+    poId,
+    po.project_id,
+    'scm_issue',
+    idempotencyKey
+  )
+  if (coreResult) return coreResult
 
   const now = new Date()
   let supplierEmailSent = false

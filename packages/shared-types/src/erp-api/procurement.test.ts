@@ -4,6 +4,7 @@ import {
   logRfqQuoteCommandSchema,
   notificationDeliveryJobSchema,
   notificationDeliveryResultSchema,
+  purchaseOrderSupplierEmailDeliveryJobSchema,
   purchaseOrderWorkflowNotificationPayloadSchema,
   notificationSweepJobSchema,
   rfqCreationResultSchema,
@@ -18,6 +19,7 @@ import {
   createPurchaseOrderCommandSchema,
   purchaseOrderWorkflowCommandSchema,
   purchaseOrderWorkflowResultSchema,
+  purchaseOrderSupplierIssuedPayloadSchema,
   purchaseOrderCreationResultSchema,
 } from './purchase-orders'
 
@@ -282,6 +284,31 @@ describe('RFQ notification delivery contracts', () => {
       notificationDeliveryResultSchema.safeParse({
         deliveryId: UUID,
         status: 'processing',
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps supplier delivery jobs opaque and supplier events strict', () => {
+    const job = {
+      schemaVersion: 1 as const,
+      tenantId: UUID,
+      outboxId: UUID,
+      deliveryId: UUID,
+    }
+    expect(purchaseOrderSupplierEmailDeliveryJobSchema.parse(job)).toEqual(
+      job
+    )
+    expect(
+      purchaseOrderSupplierIssuedPayloadSchema.safeParse({
+        schemaVersion: 1,
+        purchase_order_id: UUID,
+      }).success
+    ).toBe(true)
+    expect(
+      purchaseOrderSupplierIssuedPayloadSchema.safeParse({
+        schemaVersion: 1,
+        purchase_order_id: UUID,
+        recipientEmail: 'supplier@example.test',
       }).success
     ).toBe(false)
   })

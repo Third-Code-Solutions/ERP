@@ -7,11 +7,13 @@ import {
   notificationDeliveries,
   notificationOutbox,
   notifications,
+  purchaseOrderSupplierEmailDeliveries,
   projects,
   purchaseOrderWorkflowRequests,
   purchaseOrders,
   tenants,
   users,
+  vendors,
   type Database,
 } from '@third-code-erp/database'
 import { and, eq } from 'drizzle-orm'
@@ -68,6 +70,7 @@ suite('Purchase Order workflow database integration', () => {
         const procurementId = randomUUID()
         const adminId = randomUUID()
         const projectId = randomUUID()
+        const vendorId = randomUUID()
         const purchaseOrderId = randomUUID()
         const suffix = randomUUID().slice(0, 12)
         probeTenantId = tenantId
@@ -117,10 +120,17 @@ suite('Purchase Order workflow database integration', () => {
           total_sqm: 100,
           created_by: pmId,
         })
+        await transaction.insert(vendors).values({
+          id: vendorId,
+          tenant_id: tenantId,
+          name: 'Workflow Supplier',
+          email: `supplier-${suffix}@integration.test`,
+        })
         await transaction.insert(purchaseOrders).values({
           id: purchaseOrderId,
           tenant_id: tenantId,
           project_id: projectId,
+          vendor_id: vendorId,
           created_by: pmId,
           po_number: 'PO-WORKFLOW-0001',
           status: 'draft',
@@ -157,6 +167,12 @@ suite('Purchase Order workflow database integration', () => {
           tenantId,
           role: 'commercial',
           email: `commercial-${suffix}@integration.test`,
+        }
+        const procurementPrincipal: ErpPrincipal = {
+          userId: procurementId,
+          tenantId,
+          role: 'procurement',
+          email: `procurement-${suffix}@integration.test`,
         }
 
         await expect(
@@ -212,6 +228,49 @@ suite('Purchase Order workflow database integration', () => {
           status: 'draft',
         })
 
+        await expect(
+          service.transition(
+            purchaseOrderId,
+            { action: 'submit_pm_approval' },
+            pmPrincipal,
+            'workflow-submit-2'
+          )
+        ).resolves.toMatchObject({ status: 'pending_pm_approval' })
+        await expect(
+          service.transition(
+            purchaseOrderId,
+            { action: 'pm_approve' },
+            pmPrincipal,
+            'workflow-approve-2'
+          )
+        ).resolves.toMatchObject({ status: 'pending_commercial_approval' })
+        await expect(
+          service.transition(
+            purchaseOrderId,
+            { action: 'commercial_approve' },
+            commercialPrincipal,
+            'workflow-commercial-2'
+          )
+        ).resolves.toMatchObject({ status: 'pending_scm_issuance' })
+        const scmIssue = await service.transition(
+          purchaseOrderId,
+          { action: 'scm_issue' },
+          procurementPrincipal,
+          'workflow-scm-1'
+        )
+        expect(scmIssue).toMatchObject({
+          fromStatus: 'pending_scm_issuance',
+          status: 'issued',
+        })
+        await expect(
+          service.transition(
+            purchaseOrderId,
+            { action: 'scm_issue' },
+            procurementPrincipal,
+            'workflow-scm-1'
+          )
+        ).resolves.toEqual(scmIssue)
+
         const [po] = await transaction
           .select({ status: purchaseOrders.status })
           .from(purchaseOrders)
@@ -242,26 +301,33 @@ suite('Purchase Order workflow database integration', () => {
               eq(auditLog.entity_id, purchaseOrderId)
             )
           )
-        expect(po?.status).toBe('draft')
-        expect(requests).toHaveLength(4)
+        expect(po?.status).toBe('issued')
+        expect(requests).toHaveLength(8)
         expect(requests.every((request) => request.state === 'succeeded')).toBe(
           true
         )
         expect(
           auditRows.filter((entry) => entry.action === 'status_change')
-        ).toHaveLength(4)
+        ).toHaveLength(8)
         const workflowOutboxes = await transaction
           .select()
           .from(notificationOutbox)
           .where(eq(notificationOutbox.tenant_id, tenantId))
-        expect(workflowOutboxes).toHaveLength(4)
+        expect(workflowOutboxes).toHaveLength(9)
         expect(
-          workflowOutboxes.every(
+          workflowOutboxes.filter(
             (outbox) =>
-              outbox.event_type === 'purchase_order.workflow_changed' &&
+              outbox.event_type === 'purchase_order.workflow_changed'
+          ).every(
+            (outbox) =>
               outbox.aggregate_id === purchaseOrderId
           )
         ).toBe(true)
+        expect(
+          workflowOutboxes.filter(
+            (outbox) => outbox.event_type === 'purchase_order.supplier_issued'
+          )
+        ).toHaveLength(1)
         const workflowDeliveries = await transaction
           .select()
           .from(notificationDeliveries)
@@ -270,9 +336,16 @@ suite('Purchase Order workflow database integration', () => {
         const sendPurchaseOrderWorkflow = vi
           .fn()
           .mockResolvedValue('po-workflow-provider-message')
+        const sendPurchaseOrderSupplier = vi
+          .fn()
+          .mockResolvedValue('po-supplier-provider-message')
         const notificationDelivery = new NotificationDeliveryService(
           transactionBoundDatabase(transaction),
-          { sendPurchaseOrderWorkflow } as unknown as NotificationEmailService
+          {
+            sendPurchaseOrderWorkflow,
+            sendPurchaseOrderSupplier,
+          } as unknown as NotificationEmailService,
+          new AuditService()
         )
         for (const delivery of workflowDeliveries) {
           await expect(
@@ -293,6 +366,49 @@ suite('Purchase Order workflow database integration', () => {
           .where(eq(notifications.tenant_id, tenantId))
         expect(deliveredInApp.length).toBeGreaterThan(0)
         expect(sendPurchaseOrderWorkflow).toHaveBeenCalled()
+        const [supplierDelivery] = await transaction
+          .select()
+          .from(purchaseOrderSupplierEmailDeliveries)
+          .where(eq(purchaseOrderSupplierEmailDeliveries.tenant_id, tenantId))
+        expect(supplierDelivery).toBeDefined()
+        const supplierOutbox = workflowOutboxes.find(
+          (outbox) => outbox.event_type === 'purchase_order.supplier_issued'
+        )
+        expect(supplierOutbox).toBeDefined()
+        await expect(
+          notificationDelivery.deliverSupplierEmail({
+            schemaVersion: 1,
+            tenantId,
+            outboxId: supplierOutbox!.id,
+            deliveryId: supplierDelivery!.id,
+          })
+        ).resolves.toEqual({
+          deliveryId: supplierDelivery!.id,
+          status: 'delivered',
+        })
+        expect(sendPurchaseOrderSupplier).toHaveBeenCalledWith(
+          expect.objectContaining({
+            recipientEmail: `supplier-${suffix}@integration.test`,
+            totalCents: 110_000,
+          })
+        )
+        const [stampedPo] = await transaction
+          .select({ supplierEmailSentAt: purchaseOrders.supplier_email_sent_at })
+          .from(purchaseOrders)
+          .where(eq(purchaseOrders.id, purchaseOrderId))
+        expect(stampedPo?.supplierEmailSentAt).toBeInstanceOf(Date)
+        const supplierAudit = await transaction
+          .select()
+          .from(auditLog)
+          .where(eq(auditLog.tenant_id, tenantId))
+        expect(
+          supplierAudit.some(
+            (entry) =>
+              entry.action === 'update' &&
+              (entry.diff as { supplier_email_delivered?: boolean })
+                .supplier_email_delivered === true
+          )
+        ).toBe(true)
         throw ROLLBACK
       })
     } catch (error) {

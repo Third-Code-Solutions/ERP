@@ -9,6 +9,7 @@ import type {
   NotificationDeliveryJob,
   NotificationDeliveryResult,
   NotificationSweepJob,
+  PurchaseOrderSupplierEmailDeliveryJob,
 } from '@third-code-erp/shared-types'
 import type { Queue } from 'bullmq'
 import {
@@ -16,15 +17,18 @@ import {
   NOTIFICATION_DELIVERY_BACKOFF_MS,
   NOTIFICATION_DELIVERY_JOB,
   NOTIFICATION_DELIVERY_QUEUE,
+  NOTIFICATION_SUPPLIER_DELIVERY_JOB,
   NOTIFICATION_SWEEP_INTERVAL_MS,
   NOTIFICATION_SWEEP_JOB,
   NOTIFICATION_SWEEP_SCHEDULER,
   notificationDeliveryJobId,
+  supplierNotificationDeliveryJobId,
 } from './notification-delivery.constants'
 import { NotificationDeliveryService } from './notification-delivery.service'
 
 type NotificationJobData =
   | NotificationDeliveryJob
+  | PurchaseOrderSupplierEmailDeliveryJob
   | NotificationSweepJob
 
 @Injectable()
@@ -83,6 +87,19 @@ export class NotificationDeliveryQueue
     return this.enqueue(await this.deliveries.pending())
   }
 
+  async enqueueSupplierOutbox(
+    tenantId: string,
+    outboxId: string
+  ): Promise<number> {
+    return this.enqueueSupplier(
+      await this.deliveries.pendingSupplierForOutbox(tenantId, outboxId)
+    )
+  }
+
+  async enqueuePendingSupplier(): Promise<number> {
+    return this.enqueueSupplier(await this.deliveries.pendingSupplier())
+  }
+
   private async enqueue(
     pending: Array<{
       deliveryId: string
@@ -98,6 +115,43 @@ export class NotificationDeliveryQueue
       if (await this.queue.getJob(jobId)) continue
       await this.queue.add(
         NOTIFICATION_DELIVERY_JOB,
+        {
+          schemaVersion: 1,
+          tenantId: delivery.tenantId,
+          outboxId: delivery.outboxId,
+          deliveryId: delivery.deliveryId,
+        },
+        {
+          jobId,
+          attempts: NOTIFICATION_DELIVERY_ATTEMPTS,
+          backoff: {
+            type: 'exponential',
+            delay: NOTIFICATION_DELIVERY_BACKOFF_MS,
+          },
+          removeOnComplete: 1_000,
+          removeOnFail: false,
+        }
+      )
+      enqueued += 1
+    }
+    return enqueued
+  }
+
+  private async enqueueSupplier(
+    pending: Array<{
+      deliveryId: string
+      outboxId: string
+      tenantId: string
+    }>
+  ): Promise<number> {
+    let enqueued = 0
+    for (const delivery of pending) {
+      const jobId = supplierNotificationDeliveryJobId(
+        delivery.deliveryId
+      )
+      if (await this.queue.getJob(jobId)) continue
+      await this.queue.add(
+        NOTIFICATION_SUPPLIER_DELIVERY_JOB,
         {
           schemaVersion: 1,
           tenantId: delivery.tenantId,

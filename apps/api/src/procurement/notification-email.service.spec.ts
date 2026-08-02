@@ -27,6 +27,17 @@ const PO_INPUT = {
   },
 }
 
+const SUPPLIER_INPUT = {
+  idempotencyKey:
+    'po-supplier/99999999-9999-4999-8999-999999999999',
+  poNumber: 'PO-0042',
+  projectName: 'HQ <Fit-out>',
+  recipientEmail: 'supplier@example.test',
+  supplierName: 'Concrete <Co>',
+  totalCents: 123_405,
+  purchaseOrderId: '33333333-3333-4333-8333-333333333333',
+}
+
 function service(
   values: Record<string, string | undefined>
 ): NotificationEmailService {
@@ -145,6 +156,40 @@ describe('NotificationEmailService', () => {
     expect(body.to).toEqual([PO_INPUT.recipientEmail])
     expect(body.html).toContain('HQ &lt;Fit-out&gt;')
     expect(body.html).not.toContain('HQ <Fit-out>')
+    expect(body.text).toContain(
+      'https://thirdcode-erp.example.test/purchase-orders/33333333-3333-4333-8333-333333333333'
+    )
+  })
+
+  it('sends an exact-cent supplier issuance email with provider idempotency', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 'supplier-email-provider-id' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const email = service({
+      RESEND_API_KEY: 're_test_key_long_enough',
+      EMAIL_FROM: 'Third Code ERP <erp@example.test>',
+      ERP_WEB_BASE_URL: 'https://thirdcode-erp.example.test',
+    })
+
+    await expect(email.sendPurchaseOrderSupplier(SUPPLIER_INPUT)).resolves.toBe(
+      'supplier-email-provider-id'
+    )
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(request.headers).toMatchObject({
+      'Idempotency-Key': SUPPLIER_INPUT.idempotencyKey,
+    })
+    const body = JSON.parse(String(request.body)) as {
+      html: string
+      text: string
+      to: string[]
+    }
+    expect(body.to).toEqual([SUPPLIER_INPUT.recipientEmail])
+    expect(body.html).toContain('Concrete &lt;Co&gt;')
+    expect(body.html).toContain('PHP 1,234.05')
     expect(body.text).toContain(
       'https://thirdcode-erp.example.test/purchase-orders/33333333-3333-4333-8333-333333333333'
     )

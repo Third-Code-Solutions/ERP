@@ -20,6 +20,9 @@ export function purchaseOrderWorkflowNotificationRoles(
   if (action === 'commercial_approve') {
     return ['owner', 'admin', 'procurement']
   }
+  if (action === 'scm_issue') {
+    return ['owner', 'admin', 'commercial']
+  }
   if (fromStatus === 'pending_pm_approval') {
     return ['owner', 'admin', 'pm', 'sd_pm_pe']
   }
