@@ -2,7 +2,7 @@
 
 ## Immediate hosted release gate
 
-Do not apply the twelve pending Supabase migrations or deploy Railway/Vercel
+Do not apply the thirteen pending Supabase migrations or deploy Railway/Vercel
 until the owner supplies:
 
 1. The canonical `AUDIT_RECOVERY_TENANT_ID` UUID for the audit-chain planner.
@@ -20,9 +20,11 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current source SHA: `16b52aa9ff3bc0fe3609e1656a26e5bbe9121840` on
-`origin/agent-02/third-code-erp-landing`, authored by `kurtgav`. CI run
-`30742910106` is green for every executable job; E2E remains credential-gated.
+Current source SHA: `29c59b5cf08db3a5004856c60c295f528a936509` on
+`origin/agent-02/third-code-erp-landing`, authored by `kurtgav`. Corrected CI
+run `30744414270` passed every executable source/database/container job; its
+Build job was blocked by GitHub account payment/spending-limit state and E2E
+was skipped.
 
 ## Historical product action (completed RFQ outbox slice)
 
@@ -1047,6 +1049,25 @@ Git disconnected and do not create preview or duplicate production builds.
    and Vercel readiness. Existing 55/68 migration drift, the 12-record
    duplicate PO group, missing `AUDIT_RECOVERY_TENANT_ID`, and spend controls
    remain release blockers. Do not deploy or reconnect Vercel Git.
+
+## Exact next action after M3.12 corrected CI/provider recheck (2026-08-02)
+
+1. Treat source HEAD `29c59b5cf08db3a5004856c60c295f528a936509` and CI
+   `30744414270` as the corrected source candidate. The delivery integration,
+   full disposable database lane, container smoke, lint, typecheck, unit, and
+   secret gates passed. Build was externally blocked by GitHub account
+   payments/spending-limit state; E2E remains unexecuted.
+2. Keep `ERP_DELIVERY_RECEIPT_WRITES_ENABLED`,
+   `ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS`,
+   `ERP_DELIVERY_RECEIPT_WRITES_VIA_API`, and
+   `ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS` false/empty. Do not apply
+   migration `20260802140000_delivery_receipt_workflow_idempotency.sql`.
+3. Obtain owner-approved canonical mapping for the one 12-record duplicate
+   Purchase Order group and an explicit `AUDIT_RECOVERY_TENANT_ID`; then rerun
+   the read-only hosted planner. Only a clear planner plus explicit
+   spend-bounded Supabase/Railway/Vercel authorization can permit one hosted
+   migration and one production action. Keep Vercel Git disconnected and do
+   not create previews or duplicate builds.
 
 ## Exact next action after M3.9 CI evidence (2026-08-02)
 

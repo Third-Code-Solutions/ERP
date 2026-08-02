@@ -1936,3 +1936,17 @@ changing the current panel. Site prep, inspection, acceptance, and cancellation
 remain separate steps to avoid a big-bang delivery rewrite. Hosted migration,
 duplicate-data repair, audit recovery, readiness, and spend-bounded deployment
 remain independent promotion gates.
+
+## D-118 -- Preflight delivery visibility before idempotency claim (2026-08-02)
+
+Decision: check that the requested delivery schedule exists for the
+authenticated tenant inside the Nest transaction before inserting or claiming
+the delivery workflow idempotency row. Keep the composite tenant foreign key
+on the ledger as the final integrity guard.
+
+Rationale: an unknown or cross-tenant schedule must produce the stable
+tenant-safe `Delivery not found` contract, not a leaked PostgreSQL constraint
+error. The preflight still leaves all official mutation, replay, audit, and
+tenant authorization inside the same transaction. Disposable Postgres 17/Redis
+integration passed after this correction; hosted migration and provider
+promotion remain separately gated.

@@ -1628,3 +1628,10 @@ but not applied to hosted Supabase. Keep
 `ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS` false/empty. Re-run the
 read-only hosted planner and obtain owner-approved duplicate-PO mapping plus
 `AUDIT_RECOVERY_TENANT_ID` before any SQL or provider action.
+
+Correction evidence: CI run `30744414270` passed the Postgres 17/Redis
+delivery integration after the service added a same-tenant schedule preflight;
+the earlier run `30744214638` correctly caught the composite-FK/not-found
+contract defect. The same run's Build job was blocked by GitHub account
+payments/spending-limit state, while all executable source, database, and
+container jobs passed. No hosted state changed.
