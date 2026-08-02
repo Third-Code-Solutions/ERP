@@ -4,6 +4,9 @@
 
 Completed source milestone:
 
+- Reviewed source commit: `140f4e8cb518445ab0903d7d885b68cebc7ce8f0`, published
+  to `origin/main` and `origin/agent-02/third-code-erp-landing` under
+  `kurtgav <kurtgavin.design@gmail.com>`.
 - Added strict `complete_site_preparation` shared command/result and ordered
   migration `20260802200000_delivery_site_preparation_complete_workflow.sql`.
 - Added the closed-by-default NestJS route
