@@ -173,6 +173,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for journal posting; default empty |
 | `ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API` | no | Next server | Selects the journal-reversal Next-to-Nest handoff; default false |
 | `ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for journal reversal; default empty |
+| `ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API` | no | Next server | Selects the delivery inspection-start Next-to-Nest handoff; default false |
+| `ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for delivery inspection start; default empty |
 | `ERP_PO_BOM_CREATE_WRITES_VIA_API` | no | Next server | Selects the BOM-to-Purchase-Order Next-to-Nest handoff; default false |
 | `ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for BOM-to-Purchase-Order creation; default empty |
 | `ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API` | no | Next server | Selects the grouped BOM-to-Purchase-Order Next-to-Nest handoff; default false |
@@ -181,6 +183,10 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 Keep all frontend canary variables false/empty unless a controlled demo-tenant
 cutover is approved. Selecting any core path is fail-closed and never falls
 back to a direct legacy write after the command is selected.
+
+The API-side delivery inspection-start controls are
+`ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED` and
+`ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS`; both default to false/empty.
 
 `PARSER_SHARED_SECRET` must be at least 20 characters when the private bridge
 is activated. Missing URL, secret, service-role key, or matching allowlists

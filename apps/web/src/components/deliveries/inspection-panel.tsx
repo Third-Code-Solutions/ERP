@@ -6,7 +6,7 @@
 // Completed inspections are listed below so reviewers can see the audit
 // of any prior pass/fail decisions on the same shipment.
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   startInspection,
@@ -73,11 +73,14 @@ export function InspectionPanel({ scheduleId, status, inspections }: Props) {
   const [acceptanceNotes, setAcceptanceNotes] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const inspectionKeyRef = useRef<string | null>(null)
 
   function doStart() {
     setError('')
     startTransition(async () => {
-      const res = await startInspection(scheduleId)
+      const key =
+        (inspectionKeyRef.current ??= globalThis.crypto.randomUUID())
+      const res = await startInspection(scheduleId, key)
       if (res?.error) setError(res.error)
       else router.refresh()
     })

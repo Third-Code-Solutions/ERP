@@ -15,11 +15,22 @@ const PRINCIPAL: ErpPrincipal = {
   email: 'procurement@example.test',
 }
 
-function service(enabled = false, tenantIds: string[] = []) {
+function service(
+  enabled = false,
+  tenantIds: string[] = [],
+  inspectionStartEnabled = false,
+  inspectionStartTenantIds: string[] = []
+) {
   const config = {
     get: vi.fn((key: string) => {
       if (key === 'ERP_DELIVERY_RECEIPT_WRITES_ENABLED') return enabled
       if (key === 'ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS') return tenantIds
+      if (key === 'ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED') {
+        return inspectionStartEnabled
+      }
+      if (key === 'ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS') {
+        return inspectionStartTenantIds
+      }
       return undefined
     }),
   } as unknown as ConfigService
@@ -58,6 +69,41 @@ describe('DeliveryWorkflowService migration boundary', () => {
   it('validates the idempotency key before the feature gate', async () => {
     await expect(
       service().recordReceipt(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        ' '
+      )
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('keeps inspection start closed by default without touching the database', async () => {
+    await expect(
+      service().startInspection(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        'delivery-inspection-1'
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+
+  it('stays closed when the inspection tenant allowlist is empty', async () => {
+    await expect(
+      service(false, [], true).startInspection(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        'delivery-inspection-1'
+      )
+    ).rejects.toThrow(
+      'Delivery inspection start is not enabled for this tenant; no inspection was started.'
+    )
+  })
+
+  it('validates inspection idempotency keys before the feature gate', async () => {
+    await expect(
+      service().startInspection(
         '33333333-3333-4333-8333-333333333333',
         {},
         PRINCIPAL,

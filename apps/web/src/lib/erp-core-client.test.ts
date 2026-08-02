@@ -9,6 +9,7 @@ import {
   postStockReceiptThroughCoreApi,
   reverseStockReceiptThroughCoreApi,
   recordDeliveryReceiptThroughCoreApi,
+  startDeliveryInspectionThroughCoreApi,
   createChangeRequestThroughCoreApi,
   dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
@@ -20,6 +21,7 @@ import {
   stockReceiptPostWritesUseCoreApi,
   stockReceiptReverseWritesUseCoreApi,
   deliveryReceiptWritesUseCoreApi,
+  deliveryInspectionStartWritesUseCoreApi,
   purchaseOrderWorkflowWritesUseCoreApi,
   changeRequestWritesUseCoreApi,
   rfqCreateWritesUseCoreApi,
@@ -116,6 +118,14 @@ const DELIVERY_RECEIPT_RESULT = {
   action: 'record_receipt' as const,
   fromStatus: 'in_transit' as const,
   status: 'received' as const,
+}
+const DELIVERY_INSPECTION_RESULT = {
+  deliveryScheduleId: DELIVERY_RECEIPT_RESULT.deliveryScheduleId,
+  tenantId: DELIVERY_RECEIPT_RESULT.tenantId,
+  inspectionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  action: 'start_inspection' as const,
+  fromStatus: 'received' as const,
+  status: 'inspecting' as const,
 }
 const JOURNAL_POST_RESULT = {
   journalEntryId: '77777777-7777-4777-8777-777777777777',
@@ -380,6 +390,53 @@ describe('ERP Core client', () => {
         body: JSON.stringify(command),
         headers: expect.objectContaining({
           'Idempotency-Key': 'delivery-receipt-1',
+        }),
+      })
+    )
+  })
+
+  it('keeps delivery inspection-start delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(deliveryInspectionStartWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API', 'TRUE')
+    expect(deliveryInspectionStartWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(deliveryInspectionStartWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(deliveryInspectionStartWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('sends and validates an idempotent delivery inspection-start command', async () => {
+    const command = {}
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DELIVERY_INSPECTION_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      startDeliveryInspectionThroughCoreApi(
+        DELIVERY_INSPECTION_RESULT.deliveryScheduleId,
+        command,
+        'delivery-inspection-1'
+      )
+    ).resolves.toEqual({ ok: true, data: DELIVERY_INSPECTION_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/procurement/deliveries/${DELIVERY_INSPECTION_RESULT.deliveryScheduleId}/inspection/start`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'delivery-inspection-1',
         }),
       })
     )

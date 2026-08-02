@@ -18,10 +18,18 @@ describe('Delivery receipt HTTP contract', () => {
     close = undefined
   })
 
-  async function appFor(recordReceipt = vi.fn()) {
+  async function appFor(
+    recordReceipt = vi.fn(),
+    startInspection = vi.fn()
+  ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [DeliveryWorkflowController],
-      providers: [{ provide: DeliveryWorkflowService, useValue: { recordReceipt } }],
+      providers: [
+        {
+          provide: DeliveryWorkflowService,
+          useValue: { recordReceipt, startInspection },
+        },
+      ],
     }).compile()
     const app = moduleRef.createNestApplication()
     app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -87,6 +95,65 @@ describe('Delivery receipt HTTP contract', () => {
         userId: '11111111-1111-4111-8111-111111111111',
       }),
       'delivery-receipt-1'
+    )
+  })
+
+  it('requires an idempotency key for inspection start', async () => {
+    const startInspection = vi.fn()
+    const app = await appFor(vi.fn(), startInspection)
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/inspection/start`
+      )
+      .send({})
+      .expect(400)
+
+    expect(startInspection).not.toHaveBeenCalled()
+  })
+
+  it('rejects caller-supplied authority fields for inspection start', async () => {
+    const startInspection = vi.fn()
+    const app = await appFor(vi.fn(), startInspection)
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/inspection/start`
+      )
+      .set('Idempotency-Key', 'delivery-inspection-1')
+      .send({ tenantId: '22222222-2222-4222-8222-222222222222' })
+      .expect(400)
+
+    expect(startInspection).not.toHaveBeenCalled()
+  })
+
+  it('forwards the strict empty command, principal, and trimmed key', async () => {
+    const startInspection = vi.fn().mockResolvedValue({
+      deliveryScheduleId: DELIVERY_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      inspectionId: '44444444-4444-4444-8444-444444444444',
+      action: 'start_inspection',
+      fromStatus: 'received',
+      status: 'inspecting',
+    })
+    const app = await appFor(vi.fn(), startInspection)
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/inspection/start`
+      )
+      .set('Idempotency-Key', ' delivery-inspection-1 ')
+      .send({})
+      .expect(200)
+
+    expect(startInspection).toHaveBeenCalledWith(
+      DELIVERY_ID,
+      {},
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        userId: '11111111-1111-4111-8111-111111111111',
+      }),
+      'delivery-inspection-1'
     )
   })
 })
