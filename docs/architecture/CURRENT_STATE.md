@@ -1866,3 +1866,34 @@ provider, flag, queue, or business-data mutation occurred.
   pending migrations, one duplicate Purchase Order group with 12 records, and
   missing `AUDIT_RECOVERY_TENANT_ID`. Railway and Vercel readiness remain HTTP
   200; no hosted state changed.
+
+## 2026-08-02 M3.3 Purchase Order rejection authority seam
+
+- Commit `16904f0` completes Nest command parity for rejection from every
+  pending approval state, including `pending_scm_issuance`. Rejection returns
+  the Purchase Order to `draft`; role checks, tenant scope, PostgreSQL
+  idempotency, transactional notification intent, and semantic audit remain in
+  one core transaction.
+- Added forward-only migration
+  `20260802100000_purchase_order_workflow_scm_rejection.sql` to extend the
+  outbox payload constraint for SCM-step rejection. SCM issuance remains
+  legacy because supplier email delivery is not yet a server-owned outbox
+  contract.
+- The Next.js compatibility action keeps current record/role validation and
+  routes only explicitly allowlisted tenants to Nest. The browser now carries
+  a stable rejection retry key; no visible UI copy, layout, or design changed.
+- Local evidence: Web 54 files / 326 tests, API 27 files / 127 tests,
+  database 20 files / 120 tests with 137 explicit local integration skips;
+  workspace typecheck, lint, production build (78/78 routes), actionlint,
+  gitleaks, workflow-reference checks, migration files-only verification, and
+  diff checks passed.
+- GitHub Actions run `30733959058` passed on SHA
+  `16904f086e19a6d6ce6d57b0c1c444a5f49a3436`: Postgres 17 replay/schema diff,
+  no-skip database tests, Nest transaction integration/container smoke, unit,
+  typecheck, lint, secret scan, and production build. E2E remains credential-
+  gated.
+- Read-only hosted planner remains `review_required`: Supabase is 55/64 with
+  nine pending migrations, one duplicate Purchase Order group with 12
+  records, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and Vercel
+  readiness remain HTTP 200; no hosted SQL, deployment, flag, queue, provider,
+  or business-data mutation occurred.

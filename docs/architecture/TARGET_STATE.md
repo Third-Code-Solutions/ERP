@@ -980,6 +980,21 @@ notification parity is implemented.
 Commit `fa3c20a` proves the seam with five focused tests and full Web/build
 validation. Hosted promotion remains gated by the independent data planner.
 
+## M3.3 Purchase Order rejection parity (2026-08-02)
+
+The same Nest/PostgreSQL command boundary now covers rejection from PM,
+Commercial, and SCM-pending states. A rejection is an idempotent, tenant-local
+state transition to `draft` with transactional notification intent and audit
+evidence. Next.js remains a compatibility surface behind the existing
+closed-by-default tenant allowlist, and browser retries use one stable opaque
+key per action. Supplier issuance and its external email side effect remain a
+separate migration slice until an outbox-owned delivery contract is proven.
+
+Source commit `16904f0` passed the full executable CI pipeline in run
+`30733959058`, including fresh Postgres 17 replay and the Purchase Order
+transaction integration. This source evidence does not authorize hosted SQL
+or provider promotion while the controlled planner is not clear.
+
 ## M3.2 CI checkpoint (2026-08-02)
 
 Run `30733168171` passed on final SHA

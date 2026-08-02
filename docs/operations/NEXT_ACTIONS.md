@@ -839,3 +839,24 @@ Git disconnected and do not create preview or duplicate production builds.
    blockers clear; only then apply one reviewed migration.
 4. Canary three supported PO states with replay/RBAC/notification/audit,
    readiness, exact-SHA, and rollback evidence. Keep Vercel Git disconnected.
+
+## Exact next action after M3.3 Purchase Order rejection seam (2026-08-02)
+
+1. Keep `ERP_PO_WORKFLOW_WRITES_VIA_API` and its tenant allowlist false/empty;
+   keep SCM supplier issuance on the legacy path. Do not apply
+   `20260802100000_purchase_order_workflow_scm_rejection.sql` to hosted
+   Supabase yet.
+2. Treat source commit `16904f0` and CI run `30733959058` as the reviewed
+   candidate. E2E remains credential-gated; CI green is not a hosted release
+   authorization.
+3. Obtain owner-approved canonical mapping for the 12 duplicate Purchase
+   Orders and a valid `AUDIT_RECOVERY_TENANT_ID`; re-run the read-only planner
+   until all nine pending migrations, duplicate data, and audit recovery are
+   clear.
+4. Build and prove the server-owned SCM issuance outbox contract (supplier
+   email idempotency, evidence stamp, retry/dead-letter, audit, and tenant
+   authorization) before routing the issuance button through Nest.
+5. After a clear planner and explicit canary approval, apply one reviewed
+   migration and one spend-bounded provider action with readiness, protected
+   workflow, data, logs, exact release SHA, and rollback evidence. Keep Vercel
+   Git disconnected and avoid preview/duplicate builds.

@@ -1344,3 +1344,21 @@ zero-to-current replay, database tests without skips (256/256), Nest
 transaction/container smoke, and production build. E2E stayed skipped by
 credential gating. Planner remains `review_required`; no hosted SQL or provider
 deployment is authorized.
+
+## M3.3 — Purchase Order rejection parity (completed source slice)
+
+Scope: route rejection from all pending approval states through the existing
+Nest command for explicitly allowlisted tenants; add the forward-only outbox
+constraint extension and stable browser idempotency key; retain legacy SCM
+issuance until supplier-email side effects are server-owned.
+
+Evidence: source commit `16904f0`; GitHub Actions run `30733959058` passed
+Actionlint, lint, secret scan, unit tests, typecheck, fresh Postgres 17 replay
+and no-skip database tests, Nest transaction/container smoke, and production
+build. E2E remains credential-gated. Local full Web/API/database suites and
+build also passed; local database integration is credential-gated.
+
+Release boundary: no hosted SQL or provider deployment. The planner reports
+55/64 hosted migrations (nine pending), one 12-record duplicate Purchase Order
+group, and missing `AUDIT_RECOVERY_TENANT_ID`. Next slice: design and prove a
+supplier issuance outbox contract, then re-run the planner before any canary.
