@@ -1890,3 +1890,28 @@ exact idempotent replay, and a reversible canary without changing visible UI or
 requiring a new table. The source and disposable database lanes are green, but
 hosted migration/data review and spend-bounded provider approval remain
 independent release gates.
+
+## D-116 -- Route grouped BOM-to-PO creation through Nest without fallback (2026-08-02)
+
+Decision: keep supplier-grouped BOM generation as a distinct command at
+`POST /v1/procurement/purchase-orders/from-bom/grouped`. The browser submits
+only the BOM UUID and an opaque idempotency key. Nest derives tenant and actor
+authority, validates active same-tenant rate cards/vendors and approved
+budget mappings, allocates all PO numbers under one tenant lock, inserts the
+complete assigned group, records unassigned lines in the result, locks the
+BOM only after success, and stores the full result for exact replay. The
+transaction rolls back the entire group on any failure.
+
+Rationale: the legacy action performed grouping, number allocation, inserts,
+BOM locking, and audit as separate browser-side writes. Treating the supplier
+set as one command prevents partial PO groups and duplicate retries while
+preserving the current wizard. A separate boundary avoids silently changing
+the single-PO contract. API and Next grouped canaries stay exact-`true` plus
+UUID-allowlisted and closed by default; selected core failures never fall back
+to a second writer. No schema change or hosted mutation is needed for this
+source slice.
+
+Validation: CI run `30742910106` passed the full Postgres 17/Redis
+reproducibility lane, including the grouped transaction integration, plus
+lint, typecheck, tests, secret scan, and build. Hosted migration/data/audit
+review and spend-bounded deployment approval remain independent gates.

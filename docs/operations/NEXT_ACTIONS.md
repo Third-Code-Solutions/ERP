@@ -20,9 +20,9 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current source SHA: `82d9d5092d8aeebf2e803b2937914b7356ff2f21` on
+Current source SHA: `16b52aa9ff3bc0fe3609e1656a26e5bbe9121840` on
 `origin/agent-02/third-code-erp-landing`, authored by `kurtgav`. CI run
-`30741816314` is green for every executable job; E2E remains credential-gated.
+`30742910106` is green for every executable job; E2E remains credential-gated.
 
 ## Historical product action (completed RFQ outbox slice)
 
@@ -953,6 +953,25 @@ Git disconnected and do not create preview or duplicate production builds.
 5. Only after those checks perform one spend-bounded Railway action and one
    Vercel production action. Keep Vercel Git disconnected; avoid previews and
    duplicate builds; verify live browser/API/logs before declaring green.
+
+## Exact next action after M3.11 CI evidence (2026-08-02)
+
+1. Keep `ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API`,
+   `ERP_PO_BOM_GROUPED_CREATE_WRITES_ENABLED`, and both grouped UUID
+   allowlists false/empty. The grouped Nest authority is source-complete but
+   not canaried.
+2. Re-run the read-only Supabase migration/data/audit planner and retain the
+   owner-approved duplicate Purchase Order mapping plus
+   `AUDIT_RECOVERY_TENANT_ID`; do not apply SQL while the planner is blocked.
+3. Confirm Railway `/ready`, Vercel `/api/ready`, exact source SHA, and a
+   rollback snapshot without triggering a provider build or reconnecting
+   Vercel Git.
+4. Review one disposable/demo-tenant grouped replay, tenant denial, supplier
+   validation, exact cents, audit, readiness, exact SHA, and rollback before
+   requesting an explicitly spend-bounded canary.
+5. Only after all gates clear may one reviewed Supabase migration release and
+   one Railway/Vercel production action be considered. Never create a preview
+   or duplicate a queued build.
 
 ## Exact next action after M3.10 BOM-to-PO source/CI evidence (2026-08-02)
 

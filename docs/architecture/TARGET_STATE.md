@@ -1133,3 +1133,21 @@ allowlist, false/empty by default. Core-side
 closed. On core rejection or outage, the selected path fails closed. The
 grouped-by-supplier BOM path is intentionally not folded into this command and
 requires its own authority/replay design before canarying.
+
+## Grouped BOM-to-Purchase Order authority (M3.11, 2026-08-02)
+
+Grouped supplier generation is a separate tenant-scoped Nest command, not a
+client-side loop. The command accepts only a BOM reference and derives the
+tenant, actor, capability, source lines, active rate cards, vendor names, and
+approved cost-code mappings server-side. One PostgreSQL transaction allocates
+all tenant PO numbers under an advisory lock, creates the complete assigned
+supplier set, records unassigned lines in the returned preview, locks an
+approved BOM only after successful inserts, persists one replayable grouped
+result, and writes semantic audit evidence. A failed transaction creates no
+partial PO set and leaves the BOM unlocked.
+
+The Next action remains a compatibility adapter selected only by exact-`true`
+plus UUID allowlist. A stable opaque browser retry key replays the whole group;
+core rejection or outage fails closed with no direct-writer fallback. API and
+Next grouped flags remain disabled until hosted migration/data/audit review,
+tenant canary, readiness, exact-SHA, and rollback evidence are approved.

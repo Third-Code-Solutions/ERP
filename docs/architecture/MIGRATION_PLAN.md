@@ -1567,3 +1567,30 @@ Release boundary: no migration was added, so no hosted SQL is authorized. Keep
 `ERP_PO_BOM_CREATE_WRITES_ENABLED`, and both UUID allowlists false/empty until
 the hosted planner, duplicate-PO review, audit-recovery tenant, readiness, exact
 SHA, and rollback gates clear. Do not deploy Railway or Vercel for this slice.
+
+## M3.11 - Grouped BOM-to-Purchase Order authority (completed source slice)
+
+1. Define a strict `{ bomId }` command and grouped supplier preview result;
+   reject browser-supplied tenant/actor authority.
+2. Move rate-card/vendor selection, budget mapping, exact cent math, tenant PO
+   numbering, all inserts, BOM lock, replay, and audit into one Nest
+   transaction. Reuse the existing PO-create idempotency table and store the
+   full grouped result for exact retry replay.
+3. Keep Next as a fail-closed compatibility adapter with a stable retry key;
+   do not change the existing group-by-supplier UI surface.
+4. Prove focused contracts and the complete grouped transaction in the
+   disposable PostgreSQL 17/Redis lane before any canary decision.
+
+Evidence: source commit `16b52aa9ff3bc0fe3609e1656a26e5bbe9121840`; CI run
+`30742910106` passed every executable job including 67/67 migrations, 260/260
+database assertions, Nest integration, and production build. E2E remains
+credential-gated. No migration or hosted/provider mutation occurred.
+
+Release gate: keep
+`ERP_PO_BOM_GROUPED_CREATE_WRITES_ENABLED`,
+`ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS`,
+`ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API`, and
+`ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API_TENANT_IDS` false/empty. Re-run the
+hosted planner only after the duplicate-PO mapping and audit-recovery tenant
+are owner-approved; then validate one disposable/demo tenant canary and
+rollback before any Railway/Vercel action.

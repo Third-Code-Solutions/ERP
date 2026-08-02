@@ -2107,3 +2107,32 @@ credential-gated. This is source-ready, not a hosted release.
   and `/ready` are HTTP 200 with database/Redis `ok`; Vercel root, `/api/health`,
   and `/api/ready` are HTTP 200 at revision `31c04942a93d`. No provider build
   or production release was triggered.
+
+## 2026-08-02 M3.11 grouped BOM-to-Purchase Order authority
+
+- Added strict grouped-BOM contracts and `POST
+  /v1/procurement/purchase-orders/from-bom/grouped`. Nest now owns tenant
+  membership/capability checks, approved-BOM and line locks, active
+  rate-card/vendor matching, approved budget cost-code mapping, exact cent
+  totals, deterministic tenant PO numbering, multi-PO/line inserts, BOM
+  locking, idempotent replay, and semantic audit in one transaction.
+- The existing group-by-supplier Server Action is now only a compatibility
+  adapter. Independent API and Next selectors are exact-`true` plus
+  UUID-allowlisted, false/empty by default; selected failures never fall back
+  to the legacy writer. The wizard keeps its visible design/copy and holds one
+  opaque retry key across transient failures.
+- No schema migration is required: the existing tenant-scoped PO-create
+  request table stores the full grouped result JSON and a representative PO
+  foreign key for compatibility.
+- Local evidence: shared focused 21/21; API focused/full 150/150; Web focused
+  44 and full 361/361; lint/typecheck, Next 78-route build, Nest build,
+  Actionlint, Gitleaks, and diff checks passed. Local DB integration was
+  environment-gated; CI executed the grouped transaction against the full
+  Postgres 17/Redis lane.
+- GitHub Actions run `30742910106` passed every executable job, including
+  67/67 migration replay, 260/260 database assertions, Nest integration,
+  container smoke, and production build. E2E remains credential-gated.
+- Hosted state was not mutated. Supabase remains 55 applied migrations versus
+  67 in source with the recorded duplicate-PO and audit-recovery blockers;
+  Railway and Vercel readiness remain the prior HTTP-200 snapshot. Vercel Git
+  remains disconnected and no provider build was triggered.
