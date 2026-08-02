@@ -1712,3 +1712,14 @@ Rationale: this provides an executable incremental migration boundary without
 exposing an unproven hosted transaction path or changing the public UI. The
 stable browser retry key aligns the compatibility path with Nest idempotency,
 while authorization and official commit authority remain server-side.
+
+## D-104 -- CI green does not override hosted release blockers (2026-08-02)
+
+Decision: record CI run `30732430851` as the M3.1 source evidence, but do not
+apply the eight pending hosted migrations or deploy Railway/Vercel. Railway
+and Vercel readiness are healthy; the controlled planner remains the release
+authority.
+
+Rationale: fresh-schema reproducibility proves source correctness, not hosted
+data correctness. The duplicate Purchase Order group and missing approved
+audit-recovery tenant still require owner-level decisions before mutation.

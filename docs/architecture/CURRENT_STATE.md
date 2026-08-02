@@ -1825,3 +1825,16 @@ provider, flag, queue, or business-data mutation occurred.
   build 78/78 routes, actionlint, gitleaks, workflow-reference checks, and
   diff checks pass. No hosted SQL, deployment, flag, queue, provider setting,
   or business-data mutation occurred.
+
+## 2026-08-02 M3.1 CI evidence
+
+- GitHub Actions run `30732430851` passed on SHA
+  `1b3bff1efac5901e34859263f43b1be94835eced` under `kurtgav`.
+- All executable jobs passed: Actionlint, lint, secret scan, unit tests,
+  typecheck, Postgres 17 zero-to-current replay/schema diff with database tests
+  without skips (256/256), Nest transaction/container smoke, and production
+  build. E2E stayed skipped by the hosted-credential gate.
+- Read-only hosted verification remains `review_required`: Supabase is 55/63
+  migrations with eight pending, one tenant Purchase Order duplicate group has
+  12 records, and `AUDIT_RECOVERY_TENANT_ID` is unset. Railway `/ready` and
+  Vercel `/api/ready` remain HTTP 200; no hosted mutation occurred.

@@ -4017,3 +4017,13 @@ production build generated 78/78 routes; actionlint, gitleaks,
 workflow-reference verification, and diff checks passed. No hosted Supabase,
 Railway, Vercel, flag, queue, provider setting, or business-data mutation was
 performed. Hosted planner blockers remain unchanged.
+
+## 2026-08-02 - M3.1 CI and hosted-readiness verification
+
+GitHub Actions run `30732430851` passed on SHA
+`1b3bff1efac5901e34859263f43b1be94835eced`: all executable CI jobs passed,
+including the Postgres 17 reproducibility/integration lane, 256/256 database
+tests without skips, Nest smoke, and production build. E2E remained skipped by
+credential gating. Read-only checks show Railway and Vercel ready (HTTP 200),
+but the planner remains `review_required`; no hosted database or provider
+mutation was made.

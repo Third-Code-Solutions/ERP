@@ -1308,3 +1308,12 @@ Validation passed: 53 web test files / 320 tests, workspace lint, production
 build 78/78 routes, actionlint, gitleaks, workflow action references, and
 diff checks. No hosted mutation. Next action remains the read-only planner,
 then owner-approved data remediation before any flag or provider change.
+
+## M3.1 disposable CI and hosted planner checkpoint (2026-08-02)
+
+GitHub Actions run `30732430851` passed on SHA
+`1b3bff1efac5901e34859263f43b1be94835eced`: all executable checks, Postgres
+17 zero-to-current replay, database tests without skips (256/256), Nest
+transaction/container smoke, and build. E2E stayed skipped by credential
+gating. The read-only planner still returns `review_required`; keep the seam
+closed and do not apply hosted SQL or deploy providers.
