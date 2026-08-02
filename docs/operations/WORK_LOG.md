@@ -1,5 +1,58 @@
 # Work Log
 
+## 2026-08-02 — M3.17 delivery site-preparation start authority
+
+Completed source milestone:
+
+- Added the strict `start_site_preparation` shared command/result and the
+  forward-only migration `20260802190000_delivery_site_preparation_start_workflow.sql`.
+- Added the NestJS `POST /v1/procurement/deliveries/:deliveryScheduleId/site-preparation/start`
+  boundary with exact flag/tenant allowlisting, `delivery.receive` authority,
+  tenant membership locking, schedule locking, durable idempotency replay,
+  atomic status change, and transactional semantic audit.
+- Added the fail-closed Next compatibility selector and opaque browser retry
+  key while preserving the existing Site Prep panel and Server Action behavior.
+- Added environment documentation, request observability labeling, shared/API/
+  web/database tests, and guarded cross-tenant/viewer integration assertions.
+
+Changed files: 24 reviewed source/test/migration files; source commit
+`0b7cb532b0b3a32f687f58437f2756259ba68c27`, pushed to
+`origin/agent-02/third-code-erp-landing` as `kurtgav`.
+
+Validation:
+
+- Shared types: 137/137 passed.
+- Database: 137 passed; 137 guarded RLS/Cortex/integration tests skipped
+  without `DATABASE_URL`.
+- Web: 59 files, 388 passed.
+- Focused API contracts: 63/63 passed with `--testTimeout=30000`.
+- API/web typecheck, Nest build, release planner (7/7), controlled release
+  planner (4/4), actionlint, and gitleaks passed.
+- Guarded delivery database integration invoked and correctly skipped without
+  its explicit Postgres/Redis environment.
+- Next build generated all 78 routes, but the local Windows build worker did
+  not return a definitive exit code within the bounded 15-minute run; API full
+  suite exceeded the local ten-minute ceiling and was stopped. Neither is
+  treated as green production evidence.
+
+Hosted boundary:
+
+- Supabase `aqqrtkmtcsfkbyyqxowv` remains `ACTIVE_HEALTHY`, ledger 55/73;
+  read-only SQL still shows no delivery workflow ledger, no cancellation
+  columns, no site-preparation action, 662 audit rows, and 4 deliveries.
+- GitHub CI `30755868510` failed before executable steps because of the
+  authenticated account payment/spending-limit gate; all jobs skipped.
+- Railway and Vercel were not mutated. Existing Vercel production remains the
+  previously reviewed deployment; no new paid preview or production build was
+  triggered. All four new feature controls remain false/empty.
+
+Unresolved risks: hosted migration suffix and integrity recovery gates, missing
+guarded database environment, GitHub billing authorization, and the slow local
+Next build worker. Exact next action: reconcile the 18-migration hosted suffix
+in timestamp order after owner-approved duplicate/audit decisions, then rerun
+the disposable integration and provider release gates before any DB or deploy
+mutation.
+
 ## 2026-07-27 — M0 audit and M1 transaction foundation
 
 Completed:

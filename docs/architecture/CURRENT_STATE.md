@@ -4,6 +4,32 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.17 source update (2026-08-02)
+
+The reviewed source commit `0b7cb532b0b3a32f687f58437f2756259ba68c27` adds the
+closed-by-default NestJS authority for the `scheduled -> site_preparing`
+delivery transition. The strict shared command/result, tenant-scoped
+transaction, durable idempotency replay, capability check, transactional
+audit event, API route, Next compatibility adapter, and stable browser retry
+key are source-complete. The migration is
+`20260802190000_delivery_site_preparation_start_workflow.sql`; no hosted SQL,
+feature flag, provider setting, or deployment changed.
+
+Local evidence: shared types 137/137, database 137 passed with 137 guarded
+tests skipped, web 59 files/388 passed, focused API contracts 63/63 passed
+with a 30-second test timeout, API and web typechecks passed, Nest build
+passed, release-plan/actionlint/gitleaks checks passed, and the guarded
+database integration was invoked and skipped without `DATABASE_URL`. Next
+production generation reached all 78 routes, but the Windows build worker did
+not return a definitive exit code within the bounded 15-minute run; this is
+not treated as a green deploy gate. API full-suite execution likewise exceeded
+the local 10-minute ceiling and was stopped.
+
+GitHub CI run `30755868510` failed before executable steps because the
+authenticated account payment/spending-limit gate remains active; all jobs
+were skipped. The source branch was pushed under `kurtgav` and remains ahead
+of hosted provider artifacts.
+
 ## Runtime topology
 
 | Area | Verified implementation |
@@ -11,7 +37,7 @@ successful build.
 | Frontend | `apps/web`: Next.js 15.5.18 App Router, React 19.2.6, TypeScript 5.9.3 |
 | Existing application backend | 47 Next.js Server Action files, 24 Route Handler files, SQL functions/triggers, and Supabase clients |
 | New core ERP boundary | `apps/api`: NestJS 11 modular monolith. Project and procurement adapters are disabled by default; approved-BOM RFQ dispatch now has an inert BullMQ producer/consumer path |
-| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 67 SQL migrations and 46 Drizzle schema files |
+| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 73 SQL migrations and 46 Drizzle schema files |
 | Authentication | Supabase Auth. Tenant membership and role come from PostgreSQL, not client claims |
 | Authorization | RLS plus mixed application checks in the legacy path. The Nest slice has deny-by-default capability metadata and tenant-scoped queries |
 | Async work | Inngest remains authoritative. Redis 5/BullMQ 5 now carry one disabled approved-BOM RFQ job contract with bounded retry and explicit dead-letter handling |
@@ -36,11 +62,11 @@ The authorized Supabase target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17 and
 matches the repository migration contract:
 
 The historical 54/54 baseline below is retained as the last fully reconciled
-hosted baseline. The current source branch has 67 ordered migrations through
-`20260802130000_stock_receipt_workflow_idempotency.sql`; the Supabase
-connector read-only ledger reports 55/67 applied, with the 12-migration suffix
-pending and no hosted SQL applied. The hosted release remains blocked until
-the duplicate Purchase Order-number group and audit-recovery tenant are
+hosted baseline. The current source branch has 73 ordered migrations through
+`20260802190000_delivery_site_preparation_start_workflow.sql`; the Supabase
+connector read-only ledger still reports 55 applied, with an 18-migration
+suffix pending and no hosted SQL applied. The hosted release remains blocked
+until the duplicate Purchase Order-number group and audit-recovery tenant are
 resolved by the owner.
 
 - Historical migration ledger: 54 of 54 applied; no missing or unexpected

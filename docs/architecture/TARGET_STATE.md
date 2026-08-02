@@ -56,6 +56,17 @@ Browser
     objects, no client execution privilege, and atomic tenant/Admin creation.
     User-editable signup metadata is display data only, never authorization.
 
+## Delivery workflow authority slice
+
+The delivery state machine is migrated one transition at a time. M3.17 makes
+`scheduled -> site_preparing` a NestJS-owned, tenant-scoped transaction with a
+durable idempotency result and transactional audit event. Next.js keeps the
+existing Server Action contract and selects the Nest route only for an exact
+server-side flag plus tenant allowlist; the selector fails closed and never
+falls back to a second write. The API and frontend controls remain
+false/empty until hosted migration reconciliation, disposable integration,
+canary, rollback, and spend gates are green.
+
 ## Nest module shape
 
 Modules align to business capabilities: identity/access, tenants, CRM,
