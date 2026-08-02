@@ -1690,3 +1690,13 @@ gated in local runs.
 Rationale: mocked tests cannot establish composite foreign keys, RLS-era
 privilege boundaries, notification uniqueness, or audit-chain interaction.
 Disposable evidence adds confidence without mutating demo production data.
+
+## D-102 -- M3.0 disposable integration passed CI (2026-08-02)
+
+Decision: record `77b6e04206a48ff47ffeee5567b56bf3e3195e65` and CI run
+`30718464238` as the M3.0 database-evidence candidate. Postgres 17 rebuilt the
+full migration chain, ran 256/256 database tests without skips, and executed
+the Change Request tenant/RBAC/idempotency/notification/audit/rollback probe.
+
+Rationale: the authority boundary is now proven against a fresh schema in CI,
+while hosted data-integrity findings remain independently unresolved.

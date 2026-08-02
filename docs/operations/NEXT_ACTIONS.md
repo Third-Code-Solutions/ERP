@@ -775,4 +775,18 @@ separate and explicitly approved.
    `AUDIT_RECOVERY_TENANT_ID`.
 4. Only a `clear` planner plus canary approval authorizes one reviewed
    Supabase migration and one spend-bounded Railway/Vercel action. Keep Vercel
-   Git disconnected and do not create preview or duplicate production builds.
+Git disconnected and do not create preview or duplicate production builds.
+
+## Exact next action after M3.0 CI evidence (2026-08-02)
+
+1. Treat `77b6e04206a48ff47ffeee5567b56bf3e3195e65` and CI run
+   `30718464238` as the reviewed source candidate; keep the Change Request
+   flags false/empty.
+2. Re-run the read-only controlled-release planner. It still reports eight
+   hosted migrations, one tenant Purchase Order duplicate group with 12 demo
+   records, and missing owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+3. Do not apply hosted SQL, deploy Railway/Vercel, reconnect Vercel Git, or
+   enable the compatibility seam while the planner is `review_required`.
+4. After a `clear` planner and approved canary, perform one migration and one
+   spend-bounded provider action with protected-flow, data, log, readiness,
+   exact-SHA, and rollback evidence.

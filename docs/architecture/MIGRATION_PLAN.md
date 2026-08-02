@@ -1279,3 +1279,13 @@ the source typecheck and serial API suite pass (126 tests, one skipped).
 Next: run this integration lane in CI (where Postgres 17 is disposable), then
 rerun the read-only hosted planner. Keep the command flags and migration
 closed until the planner is `clear` and a tenant canary is approved.
+
+## M3.0 disposable CI evidence checkpoint (2026-08-02)
+
+Commit `77b6e04206a48ff47ffeee5567b56bf3e3195e65` passed CI run
+`30718464238`. The Postgres 17 reproducibility lane executed
+`change-request.database.integration.spec.ts` with one passing test,
+database tests without skips (256/256), migration/schema replay, Nest
+transaction/container smoke, and the production build. E2E remains skipped by
+the hosted-credential gate. Hosted release remains blocked by the independent
+planner and must not be mutated.

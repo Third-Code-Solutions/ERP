@@ -3993,3 +3993,13 @@ queue, or business-data mutation occurred.
 Landing browser audit also rechecked the live public page at 1440px and 390px:
 title and Third Code ERP branding were present, console errors were zero, and
 no public ERPNext/Frappe trace was observed. Vercel Git remains disconnected.
+
+## 2026-08-02 - M3.0 disposable CI evidence
+
+Pushed `77b6e04206a48ff47ffeee5567b56bf3e3195e65` under GitHub account
+`kurtgav`. CI run `30718464238` passed Actionlint, lint, secret scan,
+typecheck, unit tests, Postgres 17 zero-to-current replay/schema diff,
+database tests without skips (256/256, including the new Change Request
+integration), Nest container smoke, and the production build. E2E stayed
+skipped by hosted-credential gating. No hosted Supabase, Railway, Vercel,
+feature flag, queue, provider setting, or business-data mutation occurred.
