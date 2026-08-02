@@ -4,6 +4,34 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## Current source/release handoff (M3.17, 2026-08-02)
+
+Source commit `0b7cb532b0b3a32f687f58437f2756259ba68c27` is pushed to
+`agent-02/third-code-erp-landing` as `kurtgav
+<kurtgavin.design@gmail.com>`. This slice moves delivery site-preparation
+start authority into NestJS while preserving the existing Next.js action and
+UI. It adds strict shared contracts, API validation, tenant/capability checks,
+transactional idempotency and audit, the forward-only migration
+`20260802190000_delivery_site_preparation_start_workflow.sql`, a guarded
+Next adapter, and integration assertions for cross-tenant/viewer denial.
+
+Source has 73 ordered migrations; the read-only Supabase ledger remains at 55,
+so 18 migrations are pending. The hosted release is `review_required`: the
+duplicate Purchase Order-number group and audit-recovery tenant remain
+unresolved, and the hosted database was not changed. GitHub CI run
+`30755868510` failed before executable steps because the account
+payment/spending-limit gate blocked the runner. No Railway/Vercel deployment
+was attempted; the current production artifact remains the prior reviewed
+release.
+
+Local gates: shared types 137/137; database 137 passed with 137 guarded skips;
+web 59 files/388 passed; focused API contracts 63/63 with a 30-second timeout;
+API/web typecheck; Nest build; release-plan/actionlint/gitleaks; and guarded
+database integration invocation (skipped without `DATABASE_URL`). The Next
+build reached 78/78 generated routes but the Windows worker did not return a
+definitive exit code within the bounded run; API full-suite execution exceeded
+the local ten-minute ceiling. Feature flags remain false/empty.
+
 ## Current source/release handoff (2026-08-02)
 
 The reviewed CAD evidence and atomic draft-BOM slice is published on

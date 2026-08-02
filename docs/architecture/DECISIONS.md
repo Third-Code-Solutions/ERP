@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-123 — Reuse the delivery workflow ledger for site-preparation start
+
+Decision: the `scheduled -> site_preparing` transition uses the existing
+tenant-scoped `delivery_workflow_requests` idempotency ledger and adds only the
+`start_site_preparation` action value. NestJS locks tenant membership and the
+delivery row, derives the actor from PostgreSQL, commits the state change and
+semantic audit event in one transaction, and replays only a strict stored
+result. The Next adapter sends an opaque retry key and fails closed when its
+exact tenant canary is not enabled.
+
+Reason: one ledger and one transaction boundary prevent duplicate workflow
+effects while keeping the migration incremental. Do not apply this migration
+alone to a hosted database that has not been reconciled through its preceding
+ledger migrations.
+
 ## D-001 — Incremental modular monolith
 
 Decision: keep Next.js and introduce one NestJS deployment as the core ERP
