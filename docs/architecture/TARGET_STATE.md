@@ -956,3 +956,13 @@ retained until hosted ledger and data-integrity gates clear.
 Commit `d5ee498` proves the web seam with focused action tests and the full web
 suite. This is source evidence only; it does not authorize hosted migration or
 provider promotion.
+
+## M3.1 CI and hosted-readiness checkpoint (2026-08-02)
+
+Run `30732430851` passed on source SHA
+`1b3bff1efac5901e34859263f43b1be94835eced`, including the disposable
+Postgres 17 replay, no-skip database lane, Nest integration/container smoke,
+and production build. E2E remains credential-gated. Hosted readiness is
+healthy but promotion is not authorized while the planner reports eight
+pending migrations, 12 duplicate Purchase Order records, and missing
+`AUDIT_RECOVERY_TENANT_ID`.

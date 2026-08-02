@@ -803,3 +803,15 @@ Git disconnected and do not create preview or duplicate production builds.
 4. Only after a clear planner and canary approval may one reviewed Supabase
    migration and one spend-bounded Railway/Vercel action occur. Keep Vercel
    Git disconnected and avoid preview or duplicate production builds.
+
+## Exact next action after M3.1 CI evidence (2026-08-02)
+
+1. Keep `ERP_CHANGE_REQUEST_WRITES_ENABLED` and the tenant allowlist
+   false/empty; CI green does not authorize a hosted cutover.
+2. Obtain owner-approved canonical record mapping for the 12-record Purchase
+   Order duplicate group and a valid `AUDIT_RECOVERY_TENANT_ID`.
+3. Re-run the read-only planner until the eight hosted migrations, duplicate
+   group, and audit-recovery blocker are all cleared.
+4. Only then execute one reviewed Supabase migration and one spend-bounded
+   Railway/Vercel deployment with readiness, protected-flow, data, logs,
+   exact-SHA, and rollback evidence. Keep Vercel Git disconnected.
