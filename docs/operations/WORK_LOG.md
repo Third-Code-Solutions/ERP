@@ -4332,3 +4332,32 @@ Hosted read-only evidence after the push:
 Exact next action: migrate grouped-by-supplier BOM-to-PO creation only after a
 separate command/idempotency design, then re-run the hosted read-only planner.
 Do not apply Supabase SQL or trigger Railway/Vercel while the blockers remain.
+
+## 2026-08-02 - M3.11 grouped BOM-to-Purchase Order authority
+
+Implemented and pushed source commit `16b52aa9ff3bc0fe3609e1656a26e5bbe9121840`
+on `origin/agent-02/third-code-erp-landing` under `kurtgav`.
+
+Delivered: strict grouped command/result, Nest route and pipe, one
+tenant-authorized multi-PO transaction, active rate-card/vendor selection,
+approved budget mapping, exact cents, advisory-locked numbering, full group
+idempotency replay, BOM lock/audit, fail-closed Next adapter, and stable
+browser retry key. No visible wizard design or copy changed.
+
+Validation: shared focused 21/21; API full 30 files / 150 tests; Web full 58
+files / 361 tests; workspace lint/typecheck, Next 78-route build, Nest build,
+Actionlint, Gitleaks, and diff checks passed. GitHub CI run `30742910106` passed
+Actionlint, secret scan, lint, typecheck, unit tests, Postgres 17/Redis
+reproducibility (67/67 migrations, 260/260 database assertions, Nest
+integration, container smoke), and build. E2E remains credential-gated.
+
+Release boundary: no migration, Supabase SQL, business-data change, Railway
+deployment, Vercel deployment, provider setting, or canary flag changed. The
+local DB integration was skipped because no local `DATABASE_URL`/integration
+gate was present; CI executed it without skips. Hosted blockers and prior
+readiness snapshots remain unchanged.
+
+Exact next action: push the docs-only evidence commit, re-run read-only
+Supabase/Railway/Vercel checks, and keep all grouped flags false/empty until
+owner-approved duplicate mapping, audit-recovery tenant, and spend-bounded
+promotion gates are clear.
