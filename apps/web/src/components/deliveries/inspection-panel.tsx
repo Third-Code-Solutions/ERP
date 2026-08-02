@@ -74,6 +74,7 @@ export function InspectionPanel({ scheduleId, status, inspections }: Props) {
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
   const inspectionKeyRef = useRef<string | null>(null)
+  const inspectionCompleteKeyRef = useRef<string | null>(null)
 
   function doStart() {
     setError('')
@@ -93,11 +94,14 @@ export function InspectionPanel({ scheduleId, status, inspections }: Props) {
       return
     }
     startTransition(async () => {
+      const key =
+        (inspectionCompleteKeyRef.current ??= globalThis.crypto.randomUUID())
       const res = await completeInspection(
         scheduleId,
         result,
         defectNotes.trim() || undefined,
-        acceptanceNotes.trim() || undefined
+        acceptanceNotes.trim() || undefined,
+        key
       )
       if (res?.error) setError(res.error)
       else router.refresh()

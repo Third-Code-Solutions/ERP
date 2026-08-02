@@ -20,14 +20,15 @@ describe('Delivery receipt HTTP contract', () => {
 
   async function appFor(
     recordReceipt = vi.fn(),
-    startInspection = vi.fn()
+    startInspection = vi.fn(),
+    completeInspection = vi.fn()
   ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [DeliveryWorkflowController],
       providers: [
         {
           provide: DeliveryWorkflowService,
-          useValue: { recordReceipt, startInspection },
+          useValue: { recordReceipt, startInspection, completeInspection },
         },
       ],
     }).compile()
@@ -154,6 +155,90 @@ describe('Delivery receipt HTTP contract', () => {
         userId: '11111111-1111-4111-8111-111111111111',
       }),
       'delivery-inspection-1'
+    )
+  })
+
+  it('requires an idempotency key for inspection completion', async () => {
+    const completeInspection = vi.fn()
+    const app = await appFor(vi.fn(), vi.fn(), completeInspection)
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/inspection/complete`
+      )
+      .send({ result: 'pass' })
+      .expect(400)
+
+    expect(completeInspection).not.toHaveBeenCalled()
+  })
+
+  it('rejects authority fields for inspection completion', async () => {
+    const completeInspection = vi.fn()
+    const app = await appFor(vi.fn(), vi.fn(), completeInspection)
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/inspection/complete`
+      )
+      .set('Idempotency-Key', 'delivery-inspection-complete-1')
+      .send({ result: 'pass', tenantId: '22222222-2222-4222-8222-222222222222' })
+      .expect(400)
+
+    expect(completeInspection).not.toHaveBeenCalled()
+  })
+
+  it('requires defect notes for a failed inspection', async () => {
+    const completeInspection = vi.fn()
+    const app = await appFor(vi.fn(), vi.fn(), completeInspection)
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/inspection/complete`
+      )
+      .set('Idempotency-Key', 'delivery-inspection-complete-1')
+      .send({ result: 'fail' })
+      .expect(400)
+
+    expect(completeInspection).not.toHaveBeenCalled()
+  })
+
+  it('forwards the strict completion command, principal, and trimmed key', async () => {
+    const completeInspection = vi.fn().mockResolvedValue({
+      deliveryScheduleId: DELIVERY_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      inspectionId: '44444444-4444-4444-8444-444444444444',
+      action: 'complete_inspection',
+      fromStatus: 'inspecting',
+      inspectionResult: 'partial_pass',
+      status: 'accepted',
+      completedAt: '2026-08-02T12:00:00.000Z',
+    })
+    const app = await appFor(vi.fn(), vi.fn(), completeInspection)
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/inspection/complete`
+      )
+      .set('Idempotency-Key', ' delivery-inspection-complete-1 ')
+      .send({
+        result: 'partial_pass',
+        defectNotes: 'Two brackets scratched',
+        acceptanceNotes: 'Replace next visit',
+      })
+      .expect(200)
+
+    expect(completeInspection).toHaveBeenCalledWith(
+      DELIVERY_ID,
+      {
+        result: 'partial_pass',
+        defectNotes: 'Two brackets scratched',
+        acceptanceNotes: 'Replace next visit',
+      },
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        userId: '11111111-1111-4111-8111-111111111111',
+      }),
+      'delivery-inspection-complete-1'
     )
   })
 })

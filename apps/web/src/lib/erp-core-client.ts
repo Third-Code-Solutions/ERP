@@ -21,6 +21,7 @@ import {
   stockReceiptReversalResultSchema,
   deliveryReceiptResultSchema,
   deliveryStartInspectionResultSchema,
+  deliveryInspectionCompleteResultSchema,
   type CreateRfqCommand,
   type CreateStockReceiptCommand,
   type LogRfqQuoteCommand,
@@ -56,6 +57,8 @@ import {
   type DeliveryReceiptResult,
   type DeliveryStartInspectionCommand,
   type DeliveryStartInspectionResult,
+  type DeliveryInspectionCompleteCommand,
+  type DeliveryInspectionCompleteResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 
@@ -252,6 +255,16 @@ export function deliveryInspectionStartWritesUseCoreApi(
     tenantId,
     process.env.ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API,
     process.env.ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function deliveryInspectionCompleteWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API,
+    process.env.ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -734,6 +747,64 @@ export async function startDeliveryInspectionThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No delivery inspection was started.',
+    }
+  }
+}
+
+export async function completeDeliveryInspectionThroughCoreApi(
+  deliveryScheduleId: string,
+  command: DeliveryInspectionCompleteCommand,
+  idempotencyKey: string
+): Promise<CoreResult<DeliveryInspectionCompleteResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/deliveries/${encodeURIComponent(
+        deliveryScheduleId
+      )}/inspection/complete`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Delivery inspection conflicts with its current state.'
+            : response.status === 404
+              ? 'Delivery or inspection was not found.'
+              : 'Delivery inspection was not completed.'
+      return { ok: false, error: message }
+    }
+    const parsed = deliveryInspectionCompleteResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid delivery inspection completion result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No delivery inspection was completed.',
     }
   }
 }
