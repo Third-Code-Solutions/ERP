@@ -2190,3 +2190,42 @@ credential-gated. This is source-ready, not a hosted release.
   returned no entries. The Vercel project’s latest deployment is a READY
   non-production preview, not this source HEAD. No Supabase SQL, Railway
   deployment, Vercel deployment, provider setting, or feature flag changed.
+
+## 2026-08-02 M3.13 finance journal reversal authority
+
+- Added strict shared journal reversal body/command/result contracts and the
+  tenant-composite `journal_reverse_requests` ledger through migration
+  `20260802150000_finance_journal_reverse_idempotency.sql`. The ledger is
+  forced-RLS, service-only, unique per tenant/idempotency key, and stores the
+  complete replay result.
+- Added Nest `POST /v1/finance/journals/:journalEntryId/reverse`. The service
+  rechecks tenant membership and the existing `finance.post` capability,
+  preflights same-tenant journal visibility before claiming the ledger,
+  locks the journal, calls the existing PostgreSQL reversal authority, commits
+  the idempotency result and semantic audit together, and maps known domain
+  failures to stable HTTP outcomes.
+- The finance Server Action remains the compatibility adapter. An exact
+  `true` plus UUID allowlist selects the Nest command, holds one opaque retry
+  key in the existing journal action component, and never falls back after a
+  selected core failure. Visible copy, layout, labels, and styling are
+  unchanged.
+- Source flags
+  `ERP_FINANCE_JOURNAL_REVERSE_WRITES_ENABLED`,
+  `ERP_FINANCE_JOURNAL_REVERSE_WRITES_TENANT_IDS`,
+  `ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API`, and
+  `ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API_TENANT_IDS` remain false/empty.
+- Local evidence: shared 11 files / 129 tests; database 24 passed files / 131
+  executable assertions with 3 environment-skipped suites; API 34 files / 165
+  tests; Web 59 files / 368 tests; typecheck, lint, Nest build, Next 78-route
+  build, release-plan tests, Actionlint, Gitleaks, and diff checks passed.
+  The new database integration is explicit-gate skipped locally because no
+  `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` are present.
+- Source commit `441ec74c0c776022c2a41485ff45ae2907dbb3ef` is pushed under
+  `kurtgav`. CI run `30745515593` failed before any job step because GitHub
+  blocked the account for failed payments/spending-limit state; all other
+  jobs were skipped. This is an external CI billing blocker, not executable
+  source evidence.
+- Hosted state remains unchanged: Supabase is 55 applied / 69 source
+  migrations and does not contain the new ledger or enum; Railway and Vercel
+  readiness remain the prior HTTP-200 snapshot; no hosted SQL, business data,
+  provider setting, or deployment was performed.
