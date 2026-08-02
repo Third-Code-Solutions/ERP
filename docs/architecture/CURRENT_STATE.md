@@ -1963,3 +1963,26 @@ provider, flag, queue, or business-data mutation occurred.
   `AUDIT_RECOVERY_TENANT_ID`. Railway readiness is HTTP 200 with no revision;
   Vercel readiness is HTTP 200 at stale revision `31c04942a93d`. No hosted
   SQL, deployment, flag, queue, provider, or business-data mutation occurred.
+
+## 2026-08-02 M3.6 Cortex external-model privacy boundary
+
+- Commit `08f1315` adds a deterministic Cortex redaction module for common
+  direct identifiers (email, Philippine TIN formats, and Philippine mobile
+  numbers). The redaction is applied to graph titles/summaries in model
+  context, the semantic embedding query, and every user/assistant prompt turn
+  sent to the external chat model.
+- Cortex audit evidence now records a started and completed query phase with
+  model/fallback outcome, prompt and response hashes, character/citation
+  counts, and redacted previews. The prior raw `last_user_message` audit field
+  is removed. Conversation titles are redacted at creation; tenant chat
+  history and deterministic in-product answers remain available to the
+  authorized user.
+- No landing UI, copy, layout, or public metadata changed. The existing
+  clean-room branding and GPT-taste landing contract remain protected.
+- Focused redaction/route tests pass (10 tests). Full Web validation passes:
+  55 files / 332 tests and typecheck. No database migration, hosted SQL,
+  provider deployment, feature flag, queue, or business-data mutation occurred.
+- The last read-only hosted planner remains `review_required`: Supabase 55/66
+  with eleven pending migrations, one 12-record duplicate Purchase Order
+  group, zero audit rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and
+  Vercel readiness remain HTTP 200; live revision remains unchanged.

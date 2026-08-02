@@ -1044,3 +1044,19 @@ data-review gates clear. Python/AI may analyze or recommend but never post.
 Source/CI proof is complete in commit `97106ba` and run `30736271967`; this is
 not hosted promotion evidence while the planner reports 55/66 migrations,
 duplicate Purchase Orders, and missing audit-recovery authority.
+
+## Cortex external-model privacy boundary (M3.6, 2026-08-02)
+
+Before any embedding or external chat completion, Cortex must transform model
+context through a deterministic redaction policy. Direct identifiers in the
+user prompt, prior turns, graph titles/summaries, focused-record summaries,
+and semantic-query text are replaced with typed placeholders while tenant and
+RBAC filtering remain unchanged. The model receives only the redacted prompt
+pack; deterministic in-product retrieval remains the source-grounded fallback.
+
+Every query must append hash-bearing started/completed audit evidence without
+storing raw prompt text in the audit diff: model/fallback outcome, prompt hash,
+response hash, redacted preview, source/citation counts, and context metadata.
+Failures in audit persistence remain observable and fail open for read-only
+chat; they never authorize a mutation. This slice changes no visible landing
+surface and introduces no hosted schema mutation.
