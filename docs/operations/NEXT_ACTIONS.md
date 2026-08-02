@@ -954,6 +954,28 @@ Git disconnected and do not create preview or duplicate production builds.
    Vercel production action. Keep Vercel Git disconnected; avoid previews and
    duplicate builds; verify live browser/API/logs before declaring green.
 
+## Exact next action after M3.12 delivery receipt authority source slice (2026-08-02)
+
+1. Keep `ERP_DELIVERY_RECEIPT_WRITES_VIA_API`,
+   `ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS`,
+   `ERP_DELIVERY_RECEIPT_WRITES_ENABLED`, and
+   `ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS` false/empty. Do not apply
+   `20260802140000_delivery_receipt_workflow_idempotency.sql` or any pending
+   hosted migration; do not deploy Railway/Vercel.
+2. Treat the M3.12 source/docs SHA and its CI run as a source candidate only.
+   Confirm the disposable PostgreSQL 17/Redis lane executes the new delivery
+   integration without skips; E2E remains credential-gated.
+3. Re-run the read-only Supabase planner after CI. It must still account for
+   the 13 pending migrations, the 12-record duplicate Purchase Order group,
+   and the missing owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+4. After owner-approved data/audit remediation and a clear planner, validate
+   one disposable/demo tenant receipt replay, status conflict, cross-tenant
+   denial, RBAC-negative, audit evidence, readiness, exact SHA, and rollback.
+5. Only then request one spend-bounded Supabase migration release and one
+   Railway/Vercel production action. Keep Vercel Git disconnected; never create
+   a preview or duplicate build, and verify live protected flow, data, logs,
+   billing impact, exact release identity, and rollback before calling green.
+
 ## Exact next action after M3.11 CI evidence (2026-08-02)
 
 1. Keep `ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API`,

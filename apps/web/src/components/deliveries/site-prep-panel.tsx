@@ -4,7 +4,7 @@
 // receiving team only ever sees the one next step. Once delivery is
 // received the panel locks down (the inspection panel takes over).
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   markSitePreparing,
@@ -42,14 +42,25 @@ export function SitePrepPanel({
   const [receiptNotes, setReceiptNotes] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const receiptKeyRef = useRef<string | null>(null)
 
-  function run(fn: () => Promise<{ error?: string }>) {
+  function run(
+    fn: () => Promise<{ error?: string }>,
+    onSuccess?: () => void
+  ) {
     setError('')
     startTransition(async () => {
       const res = await fn()
       if (res?.error) setError(res.error)
-      else router.refresh()
+      else {
+        onSuccess?.()
+        router.refresh()
+      }
     })
+  }
+
+  function receiptKey(): string {
+    return (receiptKeyRef.current ??= globalThis.crypto.randomUUID())
   }
 
   return (
@@ -133,7 +144,17 @@ export function SitePrepPanel({
             />
             <PrimaryButton
               onClick={() =>
-                run(() => recordReceipt(scheduleId, receiptNotes || undefined))
+                run(
+                  () =>
+                    recordReceipt(
+                      scheduleId,
+                      receiptNotes || undefined,
+                      receiptKey()
+                    ),
+                  () => {
+                    receiptKeyRef.current = null
+                  }
+                )
               }
               disabled={isPending}
               label="Record receipt"

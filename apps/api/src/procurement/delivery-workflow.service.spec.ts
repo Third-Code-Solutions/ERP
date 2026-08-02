@@ -1,0 +1,68 @@
+import 'reflect-metadata'
+
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common'
+import type { ConfigService } from '@nestjs/config'
+import { describe, expect, it, vi } from 'vitest'
+import type { ErpPrincipal } from '../auth/current-principal.decorator'
+import type { AuditService } from '../audit/audit.service'
+import type { DatabaseService } from '../database/database.service'
+import { DeliveryWorkflowService } from './delivery-workflow.service'
+
+const PRINCIPAL: ErpPrincipal = {
+  userId: '11111111-1111-4111-8111-111111111111',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  role: 'procurement',
+  email: 'procurement@example.test',
+}
+
+function service(enabled = false, tenantIds: string[] = []) {
+  const config = {
+    get: vi.fn((key: string) => {
+      if (key === 'ERP_DELIVERY_RECEIPT_WRITES_ENABLED') return enabled
+      if (key === 'ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS') return tenantIds
+      return undefined
+    }),
+  } as unknown as ConfigService
+  return new DeliveryWorkflowService(
+    config,
+    {} as DatabaseService,
+    {} as AuditService
+  )
+}
+
+describe('DeliveryWorkflowService migration boundary', () => {
+  it('fails closed by default without touching the database', async () => {
+    await expect(
+      service().recordReceipt(
+        '33333333-3333-4333-8333-333333333333',
+        { notes: null },
+        PRINCIPAL,
+        'delivery-receipt-1'
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+
+  it('stays disabled when no tenant allowlist is present', async () => {
+    await expect(
+      service(true).recordReceipt(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        'delivery-receipt-1'
+      )
+    ).rejects.toThrow(
+      'Delivery receipt is not enabled for this tenant; no delivery was updated.'
+    )
+  })
+
+  it('validates the idempotency key before the feature gate', async () => {
+    await expect(
+      service().recordReceipt(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        ' '
+      )
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+})

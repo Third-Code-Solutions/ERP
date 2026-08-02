@@ -131,6 +131,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Delivery receipt status changes stay fail-closed until the server-owned
+  // idempotency ledger and a tenant canary are approved.
+  ERP_DELIVERY_RECEIPT_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Manual journal posting stays fail-closed until the forward migration,
   // disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_JOURNAL_POST_WRITES_ENABLED: z

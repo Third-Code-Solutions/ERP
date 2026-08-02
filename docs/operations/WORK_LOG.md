@@ -4361,3 +4361,55 @@ Exact next action: push the docs-only evidence commit, re-run read-only
 Supabase/Railway/Vercel checks, and keep all grouped flags false/empty until
 owner-approved duplicate mapping, audit-recovery tenant, and spend-bounded
 promotion gates are clear.
+
+## 2026-08-02 - M3.12 delivery receipt authority
+
+Implemented the smallest next procurement authority slice. The former
+`recordReceipt` Server Action can now route to Nest through
+`POST /v1/procurement/deliveries/:deliveryScheduleId/receipt`; all other
+delivery transitions remain unchanged.
+
+Changed source:
+
+- Added shared strict delivery receipt command/result contracts.
+- Added Drizzle `delivery_workflow_requests` schema and migration
+  `20260802140000_delivery_receipt_workflow_idempotency.sql` with tenant
+  composite foreign keys, forced RLS, and service-only privileges.
+- Added Nest delivery receipt pipe/controller/service, `delivery.receive`
+  capability, and fail-closed API flags.
+- Added the Next core selector/client and compatibility adapter. Core rejection
+  or outage never falls back to a second writer. The existing panel keeps its
+  visible design/copy/layout and holds one stable opaque retry key.
+- Added shared, API, web client, database contract, and disposable integration
+  tests plus environment coverage and examples.
+
+Validation:
+
+- Shared full suite: 11 files / 127 tests passed.
+- Database full suite: 23 files / 129 executable assertions passed; 3 suites
+  remain environment-skipped without `DATABASE_URL`.
+- API full suite: 32 files / 157 tests passed. Web full suite: 58 files / 363
+  tests passed.
+- Workspace lint/typecheck, Nest/Web production builds (78 Next routes),
+  Actionlint, Gitleaks, release-plan tests, and `git diff --check` passed.
+- Delivery database integration is present but locally skipped by the explicit
+  `DATABASE_URL` + `ERP_API_INTEGRATION_EXPECTED=1` gate; CI must run it in the
+  disposable PostgreSQL 17/Redis lane.
+
+Release boundary and unresolved risk:
+
+- No Supabase SQL, hosted row, feature flag, queue, provider setting, Railway
+  deployment, or Vercel deployment was performed. Vercel Git stays disconnected
+  to control spend.
+- Source is now 68 migrations while hosted Supabase remains 55; the recorded
+  12-record duplicate Purchase Order group and missing owner-approved
+  `AUDIT_RECOVERY_TENANT_ID` still block hosted release.
+- Keep `ERP_DELIVERY_RECEIPT_WRITES_ENABLED`,
+  `ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS`,
+  `ERP_DELIVERY_RECEIPT_WRITES_VIA_API`, and
+  `ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS` false/empty.
+
+Exact next action: commit and push this source/docs slice under `kurtgav`, wait
+for CI including the new delivery integration, re-run the read-only hosted
+planner, and do not apply migration 68 or trigger Railway/Vercel until the
+owner-approved data/audit blockers and spend-bounded promotion gates clear.

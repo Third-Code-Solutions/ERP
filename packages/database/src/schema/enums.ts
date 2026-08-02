@@ -194,6 +194,16 @@ export const stockReceiptWorkflowRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const deliveryWorkflowActionEnum = pgEnum(
+  'delivery_workflow_action',
+  ['record_receipt']
+)
+
+export const deliveryWorkflowRequestStateEnum = pgEnum(
+  'delivery_workflow_request_state',
+  ['processing', 'succeeded']
+)
+
 export const invoiceStatusEnum = pgEnum('invoice_status', [
   'draft',
   'issued',

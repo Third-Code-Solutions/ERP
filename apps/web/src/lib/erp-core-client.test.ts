@@ -8,6 +8,7 @@ import {
   createStockReceiptThroughCoreApi,
   postStockReceiptThroughCoreApi,
   reverseStockReceiptThroughCoreApi,
+  recordDeliveryReceiptThroughCoreApi,
   createChangeRequestThroughCoreApi,
   dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
@@ -18,6 +19,7 @@ import {
   stockReceiptCreateWritesUseCoreApi,
   stockReceiptPostWritesUseCoreApi,
   stockReceiptReverseWritesUseCoreApi,
+  deliveryReceiptWritesUseCoreApi,
   purchaseOrderWorkflowWritesUseCoreApi,
   changeRequestWritesUseCoreApi,
   rfqCreateWritesUseCoreApi,
@@ -105,6 +107,13 @@ const STOCK_RECEIPT_REVERSE_RESULT = {
   status: 'reversed' as const,
   reversalJournalEntryId: '88888888-8888-4888-8888-888888888888',
   reversalJournalEntryNumber: 'JE-2026-000002',
+}
+const DELIVERY_RECEIPT_RESULT = {
+  deliveryScheduleId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  action: 'record_receipt' as const,
+  fromStatus: 'in_transit' as const,
+  status: 'received' as const,
 }
 const JOURNAL_POST_RESULT = {
   journalEntryId: '77777777-7777-4777-8777-777777777777',
@@ -319,6 +328,53 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_INVENTORY_RECEIPT_REVERSE_TENANT_IDS', '*')
     expect(stockReceiptReverseWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(stockReceiptReverseWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps delivery receipt delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_DELIVERY_RECEIPT_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(deliveryReceiptWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_DELIVERY_RECEIPT_WRITES_VIA_API', 'TRUE')
+    expect(deliveryReceiptWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_DELIVERY_RECEIPT_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(deliveryReceiptWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(deliveryReceiptWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('sends and validates an idempotent delivery receipt command', async () => {
+    const command = { notes: 'DR-42, packaging intact' }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DELIVERY_RECEIPT_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      recordDeliveryReceiptThroughCoreApi(
+        DELIVERY_RECEIPT_RESULT.deliveryScheduleId,
+        command,
+        'delivery-receipt-1'
+      )
+    ).resolves.toEqual({ ok: true, data: DELIVERY_RECEIPT_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/procurement/deliveries/${DELIVERY_RECEIPT_RESULT.deliveryScheduleId}/receipt`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'delivery-receipt-1',
+        }),
+      })
+    )
   })
 
   it('sends an idempotent Stock Receipt command and validates result', async () => {

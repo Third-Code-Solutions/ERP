@@ -2136,3 +2136,30 @@ credential-gated. This is source-ready, not a hosted release.
   67 in source with the recorded duplicate-PO and audit-recovery blockers;
   Railway and Vercel readiness remain the prior HTTP-200 snapshot. Vercel Git
   remains disconnected and no provider build was triggered.
+
+## 2026-08-02 M3.12 delivery receipt authority
+
+- Added strict delivery-receipt contracts and the forward-only migration
+  `20260802140000_delivery_receipt_workflow_idempotency.sql`. The new request
+  ledger is tenant-composite, forced-RLS, service-only, and stores one exact
+  replay result per tenant/idempotency key.
+- Added the Nest route
+  `POST /v1/procurement/deliveries/:deliveryScheduleId/receipt`. The service
+  rechecks membership and `delivery.receive`, locks the delivery schedule,
+  allows only `scheduled`/`in_transit`, stamps receipt fields, and commits
+  status, idempotency, and semantic audit together.
+- The existing `recordReceipt` Server Action is now a closed-by-default
+  compatibility adapter. An exact-`true` plus UUID allowlist routes through
+  Nest and never falls back after a core failure. The site-prep panel retains
+  its current copy/layout/design and only holds one opaque browser retry key.
+- Local source evidence: shared 127/127, API 32 files / 157 tests, Web 58
+  files / 363 tests, database 129 assertions with the new migration contract,
+  workspace lint/typecheck, Nest/Web production builds, Actionlint, Gitleaks,
+  release-plan tests, and diff checks passed. The delivery database integration
+  is explicit-gate skipped locally because no `DATABASE_URL`/integration flag
+  was present; CI is required to execute it in the disposable Postgres 17
+  lane.
+- No hosted SQL, business-data mutation, flag enablement, queue setting, or
+  provider deployment occurred. Hosted evidence remains Supabase 55/68
+  migrations with the recorded duplicate-PO and audit-recovery blockers;
+  Railway/Vercel readiness is unchanged and Vercel Git remains disconnected.
