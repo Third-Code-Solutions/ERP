@@ -179,6 +179,11 @@ export const purchaseOrderWorkflowRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const journalPostRequestStateEnum = pgEnum(
+  'journal_post_request_state',
+  ['processing', 'succeeded']
+)
+
 export const invoiceStatusEnum = pgEnum('invoice_status', [
   'draft',
   'issued',

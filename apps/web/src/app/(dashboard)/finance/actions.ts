@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db, validateJournalLines } from '@third-code-erp/database'
@@ -13,6 +14,10 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import {
+  financeJournalPostWritesUseCoreApi,
+  postJournalEntryThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 export interface FinanceActionResult {
   ok: boolean
@@ -496,7 +501,8 @@ export async function createJournalDraft(
 }
 
 export async function postJournalEntry(
-  entryId: string
+  entryId: string,
+  idempotencyKey?: string
 ): Promise<FinanceActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -514,6 +520,29 @@ export async function postJournalEntry(
       )
       .limit(1)
     if (!entry) return { ok: false, error: 'Journal entry not found' }
+
+    if (financeJournalPostWritesUseCoreApi(profile.tenantId)) {
+      const coreResult = await postJournalEntryThroughCoreApi(
+        entryId,
+        idempotencyKey?.trim() || randomUUID()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Journal entry was not posted. No financial posting was committed.',
+        }
+      }
+      revalidatePath('/finance')
+      revalidatePath(`/finance/journals/${entryId}`)
+      revalidatePath('/finance/ledger')
+      return {
+        ok: true,
+        id: coreResult.data.journalEntryId,
+        number: coreResult.data.postedNumber,
+      }
+    }
 
     const rows = await db.execute<{ posted_number: string }>(sql`
       select posted_number

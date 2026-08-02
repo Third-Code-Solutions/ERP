@@ -23,6 +23,7 @@ import { ProcurementModule } from './procurement/procurement.module'
 import { InventoryModule } from './inventory/inventory.module'
 import { CadModule } from './cad/cad.module'
 import { CrmModule } from './crm/crm.module'
+import { FinanceModule } from './finance/finance.module'
 
 const redisLogger = new Logger('Redis')
 
@@ -62,6 +63,7 @@ class RedisLifecycle implements OnApplicationShutdown {
     InventoryModule,
     CadModule,
     CrmModule,
+    FinanceModule,
   ],
   controllers: [HealthController],
   providers: [

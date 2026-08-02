@@ -10,6 +10,7 @@ import {
   purchaseOrderCreationResultSchema,
   purchaseOrderWorkflowResultSchema,
   changeRequestCreationResultSchema,
+  journalPostResultSchema,
   type CreateRfqCommand,
   type LogRfqQuoteCommand,
   type CreatePurchaseOrderCommand,
@@ -25,6 +26,7 @@ import {
   type UpdateProjectCommand,
   type CreateChangeRequestCommand,
   type ChangeRequestCreationResult,
+  type JournalPostResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 
@@ -135,6 +137,16 @@ export function changeRequestWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_CHANGE_REQUEST_WRITES_VIA_API,
     process.env.ERP_CHANGE_REQUEST_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function financeJournalPostWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API,
+    process.env.ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -609,6 +621,63 @@ export async function createChangeRequestThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Change Request was committed.',
+    }
+  }
+}
+
+export async function postJournalEntryThroughCoreApi(
+  journalEntryId: string,
+  idempotencyKey: string
+): Promise<CoreResult<JournalPostResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/journals/${encodeURIComponent(
+        journalEntryId
+      )}/post`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify({ journalEntryId }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Journal posting conflicts with its current state.'
+            : response.status === 404
+              ? 'Journal entry was not found.'
+              : 'Journal entry was not posted.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = journalPostResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid journal posting result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No journal was posted.',
     }
   }
 }

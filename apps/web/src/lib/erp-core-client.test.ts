@@ -17,6 +17,8 @@ import {
   transitionRfqThroughCoreApi,
   transitionPurchaseOrderThroughCoreApi,
   updateProjectThroughCoreApi,
+  financeJournalPostWritesUseCoreApi,
+  postJournalEntryThroughCoreApi,
 } from './erp-core-client'
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -49,6 +51,11 @@ const PURCHASE_ORDER_WORKFLOW_RESULT = {
   action: 'pm_approve' as const,
   fromStatus: 'pending_pm_approval' as const,
   status: 'pending_commercial_approval' as const,
+}
+const JOURNAL_POST_RESULT = {
+  journalEntryId: '77777777-7777-4777-8777-777777777777',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  postedNumber: 'JE-2026-000001',
 }
 const RFQ_TRANSITION_RESULT = {
   rfqId: RFQ_ID,
@@ -168,6 +175,26 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS', '*')
     expect(purchaseOrderWorkflowWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(purchaseOrderWorkflowWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps finance journal posting delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeJournalPostWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API', 'TRUE')
+    expect(financeJournalPostWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(financeJournalPostWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(financeJournalPostWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Change Request delegation fail-closed unless its independent gate matches', () => {
@@ -326,6 +353,36 @@ describe('ERP Core client', () => {
         body: JSON.stringify({ action: 'pm_approve' }),
         headers: expect.objectContaining({
           'Idempotency-Key': 'po-workflow-1',
+        }),
+      })
+    )
+  })
+
+  it('sends an idempotent journal post command and validates result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(JOURNAL_POST_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      postJournalEntryThroughCoreApi(
+        JOURNAL_POST_RESULT.journalEntryId,
+        'journal-post-1'
+      )
+    ).resolves.toEqual({ ok: true, data: JOURNAL_POST_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/finance/journals/77777777-7777-4777-8777-777777777777/post',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          journalEntryId: JOURNAL_POST_RESULT.journalEntryId,
+        }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'journal-post-1',
         }),
       })
     )
