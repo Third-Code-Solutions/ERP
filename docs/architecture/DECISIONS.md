@@ -1735,3 +1735,13 @@ Rationale: partial cutover must not silently change authorization or supplier
 side effects. Nest already provides idempotency, state-machine checks,
 notification intent, and audit authority for the three supported actions;
 unsupported states remain explicit compatibility work.
+
+## D-106 -- CI evidence does not authorize Purchase Order canary (2026-08-02)
+
+Decision: record run `30733168171` as green source evidence, but keep
+`ERP_PO_WORKFLOW_WRITES_VIA_API` disabled and do not deploy. The hosted planner
+still reports eight migrations pending, 12 duplicate Purchase Orders, and no
+approved audit-recovery tenant.
+
+Rationale: source reproducibility and provider readiness cannot prove hosted
+data integrity or owner intent for irreversible business-record remediation.

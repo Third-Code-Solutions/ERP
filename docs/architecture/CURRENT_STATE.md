@@ -1854,3 +1854,15 @@ provider, flag, queue, or business-data mutation occurred.
   passes 54 files / 325 tests, typecheck, lint, production build 78/78 routes,
   actionlint, gitleaks, workflow-reference checks, and diff checks. No hosted
   SQL, deployment, flag, queue, provider setting, or business-data mutation.
+
+## 2026-08-02 M3.2 CI and hosted gate evidence
+
+- GitHub Actions run `30733168171` passed on final branch SHA
+  `1bc232e55fa2f122aea5182b5ca442d536e916d4`. Executable jobs passed:
+  Actionlint, lint, secret scan, unit tests, typecheck, Postgres 17 replay and
+  no-skip database tests (256/256), Nest integration/container smoke, and
+  production build. E2E remains credential-gated.
+- Read-only planner remains `review_required`: Supabase 55/63 with eight
+  pending migrations, one duplicate Purchase Order group with 12 records, and
+  missing `AUDIT_RECOVERY_TENANT_ID`. Railway and Vercel readiness remain HTTP
+  200; no hosted state changed.
