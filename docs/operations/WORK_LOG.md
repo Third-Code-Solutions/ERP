@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-03 - M3.18 delivery site-preparation completion authority
+
+Completed source milestone:
+
+- Added strict `complete_site_preparation` shared command/result and ordered
+  migration `20260802200000_delivery_site_preparation_complete_workflow.sql`.
+- Added the closed-by-default NestJS route
+  `POST /v1/procurement/deliveries/:deliveryScheduleId/site-preparation/complete`
+  with tenant membership locking, capability authorization, shared ledger
+  idempotency, atomic preparation evidence/status commit, and audit.
+- Added the fail-closed Next adapter, stable browser retry key, observability
+  label, environment documentation, and cross-tenant/viewer assertions while
+  preserving existing UI and legacy action behavior.
+
+Validation:
+
+- Shared types: 139/139 passed.
+- Database: 138 passed; 137 guarded tests skipped without `DATABASE_URL`.
+- Web: 59 files, 393 passed.
+- Focused API contracts: 72/72 passed.
+- API/web/shared/database typechecks and Nest build passed.
+- Release-plan/controlled-release tests, Actionlint, Gitleaks, and diff checks
+  passed.
+- Guarded delivery PostgreSQL/Redis integration compiled and was invoked; one
+  test skipped because its explicit environment and integration gate were not
+  configured.
+
+Hosted boundary: no Supabase SQL, feature flag, Railway release, Vercel
+deployment, or provider setting changed. Source has 74 migrations versus 55
+hosted; duplicate PO and audit-recovery blockers remain.
+
 ## 2026-08-03 - GitHub source publication checkpoint
 
 - Fast-forwarded `origin/main` and `origin/agent-02/third-code-erp-landing` to

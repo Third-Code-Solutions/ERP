@@ -43,6 +43,7 @@ export function SitePrepPanel({
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
   const sitePreparationStartKeyRef = useRef<string | null>(null)
+  const sitePreparationCompleteKeyRef = useRef<string | null>(null)
   const receiptKeyRef = useRef<string | null>(null)
 
   function run(
@@ -122,7 +123,18 @@ export function SitePrepPanel({
             />
             <PrimaryButton
               onClick={() =>
-                run(() => markSiteReady(scheduleId, prepNotes || undefined))
+                run(
+                  () =>
+                    markSiteReady(
+                      scheduleId,
+                      prepNotes || undefined,
+                      (sitePreparationCompleteKeyRef.current ??=
+                        globalThis.crypto.randomUUID())
+                    ),
+                  () => {
+                    sitePreparationCompleteKeyRef.current = null
+                  }
+                )
               }
               disabled={isPending}
               label="Mark site ready"

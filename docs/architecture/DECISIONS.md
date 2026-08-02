@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-124 - Reuse the delivery workflow ledger for site-preparation completion
+
+Decision: add `complete_site_preparation` to the existing
+`delivery_workflow_action` enum and expose
+`POST /v1/procurement/deliveries/:deliveryScheduleId/site-preparation/complete`
+as a closed-by-default NestJS command. The browser sends only bounded notes
+and an opaque idempotency key. NestJS derives tenant and actor, rechecks
+`delivery.receive`, locks the `site_preparing` schedule, writes preparation
+timestamps/actor/notes, stores the exact replay result, and writes semantic
+audit in one transaction.
+
+Reason: site readiness is an official workflow transition. Keeping the
+schedule evidence and status change behind one server transaction prevents
+partial preparation records and duplicate clicks while preserving the current
+Next action for tenants not selected for cutover. Do not apply the migration
+alone; it belongs to the ordered hosted suffix after the existing delivery
+ledger migration.
+
 ## D-123 — Reuse the delivery workflow ledger for site-preparation start
 
 Decision: the `scheduled -> site_preparing` transition uses the existing

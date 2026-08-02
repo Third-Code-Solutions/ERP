@@ -35,7 +35,9 @@ import {
   deliveryCancelWritesUseCoreApi,
   deliveryInspectionCompleteWritesUseCoreApi,
   deliveryInspectionStartWritesUseCoreApi,
+  deliverySitePreparationCompleteWritesUseCoreApi,
   deliverySitePreparationStartWritesUseCoreApi,
+  completeDeliverySitePreparationThroughCoreApi,
   startDeliveryInspectionThroughCoreApi,
   startDeliverySitePreparationThroughCoreApi,
   deliveryReceiptWritesUseCoreApi,
@@ -260,7 +262,8 @@ export async function markSitePreparing(
 
 export async function markSiteReady(
   scheduleId: string,
-  notes?: string
+  notes?: string,
+  idempotencyKey?: string
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   const forbid = guardScheduling(profile.role)
@@ -268,6 +271,30 @@ export async function markSiteReady(
 
   const row = await loadSchedule(scheduleId, profile.tenantId)
   if (!row) return { error: 'Delivery not found' }
+
+  if (deliverySitePreparationCompleteWritesUseCoreApi(profile.tenantId)) {
+    const key = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
+    if (!key.success) {
+      return {
+        error:
+          'Retry token is required for the delivery site-preparation completion command.',
+      }
+    }
+    const result = await completeDeliverySitePreparationThroughCoreApi(
+      scheduleId,
+      { notes: notes?.trim() || row.site_preparation_notes || null },
+      key.data
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'Delivery site preparation could not be completed through ERP Core.',
+      }
+    }
+    revalidate(scheduleId)
+    return {}
+  }
 
   const violation = assertTransition(row.status as DeliveryStatus, 'site_ready', [
     'site_preparing',

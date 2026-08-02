@@ -12,6 +12,28 @@ to both `origin/main` and `origin/agent-02/third-code-erp-landing` under
 only. Supabase, Railway, Vercel, feature flags, and hosted data remain
 unchanged.
 
+## M3.18 source update (2026-08-03)
+
+The next delivery transition, `site_preparing -> site_ready`, now has a
+closed-by-default NestJS authority. The strict command accepts only bounded
+preparation notes; NestJS derives tenant and actor, locks membership and the
+schedule, claims the shared idempotency ledger, records preparation evidence,
+commits the status and audit event atomically, and returns a strict replayable
+result. Next.js keeps the existing `markSiteReady` contract and selects the
+new route only for an exact server-side flag plus UUID allowlist.
+
+The source migration is
+`20260802200000_delivery_site_preparation_complete_workflow.sql`; no hosted
+SQL, feature flag, provider setting, or deployment changed. Source now has 74
+migrations versus 55 hosted.
+
+Validation: shared types 139/139, database 138 passed with 137 guarded tests
+skipped, web 59 files/393 passed, focused API contracts 72/72 passed, API/web/
+shared/database typechecks passed, Nest build passed, release-plan,
+controlled-release, Actionlint, Gitleaks, diff checks passed. The guarded
+PostgreSQL/Redis integration compiled and was skipped because `DATABASE_URL`
+and the explicit integration gate were absent.
+
 ## M3.17 source update (2026-08-02)
 
 The reviewed source commit `0b7cb532b0b3a32f687f58437f2756259ba68c27` adds the

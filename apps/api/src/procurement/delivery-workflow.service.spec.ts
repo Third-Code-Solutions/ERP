@@ -25,7 +25,9 @@ function service(
   cancelEnabled = false,
   cancelTenantIds: string[] = [],
   sitePreparationStartEnabled = false,
-  sitePreparationStartTenantIds: string[] = []
+  sitePreparationStartTenantIds: string[] = [],
+  sitePreparationCompleteEnabled = false,
+  sitePreparationCompleteTenantIds: string[] = []
 ) {
   const config = {
     get: vi.fn((key: string) => {
@@ -54,6 +56,12 @@ function service(
       }
       if (key === 'ERP_DELIVERY_SITE_PREPARATION_START_WRITES_TENANT_IDS') {
         return sitePreparationStartTenantIds
+      }
+      if (key === 'ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_ENABLED') {
+        return sitePreparationCompleteEnabled
+      }
+      if (key === 'ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_TENANT_IDS') {
+        return sitePreparationCompleteTenantIds
       }
       return undefined
     }),
@@ -128,6 +136,53 @@ describe('DeliveryWorkflowService migration boundary', () => {
   it('validates site-preparation idempotency keys before the feature gate', async () => {
     await expect(
       service().startSitePreparation(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        ' '
+      )
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('keeps site-preparation completion closed by default without touching the database', async () => {
+    await expect(
+      service().completeSitePreparation(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        'delivery-site-preparation-complete-1'
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+
+  it('stays closed when the site-preparation completion tenant allowlist is empty', async () => {
+    await expect(
+      service(
+        false,
+        [],
+        false,
+        [],
+        false,
+        [],
+        false,
+        [],
+        false,
+        [],
+        true
+      ).completeSitePreparation(
+        '33333333-3333-4333-8333-333333333333',
+        { notes: 'Staging complete' },
+        PRINCIPAL,
+        'delivery-site-preparation-complete-1'
+      )
+    ).rejects.toThrow(
+      'Delivery site-preparation completion is not enabled for this tenant; no delivery was updated.'
+    )
+  })
+
+  it('validates site-preparation completion idempotency keys before the feature gate', async () => {
+    await expect(
+      service().completeSitePreparation(
         '33333333-3333-4333-8333-333333333333',
         {},
         PRINCIPAL,

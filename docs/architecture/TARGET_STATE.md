@@ -67,6 +67,14 @@ falls back to a second write. The API and frontend controls remain
 false/empty until hosted migration reconciliation, disposable integration,
 canary, rollback, and spend gates are green.
 
+M3.18 extends the same authority boundary for
+`site_preparing -> site_ready`: preparation notes, `site_prepared_at`, and
+`site_prepared_by` are committed by NestJS in one tenant-scoped transaction
+with durable replay and semantic audit. The Next compatibility adapter keeps
+the legacy behavior for unselected tenants and fails closed after a selected
+core error. Its API and frontend controls remain false/empty until hosted
+parity and canary gates clear.
+
 ## Nest module shape
 
 Modules align to business capabilities: identity/access, tenants, CRM,

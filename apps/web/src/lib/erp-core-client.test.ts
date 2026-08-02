@@ -10,6 +10,7 @@ import {
   reverseStockReceiptThroughCoreApi,
   recordDeliveryReceiptThroughCoreApi,
   startDeliverySitePreparationThroughCoreApi,
+  completeDeliverySitePreparationThroughCoreApi,
   startDeliveryInspectionThroughCoreApi,
   completeDeliveryInspectionThroughCoreApi,
   cancelDeliveryThroughCoreApi,
@@ -25,6 +26,7 @@ import {
   stockReceiptReverseWritesUseCoreApi,
   deliveryReceiptWritesUseCoreApi,
   deliverySitePreparationStartWritesUseCoreApi,
+  deliverySitePreparationCompleteWritesUseCoreApi,
   deliveryInspectionStartWritesUseCoreApi,
   deliveryInspectionCompleteWritesUseCoreApi,
   deliveryCancelWritesUseCoreApi,
@@ -149,6 +151,14 @@ const DELIVERY_INSPECTION_COMPLETE_RESULT = {
   inspectionResult: 'partial_pass' as const,
   status: 'accepted' as const,
   completedAt: '2026-08-02T12:00:00.000Z',
+}
+const DELIVERY_SITE_PREPARATION_COMPLETE_RESULT = {
+  deliveryScheduleId: DELIVERY_SITE_PREPARATION_RESULT.deliveryScheduleId,
+  tenantId: DELIVERY_SITE_PREPARATION_RESULT.tenantId,
+  action: 'complete_site_preparation' as const,
+  fromStatus: 'site_preparing' as const,
+  status: 'site_ready' as const,
+  sitePreparedAt: '2026-08-02T12:00:00.000Z',
 }
 const DELIVERY_CANCEL_RESULT = {
   deliveryScheduleId: DELIVERY_RECEIPT_RESULT.deliveryScheduleId,
@@ -480,6 +490,67 @@ describe('ERP Core client', () => {
         body: JSON.stringify(command),
         headers: expect.objectContaining({
           'Idempotency-Key': 'delivery-site-preparation-1',
+        }),
+      })
+    )
+  })
+
+  it('keeps delivery site-preparation-completion delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(
+      deliverySitePreparationCompleteWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(true)
+
+    vi.stubEnv('ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API', 'TRUE')
+    expect(
+      deliverySitePreparationCompleteWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(false)
+
+    vi.stubEnv('ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(
+      deliverySitePreparationCompleteWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(true)
+    expect(deliverySitePreparationCompleteWritesUseCoreApi('not-a-uuid')).toBe(
+      false
+    )
+  })
+
+  it('sends and validates an idempotent site-preparation-completion command', async () => {
+    const command = { notes: 'Staging bay and hoist cleared' }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DELIVERY_SITE_PREPARATION_COMPLETE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      completeDeliverySitePreparationThroughCoreApi(
+        DELIVERY_SITE_PREPARATION_COMPLETE_RESULT.deliveryScheduleId,
+        command,
+        'delivery-site-preparation-complete-1'
+      )
+    ).resolves.toEqual({
+      ok: true,
+      data: DELIVERY_SITE_PREPARATION_COMPLETE_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/procurement/deliveries/${DELIVERY_SITE_PREPARATION_COMPLETE_RESULT.deliveryScheduleId}/site-preparation/complete`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'delivery-site-preparation-complete-1',
         }),
       })
     )

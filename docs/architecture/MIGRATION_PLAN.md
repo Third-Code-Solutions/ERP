@@ -12,6 +12,36 @@ Reviewed source head `04b2ee84f9e192edb14c105e50b5280cdeb41570` is published to
 feature flag, or deployment changed. The release remains held by the hosted
 duplicate Purchase Order data and missing owner-approved audit-recovery tenant.
 
+## M3.18 - Delivery site-preparation completion authority (source complete)
+
+1. Extend the existing `delivery_workflow_action` enum with
+   `complete_site_preparation`; no new table is introduced.
+2. Add the closed-by-default NestJS command. Recheck membership and
+   `delivery.receive`, preflight tenant visibility, claim the shared ledger,
+   lock `site_preparing`, persist preparation notes/timestamps/actor, return a
+   strict replay result, and write semantic audit in one transaction.
+3. Route the existing `markSiteReady` action through Nest only for exact
+   `true` plus UUID allowlisting. Keep one opaque completion retry key and fail
+   closed after a selected core error; preserve visible UI and legacy behavior.
+4. Prove strict contracts, replay/conflict behavior, RBAC, tenant isolation,
+   audit, and migration reproducibility before canary activation.
+
+Source validation passed: shared types 139/139; database 138 passed with 137
+guarded skips; web 59 files/393 passed; focused API 72/72; API/web/shared/
+database typechecks; Nest build; release-plan/controlled-release tests;
+Actionlint; Gitleaks; diff checks. The PostgreSQL/Redis integration compiled
+but skipped without its explicit environment. No hosted SQL or provider
+mutation occurred.
+
+Release gate: keep
+`ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_ENABLED`,
+`ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_TENANT_IDS`,
+`ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API`, and
+`ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API_TENANT_IDS` false/empty.
+Do not apply `20260802200000_delivery_site_preparation_complete_workflow.sql`
+alone or deploy providers while hosted parity/data-integrity gates remain
+blocked.
+
 ## Current source/release handoff (M3.17, 2026-08-02)
 
 Source commit `0b7cb532b0b3a32f687f58437f2756259ba68c27` is pushed to

@@ -163,6 +163,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Completing site preparation stays fail-closed until its transaction,
+  // replay behavior, and tenant canary are approved.
+  ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Starting a delivery inspection stays fail-closed until the existing
   // delivery ledger extension and a tenant canary are approved.
   ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED: z
