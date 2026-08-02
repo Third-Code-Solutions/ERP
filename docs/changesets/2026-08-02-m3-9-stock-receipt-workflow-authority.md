@@ -45,6 +45,11 @@ migrations versus 67 in source. One duplicate Purchase Order group contains
 12 records, and `AUDIT_RECOVERY_TENANT_ID` remains owner-required. Railway and
 Vercel readiness are healthy, but the hosted planner remains `review_required`.
 
+Source/CI evidence: commit `6121740ea2a3db189e7cc1c5e83f970db73f6b74` was
+pushed under `kurtgav`; CI run `30740581304` passed all executable jobs. E2E
+remains credential-gated. This does not authorize hosted migration or provider
+deployment.
+
 ## Rollback
 
 Before canary activation, keep all post/reverse frontend and API flags false or

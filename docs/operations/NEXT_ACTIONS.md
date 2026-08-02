@@ -13,15 +13,16 @@ until the owner supplies:
 Then run the read-only planners again. Only when migration ledger, duplicate
 review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 
-- apply the seven migrations in timestamp order with a captured ledger;
+- apply all twelve pending migrations in timestamp order with a captured ledger;
 - run the disposable and hosted verification gates;
 - deploy exactly one reviewed source SHA to Railway and one controlled Vercel
   production build, after confirming the billing impact;
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current source SHA: pending the M3.9 source/docs commit on
-`origin/agent-02/third-code-erp-landing`, authored by `kurtgav`.
+Current source SHA: `6121740ea2a3db189e7cc1c5e83f970db73f6b74` on
+`origin/agent-02/third-code-erp-landing`, authored by `kurtgav`. CI run
+`30740581304` is green for every executable job; E2E remains credential-gated.
 
 ## Exact next product action
 
@@ -943,8 +944,8 @@ Git disconnected and do not create preview or duplicate production builds.
    `ERP_INVENTORY_RECEIPT_REVERSE_TENANT_IDS`, and both API-side write gates
    false/empty. Do not apply `20260802130000_stock_receipt_workflow_idempotency.sql`
    or any other pending hosted migration.
-2. Stage only the reviewed M3.9 source/docs files, commit as `kurtgav`, push
-   the exact SHA to GitHub, and inspect the resulting single CI run. E2E stays
+2. Source/docs candidate `6121740ea2a3db189e7cc1c5e83f970db73f6b74` is pushed
+   under `kurtgav`; CI run `30740581304` passed every executable job. E2E stays
    credential-gated; do not reconnect Vercel Git.
 3. Re-run the read-only Supabase ledger, duplicate-PO, audit-recovery, Railway
    readiness, and Vercel readiness checks. Current hosted evidence is 55/67
@@ -958,6 +959,22 @@ Git disconnected and do not create preview or duplicate production builds.
 5. If the planner remains blocked, continue source-only incremental Nest
    authority work. Never enable a canary or create a paid/duplicate Vercel
    deployment to bypass the gate.
+
+## Exact next action after M3.9 CI evidence (2026-08-02)
+
+1. Treat `6121740ea2a3db189e7cc1c5e83f970db73f6b74` and CI run
+   `30740581304` as the reviewed source candidate. Actionlint, secret scan,
+   typecheck, lint, unit tests, PostgreSQL 17/Redis reproducibility, database
+   assertions, Nest integration, and production build passed; E2E remains
+   credential-gated.
+2. Re-run the read-only Supabase ledger, duplicate-PO, audit-recovery,
+   Railway-readiness, and Vercel-readiness checks. Do not apply the new
+   migration or deploy while the twelve pending migrations, 12-record
+   duplicate group, or missing `AUDIT_RECOVERY_TENANT_ID` remain.
+3. Keep every Stock Receipt post/reverse selector and API write gate
+   false/empty. Only an owner-approved planner result plus explicit,
+   spend-bounded provider approval can authorize one hosted migration release
+   and one Railway/Vercel production action.
 
 ## Exact next action after M3.8 Stock Receipt source/CI candidate (2026-08-02)
 

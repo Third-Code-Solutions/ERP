@@ -4272,3 +4272,24 @@ Hosted read-only checks:
 Exact next action: add the source/docs candidate to GitHub under `kurtgav`,
 inspect the single CI run, then update this log with the exact SHA/run result
 before considering any hosted provider action.
+
+## 2026-08-02 - M3.9 source push and CI evidence
+
+Pushed commit `6121740ea2a3db189e7cc1c5e83f970db73f6b74` to
+`origin/agent-02/third-code-erp-landing` under GitHub account `kurtgav`.
+CI run `30740581304` passed Actionlint, secret scan, typecheck, lint, unit
+tests, the PostgreSQL 17/Redis reproducibility lane, database assertions,
+Nest integration, and the production build. E2E remained skipped by the
+explicit hosted-credential gate.
+
+The source migration is committed and pushed, but no Supabase SQL, Railway
+deployment, Vercel deployment, feature flag, queue, provider setting, or
+business data changed. Read-only hosted evidence remains Supabase 55/67
+migrations, one duplicate Purchase Order group with 12 records, and missing
+owner-approved `AUDIT_RECOVERY_TENANT_ID`; Railway and Vercel readiness remain
+HTTP 200. Vercel Git remains disconnected to control spend.
+
+Exact next action: re-run the read-only release planners and keep all
+Stock Receipt post/reverse canaries closed. Do not apply hosted SQL or trigger
+a provider build until the owner supplies the duplicate mapping, audit
+recovery tenant, and explicit spend-bounded promotion approval.
