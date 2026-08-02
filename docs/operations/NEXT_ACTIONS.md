@@ -55,8 +55,8 @@ Local gates are recorded in the work log. Source now has 73 migrations versus
 
 Source now has 73 migrations versus 55 hosted.
 
-Documentation head `2ea1c87dc24f90dc2f4b73509b92a40f8e46ab8f` is the source
-memory update for this milestone. Its CI run `30756121059` also stopped before
+Documentation-only follow-up commits are the source memory update for this
+milestone. The non-skipped documentation run `30756121059` also stopped before
 executable steps on the same account billing gate; future documentation-only
 updates use `[skip ci]` to avoid unnecessary runner attempts.
 
