@@ -815,3 +815,16 @@ Git disconnected and do not create preview or duplicate production builds.
 4. Only then execute one reviewed Supabase migration and one spend-bounded
    Railway/Vercel deployment with readiness, protected-flow, data, logs,
    exact-SHA, and rollback evidence. Keep Vercel Git disconnected.
+
+## Exact next action after M3.2 source implementation (2026-08-02)
+
+1. Keep `ERP_PO_WORKFLOW_WRITES_VIA_API` and its tenant allowlist false/empty;
+   keep SCM issuance/rejection on legacy paths.
+2. Push commit `fa3c20a`, wait for CI disposable Postgres evidence, and rerun
+   the read-only controlled-release planner.
+3. Do not apply hosted migrations or deploy while Supabase remains 55/63,
+   Purchase Order duplicates remain 12 records, or audit recovery lacks an
+   owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+4. After those blockers clear, canary only the three supported workflow states;
+   prove idempotent replay, RBAC, notification intent, audit chain, readiness,
+   exact SHA, and rollback before enabling any production flag.

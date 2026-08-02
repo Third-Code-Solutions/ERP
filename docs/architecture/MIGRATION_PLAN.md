@@ -1317,3 +1317,21 @@ GitHub Actions run `30732430851` passed on SHA
 transaction/container smoke, and build. E2E stayed skipped by credential
 gating. The read-only planner still returns `review_required`; keep the seam
 closed and do not apply hosted SQL or deploy providers.
+
+## M3.2 Purchase Order workflow seam checkpoint (2026-08-02)
+
+Implemented commit `fa3c20a`:
+
+- `apps/web/src/app/(dashboard)/procurement/actions.ts`: submit, PM approval,
+  and Commercial approval route through the existing Nest workflow client only
+  for explicitly allowlisted tenants; direct legacy writes remain fallback.
+- `apps/web/src/app/(dashboard)/purchase-orders/[id]/po-status-actions.tsx`:
+  stable per-action browser retry keys; no visible copy or layout change.
+- `apps/web/src/app/(dashboard)/procurement/actions.workflow.test.ts`: five
+  tests for routing, UUID fallback, and fail-closed outage behavior.
+
+SCM issuance and rejection intentionally remain legacy because current Nest
+workflow schema/service does not support those states. Validation passed: Web
+54 files / 325 tests, workspace typecheck/lint, production build 78/78 routes,
+actionlint, gitleaks, workflow-reference checks, and diff checks. No hosted
+mutation. Next action: CI evidence, then read-only planner recheck.

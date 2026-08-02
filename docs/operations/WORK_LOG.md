@@ -4027,3 +4027,15 @@ tests without skips, Nest smoke, and production build. E2E remained skipped by
 credential gating. Read-only checks show Railway and Vercel ready (HTTP 200),
 but the planner remains `review_required`; no hosted database or provider
 mutation was made.
+
+## 2026-08-02 - M3.2 Purchase Order workflow seam
+
+Commit `fa3c20a` adds closed-by-default Next.js-to-Nest routing for Purchase
+Order draft submission, PM approval, and Commercial approval. Browser retry UUIDs
+remain stable until success. SCM issuance and rejection stay legacy pending
+Nest state/notification parity. No visible UI design or copy changed.
+
+Validation: Web suite 54/54 files and 325/325 tests; workspace typecheck and
+lint; production build 78/78 routes; actionlint; gitleaks; workflow-reference
+verification; and diff checks passed. No hosted Supabase, Railway, Vercel,
+feature flag, queue, provider setting, or business-data mutation occurred.

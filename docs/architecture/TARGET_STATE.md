@@ -966,3 +966,16 @@ and production build. E2E remains credential-gated. Hosted readiness is
 healthy but promotion is not authorized while the planner reports eight
 pending migrations, 12 duplicate Purchase Order records, and missing
 `AUDIT_RECOVERY_TENANT_ID`.
+
+## Purchase Order approval authority seam (M3.2, 2026-08-02)
+
+Purchase Order draft submission, PM approval, and Commercial approval share the
+Nest workflow command when an explicit tenant canary flag is enabled. Next.js
+still validates the visible record and preserves the compatibility action, but
+Nest owns official status transition, PostgreSQL idempotency, role checks,
+notification intent, and audit evidence. Browser retries use an opaque stable
+key. SCM issuance and rejection remain separate legacy paths until command and
+notification parity is implemented.
+
+Commit `fa3c20a` proves the seam with five focused tests and full Web/build
+validation. Hosted promotion remains gated by the independent data planner.

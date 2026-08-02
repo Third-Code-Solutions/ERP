@@ -1838,3 +1838,19 @@ provider, flag, queue, or business-data mutation occurred.
   migrations with eight pending, one tenant Purchase Order duplicate group has
   12 records, and `AUDIT_RECOVERY_TENANT_ID` is unset. Railway `/ready` and
   Vercel `/api/ready` remain HTTP 200; no hosted mutation occurred.
+
+## 2026-08-02 M3.2 Purchase Order workflow seam
+
+- Commit `fa3c20a` routes draft submission, PM approval, and Commercial
+  approval through the existing Nest Purchase Order workflow only when the
+  existing tenant allowlist flag is true. Legacy direct Server Action writes
+  remain unchanged when false.
+- The server action keeps tenant/status validation before invoking Nest. The
+  browser carries one stable retry UUID per workflow action; failed requests
+  reuse it, successful requests clear it. SCM issuance and rejection remain
+  legacy because current Nest command parity does not cover those states.
+- Added `actions.workflow.test.ts`: five tests cover all three routed actions,
+  retry-key fallback, and fail-closed core outage behavior. Web validation now
+  passes 54 files / 325 tests, typecheck, lint, production build 78/78 routes,
+  actionlint, gitleaks, workflow-reference checks, and diff checks. No hosted
+  SQL, deployment, flag, queue, provider setting, or business-data mutation.
