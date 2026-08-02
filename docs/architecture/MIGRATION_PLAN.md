@@ -6,13 +6,17 @@ evidence is green.
 
 ## 2026-08-03 GitHub source publication checkpoint
 
-Reviewed source head `04b2ee84f9e192edb14c105e50b5280cdeb41570` is published to
+Reviewed source head `140f4e8cb518445ab0903d7d885b68cebc7ce8f0` is published to
 `origin/main` and `origin/agent-02/third-code-erp-landing` by
 `kurtgav <kurtgavin.design@gmail.com>`. No hosted SQL, provider setting,
 feature flag, or deployment changed. The release remains held by the hosted
 duplicate Purchase Order data and missing owner-approved audit-recovery tenant.
 
 ## M3.18 - Delivery site-preparation completion authority (source complete)
+
+Source commit `140f4e8cb518445ab0903d7d885b68cebc7ce8f0` contains this reviewed
+source slice and is ready for controlled publication only; no hosted mutation
+has occurred.
 
 1. Extend the existing `delivery_workflow_action` enum with
    `complete_site_preparation`; no new table is introduced.

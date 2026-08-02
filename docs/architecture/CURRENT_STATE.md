@@ -6,13 +6,16 @@ successful build.
 
 ## 2026-08-03 source publication checkpoint
 
-Reviewed source head `04b2ee84f9e192edb14c105e50b5280cdeb41570` is now published
+Reviewed source head `140f4e8cb518445ab0903d7d885b68cebc7ce8f0` is now published
 to both `origin/main` and `origin/agent-02/third-code-erp-landing` under
 `kurtgav <kurtgavin.design@gmail.com>`. This checkpoint changed GitHub source
 only. Supabase, Railway, Vercel, feature flags, and hosted data remain
 unchanged.
 
 ## M3.18 source update (2026-08-03)
+
+Source commit `140f4e8cb518445ab0903d7d885b68cebc7ce8f0` is the reviewed
+source candidate for this slice.
 
 The next delivery transition, `site_preparing -> site_ready`, now has a
 closed-by-default NestJS authority. The strict command accepts only bounded
