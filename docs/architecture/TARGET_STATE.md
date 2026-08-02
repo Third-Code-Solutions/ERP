@@ -942,3 +942,17 @@ promotion still requires the independent release planner to clear.
 GitHub Actions run `30718464238` executes this contract in the disposable
 Postgres 17 lane with no skips. CI evidence does not authorize hosted SQL or
 provider promotion while the release planner is not clear.
+
+## Web command cutover seam (M3.1, 2026-08-02)
+
+The Change Request form now has an incremental authority seam: the current
+Next.js action remains the public compatibility contract, but an explicit
+tenant allowlist can route the same validated command to Nest. The browser
+supplies only form data plus an opaque retry key; Nest remains responsible for
+tenant, actor, capability, transaction, idempotency, notification, and audit
+authority. The allowlist is closed by default and the legacy direct path is
+retained until hosted ledger and data-integrity gates clear.
+
+Commit `d5ee498` proves the web seam with focused action tests and the full web
+suite. This is source evidence only; it does not authorize hosted migration or
+provider promotion.

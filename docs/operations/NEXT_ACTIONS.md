@@ -790,3 +790,16 @@ Git disconnected and do not create preview or duplicate production builds.
 4. After a `clear` planner and approved canary, perform one migration and one
    spend-bounded provider action with protected-flow, data, log, readiness,
    exact-SHA, and rollback evidence.
+
+## Exact next action after M3.1 web seam (2026-08-02)
+
+1. Treat commit `d5ee498` as source-only evidence; keep the Change Request
+   tenant allowlist and `ERP_CHANGE_REQUEST_WRITES_ENABLED` false/empty.
+2. Push the reviewed source candidate and wait for CI, including the disposable
+   Postgres lane; do not trigger a hosted deployment from this branch.
+3. Re-run the read-only controlled-release planner. It must first clear the
+   eight hosted migrations, the 12-record tenant Purchase Order duplicate
+   group, and missing owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+4. Only after a clear planner and canary approval may one reviewed Supabase
+   migration and one spend-bounded Railway/Vercel action occur. Keep Vercel
+   Git disconnected and avoid preview or duplicate production builds.
