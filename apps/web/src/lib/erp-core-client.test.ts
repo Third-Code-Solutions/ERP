@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createRfqThroughCoreApi,
+  createPurchaseOrderFromBomThroughCoreApi,
   createPurchaseOrderThroughCoreApi,
   createStockReceiptThroughCoreApi,
   postStockReceiptThroughCoreApi,
@@ -11,6 +12,7 @@ import {
   logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
+  purchaseOrderBomWritesUseCoreApi,
   stockReceiptCreateWritesUseCoreApi,
   stockReceiptPostWritesUseCoreApi,
   stockReceiptReverseWritesUseCoreApi,
@@ -51,6 +53,13 @@ const RFQ_QUOTE_RESULT = {
 const PURCHASE_ORDER_RESULT = {
   purchaseOrderId: '66666666-6666-4666-8666-666666666666',
   tenantId: '22222222-2222-4222-8222-222222222222',
+  poNumber: 'PO-0001',
+  status: 'draft' as const,
+}
+const PURCHASE_ORDER_BOM_RESULT = {
+  purchaseOrderId: PURCHASE_ORDER_RESULT.purchaseOrderId,
+  tenantId: PURCHASE_ORDER_RESULT.tenantId,
+  bomId: '99999999-9999-4999-8999-999999999999',
   poNumber: 'PO-0001',
   status: 'draft' as const,
 }
@@ -208,6 +217,23 @@ describe('ERP Core client', () => {
       'not-a-uuid'
     )
     expect(purchaseOrderWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+  })
+
+  it('keeps BOM Purchase Order delegation fail-closed unless its gate matches', () => {
+    vi.stubEnv('ERP_PO_BOM_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(purchaseOrderBomWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_PO_BOM_CREATE_WRITES_VIA_API', 'TRUE')
+    expect(purchaseOrderBomWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PO_BOM_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(purchaseOrderBomWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(purchaseOrderBomWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps PO workflow delegation fail-closed unless its independent gate matches', () => {
@@ -605,6 +631,39 @@ describe('ERP Core client', () => {
         'po-create-1'
       )
     ).resolves.toEqual({ ok: false, error: 'command disabled' })
+  })
+
+  it('sends an idempotent BOM Purchase Order command and validates result', async () => {
+    const command = {
+      bomId: PURCHASE_ORDER_BOM_RESULT.bomId,
+      projectId: PROJECT_ID,
+      vendorId: null,
+      deliveryDate: null,
+      notes: null,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(PURCHASE_ORDER_BOM_RESULT), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createPurchaseOrderFromBomThroughCoreApi(command, 'bom-po-create-1')
+    ).resolves.toEqual({ ok: true, data: PURCHASE_ORDER_BOM_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/procurement/purchase-orders/from-bom',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'bom-po-create-1',
+        }),
+      })
+    )
   })
 
   it('sends a keyed PO workflow command and validates the result', async () => {

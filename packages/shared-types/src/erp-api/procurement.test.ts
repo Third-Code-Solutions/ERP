@@ -16,7 +16,9 @@ import {
   transitionRfqCommandSchema,
 } from './procurement'
 import {
+  createPurchaseOrderFromBomCommandSchema,
   createPurchaseOrderCommandSchema,
+  purchaseOrderBomCreationResultSchema,
   purchaseOrderWorkflowCommandSchema,
   purchaseOrderWorkflowResultSchema,
   purchaseOrderSupplierIssuedPayloadSchema,
@@ -89,6 +91,34 @@ describe('Purchase Order creation API contracts', () => {
         tenantId: UUID,
         poNumber: 'PO-0001',
         status: 'issued',
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts a strict BOM source command and result', () => {
+    const command = {
+      bomId: UUID,
+      projectId: UUID,
+      vendorId: null,
+      deliveryDate: null,
+      notes: null,
+    }
+    expect(createPurchaseOrderFromBomCommandSchema.parse(command)).toEqual(
+      command
+    )
+    expect(
+      purchaseOrderBomCreationResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        bomId: UUID,
+        poNumber: 'PO-0001',
+        status: 'draft',
+      }).success
+    ).toBe(true)
+    expect(
+      createPurchaseOrderFromBomCommandSchema.safeParse({
+        ...command,
+        actorId: UUID,
       }).success
     ).toBe(false)
   })

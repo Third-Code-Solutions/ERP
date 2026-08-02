@@ -2,7 +2,10 @@ import 'reflect-metadata'
 
 import { ServiceUnavailableException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
-import type { CreatePurchaseOrderCommand } from '@third-code-erp/shared-types'
+import type {
+  CreatePurchaseOrderCommand,
+  CreatePurchaseOrderFromBomCommand,
+} from '@third-code-erp/shared-types'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -31,11 +34,31 @@ const COMMAND: CreatePurchaseOrderCommand = {
   ],
 }
 
+const BOM_COMMAND: CreatePurchaseOrderFromBomCommand = {
+  bomId: '55555555-5555-4555-8555-555555555555',
+  projectId: COMMAND.projectId,
+  vendorId: null,
+  deliveryDate: null,
+  notes: null,
+}
+
 function service(enabled = false, tenantIds: string[] = []) {
   const config = {
-    get: vi.fn((key: string) =>
-      key === 'ERP_PO_CREATE_WRITES_ENABLED' ? enabled : tenantIds
-    ),
+    get: vi.fn((key: string) => {
+      if (
+        key === 'ERP_PO_CREATE_WRITES_ENABLED' ||
+        key === 'ERP_PO_BOM_CREATE_WRITES_ENABLED'
+      ) {
+        return enabled
+      }
+      if (
+        key === 'ERP_PO_CREATE_WRITES_TENANT_IDS' ||
+        key === 'ERP_PO_BOM_CREATE_WRITES_TENANT_IDS'
+      ) {
+        return tenantIds
+      }
+      return undefined
+    }),
   } as unknown as ConfigService
   return new PurchaseOrderCreationService(
     config,
@@ -56,6 +79,20 @@ describe('PurchaseOrderCreationService migration boundary', () => {
       service(true).create(COMMAND, PRINCIPAL, 'po-create-1')
     ).rejects.toThrow(
       'Purchase Order command is not enabled for this tenant; no Purchase Order was created.'
+    )
+  })
+
+  it('fails closed for BOM-to-PO creation by default', async () => {
+    await expect(
+      service().createFromBom(BOM_COMMAND, PRINCIPAL, 'bom-po-create-1')
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+
+  it('keeps BOM-to-PO creation disabled without its tenant allowlist', async () => {
+    await expect(
+      service(true).createFromBom(BOM_COMMAND, PRINCIPAL, 'bom-po-create-1')
+    ).rejects.toThrow(
+      'BOM Purchase Order command is not enabled for this tenant; no Purchase Order was created.'
     )
   })
 })

@@ -33,14 +33,17 @@ describe('Purchase Order command HTTP contract', () => {
     close = undefined
   })
 
-  async function appFor(create = vi.fn()) {
+  async function appFor(
+    create = vi.fn(),
+    createFromBom = vi.fn()
+  ) {
     const workflow = vi.fn()
     const moduleRef = await Test.createTestingModule({
       controllers: [PurchaseOrderController],
       providers: [
         {
           provide: PurchaseOrderCreationService,
-          useValue: { create },
+          useValue: { create, createFromBom },
         },
         {
           provide: PurchaseOrderWorkflowService,
@@ -135,5 +138,56 @@ describe('Purchase Order command HTTP contract', () => {
       )
       .send({ action: 'pm_approve' })
       .expect(400)
+  }, 30_000)
+
+  it('forwards a strict BOM command and request principal', async () => {
+    const createFromBom = vi.fn().mockResolvedValue({
+      purchaseOrderId: '55555555-5555-4555-8555-555555555555',
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      bomId: '66666666-6666-4666-8666-666666666666',
+      poNumber: 'PO-0001',
+      status: 'draft',
+    })
+    const app = await appFor(vi.fn(), createFromBom)
+    const command = {
+      bomId: '66666666-6666-4666-8666-666666666666',
+      projectId: COMMAND.projectId,
+      vendorId: null,
+      deliveryDate: null,
+      notes: null,
+    }
+
+    await request(app.getHttpServer())
+      .post('/v1/procurement/purchase-orders/from-bom')
+      .set('Idempotency-Key', ' bom-po-1 ')
+      .send(command)
+      .expect(201)
+
+    expect(createFromBom).toHaveBeenCalledWith(
+      command,
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        userId: '11111111-1111-4111-8111-111111111111',
+      }),
+      'bom-po-1'
+    )
+  }, 30_000)
+
+  it('requires an idempotency key for BOM creation', async () => {
+    const createFromBom = vi.fn()
+    const app = await appFor(vi.fn(), createFromBom)
+
+    await request(app.getHttpServer())
+      .post('/v1/procurement/purchase-orders/from-bom')
+      .send({
+        bomId: '66666666-6666-4666-8666-666666666666',
+        projectId: COMMAND.projectId,
+        vendorId: null,
+        deliveryDate: null,
+        notes: null,
+      })
+      .expect(400)
+
+    expect(createFromBom).not.toHaveBeenCalled()
   }, 30_000)
 })

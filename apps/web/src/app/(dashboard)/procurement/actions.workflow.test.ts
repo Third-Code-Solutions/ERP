@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   can: vi.fn(),
   select: vi.fn(),
   purchaseOrderWorkflowWritesUseCoreApi: vi.fn(),
+  purchaseOrderBomWritesUseCoreApi: vi.fn(),
+  createPurchaseOrderFromBomThroughCoreApi: vi.fn(),
   transitionPurchaseOrderThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
 }))
@@ -54,7 +56,11 @@ vi.mock('@/lib/operations/notifications', () => ({
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
+  createPurchaseOrderFromBomThroughCoreApi:
+    mocks.createPurchaseOrderFromBomThroughCoreApi,
   createPurchaseOrderThroughCoreApi: vi.fn(),
+  purchaseOrderBomWritesUseCoreApi:
+    mocks.purchaseOrderBomWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi: vi.fn(),
   purchaseOrderWorkflowWritesUseCoreApi:
     mocks.purchaseOrderWorkflowWritesUseCoreApi,
@@ -74,6 +80,7 @@ vi.mock('next/cache', () => ({
 }))
 
 import {
+  createPoFromBom,
   commercialApprovePo,
   pmApprovePo,
   rejectPoApproval,
@@ -84,6 +91,7 @@ const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const ACTOR_ID = '22222222-2222-4222-8222-222222222222'
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const PO_ID = '44444444-4444-4444-8444-444444444444'
+const BOM_ID = '55555555-5555-4555-8555-555555555555'
 
 function selectPurchaseOrder(status: string): void {
   const where = vi.fn().mockResolvedValue([
@@ -205,5 +213,66 @@ describe('Purchase Order workflow compatibility seam', () => {
         'ERP Core API is unavailable. No Purchase Order workflow was committed.',
     })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('routes BOM-to-PO creation through Nest with stable retry key', async () => {
+    mocks.purchaseOrderBomWritesUseCoreApi.mockReturnValue(true)
+    mocks.createPurchaseOrderFromBomThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        purchaseOrderId: PO_ID,
+        tenantId: TENANT_ID,
+        bomId: BOM_ID,
+        poNumber: 'PO-0001',
+        status: 'draft',
+      },
+    })
+    const where = vi.fn().mockResolvedValue([
+      {
+        id: BOM_ID,
+        status: 'approved',
+        total_cost_cents: 10_000,
+        project_id: PROJECT_ID,
+      },
+    ])
+    const from = vi.fn().mockReturnValue({ where })
+    mocks.select.mockReturnValue({ from })
+
+    await expect(
+      createPoFromBom(BOM_ID, PROJECT_ID, null, null, 'bom-po-retry-1')
+    ).resolves.toEqual({ id: PO_ID })
+
+    expect(mocks.createPurchaseOrderFromBomThroughCoreApi).toHaveBeenCalledWith(
+      {
+        bomId: BOM_ID,
+        projectId: PROJECT_ID,
+        vendorId: null,
+        deliveryDate: null,
+        notes: null,
+      },
+      'bom-po-retry-1'
+    )
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/purchase-orders')
+  })
+
+  it('requires retry key when BOM core canary is selected', async () => {
+    mocks.purchaseOrderBomWritesUseCoreApi.mockReturnValue(true)
+    const where = vi.fn().mockResolvedValue([
+      {
+        id: BOM_ID,
+        status: 'approved',
+        total_cost_cents: 10_000,
+        project_id: PROJECT_ID,
+      },
+    ])
+    const from = vi.fn().mockReturnValue({ where })
+    mocks.select.mockReturnValue({ from })
+
+    await expect(
+      createPoFromBom(BOM_ID, PROJECT_ID, null, null)
+    ).resolves.toEqual({
+      error: 'Retry token is required for the BOM Purchase Order command.',
+    })
+    expect(mocks.createPurchaseOrderFromBomThroughCoreApi).not.toHaveBeenCalled()
   })
 })
