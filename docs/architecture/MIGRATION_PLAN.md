@@ -1289,3 +1289,22 @@ database tests without skips (256/256), migration/schema replay, Nest
 transaction/container smoke, and the production build. E2E remains skipped by
 the hosted-credential gate. Hosted release remains blocked by the independent
 planner and must not be mutated.
+
+## M3.1 web compatibility seam checkpoint (2026-08-02)
+
+Implemented the smallest safe vertical slice in commit `d5ee498`:
+
+- `packages/auth/src/server.ts`: explicit `change_request.create` capability
+  with the existing admin/owner/sales role mapping.
+- `apps/web/src/app/(dashboard)/crm/opportunities/[id]/proposal/actions.ts`:
+  closed-by-default tenant gate to the Nest command; legacy direct write,
+  notification, and audit path preserved when disabled.
+- `apps/web/src/components/proposal/change-request-form.tsx`: stable per-submit
+  idempotency token, reset only after success; no visible UI change.
+- `apps/web/src/app/(dashboard)/crm/opportunities/[id]/proposal/actions.test.ts`:
+  gated routing, token propagation, and UUID fallback coverage.
+
+Validation passed: 53 web test files / 320 tests, workspace lint, production
+build 78/78 routes, actionlint, gitleaks, workflow action references, and
+diff checks. No hosted mutation. Next action remains the read-only planner,
+then owner-approved data remediation before any flag or provider change.

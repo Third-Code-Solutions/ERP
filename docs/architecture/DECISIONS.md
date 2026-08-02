@@ -1700,3 +1700,15 @@ the Change Request tenant/RBAC/idempotency/notification/audit/rollback probe.
 
 Rationale: the authority boundary is now proven against a fresh schema in CI,
 while hosted data-integrity findings remain independently unresolved.
+
+## D-103 -- Keep the Change Request web cutover closed by default (2026-08-02)
+
+Decision: ship the compatibility seam in commit `d5ee498`, but leave the
+tenant allowlist disabled. The Server Action preserves its existing API and
+direct-write behavior until the hosted migration ledger, Purchase Order
+duplicate review, and audit-recovery owner input are resolved.
+
+Rationale: this provides an executable incremental migration boundary without
+exposing an unproven hosted transaction path or changing the public UI. The
+stable browser retry key aligns the compatibility path with Nest idempotency,
+while authorization and official commit authority remain server-side.

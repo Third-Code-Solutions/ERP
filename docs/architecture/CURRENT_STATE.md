@@ -1809,3 +1809,19 @@ provider, flag, queue, or business-data mutation occurred.
 - Hosted Supabase remains 55/63 and the controlled planner remains
   `review_required`; no hosted SQL, deployment, flag, queue, provider setting,
   or business-data mutation occurred.
+
+## 2026-08-02 M3.1 web compatibility cutover seam
+
+- Commit `d5ee498` adds a closed-by-default web seam for Change Request writes.
+  The existing Server Action now authorizes `change_request.create` (same
+  current role set as `pprf.submit`) and routes only tenant IDs allowed by the
+  existing core-client flag to Nest. The legacy direct write remains the
+  compatibility path when the flag is false.
+- The browser form carries one stable UUID retry token per submission and
+  clears it only after success. The core path therefore preserves idempotency
+  across retries without changing visible copy, layout, or navigation.
+- Added focused action tests for the gated command, supplied token, and UUID
+  fallback. Web validation: 53 files / 320 tests, workspace lint, production
+  build 78/78 routes, actionlint, gitleaks, workflow-reference checks, and
+  diff checks pass. No hosted SQL, deployment, flag, queue, provider setting,
+  or business-data mutation occurred.

@@ -4003,3 +4003,17 @@ database tests without skips (256/256, including the new Change Request
 integration), Nest container smoke, and the production build. E2E stayed
 skipped by hosted-credential gating. No hosted Supabase, Railway, Vercel,
 feature flag, queue, provider setting, or business-data mutation occurred.
+
+## 2026-08-02 - M3.1 web Change Request cutover seam
+
+Commit `d5ee498` adds an incremental Next.js-to-Nest seam for Change Request
+creation. It introduces capability parity, closed-by-default tenant routing,
+stable browser idempotency tokens, and focused action tests while preserving
+the legacy direct Server Action path. No visible landing or dashboard design
+was changed.
+
+Results: web suite 53/53 files and 320/320 tests; workspace lint passed;
+production build generated 78/78 routes; actionlint, gitleaks,
+workflow-reference verification, and diff checks passed. No hosted Supabase,
+Railway, Vercel, flag, queue, provider setting, or business-data mutation was
+performed. Hosted planner blockers remain unchanged.
