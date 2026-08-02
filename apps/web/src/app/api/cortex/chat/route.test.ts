@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   cortexDescribeEntity: vi.fn(),
   authorizeCortexRecordContext: vi.fn(),
   writeAuditLog: vi.fn(),
+  openaiCreate: vi.fn(),
+  embedText: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -33,8 +35,10 @@ vi.mock('@third-code-erp/database', () => ({
 }))
 
 vi.mock('@third-code-erp/ai', () => ({
-  embedText: vi.fn(),
-  getOpenAI: vi.fn(),
+  embedText: mocks.embedText,
+  getOpenAI: () => ({
+    chat: { completions: { create: mocks.openaiCreate } },
+  }),
 }))
 
 vi.mock('@/lib/audit', () => ({
@@ -77,6 +81,8 @@ describe('Cortex chat conversation ownership', () => {
     mocks.getCortexGraphStats.mockResolvedValue({ byType: [] })
     mocks.searchCortexNodes.mockResolvedValue([])
     mocks.searchCortexNodesByTerms.mockResolvedValue([])
+    mocks.cortexSemanticSearch.mockResolvedValue([])
+    mocks.embedText.mockResolvedValue([0.1])
     mocks.cortexKeywordAnswer.mockResolvedValue({
       answer: 'Grounded answer',
       citations: [],
@@ -296,5 +302,61 @@ describe('Cortex chat conversation ownership', () => {
         response.headers.get(CORTEX_CITATIONS_HEADER)
       )
     ).toEqual([citation])
+  })
+
+  it('redacts direct identifiers before embedding and external model calls', async () => {
+    const email = 'jane@example.com'
+    const tin = '123-456-789'
+    const phone = '+639171234567'
+    const sensitiveQuestion = `Call ${email} about TIN ${tin} at ${phone}`
+    const node = {
+      node_type: 'project',
+      title: `Metro MEP Retrofit ${email}`,
+      summary: `Owner TIN ${tin}; phone ${phone}`,
+    }
+    mocks.searchCortexNodes.mockResolvedValue([node])
+    mocks.searchCortexNodesByTerms.mockResolvedValue([node])
+    mocks.openaiCreate.mockResolvedValue(
+      (async function* () {
+        yield { choices: [{ delta: { content: 'Safe model response' } }] }
+      })()
+    )
+    vi.stubEnv('OPENAI_API_KEY', 'test-key')
+
+    const request = new NextRequest('http://localhost/api/cortex/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: sensitiveQuestion }],
+      }),
+    })
+
+    const response = await POST(request)
+    await expect(response.text()).resolves.toBe('Safe model response')
+
+    const [modelRequest] = mocks.openaiCreate.mock.calls[0] ?? []
+    expect(JSON.stringify(modelRequest)).not.toContain(email)
+    expect(JSON.stringify(modelRequest)).not.toContain(tin)
+    expect(JSON.stringify(modelRequest)).not.toContain(phone)
+    expect(JSON.stringify(modelRequest)).toContain('[email redacted]')
+    expect(JSON.stringify(modelRequest)).toContain('[tax id redacted]')
+    expect(JSON.stringify(modelRequest)).toContain('[phone redacted]')
+    expect(mocks.embedText).toHaveBeenCalledWith(
+      expect.stringContaining('[email redacted]')
+    )
+    expect(mocks.embedText.mock.calls[0]?.[0]).not.toContain(tin)
+    expect(mocks.embedText.mock.calls[0]?.[0]).not.toContain(phone)
+
+    const auditDiffs = mocks.writeAuditLog.mock.calls.map(
+      ([params]) => params.diff as Record<string, unknown>
+    )
+    const started = auditDiffs.find((diff) => diff.phase === 'started')
+    const completed = auditDiffs.find((diff) => diff.phase === 'completed')
+    expect(started?.last_user_message).toBeUndefined()
+    expect(started?.prompt_preview).not.toContain(email)
+    expect(started?.prompt_preview).not.toContain(tin)
+    expect(started?.prompt_preview).not.toContain(phone)
+    expect(started?.prompt_hash).toMatch(/^[0-9a-f]{64}$/)
+    expect(completed?.response_hash).toMatch(/^[0-9a-f]{64}$/)
   })
 })

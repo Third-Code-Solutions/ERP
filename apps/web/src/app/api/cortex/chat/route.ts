@@ -15,6 +15,11 @@ import { getOpenAI, embedText } from '@third-code-erp/ai'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
+import {
+  hashCortexText,
+  redactCortexMessages,
+  redactCortexText,
+} from '@/lib/cortex/redaction'
 import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
 import {
   CORTEX_CITATIONS_HEADER,
@@ -67,6 +72,8 @@ export async function POST(req: NextRequest) {
   } = parsed.data
 
   const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+  const redactedUserMessage = redactCortexText(lastUserMessage)
+  const redactedMessages = redactCortexMessages(messages)
 
   // Persist into the user's DB (the agent's memory). Resolve/create the thread,
   // store the incoming user turn now; the assistant turn is stored once the
@@ -132,7 +139,7 @@ export async function POST(req: NextRequest) {
       conversationId = await createCortexConversation(
         profile.tenantId,
         profile.user.id,
-        lastUserMessage.slice(0, 80) || 'New conversation',
+        redactCortexText(lastUserMessage.slice(0, 80)) || 'New conversation',
         authorizedContext
           ? {
               refTable: authorizedContext.refTable,
@@ -179,7 +186,7 @@ export async function POST(req: NextRequest) {
 
   const shape = stats.byType.map((t) => `${t.nodeType}:${t.count}`).join(', ')
   const fmt = (n: { node_type: string; title: string | null; summary: string | null }) =>
-    `- [${n.node_type}] ${n.title ?? '(untitled)'}${n.summary ? ` — ${n.summary}` : ''}`
+    `- [${n.node_type}] ${redactCortexText(n.title ?? '(untitled)')}${n.summary ? ` — ${redactCortexText(n.summary)}` : ''}`
   const relevant = matches.map(fmt).join('\n')
   const records = recent.map(fmt).join('\n')
 
@@ -187,8 +194,8 @@ export async function POST(req: NextRequest) {
   // missing key / unindexed graph never breaks the chat.
   let semantic = ''
   try {
-    if (process.env.OPENAI_API_KEY && lastUserMessage) {
-      const qEmbedding = await embedText(lastUserMessage)
+    if (process.env.OPENAI_API_KEY && redactedUserMessage) {
+      const qEmbedding = await embedText(redactedUserMessage)
       const hits = await cortexSemanticSearch(profile.tenantId, qEmbedding, { limit: 8, nodeTypes: scope })
       semantic = hits.map((h) => fmt(h.node)).join('\n')
     }
@@ -215,7 +222,7 @@ How to answer:
 GRAPH SHAPE (counts by record type): ${shape || 'empty'}
 
 CONVERSATION FOCUS (the canonical ERP record this thread is bound to):
-${focused?.found ? focused.summary : '(whole-company conversation)'}
+${focused?.found ? redactCortexText(focused.summary) : '(whole-company conversation)'}
 
 SEMANTICALLY RELATED RECORDS (closest in meaning):
 ${semantic || '(semantic index not built yet)'}
@@ -226,9 +233,15 @@ ${relevant || '(none matched by keyword)'}
 MOST RECENTLY UPDATED RECORDS (newest first):
 ${records || '(no records visible)'}`
 
-  // Audit every AI query (PRD §11 / F4). Best-effort — never block the user.
+  // Audit every AI query (PRD §11 / F4). Store only a redacted preview plus a
+  // stable hash; raw user text must not be copied into the audit chain.
+  const model = process.env.OPENAI_API_KEY
+    ? 'gpt-4o-mini'
+    : 'deterministic-grounded'
+  const promptHash = hashCortexText(
+    `${systemPrompt}\n${JSON.stringify(redactedMessages)}`
+  )
   try {
-    const lastUser = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
     await writeAuditLog({
       tenantId: profile.tenantId,
       actorId: profile.user.id,
@@ -236,9 +249,13 @@ ${records || '(no records visible)'}`
       entityId: profile.user.id,
       action: 'query',
       diff: {
+        phase: 'started',
+        model,
+        prompt_hash: promptHash,
+        prompt_char_count: systemPrompt.length,
         message_count: messages.length,
         graph_records_in_context: recent.length,
-        last_user_message: lastUser.slice(0, 1000),
+        prompt_preview: redactedUserMessage.slice(0, 1000),
         context_ref_table: authorizedContext?.refTable ?? null,
         context_ref_id: authorizedContext?.refId ?? null,
       },
@@ -265,17 +282,22 @@ ${records || '(no records visible)'}`
 
   type ChatChunk = { choices: { delta?: { content?: string | null } }[] }
   let llmStream: AsyncIterable<ChatChunk> | null = null
+  let llmFailed = false
   if (process.env.OPENAI_API_KEY) {
     try {
       const openai = getOpenAI()
       llmStream = (await openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...redactedMessages,
+        ],
         stream: true,
         max_tokens: 800,
       })) as AsyncIterable<ChatChunk>
     } catch (err) {
       console.error('[cortex/chat] LLM unavailable, using grounded fallback:', err)
+      llmFailed = true
       llmStream = null
     }
   }
@@ -296,12 +318,37 @@ ${records || '(no records visible)'}`
           }
         } catch (err) {
           console.error('[cortex/chat] LLM stream failed mid-flight:', err)
+          llmFailed = true
         }
       }
       // No LLM (or it failed) → stream the deterministic grounded answer.
       if (!assistant) {
         assistant = grounded.answer
         controller.enqueue(encoder.encode(assistant))
+      }
+      try {
+        await writeAuditLog({
+          tenantId: profile.tenantId,
+          actorId: profile.user.id,
+          entityType: 'cortex_chat',
+          entityId: profile.user.id,
+          action: 'query',
+          diff: {
+            phase: 'completed',
+            model,
+            outcome: llmFailed
+              ? 'model_failed_grounded_fallback'
+              : llmStream
+                ? 'model'
+                : 'deterministic_grounded',
+            prompt_hash: promptHash,
+            response_hash: hashCortexText(assistant),
+            response_preview: redactCortexText(assistant).slice(0, 1000),
+            citation_count: grounded.citations.length,
+          },
+        })
+      } catch (err) {
+        console.error('[cortex/chat] completion audit failed:', err)
       }
       controller.close()
       // Store the assistant turn + the records it cited into the agent's memory.
