@@ -20,8 +20,10 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current source SHA: `0b7cb532b0b3a32f687f58437f2756259ba68c27` on
-`origin/agent-02/third-code-erp-landing`, authored by `kurtgav`. CI run
+Current reviewed source head: `04b2ee84f9e192edb14c105e50b5280cdeb41570` on
+both `origin/main` and `origin/agent-02/third-code-erp-landing`, authored by
+`kurtgav`. The M3.17 implementation is in
+`0b7cb532b0b3a32f687f58437f2756259ba68c27`. CI run
 `30755868510` failed before any job step and all other jobs were skipped;
 the external GitHub account payment/spending-limit gate remains unresolved.
 Local gates are recorded in the work log. Source now has 73 migrations versus

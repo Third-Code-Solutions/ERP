@@ -4,6 +4,14 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## 2026-08-03 GitHub source publication checkpoint
+
+Reviewed source head `04b2ee84f9e192edb14c105e50b5280cdeb41570` is published to
+`origin/main` and `origin/agent-02/third-code-erp-landing` by
+`kurtgav <kurtgavin.design@gmail.com>`. No hosted SQL, provider setting,
+feature flag, or deployment changed. The release remains held by the hosted
+duplicate Purchase Order data and missing owner-approved audit-recovery tenant.
+
 ## Current source/release handoff (M3.17, 2026-08-02)
 
 Source commit `0b7cb532b0b3a32f687f58437f2756259ba68c27` is pushed to
