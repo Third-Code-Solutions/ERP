@@ -879,3 +879,22 @@ Git disconnected and do not create preview or duplicate production builds.
 5. Keep Vercel Git disconnected; if approved, use one spend-bounded Railway
    deploy and one Vercel production promotion/build only—no preview/duplicate
    builds; verify live browser/API/logs before declaring production green.
+
+## Exact next action after M3.5 finance journal authority (2026-08-02)
+
+1. Keep `ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API`,
+   `ERP_FINANCE_JOURNAL_POST_WRITES_ENABLED`, and both tenant allowlists
+   false/empty. Do not apply `20260802120000_finance_journal_post_idempotency.sql`
+   or any other pending hosted migration; do not deploy Railway/Vercel.
+2. Treat source commit `97106ba` and CI run `30736271967` as the reviewed
+   candidate. E2E is credential-gated; CI green is not hosted authorization.
+3. Obtain owner-approved canonical mapping for the 12 duplicate Purchase
+   Orders and a valid `AUDIT_RECOVERY_TENANT_ID`; re-run the read-only planner
+   until all 11 pending migrations and data/audit blockers clear.
+4. After a clear planner, review/apply one controlled Supabase release with
+   backup/PITR, migration ledger, RLS/function, journal-post idempotency/RBAC/
+   audit/tenant checks, readiness, exact SHA, and rollback evidence.
+5. Only after those checks, perform one spend-bounded Railway action and one
+   Vercel production action. Keep Vercel Git disconnected; avoid previews and
+   duplicate builds; verify live protected flow, data, logs, and exact release
+   identity before declaring production green.

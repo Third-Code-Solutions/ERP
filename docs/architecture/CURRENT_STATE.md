@@ -1930,3 +1930,36 @@ provider, flag, queue, or business-data mutation occurred.
   and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and Vercel readiness remain
   HTTP 200; no hosted SQL, deployment, flag, queue, provider, or business-data
   mutation occurred.
+
+## 2026-08-02 M3.5 Finance journal posting authority
+
+- Commit `97106ba` adds the closed-by-default Nest finance journal-post
+  command at `POST /v1/finance/journals/:journalEntryId/post`. The command
+  rechecks the tenant membership/role under lock, requires `finance.post`,
+  binds a tenant-scoped idempotency key to a strict command hash, calls the
+  existing database posting function inside the same transaction, persists a
+  replay result, and writes semantic audit evidence. The database function
+  remains the numbering, balance, fiscal-period, and posted-state authority.
+- Migration `20260802120000_finance_journal_post_idempotency.sql` and the
+  matching Drizzle schema add the service-owned idempotency record with
+  tenant composite foreign keys, state/payload checks, forced RLS, and no
+  browser privileges. Core API writes are disabled by default and require an
+  explicit tenant allowlist; the Next Server Action remains a compatibility
+  fallback and routes only opted-in tenants through core.
+- The journal detail action now carries one opaque retry key per click while
+  preserving the existing `Post journal` copy, layout, and design. Python,
+  Cortex, and browser code do not approve or finalize postings.
+- GitHub Actions run `30736271967` passed Actionlint, secret scan, lint,
+  typecheck, unit tests, zero-to-current Postgres 17 replay, empty schema
+  diff, no-skip database tests, Nest transaction integration/container smoke,
+  and production build. E2E remains credential-gated. Local serial suites
+  passed: API 29 files / 135 tests, shared contracts 10 / 121, database 21 /
+  123 plus 137 explicit environment-gated skips, and Web 54 / 328; workspace
+  lint, typecheck, build (78/78 routes), actionlint, gitleaks, and diff checks
+  passed.
+- Read-only hosted planner remains `review_required`: Supabase is 55/66 with
+  eleven pending migrations (including `20260802120000`), one duplicate
+  Purchase Order group with 12 records, zero audit rows, and missing
+  `AUDIT_RECOVERY_TENANT_ID`. Railway readiness is HTTP 200 with no revision;
+  Vercel readiness is HTTP 200 at stale revision `31c04942a93d`. No hosted
+  SQL, deployment, flag, queue, provider, or business-data mutation occurred.

@@ -4118,3 +4118,32 @@ Hosted planner is now `review_required` at 55/65 migrations (ten pending), one
 12-record duplicate Purchase Order group, and missing
 `AUDIT_RECOVERY_TENANT_ID`. No hosted SQL, provider deployment, flag, queue,
 provider setting, or business-data mutation occurred.
+
+## 2026-08-02 - M3.5 Finance journal posting authority
+
+Implemented and pushed `97106ba` under `kurtgav`:
+
+- Added Nest `POST /v1/finance/journals/:journalEntryId/post` with
+  `finance.post`, tenant membership/role recheck, journal lock, strict
+  idempotency hash/replay, database posting-function call, and semantic audit.
+- Added `journal_post_requests` migration/schema with tenant composite FKs,
+  processing/succeeded checks, forced RLS, and service-role-only access.
+- Added the closed-by-default web compatibility route and stable browser retry
+  key. Existing `Post journal` copy and visible UI remain unchanged.
+- Added shared contracts, API/web/database tests, and a disposable Postgres
+  Nest integration test. Python/AI remains non-authoritative.
+
+Local serial validation: API 29 files / 135 tests, shared 10 / 121, database
+21 / 123 plus 137 explicit environment-gated skips, Web 54 / 328; workspace
+lint, typecheck, production build 78/78 routes, actionlint, gitleaks, and
+diff checks passed. One unbounded parallel API invocation had three unrelated
+HTTP-test startup timeouts; the serial full API suite passed with a 15-second
+timeout. CI run `30736271967` passed all executable jobs, including Postgres 17
+replay/schema diff, no-skip database tests, Nest integration/container smoke,
+and build. E2E remained credential-gated.
+
+Read-only planner at `2026-08-02T06:45:15Z`: `review_required`; Supabase
+55/66 with 11 pending migrations, one 12-record duplicate Purchase Order
+group, zero audit rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and
+Vercel readiness returned HTTP 200; no hosted Supabase SQL, Railway/Vercel
+deployment, finance flag, queue, provider, or business-data mutation occurred.

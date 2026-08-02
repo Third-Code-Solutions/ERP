@@ -1789,3 +1789,19 @@ mapping plus `AUDIT_RECOVERY_TENANT_ID`.
 
 Rationale: fresh-schema CI proves source correctness but cannot resolve hosted
 business-data ambiguity or establish the required audit recovery authority.
+
+## D-110 -- Keep finance journal posting closed until hosted data review (2026-08-02)
+
+Decision: introduce the Nest journal-post command and durable tenant-scoped
+idempotency/audit boundary, but keep
+`ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API`,
+`ERP_FINANCE_JOURNAL_POST_WRITES_ENABLED`, and both tenant allowlists false or
+empty. Retain the existing database `post_journal_entry` function as the sole
+numbering and ledger-state authority. Do not apply the new migration or deploy
+Railway/Vercel while the controlled planner is `review_required`.
+
+Rationale: this gives the application a safe, testable core seam without
+creating a second posting implementation or changing live behavior. Fresh
+schema replay and green CI cannot resolve the hosted migration gap, 12-record
+Purchase Order duplicate group, zero audit evidence, or missing
+`AUDIT_RECOVERY_TENANT_ID`; those remain owner-controlled release blockers.
