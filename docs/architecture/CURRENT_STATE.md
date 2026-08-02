@@ -2163,3 +2163,30 @@ credential-gated. This is source-ready, not a hosted release.
   provider deployment occurred. Hosted evidence remains Supabase 55/68
   migrations with the recorded duplicate-PO and audit-recovery blockers;
   Railway/Vercel readiness is unchanged and Vercel Git remains disconnected.
+
+## 2026-08-02 M3.12 correction and release-gate recheck
+
+- CI first exposed a tenant-safe not-found defect in run `30744214638`: the
+  delivery idempotency ledger composite foreign key could fire before the
+  service returned `Delivery not found`. Commit `29c59b5` preflights the
+  same-tenant schedule inside the transaction and fixes the other-tenant
+  disposable fixture. Corrected run `30744414270` passed Actionlint, secret
+  scan, lint, typecheck, unit tests, the full Postgres 17/Redis database
+  reproducibility lane (including delivery integration), and Nest container
+  smoke. Its Build job was not started because GitHub reported failed account
+  payments/spending-limit state; E2E was consequently skipped. This is an
+  external CI billing gate, not a source-test failure.
+- Source HEAD is `29c59b5cf08db3a5004856c60c295f528a936509`, pushed to
+  `origin/agent-02/third-code-erp-landing` under `kurtgav`. Source has 68
+  migrations. Hosted Supabase remains ACTIVE_HEALTHY PostgreSQL 17.6 with 55
+  applied migrations; `delivery_workflow_requests` and its two new enum types
+  are absent. Read-only counts are 13 Purchase Orders, one duplicate
+  tenant/PO-number group containing 12 records, 662 audit rows, four delivery
+  schedules, two tenants, and 13 users. No owner-approved
+  `AUDIT_RECOVERY_TENANT_ID` was supplied.
+- Railway `/health` and `/ready` remain HTTP 200 with database/Redis `ok`.
+  Vercel production alias `/`, `/api/health`, and `/api/ready` remain HTTP 200
+  at revision `31c04942a93d`; the last 24-hour production runtime-error query
+  returned no entries. The Vercel project’s latest deployment is a READY
+  non-production preview, not this source HEAD. No Supabase SQL, Railway
+  deployment, Vercel deployment, provider setting, or feature flag changed.

@@ -4429,3 +4429,24 @@ re-run by the next GitHub CI run; local Docker/Supabase is unavailable in this
 workstation. Exact next action: push the correction, wait for the full CI run,
 then repeat read-only hosted checks; keep migration 68 and all delivery write
 flags closed.
+
+## 2026-08-02 - M3.12 corrected CI and hosted recheck
+
+Correction commit `29c59b5cf08db3a5004856c60c295f528a936509` is pushed under
+`kurtgav`. CI `30744414270` passed the corrected delivery database integration,
+all Postgres 17/Redis reproducibility checks, container smoke, Actionlint,
+secret scan, lint, typecheck, and unit tests. The run is overall red only
+because GitHub did not start its Build job due an account payment/spending-limit
+gate; E2E was skipped after that dependency. No source failure was observed.
+
+Read-only provider recheck: Supabase is ACTIVE_HEALTHY PostgreSQL 17.6 with
+55/68 migrations; the delivery workflow ledger/types are not applied; counts
+remain one duplicate PO-number group / 12 records and 662 audit rows. Railway
+health/readiness are 200 with database and Redis ready. Vercel production
+health/readiness are 200 at revision `31c04942a93d`, with no production runtime
+errors in the last 24 hours. No Supabase, Railway, or Vercel mutation occurred.
+
+Exact next action: obtain owner-approved duplicate mapping, an explicit
+`AUDIT_RECOVERY_TENANT_ID`, and spend-bounded provider/CI authorization; then
+re-run the hosted planner before applying migration 68 or deploying. Keep all
+delivery flags false/empty and Vercel Git disconnected.

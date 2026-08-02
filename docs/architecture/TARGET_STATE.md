@@ -1173,3 +1173,13 @@ until hosted migration/data/audit review, a disposable/demo tenant canary,
 readiness, exact SHA, and rollback evidence are approved. Site preparation,
 inspection, acceptance, and cancellation are separate legacy steps for later
 milestones.
+
+## M3.12 correction evidence (2026-08-02)
+
+The delivery command now preflights the same-tenant schedule before claiming
+the idempotency row. This preserves a stable tenant-safe not-found response
+when a caller supplies an unknown or cross-tenant schedule id while retaining
+the composite database foreign key as the final integrity guard. The corrected
+transaction passed the disposable Postgres 17/Redis integration in CI. Hosted
+activation remains gated by migration drift, duplicate data, audit-recovery
+approval, readiness, exact SHA, and rollback evidence.
