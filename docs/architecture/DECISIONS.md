@@ -1761,3 +1761,31 @@ share the proven transactional command boundary. Issuance currently does, so
 cutting it over without an equivalent outbox would risk duplicate or lost
 supplier messages. CI run `30733959058` proves fresh-schema reproducibility;
 hosted planner blockers still control promotion.
+
+## D-108 -- Make SCM issuance server-authoritative only with an outbox (2026-08-02)
+
+Decision: add `scm_issue` to the Nest Purchase Order workflow and authorize it
+with the exact `po.issue` capability. Commit the status transition, internal
+workflow intent, supplier-issued outbox, immutable supplier delivery snapshot,
+and audit in one tenant-scoped transaction. Send supplier mail only from the
+BullMQ worker, with one provider idempotency key, bounded retry/dead-letter,
+`supplier_email_sent_at` evidence, and a delivery audit update. Keep the Next
+action and visible UI as a compatibility seam, closed by default.
+
+Rationale: the previous Server Action sent external mail directly after a
+status write, which could lose delivery evidence or duplicate mail on retry.
+The separate outbox child preserves atomic ERP state while isolating provider
+failure. A nullable vendor join cannot be part of a PostgreSQL `FOR UPDATE`
+query, so the implementation locks the PO/project first and then takes a
+tenant-scoped vendor share lock. CI run `30735228348` proves the migration,
+schema diff, no-skip DB lane, and integration behavior.
+
+## D-109 -- Do not promote M3.4 from source green alone (2026-08-02)
+
+Decision: keep all PO workflow flags and tenant allowlists closed, do not apply
+the ten pending hosted migrations, and do not deploy Vercel/Railway until the
+read-only planner is clear and the owner supplies canonical duplicate-PO
+mapping plus `AUDIT_RECOVERY_TENANT_ID`.
+
+Rationale: fresh-schema CI proves source correctness but cannot resolve hosted
+business-data ambiguity or establish the required audit recovery authority.

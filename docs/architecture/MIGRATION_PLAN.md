@@ -1362,3 +1362,35 @@ Release boundary: no hosted SQL or provider deployment. The planner reports
 55/64 hosted migrations (nine pending), one 12-record duplicate Purchase Order
 group, and missing `AUDIT_RECOVERY_TENANT_ID`. Next slice: design and prove a
 supplier issuance outbox contract, then re-run the planner before any canary.
+
+## M3.4 - SCM issuance and supplier outbox (completed source slice)
+
+Scope delivered:
+
+- Add `scm_issue` to the shared workflow contract and Nest state machine with
+  `po.issue` capability authorization.
+- Keep the existing Next.js SCM action and button stable while routing only
+  explicitly allowlisted tenants through Nest with an opaque retry key.
+- Create the supplier-issued event and tenant-scoped delivery snapshot in the
+  same transaction as status `issued`; never call Resend inside that
+  transaction.
+- Add separate BullMQ supplier jobs, deterministic job IDs, bounded retries,
+  durable dead letters, provider idempotency, `supplier_email_sent_at`, and
+  semantic audit evidence.
+- Add database schema/migration, contract tests, email/queue/processor tests,
+  and disposable Postgres integration coverage for issue, replay, supplier
+  outbox, delivery, evidence, and audit.
+
+Evidence: source commits `21a152d` and `52b6288`; CI run `30735228348` passed
+all executable jobs, including zero-to-current Postgres 17 replay, no-skip DB
+tests, Nest integration/container smoke, lint, typecheck, unit tests, and
+production build. E2E remains credential-gated. The first CI attempt
+`30735062767` exposed and was fixed for PostgreSQL's nullable-side `FOR UPDATE`
+restriction.
+
+Release boundary: the planner is still `review_required` at Supabase 55/65,
+with ten unapplied migrations, one 12-record duplicate Purchase Order group,
+and missing `AUDIT_RECOVERY_TENANT_ID`. No hosted SQL, provider deployment,
+flag, queue, or business-data mutation occurred. Next action: obtain owner
+mapping/audit tenant inputs, re-run the read-only planner, then review the
+forward-only migration set as one controlled database release.

@@ -860,3 +860,22 @@ Git disconnected and do not create preview or duplicate production builds.
    migration and one spend-bounded provider action with readiness, protected
    workflow, data, logs, exact release SHA, and rollback evidence. Keep Vercel
    Git disconnected and avoid preview/duplicate builds.
+
+## Exact next action after M3.4 SCM issuance source/CI evidence (2026-08-02)
+
+1. Keep `ERP_PO_WORKFLOW_WRITES_VIA_API`, `ERP_PO_WORKFLOW_WRITES_ENABLED`,
+   notification flags, and all tenant allowlists false/empty. Do not apply
+   `20260802110000_purchase_order_supplier_issuance.sql` or any pending hosted
+   migration; do not deploy Vercel/Railway.
+2. Treat commits `21a152d` / `52b6288` and CI run `30735228348` as the reviewed
+   source candidate. E2E remains credential-gated.
+3. Obtain owner-approved canonical mapping for the 12 duplicate Purchase
+   Orders and a valid `AUDIT_RECOVERY_TENANT_ID`; re-run the read-only planner
+   until all ten pending migrations and data/audit blockers clear.
+4. Review the complete forward migration set and, only after a clear planner,
+   apply one controlled Supabase release with backup/PITR evidence, readiness,
+   protected workflow, delivery queue/retry/dead-letter, audit/hash evidence,
+   exact SHA, and rollback plan.
+5. Keep Vercel Git disconnected; if approved, use one spend-bounded Railway
+   deploy and one Vercel production promotion/build only—no preview/duplicate
+   builds; verify live browser/API/logs before declaring production green.

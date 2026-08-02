@@ -4077,3 +4077,44 @@ Hosted planner remains `review_required` (55/64 migrations, nine pending;
 one 12-record Purchase Order duplicate group; missing
 `AUDIT_RECOVERY_TENANT_ID`). No hosted Supabase SQL, Railway/Vercel deploy,
 feature flag, queue, provider setting, or business-data mutation occurred.
+
+## 2026-08-02 - M3.4 SCM issuance and supplier delivery authority
+
+Implemented and pushed `21a152d`, then corrected and pushed `52b6288`, under
+`kurtgav`:
+
+- Added the Nest `scm_issue` command, `po.issue` capability, pending-SCM to
+  issued state transition, transactional idempotency, internal notification,
+  and audit.
+- Added forward-only migration
+  `20260802110000_purchase_order_supplier_issuance.sql` plus the matching
+  Drizzle table. Supplier email is now a tenant-scoped outbox child with
+  immutable recipient/name/PO/project/cents snapshot, no browser privileges,
+  and separate BullMQ job IDs.
+- Added Resend idempotency, retry/dead-letter handling, success evidence in
+  `supplier_email_sent_at`, and an append-only delivery audit update. Invalid
+  or missing vendor mail does not block the ERP status transition and is
+  explicitly audited as not queued.
+- Preserved the Next action and SCM button appearance; only a stable hidden
+  retry key was added. Feature flags and tenant allowlists remain closed.
+- Added API, database, shared-contract, queue/processor, email, and
+  disposable-Postgres integration assertions, including idempotent replay and
+  supplier delivery evidence.
+
+Local validation: API 27 files / 129 tests, Web 54 / 326, database 20 / 121
+with 137 explicit local integration skips, shared contracts 9 / 119;
+workspace lint, typecheck, and production build 78/78 routes passed. The
+default parallel workspace test had one unrelated stock-receipt 5-second
+timeout; isolated API validation passed with a 15-second timeout.
+
+CI run `30735062767` failed as intended on a PostgreSQL nullable-side
+`FOR UPDATE` error. Fix `52b6288` split the locked PO/project read from the
+tenant-scoped vendor share lock. CI run `30735228348` then passed Actionlint,
+secret scan, lint, typecheck, unit tests, fresh Postgres replay/schema diff,
+no-skip DB tests, Nest integration/container smoke, and production build. E2E
+remains credential-gated.
+
+Hosted planner is now `review_required` at 55/65 migrations (ten pending), one
+12-record duplicate Purchase Order group, and missing
+`AUDIT_RECOVERY_TENANT_ID`. No hosted SQL, provider deployment, flag, queue,
+provider setting, or business-data mutation occurred.

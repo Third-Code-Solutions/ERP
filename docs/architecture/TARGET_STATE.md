@@ -1002,3 +1002,25 @@ Run `30733168171` passed on final SHA
 replay, database tests without skips, Nest integration/container smoke, and
 production build. E2E remains credential-gated. Healthy Railway/Vercel
 readiness does not override hosted data-integrity blockers.
+
+## M3.4 SCM issuance and supplier delivery authority (2026-08-02)
+
+The target command boundary now includes SCM issuance. Nest owns the
+`pending_scm_issuance -> issued` transition, `po.issue` authorization,
+tenant-local idempotency, transaction locking, notification intent, and audit.
+The Next.js action remains a closed-by-default compatibility adapter and the
+existing UI remains visually unchanged.
+
+Supplier email is a separate server-owned outbox child created in the same
+transaction as the status change, never sent from the transaction. Its
+tenant-scoped snapshot is immutable for delivery, its BullMQ job contains only
+opaque IDs, and provider retries reuse one idempotency key. Delivery success
+updates `supplier_email_sent_at` and writes audit evidence; transient failure
+retries and final failure is durable dead letter. Python and browser code have
+no transaction or delivery authority.
+
+The source/CI proof is complete in commits `21a152d` / `52b6288` and run
+`30735228348`. Hosted promotion is still a separate gate: the read-only
+planner reports 55/65 migrations, 12 duplicate Purchase Orders, and no
+`AUDIT_RECOVERY_TENANT_ID`. No production flag, SQL, queue, provider, or
+business-data mutation is authorized until those owner decisions are complete.
