@@ -22,8 +22,10 @@ import { and, desc, eq, inArray, max, sql } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 import {
   createPurchaseOrderFromBomThroughCoreApi,
+  createPurchaseOrdersGroupedFromBomThroughCoreApi,
   createPurchaseOrderThroughCoreApi,
   purchaseOrderBomWritesUseCoreApi,
+  purchaseOrderBomGroupedWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderWorkflowWritesUseCoreApi,
   transitionPurchaseOrderThroughCoreApi,
@@ -1368,7 +1370,8 @@ export interface GroupedPoResult {
 }
 
 export async function createPosFromBomGrouped(
-  bomId: string
+  bomId: string,
+  idempotencyKey?: string
 ): Promise<GroupedPoResult | { error: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -1391,6 +1394,41 @@ export async function createPosFromBomGrouped(
   if (!bom) return { error: 'BOM not found' }
   if (bom.status === 'draft') {
     return { error: 'BOM must be approved before generating POs' }
+  }
+
+  if (purchaseOrderBomGroupedWritesUseCoreApi(profile.tenantId)) {
+    const retryKey = idempotencyKey?.trim()
+    if (!retryKey) {
+      return {
+        error:
+          'Retry token is required for the grouped BOM Purchase Order command.',
+      }
+    }
+    const result = await createPurchaseOrdersGroupedFromBomThroughCoreApi(
+      { bomId },
+      retryKey
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'Grouped BOM Purchase Orders could not be created through ERP Core.',
+      }
+    }
+    revalidatePath('/purchase-orders')
+    if (bom.project_id) {
+      revalidatePath(`/projects/${bom.project_id}`)
+      revalidatePath(`/projects/${bom.project_id}/bom`)
+    }
+    return {
+      created_po_ids: result.data.purchaseOrderIds,
+      groups: result.data.groups.map((group) => ({
+        vendor_id: group.vendorId,
+        vendor_name: group.vendorName,
+        line_count: group.lineCount,
+        subtotal_cents: group.subtotalCents,
+      })),
+    }
   }
 
   // Pull lines for this BOM (excluding group headers)

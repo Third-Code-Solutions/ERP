@@ -9,6 +9,7 @@ import {
   rfqTransitionResultSchema,
   purchaseOrderCreationResultSchema,
   purchaseOrderBomCreationResultSchema,
+  purchaseOrdersGroupedFromBomResultSchema,
   purchaseOrderWorkflowResultSchema,
   changeRequestCreationResultSchema,
   journalPostResultSchema,
@@ -29,6 +30,8 @@ import {
   type RfqTransitionResult,
   type PurchaseOrderCreationResult,
   type PurchaseOrderBomCreationResult,
+  type CreatePurchaseOrdersGroupedFromBomCommand,
+  type PurchaseOrdersGroupedFromBomResult,
   type PurchaseOrderWorkflowCommand,
   type PurchaseOrderWorkflowResult,
   type TransitionRfqCommand,
@@ -146,6 +149,16 @@ export function purchaseOrderBomWritesUseCoreApi(
     tenantId,
     process.env.ERP_PO_BOM_CREATE_WRITES_VIA_API,
     process.env.ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function purchaseOrderBomGroupedWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API,
+    process.env.ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -460,6 +473,63 @@ export async function createPurchaseOrderFromBomThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No BOM Purchase Order was committed.',
+    }
+  }
+}
+
+export async function createPurchaseOrdersGroupedFromBomThroughCoreApi(
+  command: CreatePurchaseOrdersGroupedFromBomCommand,
+  idempotencyKey: string
+): Promise<CoreResult<PurchaseOrdersGroupedFromBomResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/purchase-orders/from-bom/grouped`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Grouped BOM Purchase Order request conflicts with the BOM state.'
+            : response.status === 404
+              ? 'BOM was not found.'
+              : 'Grouped BOM Purchase Orders were not committed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = purchaseOrdersGroupedFromBomResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid grouped BOM Purchase Order result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No grouped BOM Purchase Orders were committed.',
     }
   }
 }

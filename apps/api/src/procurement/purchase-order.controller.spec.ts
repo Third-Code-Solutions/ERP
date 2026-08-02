@@ -35,7 +35,8 @@ describe('Purchase Order command HTTP contract', () => {
 
   async function appFor(
     create = vi.fn(),
-    createFromBom = vi.fn()
+    createFromBom = vi.fn(),
+    createGroupedFromBom = vi.fn()
   ) {
     const workflow = vi.fn()
     const moduleRef = await Test.createTestingModule({
@@ -43,7 +44,7 @@ describe('Purchase Order command HTTP contract', () => {
       providers: [
         {
           provide: PurchaseOrderCreationService,
-          useValue: { create, createFromBom },
+          useValue: { create, createFromBom, createGroupedFromBom },
         },
         {
           provide: PurchaseOrderWorkflowService,
@@ -189,5 +190,52 @@ describe('Purchase Order command HTTP contract', () => {
       .expect(400)
 
     expect(createFromBom).not.toHaveBeenCalled()
+  }, 30_000)
+
+  it('forwards a strict grouped BOM command and request principal', async () => {
+    const createGroupedFromBom = vi.fn().mockResolvedValue({
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      bomId: '66666666-6666-4666-8666-666666666666',
+      purchaseOrderIds: ['55555555-5555-4555-8555-555555555555'],
+      groups: [
+        {
+          vendorId: '77777777-7777-4777-8777-777777777777',
+          vendorName: 'Supplier',
+          lineCount: 1,
+          subtotalCents: 10_000,
+        },
+      ],
+    })
+    const app = await appFor(vi.fn(), vi.fn(), createGroupedFromBom)
+    const command = {
+      bomId: '66666666-6666-4666-8666-666666666666',
+    }
+
+    await request(app.getHttpServer())
+      .post('/v1/procurement/purchase-orders/from-bom/grouped')
+      .set('Idempotency-Key', ' grouped-bom-po-1 ')
+      .send(command)
+      .expect(201)
+
+    expect(createGroupedFromBom).toHaveBeenCalledWith(
+      command,
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        userId: '11111111-1111-4111-8111-111111111111',
+      }),
+      'grouped-bom-po-1'
+    )
+  }, 30_000)
+
+  it('requires an idempotency key for grouped BOM creation', async () => {
+    const createGroupedFromBom = vi.fn()
+    const app = await appFor(vi.fn(), vi.fn(), createGroupedFromBom)
+
+    await request(app.getHttpServer())
+      .post('/v1/procurement/purchase-orders/from-bom/grouped')
+      .send({ bomId: '66666666-6666-4666-8666-666666666666' })
+      .expect(400)
+
+    expect(createGroupedFromBom).not.toHaveBeenCalled()
   }, 30_000)
 })

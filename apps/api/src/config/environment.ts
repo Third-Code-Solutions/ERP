@@ -66,6 +66,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Grouped BOM-to-PO creation stays fail-closed until supplier grouping,
+  // rate-card validity, and idempotent multi-PO replay are proven.
+  ERP_PO_BOM_GROUPED_CREATE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Client Change Request authority stays fail-closed until hosted schema
   // reconciliation and a tenant-scoped canary are explicitly approved.
   ERP_CHANGE_REQUEST_WRITES_ENABLED: z

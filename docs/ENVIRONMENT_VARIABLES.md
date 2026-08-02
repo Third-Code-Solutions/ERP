@@ -171,6 +171,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_INVENTORY_RECEIPT_REVERSE_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Receipt reversal; default empty |
 | `ERP_PO_BOM_CREATE_WRITES_VIA_API` | no | Next server | Selects the BOM-to-Purchase-Order Next-to-Nest handoff; default false |
 | `ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for BOM-to-Purchase-Order creation; default empty |
+| `ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API` | no | Next server | Selects the grouped BOM-to-Purchase-Order Next-to-Nest handoff; default false |
+| `ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for grouped BOM-to-Purchase-Order creation; default empty |
 
 Keep all frontend canary variables false/empty unless a controlled demo-tenant
 cutover is approved. Selecting any core path is fail-closed and never falls
