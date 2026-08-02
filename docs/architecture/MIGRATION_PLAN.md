@@ -1496,8 +1496,9 @@ Scope delivered:
 
 Evidence: focused 31/31 tests, full Web 58 files / 348 tests, workspace lint,
 Web typecheck, and production build 78/78 routes passed. No database migration
-was added and no hosted SQL/provider action occurred. CI is pending for the
-source candidate; E2E remains credential-gated.
+was added and no hosted SQL/provider action occurred. GitHub Actions run
+`30739156350` passed all executable jobs on exact SHA
+`3f4bca7d6a1416f751599ba268f4c0fad565a73f`; E2E remains credential-gated.
 
 Release boundary: keep both inventory selector variables false/empty. The
 hosted planner remains `review_required` at 55/66 migrations, with eleven
