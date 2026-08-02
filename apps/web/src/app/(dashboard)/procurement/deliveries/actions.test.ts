@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   cancelDeliveryThroughCoreApi: vi.fn(),
   deliveryInspectionStartWritesUseCoreApi: vi.fn(),
   startDeliveryInspectionThroughCoreApi: vi.fn(),
+  deliverySitePreparationStartWritesUseCoreApi: vi.fn(),
+  startDeliverySitePreparationThroughCoreApi: vi.fn(),
   deliveryReceiptWritesUseCoreApi: vi.fn(),
   recordDeliveryReceiptThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
@@ -60,6 +62,10 @@ vi.mock('@/lib/erp-core-client', () => ({
     mocks.deliveryInspectionStartWritesUseCoreApi,
   startDeliveryInspectionThroughCoreApi:
     mocks.startDeliveryInspectionThroughCoreApi,
+  deliverySitePreparationStartWritesUseCoreApi:
+    mocks.deliverySitePreparationStartWritesUseCoreApi,
+  startDeliverySitePreparationThroughCoreApi:
+    mocks.startDeliverySitePreparationThroughCoreApi,
   deliveryReceiptWritesUseCoreApi: mocks.deliveryReceiptWritesUseCoreApi,
   recordDeliveryReceiptThroughCoreApi:
     mocks.recordDeliveryReceiptThroughCoreApi,
@@ -70,6 +76,7 @@ vi.mock('next/navigation', () => ({ redirect: mocks.redirect }))
 import {
   cancelDelivery,
   completeInspection,
+  markSitePreparing,
   recordReceipt,
   startInspection,
 } from './actions'
@@ -101,6 +108,7 @@ describe('Delivery receipt compatibility seam', () => {
     })
     mocks.can.mockReturnValue(true)
     mocks.deliveryInspectionStartWritesUseCoreApi.mockReturnValue(false)
+    mocks.deliverySitePreparationStartWritesUseCoreApi.mockReturnValue(false)
     mocks.deliveryInspectionCompleteWritesUseCoreApi.mockReturnValue(false)
     mocks.deliveryCancelWritesUseCoreApi.mockReturnValue(false)
     mocks.startDeliveryInspectionThroughCoreApi.mockResolvedValue({
@@ -112,6 +120,16 @@ describe('Delivery receipt compatibility seam', () => {
         action: 'start_inspection',
         fromStatus: 'received',
         status: 'inspecting',
+      },
+    })
+    mocks.startDeliverySitePreparationThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        deliveryScheduleId: SCHEDULE_ID,
+        tenantId: TENANT_ID,
+        action: 'start_site_preparation',
+        fromStatus: 'scheduled',
+        status: 'site_preparing',
       },
     })
     mocks.deliveryReceiptWritesUseCoreApi.mockReturnValue(true)
@@ -217,6 +235,58 @@ describe('Delivery receipt compatibility seam', () => {
     )
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('routes site-preparation start through Nest with a stable retry key', async () => {
+    mocks.deliverySitePreparationStartWritesUseCoreApi.mockReturnValue(true)
+    selectSchedule('scheduled')
+
+    await expect(
+      markSitePreparing(SCHEDULE_ID, 'delivery-site-preparation-1')
+    ).resolves.toEqual({})
+
+    expect(
+      mocks.startDeliverySitePreparationThroughCoreApi
+    ).toHaveBeenCalledWith(
+      SCHEDULE_ID,
+      {},
+      'delivery-site-preparation-1'
+    )
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('allows site-preparation replay after the first core commit changed status', async () => {
+    mocks.deliverySitePreparationStartWritesUseCoreApi.mockReturnValue(true)
+    selectSchedule('site_preparing')
+
+    await expect(
+      markSitePreparing(SCHEDULE_ID, 'delivery-site-preparation-1')
+    ).resolves.toEqual({})
+    expect(
+      mocks.startDeliverySitePreparationThroughCoreApi
+    ).toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when selected site preparation cannot commit', async () => {
+    mocks.deliverySitePreparationStartWritesUseCoreApi.mockReturnValue(true)
+    mocks.startDeliverySitePreparationThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No delivery site preparation was started.',
+    })
+    selectSchedule('scheduled')
+
+    await expect(
+      markSitePreparing(SCHEDULE_ID, 'delivery-site-preparation-2')
+    ).resolves.toEqual({
+      error:
+        'ERP Core API is unavailable. No delivery site preparation was started.',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
   it('allows a stable inspection retry after the first core commit changed status', async () => {

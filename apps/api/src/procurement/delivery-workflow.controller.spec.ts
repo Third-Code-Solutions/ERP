@@ -22,7 +22,8 @@ describe('Delivery workflow HTTP contract', () => {
     recordReceipt = vi.fn(),
     startInspection = vi.fn(),
     completeInspection = vi.fn(),
-    cancelDelivery = vi.fn()
+    cancelDelivery = vi.fn(),
+    startSitePreparation = vi.fn()
   ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [DeliveryWorkflowController],
@@ -34,6 +35,7 @@ describe('Delivery workflow HTTP contract', () => {
             startInspection,
             completeInspection,
             cancelDelivery,
+            startSitePreparation,
           },
         },
       ],
@@ -102,6 +104,82 @@ describe('Delivery workflow HTTP contract', () => {
         userId: '11111111-1111-4111-8111-111111111111',
       }),
       'delivery-receipt-1'
+    )
+  })
+
+  it('requires an idempotency key for site-preparation start', async () => {
+    const startSitePreparation = vi.fn()
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      startSitePreparation
+    )
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/site-preparation/start`
+      )
+      .send({})
+      .expect(400)
+
+    expect(startSitePreparation).not.toHaveBeenCalled()
+  })
+
+  it('rejects caller-supplied authority fields for site-preparation start', async () => {
+    const startSitePreparation = vi.fn()
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      startSitePreparation
+    )
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/site-preparation/start`
+      )
+      .set('Idempotency-Key', 'delivery-site-preparation-1')
+      .send({ tenantId: '22222222-2222-4222-8222-222222222222' })
+      .expect(400)
+
+    expect(startSitePreparation).not.toHaveBeenCalled()
+  })
+
+  it('forwards the strict site-preparation command, principal, and trimmed key', async () => {
+    const startSitePreparation = vi.fn().mockResolvedValue({
+      deliveryScheduleId: DELIVERY_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      action: 'start_site_preparation',
+      fromStatus: 'scheduled',
+      status: 'site_preparing',
+    })
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      startSitePreparation
+    )
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/site-preparation/start`
+      )
+      .set('Idempotency-Key', ' delivery-site-preparation-1 ')
+      .send({})
+      .expect(200)
+
+    expect(startSitePreparation).toHaveBeenCalledWith(
+      DELIVERY_ID,
+      {},
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        userId: '11111111-1111-4111-8111-111111111111',
+      }),
+      'delivery-site-preparation-1'
     )
   })
 

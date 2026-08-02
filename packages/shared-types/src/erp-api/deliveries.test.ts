@@ -6,6 +6,8 @@ import {
   deliveryInspectionCompleteResultSchema,
   deliveryStartInspectionCommandSchema,
   deliveryStartInspectionResultSchema,
+  deliveryStartSitePreparationCommandSchema,
+  deliveryStartSitePreparationResultSchema,
   deliveryCancelCommandSchema,
   deliveryCancelResultSchema,
 } from './deliveries'
@@ -77,6 +79,38 @@ describe('delivery inspection start contracts', () => {
         action: 'start_inspection',
         fromStatus: 'in_transit',
         status: 'inspecting',
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('delivery site-preparation start contracts', () => {
+  it('accepts an empty command and rejects browser authority fields', () => {
+    expect(deliveryStartSitePreparationCommandSchema.parse({})).toEqual({})
+    expect(
+      deliveryStartSitePreparationCommandSchema.safeParse({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      }).success
+    ).toBe(false)
+  })
+
+  it('returns a strict scheduled-to-preparing transition result', () => {
+    expect(
+      deliveryStartSitePreparationResultSchema.parse({
+        deliveryScheduleId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        action: 'start_site_preparation',
+        fromStatus: 'scheduled',
+        status: 'site_preparing',
+      })
+    ).toMatchObject({ action: 'start_site_preparation', status: 'site_preparing' })
+    expect(
+      deliveryStartSitePreparationResultSchema.safeParse({
+        deliveryScheduleId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        action: 'start_site_preparation',
+        fromStatus: 'site_preparing',
+        status: 'site_preparing',
       }).success
     ).toBe(false)
   })

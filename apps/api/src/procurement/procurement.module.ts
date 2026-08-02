@@ -11,6 +11,7 @@ import { DeliveryReceiptPipe } from './delivery-receipt.pipe'
 import { DeliveryCancelPipe } from './delivery-cancel.pipe'
 import { DeliveryInspectionCompletePipe } from './delivery-inspection-complete.pipe'
 import { DeliveryStartInspectionPipe } from './delivery-start-inspection.pipe'
+import { DeliverySitePreparationStartPipe } from './delivery-site-preparation-start.pipe'
 import { DeliveryWorkflowController } from './delivery-workflow.controller'
 import { DeliveryWorkflowService } from './delivery-workflow.service'
 import { PurchaseOrderController } from './purchase-order.controller'
@@ -54,6 +55,7 @@ import { NotificationEmailService } from './notification-email.service'
     DeliveryCancelPipe,
     DeliveryInspectionCompletePipe,
     DeliveryStartInspectionPipe,
+    DeliverySitePreparationStartPipe,
     RfqDispatchQueue,
     RfqDispatchProcessor,
     NotificationDeliveryQueue,

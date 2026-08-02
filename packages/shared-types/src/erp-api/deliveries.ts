@@ -45,6 +45,27 @@ export type DeliveryStartInspectionResult = z.infer<
   typeof deliveryStartInspectionResultSchema
 >
 
+export const deliveryStartSitePreparationCommandSchema = z
+  .object({})
+  .strict()
+
+export const deliveryStartSitePreparationResultSchema = z
+  .object({
+    deliveryScheduleId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    action: z.literal('start_site_preparation'),
+    fromStatus: z.literal('scheduled'),
+    status: z.literal('site_preparing'),
+  })
+  .strict()
+
+export type DeliveryStartSitePreparationCommand = z.infer<
+  typeof deliveryStartSitePreparationCommandSchema
+>
+export type DeliveryStartSitePreparationResult = z.infer<
+  typeof deliveryStartSitePreparationResultSchema
+>
+
 export const deliveryInspectionCompleteCommandSchema = z
   .object({
     result: z.enum(['pass', 'fail', 'partial_pass']),

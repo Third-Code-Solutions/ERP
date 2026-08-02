@@ -23,7 +23,9 @@ function service(
   inspectionCompleteEnabled = false,
   inspectionCompleteTenantIds: string[] = [],
   cancelEnabled = false,
-  cancelTenantIds: string[] = []
+  cancelTenantIds: string[] = [],
+  sitePreparationStartEnabled = false,
+  sitePreparationStartTenantIds: string[] = []
 ) {
   const config = {
     get: vi.fn((key: string) => {
@@ -46,6 +48,12 @@ function service(
       }
       if (key === 'ERP_DELIVERY_CANCEL_WRITES_TENANT_IDS') {
         return cancelTenantIds
+      }
+      if (key === 'ERP_DELIVERY_SITE_PREPARATION_START_WRITES_ENABLED') {
+        return sitePreparationStartEnabled
+      }
+      if (key === 'ERP_DELIVERY_SITE_PREPARATION_START_WRITES_TENANT_IDS') {
+        return sitePreparationStartTenantIds
       }
       return undefined
     }),
@@ -85,6 +93,41 @@ describe('DeliveryWorkflowService migration boundary', () => {
   it('validates the idempotency key before the feature gate', async () => {
     await expect(
       service().recordReceipt(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        ' '
+      )
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('keeps site-preparation start closed by default without touching the database', async () => {
+    await expect(
+      service().startSitePreparation(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        'delivery-site-preparation-1'
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+
+  it('stays closed when the site-preparation tenant allowlist is empty', async () => {
+    await expect(
+      service(false, [], false, [], false, [], false, [], true).startSitePreparation(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        'delivery-site-preparation-1'
+      )
+    ).rejects.toThrow(
+      'Delivery site-preparation start is not enabled for this tenant; no delivery was updated.'
+    )
+  })
+
+  it('validates site-preparation idempotency keys before the feature gate', async () => {
+    await expect(
+      service().startSitePreparation(
         '33333333-3333-4333-8333-333333333333',
         {},
         PRINCIPAL,

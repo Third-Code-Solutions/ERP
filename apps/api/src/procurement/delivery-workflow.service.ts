@@ -23,6 +23,8 @@ import {
   deliveryInspectionCompleteResultSchema,
   deliveryReceiptCommandSchema,
   deliveryReceiptResultSchema,
+  deliveryStartSitePreparationCommandSchema,
+  deliveryStartSitePreparationResultSchema,
   deliveryStartInspectionCommandSchema,
   deliveryStartInspectionResultSchema,
   type DeliveryInspectionCompleteCommand,
@@ -31,6 +33,8 @@ import {
   type DeliveryCancelResult,
   type DeliveryReceiptCommand,
   type DeliveryReceiptResult,
+  type DeliveryStartSitePreparationCommand,
+  type DeliveryStartSitePreparationResult,
   type DeliveryStartInspectionCommand,
   type DeliveryStartInspectionResult,
 } from '@third-code-erp/shared-types'
@@ -94,6 +98,20 @@ function startInspectionCommandHash(
     .digest('hex')
 }
 
+function startSitePreparationCommandHash(
+  deliveryScheduleId: string,
+  command: DeliveryStartSitePreparationCommand
+): string {
+  return createHash('sha256')
+    .update(
+      canonicalJson({
+        deliveryScheduleId,
+        command,
+      })
+    )
+    .digest('hex')
+}
+
 function completeInspectionCommandHash(
   deliveryScheduleId: string,
   command: DeliveryInspectionCompleteCommand
@@ -139,6 +157,18 @@ function replayStartInspectionResult(
   if (!parsed.success) {
     throw new InternalServerErrorException(
       'Delivery inspection idempotency result is invalid'
+    )
+  }
+  return parsed.data
+}
+
+function replayStartSitePreparationResult(
+  value: unknown
+): DeliveryStartSitePreparationResult {
+  const parsed = deliveryStartSitePreparationResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new InternalServerErrorException(
+      'Delivery site-preparation idempotency result is invalid'
     )
   }
   return parsed.data
@@ -397,6 +427,227 @@ export class DeliveryWorkflowService {
           from: fromStatus,
           to: 'received',
           notes: parsedCommand.notes ?? null,
+          idempotency_key_hash: requestHash,
+        },
+      })
+
+      return result
+    })
+  }
+
+  async startSitePreparation(
+    deliveryScheduleId: string,
+    command: DeliveryStartSitePreparationCommand,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<DeliveryStartSitePreparationResult> {
+    if (!UUID_PATTERN.test(deliveryScheduleId)) {
+      throw new BadRequestException('Invalid delivery schedule id')
+    }
+    const parsedCommand = deliveryStartSitePreparationCommandSchema.parse(command)
+    const idempotencyKey = rawIdempotencyKey.trim()
+    if (idempotencyKey.length === 0 || idempotencyKey.length > 256) {
+      throw new BadRequestException('Invalid Idempotency-Key header')
+    }
+
+    const enabled = this.config.get<boolean>(
+      'ERP_DELIVERY_SITE_PREPARATION_START_WRITES_ENABLED',
+      false
+    )
+    const allowedTenantIds = this.config.get<string[]>(
+      'ERP_DELIVERY_SITE_PREPARATION_START_WRITES_TENANT_IDS',
+      []
+    )
+    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+      throw new ServiceUnavailableException(
+        'Delivery site-preparation start is not enabled for this tenant; no delivery was updated.'
+      )
+    }
+
+    const requestHash = startSitePreparationCommandHash(
+      deliveryScheduleId,
+      parsedCommand
+    )
+    return this.database.client.transaction(async (transaction) => {
+      const [membership] = await transaction
+        .select({
+          tenantId: users.tenant_id,
+          role: users.role,
+          email: users.email,
+        })
+        .from(users)
+        .where(
+          and(
+            eq(users.id, principal.userId),
+            eq(users.tenant_id, principal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      const role = membership?.role as ErpRole | undefined
+      if (
+        !membership ||
+        !role ||
+        !roleHasCapability(role, 'delivery.receive')
+      ) {
+        throw new ForbiddenException()
+      }
+      const authorizedPrincipal: ErpPrincipal = {
+        userId: principal.userId,
+        tenantId: membership.tenantId,
+        role,
+        email: membership.email,
+      }
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+
+      const [visibleSchedule] = await transaction
+        .select({ id: deliverySchedules.id })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+      if (!visibleSchedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+
+      await transaction
+        .insert(deliveryWorkflowRequests)
+        .values({
+          tenant_id: authorizedPrincipal.tenantId,
+          delivery_schedule_id: deliveryScheduleId,
+          action: 'start_site_preparation',
+          idempotency_key: idempotencyKey,
+          request_hash: requestHash,
+          created_by: authorizedPrincipal.userId,
+        })
+        .onConflictDoNothing({
+          target: [
+            deliveryWorkflowRequests.tenant_id,
+            deliveryWorkflowRequests.idempotency_key,
+          ],
+        })
+
+      const [request] = await transaction
+        .select({
+          id: deliveryWorkflowRequests.id,
+          requestHash: deliveryWorkflowRequests.request_hash,
+          state: deliveryWorkflowRequests.state,
+          result: deliveryWorkflowRequests.result,
+        })
+        .from(deliveryWorkflowRequests)
+        .where(
+          and(
+            eq(
+              deliveryWorkflowRequests.tenant_id,
+              authorizedPrincipal.tenantId
+            ),
+            eq(deliveryWorkflowRequests.idempotency_key, idempotencyKey)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      if (!request) {
+        throw new InternalServerErrorException(
+          'Delivery site-preparation idempotency record was not created'
+        )
+      }
+      if (request.requestHash !== requestHash) {
+        throw new ConflictException(
+          'Idempotency key was already used with a different delivery site-preparation command'
+        )
+      }
+      if (request.state === 'succeeded') {
+        return replayStartSitePreparationResult(request.result)
+      }
+      if (request.state !== 'processing') {
+        throw new ConflictException(
+          'Delivery site-preparation idempotency record has an unsupported state'
+        )
+      }
+
+      const [schedule] = await transaction
+        .select({
+          id: deliverySchedules.id,
+          status: deliverySchedules.status,
+        })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!schedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+      if (schedule.status !== 'scheduled') {
+        throw new ConflictException(
+          `Cannot start site preparation from delivery status "${schedule.status}"`
+        )
+      }
+
+      const now = new Date()
+      const [updated] = await transaction
+        .update(deliverySchedules)
+        .set({ status: 'site_preparing', updated_at: now })
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId),
+            eq(deliverySchedules.status, 'scheduled')
+          )
+        )
+        .returning({ id: deliverySchedules.id })
+      if (!updated) {
+        throw new ConflictException(
+          'Delivery changed before its site preparation was committed'
+        )
+      }
+
+      const result = deliveryStartSitePreparationResultSchema.parse({
+        deliveryScheduleId,
+        tenantId: authorizedPrincipal.tenantId,
+        action: 'start_site_preparation',
+        fromStatus: 'scheduled',
+        status: 'site_preparing',
+      })
+      const [completed] = await transaction
+        .update(deliveryWorkflowRequests)
+        .set({
+          state: 'succeeded',
+          result,
+          completed_at: now,
+        })
+        .where(
+          and(
+            eq(deliveryWorkflowRequests.id, request.id),
+            eq(deliveryWorkflowRequests.state, 'processing')
+          )
+        )
+        .returning({ id: deliveryWorkflowRequests.id })
+      if (!completed) {
+        throw new InternalServerErrorException(
+          'Delivery site-preparation idempotency record changed before completion'
+        )
+      }
+
+      await this.audit.writeSemantic(transaction, {
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
+        entityType: 'delivery_schedule',
+        entityId: deliveryScheduleId,
+        action: 'status_change',
+        diff: {
+          from: 'scheduled',
+          to: 'site_preparing',
           idempotency_key_hash: requestHash,
         },
       })
