@@ -4673,3 +4673,25 @@ authorization, then rerun the exact-SHA CI/database lane and the read-only
 Supabase/Railway/Vercel planner. Only a clear planner plus explicit
 spend-bounded provider approval can authorize one hosted migration and one
 production action.
+
+## 2026-08-02 - M3.16 final provider recheck
+
+Read-only provider checks after the source/docs push are green for the current
+hosted baseline, but not a promotion approval:
+
+- Supabase project `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY`, PostgreSQL
+  17.6.1.121 in `ap-northeast-2`. The migration ledger is still 55 applied,
+  latest `20260729233017` / `notification_outbox_foundation`; the source has
+  72 migrations. `cancel_delivery` and all three cancellation columns are
+  absent, the workflow ledger is absent, and the known duplicate/audit counts
+  remain one group / 12 rows and 662 audit rows.
+- Railway health and readiness are HTTP 200: database and Redis both report
+  `ok` at `third-code-erp-api-production.up.railway.app`.
+- Vercel project `thirdcode-erp` remains on the prior production deployment
+  `dpl_Htv5nb1A8oHbtowQpmrToYQgxDDL`; `/` and `/api/ready` are HTTP 200 and
+  the readiness revision remains `31c04942a93d`. Runtime errors in the last
+  24 hours: none. The newest listed preview is older source, not the M3.16
+  SHA; no deployment was triggered by this turn.
+- Branch `agent-02/third-code-erp-landing` is clean and remote at docs commit
+  `05ffb00025fa42b9384257d9ebeead388c7a3b49`; the reviewed source commit is
+  `e8d4a6c181358756879435a76e8bd5a9317cc751`.
