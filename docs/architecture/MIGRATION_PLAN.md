@@ -1335,3 +1335,12 @@ workflow schema/service does not support those states. Validation passed: Web
 54 files / 325 tests, workspace typecheck/lint, production build 78/78 routes,
 actionlint, gitleaks, workflow-reference checks, and diff checks. No hosted
 mutation. Next action: CI evidence, then read-only planner recheck.
+
+## M3.2 CI and planner checkpoint (2026-08-02)
+
+GitHub Actions run `30733168171` passed on final SHA
+`1bc232e55fa2f122aea5182b5ca442d536e916d4`: all executable jobs, Postgres 17
+zero-to-current replay, database tests without skips (256/256), Nest
+transaction/container smoke, and production build. E2E stayed skipped by
+credential gating. Planner remains `review_required`; no hosted SQL or provider
+deployment is authorized.

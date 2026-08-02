@@ -4039,3 +4039,12 @@ Validation: Web suite 54/54 files and 325/325 tests; workspace typecheck and
 lint; production build 78/78 routes; actionlint; gitleaks; workflow-reference
 verification; and diff checks passed. No hosted Supabase, Railway, Vercel,
 feature flag, queue, provider setting, or business-data mutation occurred.
+
+## 2026-08-02 - M3.2 CI and hosted planner verification
+
+Run `30733168171` passed on final SHA
+`1bc232e55fa2f122aea5182b5ca442d536e916d4`: all executable jobs passed,
+including Postgres 17 replay, 256/256 database tests without skips, Nest smoke,
+and production build. E2E stayed credential-gated. Railway/Vercel readiness
+returned 200; planner remains `review_required`; no hosted DB/provider state
+changed.

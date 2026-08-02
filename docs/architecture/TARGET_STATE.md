@@ -979,3 +979,11 @@ notification parity is implemented.
 
 Commit `fa3c20a` proves the seam with five focused tests and full Web/build
 validation. Hosted promotion remains gated by the independent data planner.
+
+## M3.2 CI checkpoint (2026-08-02)
+
+Run `30733168171` passed on final SHA
+`1bc232e55fa2f122aea5182b5ca442d536e916d4`, including fresh Postgres 17
+replay, database tests without skips, Nest integration/container smoke, and
+production build. E2E remains credential-gated. Healthy Railway/Vercel
+readiness does not override hosted data-integrity blockers.

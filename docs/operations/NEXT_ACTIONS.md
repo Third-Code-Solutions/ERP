@@ -828,3 +828,14 @@ Git disconnected and do not create preview or duplicate production builds.
 4. After those blockers clear, canary only the three supported workflow states;
    prove idempotent replay, RBAC, notification intent, audit chain, readiness,
    exact SHA, and rollback before enabling any production flag.
+
+## Exact next action after M3.2 CI evidence (2026-08-02)
+
+1. Keep PO workflow flag and tenant allowlist false/empty; do not deploy this
+   source branch to hosted providers.
+2. Obtain owner-approved canonical mapping for 12 duplicate Purchase Orders and
+   valid `AUDIT_RECOVERY_TENANT_ID`.
+3. Re-run planner until all eight migrations, duplicate data, and audit tenant
+   blockers clear; only then apply one reviewed migration.
+4. Canary three supported PO states with replay/RBAC/notification/audit,
+   readiness, exact-SHA, and rollback evidence. Keep Vercel Git disconnected.
