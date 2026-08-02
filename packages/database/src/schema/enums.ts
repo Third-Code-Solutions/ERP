@@ -201,7 +201,7 @@ export const stockReceiptWorkflowRequestStateEnum = pgEnum(
 
 export const deliveryWorkflowActionEnum = pgEnum(
   'delivery_workflow_action',
-  ['record_receipt']
+  ['record_receipt', 'start_inspection']
 )
 
 export const deliveryWorkflowRequestStateEnum = pgEnum(

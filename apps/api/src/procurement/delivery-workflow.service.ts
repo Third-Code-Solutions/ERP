@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import {
+  deliveryInspections,
   deliverySchedules,
   deliveryWorkflowRequests,
   users,
@@ -18,8 +19,12 @@ import {
 import {
   deliveryReceiptCommandSchema,
   deliveryReceiptResultSchema,
+  deliveryStartInspectionCommandSchema,
+  deliveryStartInspectionResultSchema,
   type DeliveryReceiptCommand,
   type DeliveryReceiptResult,
+  type DeliveryStartInspectionCommand,
+  type DeliveryStartInspectionResult,
 } from '@third-code-erp/shared-types'
 import { and, eq } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
@@ -58,11 +63,37 @@ function commandHash(
     .digest('hex')
 }
 
+function startInspectionCommandHash(
+  deliveryScheduleId: string,
+  command: DeliveryStartInspectionCommand
+): string {
+  return createHash('sha256')
+    .update(
+      canonicalJson({
+        deliveryScheduleId,
+        command,
+      })
+    )
+    .digest('hex')
+}
+
 function replayResult(value: unknown): DeliveryReceiptResult {
   const parsed = deliveryReceiptResultSchema.safeParse(value)
   if (!parsed.success) {
     throw new InternalServerErrorException(
       'Delivery receipt idempotency result is invalid'
+    )
+  }
+  return parsed.data
+}
+
+function replayStartInspectionResult(
+  value: unknown
+): DeliveryStartInspectionResult {
+  const parsed = deliveryStartInspectionResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new InternalServerErrorException(
+      'Delivery inspection idempotency result is invalid'
     )
   }
   return parsed.data
@@ -299,6 +330,248 @@ export class DeliveryWorkflowService {
           from: fromStatus,
           to: 'received',
           notes: parsedCommand.notes ?? null,
+          idempotency_key_hash: requestHash,
+        },
+      })
+
+      return result
+    })
+  }
+
+  async startInspection(
+    deliveryScheduleId: string,
+    command: DeliveryStartInspectionCommand,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<DeliveryStartInspectionResult> {
+    if (!UUID_PATTERN.test(deliveryScheduleId)) {
+      throw new BadRequestException('Invalid delivery schedule id')
+    }
+    const parsedCommand = deliveryStartInspectionCommandSchema.parse(command)
+    const idempotencyKey = rawIdempotencyKey.trim()
+    if (idempotencyKey.length === 0 || idempotencyKey.length > 256) {
+      throw new BadRequestException('Invalid Idempotency-Key header')
+    }
+
+    const enabled = this.config.get<boolean>(
+      'ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED',
+      false
+    )
+    const allowedTenantIds = this.config.get<string[]>(
+      'ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS',
+      []
+    )
+    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+      throw new ServiceUnavailableException(
+        'Delivery inspection start is not enabled for this tenant; no inspection was started.'
+      )
+    }
+
+    const requestHash = startInspectionCommandHash(
+      deliveryScheduleId,
+      parsedCommand
+    )
+    return this.database.client.transaction(async (transaction) => {
+      const [membership] = await transaction
+        .select({
+          tenantId: users.tenant_id,
+          role: users.role,
+          email: users.email,
+        })
+        .from(users)
+        .where(
+          and(
+            eq(users.id, principal.userId),
+            eq(users.tenant_id, principal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      const role = membership?.role as ErpRole | undefined
+      if (
+        !membership ||
+        !role ||
+        !roleHasCapability(role, 'delivery.receive')
+      ) {
+        throw new ForbiddenException()
+      }
+      const authorizedPrincipal: ErpPrincipal = {
+        userId: principal.userId,
+        tenantId: membership.tenantId,
+        role,
+        email: membership.email,
+      }
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+
+      // Resolve the schedule before claiming the ledger. The composite
+      // foreign key remains the final integrity guard, while this preflight
+      // preserves a stable tenant-safe not-found contract.
+      const [visibleSchedule] = await transaction
+        .select({ id: deliverySchedules.id })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+      if (!visibleSchedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+
+      await transaction
+        .insert(deliveryWorkflowRequests)
+        .values({
+          tenant_id: authorizedPrincipal.tenantId,
+          delivery_schedule_id: deliveryScheduleId,
+          action: 'start_inspection',
+          idempotency_key: idempotencyKey,
+          request_hash: requestHash,
+          created_by: authorizedPrincipal.userId,
+        })
+        .onConflictDoNothing({
+          target: [
+            deliveryWorkflowRequests.tenant_id,
+            deliveryWorkflowRequests.idempotency_key,
+          ],
+        })
+
+      const [request] = await transaction
+        .select({
+          id: deliveryWorkflowRequests.id,
+          requestHash: deliveryWorkflowRequests.request_hash,
+          state: deliveryWorkflowRequests.state,
+          result: deliveryWorkflowRequests.result,
+        })
+        .from(deliveryWorkflowRequests)
+        .where(
+          and(
+            eq(
+              deliveryWorkflowRequests.tenant_id,
+              authorizedPrincipal.tenantId
+            ),
+            eq(deliveryWorkflowRequests.idempotency_key, idempotencyKey)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      if (!request) {
+        throw new InternalServerErrorException(
+          'Delivery inspection idempotency record was not created'
+        )
+      }
+      if (request.requestHash !== requestHash) {
+        throw new ConflictException(
+          'Idempotency key was already used with a different delivery inspection command'
+        )
+      }
+      if (request.state === 'succeeded') {
+        return replayStartInspectionResult(request.result)
+      }
+      if (request.state !== 'processing') {
+        throw new ConflictException(
+          'Delivery inspection idempotency record has an unsupported state'
+        )
+      }
+
+      const [schedule] = await transaction
+        .select({
+          id: deliverySchedules.id,
+          status: deliverySchedules.status,
+        })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!schedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+      if (schedule.status !== 'received') {
+        throw new ConflictException(
+          `Cannot start inspection from delivery status "${schedule.status}"`
+        )
+      }
+
+      const now = new Date()
+      const [inspection] = await transaction
+        .insert(deliveryInspections)
+        .values({
+          tenant_id: authorizedPrincipal.tenantId,
+          delivery_schedule_id: deliveryScheduleId,
+          inspector_id: authorizedPrincipal.userId,
+          started_at: now,
+          result: 'pending',
+        })
+        .returning({ id: deliveryInspections.id })
+      if (!inspection) {
+        throw new InternalServerErrorException(
+          'Delivery inspection insert returned no record'
+        )
+      }
+
+      const [updated] = await transaction
+        .update(deliverySchedules)
+        .set({ status: 'inspecting', updated_at: now })
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId),
+            eq(deliverySchedules.status, 'received')
+          )
+        )
+        .returning({ id: deliverySchedules.id })
+      if (!updated) {
+        throw new ConflictException(
+          'Delivery changed before its inspection was committed'
+        )
+      }
+
+      const result = deliveryStartInspectionResultSchema.parse({
+        deliveryScheduleId,
+        tenantId: authorizedPrincipal.tenantId,
+        inspectionId: inspection.id,
+        action: 'start_inspection',
+        fromStatus: 'received',
+        status: 'inspecting',
+      })
+      const [completed] = await transaction
+        .update(deliveryWorkflowRequests)
+        .set({
+          state: 'succeeded',
+          result,
+          completed_at: now,
+        })
+        .where(
+          and(
+            eq(deliveryWorkflowRequests.id, request.id),
+            eq(deliveryWorkflowRequests.state, 'processing')
+          )
+        )
+        .returning({ id: deliveryWorkflowRequests.id })
+      if (!completed) {
+        throw new InternalServerErrorException(
+          'Delivery inspection idempotency record changed before completion'
+        )
+      }
+
+      await this.audit.writeSemantic(transaction, {
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
+        entityType: 'delivery_schedule',
+        entityId: deliveryScheduleId,
+        action: 'status_change',
+        diff: {
+          from: 'received',
+          to: 'inspecting',
+          inspection_id: inspection.id,
           idempotency_key_hash: requestHash,
         },
       })

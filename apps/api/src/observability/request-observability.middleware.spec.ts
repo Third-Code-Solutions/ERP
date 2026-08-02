@@ -224,4 +224,30 @@ describe('RequestObservabilityMiddleware', () => {
     })
     expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
   })
+
+  it('labels delivery inspection starts without logging schedule identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: {
+          path: '/v1/procurement/deliveries/:deliveryScheduleId/inspection/start',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'procurement.delivery_inspection_start',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
 })

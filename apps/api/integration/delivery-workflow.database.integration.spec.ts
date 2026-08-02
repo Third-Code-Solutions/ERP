@@ -5,6 +5,7 @@ import type { ConfigService } from '@nestjs/config'
 import {
   auditLog,
   db,
+  deliveryInspections,
   deliverySchedules,
   deliveryWorkflowRequests,
   projects,
@@ -47,7 +48,7 @@ function transactionBoundDatabase(
 }
 
 suite('Delivery receipt workflow database integration', () => {
-  it('commits tenant-scoped receipt once and replays idempotently', async () => {
+  it('commits tenant-scoped receipt and inspection start exactly once', async () => {
     let probeTenantId = ''
     try {
       await db.transaction(async (transaction) => {
@@ -172,6 +173,12 @@ suite('Delivery receipt workflow database integration', () => {
               if (key === 'ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS') {
                 return [tenantId]
               }
+              if (key === 'ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED') {
+                return true
+              }
+              if (key === 'ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS') {
+                return [tenantId]
+              }
               return undefined
             },
           } as unknown as ConfigService,
@@ -270,6 +277,116 @@ suite('Delivery receipt workflow database integration', () => {
           )
         ).toBe(true)
 
+        const inspectionFirst = await service.startInspection(
+          deliveryId,
+          {},
+          principal,
+          'delivery-inspection-integration-1'
+        )
+        const inspectionReplay = await service.startInspection(
+          deliveryId,
+          {},
+          principal,
+          'delivery-inspection-integration-1'
+        )
+        expect(inspectionFirst).toEqual(inspectionReplay)
+        expect(inspectionFirst).toMatchObject({
+          deliveryScheduleId: deliveryId,
+          tenantId,
+          action: 'start_inspection',
+          fromStatus: 'received',
+          status: 'inspecting',
+        })
+
+        await expect(
+          service.startInspection(
+            deliveryId,
+            {},
+            principal,
+            'delivery-receipt-integration-1'
+          )
+        ).rejects.toThrow('Idempotency key was already used')
+
+        const [inspection] = await transaction
+          .select({
+            id: deliveryInspections.id,
+            tenantId: deliveryInspections.tenant_id,
+            scheduleId: deliveryInspections.delivery_schedule_id,
+            inspectorId: deliveryInspections.inspector_id,
+            result: deliveryInspections.result,
+          })
+          .from(deliveryInspections)
+          .where(
+            and(
+              eq(deliveryInspections.tenant_id, tenantId),
+              eq(
+                deliveryInspections.id,
+                inspectionFirst.inspectionId
+              )
+            )
+          )
+        expect(inspection).toEqual({
+          id: inspectionFirst.inspectionId,
+          tenantId,
+          scheduleId: deliveryId,
+          inspectorId: procurementId,
+          result: 'pending',
+        })
+
+        const [inspectingSchedule] = await transaction
+          .select({ status: deliverySchedules.status })
+          .from(deliverySchedules)
+          .where(
+            and(
+              eq(deliverySchedules.tenant_id, tenantId),
+              eq(deliverySchedules.id, deliveryId)
+            )
+          )
+        expect(inspectingSchedule?.status).toBe('inspecting')
+
+        const [inspectionRequest] = await transaction
+          .select({
+            state: deliveryWorkflowRequests.state,
+            result: deliveryWorkflowRequests.result,
+            action: deliveryWorkflowRequests.action,
+          })
+          .from(deliveryWorkflowRequests)
+          .where(
+            and(
+              eq(deliveryWorkflowRequests.tenant_id, tenantId),
+              eq(
+                deliveryWorkflowRequests.idempotency_key,
+                'delivery-inspection-integration-1'
+              )
+            )
+          )
+        expect(inspectionRequest).toEqual({
+          state: 'succeeded',
+          result: inspectionFirst,
+          action: 'start_inspection',
+        })
+
+        const inspectionAuditRows = await transaction
+          .select({ action: auditLog.action, diff: auditLog.diff })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantId),
+              eq(auditLog.entity_type, 'delivery_schedule'),
+              eq(auditLog.entity_id, deliveryId)
+            )
+          )
+        expect(
+          inspectionAuditRows.some(
+            (row) =>
+              row.action === 'status_change' &&
+              (row.diff as { from?: string; to?: string }).from ===
+                'received' &&
+              (row.diff as { from?: string; to?: string }).to ===
+                'inspecting'
+          )
+        ).toBe(true)
+
         await expect(
           service.recordReceipt(
             otherDeliveryId,
@@ -289,6 +406,27 @@ suite('Delivery receipt workflow database integration', () => {
               email: `viewer-${suffix}@integration.test`,
             },
             'delivery-receipt-viewer-1'
+          )
+        ).rejects.toThrow()
+        await expect(
+          service.startInspection(
+            otherDeliveryId,
+            {},
+            principal,
+            'delivery-inspection-cross-tenant-1'
+          )
+        ).rejects.toThrow('Delivery not found')
+        await expect(
+          service.startInspection(
+            deliveryId,
+            {},
+            {
+              ...principal,
+              userId: viewerId,
+              role: 'viewer',
+              email: `viewer-${suffix}@integration.test`,
+            },
+            'delivery-inspection-viewer-1'
           )
         ).rejects.toThrow()
         throw ROLLBACK

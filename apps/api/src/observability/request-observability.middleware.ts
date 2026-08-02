@@ -108,6 +108,14 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     ) {
       return 'finance.journal_reverse'
     }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/procurement/deliveries/:deliveryScheduleId/inspection/start'
+      )
+    ) {
+      return 'procurement.delivery_inspection_start'
+    }
     return 'unknown.command'
   }
 

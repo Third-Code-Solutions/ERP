@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   update: vi.fn(),
   insert: vi.fn(),
+  deliveryInspectionStartWritesUseCoreApi: vi.fn(),
+  startDeliveryInspectionThroughCoreApi: vi.fn(),
   deliveryReceiptWritesUseCoreApi: vi.fn(),
   recordDeliveryReceiptThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
@@ -44,6 +46,10 @@ vi.mock('@/lib/operations/notifications', () => ({
   notifyRoles: mocks.notifyRoles,
 }))
 vi.mock('@/lib/erp-core-client', () => ({
+  deliveryInspectionStartWritesUseCoreApi:
+    mocks.deliveryInspectionStartWritesUseCoreApi,
+  startDeliveryInspectionThroughCoreApi:
+    mocks.startDeliveryInspectionThroughCoreApi,
   deliveryReceiptWritesUseCoreApi: mocks.deliveryReceiptWritesUseCoreApi,
   recordDeliveryReceiptThroughCoreApi:
     mocks.recordDeliveryReceiptThroughCoreApi,
@@ -51,7 +57,7 @@ vi.mock('@/lib/erp-core-client', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }))
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }))
 
-import { recordReceipt } from './actions'
+import { recordReceipt, startInspection } from './actions'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const ACTOR_ID = '22222222-2222-4222-8222-222222222222'
@@ -79,6 +85,18 @@ describe('Delivery receipt compatibility seam', () => {
       user: { id: ACTOR_ID },
     })
     mocks.can.mockReturnValue(true)
+    mocks.deliveryInspectionStartWritesUseCoreApi.mockReturnValue(false)
+    mocks.startDeliveryInspectionThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        deliveryScheduleId: SCHEDULE_ID,
+        tenantId: TENANT_ID,
+        inspectionId: '55555555-5555-4555-8555-555555555555',
+        action: 'start_inspection',
+        fromStatus: 'received',
+        status: 'inspecting',
+      },
+    })
     mocks.deliveryReceiptWritesUseCoreApi.mockReturnValue(true)
     mocks.recordDeliveryReceiptThroughCoreApi.mockResolvedValue({
       ok: true,
@@ -134,6 +152,55 @@ describe('Delivery receipt compatibility seam', () => {
       recordReceipt(SCHEDULE_ID, 'DR-42', 'delivery-receipt-2')
     ).resolves.toEqual({
       error: 'ERP Core API is unavailable. No delivery receipt was committed.',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('routes inspection start through Nest with a stable retry key', async () => {
+    mocks.deliveryInspectionStartWritesUseCoreApi.mockReturnValue(true)
+    selectSchedule('received')
+
+    await expect(
+      startInspection(SCHEDULE_ID, 'delivery-inspection-1')
+    ).resolves.toEqual({
+      inspectionId: '55555555-5555-4555-8555-555555555555',
+    })
+
+    expect(mocks.startDeliveryInspectionThroughCoreApi).toHaveBeenCalledWith(
+      SCHEDULE_ID,
+      {},
+      'delivery-inspection-1'
+    )
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('allows a stable inspection retry after the first core commit changed status', async () => {
+    mocks.deliveryInspectionStartWritesUseCoreApi.mockReturnValue(true)
+    selectSchedule('inspecting')
+
+    await expect(
+      startInspection(SCHEDULE_ID, 'delivery-inspection-1')
+    ).resolves.toEqual({
+      inspectionId: '55555555-5555-4555-8555-555555555555',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when selected inspection start cannot commit', async () => {
+    mocks.deliveryInspectionStartWritesUseCoreApi.mockReturnValue(true)
+    mocks.startDeliveryInspectionThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No delivery inspection was started.',
+    })
+    selectSchedule('received')
+
+    await expect(
+      startInspection(SCHEDULE_ID, 'delivery-inspection-2')
+    ).resolves.toEqual({
+      error: 'ERP Core API is unavailable. No delivery inspection was started.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()

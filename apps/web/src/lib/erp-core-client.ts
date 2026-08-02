@@ -20,6 +20,7 @@ import {
   stockReceiptPostingResultSchema,
   stockReceiptReversalResultSchema,
   deliveryReceiptResultSchema,
+  deliveryStartInspectionResultSchema,
   type CreateRfqCommand,
   type CreateStockReceiptCommand,
   type LogRfqQuoteCommand,
@@ -53,6 +54,8 @@ import {
   type StockReceiptReversalResult,
   type DeliveryReceiptCommand,
   type DeliveryReceiptResult,
+  type DeliveryStartInspectionCommand,
+  type DeliveryStartInspectionResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 
@@ -239,6 +242,16 @@ export function deliveryReceiptWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_DELIVERY_RECEIPT_WRITES_VIA_API,
     process.env.ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function deliveryInspectionStartWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API,
+    process.env.ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -664,6 +677,63 @@ export async function recordDeliveryReceiptThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No delivery receipt was committed.',
+    }
+  }
+}
+
+export async function startDeliveryInspectionThroughCoreApi(
+  deliveryScheduleId: string,
+  command: DeliveryStartInspectionCommand,
+  idempotencyKey: string
+): Promise<CoreResult<DeliveryStartInspectionResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/deliveries/${encodeURIComponent(
+        deliveryScheduleId
+      )}/inspection/start`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Delivery inspection conflicts with its current state.'
+            : response.status === 404
+              ? 'Delivery was not found.'
+              : 'Delivery inspection was not started.'
+      return { ok: false, error: message }
+    }
+    const parsed = deliveryStartInspectionResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid delivery inspection result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No delivery inspection was started.',
     }
   }
 }

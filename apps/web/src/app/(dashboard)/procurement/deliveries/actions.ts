@@ -30,6 +30,8 @@ import {
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
 import {
+  deliveryInspectionStartWritesUseCoreApi,
+  startDeliveryInspectionThroughCoreApi,
   deliveryReceiptWritesUseCoreApi,
   recordDeliveryReceiptThroughCoreApi,
 } from '@/lib/erp-core-client'
@@ -391,7 +393,8 @@ export async function recordReceipt(
 }
 
 export async function startInspection(
-  scheduleId: string
+  scheduleId: string,
+  idempotencyKey?: string
 ): Promise<{ error?: string; inspectionId?: string }> {
   const profile = await requireUserProfile()
   const forbid = guardScheduling(profile.role)
@@ -399,6 +402,29 @@ export async function startInspection(
 
   const row = await loadSchedule(scheduleId, profile.tenantId)
   if (!row) return { error: 'Delivery not found' }
+
+  if (deliveryInspectionStartWritesUseCoreApi(profile.tenantId)) {
+    const key = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
+    if (!key.success) {
+      return {
+        error: 'Retry token is required for the delivery inspection command.',
+      }
+    }
+    const result = await startDeliveryInspectionThroughCoreApi(
+      scheduleId,
+      {},
+      key.data
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'Delivery inspection could not be started through ERP Core.',
+      }
+    }
+    revalidate(scheduleId)
+    return { inspectionId: result.data.inspectionId }
+  }
 
   const violation = assertTransition(row.status as DeliveryStatus, 'inspecting', [
     'received',
