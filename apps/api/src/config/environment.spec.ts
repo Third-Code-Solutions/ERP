@@ -171,6 +171,31 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_FINANCE_JOURNAL_POST_WRITES_TENANT_IDS')
   })
 
+  it('keeps finance journal reversal disabled and tenant-scoped', () => {
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_FINANCE_JOURNAL_REVERSE_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_FINANCE_JOURNAL_REVERSE_WRITES_TENANT_IDS
+    ).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_FINANCE_JOURNAL_REVERSE_WRITES_ENABLED: 'true',
+        ERP_FINANCE_JOURNAL_REVERSE_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      }).ERP_FINANCE_JOURNAL_REVERSE_WRITES_ENABLED
+    ).toBe(true)
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_FINANCE_JOURNAL_REVERSE_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_FINANCE_JOURNAL_REVERSE_WRITES_TENANT_IDS')
+  })
+
   it('keeps Change Request command writes disabled and tenant-scoped', () => {
     expect(
       validateEnvironment(REQUIRED).ERP_CHANGE_REQUEST_WRITES_ENABLED

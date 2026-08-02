@@ -13,6 +13,7 @@ import {
   purchaseOrderWorkflowResultSchema,
   changeRequestCreationResultSchema,
   journalPostResultSchema,
+  journalReverseResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
   stockReceiptCreationResultSchema,
@@ -40,6 +41,8 @@ import {
   type CreateChangeRequestCommand,
   type ChangeRequestCreationResult,
   type JournalPostResult,
+  type JournalReverseBody,
+  type JournalReverseResult,
   type DocumentProcessingAccepted,
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
@@ -190,6 +193,16 @@ export function financeJournalPostWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API,
     process.env.ERP_FINANCE_JOURNAL_POST_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function financeJournalReverseWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API,
+    process.env.ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -1231,6 +1244,64 @@ export async function postJournalEntryThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No journal was posted.',
+    }
+  }
+}
+
+export async function reverseJournalEntryThroughCoreApi(
+  journalEntryId: string,
+  command: JournalReverseBody,
+  idempotencyKey: string
+): Promise<CoreResult<JournalReverseResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/journals/${encodeURIComponent(
+        journalEntryId
+      )}/reverse`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Journal reversal conflicts with its current state.'
+            : response.status === 404
+              ? 'Journal entry was not found.'
+              : 'Journal entry was not reversed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = journalReverseResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid journal reversal result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No journal was reversed.',
     }
   }
 }

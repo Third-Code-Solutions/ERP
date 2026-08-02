@@ -32,6 +32,12 @@ Observed order from the live page and source route. IDs and data attributes are 
 - Hero visual: `apps/web/public/images/third-code-erp-hero.png`.
 - Live reference captures: `docs/design-references/thirdcode-erp-live-desktop.png`, `docs/design-references/thirdcode-erp-live-mobile.png`.
 
+### 2026-08-02 production capture
+
+- Full-page desktop: `docs/design-references/third-code-erp-production-desktop.png`.
+- Full-page mobile: `docs/design-references/third-code-erp-production-mobile.png`.
+- The production topology still matches the route order above; no new public route or vendor-derived surface was observed.
+
 ## Historical source topology retained
 
 The original repository topology remains the baseline for regression review:
