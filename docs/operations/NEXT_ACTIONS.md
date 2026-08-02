@@ -2,7 +2,7 @@
 
 ## Immediate hosted release gate
 
-Do not apply the thirteen pending Supabase migrations or deploy Railway/Vercel
+Do not apply the fourteen pending Supabase migrations or deploy Railway/Vercel
 until the owner supplies:
 
 1. The canonical `AUDIT_RECOVERY_TENANT_ID` UUID for the audit-chain planner.
@@ -13,18 +13,19 @@ until the owner supplies:
 Then run the read-only planners again. Only when migration ledger, duplicate
 review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 
-- apply all twelve pending migrations in timestamp order with a captured ledger;
+- apply all fourteen pending migrations in timestamp order with a captured ledger;
 - run the disposable and hosted verification gates;
 - deploy exactly one reviewed source SHA to Railway and one controlled Vercel
   production build, after confirming the billing impact;
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current source SHA: `29c59b5cf08db3a5004856c60c295f528a936509` on
+Current source SHA: `441ec74c0c776022c2a41485ff45ae2907dbb3ef` on
 `origin/agent-02/third-code-erp-landing`, authored by `kurtgav`. Corrected CI
-run `30744414270` passed every executable source/database/container job; its
-Build job was blocked by GitHub account payment/spending-limit state and E2E
-was skipped.
+run `30745515593` was blocked before any job step because GitHub account
+payments/spending-limit state prevented Actionlint from starting; all other
+jobs were skipped. Local gates are recorded in the work log. Source now has
+69 migrations versus 55 hosted.
 
 ## Historical product action (completed RFQ outbox slice)
 

@@ -1950,3 +1950,28 @@ error. The preflight still leaves all official mutation, replay, audit, and
 tenant authorization inside the same transaction. Disposable Postgres 17/Redis
 integration passed after this correction; hosted migration and provider
 promotion remain separately gated.
+
+## D-119 -- Route journal reversal through Nest without fallback (2026-08-02)
+
+Decision: add a dedicated `journal_reverse_requests` ledger and the strict
+Nest command `POST /v1/finance/journals/:journalEntryId/reverse`. The browser
+sends only a bounded reason, posting date, and opaque idempotency key. Nest
+derives tenant and actor authority, requires the existing `finance.post`
+capability, preflights same-tenant journal visibility, locks the journal,
+invokes the existing PostgreSQL reversal function, stores the exact result,
+and writes semantic audit in one transaction. The Next adapter is selected
+only for exact-`true` plus UUID-allowlisted tenants; selected core failures
+never invoke the direct writer. All flags remain false/empty by default.
+
+Rationale: reversal creates an official financial journal and an equal/opposite
+posted entry. The old Server Action called the database function directly and
+could not durably bind a lost response to one retry. A tenant-scoped ledger
+and one Nest transaction provide replay, RBAC, audit, and stable error
+boundaries while preserving the existing finance screen. The database
+function remains ledger/numbering authority; AI/Python remains advisory.
+
+Validation and release boundary: local source gates pass, but the new
+PostgreSQL integration requires the explicit disposable environment. GitHub
+run `30745515593` was blocked before job execution by account
+payment/spending-limit state. Hosted migration/data/audit review and
+spend-bounded provider approval remain independent; no hosted state changed.

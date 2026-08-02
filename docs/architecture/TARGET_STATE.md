@@ -1183,3 +1183,23 @@ the composite database foreign key as the final integrity guard. The corrected
 transaction passed the disposable Postgres 17/Redis integration in CI. Hosted
 activation remains gated by migration drift, duplicate data, audit-recovery
 approval, readiness, exact SHA, and rollback evidence.
+
+## Finance journal reversal authority (M3.13, 2026-08-02)
+
+Journal reversal is a Nest-owned command at
+`POST /v1/finance/journals/:journalEntryId/reverse`. The browser submits only
+the bounded reason, posting date, and opaque idempotency key. Nest derives the
+tenant and actor from the authenticated principal, rechecks `finance.post`,
+preflights same-tenant journal visibility, locks the journal, and invokes the
+existing PostgreSQL reversal function inside one transaction. The transaction
+stores the strict result in `journal_reverse_requests` and writes semantic
+audit evidence; replay returns the exact stored result. Python/AI cannot
+approve or finalize this financial state change.
+
+The Next adapter selects the command only for exact-`true` plus UUID-allowlisted
+`ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API`; API and Next write gates are
+independently closed by default. A selected core failure never falls back to a
+second writer. The migration is source-complete and disposable-integration
+ready, but hosted Supabase migration drift, duplicate demo data, audit
+recovery, readiness, exact SHA, rollback, and provider spend approval remain
+independent release gates.

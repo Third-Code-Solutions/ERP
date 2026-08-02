@@ -4449,4 +4449,63 @@ errors in the last 24 hours. No Supabase, Railway, or Vercel mutation occurred.
 Exact next action: obtain owner-approved duplicate mapping, an explicit
 `AUDIT_RECOVERY_TENANT_ID`, and spend-bounded provider/CI authorization; then
 re-run the hosted planner before applying migration 68 or deploying. Keep all
-delivery flags false/empty and Vercel Git disconnected.
+ delivery flags false/empty and Vercel Git disconnected.
+
+## 2026-08-02 - M3.13 finance journal reversal authority
+
+Implemented and pushed the next smallest finance authority slice. The former
+`reverseJournalEntry` Server Action can now route to Nest through
+`POST /v1/finance/journals/:journalEntryId/reverse`; the legacy database path
+remains the default compatibility path.
+
+Changed source:
+
+- Added strict journal reversal body/command/result contracts, a real-calendar
+  posting-date check, and Drizzle schema/migration
+  `20260802150000_finance_journal_reverse_idempotency.sql` with composite
+  tenant foreign keys, forced RLS, and service-only privileges.
+- Added Nest reversal pipe/controller/service. It rechecks membership and
+  `finance.post`, preflights same-tenant visibility before the ledger claim,
+  locks the journal, calls the existing PostgreSQL reversal function, commits
+  idempotency and semantic audit together, and maps known domain failures.
+- Added a fail-closed Next selector/client and an opaque retry key in the
+  existing journal action component. No visible UI design, copy, layout, or
+  route behavior changed for default tenants.
+- Added API/database/shared/web contracts and integration coverage plus env
+  examples and observability labels. Captured current production landing
+  desktop/mobile evidence under `docs/design-references/` and refreshed the
+  clean-room behavior/topology records.
+
+Validation:
+
+- Shared: 11 files / 129 tests passed.
+- Database: 24 files / 131 executable assertions passed; 3 environment-gated
+  suites remain skipped without `DATABASE_URL`.
+- API: 34 files / 165 tests passed. Web: 59 files / 368 tests passed.
+- Workspace typecheck/lint, Nest build, Next production build (78 routes),
+  release-plan tests, Actionlint, Gitleaks, and `git diff --check` passed.
+- The new journal-reversal database integration is present but locally skipped
+  by the explicit `DATABASE_URL` + `ERP_API_INTEGRATION_EXPECTED=1` gate.
+
+Release boundary and unresolved risk:
+
+- Commit `441ec74c0c776022c2a41485ff45ae2907dbb3ef` is pushed to
+  `origin/agent-02/third-code-erp-landing` as `kurtgav`.
+- GitHub CI run `30745515593` failed before any job step because account
+  payments/spending-limit state blocked Actionlint; all other jobs skipped.
+  It is not executable source evidence. Local gates above are the current
+  verified source evidence.
+- No Supabase SQL, hosted rows, feature flag, queue, provider setting,
+  Railway deployment, Vercel deployment, or Vercel Git connection changed.
+  Source now has 69 migrations; hosted Supabase remains at 55, with the
+  duplicate-PO and audit-recovery blockers unresolved.
+- Keep the four journal-reversal flags false/empty and keep Vercel Git
+  disconnected. Do not apply migration 69 or trigger Railway/Vercel while the
+  hosted planner, exact SHA, rollback, and spend gates are not clear.
+
+Exact next action: obtain the owner-approved duplicate Purchase Order mapping
+and canonical `AUDIT_RECOVERY_TENANT_ID`, restore GitHub Actions billing
+authorization, then rerun the exact-SHA CI/database lane and the read-only
+Supabase/Railway/Vercel planner. Only a clear planner plus explicit
+spend-bounded provider approval can authorize one hosted migration and one
+production action.

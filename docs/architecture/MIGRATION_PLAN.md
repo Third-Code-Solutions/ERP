@@ -1635,3 +1635,30 @@ the earlier run `30744214638` correctly caught the composite-FK/not-found
 contract defect. The same run's Build job was blocked by GitHub account
 payments/spending-limit state, while all executable source, database, and
 container jobs passed. No hosted state changed.
+
+## M3.13 - Finance journal reversal authority (completed source slice)
+
+1. Add strict reason/date/result contracts and a tenant-scoped
+   `journal_reverse_requests` idempotency ledger with composite tenant foreign
+   keys, forced RLS, and service-only privileges.
+2. Add the closed-by-default Nest reversal command. Recheck membership and
+   `finance.post`, preflight journal visibility before the ledger claim, lock
+   the journal, call `reverse_journal_entry`, persist one exact result, and
+   write semantic audit in the same transaction.
+3. Route the existing finance Server Action through the command only for an
+   exact-`true` plus UUID allowlist. Keep one opaque UI retry key and never
+   fall back after a selected core failure; preserve all visible finance UI.
+4. Prove contracts, replay, RBAC, tenant isolation, audit, and full database
+   behavior in the disposable PostgreSQL 17/Redis lane before any canary.
+
+Evidence: source `441ec74c0c776022c2a41485ff45ae2907dbb3ef` is pushed under
+`kurtgav`. Local shared/database/API/Web tests, typecheck, lint, Nest/Web
+builds, release-plan tests, Actionlint, Gitleaks, and diff checks passed. The
+new integration is explicit-gate skipped locally. GitHub run `30745515593`
+was blocked before execution by account payment/spending-limit state, so it is
+not source-test evidence.
+
+Release gate: keep all four journal-reversal flags false/empty. Do not apply
+`20260802150000_finance_journal_reverse_idempotency.sql`, deploy Railway or
+Vercel, or reconnect Vercel Git until the hosted planner, duplicate mapping,
+audit-recovery tenant, readiness, exact SHA, rollback, and spend gates clear.
