@@ -1696,3 +1696,36 @@ apply `20260802160000_delivery_inspection_start_workflow.sql`, deploy Railway
 or Vercel, or reconnect Vercel Git until the hosted planner, duplicate-data
 mapping, audit-recovery tenant, readiness, exact SHA, rollback, and
 spend-bounded provider gates clear.
+
+## M3.15 - Delivery inspection-completion authority (completed source slice)
+
+1. Extend `delivery_workflow_action` with `complete_inspection`; retain the
+   existing forced-RLS, service-only, tenant/idempotency ledger.
+2. Add the closed-by-default Nest terminal command. Recheck membership and
+   `delivery.receive`, preflight tenant visibility, lock the inspecting
+   schedule and pending inspection, require defect notes for failure, persist
+   the inspection result, transition to accepted/rejected, store exact replay,
+   and write semantic audit in one transaction.
+3. Route the existing inspection form through Nest only for exact-`true` plus
+   UUID-allowlisted tenants. Keep one opaque completion retry key and fail
+   closed after a selected core error; preserve visible delivery UI.
+4. Prove strict contracts, replay/conflict behavior, terminal-state stamps,
+   RBAC, tenant isolation, audit, and migration reproducibility before any
+   canary.
+
+Evidence: source `67beedab53680238f785e0947d90588eedd71e3e` is pushed under
+`kurtgav`. Local shared/database/API/Web suites, typecheck, lint, Nest/Next
+builds, release-plan tests, Actionlint, Gitleaks, and diff checks passed. The
+guarded delivery database integration was explicitly invoked but skipped
+without the PostgreSQL integration environment. GitHub run `30748096044`
+failed before job execution, so hosted promotion stays gated.
+
+Release gate: keep
+`ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_ENABLED`,
+`ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS`,
+`ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API`, and
+`ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API_TENANT_IDS` false/empty. Do
+not apply `20260802170000_delivery_inspection_complete_workflow.sql`, deploy
+Railway or Vercel, or reconnect Vercel Git until hosted planner, duplicate-data
+mapping, audit-recovery tenant, readiness, exact SHA, rollback, and
+spend-bounded provider gates clear.

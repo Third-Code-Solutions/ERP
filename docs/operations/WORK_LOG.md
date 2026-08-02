@@ -4510,6 +4510,60 @@ Supabase/Railway/Vercel planner. Only a clear planner plus explicit
 spend-bounded provider approval can authorize one hosted migration and one
 production action.
 
+## 2026-08-02 — M3.15 delivery inspection completion authority
+
+Implemented the smallest follow-on procurement slice: inspection completion
+now has a strict shared command/result contract, a dedicated NestJS route, and
+an atomic PostgreSQL authority path behind closed-by-default tenant gates.
+The compatibility action keeps the existing browser behavior for unselected
+tenants; selected tenants fail closed if the core route fails. The opaque
+idempotency key is reused for exact replay, and the transaction locks the
+tenant membership, delivery schedule, latest pending inspection, and workflow
+ledger before committing the inspection result, parent delivery state,
+semantic audit, and replay result together.
+
+Changed source:
+
+- shared delivery contracts and tests;
+- `delivery_workflow_action` enum plus migration
+  `20260802170000_delivery_inspection_complete_workflow.sql`;
+- Nest pipe, controller, service, module wiring, config, observability, and
+  unit/integration tests;
+- Next compatibility client/action and the existing panel's opaque retry key;
+- environment documentation and release-plan contract coverage.
+
+Validation:
+
+- Shared 133 tests, database 135 executable assertions (3 guarded suites
+  skipped), Web 378 tests, and API 182 serial tests passed.
+- Typecheck, lint, Nest/Web production builds, release-plan tests, Actionlint,
+  Gitleaks, and `git diff --check` passed.
+- The guarded delivery database integration was explicitly invoked and
+  skipped: no `DATABASE_URL` plus `ERP_API_INTEGRATION_EXPECTED=1` was
+  present.
+
+Release boundary and unresolved risk:
+
+- Commit `67beedab53680238f785e0947d90588eedd71e3e` is pushed to
+  `origin/agent-02/third-code-erp-landing` as `kurtgav`.
+- GitHub run `30748096044` failed before any executable step; every other job
+  was skipped. The external account payment/spending-limit gate remains
+  unresolved, so hosted CI is not source-test evidence.
+- No Supabase SQL, hosted rows, feature flag, queue, provider setting,
+  Railway deployment, Vercel deployment, or Vercel Git connection changed.
+  Source now has 71 migrations; hosted Supabase remains at 55. The duplicate
+  Purchase Order and audit-recovery blockers remain unresolved.
+- Keep all inspection-start and inspection-completion flags false/empty. Do
+  not apply migration 71 or trigger Railway/Vercel while the hosted planner,
+  exact SHA, rollback, integration, and spend gates are not clear.
+
+Exact next action: obtain the owner-approved duplicate Purchase Order mapping
+and canonical `AUDIT_RECOVERY_TENANT_ID`, restore GitHub Actions billing
+authorization, provide the disposable Postgres/Redis integration environment,
+then rerun the exact-SHA CI/database lane and read-only Supabase/Railway/Vercel
+planner. Only a clear planner plus explicit spend-bounded provider approval
+can authorize one hosted migration and one production action.
+
 ## 2026-08-02 - M3.14 delivery inspection-start authority
 
 Implemented and pushed the next smallest delivery authority slice. The
