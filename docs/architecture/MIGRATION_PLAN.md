@@ -1446,3 +1446,9 @@ Release boundary: this is source evidence only. Re-run the read-only planner
 before any hosted release; current blockers remain 11 pending migrations,
 duplicate Purchase Orders, zero audit rows, and missing
 `AUDIT_RECOVERY_TENANT_ID`.
+
+CI evidence: run `30736912185` passed all executable jobs for source commit
+`08f1315`; Actionlint, typecheck, unit tests, lint, secret scan, the clean
+Postgres 17/Redis reproducibility lane (including Nest transaction/container
+smoke), and production build all passed. E2E remains skipped by explicit
+hosted-credential gating. CI green is not hosted-release authorization.

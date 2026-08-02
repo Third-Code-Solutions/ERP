@@ -901,9 +901,9 @@ Git disconnected and do not create preview or duplicate production builds.
 
 ## Exact next action after M3.6 Cortex privacy boundary (2026-08-02)
 
-1. Treat source commit `08f1315` as a review candidate; run the full CI matrix
-   before any provider action. Keep all finance/PO write flags and tenant
-   allowlists false/empty.
+1. Treat source commit `08f1315` and green CI run `30736912185` as the reviewed
+   source candidate. E2E is credential-gated; keep all finance/PO write flags
+   and tenant allowlists false/empty.
 2. Do not apply hosted migrations or deploy Railway/Vercel while the planner
    remains `review_required` (55/66, 12 duplicate Purchase Orders, zero audit
    rows, and missing `AUDIT_RECOVERY_TENANT_ID`).

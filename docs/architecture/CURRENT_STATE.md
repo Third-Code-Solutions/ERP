@@ -1986,3 +1986,8 @@ provider, flag, queue, or business-data mutation occurred.
   with eleven pending migrations, one 12-record duplicate Purchase Order
   group, zero audit rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and
   Vercel readiness remain HTTP 200; live revision remains unchanged.
+- GitHub Actions run `30736912185` passed all executable jobs for the docs-
+  backed source candidate: Actionlint, typecheck, unit tests, lint, secret
+  scan, Postgres 17/Redis reproducibility, Nest transaction/container smoke,
+  and production build. E2E remains skipped by the explicit hosted-credential
+  gate. This CI result does not authorize a hosted cutover.

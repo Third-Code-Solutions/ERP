@@ -4171,3 +4171,10 @@ migration or provider mutation occurred. Read-only planner at
 migrations, with one 12-record duplicate-PO group, zero audit rows, and
 missing `AUDIT_RECOVERY_TENANT_ID`; Railway/Vercel readiness are HTTP 200 and
 Vercel revision remains `31c04942a93d`.
+
+CI evidence: run `30736912185` passed Actionlint, typecheck, unit tests, lint,
+secret scan, clean Postgres 17/Redis replay and schema checks, no-skip
+database tests, Nest transaction/container smoke, and production build for
+the M3.6 candidate. E2E remained skipped by the explicit hosted-credential
+gate. No hosted SQL, deployment, feature flag, queue, provider, or
+business-data mutation occurred.
