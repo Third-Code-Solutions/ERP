@@ -1799,3 +1799,13 @@ provider, flag, queue, or business-data mutation occurred.
 - API validation now passes 27 files / 126 tests with one explicit integration
   skip; API typecheck passes. No UI, hosted SQL, provider setting, flag, queue,
   deployment, or business-data mutation occurred.
+
+## 2026-08-02 M3.0 disposable CI evidence
+
+- Commit `77b6e04206a48ff47ffeee5567b56bf3e3195e65` passed GitHub Actions run
+  `30718464238`. The Postgres 17 lane rebuilt the database from zero, ran
+  database tests without skips (256/256), executed the new Change Request
+  integration, completed Nest container smoke, and passed the workspace build.
+- Hosted Supabase remains 55/63 and the controlled planner remains
+  `review_required`; no hosted SQL, deployment, flag, queue, provider setting,
+  or business-data mutation occurred.

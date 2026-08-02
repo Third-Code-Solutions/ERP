@@ -938,3 +938,7 @@ The disposable database contract is executable in
 transaction proves tenant and capability denial, replay/hash behavior,
 design-role notification intent, semantic audit linkage, and rollback. Hosted
 promotion still requires the independent release planner to clear.
+
+GitHub Actions run `30718464238` executes this contract in the disposable
+Postgres 17 lane with no skips. CI evidence does not authorize hosted SQL or
+provider promotion while the release planner is not clear.
