@@ -1819,3 +1819,19 @@ make raw PII safe to export to a model provider. A small, tested boundary
 reduces direct-identifier exposure while retaining useful construction context
 and the deterministic grounded fallback. No AI output gains transaction
 authority from this change.
+
+## D-112 -- Route the binary-CAD canary through Nest without fallback (2026-08-02)
+
+Decision: add the frontend selector `ERP_DOCUMENT_PROCESSING_VIA_API` and
+strict UUID allowlist `ERP_DOCUMENT_PROCESSING_TENANT_IDS`, both closed by
+default. For an explicitly selected tenant and binary DWG only, Next submits
+the document-processing job to Nest/BullMQ and polls a validated status proxy.
+If core rejects or is unavailable, the request fails closed; Next never calls
+its legacy CAD scope writer after selecting the core path. Draft-BOM and
+evidence gates remain independent and closed.
+
+Rationale: the core API is the required authority for signed evidence,
+tenant/RBAC checks, idempotency, audit, and official scope-item commits. A
+fallback would create two writers and could silently bypass those controls.
+The canary preserves current behavior for every non-allowlisted tenant while
+making the migration seam executable and reversible without a schema change.
