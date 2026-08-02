@@ -76,6 +76,7 @@ vi.mock('next/cache', () => ({
 import {
   commercialApprovePo,
   pmApprovePo,
+  rejectPoApproval,
   submitPoForPmApproval,
 } from './actions'
 
@@ -172,6 +173,21 @@ describe('Purchase Order workflow compatibility seam', () => {
     ).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     )
+  })
+
+  it('routes SCM-step rejection through Nest with its reason and retry key', async () => {
+    selectPurchaseOrder('pending_scm_issuance')
+
+    await expect(
+      rejectPoApproval(PO_ID, 'Supplier quote expired', 'po-workflow-reject-1')
+    ).resolves.toEqual({})
+
+    expect(mocks.transitionPurchaseOrderThroughCoreApi).toHaveBeenCalledWith(
+      PO_ID,
+      { action: 'reject', reason: 'Supplier quote expired' },
+      'po-workflow-reject-1'
+    )
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/purchase-orders')
   })
 
   it('fails closed without falling through to a direct write', async () => {

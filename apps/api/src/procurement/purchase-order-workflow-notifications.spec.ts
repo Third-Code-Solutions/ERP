@@ -42,4 +42,17 @@ describe('Purchase Order workflow notification recipients', () => {
       )
     ).toBe(true)
   })
+
+  it('routes SCM-step rejection to the remaining approval and procurement roles', () => {
+    expect(
+      purchaseOrderWorkflowNotificationRoles('reject', 'pending_scm_issuance')
+    ).toEqual(['owner', 'admin', 'commercial', 'procurement'])
+    expect(
+      isPurchaseOrderWorkflowNotificationRecipient(
+        'procurement',
+        'reject',
+        'pending_scm_issuance'
+      )
+    ).toBe(true)
+  })
 })
