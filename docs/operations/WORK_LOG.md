@@ -4388,7 +4388,7 @@ Validation:
 - Shared full suite: 11 files / 127 tests passed.
 - Database full suite: 23 files / 129 executable assertions passed; 3 suites
   remain environment-skipped without `DATABASE_URL`.
-- API full suite: 32 files / 157 tests passed. Web full suite: 58 files / 363
+- API full suite: 32 files / 157 tests passed. Web full suite: 59 files / 366
   tests passed.
 - Workspace lint/typecheck, Nest/Web production builds (78 Next routes),
   Actionlint, Gitleaks, release-plan tests, and `git diff --check` passed.
