@@ -1239,3 +1239,20 @@ failures never fall back. Delivery cancellation and later stock/three-way
 matching effects remain separate commands. Hosted migration drift, duplicate
 demo data, audit recovery, readiness, exact SHA, rollback, and spend approval
 remain independent promotion gates.
+
+## Delivery cancellation authority (M3.16, 2026-08-02)
+
+Cancellation is a Nest-owned terminal delivery command at
+`POST /v1/procurement/deliveries/:deliveryScheduleId/cancel`. The browser
+sends only a bounded reason and opaque idempotency key. Nest derives tenant and
+actor, rechecks `delivery.receive`, locks the same-tenant schedule, permits
+only cancellable non-terminal statuses, stamps cancellation evidence,
+persists the exact replay result, and writes semantic audit in one PostgreSQL
+transaction. Python/AI cannot finalize this state.
+
+The existing delivery action selects Nest only for exact-`true` plus UUID
+allowlist configuration; selected core failures fail closed. The four
+cancellation flags are false/empty by default, and the visible delivery UI is
+unchanged. Hosted migration drift, duplicate demo data, audit recovery,
+readiness, exact SHA, rollback, integration, and spend approval remain
+independent promotion gates.

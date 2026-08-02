@@ -2028,3 +2028,30 @@ database integration was skipped without its explicit environment. Source is
 pushed as `67beedab53680238f785e0947d90588eedd71e3e`; GitHub run
 `30748096044` failed before executable steps; no hosted migration or provider
 mutation occurred. All four inspection-completion flags remain false/empty.
+
+## D-122 -- Reuse delivery ledger for cancellation (2026-08-02)
+
+Decision: add `cancel_delivery` to the existing `delivery_workflow_action`
+enum and expose
+`POST /v1/procurement/deliveries/:deliveryScheduleId/cancel` as a
+closed-by-default Nest command. The browser sends only a bounded reason and
+opaque idempotency key. Nest derives tenant and actor, rechecks
+`delivery.receive`, locks a cancellable schedule, stores cancellation evidence,
+commits the exact replay result, and writes semantic audit in one transaction.
+The compatibility action selects Nest only for exact-`true` plus UUID allowlist
+and never falls back after selection.
+
+Rationale: cancellation is an official terminal delivery decision. Leaving
+the transition as a browser-side direct update would allow duplicate or
+cross-tenant decisions and would not bind a lost response to one retry. Reusing
+the existing tenant-scoped delivery ledger keeps receipt, inspection, and
+cancellation under one replay boundary while explicit columns preserve the
+business evidence needed for review. Python/AI remains advisory.
+
+Validation and release boundary: local focused/full suites, typecheck, lint,
+build, release-plan tests, Actionlint, Gitleaks, and diff checks passed; the
+guarded database integration was skipped without its explicit environment.
+Source is pushed as `e8d4a6c181358756879435a76e8bd5a9317cc751`. GitHub run
+`30749461755` failed before executable steps because of account
+payment/spending-limit state. No hosted migration or provider mutation
+occurred; all four cancellation flags remain false/empty.
