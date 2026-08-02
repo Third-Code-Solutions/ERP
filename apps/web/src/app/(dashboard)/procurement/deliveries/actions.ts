@@ -29,6 +29,10 @@ import {
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
+import {
+  deliveryReceiptWritesUseCoreApi,
+  recordDeliveryReceiptThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 type DeliveryStatus =
   | 'scheduled'
@@ -316,7 +320,8 @@ export async function markInTransit(
 
 export async function recordReceipt(
   scheduleId: string,
-  notes?: string
+  notes?: string,
+  idempotencyKey?: string
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   const forbid = guardScheduling(profile.role)
@@ -324,6 +329,29 @@ export async function recordReceipt(
 
   const row = await loadSchedule(scheduleId, profile.tenantId)
   if (!row) return { error: 'Delivery not found' }
+
+  if (deliveryReceiptWritesUseCoreApi(profile.tenantId)) {
+    const key = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
+    if (!key.success) {
+      return {
+        error: 'Retry token is required for the delivery receipt command.',
+      }
+    }
+    const result = await recordDeliveryReceiptThroughCoreApi(
+      scheduleId,
+      { notes: notes?.trim() || null },
+      key.data
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'Delivery receipt could not be committed through ERP Core.',
+      }
+    }
+    revalidate(scheduleId)
+    return {}
+  }
 
   // Spec allows receipt from in_transit OR scheduled (some deliveries skip
   // the prep workflow because the site is already prepared earlier).

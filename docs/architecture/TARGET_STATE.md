@@ -1151,3 +1151,25 @@ plus UUID allowlist. A stable opaque browser retry key replays the whole group;
 core rejection or outage fails closed with no direct-writer fallback. API and
 Next grouped flags remain disabled until hosted migration/data/audit review,
 tenant canary, readiness, exact-SHA, and rollback evidence are approved.
+
+## Delivery receipt authority (M3.12, 2026-08-02)
+
+Recording a delivery receipt is an official procurement state change owned by
+Nest. The browser submits only optional bounded notes and an opaque retry key;
+Nest derives tenant and actor membership, requires `delivery.receive`, locks
+the same-tenant schedule, permits only `scheduled` or `in_transit`, stamps
+receipt time/actor/notes, and commits the state, idempotency result, and
+semantic audit in one PostgreSQL transaction. A conflicting retry key or
+concurrent status change is rejected; an exact replay returns the stored
+result. The ledger is forced-RLS and service-only.
+
+The existing delivery panel remains the compatibility surface. Its Next action
+routes to `POST /v1/procurement/deliveries/:deliveryScheduleId/receipt` only
+for the exact-`true` selector
+`ERP_DELIVERY_RECEIPT_WRITES_VIA_API` plus
+`ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS`; selected core failures never
+fall back to the direct Server Action. API and Next gates remain false/empty
+until hosted migration/data/audit review, a disposable/demo tenant canary,
+readiness, exact SHA, and rollback evidence are approved. Site preparation,
+inspection, acceptance, and cancellation are separate legacy steps for later
+milestones.

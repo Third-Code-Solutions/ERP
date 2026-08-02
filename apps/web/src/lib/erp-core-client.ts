@@ -18,6 +18,7 @@ import {
   stockReceiptCreationResultSchema,
   stockReceiptPostingResultSchema,
   stockReceiptReversalResultSchema,
+  deliveryReceiptResultSchema,
   type CreateRfqCommand,
   type CreateStockReceiptCommand,
   type LogRfqQuoteCommand,
@@ -47,6 +48,8 @@ import {
   type StockReceiptPostingResult,
   type StockReceiptReverseCommand,
   type StockReceiptReversalResult,
+  type DeliveryReceiptCommand,
+  type DeliveryReceiptResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 
@@ -215,6 +218,14 @@ export function stockReceiptReverseWritesUseCoreApi(
     tenantId,
     process.env.ERP_INVENTORY_RECEIPT_REVERSE_VIA_API,
     process.env.ERP_INVENTORY_RECEIPT_REVERSE_TENANT_IDS
+  )
+}
+
+export function deliveryReceiptWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DELIVERY_RECEIPT_WRITES_VIA_API,
+    process.env.ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -584,6 +595,62 @@ export async function createStockReceiptThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Stock Receipt was committed.',
+    }
+  }
+}
+
+export async function recordDeliveryReceiptThroughCoreApi(
+  deliveryScheduleId: string,
+  command: DeliveryReceiptCommand,
+  idempotencyKey: string
+): Promise<CoreResult<DeliveryReceiptResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/deliveries/${encodeURIComponent(
+        deliveryScheduleId
+      )}/receipt`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Delivery receipt conflicts with its current state.'
+            : response.status === 404
+              ? 'Delivery was not found.'
+              : 'Delivery receipt was not committed.'
+      return { ok: false, error: message }
+    }
+    const parsed = deliveryReceiptResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid delivery receipt result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No delivery receipt was committed.',
     }
   }
 }

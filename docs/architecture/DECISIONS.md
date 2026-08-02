@@ -1915,3 +1915,24 @@ Validation: CI run `30742910106` passed the full Postgres 17/Redis
 reproducibility lane, including the grouped transaction integration, plus
 lint, typecheck, tests, secret scan, and build. Hosted migration/data/audit
 review and spend-bounded deployment approval remain independent gates.
+
+## D-117 -- Route delivery receipt through Nest without fallback (2026-08-02)
+
+Decision: add a dedicated `delivery_workflow_requests` ledger and the strict
+Nest command `POST /v1/procurement/deliveries/:deliveryScheduleId/receipt`.
+The browser sends only optional bounded notes and an opaque idempotency key.
+Nest derives tenant/actor membership, requires `delivery.receive`, locks the
+delivery schedule, accepts only `scheduled` or `in_transit`, stamps receipt
+metadata, stores the result, and writes semantic audit in one transaction.
+Route the existing Server Action only for exact-`true` plus UUID-allowlisted
+tenants; selected core failures never invoke the direct writer. Keep all
+flags and tenant lists false/empty by default.
+
+Rationale: Stock Receipt creation already requires an accepted delivery, while
+the legacy receipt button could update `delivery_schedules` outside a durable
+replay boundary. A single server transaction prevents duplicate/lost-response
+effects and keeps tenant/RBAC/audit authority out of the browser without
+changing the current panel. Site prep, inspection, acceptance, and cancellation
+remain separate steps to avoid a big-bang delivery rewrite. Hosted migration,
+duplicate-data repair, audit recovery, readiness, and spend-bounded deployment
+remain independent promotion gates.

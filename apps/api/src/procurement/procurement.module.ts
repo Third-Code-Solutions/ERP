@@ -7,6 +7,9 @@ import { BullModule } from '@nestjs/bullmq'
 import { AuditModule } from '../audit/audit.module'
 import { RequestObservabilityMiddleware } from '../observability/request-observability.middleware'
 import { ProcurementController } from './procurement.controller'
+import { DeliveryReceiptPipe } from './delivery-receipt.pipe'
+import { DeliveryWorkflowController } from './delivery-workflow.controller'
+import { DeliveryWorkflowService } from './delivery-workflow.service'
 import { PurchaseOrderController } from './purchase-order.controller'
 import { ProcurementService } from './procurement.service'
 import { PurchaseOrderCreationService } from './purchase-order-creation.service'
@@ -33,12 +36,18 @@ import { NotificationEmailService } from './notification-email.service'
       { name: NOTIFICATION_DELIVERY_QUEUE }
     ),
   ],
-  controllers: [ProcurementController, PurchaseOrderController],
+  controllers: [
+    ProcurementController,
+    PurchaseOrderController,
+    DeliveryWorkflowController,
+  ],
   providers: [
     ProcurementService,
     PurchaseOrderCreationService,
     PurchaseOrderWorkflowService,
     PurchaseOrderWorkflowPipe,
+    DeliveryWorkflowService,
+    DeliveryReceiptPipe,
     RfqDispatchQueue,
     RfqDispatchProcessor,
     NotificationDeliveryQueue,
@@ -51,6 +60,10 @@ export class ProcurementModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestObservabilityMiddleware)
-      .forRoutes(ProcurementController, PurchaseOrderController)
+      .forRoutes(
+        ProcurementController,
+        PurchaseOrderController,
+        DeliveryWorkflowController
+      )
   }
 }

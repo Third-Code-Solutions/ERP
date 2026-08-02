@@ -1594,3 +1594,37 @@ Release gate: keep
 hosted planner only after the duplicate-PO mapping and audit-recovery tenant
 are owner-approved; then validate one disposable/demo tenant canary and
 rollback before any Railway/Vercel action.
+
+## M3.12 - Delivery receipt authority (completed source slice)
+
+Scope delivered:
+
+- Add strict `{ notes? }` delivery-receipt command/result contracts and the
+  tenant-composite `delivery_workflow_requests` idempotency ledger with forced
+  RLS and service-only privileges.
+- Add `POST /v1/procurement/deliveries/:deliveryScheduleId/receipt`. Nest now
+  rechecks membership and `delivery.receive`, locks the same-tenant delivery,
+  permits only `scheduled` or `in_transit`, updates receipt stamps and notes,
+  persists the result, and writes semantic audit evidence in one transaction.
+- Route only the existing `recordReceipt` Server Action through the new
+  command for an exact-`true` plus UUID-allowlisted tenant. Core failures never
+  fall back to the direct writer; the existing panel gets one stable opaque
+  retry key without a visible design or copy change. Other delivery steps stay
+  legacy and unchanged.
+
+Validation: shared/API/Web focused and full unit suites pass; database contract
+test, API controller/service tests, API/Web typecheck, workspace lint,
+production builds, Actionlint, Gitleaks, release-plan tests, and diff checks
+pass. The disposable database integration is present and runs only when the
+explicit PostgreSQL integration gate is supplied; local execution skipped it
+because no `DATABASE_URL`/`ERP_API_INTEGRATION_EXPECTED` was present.
+
+Release boundary: migration
+`20260802140000_delivery_receipt_workflow_idempotency.sql` is source-complete
+but not applied to hosted Supabase. Keep
+`ERP_DELIVERY_RECEIPT_WRITES_ENABLED`,
+`ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS`,
+`ERP_DELIVERY_RECEIPT_WRITES_VIA_API`, and
+`ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS` false/empty. Re-run the
+read-only hosted planner and obtain owner-approved duplicate-PO mapping plus
+`AUDIT_RECOVERY_TENANT_ID` before any SQL or provider action.
