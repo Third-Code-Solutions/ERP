@@ -139,6 +139,24 @@ export class DeliveryWorkflowService {
       }
       await this.audit.stampActor(transaction, authorizedPrincipal)
 
+      // Resolve the schedule before claiming the ledger row. The ledger carries
+      // a composite tenant foreign key; preflighting keeps cross-tenant and
+      // unknown schedule ids on the stable API not-found contract instead of
+      // leaking a database constraint error.
+      const [visibleSchedule] = await transaction
+        .select({ id: deliverySchedules.id })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+      if (!visibleSchedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+
       await transaction
         .insert(deliveryWorkflowRequests)
         .values({

@@ -1033,6 +1033,21 @@ Git disconnected and do not create preview or duplicate production builds.
    authority work. Never enable a canary or create a paid/duplicate Vercel
    deployment to bypass the gate.
 
+## Exact next action after M3.12 CI integration correction (2026-08-02)
+
+1. Push the delivery receipt correction under `kurtgav` and wait for the
+   disposable PostgreSQL 17/Redis integration to pass on the exact SHA.
+2. Keep `ERP_DELIVERY_RECEIPT_WRITES_ENABLED`,
+   `ERP_DELIVERY_RECEIPT_WRITES_TENANT_IDS`,
+   `ERP_DELIVERY_RECEIPT_WRITES_VIA_API`, and
+   `ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS` false/empty. Do not apply
+   migration `20260802140000_delivery_receipt_workflow_idempotency.sql` to
+   hosted Supabase yet.
+3. Re-run read-only Supabase ledger/duplicate/audit checks, Railway readiness,
+   and Vercel readiness. Existing 55/68 migration drift, the 12-record
+   duplicate PO group, missing `AUDIT_RECOVERY_TENANT_ID`, and spend controls
+   remain release blockers. Do not deploy or reconnect Vercel Git.
+
 ## Exact next action after M3.9 CI evidence (2026-08-02)
 
 1. Treat `6121740ea2a3db189e7cc1c5e83f970db73f6b74` and CI run

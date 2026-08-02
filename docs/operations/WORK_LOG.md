@@ -4413,3 +4413,19 @@ Exact next action: commit and push this source/docs slice under `kurtgav`, wait
 for CI including the new delivery integration, re-run the read-only hosted
 planner, and do not apply migration 68 or trigger Railway/Vercel until the
 owner-approved data/audit blockers and spend-bounded promotion gates clear.
+
+## 2026-08-02 - M3.12 integration correction
+
+GitHub CI run `30744214638` exercised the new Postgres 17/Redis integration and
+found a cross-tenant not-found contract defect: the workflow ledger composite
+foreign key fired before the service could return `Delivery not found`. The
+service now preflights the schedule inside the same transaction before claiming
+the idempotency ledger, and the disposable fixture now uses a valid
+other-tenant purchase order. No hosted data or provider state changed.
+
+Validation after the correction: API full suite 32 files / 157 tests passed,
+API typecheck and diff checks passed. The exact disposable integration must be
+re-run by the next GitHub CI run; local Docker/Supabase is unavailable in this
+workstation. Exact next action: push the correction, wait for the full CI run,
+then repeat read-only hosted checks; keep migration 68 and all delivery write
+flags closed.
