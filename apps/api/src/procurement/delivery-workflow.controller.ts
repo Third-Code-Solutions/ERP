@@ -21,6 +21,8 @@ import type {
   DeliveryStartInspectionResult,
   DeliveryStartSitePreparationCommand,
   DeliveryStartSitePreparationResult,
+  DeliveryCompleteSitePreparationCommand,
+  DeliveryCompleteSitePreparationResult,
 } from '@third-code-erp/shared-types'
 import {
   CurrentPrincipal,
@@ -32,6 +34,7 @@ import { DeliveryCancelPipe } from './delivery-cancel.pipe'
 import { DeliveryReceiptPipe } from './delivery-receipt.pipe'
 import { DeliveryStartInspectionPipe } from './delivery-start-inspection.pipe'
 import { DeliverySitePreparationStartPipe } from './delivery-site-preparation-start.pipe'
+import { DeliverySitePreparationCompletePipe } from './delivery-site-preparation-complete.pipe'
 import { DeliveryWorkflowService } from './delivery-workflow.service'
 
 @Controller('v1/procurement/deliveries')
@@ -81,6 +84,30 @@ export class DeliveryWorkflowController {
       throw new BadRequestException('Idempotency-Key header is too long')
     }
     return this.workflow.startSitePreparation(
+      deliveryScheduleId,
+      command,
+      principal,
+      idempotencyKey.trim()
+    )
+  }
+
+  @Post(':deliveryScheduleId/site-preparation/complete')
+  @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('delivery.receive')
+  completeSitePreparation(
+    @Param('deliveryScheduleId', new ParseUUIDPipe()) deliveryScheduleId: string,
+    @Body(DeliverySitePreparationCompletePipe)
+    command: DeliveryCompleteSitePreparationCommand,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<DeliveryCompleteSitePreparationResult> {
+    if (!idempotencyKey?.trim()) {
+      throw new BadRequestException('Idempotency-Key header is required')
+    }
+    if (idempotencyKey.length > 256) {
+      throw new BadRequestException('Idempotency-Key header is too long')
+    }
+    return this.workflow.completeSitePreparation(
       deliveryScheduleId,
       command,
       principal,

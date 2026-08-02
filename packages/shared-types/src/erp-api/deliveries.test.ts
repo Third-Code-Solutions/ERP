@@ -8,6 +8,8 @@ import {
   deliveryStartInspectionResultSchema,
   deliveryStartSitePreparationCommandSchema,
   deliveryStartSitePreparationResultSchema,
+  deliveryCompleteSitePreparationCommandSchema,
+  deliveryCompleteSitePreparationResultSchema,
   deliveryCancelCommandSchema,
   deliveryCancelResultSchema,
 } from './deliveries'
@@ -111,6 +113,52 @@ describe('delivery site-preparation start contracts', () => {
         action: 'start_site_preparation',
         fromStatus: 'site_preparing',
         status: 'site_preparing',
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('delivery site-preparation completion contracts', () => {
+  it('accepts bounded notes and rejects browser authority fields', () => {
+    expect(
+      deliveryCompleteSitePreparationCommandSchema.parse({
+        notes: 'Staging bay cleared',
+      })
+    ).toMatchObject({ notes: 'Staging bay cleared' })
+    expect(
+      deliveryCompleteSitePreparationCommandSchema.safeParse({
+        tenantId: 'browser-authority',
+      }).success
+    ).toBe(false)
+    expect(
+      deliveryCompleteSitePreparationCommandSchema.safeParse({
+        notes: 'x'.repeat(4_001),
+      }).success
+    ).toBe(false)
+  })
+
+  it('returns a strict preparing-to-ready transition result', () => {
+    expect(
+      deliveryCompleteSitePreparationResultSchema.parse({
+        deliveryScheduleId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        action: 'complete_site_preparation',
+        fromStatus: 'site_preparing',
+        status: 'site_ready',
+        sitePreparedAt: '2026-08-02T12:00:00.000Z',
+      })
+    ).toMatchObject({
+      action: 'complete_site_preparation',
+      status: 'site_ready',
+    })
+    expect(
+      deliveryCompleteSitePreparationResultSchema.safeParse({
+        deliveryScheduleId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        action: 'complete_site_preparation',
+        fromStatus: 'scheduled',
+        status: 'site_ready',
+        sitePreparedAt: '2026-08-02T12:00:00.000Z',
       }).success
     ).toBe(false)
   })

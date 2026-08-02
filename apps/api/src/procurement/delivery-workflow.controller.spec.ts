@@ -23,7 +23,8 @@ describe('Delivery workflow HTTP contract', () => {
     startInspection = vi.fn(),
     completeInspection = vi.fn(),
     cancelDelivery = vi.fn(),
-    startSitePreparation = vi.fn()
+    startSitePreparation = vi.fn(),
+    completeSitePreparation = vi.fn()
   ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [DeliveryWorkflowController],
@@ -36,6 +37,7 @@ describe('Delivery workflow HTTP contract', () => {
             completeInspection,
             cancelDelivery,
             startSitePreparation,
+            completeSitePreparation,
           },
         },
       ],
@@ -180,6 +182,86 @@ describe('Delivery workflow HTTP contract', () => {
         userId: '11111111-1111-4111-8111-111111111111',
       }),
       'delivery-site-preparation-1'
+    )
+  })
+
+  it('requires an idempotency key for site-preparation completion', async () => {
+    const completeSitePreparation = vi.fn()
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      completeSitePreparation
+    )
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/site-preparation/complete`
+      )
+      .send({ notes: 'staging complete' })
+      .expect(400)
+
+    expect(completeSitePreparation).not.toHaveBeenCalled()
+  })
+
+  it('rejects caller-supplied authority fields for site-preparation completion', async () => {
+    const completeSitePreparation = vi.fn()
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      completeSitePreparation
+    )
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/site-preparation/complete`
+      )
+      .set('Idempotency-Key', 'delivery-site-preparation-complete-1')
+      .send({ notes: 'staging complete', tenantId: '22222222-2222-4222-8222-222222222222' })
+      .expect(400)
+
+    expect(completeSitePreparation).not.toHaveBeenCalled()
+  })
+
+  it('forwards the strict site-preparation completion command, principal, and trimmed key', async () => {
+    const completeSitePreparation = vi.fn().mockResolvedValue({
+      deliveryScheduleId: DELIVERY_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      action: 'complete_site_preparation',
+      fromStatus: 'site_preparing',
+      status: 'site_ready',
+      sitePreparedAt: '2026-08-02T12:00:00.000Z',
+    })
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      completeSitePreparation
+    )
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/procurement/deliveries/${DELIVERY_ID}/site-preparation/complete`
+      )
+      .set('Idempotency-Key', ' delivery-site-preparation-complete-1 ')
+      .send({ notes: 'staging complete' })
+      .expect(200)
+
+    expect(completeSitePreparation).toHaveBeenCalledWith(
+      DELIVERY_ID,
+      { notes: 'staging complete' },
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        userId: '11111111-1111-4111-8111-111111111111',
+      }),
+      'delivery-site-preparation-complete-1'
     )
   })
 

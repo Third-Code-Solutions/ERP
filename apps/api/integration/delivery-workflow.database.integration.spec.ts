@@ -191,6 +191,16 @@ suite('Delivery workflow database integration', () => {
               ) {
                 return [tenantId]
               }
+              if (
+                key === 'ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_ENABLED'
+              ) {
+                return true
+              }
+              if (
+                key === 'ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_TENANT_IDS'
+              ) {
+                return [tenantId]
+              }
               if (key === 'ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED') {
                 return true
               }
@@ -577,6 +587,76 @@ suite('Delivery workflow database integration', () => {
           },
         ])
 
+        const preparationCompletionCommand = { notes: 'Staging bay cleared' }
+        const preparationCompletionFirst =
+          await service.completeSitePreparation(
+            cancellableDeliveryId,
+            preparationCompletionCommand,
+            principal,
+            'delivery-site-preparation-complete-integration-1'
+          )
+        const preparationCompletionReplay =
+          await service.completeSitePreparation(
+            cancellableDeliveryId,
+            preparationCompletionCommand,
+            principal,
+            'delivery-site-preparation-complete-integration-1'
+          )
+        expect(preparationCompletionFirst).toEqual(
+          preparationCompletionReplay
+        )
+        expect(preparationCompletionFirst).toMatchObject({
+          deliveryScheduleId: cancellableDeliveryId,
+          tenantId,
+          action: 'complete_site_preparation',
+          fromStatus: 'site_preparing',
+          status: 'site_ready',
+        })
+
+        const preparationCompletionRequest = await transaction
+          .select({
+            state: deliveryWorkflowRequests.state,
+            result: deliveryWorkflowRequests.result,
+            action: deliveryWorkflowRequests.action,
+          })
+          .from(deliveryWorkflowRequests)
+          .where(
+            and(
+              eq(deliveryWorkflowRequests.tenant_id, tenantId),
+              eq(
+                deliveryWorkflowRequests.idempotency_key,
+                'delivery-site-preparation-complete-integration-1'
+              )
+            )
+          )
+        expect(preparationCompletionRequest).toEqual([
+          {
+            state: 'succeeded',
+            result: preparationCompletionFirst,
+            action: 'complete_site_preparation',
+          },
+        ])
+
+        const preparationCompletionAuditRows = await transaction
+          .select({ action: auditLog.action, diff: auditLog.diff })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantId),
+              eq(auditLog.entity_type, 'delivery_schedule'),
+              eq(auditLog.entity_id, cancellableDeliveryId)
+            )
+          )
+        expect(
+          preparationCompletionAuditRows.some(
+            (row) =>
+              row.action === 'status_change' &&
+              (row.diff as { from?: string; to?: string }).from ===
+                'site_preparing' &&
+              (row.diff as { from?: string; to?: string }).to === 'site_ready'
+          )
+        ).toBe(true)
+
         const cancellationCommand = { reason: 'Supplier could not confirm date' }
         const cancellationFirst = await service.cancelDelivery(
           cancellableDeliveryId,
@@ -595,7 +675,7 @@ suite('Delivery workflow database integration', () => {
           deliveryScheduleId: cancellableDeliveryId,
           tenantId,
           action: 'cancel_delivery',
-          fromStatus: 'site_preparing',
+          fromStatus: 'site_ready',
           status: 'cancelled',
           cancellationReason: 'Supplier could not confirm date',
         })
@@ -667,7 +747,7 @@ suite('Delivery workflow database integration', () => {
             (row) =>
               row.action === 'status_change' &&
               (row.diff as { from?: string; to?: string }).from ===
-                'site_preparing' &&
+                'site_ready' &&
               (row.diff as { from?: string; to?: string }).to === 'cancelled'
           )
         ).toBe(true)
@@ -720,6 +800,27 @@ suite('Delivery workflow database integration', () => {
               email: `viewer-${suffix}@integration.test`,
             },
             'delivery-site-preparation-viewer-1'
+          )
+        ).rejects.toThrow()
+        await expect(
+          service.completeSitePreparation(
+            otherDeliveryId,
+            {},
+            principal,
+            'delivery-site-preparation-complete-cross-tenant-1'
+          )
+        ).rejects.toThrow('Delivery not found')
+        await expect(
+          service.completeSitePreparation(
+            cancellableDeliveryId,
+            {},
+            {
+              ...principal,
+              userId: viewerId,
+              role: 'viewer',
+              email: `viewer-${suffix}@integration.test`,
+            },
+            'delivery-site-preparation-complete-viewer-1'
           )
         ).rejects.toThrow()
         await expect(

@@ -175,6 +175,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for journal reversal; default empty |
 | `ERP_DELIVERY_SITE_PREPARATION_START_WRITES_VIA_API` | no | Next server | Selects the delivery site-preparation-start Next-to-Nest handoff; default false |
 | `ERP_DELIVERY_SITE_PREPARATION_START_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for delivery site-preparation start; default empty |
+| `ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API` | no | Next server | Selects the delivery site-preparation-complete Next-to-Nest handoff; default false |
+| `ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for delivery site-preparation completion; default empty |
 | `ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API` | no | Next server | Selects the delivery inspection-start Next-to-Nest handoff; default false |
 | `ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for delivery inspection start; default empty |
 | `ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API` | no | Next server | Selects the delivery inspection-complete Next-to-Nest handoff; default false |
@@ -193,6 +195,11 @@ back to a direct legacy write after the command is selected.
 The API-side delivery site-preparation-start controls are
 `ERP_DELIVERY_SITE_PREPARATION_START_WRITES_ENABLED` and
 `ERP_DELIVERY_SITE_PREPARATION_START_WRITES_TENANT_IDS`; both default to
+false/empty.
+
+The API-side delivery site-preparation-completion controls are
+`ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_ENABLED` and
+`ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_TENANT_IDS`; both default to
 false/empty.
 
 The API-side delivery inspection-start controls are
