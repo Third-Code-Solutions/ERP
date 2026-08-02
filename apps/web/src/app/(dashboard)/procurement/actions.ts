@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
@@ -22,9 +23,14 @@ import { writeAuditLog } from '@/lib/audit'
 import {
   createPurchaseOrderThroughCoreApi,
   purchaseOrderWritesUseCoreApi,
+  purchaseOrderWorkflowWritesUseCoreApi,
+  transitionPurchaseOrderThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
-import type { CreatePurchaseOrderCommand } from '@third-code-erp/shared-types'
+import type {
+  CreatePurchaseOrderCommand,
+  PurchaseOrderWorkflowAction,
+} from '@third-code-erp/shared-types'
 import {
   computeEWT,
   computeRetention,
@@ -33,6 +39,45 @@ import {
 } from '@third-code-erp/shared-types/bom'
 
 type PoCapability = 'po.create' | 'po.approve' | 'po.issue' | 'po.receive'
+
+type CorePurchaseOrderWorkflowAction = Exclude<
+  PurchaseOrderWorkflowAction,
+  'reject'
+>
+
+async function transitionPurchaseOrderThroughCoreIfEnabled(
+  profile: Awaited<ReturnType<typeof getUserProfile>>,
+  poId: string,
+  projectId: string | null,
+  action: CorePurchaseOrderWorkflowAction,
+  idempotencyKey?: string
+): Promise<{ error?: string } | null> {
+  if (!profile || !purchaseOrderWorkflowWritesUseCoreApi(profile.tenantId)) {
+    return null
+  }
+
+  const key =
+    typeof idempotencyKey === 'string' && idempotencyKey.trim().length > 0
+      ? idempotencyKey.trim()
+      : randomUUID()
+  const result = await transitionPurchaseOrderThroughCoreApi(
+    poId,
+    { action },
+    key
+  )
+  if (!result.ok || !result.data) {
+    return {
+      error:
+        result.error ??
+        'Purchase Order workflow could not be committed through ERP Core.',
+    }
+  }
+
+  revalidatePath('/purchase-orders')
+  revalidatePath(`/purchase-orders/${poId}`)
+  if (projectId) revalidatePath(`/projects/${projectId}`)
+  return {}
+}
 
 function missingPoCapability(
   role: AppRole,
@@ -875,7 +920,10 @@ type PoApprovalStatus =
   | 'fully_delivered'
 
 /** Submit a draft PO into the PM approval queue. */
-export async function submitPoForPmApproval(poId: string): Promise<{ error?: string }> {
+export async function submitPoForPmApproval(
+  poId: string,
+  idempotencyKey?: string
+): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
@@ -892,6 +940,15 @@ export async function submitPoForPmApproval(poId: string): Promise<{ error?: str
 
   if (!po) return { error: 'PO not found' }
   if (po.status !== 'draft') return { error: `Cannot submit a PO in status "${po.status}"` }
+
+  const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
+    profile,
+    poId,
+    po.project_id,
+    'submit_pm_approval',
+    idempotencyKey
+  )
+  if (coreResult) return coreResult
 
   const now = new Date()
   await db
@@ -923,7 +980,10 @@ export async function submitPoForPmApproval(poId: string): Promise<{ error?: str
 }
 
 /** PM approves → routes to Commercial. */
-export async function pmApprovePo(poId: string): Promise<{ error?: string }> {
+export async function pmApprovePo(
+  poId: string,
+  idempotencyKey?: string
+): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
@@ -940,6 +1000,15 @@ export async function pmApprovePo(poId: string): Promise<{ error?: string }> {
 
   if (!po) return { error: 'PO not found' }
   if (po.status !== 'pending_pm_approval') return { error: `PO not in PM approval state (${po.status})` }
+
+  const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
+    profile,
+    poId,
+    po.project_id,
+    'pm_approve',
+    idempotencyKey
+  )
+  if (coreResult) return coreResult
 
   const now = new Date()
   await db
@@ -976,7 +1045,10 @@ export async function pmApprovePo(poId: string): Promise<{ error?: string }> {
 }
 
 /** Commercial approves → routes to SCM for issuance. */
-export async function commercialApprovePo(poId: string): Promise<{ error?: string }> {
+export async function commercialApprovePo(
+  poId: string,
+  idempotencyKey?: string
+): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
@@ -995,6 +1067,15 @@ export async function commercialApprovePo(poId: string): Promise<{ error?: strin
   if (po.status !== 'pending_commercial_approval') {
     return { error: `PO not in Commercial approval state (${po.status})` }
   }
+
+  const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
+    profile,
+    poId,
+    po.project_id,
+    'commercial_approve',
+    idempotencyKey
+  )
+  if (coreResult) return coreResult
 
   const now = new Date()
   await db
