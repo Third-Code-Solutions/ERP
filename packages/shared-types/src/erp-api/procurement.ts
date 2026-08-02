@@ -59,6 +59,15 @@ export const notificationDeliveryJobSchema = z
   })
   .strict()
 
+export const purchaseOrderSupplierEmailDeliveryJobSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    tenantId: z.string().uuid(),
+    outboxId: z.string().uuid(),
+    deliveryId: z.string().uuid(),
+  })
+  .strict()
+
 export const notificationSweepJobSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -152,6 +161,9 @@ export type RfqDispatchDeadLetter = z.infer<
 >
 export type NotificationDeliveryJob = z.infer<
   typeof notificationDeliveryJobSchema
+>
+export type PurchaseOrderSupplierEmailDeliveryJob = z.infer<
+  typeof purchaseOrderSupplierEmailDeliveryJobSchema
 >
 export type NotificationSweepJob = z.infer<
   typeof notificationSweepJobSchema

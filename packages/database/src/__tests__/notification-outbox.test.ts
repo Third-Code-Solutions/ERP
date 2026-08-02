@@ -7,6 +7,7 @@ import {
   notificationDeliveries,
   notificationOutbox,
   notifications,
+  purchaseOrderSupplierEmailDeliveries,
 } from '../schema'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -28,6 +29,13 @@ const workflowExtensionMigrationSql = readFileSync(
   resolve(
     __dirname,
     '../../../../supabase/migrations/20260802100000_purchase_order_workflow_scm_rejection.sql'
+  ),
+  'utf8'
+).toLowerCase()
+const supplierIssuanceMigrationSql = readFileSync(
+  resolve(
+    __dirname,
+    '../../../../supabase/migrations/20260802110000_purchase_order_supplier_issuance.sql'
   ),
   'utf8'
 ).toLowerCase()
@@ -102,6 +110,28 @@ describe('notification outbox foundation', () => {
     )
   })
 
+  it('keeps supplier issuance server-owned and idempotent', () => {
+    expect(supplierIssuanceMigrationSql).toContain(
+      'create table if not exists public.purchase_order_supplier_email_deliveries'
+    )
+    expect(supplierIssuanceMigrationSql).toContain(
+      "alter type public.purchase_order_workflow_action"
+    )
+    expect(supplierIssuanceMigrationSql).toContain("add value if not exists 'scm_issue'")
+    expect(supplierIssuanceMigrationSql).toContain(
+      'purchase_order.supplier_issued'
+    )
+    expect(supplierIssuanceMigrationSql).toContain(
+      'ux_purchase_order_supplier_email_deliveries_tenant_idempotency'
+    )
+    expect(supplierIssuanceMigrationSql).toContain(
+      'revoke all privileges on table public.purchase_order_supplier_email_deliveries'
+    )
+    expect(supplierIssuanceMigrationSql).toContain(
+      'alter table public.purchase_order_supplier_email_deliveries enable row level security'
+    )
+  })
+
   it('keeps Drizzle names aligned with database constraints', () => {
     expect(
       getTableConfig(notificationOutbox).uniqueConstraints
@@ -126,5 +156,16 @@ describe('notification outbox foundation', () => {
         (foreignKey) => foreignKey.getName()
       )
     ).toContain('notifications_source_delivery_tenant_fk')
+    expect(
+      getTableConfig(purchaseOrderSupplierEmailDeliveries).foreignKeys.map(
+        (foreignKey) => foreignKey.getName()
+      )
+    ).toEqual(
+      expect.arrayContaining([
+        'purchase_order_supplier_email_deliveries_outbox_tenant_fk',
+        'purchase_order_supplier_email_deliveries_purchase_order_tenant_fk',
+        'purchase_order_supplier_email_deliveries_created_by_tenant_fk',
+      ])
+    )
   })
 })

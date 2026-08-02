@@ -7,20 +7,25 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import {
   notificationDeliveries,
   notificationOutbox,
+  purchaseOrderSupplierEmailDeliveries,
   purchaseOrderWorkflowRequests,
   purchaseOrders,
+  projects,
   users,
+  vendors,
 } from '@third-code-erp/database/schema'
 import {
   purchaseOrderWorkflowCommandSchema,
   purchaseOrderWorkflowNotificationPayloadSchema,
   purchaseOrderWorkflowResultSchema,
+  purchaseOrderSupplierIssuedPayloadSchema,
   type PurchaseOrderWorkflowCommand,
   type PurchaseOrderWorkflowResult,
 } from '@third-code-erp/shared-types'
@@ -33,6 +38,7 @@ import {
   PURCHASE_ORDER_WORKFLOW_NOTIFICATION_EVENT,
   purchaseOrderWorkflowNotificationRoles,
 } from './purchase-order-workflow-notifications'
+import { NotificationDeliveryQueue } from './notification-delivery.queue'
 
 type WorkflowStatus =
   | 'draft'
@@ -71,6 +77,18 @@ function commandHash(
     .digest('hex')
 }
 
+function supplierEmailSnapshot(value: string | null): string | null {
+  const email = value?.trim() ?? ''
+  if (
+    email.length < 3 ||
+    email.length > 255 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  ) {
+    return null
+  }
+  return email
+}
+
 function replayResult(value: unknown): PurchaseOrderWorkflowResult {
   const parsed = purchaseOrderWorkflowResultSchema.safeParse(value)
   if (!parsed.success) {
@@ -99,6 +117,12 @@ function canPerform(
     return (
       status === 'pending_commercial_approval' &&
       roleHasCapability(role, 'po.approve')
+    )
+  }
+  if (action === 'scm_issue') {
+    return (
+      status === 'pending_scm_issuance' &&
+      roleHasCapability(role, 'po.issue')
     )
   }
   return (
@@ -137,6 +161,9 @@ function nextStatus(
   ) {
     return 'draft'
   }
+  if (action === 'scm_issue' && status === 'pending_scm_issuance') {
+    return 'issued'
+  }
   throw new ConflictException(
     `Purchase Order cannot perform ${action} from status ${status}`
   )
@@ -147,7 +174,10 @@ export class PurchaseOrderWorkflowService {
   constructor(
     @Inject(ConfigService) private readonly config: ConfigService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(AuditService) private readonly audit: AuditService
+    @Inject(AuditService) private readonly audit: AuditService,
+    @Optional()
+    @Inject(NotificationDeliveryQueue)
+    private readonly notificationQueue?: NotificationDeliveryQueue
   ) {}
 
   async transition(
@@ -281,6 +311,7 @@ export class PurchaseOrderWorkflowService {
         return {
           result: replayResult(request.result),
           notificationOutboxId: null,
+          supplierOutboxId: null,
         }
       }
       if (request.state !== 'processing') {
@@ -290,8 +321,30 @@ export class PurchaseOrderWorkflowService {
       }
 
       const [po] = await transaction
-        .select({ id: purchaseOrders.id, status: purchaseOrders.status })
+        .select({
+          id: purchaseOrders.id,
+          status: purchaseOrders.status,
+          poNumber: purchaseOrders.po_number,
+          totalCents: purchaseOrders.total_cents,
+          supplierEmail: vendors.email,
+          supplierName: vendors.name,
+          projectName: projects.name,
+        })
         .from(purchaseOrders)
+        .innerJoin(
+          projects,
+          and(
+            eq(projects.id, purchaseOrders.project_id),
+            eq(projects.tenant_id, purchaseOrders.tenant_id)
+          )
+        )
+        .leftJoin(
+          vendors,
+          and(
+            eq(vendors.id, purchaseOrders.vendor_id),
+            eq(vendors.tenant_id, purchaseOrders.tenant_id)
+          )
+        )
         .where(
           and(
             eq(purchaseOrders.id, purchaseOrderId),
@@ -390,6 +443,43 @@ export class PurchaseOrderWorkflowService {
         await transaction.insert(notificationDeliveries).values(deliveries)
       }
 
+      let supplierOutboxId: string | null = null
+      if (parsedCommand.action === 'scm_issue') {
+        const recipientEmail = supplierEmailSnapshot(po.supplierEmail)
+        const supplierName = po.supplierName?.trim() ?? ''
+        if (recipientEmail && supplierName.length > 0) {
+          supplierOutboxId = randomUUID()
+          const supplierPayload =
+            purchaseOrderSupplierIssuedPayloadSchema.parse({
+              schemaVersion: 1,
+              purchase_order_id: purchaseOrderId,
+            })
+          await transaction.insert(notificationOutbox).values({
+            id: supplierOutboxId,
+            tenant_id: authorizedPrincipal.tenantId,
+            event_key: `purchase-order.supplier_issued/${request.id}`,
+            event_type: 'purchase_order.supplier_issued',
+            aggregate_type: 'purchase_order',
+            aggregate_id: purchaseOrderId,
+            payload: supplierPayload,
+          })
+          await transaction
+            .insert(purchaseOrderSupplierEmailDeliveries)
+            .values({
+              tenant_id: authorizedPrincipal.tenantId,
+              outbox_id: supplierOutboxId,
+              purchase_order_id: purchaseOrderId,
+              created_by: authorizedPrincipal.userId,
+              recipient_email: recipientEmail,
+              supplier_name: supplierName.slice(0, 255),
+              po_number: po.poNumber,
+              project_name: po.projectName,
+              total_cents: po.totalCents,
+              idempotency_key: `po-supplier/${supplierOutboxId}`,
+            })
+        }
+      }
+
       const result = purchaseOrderWorkflowResultSchema.parse({
         purchaseOrderId,
         tenantId: authorizedPrincipal.tenantId,
@@ -429,11 +519,36 @@ export class PurchaseOrderWorkflowService {
           workflow_action: parsedCommand.action,
           reason: parsedCommand.reason ?? null,
           idempotency_key_hash: requestHash,
+          ...(parsedCommand.action === 'scm_issue'
+            ? {
+                supplier_email_queued: supplierOutboxId !== null,
+              }
+            : {}),
         },
       })
 
-      return { result, notificationOutboxId }
+      return { result, notificationOutboxId, supplierOutboxId }
     })
+    if (committed.notificationOutboxId) {
+      try {
+        await this.notificationQueue?.enqueueOutbox(
+          principal.tenantId,
+          committed.notificationOutboxId
+        )
+      } catch {
+        // The durable outbox sweep is the recovery boundary.
+      }
+    }
+    if (committed.supplierOutboxId) {
+      try {
+        await this.notificationQueue?.enqueueSupplierOutbox(
+          principal.tenantId,
+          committed.supplierOutboxId
+        )
+      } catch {
+        // The durable supplier outbox sweep is the recovery boundary.
+      }
+    }
     return committed.result
   }
 }

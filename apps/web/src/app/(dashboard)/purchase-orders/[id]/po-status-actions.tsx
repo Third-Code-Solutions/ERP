@@ -205,7 +205,12 @@ export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           disabled={pending}
-          onClick={() => run(() => scmIssuePo(poId))}
+          onClick={() =>
+            run(
+              () => scmIssuePo(poId, workflowKey('scm_issue')),
+              'scm_issue'
+            )
+          }
           style={buttonStyle('primary', pending)}
         >
           {pending ? '…' : 'Issue PO to supplier'}

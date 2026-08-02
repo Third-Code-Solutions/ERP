@@ -24,6 +24,12 @@ describe('Purchase Order workflow notification recipients', () => {
         'pending_commercial_approval'
       )
     ).toEqual(['owner', 'admin', 'procurement'])
+    expect(
+      purchaseOrderWorkflowNotificationRoles(
+        'scm_issue',
+        'pending_scm_issuance'
+      )
+    ).toEqual(['owner', 'admin', 'commercial'])
   })
 
   it('keeps stale role changes from receiving workflow deliveries', () => {

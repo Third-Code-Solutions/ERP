@@ -5,6 +5,7 @@ import {
   NOTIFICATION_DELIVERY_ATTEMPTS,
   NOTIFICATION_DELIVERY_BACKOFF_MS,
   NOTIFICATION_DELIVERY_JOB,
+  NOTIFICATION_SUPPLIER_DELIVERY_JOB,
   NOTIFICATION_SWEEP_INTERVAL_MS,
   NOTIFICATION_SWEEP_JOB,
   NOTIFICATION_SWEEP_SCHEDULER,
@@ -31,6 +32,10 @@ function harness(
     .fn()
     .mockResolvedValue([DELIVERY])
   const pending = vi.fn().mockResolvedValue([DELIVERY])
+  const pendingSupplierForOutbox = vi
+    .fn()
+    .mockResolvedValue([DELIVERY])
+  const pendingSupplier = vi.fn().mockResolvedValue([DELIVERY])
   const queue = new NotificationDeliveryQueue(
     {
       upsertJobScheduler,
@@ -40,6 +45,8 @@ function harness(
     {
       pendingForOutbox,
       pending,
+      pendingSupplierForOutbox,
+      pendingSupplier,
     } as unknown as NotificationDeliveryService,
     {
       get: vi.fn().mockReturnValue(sweepEnabled),
@@ -51,6 +58,8 @@ function harness(
     getJob,
     add,
     pendingForOutbox,
+    pendingSupplierForOutbox,
+    pendingSupplier,
   }
 }
 
@@ -119,5 +128,32 @@ describe('NotificationDeliveryQueue', () => {
     const probe = harness({ id: 'existing' })
     await expect(probe.queue.enqueuePending()).resolves.toBe(0)
     expect(probe.add).not.toHaveBeenCalled()
+  })
+
+  it('enqueues supplier delivery jobs under a separate deterministic namespace', async () => {
+    const probe = harness()
+
+    await expect(
+      probe.queue.enqueueSupplierOutbox(
+        DELIVERY.tenantId,
+        DELIVERY.outboxId
+      )
+    ).resolves.toBe(1)
+    expect(probe.pendingSupplierForOutbox).toHaveBeenCalledWith(
+      DELIVERY.tenantId,
+      DELIVERY.outboxId
+    )
+    expect(probe.add).toHaveBeenCalledWith(
+      NOTIFICATION_SUPPLIER_DELIVERY_JOB,
+      {
+        schemaVersion: 1,
+        tenantId: DELIVERY.tenantId,
+        outboxId: DELIVERY.outboxId,
+        deliveryId: DELIVERY.deliveryId,
+      },
+      expect.objectContaining({
+        jobId: `notification-supplier1-${DELIVERY.deliveryId}`,
+      })
+    )
   })
 })

@@ -1,5 +1,7 @@
 export const NOTIFICATION_DELIVERY_QUEUE = 'notification-delivery'
 export const NOTIFICATION_DELIVERY_JOB = 'deliver-notification'
+export const NOTIFICATION_SUPPLIER_DELIVERY_JOB =
+  'deliver-purchase-order-supplier-email'
 export const NOTIFICATION_SWEEP_JOB =
   'sweep-notification-outbox'
 export const NOTIFICATION_SWEEP_SCHEDULER =
@@ -12,4 +14,10 @@ export function notificationDeliveryJobId(
   deliveryId: string
 ): string {
   return `notification1-${deliveryId}`
+}
+
+export function supplierNotificationDeliveryJobId(
+  deliveryId: string
+): string {
+  return `notification-supplier1-${deliveryId}`
 }

@@ -42,6 +42,7 @@ export const purchaseOrderWorkflowActionSchema = z.enum([
   'pm_approve',
   'commercial_approve',
   'reject',
+  'scm_issue',
 ])
 
 export const purchaseOrderWorkflowCommandSchema = z
@@ -92,6 +93,13 @@ export const purchaseOrderWorkflowResultSchema = z
   })
   .strict()
 
+export const purchaseOrderSupplierIssuedPayloadSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    purchase_order_id: z.string().uuid(),
+  })
+  .strict()
+
 export type PurchaseOrderWorkflowAction = z.infer<
   typeof purchaseOrderWorkflowActionSchema
 >
@@ -103,4 +111,7 @@ export type PurchaseOrderWorkflowCommand = z.infer<
 >
 export type PurchaseOrderWorkflowResult = z.infer<
   typeof purchaseOrderWorkflowResultSchema
+>
+export type PurchaseOrderSupplierIssuedPayload = z.infer<
+  typeof purchaseOrderSupplierIssuedPayloadSchema
 >

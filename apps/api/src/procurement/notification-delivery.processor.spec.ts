@@ -2,6 +2,7 @@ import type { Job } from 'bullmq'
 import { describe, expect, it, vi } from 'vitest'
 import {
   NOTIFICATION_DELIVERY_JOB,
+  NOTIFICATION_SUPPLIER_DELIVERY_JOB,
   NOTIFICATION_SWEEP_JOB,
 } from './notification-delivery.constants'
 import { NotificationDeliveryProcessor } from './notification-delivery.processor'
@@ -32,19 +33,30 @@ function harness() {
     status: 'delivered',
   })
   const markDeadLetter = vi.fn().mockResolvedValue(undefined)
+  const deliverSupplierEmail = vi.fn().mockResolvedValue({
+    deliveryId: DATA.deliveryId,
+    status: 'delivered',
+  })
+  const markSupplierDeadLetter = vi.fn().mockResolvedValue(undefined)
   const enqueuePending = vi.fn().mockResolvedValue(2)
+  const enqueuePendingSupplier = vi.fn().mockResolvedValue(1)
   const processor = new NotificationDeliveryProcessor(
     {
       deliver,
       markDeadLetter,
+      deliverSupplierEmail,
+      markSupplierDeadLetter,
     } as unknown as NotificationDeliveryService,
-    { enqueuePending } as unknown as NotificationDeliveryQueue
+    { enqueuePending, enqueuePendingSupplier } as unknown as NotificationDeliveryQueue
   )
   return {
     processor,
     deliver,
     markDeadLetter,
+    deliverSupplierEmail,
+    markSupplierDeadLetter,
     enqueuePending,
+    enqueuePendingSupplier,
   }
 }
 
@@ -65,8 +77,19 @@ describe('NotificationDeliveryProcessor', () => {
           data: { schemaVersion: 1 },
         })
       )
-    ).resolves.toEqual({ enqueued: 2 })
+    ).resolves.toEqual({ enqueued: 3 })
     expect(probe.enqueuePending).toHaveBeenCalledOnce()
+    expect(probe.enqueuePendingSupplier).toHaveBeenCalledOnce()
+
+    await expect(
+      probe.processor.process(
+        job({ name: NOTIFICATION_SUPPLIER_DELIVERY_JOB })
+      )
+    ).resolves.toEqual({
+      deliveryId: DATA.deliveryId,
+      status: 'delivered',
+    })
+    expect(probe.deliverSupplierEmail).toHaveBeenCalledWith(DATA)
   })
 
   it('rejects business content in Redis payloads', async () => {
@@ -99,5 +122,14 @@ describe('NotificationDeliveryProcessor', () => {
       error
     )
     expect(probe.markDeadLetter).toHaveBeenCalledWith(DATA, error)
+
+    await probe.processor.onFailed(
+      job({
+        name: NOTIFICATION_SUPPLIER_DELIVERY_JOB,
+        attemptsMade: 5,
+      }),
+      error
+    )
+    expect(probe.markSupplierDeadLetter).toHaveBeenCalledWith(DATA, error)
   })
 })

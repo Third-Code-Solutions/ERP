@@ -7,12 +7,14 @@ import { Inject, Logger } from '@nestjs/common'
 import {
   notificationDeliveryJobSchema,
   notificationSweepJobSchema,
+  purchaseOrderSupplierEmailDeliveryJobSchema,
   type NotificationDeliveryResult,
 } from '@third-code-erp/shared-types'
 import type { Job } from 'bullmq'
 import {
   NOTIFICATION_DELIVERY_JOB,
   NOTIFICATION_DELIVERY_QUEUE,
+  NOTIFICATION_SUPPLIER_DELIVERY_JOB,
   NOTIFICATION_SWEEP_JOB,
 } from './notification-delivery.constants'
 import { NotificationDeliveryQueue } from './notification-delivery.queue'
@@ -41,10 +43,22 @@ export class NotificationDeliveryProcessor extends WorkerHost {
       if (!parsed.success) {
         throw new Error('Invalid notification sweep job data')
       }
-      return { enqueued: await this.queue.enqueuePending() }
+      const enqueued =
+        (await this.queue.enqueuePending()) +
+        (await this.queue.enqueuePendingSupplier())
+      return { enqueued }
     }
     if (job.name !== NOTIFICATION_DELIVERY_JOB) {
-      throw new Error(`Unsupported notification job: ${job.name}`)
+      if (job.name !== NOTIFICATION_SUPPLIER_DELIVERY_JOB) {
+        throw new Error(`Unsupported notification job: ${job.name}`)
+      }
+      const parsed = purchaseOrderSupplierEmailDeliveryJobSchema.safeParse(
+        job.data
+      )
+      if (!parsed.success) {
+        throw new Error('Invalid supplier email delivery job data')
+      }
+      return this.deliveries.deliverSupplierEmail(parsed.data)
     }
     const parsed = notificationDeliveryJobSchema.safeParse(job.data)
     if (!parsed.success) {
@@ -58,12 +72,28 @@ export class NotificationDeliveryProcessor extends WorkerHost {
     job: Job<unknown, unknown, string> | undefined,
     error: Error
   ): Promise<void> {
-    if (!job || job.name !== NOTIFICATION_DELIVERY_JOB) return
+    if (
+      !job ||
+      (job.name !== NOTIFICATION_DELIVERY_JOB &&
+        job.name !== NOTIFICATION_SUPPLIER_DELIVERY_JOB)
+    )
+      return
     const attempts =
       typeof job.opts.attempts === 'number'
         ? job.opts.attempts
         : 1
     if (job.attemptsMade < attempts) return
+    if (job.name === NOTIFICATION_SUPPLIER_DELIVERY_JOB) {
+      const parsed = purchaseOrderSupplierEmailDeliveryJobSchema.safeParse(
+        job.data
+      )
+      if (!parsed.success) return
+      await this.deliveries.markSupplierDeadLetter(parsed.data, error)
+      this.logger.error(
+        `Supplier email delivery moved to dead letter: ${parsed.data.deliveryId}`
+      )
+      return
+    }
     const parsed = notificationDeliveryJobSchema.safeParse(job.data)
     if (!parsed.success) return
 

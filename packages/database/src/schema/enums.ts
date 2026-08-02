@@ -165,7 +165,13 @@ export const purchaseOrderCreateRequestStateEnum = pgEnum(
 
 export const purchaseOrderWorkflowActionEnum = pgEnum(
   'purchase_order_workflow_action',
-  ['submit_pm_approval', 'pm_approve', 'commercial_approve', 'reject']
+  [
+    'submit_pm_approval',
+    'pm_approve',
+    'commercial_approve',
+    'reject',
+    'scm_issue',
+  ]
 )
 
 export const purchaseOrderWorkflowRequestStateEnum = pgEnum(
