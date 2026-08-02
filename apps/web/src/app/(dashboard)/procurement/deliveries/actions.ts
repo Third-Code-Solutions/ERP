@@ -30,6 +30,8 @@ import {
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
 import {
+  completeDeliveryInspectionThroughCoreApi,
+  deliveryInspectionCompleteWritesUseCoreApi,
   deliveryInspectionStartWritesUseCoreApi,
   startDeliveryInspectionThroughCoreApi,
   deliveryReceiptWritesUseCoreApi,
@@ -470,7 +472,8 @@ export async function completeInspection(
   scheduleId: string,
   result: (typeof completeInspectionResults)[number],
   defectNotes?: string,
-  acceptanceNotes?: string
+  acceptanceNotes?: string,
+  idempotencyKey?: string
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   const forbid = guardScheduling(profile.role)
@@ -482,6 +485,34 @@ export async function completeInspection(
 
   const row = await loadSchedule(scheduleId, profile.tenantId)
   if (!row) return { error: 'Delivery not found' }
+
+  if (deliveryInspectionCompleteWritesUseCoreApi(profile.tenantId)) {
+    const key = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
+    if (!key.success) {
+      return {
+        error:
+          'Retry token is required for the delivery inspection completion command.',
+      }
+    }
+    const coreResult = await completeDeliveryInspectionThroughCoreApi(
+      scheduleId,
+      {
+        result,
+        defectNotes: defectNotes?.trim() || null,
+        acceptanceNotes: acceptanceNotes?.trim() || null,
+      },
+      key.data
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return {
+        error:
+          coreResult.error ??
+          'Delivery inspection could not be completed through ERP Core.',
+      }
+    }
+    revalidate(scheduleId)
+    return {}
+  }
 
   if (row.status !== 'inspecting') {
     return {

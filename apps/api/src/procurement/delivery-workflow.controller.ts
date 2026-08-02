@@ -13,6 +13,8 @@ import {
 import type {
   DeliveryReceiptCommand,
   DeliveryReceiptResult,
+  DeliveryInspectionCompleteCommand,
+  DeliveryInspectionCompleteResult,
   DeliveryStartInspectionCommand,
   DeliveryStartInspectionResult,
 } from '@third-code-erp/shared-types'
@@ -21,6 +23,7 @@ import {
   type ErpPrincipal,
 } from '../auth/current-principal.decorator'
 import { RequireCapabilities } from '../auth/capability.guard'
+import { DeliveryInspectionCompletePipe } from './delivery-inspection-complete.pipe'
 import { DeliveryReceiptPipe } from './delivery-receipt.pipe'
 import { DeliveryStartInspectionPipe } from './delivery-start-inspection.pipe'
 import { DeliveryWorkflowService } from './delivery-workflow.service'
@@ -71,6 +74,30 @@ export class DeliveryWorkflowController {
       throw new BadRequestException('Idempotency-Key header is too long')
     }
     return this.workflow.startInspection(
+      deliveryScheduleId,
+      command,
+      principal,
+      idempotencyKey.trim()
+    )
+  }
+
+  @Post(':deliveryScheduleId/inspection/complete')
+  @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('delivery.receive')
+  completeInspection(
+    @Param('deliveryScheduleId', new ParseUUIDPipe()) deliveryScheduleId: string,
+    @Body(DeliveryInspectionCompletePipe)
+    command: DeliveryInspectionCompleteCommand,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<DeliveryInspectionCompleteResult> {
+    if (!idempotencyKey?.trim()) {
+      throw new BadRequestException('Idempotency-Key header is required')
+    }
+    if (idempotencyKey.length > 256) {
+      throw new BadRequestException('Idempotency-Key header is too long')
+    }
+    return this.workflow.completeInspection(
       deliveryScheduleId,
       command,
       principal,

@@ -44,3 +44,40 @@ export type DeliveryStartInspectionCommand = z.infer<
 export type DeliveryStartInspectionResult = z.infer<
   typeof deliveryStartInspectionResultSchema
 >
+
+export const deliveryInspectionCompleteCommandSchema = z
+  .object({
+    result: z.enum(['pass', 'fail', 'partial_pass']),
+    defectNotes: z.string().trim().max(4_000).nullable().optional(),
+    acceptanceNotes: z.string().trim().max(4_000).nullable().optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.result === 'fail' && !value.defectNotes?.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['defectNotes'],
+        message: 'Defect notes are required when an inspection fails',
+      })
+    }
+  })
+
+export const deliveryInspectionCompleteResultSchema = z
+  .object({
+    deliveryScheduleId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    inspectionId: z.string().uuid(),
+    action: z.literal('complete_inspection'),
+    fromStatus: z.literal('inspecting'),
+    inspectionResult: z.enum(['pass', 'fail', 'partial_pass']),
+    status: z.enum(['accepted', 'rejected']),
+    completedAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+
+export type DeliveryInspectionCompleteCommand = z.infer<
+  typeof deliveryInspectionCompleteCommandSchema
+>
+export type DeliveryInspectionCompleteResult = z.infer<
+  typeof deliveryInspectionCompleteResultSchema
+>

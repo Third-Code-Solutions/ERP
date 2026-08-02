@@ -17,16 +17,20 @@ import {
   users,
 } from '@third-code-erp/database/schema'
 import {
+  deliveryInspectionCompleteCommandSchema,
+  deliveryInspectionCompleteResultSchema,
   deliveryReceiptCommandSchema,
   deliveryReceiptResultSchema,
   deliveryStartInspectionCommandSchema,
   deliveryStartInspectionResultSchema,
+  type DeliveryInspectionCompleteCommand,
+  type DeliveryInspectionCompleteResult,
   type DeliveryReceiptCommand,
   type DeliveryReceiptResult,
   type DeliveryStartInspectionCommand,
   type DeliveryStartInspectionResult,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -77,6 +81,20 @@ function startInspectionCommandHash(
     .digest('hex')
 }
 
+function completeInspectionCommandHash(
+  deliveryScheduleId: string,
+  command: DeliveryInspectionCompleteCommand
+): string {
+  return createHash('sha256')
+    .update(
+      canonicalJson({
+        deliveryScheduleId,
+        command,
+      })
+    )
+    .digest('hex')
+}
+
 function replayResult(value: unknown): DeliveryReceiptResult {
   const parsed = deliveryReceiptResultSchema.safeParse(value)
   if (!parsed.success) {
@@ -94,6 +112,18 @@ function replayStartInspectionResult(
   if (!parsed.success) {
     throw new InternalServerErrorException(
       'Delivery inspection idempotency result is invalid'
+    )
+  }
+  return parsed.data
+}
+
+function replayInspectionCompleteResult(
+  value: unknown
+): DeliveryInspectionCompleteResult {
+  const parsed = deliveryInspectionCompleteResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new InternalServerErrorException(
+      'Delivery inspection completion idempotency result is invalid'
     )
   }
   return parsed.data
@@ -572,6 +602,290 @@ export class DeliveryWorkflowService {
           from: 'received',
           to: 'inspecting',
           inspection_id: inspection.id,
+          idempotency_key_hash: requestHash,
+        },
+      })
+
+      return result
+    })
+  }
+
+  async completeInspection(
+    deliveryScheduleId: string,
+    command: DeliveryInspectionCompleteCommand,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<DeliveryInspectionCompleteResult> {
+    if (!UUID_PATTERN.test(deliveryScheduleId)) {
+      throw new BadRequestException('Invalid delivery schedule id')
+    }
+    const parsedCommand = deliveryInspectionCompleteCommandSchema.parse(command)
+    const idempotencyKey = rawIdempotencyKey.trim()
+    if (idempotencyKey.length === 0 || idempotencyKey.length > 256) {
+      throw new BadRequestException('Invalid Idempotency-Key header')
+    }
+
+    const enabled = this.config.get<boolean>(
+      'ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_ENABLED',
+      false
+    )
+    const allowedTenantIds = this.config.get<string[]>(
+      'ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS',
+      []
+    )
+    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+      throw new ServiceUnavailableException(
+        'Delivery inspection completion is not enabled for this tenant; no delivery was updated.'
+      )
+    }
+
+    const requestHash = completeInspectionCommandHash(
+      deliveryScheduleId,
+      parsedCommand
+    )
+    return this.database.client.transaction(async (transaction) => {
+      const [membership] = await transaction
+        .select({
+          tenantId: users.tenant_id,
+          role: users.role,
+          email: users.email,
+        })
+        .from(users)
+        .where(
+          and(
+            eq(users.id, principal.userId),
+            eq(users.tenant_id, principal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      const role = membership?.role as ErpRole | undefined
+      if (
+        !membership ||
+        !role ||
+        !roleHasCapability(role, 'delivery.receive')
+      ) {
+        throw new ForbiddenException()
+      }
+      const authorizedPrincipal: ErpPrincipal = {
+        userId: principal.userId,
+        tenantId: membership.tenantId,
+        role,
+        email: membership.email,
+      }
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+
+      const [visibleSchedule] = await transaction
+        .select({ id: deliverySchedules.id })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+      if (!visibleSchedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+
+      await transaction
+        .insert(deliveryWorkflowRequests)
+        .values({
+          tenant_id: authorizedPrincipal.tenantId,
+          delivery_schedule_id: deliveryScheduleId,
+          action: 'complete_inspection',
+          idempotency_key: idempotencyKey,
+          request_hash: requestHash,
+          created_by: authorizedPrincipal.userId,
+        })
+        .onConflictDoNothing({
+          target: [
+            deliveryWorkflowRequests.tenant_id,
+            deliveryWorkflowRequests.idempotency_key,
+          ],
+        })
+
+      const [request] = await transaction
+        .select({
+          id: deliveryWorkflowRequests.id,
+          requestHash: deliveryWorkflowRequests.request_hash,
+          state: deliveryWorkflowRequests.state,
+          result: deliveryWorkflowRequests.result,
+        })
+        .from(deliveryWorkflowRequests)
+        .where(
+          and(
+            eq(
+              deliveryWorkflowRequests.tenant_id,
+              authorizedPrincipal.tenantId
+            ),
+            eq(deliveryWorkflowRequests.idempotency_key, idempotencyKey)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      if (!request) {
+        throw new InternalServerErrorException(
+          'Delivery inspection completion idempotency record was not created'
+        )
+      }
+      if (request.requestHash !== requestHash) {
+        throw new ConflictException(
+          'Idempotency key was already used with a different delivery inspection completion command'
+        )
+      }
+      if (request.state === 'succeeded') {
+        return replayInspectionCompleteResult(request.result)
+      }
+      if (request.state !== 'processing') {
+        throw new ConflictException(
+          'Delivery inspection completion idempotency record has an unsupported state'
+        )
+      }
+
+      const [schedule] = await transaction
+        .select({
+          id: deliverySchedules.id,
+          status: deliverySchedules.status,
+        })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!schedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+      if (schedule.status !== 'inspecting') {
+        throw new ConflictException(
+          `Cannot complete inspection from delivery status "${schedule.status}"`
+        )
+      }
+
+      const [inspection] = await transaction
+        .select({
+          id: deliveryInspections.id,
+          result: deliveryInspections.result,
+        })
+        .from(deliveryInspections)
+        .where(
+          and(
+            eq(deliveryInspections.delivery_schedule_id, deliveryScheduleId),
+            eq(deliveryInspections.tenant_id, authorizedPrincipal.tenantId),
+            eq(deliveryInspections.result, 'pending')
+          )
+        )
+        .orderBy(desc(deliveryInspections.started_at))
+        .limit(1)
+        .for('update')
+      if (!inspection) {
+        throw new NotFoundException('No active inspection found for this delivery')
+      }
+
+      const now = new Date()
+      const isAccept =
+        parsedCommand.result === 'pass' || parsedCommand.result === 'partial_pass'
+      const nextStatus = isAccept ? 'accepted' : 'rejected'
+      const [completedInspection] = await transaction
+        .update(deliveryInspections)
+        .set({
+          completed_at: now,
+          result: parsedCommand.result,
+          defect_notes: parsedCommand.defectNotes ?? null,
+          acceptance_notes: parsedCommand.acceptanceNotes ?? null,
+        })
+        .where(
+          and(
+            eq(deliveryInspections.id, inspection.id),
+            eq(deliveryInspections.result, 'pending')
+          )
+        )
+        .returning({ id: deliveryInspections.id })
+      if (!completedInspection) {
+        throw new ConflictException(
+          'Inspection changed before its completion was committed'
+        )
+      }
+
+      const schedulePatch: Partial<typeof deliverySchedules.$inferInsert> = {
+        status: nextStatus,
+        updated_at: now,
+      }
+      if (isAccept) {
+        schedulePatch.accepted_at = now
+        schedulePatch.accepted_by = authorizedPrincipal.userId
+      } else {
+        schedulePatch.rejected_at = now
+        schedulePatch.rejected_reason = parsedCommand.defectNotes ?? 'Inspection failed'
+      }
+
+      const [updated] = await transaction
+        .update(deliverySchedules)
+        .set(schedulePatch)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId),
+            eq(deliverySchedules.status, 'inspecting')
+          )
+        )
+        .returning({ id: deliverySchedules.id })
+      if (!updated) {
+        throw new ConflictException(
+          'Delivery changed before its inspection completion was committed'
+        )
+      }
+
+      const result = deliveryInspectionCompleteResultSchema.parse({
+        deliveryScheduleId,
+        tenantId: authorizedPrincipal.tenantId,
+        inspectionId: inspection.id,
+        action: 'complete_inspection',
+        fromStatus: 'inspecting',
+        inspectionResult: parsedCommand.result,
+        status: nextStatus,
+        completedAt: now.toISOString(),
+      })
+      const [completed] = await transaction
+        .update(deliveryWorkflowRequests)
+        .set({
+          state: 'succeeded',
+          result,
+          completed_at: now,
+        })
+        .where(
+          and(
+            eq(deliveryWorkflowRequests.id, request.id),
+            eq(deliveryWorkflowRequests.state, 'processing')
+          )
+        )
+        .returning({ id: deliveryWorkflowRequests.id })
+      if (!completed) {
+        throw new InternalServerErrorException(
+          'Delivery inspection completion idempotency record changed before completion'
+        )
+      }
+
+      await this.audit.writeSemantic(transaction, {
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
+        entityType: 'delivery_schedule',
+        entityId: deliveryScheduleId,
+        action: isAccept ? 'approve' : 'status_change',
+        diff: {
+          from: 'inspecting',
+          to: nextStatus,
+          inspection_id: inspection.id,
+          inspection_result: parsedCommand.result,
+          defect_notes: parsedCommand.defectNotes ?? null,
+          acceptance_notes: parsedCommand.acceptanceNotes ?? null,
           idempotency_key_hash: requestHash,
         },
       })

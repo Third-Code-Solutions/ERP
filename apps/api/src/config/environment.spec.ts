@@ -356,6 +356,32 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS')
   })
 
+  it('keeps delivery inspection completion fail-closed and tenant-scoped', () => {
+    const parsed = validateEnvironment(REQUIRED)
+    expect(parsed.ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_ENABLED).toBe(false)
+    expect(parsed.ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_ENABLED: 'true',
+        ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS:
+          '33333333-3333-4333-8333-333333333333',
+      })
+    ).toMatchObject({
+      ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_ENABLED: true,
+      ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS: [
+        '33333333-3333-4333-8333-333333333333',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS')
+  })
+
   it('keeps document processing intake fail-closed', () => {
     expect(
       validateEnvironment(REQUIRED).ERP_DOCUMENT_PROCESSING_JOBS_ENABLED

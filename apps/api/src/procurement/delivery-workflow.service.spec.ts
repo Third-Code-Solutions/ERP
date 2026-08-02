@@ -19,7 +19,9 @@ function service(
   enabled = false,
   tenantIds: string[] = [],
   inspectionStartEnabled = false,
-  inspectionStartTenantIds: string[] = []
+  inspectionStartTenantIds: string[] = [],
+  inspectionCompleteEnabled = false,
+  inspectionCompleteTenantIds: string[] = []
 ) {
   const config = {
     get: vi.fn((key: string) => {
@@ -30,6 +32,12 @@ function service(
       }
       if (key === 'ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS') {
         return inspectionStartTenantIds
+      }
+      if (key === 'ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_ENABLED') {
+        return inspectionCompleteEnabled
+      }
+      if (key === 'ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS') {
+        return inspectionCompleteTenantIds
       }
       return undefined
     }),
@@ -106,6 +114,41 @@ describe('DeliveryWorkflowService migration boundary', () => {
       service().startInspection(
         '33333333-3333-4333-8333-333333333333',
         {},
+        PRINCIPAL,
+        ' '
+      )
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('keeps inspection completion closed by default without touching the database', async () => {
+    await expect(
+      service().completeInspection(
+        '33333333-3333-4333-8333-333333333333',
+        { result: 'pass' },
+        PRINCIPAL,
+        'delivery-inspection-complete-1'
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+
+  it('stays closed when the inspection completion tenant allowlist is empty', async () => {
+    await expect(
+      service(false, [], false, [], true).completeInspection(
+        '33333333-3333-4333-8333-333333333333',
+        { result: 'partial_pass', acceptanceNotes: 'Conditional acceptance' },
+        PRINCIPAL,
+        'delivery-inspection-complete-1'
+      )
+    ).rejects.toThrow(
+      'Delivery inspection completion is not enabled for this tenant; no delivery was updated.'
+    )
+  })
+
+  it('validates inspection completion idempotency keys before the feature gate', async () => {
+    await expect(
+      service().completeInspection(
+        '33333333-3333-4333-8333-333333333333',
+        { result: 'pass' },
         PRINCIPAL,
         ' '
       )

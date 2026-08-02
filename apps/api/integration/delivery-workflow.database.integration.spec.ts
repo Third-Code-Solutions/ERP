@@ -48,7 +48,7 @@ function transactionBoundDatabase(
 }
 
 suite('Delivery receipt workflow database integration', () => {
-  it('commits tenant-scoped receipt and inspection start exactly once', async () => {
+  it('commits tenant-scoped receipt, inspection start, and completion exactly once', async () => {
     let probeTenantId = ''
     try {
       await db.transaction(async (transaction) => {
@@ -177,6 +177,12 @@ suite('Delivery receipt workflow database integration', () => {
                 return true
               }
               if (key === 'ERP_DELIVERY_INSPECTION_START_WRITES_TENANT_IDS') {
+                return [tenantId]
+              }
+              if (key === 'ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_ENABLED') {
+                return true
+              }
+              if (key === 'ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS') {
                 return [tenantId]
               }
               return undefined
@@ -387,6 +393,123 @@ suite('Delivery receipt workflow database integration', () => {
           )
         ).toBe(true)
 
+        const completionCommand = {
+          result: 'partial_pass' as const,
+          defectNotes: 'Two brackets scratched',
+          acceptanceNotes: 'Replace next visit',
+        }
+        const completionFirst = await service.completeInspection(
+          deliveryId,
+          completionCommand,
+          principal,
+          'delivery-inspection-complete-integration-1'
+        )
+        const completionReplay = await service.completeInspection(
+          deliveryId,
+          completionCommand,
+          principal,
+          'delivery-inspection-complete-integration-1'
+        )
+        expect(completionFirst).toEqual(completionReplay)
+        expect(completionFirst).toMatchObject({
+          deliveryScheduleId: deliveryId,
+          tenantId,
+          inspectionId: inspectionFirst.inspectionId,
+          action: 'complete_inspection',
+          fromStatus: 'inspecting',
+          inspectionResult: 'partial_pass',
+          status: 'accepted',
+        })
+
+        await expect(
+          service.completeInspection(
+            deliveryId,
+            { result: 'pass' },
+            principal,
+            'delivery-inspection-complete-integration-1'
+          )
+        ).rejects.toThrow('Idempotency key was already used')
+
+        const [completedInspection] = await transaction
+          .select({
+            result: deliveryInspections.result,
+            defectNotes: deliveryInspections.defect_notes,
+            acceptanceNotes: deliveryInspections.acceptance_notes,
+            completedAt: deliveryInspections.completed_at,
+          })
+          .from(deliveryInspections)
+          .where(
+            and(
+              eq(deliveryInspections.tenant_id, tenantId),
+              eq(deliveryInspections.id, inspectionFirst.inspectionId)
+            )
+          )
+        expect(completedInspection).toMatchObject({
+          result: 'partial_pass',
+          defectNotes: 'Two brackets scratched',
+          acceptanceNotes: 'Replace next visit',
+        })
+        expect(completedInspection?.completedAt).toBeInstanceOf(Date)
+
+        const [acceptedSchedule] = await transaction
+          .select({
+            status: deliverySchedules.status,
+            acceptedBy: deliverySchedules.accepted_by,
+            acceptedAt: deliverySchedules.accepted_at,
+          })
+          .from(deliverySchedules)
+          .where(
+            and(
+              eq(deliverySchedules.tenant_id, tenantId),
+              eq(deliverySchedules.id, deliveryId)
+            )
+          )
+        expect(acceptedSchedule?.status).toBe('accepted')
+        expect(acceptedSchedule?.acceptedBy).toBe(procurementId)
+        expect(acceptedSchedule?.acceptedAt).toBeInstanceOf(Date)
+
+        const [completionRequest] = await transaction
+          .select({
+            state: deliveryWorkflowRequests.state,
+            result: deliveryWorkflowRequests.result,
+            action: deliveryWorkflowRequests.action,
+          })
+          .from(deliveryWorkflowRequests)
+          .where(
+            and(
+              eq(deliveryWorkflowRequests.tenant_id, tenantId),
+              eq(
+                deliveryWorkflowRequests.idempotency_key,
+                'delivery-inspection-complete-integration-1'
+              )
+            )
+          )
+        expect(completionRequest).toEqual({
+          state: 'succeeded',
+          result: completionFirst,
+          action: 'complete_inspection',
+        })
+
+        const completionAuditRows = await transaction
+          .select({ action: auditLog.action, diff: auditLog.diff })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantId),
+              eq(auditLog.entity_type, 'delivery_schedule'),
+              eq(auditLog.entity_id, deliveryId)
+            )
+          )
+        expect(
+          completionAuditRows.some(
+            (row) =>
+              row.action === 'approve' &&
+              (row.diff as { from?: string; to?: string }).from ===
+                'inspecting' &&
+              (row.diff as { from?: string; to?: string }).to === 'accepted'
+          )
+        ).toBe(true)
+
         await expect(
           service.recordReceipt(
             otherDeliveryId,
@@ -427,6 +550,27 @@ suite('Delivery receipt workflow database integration', () => {
               email: `viewer-${suffix}@integration.test`,
             },
             'delivery-inspection-viewer-1'
+          )
+        ).rejects.toThrow()
+        await expect(
+          service.completeInspection(
+            otherDeliveryId,
+            { result: 'pass' },
+            principal,
+            'delivery-inspection-complete-cross-tenant-1'
+          )
+        ).rejects.toThrow('Delivery not found')
+        await expect(
+          service.completeInspection(
+            deliveryId,
+            { result: 'pass' },
+            {
+              ...principal,
+              userId: viewerId,
+              role: 'viewer',
+              email: `viewer-${suffix}@integration.test`,
+            },
+            'delivery-inspection-complete-viewer-1'
           )
         ).rejects.toThrow()
         throw ROLLBACK

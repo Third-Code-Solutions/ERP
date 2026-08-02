@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   update: vi.fn(),
   insert: vi.fn(),
+  deliveryInspectionCompleteWritesUseCoreApi: vi.fn(),
+  completeDeliveryInspectionThroughCoreApi: vi.fn(),
   deliveryInspectionStartWritesUseCoreApi: vi.fn(),
   startDeliveryInspectionThroughCoreApi: vi.fn(),
   deliveryReceiptWritesUseCoreApi: vi.fn(),
@@ -46,6 +48,10 @@ vi.mock('@/lib/operations/notifications', () => ({
   notifyRoles: mocks.notifyRoles,
 }))
 vi.mock('@/lib/erp-core-client', () => ({
+  deliveryInspectionCompleteWritesUseCoreApi:
+    mocks.deliveryInspectionCompleteWritesUseCoreApi,
+  completeDeliveryInspectionThroughCoreApi:
+    mocks.completeDeliveryInspectionThroughCoreApi,
   deliveryInspectionStartWritesUseCoreApi:
     mocks.deliveryInspectionStartWritesUseCoreApi,
   startDeliveryInspectionThroughCoreApi:
@@ -57,7 +63,7 @@ vi.mock('@/lib/erp-core-client', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }))
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }))
 
-import { recordReceipt, startInspection } from './actions'
+import { completeInspection, recordReceipt, startInspection } from './actions'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const ACTOR_ID = '22222222-2222-4222-8222-222222222222'
@@ -86,6 +92,7 @@ describe('Delivery receipt compatibility seam', () => {
     })
     mocks.can.mockReturnValue(true)
     mocks.deliveryInspectionStartWritesUseCoreApi.mockReturnValue(false)
+    mocks.deliveryInspectionCompleteWritesUseCoreApi.mockReturnValue(false)
     mocks.startDeliveryInspectionThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
@@ -106,6 +113,19 @@ describe('Delivery receipt compatibility seam', () => {
         action: 'record_receipt',
         fromStatus: 'in_transit',
         status: 'received',
+      },
+    })
+    mocks.completeDeliveryInspectionThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        deliveryScheduleId: SCHEDULE_ID,
+        tenantId: TENANT_ID,
+        inspectionId: '55555555-5555-4555-8555-555555555555',
+        action: 'complete_inspection',
+        fromStatus: 'inspecting',
+        inspectionResult: 'partial_pass',
+        status: 'accepted',
+        completedAt: '2026-08-02T12:00:00.000Z',
       },
     })
   })
@@ -201,6 +221,76 @@ describe('Delivery receipt compatibility seam', () => {
       startInspection(SCHEDULE_ID, 'delivery-inspection-2')
     ).resolves.toEqual({
       error: 'ERP Core API is unavailable. No delivery inspection was started.',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('routes inspection completion through Nest with normalized notes', async () => {
+    mocks.deliveryInspectionCompleteWritesUseCoreApi.mockReturnValue(true)
+    selectSchedule('inspecting')
+
+    await expect(
+      completeInspection(
+        SCHEDULE_ID,
+        'partial_pass',
+        ' Two brackets scratched ',
+        ' Replace next visit ',
+        'delivery-inspection-complete-1'
+      )
+    ).resolves.toEqual({})
+
+    expect(mocks.completeDeliveryInspectionThroughCoreApi).toHaveBeenCalledWith(
+      SCHEDULE_ID,
+      {
+        result: 'partial_pass',
+        defectNotes: 'Two brackets scratched',
+        acceptanceNotes: 'Replace next visit',
+      },
+      'delivery-inspection-complete-1'
+    )
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('allows inspection completion replay after the first core commit', async () => {
+    mocks.deliveryInspectionCompleteWritesUseCoreApi.mockReturnValue(true)
+    selectSchedule('accepted')
+
+    await expect(
+      completeInspection(
+        SCHEDULE_ID,
+        'pass',
+        undefined,
+        undefined,
+        'delivery-inspection-complete-1'
+      )
+    ).resolves.toEqual({})
+    expect(mocks.completeDeliveryInspectionThroughCoreApi).toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when selected inspection completion cannot commit', async () => {
+    mocks.deliveryInspectionCompleteWritesUseCoreApi.mockReturnValue(true)
+    mocks.completeDeliveryInspectionThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No delivery inspection was completed.',
+    })
+    selectSchedule('inspecting')
+
+    await expect(
+      completeInspection(
+        SCHEDULE_ID,
+        'fail',
+        'Broken housing',
+        undefined,
+        'delivery-inspection-complete-2'
+      )
+    ).resolves.toEqual({
+      error:
+        'ERP Core API is unavailable. No delivery inspection was completed.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()

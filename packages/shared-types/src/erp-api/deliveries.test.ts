@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   deliveryReceiptCommandSchema,
   deliveryReceiptResultSchema,
+  deliveryInspectionCompleteCommandSchema,
+  deliveryInspectionCompleteResultSchema,
   deliveryStartInspectionCommandSchema,
   deliveryStartInspectionResultSchema,
 } from './deliveries'
@@ -73,6 +75,62 @@ describe('delivery inspection start contracts', () => {
         action: 'start_inspection',
         fromStatus: 'in_transit',
         status: 'inspecting',
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('delivery inspection completion contracts', () => {
+  it('requires bounded result notes and failure evidence', () => {
+    expect(
+      deliveryInspectionCompleteCommandSchema.parse({
+        result: 'partial_pass',
+        defectNotes: 'Two brackets scratched',
+        acceptanceNotes: 'Replace on next visit',
+      })
+    ).toMatchObject({ result: 'partial_pass' })
+    expect(
+      deliveryInspectionCompleteCommandSchema.safeParse({
+        result: 'fail',
+      }).success
+    ).toBe(false)
+    expect(
+      deliveryInspectionCompleteCommandSchema.safeParse({
+        result: 'pass',
+        tenantId: 'browser-authority',
+      }).success
+    ).toBe(false)
+    expect(
+      deliveryInspectionCompleteCommandSchema.safeParse({
+        result: 'pass',
+        defectNotes: 'x'.repeat(4_001),
+      }).success
+    ).toBe(false)
+  })
+
+  it('returns a strict terminal delivery transition result', () => {
+    expect(
+      deliveryInspectionCompleteResultSchema.parse({
+        deliveryScheduleId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        inspectionId: '44444444-4444-4444-8444-444444444444',
+        action: 'complete_inspection',
+        fromStatus: 'inspecting',
+        inspectionResult: 'pass',
+        status: 'accepted',
+        completedAt: '2026-08-02T12:00:00.000Z',
+      })
+    ).toMatchObject({ action: 'complete_inspection', status: 'accepted' })
+    expect(
+      deliveryInspectionCompleteResultSchema.safeParse({
+        deliveryScheduleId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        inspectionId: '44444444-4444-4444-8444-444444444444',
+        action: 'complete_inspection',
+        fromStatus: 'received',
+        inspectionResult: 'fail',
+        status: 'rejected',
+        completedAt: '2026-08-02T12:00:00.000Z',
       }).success
     ).toBe(false)
   })

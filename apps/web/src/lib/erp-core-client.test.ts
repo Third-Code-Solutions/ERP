@@ -10,6 +10,7 @@ import {
   reverseStockReceiptThroughCoreApi,
   recordDeliveryReceiptThroughCoreApi,
   startDeliveryInspectionThroughCoreApi,
+  completeDeliveryInspectionThroughCoreApi,
   createChangeRequestThroughCoreApi,
   dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
@@ -22,6 +23,7 @@ import {
   stockReceiptReverseWritesUseCoreApi,
   deliveryReceiptWritesUseCoreApi,
   deliveryInspectionStartWritesUseCoreApi,
+  deliveryInspectionCompleteWritesUseCoreApi,
   purchaseOrderWorkflowWritesUseCoreApi,
   changeRequestWritesUseCoreApi,
   rfqCreateWritesUseCoreApi,
@@ -126,6 +128,16 @@ const DELIVERY_INSPECTION_RESULT = {
   action: 'start_inspection' as const,
   fromStatus: 'received' as const,
   status: 'inspecting' as const,
+}
+const DELIVERY_INSPECTION_COMPLETE_RESULT = {
+  deliveryScheduleId: DELIVERY_RECEIPT_RESULT.deliveryScheduleId,
+  tenantId: DELIVERY_RECEIPT_RESULT.tenantId,
+  inspectionId: DELIVERY_INSPECTION_RESULT.inspectionId,
+  action: 'complete_inspection' as const,
+  fromStatus: 'inspecting' as const,
+  inspectionResult: 'partial_pass' as const,
+  status: 'accepted' as const,
+  completedAt: '2026-08-02T12:00:00.000Z',
 }
 const JOURNAL_POST_RESULT = {
   journalEntryId: '77777777-7777-4777-8777-777777777777',
@@ -437,6 +449,60 @@ describe('ERP Core client', () => {
         body: JSON.stringify(command),
         headers: expect.objectContaining({
           'Idempotency-Key': 'delivery-inspection-1',
+        }),
+      })
+    )
+  })
+
+  it('keeps delivery inspection-complete delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(deliveryInspectionCompleteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API', 'TRUE')
+    expect(deliveryInspectionCompleteWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(deliveryInspectionCompleteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(deliveryInspectionCompleteWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('sends and validates an idempotent delivery inspection-complete command', async () => {
+    const command = {
+      result: 'partial_pass' as const,
+      defectNotes: 'Two brackets scratched',
+      acceptanceNotes: 'Replace next visit',
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DELIVERY_INSPECTION_COMPLETE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      completeDeliveryInspectionThroughCoreApi(
+        DELIVERY_INSPECTION_COMPLETE_RESULT.deliveryScheduleId,
+        command,
+        'delivery-inspection-complete-1'
+      )
+    ).resolves.toEqual({
+      ok: true,
+      data: DELIVERY_INSPECTION_COMPLETE_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/procurement/deliveries/${DELIVERY_INSPECTION_COMPLETE_RESULT.deliveryScheduleId}/inspection/complete`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'delivery-inspection-complete-1',
         }),
       })
     )
