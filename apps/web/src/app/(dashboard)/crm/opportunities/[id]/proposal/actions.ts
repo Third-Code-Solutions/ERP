@@ -31,6 +31,10 @@ import { startSlaClock } from '@/lib/operations/sla-clock'
 import { notifyRoles } from '@/lib/operations/notifications'
 import { inngest } from '@/lib/inngest'
 import {
+  changeRequestWritesUseCoreApi,
+  createChangeRequestThroughCoreApi,
+} from '@/lib/erp-core-client'
+import {
   buildInspectionReportHtml,
   type InspectionPhotoInput,
   type InspectionRfiInput,
@@ -717,10 +721,7 @@ const logCrSchema = z.object({
 
 export async function logChangeRequest(formData: FormData): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
-  // Per the matrix, change-request logging is owned by sales. We reuse the
-  // pprf.submit capability since both belong to the sales role; this keeps
-  // the guard set small while behaviour matches the matrix.
-  const forbid = guard(profile.role, 'pprf.submit')
+  const forbid = guard(profile.role, 'change_request.create')
   if (forbid) return { error: forbid }
 
   const affected = formData.get('affected_design_file_id')
@@ -739,6 +740,35 @@ export async function logChangeRequest(formData: FormData): Promise<{ error?: st
 
   const opp = await assertOpportunity(profile.tenantId, input.opportunity_id)
   if (!opp) return { error: 'Opportunity not found' }
+
+  if (changeRequestWritesUseCoreApi(profile.tenantId)) {
+    const requestedIdempotencyKey = formData.get('idempotency_key')
+    const idempotencyKey =
+      typeof requestedIdempotencyKey === 'string' &&
+      requestedIdempotencyKey.trim().length > 0
+        ? requestedIdempotencyKey.trim()
+        : crypto.randomUUID()
+    const result = await createChangeRequestThroughCoreApi(
+      input.opportunity_id,
+      {
+        requestedByName: input.requested_by_name,
+        description: input.description,
+        priority: input.priority,
+        affectedDesignFileId: input.affected_design_file_id ?? null,
+      },
+      idempotencyKey
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'Change Request could not be created through ERP Core.',
+      }
+    }
+    revalidatePath(`/crm/opportunities/${input.opportunity_id}/proposal/change-requests`)
+    revalidatePath(`/crm/opportunities/${input.opportunity_id}/proposal`)
+    return {}
+  }
 
   const [created] = await db
     .insert(changeRequests)

@@ -149,6 +149,7 @@ export type ErpCapability =
   | 'opportunity.create'
   | 'opportunity.advance_stage'
   | 'pprf.submit'
+  | 'change_request.create'
   | 'site_inspection.submit'
   | 'design.upload'
   | 'document.manage'
@@ -192,6 +193,7 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   'opportunity.advance_stage': ['admin', 'owner', 'sales'],
   // Proposal
   'pprf.submit': ['admin', 'owner', 'sales'],
+  'change_request.create': ['admin', 'owner', 'sales'],
   'site_inspection.submit': ['admin', 'owner', 'commercial'],
   'design.upload': ['admin', 'owner', 'design'],
   'document.manage': [

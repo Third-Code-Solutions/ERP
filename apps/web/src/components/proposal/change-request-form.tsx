@@ -18,10 +18,19 @@ export function ChangeRequestForm({ opportunityId, designOptions }: ChangeReques
   const [success, setSuccess] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
+  const idempotencyKeyRef = useRef<string | null>(null)
+
+  function idempotencyKey(): string {
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = globalThis.crypto.randomUUID()
+    }
+    return idempotencyKeyRef.current
+  }
 
   function onSubmit(formData: FormData) {
     setError(null)
     setSuccess(null)
+    formData.set('idempotency_key', idempotencyKey())
     startTransition(async () => {
       const res = await logChangeRequest(formData)
       if (res?.error) {
@@ -29,6 +38,7 @@ export function ChangeRequestForm({ opportunityId, designOptions }: ChangeReques
       } else {
         setSuccess('Change request logged. Design has been notified.')
         formRef.current?.reset()
+        idempotencyKeyRef.current = null
       }
     })
   }
