@@ -11,7 +11,7 @@ successful build.
 | Frontend | `apps/web`: Next.js 15.5.18 App Router, React 19.2.6, TypeScript 5.9.3 |
 | Existing application backend | 47 Next.js Server Action files, 24 Route Handler files, SQL functions/triggers, and Supabase clients |
 | New core ERP boundary | `apps/api`: NestJS 11 modular monolith. Project and procurement adapters are disabled by default; approved-BOM RFQ dispatch now has an inert BullMQ producer/consumer path |
-| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 54 SQL migrations and 45 Drizzle schema files |
+| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 67 SQL migrations and 46 Drizzle schema files |
 | Authentication | Supabase Auth. Tenant membership and role come from PostgreSQL, not client claims |
 | Authorization | RLS plus mixed application checks in the legacy path. The Nest slice has deny-by-default capability metadata and tenant-scoped queries |
 | Async work | Inngest remains authoritative. Redis 5/BullMQ 5 now carry one disabled approved-BOM RFQ job contract with bounded retry and explicit dead-letter handling |
@@ -36,14 +36,15 @@ The authorized Supabase target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17 and
 matches the repository migration contract:
 
 The historical 54/54 baseline below is retained as the last fully reconciled
-hosted baseline. The current source branch has seven additional forward-only
-migrations through `20260801150000_document_processing_evidence.sql`; the
-read-only release planner on 2026-08-01 reports 55/62 applied, with no
-unexpected or out-of-order versions. The hosted release remains blocked until
+hosted baseline. The current source branch has 67 ordered migrations through
+`20260802130000_stock_receipt_workflow_idempotency.sql`; the Supabase
+connector read-only ledger reports 55/67 applied, with the 12-migration suffix
+pending and no hosted SQL applied. The hosted release remains blocked until
 the duplicate Purchase Order-number group and audit-recovery tenant are
-resolved by the owner; no SQL has been applied for the seven-migration set.
+resolved by the owner.
 
-- Migration ledger: 54 of 54 applied; no missing or unexpected versions.
+- Historical migration ledger: 54 of 54 applied; no missing or unexpected
+  versions at that prior release baseline.
 - Catalog: 86 public tables and 315 RLS policies.
 - Verifier: all 30 protected-table groups, constraints, triggers, privileges,
   tenant controls, and finance/inventory authority checks pass.
@@ -2038,3 +2039,32 @@ provider, flag, queue, or business-data mutation occurred.
   eleven pending, one 12-record duplicate Purchase Order group, zero audit
   rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Live readiness/revision is
   unchanged.
+
+## 2026-08-02 M3.9 Stock Receipt post/reversal authority
+
+- Added Nest `POST /v1/inventory/stock-receipts/:receiptId/post` and
+  `/reverse` commands. Each rechecks same-tenant membership and
+  `inventory.post_receipt`, locks the receipt, calls the existing PostgreSQL
+  posting/reversal function, persists a tenant-scoped idempotency result, and
+  writes semantic audit evidence in one transaction.
+- Added forward-only migration
+  `20260802130000_stock_receipt_workflow_idempotency.sql`, matching Drizzle
+  schema, composite tenant foreign keys, forced RLS, and service-only table
+  privileges. Added strict shared commands/results and independent
+  closed-by-default Next selectors for post and reverse. Selected core paths
+  never fall back to direct RPCs.
+- Existing inventory buttons, copy, layout, and design are unchanged. Browser
+  retry refs reset only when command inputs change or a command succeeds.
+- Local source evidence: API 30 files / 140 tests, Web 58 files / 353 tests,
+  shared 10 files / 123 tests, database contract suites passed; workspace
+  lint/typecheck, production build (78/78 routes), Actionlint, Gitleaks, and
+  diff checks passed. Disposable WSL1 replay passed 67/67 migrations,
+  260/260 database assertions without skips, and 18/18 Nest/Redis integration
+  assertions after one unrelated BullMQ data-loss test retry.
+- Hosted read-only evidence: Supabase project is PostgreSQL 17.6 with 55
+  applied migrations versus 67 in source; no SQL was applied. Aggregate
+  duplicate-PO report remains 1 group / 12 records; `AUDIT_RECOVERY_TENANT_ID`
+  is still owner-required. Railway health/readiness are HTTP 200 with
+  database/Redis `ok`; Vercel `/api/ready` is HTTP 200 at revision
+  `31c04942a93d`, and the landing root is HTTP 200. No feature flag, queue,
+  provider setting, business row, or deployment changed.

@@ -4227,3 +4227,48 @@ pending migrations, one 12-record duplicate Purchase Order group, zero audit
 rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Live readiness/revision is
 unchanged. Exact next action: push this source/docs candidate, inspect CI, then
 re-run the planner before any provider action.
+
+## 2026-08-02 - M3.9 Stock Receipt post/reversal authority
+
+Implemented the smallest safe Stock Receipt workflow slice:
+
+- Nest now exposes tenant-scoped post/reverse commands with membership and
+  `inventory.post_receipt` rechecks, receipt locks, durable idempotency, the
+  existing PostgreSQL posting/reversal functions, and semantic audit evidence
+  in one transaction.
+- Added shared contracts, Drizzle schema, and forward migration
+  `20260802130000_stock_receipt_workflow_idempotency.sql`. The request table is
+  forced-RLS and service-only; browser roles cannot mutate it.
+- Added independent Next selectors and fail-closed clients/actions. Existing
+  receipt UI/copy/layout/design remain unchanged; browser retry refs persist
+  across a transient failure and reset on input change or success.
+
+Validation:
+
+- API: 30 files / 140 tests; Web: 58 files / 353 tests; shared: 10 files /
+  123 tests. Database contract suites passed; normal DB runtime suites retain
+  their explicit 137 environment-gated skips.
+- Workspace lint, typecheck, production build (78/78 routes), Actionlint,
+  Gitleaks, migration/release planner tests, and `git diff --check` passed.
+- Disposable WSL1 lane: PostgreSQL 17, Redis 7.4.9, 67/67 migrations,
+  260/260 database assertions without skips, 18/18 Nest/Redis integration
+  assertions, schema SHA
+  `4E8E190B0D3447F8A1819DB40427D4266F920AA47982DBDA86C6BEBCA6E22CE7`.
+  One existing Redis data-loss test flaked once (`Missing key for job`) and
+  passed on the immediate rerun; no source change was made for that flake.
+
+Hosted read-only checks:
+
+- Supabase project `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17.6.1. Connector
+  ledger shows 55 applied migrations; source has 67. No migration SQL was
+  executed. Aggregate duplicate-PO report is 1 group / 12 records; the owner
+  still must provide `AUDIT_RECOVERY_TENANT_ID`.
+- Railway `/health` and `/ready` returned HTTP 200; readiness reported
+  `database=ok` and `redis=ok`. Vercel `/api/ready` returned HTTP 200 at
+  revision `31c04942a93d`; the production root returned HTTP 200.
+- Vercel Git remains disconnected. No hosted flag, queue, provider setting,
+  business row, Supabase SQL, Railway deploy, or Vercel deploy changed.
+
+Exact next action: add the source/docs candidate to GitHub under `kurtgav`,
+inspect the single CI run, then update this log with the exact SHA/run result
+before considering any hosted provider action.

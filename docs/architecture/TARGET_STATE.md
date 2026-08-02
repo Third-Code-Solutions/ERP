@@ -1090,3 +1090,26 @@ selector and strict UUID allowlist are independently closed by default. Once
 selected, a failed core request is returned to the user and never falls back
 to a second writer. The form supplies one stable opaque retry key so a lost
 response can be replayed safely without duplicate receipt creation.
+
+## Stock Receipt post/reversal authority (M3.9, 2026-08-02)
+
+Posting and reversal are separate Nest command boundaries. Nest derives the
+actor and tenant from authenticated membership, requires `inventory.post_receipt`,
+locks the same-tenant receipt, and invokes the existing PostgreSQL functions
+for numbering, ledger balance, fiscal-period, and state authority. The
+idempotency record, official result, and semantic audit evidence commit in the
+same PostgreSQL transaction. A retry with the same tenant/key/command replays
+the stored result; a conflicting command is rejected.
+
+Next selectors
+`ERP_INVENTORY_RECEIPT_POST_VIA_API`/`ERP_INVENTORY_RECEIPT_POST_TENANT_IDS`
+and
+`ERP_INVENTORY_RECEIPT_REVERSE_VIA_API`/`ERP_INVENTORY_RECEIPT_REVERSE_TENANT_IDS`
+remain exact-`true` plus explicit-allowlist canaries, false/empty by default.
+When selected, Next fails closed on core outage or rejection and never invokes
+the direct RPC fallback. The visible receipt controls remain unchanged.
+
+The forward-only idempotency migration is source-complete and replayed in the
+disposable PostgreSQL 17 lane. Hosted Supabase remains a separate release gate
+until its migration ledger, duplicate-PO review, audit-recovery tenant,
+readiness, exact SHA, and rollback evidence are clear.

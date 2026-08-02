@@ -184,6 +184,16 @@ export const journalPostRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const stockReceiptWorkflowActionEnum = pgEnum(
+  'stock_receipt_workflow_action',
+  ['post', 'reverse']
+)
+
+export const stockReceiptWorkflowRequestStateEnum = pgEnum(
+  'stock_receipt_workflow_request_state',
+  ['processing', 'succeeded']
+)
+
 export const invoiceStatusEnum = pgEnum('invoice_status', [
   'draft',
   'issued',

@@ -8,6 +8,11 @@ import { RequestObservabilityMiddleware } from '../observability/request-observa
 import { StockReceiptController } from './stock-receipt.controller'
 import { StockReceiptCreatePipe } from './stock-receipt-create.pipe'
 import { StockReceiptCreationService } from './stock-receipt-creation.service'
+import {
+  StockReceiptPostPipe,
+  StockReceiptReversePipe,
+} from './stock-receipt-workflow.pipe'
+import { StockReceiptWorkflowService } from './stock-receipt-workflow.service'
 
 @Module({
   imports: [AuditModule],
@@ -15,6 +20,9 @@ import { StockReceiptCreationService } from './stock-receipt-creation.service'
   providers: [
     StockReceiptCreationService,
     StockReceiptCreatePipe,
+    StockReceiptWorkflowService,
+    StockReceiptPostPipe,
+    StockReceiptReversePipe,
   ],
 })
 export class InventoryModule implements NestModule {

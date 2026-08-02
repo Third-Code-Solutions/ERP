@@ -14,6 +14,8 @@ import {
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
   stockReceiptCreationResultSchema,
+  stockReceiptPostingResultSchema,
+  stockReceiptReversalResultSchema,
   type CreateRfqCommand,
   type CreateStockReceiptCommand,
   type LogRfqQuoteCommand,
@@ -35,6 +37,10 @@ import {
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
   type StockReceiptCreationResult,
+  type StockReceiptPostCommand,
+  type StockReceiptPostingResult,
+  type StockReceiptReverseCommand,
+  type StockReceiptReversalResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 
@@ -165,6 +171,24 @@ export function stockReceiptCreateWritesUseCoreApi(
     tenantId,
     process.env.ERP_INVENTORY_RECEIPT_CREATE_VIA_API,
     process.env.ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS
+  )
+}
+
+export function stockReceiptPostWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_RECEIPT_POST_VIA_API,
+    process.env.ERP_INVENTORY_RECEIPT_POST_TENANT_IDS
+  )
+}
+
+export function stockReceiptReverseWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_RECEIPT_REVERSE_VIA_API,
+    process.env.ERP_INVENTORY_RECEIPT_REVERSE_TENANT_IDS
   )
 }
 
@@ -420,6 +444,118 @@ export async function createStockReceiptThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Stock Receipt was committed.',
+    }
+  }
+}
+
+export async function postStockReceiptThroughCoreApi(
+  receiptId: string,
+  command: StockReceiptPostCommand,
+  idempotencyKey: string
+): Promise<CoreResult<StockReceiptPostingResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/stock-receipts/${encodeURIComponent(
+        receiptId
+      )}/post`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Stock Receipt posting conflicts with its current state.'
+            : response.status === 404
+              ? 'Stock Receipt was not found.'
+              : 'Stock Receipt was not posted.'
+      return { ok: false, error: message }
+    }
+    const parsed = stockReceiptPostingResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Stock Receipt posting result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No Stock Receipt was posted.',
+    }
+  }
+}
+
+export async function reverseStockReceiptThroughCoreApi(
+  receiptId: string,
+  command: StockReceiptReverseCommand,
+  idempotencyKey: string
+): Promise<CoreResult<StockReceiptReversalResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/stock-receipts/${encodeURIComponent(
+        receiptId
+      )}/reverse`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Stock Receipt reversal conflicts with its current state.'
+            : response.status === 404
+              ? 'Stock Receipt was not found.'
+              : 'Stock Receipt was not reversed.'
+      return { ok: false, error: message }
+    }
+    const parsed = stockReceiptReversalResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Stock Receipt reversal result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No Stock Receipt was reversed.',
     }
   }
 }

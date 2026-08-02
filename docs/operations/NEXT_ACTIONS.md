@@ -2,7 +2,7 @@
 
 ## Immediate hosted release gate
 
-Do not apply the seven pending Supabase migrations or deploy Railway/Vercel
+Do not apply the twelve pending Supabase migrations or deploy Railway/Vercel
 until the owner supplies:
 
 1. The canonical `AUDIT_RECOVERY_TENANT_ID` UUID for the audit-chain planner.
@@ -20,7 +20,7 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current source SHA: `4c166142056ee80c7cb2089afefd6bdcb360db63` on
+Current source SHA: pending the M3.9 source/docs commit on
 `origin/agent-02/third-code-erp-landing`, authored by `kurtgav`.
 
 ## Exact next product action
@@ -934,6 +934,30 @@ Git disconnected and do not create preview or duplicate production builds.
 5. Only after those checks perform one spend-bounded Railway action and one
    Vercel production action. Keep Vercel Git disconnected; avoid previews and
    duplicate builds; verify live browser/API/logs before declaring green.
+
+## Exact next action after M3.9 Stock Receipt post/reversal source slice (2026-08-02)
+
+1. Keep `ERP_INVENTORY_RECEIPT_POST_VIA_API`,
+   `ERP_INVENTORY_RECEIPT_POST_TENANT_IDS`,
+   `ERP_INVENTORY_RECEIPT_REVERSE_VIA_API`,
+   `ERP_INVENTORY_RECEIPT_REVERSE_TENANT_IDS`, and both API-side write gates
+   false/empty. Do not apply `20260802130000_stock_receipt_workflow_idempotency.sql`
+   or any other pending hosted migration.
+2. Stage only the reviewed M3.9 source/docs files, commit as `kurtgav`, push
+   the exact SHA to GitHub, and inspect the resulting single CI run. E2E stays
+   credential-gated; do not reconnect Vercel Git.
+3. Re-run the read-only Supabase ledger, duplicate-PO, audit-recovery, Railway
+   readiness, and Vercel readiness checks. Current hosted evidence is 55/67
+   migrations, 1 duplicate group / 12 records, and missing
+   `AUDIT_RECOVERY_TENANT_ID`; these are release blockers, not errors to waive.
+4. Only after owner-approved duplicate mapping and audit-recovery tenant input,
+   a clear planner, and explicit provider/spend approval may one reviewed
+   Supabase migration release and one Railway/Vercel production action occur.
+   Capture migration ledger, RLS/function checks, post/reverse RBAC and replay
+   evidence, readiness, logs, exact SHA, billing impact, and rollback.
+5. If the planner remains blocked, continue source-only incremental Nest
+   authority work. Never enable a canary or create a paid/duplicate Vercel
+   deployment to bypass the gate.
 
 ## Exact next action after M3.8 Stock Receipt source/CI candidate (2026-08-02)
 

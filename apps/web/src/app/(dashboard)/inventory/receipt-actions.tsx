@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   deleteStockReceiptDraft,
@@ -28,6 +28,8 @@ export function StockReceiptActions({
   )
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const postRetryKeyRef = useRef<string | null>(null)
+  const reverseRetryKeyRef = useRef<string | null>(null)
 
   if (status === 'reversed') return null
 
@@ -54,7 +56,11 @@ export function StockReceiptActions({
             type="date"
             min={receivedDate}
             value={postingDate}
-            onChange={(event) => setPostingDate(event.target.value)}
+            onChange={(event) => {
+              setPostingDate(event.target.value)
+              postRetryKeyRef.current = null
+              reverseRetryKeyRef.current = null
+            }}
           />
         </div>
         {status === 'posted' && (
@@ -66,7 +72,10 @@ export function StockReceiptActions({
               maxLength={500}
               placeholder="Explain why the receipt is being reversed"
               value={reason}
-              onChange={(event) => setReason(event.target.value)}
+              onChange={(event) => {
+                setReason(event.target.value)
+                reverseRetryKeyRef.current = null
+              }}
             />
           </div>
         )}
@@ -80,15 +89,20 @@ export function StockReceiptActions({
                 return
               }
               setError(null)
+              const idempotencyKey =
+                postRetryKeyRef.current ??
+                (postRetryKeyRef.current = crypto.randomUUID())
               startTransition(async () => {
                 const result = await postStockReceipt({
                   receiptId,
                   postingDate,
+                  idempotencyKey,
                 })
                 if (!result.ok) {
                   setError(result.error ?? 'Could not post Stock Receipt.')
                   return
                 }
+                postRetryKeyRef.current = null
                 router.refresh()
               })
             }}
@@ -125,16 +139,21 @@ export function StockReceiptActions({
             onClick={() => {
               if (!window.confirm('Reverse this Stock Receipt?')) return
               setError(null)
+              const idempotencyKey =
+                reverseRetryKeyRef.current ??
+                (reverseRetryKeyRef.current = crypto.randomUUID())
               startTransition(async () => {
                 const result = await reverseStockReceipt({
                   receiptId,
                   postingDate,
                   reason,
+                  idempotencyKey,
                 })
                 if (!result.ok) {
                   setError(result.error ?? 'Could not reverse Stock Receipt.')
                   return
                 }
+                reverseRetryKeyRef.current = null
                 router.refresh()
               })
             }}
