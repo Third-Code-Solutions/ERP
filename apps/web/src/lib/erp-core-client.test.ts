@@ -11,6 +11,7 @@ import {
   recordDeliveryReceiptThroughCoreApi,
   startDeliveryInspectionThroughCoreApi,
   completeDeliveryInspectionThroughCoreApi,
+  cancelDeliveryThroughCoreApi,
   createChangeRequestThroughCoreApi,
   dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
@@ -24,6 +25,7 @@ import {
   deliveryReceiptWritesUseCoreApi,
   deliveryInspectionStartWritesUseCoreApi,
   deliveryInspectionCompleteWritesUseCoreApi,
+  deliveryCancelWritesUseCoreApi,
   purchaseOrderWorkflowWritesUseCoreApi,
   changeRequestWritesUseCoreApi,
   rfqCreateWritesUseCoreApi,
@@ -138,6 +140,15 @@ const DELIVERY_INSPECTION_COMPLETE_RESULT = {
   inspectionResult: 'partial_pass' as const,
   status: 'accepted' as const,
   completedAt: '2026-08-02T12:00:00.000Z',
+}
+const DELIVERY_CANCEL_RESULT = {
+  deliveryScheduleId: DELIVERY_RECEIPT_RESULT.deliveryScheduleId,
+  tenantId: DELIVERY_RECEIPT_RESULT.tenantId,
+  action: 'cancel_delivery' as const,
+  fromStatus: 'in_transit' as const,
+  status: 'cancelled' as const,
+  cancellationReason: 'Supplier delay',
+  cancelledAt: '2026-08-02T12:00:00.000Z',
 }
 const JOURNAL_POST_RESULT = {
   journalEntryId: '77777777-7777-4777-8777-777777777777',
@@ -503,6 +514,53 @@ describe('ERP Core client', () => {
         body: JSON.stringify(command),
         headers: expect.objectContaining({
           'Idempotency-Key': 'delivery-inspection-complete-1',
+        }),
+      })
+    )
+  })
+
+  it('keeps delivery cancellation delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_DELIVERY_CANCEL_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DELIVERY_CANCEL_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(deliveryCancelWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_DELIVERY_CANCEL_WRITES_VIA_API', 'TRUE')
+    expect(deliveryCancelWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_DELIVERY_CANCEL_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_DELIVERY_CANCEL_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(deliveryCancelWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(deliveryCancelWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('sends and validates an idempotent delivery cancellation command', async () => {
+    const command = { reason: 'Supplier delay' }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DELIVERY_CANCEL_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      cancelDeliveryThroughCoreApi(
+        DELIVERY_CANCEL_RESULT.deliveryScheduleId,
+        command,
+        'delivery-cancel-1'
+      )
+    ).resolves.toEqual({ ok: true, data: DELIVERY_CANCEL_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/procurement/deliveries/${DELIVERY_CANCEL_RESULT.deliveryScheduleId}/cancel`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'delivery-cancel-1',
         }),
       })
     )

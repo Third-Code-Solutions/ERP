@@ -22,6 +22,7 @@ import {
   deliveryReceiptResultSchema,
   deliveryStartInspectionResultSchema,
   deliveryInspectionCompleteResultSchema,
+  deliveryCancelResultSchema,
   type CreateRfqCommand,
   type CreateStockReceiptCommand,
   type LogRfqQuoteCommand,
@@ -59,6 +60,8 @@ import {
   type DeliveryStartInspectionResult,
   type DeliveryInspectionCompleteCommand,
   type DeliveryInspectionCompleteResult,
+  type DeliveryCancelCommand,
+  type DeliveryCancelResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 
@@ -265,6 +268,14 @@ export function deliveryInspectionCompleteWritesUseCoreApi(
     tenantId,
     process.env.ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API,
     process.env.ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function deliveryCancelWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DELIVERY_CANCEL_WRITES_VIA_API,
+    process.env.ERP_DELIVERY_CANCEL_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -805,6 +816,62 @@ export async function completeDeliveryInspectionThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No delivery inspection was completed.',
+    }
+  }
+}
+
+export async function cancelDeliveryThroughCoreApi(
+  deliveryScheduleId: string,
+  command: DeliveryCancelCommand,
+  idempotencyKey: string
+): Promise<CoreResult<DeliveryCancelResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/deliveries/${encodeURIComponent(
+        deliveryScheduleId
+      )}/cancel`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Delivery cancellation conflicts with its current state.'
+            : response.status === 404
+              ? 'Delivery was not found.'
+              : 'Delivery was not cancelled.'
+      return { ok: false, error: message }
+    }
+    const parsed = deliveryCancelResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid delivery cancellation result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No delivery was cancelled.',
     }
   }
 }

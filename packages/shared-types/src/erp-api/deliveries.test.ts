@@ -6,6 +6,8 @@ import {
   deliveryInspectionCompleteResultSchema,
   deliveryStartInspectionCommandSchema,
   deliveryStartInspectionResultSchema,
+  deliveryCancelCommandSchema,
+  deliveryCancelResultSchema,
 } from './deliveries'
 
 describe('delivery receipt contracts', () => {
@@ -131,6 +133,53 @@ describe('delivery inspection completion contracts', () => {
         inspectionResult: 'fail',
         status: 'rejected',
         completedAt: '2026-08-02T12:00:00.000Z',
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('delivery cancellation contracts', () => {
+  it('requires a bounded reason and rejects browser authority fields', () => {
+    expect(deliveryCancelCommandSchema.parse({ reason: 'Supplier delay' })).toEqual({
+      reason: 'Supplier delay',
+    })
+    expect(deliveryCancelCommandSchema.safeParse({}).success).toBe(false)
+    expect(
+      deliveryCancelCommandSchema.safeParse({ reason: '   ' }).success
+    ).toBe(false)
+    expect(
+      deliveryCancelCommandSchema.safeParse({
+        reason: 'Supplier delay',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      }).success
+    ).toBe(false)
+    expect(
+      deliveryCancelCommandSchema.safeParse({ reason: 'x'.repeat(4_001) })
+        .success
+    ).toBe(false)
+  })
+
+  it('returns a strict non-terminal to cancelled result', () => {
+    expect(
+      deliveryCancelResultSchema.parse({
+        deliveryScheduleId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        action: 'cancel_delivery',
+        fromStatus: 'in_transit',
+        status: 'cancelled',
+        cancellationReason: 'Supplier delay',
+        cancelledAt: '2026-08-02T12:00:00.000Z',
+      })
+    ).toMatchObject({ action: 'cancel_delivery', status: 'cancelled' })
+    expect(
+      deliveryCancelResultSchema.safeParse({
+        deliveryScheduleId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        action: 'cancel_delivery',
+        fromStatus: 'accepted',
+        status: 'cancelled',
+        cancellationReason: 'Supplier delay',
+        cancelledAt: '2026-08-02T12:00:00.000Z',
       }).success
     ).toBe(false)
   })

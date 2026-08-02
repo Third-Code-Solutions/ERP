@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   deliveryInspectionCompleteWritesUseCoreApi: vi.fn(),
   completeDeliveryInspectionThroughCoreApi: vi.fn(),
+  deliveryCancelWritesUseCoreApi: vi.fn(),
+  cancelDeliveryThroughCoreApi: vi.fn(),
   deliveryInspectionStartWritesUseCoreApi: vi.fn(),
   startDeliveryInspectionThroughCoreApi: vi.fn(),
   deliveryReceiptWritesUseCoreApi: vi.fn(),
@@ -52,6 +54,8 @@ vi.mock('@/lib/erp-core-client', () => ({
     mocks.deliveryInspectionCompleteWritesUseCoreApi,
   completeDeliveryInspectionThroughCoreApi:
     mocks.completeDeliveryInspectionThroughCoreApi,
+  deliveryCancelWritesUseCoreApi: mocks.deliveryCancelWritesUseCoreApi,
+  cancelDeliveryThroughCoreApi: mocks.cancelDeliveryThroughCoreApi,
   deliveryInspectionStartWritesUseCoreApi:
     mocks.deliveryInspectionStartWritesUseCoreApi,
   startDeliveryInspectionThroughCoreApi:
@@ -63,7 +67,12 @@ vi.mock('@/lib/erp-core-client', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }))
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }))
 
-import { completeInspection, recordReceipt, startInspection } from './actions'
+import {
+  cancelDelivery,
+  completeInspection,
+  recordReceipt,
+  startInspection,
+} from './actions'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const ACTOR_ID = '22222222-2222-4222-8222-222222222222'
@@ -93,6 +102,7 @@ describe('Delivery receipt compatibility seam', () => {
     mocks.can.mockReturnValue(true)
     mocks.deliveryInspectionStartWritesUseCoreApi.mockReturnValue(false)
     mocks.deliveryInspectionCompleteWritesUseCoreApi.mockReturnValue(false)
+    mocks.deliveryCancelWritesUseCoreApi.mockReturnValue(false)
     mocks.startDeliveryInspectionThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
@@ -126,6 +136,18 @@ describe('Delivery receipt compatibility seam', () => {
         inspectionResult: 'partial_pass',
         status: 'accepted',
         completedAt: '2026-08-02T12:00:00.000Z',
+      },
+    })
+    mocks.cancelDeliveryThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        deliveryScheduleId: SCHEDULE_ID,
+        tenantId: TENANT_ID,
+        action: 'cancel_delivery',
+        fromStatus: 'in_transit',
+        status: 'cancelled',
+        cancellationReason: 'Supplier delay',
+        cancelledAt: '2026-08-02T12:00:00.000Z',
       },
     })
   })
@@ -291,6 +313,52 @@ describe('Delivery receipt compatibility seam', () => {
     ).resolves.toEqual({
       error:
         'ERP Core API is unavailable. No delivery inspection was completed.',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('routes delivery cancellation through Nest with normalized reason', async () => {
+    mocks.deliveryCancelWritesUseCoreApi.mockReturnValue(true)
+    selectSchedule('in_transit')
+
+    await expect(
+      cancelDelivery(SCHEDULE_ID, ' Supplier delay ', 'delivery-cancel-1')
+    ).resolves.toEqual({})
+
+    expect(mocks.cancelDeliveryThroughCoreApi).toHaveBeenCalledWith(
+      SCHEDULE_ID,
+      { reason: 'Supplier delay' },
+      'delivery-cancel-1'
+    )
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('allows cancellation replay after the first core commit changed status', async () => {
+    mocks.deliveryCancelWritesUseCoreApi.mockReturnValue(true)
+    selectSchedule('cancelled')
+
+    await expect(
+      cancelDelivery(SCHEDULE_ID, 'Supplier delay', 'delivery-cancel-1')
+    ).resolves.toEqual({})
+    expect(mocks.cancelDeliveryThroughCoreApi).toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when selected cancellation cannot commit', async () => {
+    mocks.deliveryCancelWritesUseCoreApi.mockReturnValue(true)
+    mocks.cancelDeliveryThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No delivery was cancelled.',
+    })
+    selectSchedule('in_transit')
+
+    await expect(
+      cancelDelivery(SCHEDULE_ID, 'Supplier delay', 'delivery-cancel-2')
+    ).resolves.toEqual({
+      error: 'ERP Core API is unavailable. No delivery was cancelled.',
     })
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()

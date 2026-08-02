@@ -124,6 +124,14 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     ) {
       return 'procurement.delivery_inspection_complete'
     }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/procurement/deliveries/:deliveryScheduleId/cancel'
+      )
+    ) {
+      return 'procurement.delivery_cancel'
+    }
     return 'unknown.command'
   }
 

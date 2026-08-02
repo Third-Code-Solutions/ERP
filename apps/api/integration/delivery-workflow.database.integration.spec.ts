@@ -47,8 +47,8 @@ function transactionBoundDatabase(
   return { client } as DatabaseService
 }
 
-suite('Delivery receipt workflow database integration', () => {
-  it('commits tenant-scoped receipt, inspection start, and completion exactly once', async () => {
+suite('Delivery workflow database integration', () => {
+  it('commits tenant-scoped receipt, inspection, completion, and cancellation exactly once', async () => {
     let probeTenantId = ''
     try {
       await db.transaction(async (transaction) => {
@@ -63,6 +63,7 @@ suite('Delivery receipt workflow database integration', () => {
         const otherPurchaseOrderId = randomUUID()
         const deliveryId = randomUUID()
         const otherDeliveryId = randomUUID()
+        const cancellableDeliveryId = randomUUID()
         const suffix = randomUUID().slice(0, 12)
         probeTenantId = tenantId
 
@@ -164,6 +165,13 @@ suite('Delivery receipt workflow database integration', () => {
             status: 'in_transit',
             created_by: otherUserId,
           },
+          {
+            id: cancellableDeliveryId,
+            tenant_id: tenantId,
+            purchase_order_id: purchaseOrderId,
+            status: 'scheduled',
+            created_by: procurementId,
+          },
         ])
 
         const service = new DeliveryWorkflowService(
@@ -183,6 +191,10 @@ suite('Delivery receipt workflow database integration', () => {
                 return true
               }
               if (key === 'ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS') {
+                return [tenantId]
+              }
+              if (key === 'ERP_DELIVERY_CANCEL_WRITES_ENABLED') return true
+              if (key === 'ERP_DELIVERY_CANCEL_WRITES_TENANT_IDS') {
                 return [tenantId]
               }
               return undefined
@@ -510,6 +522,101 @@ suite('Delivery receipt workflow database integration', () => {
           )
         ).toBe(true)
 
+        const cancellationCommand = { reason: 'Supplier could not confirm date' }
+        const cancellationFirst = await service.cancelDelivery(
+          cancellableDeliveryId,
+          cancellationCommand,
+          principal,
+          'delivery-cancel-integration-1'
+        )
+        const cancellationReplay = await service.cancelDelivery(
+          cancellableDeliveryId,
+          cancellationCommand,
+          principal,
+          'delivery-cancel-integration-1'
+        )
+        expect(cancellationFirst).toEqual(cancellationReplay)
+        expect(cancellationFirst).toMatchObject({
+          deliveryScheduleId: cancellableDeliveryId,
+          tenantId,
+          action: 'cancel_delivery',
+          fromStatus: 'scheduled',
+          status: 'cancelled',
+          cancellationReason: 'Supplier could not confirm date',
+        })
+
+        await expect(
+          service.cancelDelivery(
+            cancellableDeliveryId,
+            { reason: 'different reason' },
+            principal,
+            'delivery-cancel-integration-1'
+          )
+        ).rejects.toThrow('Idempotency key was already used')
+
+        const [cancelledSchedule] = await transaction
+          .select({
+            status: deliverySchedules.status,
+            cancelledBy: deliverySchedules.cancelled_by,
+            cancelledAt: deliverySchedules.cancelled_at,
+            cancellationReason: deliverySchedules.cancellation_reason,
+          })
+          .from(deliverySchedules)
+          .where(
+            and(
+              eq(deliverySchedules.tenant_id, tenantId),
+              eq(deliverySchedules.id, cancellableDeliveryId)
+            )
+          )
+        expect(cancelledSchedule).toMatchObject({
+          status: 'cancelled',
+          cancelledBy: procurementId,
+          cancellationReason: 'Supplier could not confirm date',
+        })
+        expect(cancelledSchedule?.cancelledAt).toBeInstanceOf(Date)
+
+        const [cancellationRequest] = await transaction
+          .select({
+            state: deliveryWorkflowRequests.state,
+            result: deliveryWorkflowRequests.result,
+            action: deliveryWorkflowRequests.action,
+          })
+          .from(deliveryWorkflowRequests)
+          .where(
+            and(
+              eq(deliveryWorkflowRequests.tenant_id, tenantId),
+              eq(
+                deliveryWorkflowRequests.idempotency_key,
+                'delivery-cancel-integration-1'
+              )
+            )
+          )
+        expect(cancellationRequest).toEqual({
+          state: 'succeeded',
+          result: cancellationFirst,
+          action: 'cancel_delivery',
+        })
+
+        const cancellationAuditRows = await transaction
+          .select({ action: auditLog.action, diff: auditLog.diff })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantId),
+              eq(auditLog.entity_type, 'delivery_schedule'),
+              eq(auditLog.entity_id, cancellableDeliveryId)
+            )
+          )
+        expect(
+          cancellationAuditRows.some(
+            (row) =>
+              row.action === 'status_change' &&
+              (row.diff as { from?: string; to?: string }).from ===
+                'scheduled' &&
+              (row.diff as { from?: string; to?: string }).to === 'cancelled'
+          )
+        ).toBe(true)
+
         await expect(
           service.recordReceipt(
             otherDeliveryId,
@@ -571,6 +678,27 @@ suite('Delivery receipt workflow database integration', () => {
               email: `viewer-${suffix}@integration.test`,
             },
             'delivery-inspection-complete-viewer-1'
+          )
+        ).rejects.toThrow()
+        await expect(
+          service.cancelDelivery(
+            otherDeliveryId,
+            { reason: 'Cross-tenant attempt' },
+            principal,
+            'delivery-cancel-cross-tenant-1'
+          )
+        ).rejects.toThrow('Delivery not found')
+        await expect(
+          service.cancelDelivery(
+            cancellableDeliveryId,
+            { reason: 'Viewer attempt' },
+            {
+              ...principal,
+              userId: viewerId,
+              role: 'viewer',
+              email: `viewer-${suffix}@integration.test`,
+            },
+            'delivery-cancel-viewer-1'
           )
         ).rejects.toThrow()
         throw ROLLBACK

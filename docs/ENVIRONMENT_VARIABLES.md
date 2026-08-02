@@ -177,6 +177,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_DELIVERY_INSPECTION_START_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for delivery inspection start; default empty |
 | `ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API` | no | Next server | Selects the delivery inspection-complete Next-to-Nest handoff; default false |
 | `ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for delivery inspection completion; default empty |
+| `ERP_DELIVERY_CANCEL_WRITES_VIA_API` | no | Next server | Selects the delivery cancellation Next-to-Nest handoff; default false |
+| `ERP_DELIVERY_CANCEL_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for delivery cancellation; default empty |
 | `ERP_PO_BOM_CREATE_WRITES_VIA_API` | no | Next server | Selects the BOM-to-Purchase-Order Next-to-Nest handoff; default false |
 | `ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for BOM-to-Purchase-Order creation; default empty |
 | `ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API` | no | Next server | Selects the grouped BOM-to-Purchase-Order Next-to-Nest handoff; default false |
@@ -194,6 +196,12 @@ The API-side delivery inspection-completion controls are
 `ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_ENABLED` and
 `ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_TENANT_IDS`; both default to
 false/empty.
+
+The API-side delivery cancellation controls are
+`ERP_DELIVERY_CANCEL_WRITES_ENABLED` and
+`ERP_DELIVERY_CANCEL_WRITES_TENANT_IDS`; both default to false/empty. The
+Next-side selector uses the corresponding `..._VIA_API` flag and UUID
+allowlist.
 
 `PARSER_SHARED_SECRET` must be at least 20 characters when the private bridge
 is activated. Missing URL, secret, service-role key, or matching allowlists
