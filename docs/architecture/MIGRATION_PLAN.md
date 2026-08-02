@@ -1538,3 +1538,8 @@ Release boundary: no hosted SQL or provider deployment. Supabase remains at
 is 1 group / 12 records and the owner still must provide
 `AUDIT_RECOVERY_TENANT_ID`. Railway/Vercel readiness are healthy, but this
 planner state keeps every inventory write gate and provider action closed.
+
+Source/CI evidence: commit `6121740ea2a3db189e7cc1c5e83f970db73f6b74` is
+pushed under `kurtgav`; CI run `30740581304` passed all executable jobs. The
+next gate is read-only hosted planner revalidation, not migration application
+or provider deployment.

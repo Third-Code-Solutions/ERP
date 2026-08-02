@@ -2068,3 +2068,9 @@ provider, flag, queue, or business-data mutation occurred.
   database/Redis `ok`; Vercel `/api/ready` is HTTP 200 at revision
   `31c04942a93d`, and the landing root is HTTP 200. No feature flag, queue,
   provider setting, business row, or deployment changed.
+
+Source/CI evidence: commit `6121740ea2a3db189e7cc1c5e83f970db73f6b74` is
+pushed to `origin/agent-02/third-code-erp-landing` under `kurtgav`. CI run
+`30740581304` passed every executable job, including the 67-migration
+PostgreSQL 17/Redis reproducibility lane and production build; E2E remains
+credential-gated. This is source-ready, not a hosted release.
