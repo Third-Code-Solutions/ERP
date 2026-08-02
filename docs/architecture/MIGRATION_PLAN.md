@@ -1729,3 +1729,37 @@ not apply `20260802170000_delivery_inspection_complete_workflow.sql`, deploy
 Railway or Vercel, or reconnect Vercel Git until hosted planner, duplicate-data
 mapping, audit-recovery tenant, readiness, exact SHA, rollback, and
 spend-bounded provider gates clear.
+
+## M3.16 - Delivery cancellation authority (completed source slice)
+
+1. Extend the existing `delivery_workflow_action` enum with
+   `cancel_delivery`; add nullable cancellation timestamp, actor, and bounded
+   reason columns on `delivery_schedules` with a tenant composite foreign key.
+2. Add the closed-by-default Nest cancellation command. Recheck membership and
+   `delivery.receive`, preflight tenant visibility, claim the existing
+   idempotency ledger, lock a cancellable schedule, transition it to
+   `cancelled`, persist the exact replay result, and write semantic audit in
+   one transaction.
+3. Route the existing delivery action through Nest only for exact-`true` plus
+   UUID-allowlisted tenants. Keep one opaque retry key and fail closed after a
+   selected core error; preserve visible delivery UI and legacy behavior for
+   unselected tenants.
+4. Prove strict contracts, replay/conflict behavior, RBAC, tenant isolation,
+   terminal evidence, audit, and migration reproducibility before any canary.
+
+Evidence: source `e8d4a6c181358756879435a76e8bd5a9317cc751` is pushed under
+`kurtgav`. Local shared/database/API/Web suites, typecheck, lint, Nest/Next
+builds, release-plan tests, Actionlint, Gitleaks, and diff checks passed. The
+guarded PostgreSQL/Redis integration was explicitly invoked but skipped
+without its required environment. GitHub run `30749461755` failed before
+executable steps because of the external account payment/spending-limit gate.
+
+Release gate: keep
+`ERP_DELIVERY_CANCEL_WRITES_ENABLED`,
+`ERP_DELIVERY_CANCEL_WRITES_TENANT_IDS`,
+`ERP_DELIVERY_CANCEL_WRITES_VIA_API`, and
+`ERP_DELIVERY_CANCEL_WRITES_VIA_API_TENANT_IDS` false/empty. Do not apply
+`20260802180000_delivery_cancel_workflow.sql`, deploy Railway or Vercel, or
+reconnect Vercel Git until hosted planner, duplicate-data mapping,
+audit-recovery tenant, readiness, exact SHA, rollback, integration, and
+spend-bounded provider gates clear.

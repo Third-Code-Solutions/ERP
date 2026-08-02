@@ -2294,3 +2294,35 @@ credential-gated. This is source-ready, not a hosted release.
   ledger are absent. No hosted SQL, business-data repair, feature-flag
   enablement, Railway deployment, Vercel deployment, or provider-setting
   change occurred.
+
+## 2026-08-02 M3.16 delivery cancellation authority
+
+- Added the strict cancellation command/result contract and migration
+  `20260802180000_delivery_cancel_workflow.sql`. The existing tenant-scoped
+  `delivery_workflow_action` enum now includes `cancel_delivery`; delivery
+  schedules gain nullable cancellation timestamp, actor, and bounded reason
+  evidence with a composite tenant foreign key.
+- Added Nest `POST
+  /v1/procurement/deliveries/:deliveryScheduleId/cancel`. The closed command
+  rechecks same-tenant membership and the existing `delivery.receive`
+  capability, claims the existing idempotency ledger, locks a cancellable
+  schedule, transitions it to `cancelled`, stores exact replay data, and
+  writes semantic audit in one PostgreSQL transaction. Selected core failures
+  never fall back to the direct writer.
+- The existing delivery action remains the compatibility adapter. Exact
+  `true` plus UUID allowlists select Nest; all cancellation flags remain
+  false/empty. Visible delivery UI and design are unchanged.
+- Local evidence: shared 11 files / 135 tests; database 27 files / 136
+  passed with 137 environment-gated assertions skipped; API 34 files / 191
+  serial tests; Web 59 files / 383 tests. Typecheck, lint, Nest/Web builds,
+  release-plan tests, Actionlint, Gitleaks, and diff checks passed. The guarded
+  delivery database integration was explicitly invoked and skipped without
+  `DATABASE_URL` plus `ERP_API_INTEGRATION_EXPECTED=1`.
+- Source commit `e8d4a6c181358756879435a76e8bd5a9317cc751` is pushed under
+  `kurtgav`. GitHub CI run `30749461755` failed before executable steps because
+  recent account payments failed or the spending limit must be increased; all
+  other jobs were skipped. It is not executable source evidence.
+- Hosted state remains unchanged: Supabase is ACTIVE_HEALTHY PostgreSQL 17.6
+  with 55 applied / 72 source migrations; cancellation columns and enum value
+  are not hosted. No hosted SQL, demo-data repair, feature-flag enablement,
+  Railway deployment, Vercel deployment, or provider-setting change occurred.

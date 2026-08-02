@@ -4510,6 +4510,64 @@ Supabase/Railway/Vercel planner. Only a clear planner plus explicit
 spend-bounded provider approval can authorize one hosted migration and one
 production action.
 
+## 2026-08-02 - M3.16 delivery cancellation authority
+
+Implemented the next smallest procurement slice: delivery cancellation now has
+a strict shared command/result contract, a NestJS route, and an atomic
+PostgreSQL authority path behind closed-by-default tenant gates. The existing
+delivery action remains the compatibility adapter for unselected tenants;
+selected core failures fail closed. One opaque idempotency key is reused for
+exact replay, and the transaction locks membership, schedule, and workflow
+ledger before committing cancellation evidence, semantic audit, and replay.
+
+Changed source:
+
+- Added `cancel_delivery` to the delivery workflow enum and migration
+  `20260802180000_delivery_cancel_workflow.sql`, including nullable
+  `cancelled_at`, `cancelled_by`, `cancellation_reason`, and the tenant
+  composite foreign key.
+- Added the Nest cancellation pipe/controller/service/module wiring, strict
+  config gates, request observability label, and unit/integration coverage.
+- Added the Next core client/selector and fail-closed Server Action seam. The
+  existing panel now supplies one stable opaque cancel retry key; visible UI,
+  copy, layout, and design remain unchanged.
+- Added shared/database migration contracts and environment documentation.
+
+Validation:
+
+- Shared: 11 files / 135 tests passed.
+- Database: 27 files / 136 passed; 137 assertions skipped by three explicit
+  environment-gated suites.
+- API: 34 files / 191 serial tests passed. Web: 59 files / 383 tests passed.
+- Workspace typecheck/lint, Nest and Next production builds (78 routes),
+  release-plan tests, Actionlint, Gitleaks, and `git diff --check` passed.
+- The guarded delivery database integration was explicitly invoked and
+  skipped because `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` were not
+  supplied.
+
+Release boundary and unresolved risk:
+
+- Commit `e8d4a6c181358756879435a76e8bd5a9317cc751` is pushed to
+  `origin/agent-02/third-code-erp-landing` as `kurtgav`.
+- GitHub CI run `30749461755` failed before any executable step because recent
+  account payments failed or the spending limit must be increased; every other
+  job was skipped. It is not source-test evidence.
+- No Supabase SQL, hosted rows, feature flag, queue, provider setting,
+  Railway deployment, Vercel deployment, or Vercel Git connection changed.
+  Source now has 72 migrations; hosted Supabase remains at 55. The duplicate
+  Purchase Order and audit-recovery blockers remain unresolved.
+- Keep all delivery cancellation, inspection, receipt, and finance-reversal
+  flags false/empty. Do not apply migration 72 or trigger Railway/Vercel while
+  the hosted planner, exact SHA, rollback, integration, and spend gates are not
+  clear.
+
+Exact next action: obtain the owner-approved duplicate Purchase Order mapping
+and canonical `AUDIT_RECOVERY_TENANT_ID`, restore GitHub Actions billing
+authorization, provide the disposable Postgres/Redis environment, then rerun
+the exact-SHA CI/database lane and read-only Supabase/Railway/Vercel planner.
+Only a clear planner plus explicit spend-bounded provider approval can
+authorize one timestamp-ordered hosted migration and one production action.
+
 ## 2026-08-02 — M3.15 delivery inspection completion authority
 
 Implemented the smallest follow-on procurement slice: inspection completion
