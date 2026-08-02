@@ -176,4 +176,28 @@ describe('RequestObservabilityMiddleware', () => {
     })
     expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
   })
+
+  it('labels finance journal posts without logging journal identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/journals/:journalEntryId/post' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.journal_post',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
 })

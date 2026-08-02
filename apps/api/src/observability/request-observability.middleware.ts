@@ -96,6 +96,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     ) {
       return 'document.processing_enqueue'
     }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/journals/:journalEntryId/post')
+    ) {
+      return 'finance.journal_post'
+    }
     return 'unknown.command'
   }
 

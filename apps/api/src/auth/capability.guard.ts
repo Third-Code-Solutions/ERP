@@ -24,6 +24,7 @@ export const ERP_CAPABILITIES = [
   'document.manage',
   'document.process',
   'document.processing.read',
+  'finance.post',
 ] as const
 export type ErpCapability = (typeof ERP_CAPABILITIES)[number]
 
@@ -82,6 +83,7 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'pm',
     'sales',
   ],
+  'finance.post': ['owner', 'admin', 'finance'],
 }
 
 export function roleHasCapability(
