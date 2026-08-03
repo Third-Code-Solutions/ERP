@@ -26,6 +26,7 @@ export function InvoiceStatusActions({
   const router = useRouter()
   const issueRetryKey = useRef<string | null>(null)
   const reverseRetryKey = useRef<string | null>(null)
+  const cancelRetryKey = useRef<string | null>(null)
 
   const isDraft = currentStatus === 'draft'
   const isReversible = ['issued', 'overdue', 'partial_payment'].includes(
@@ -53,7 +54,10 @@ export function InvoiceStatusActions({
     if (!window.confirm('Cancel this unposted draft invoice?')) return
     setMessage(null)
     startTransition(async () => {
-      const result = await cancelDraftInvoice(invoiceId)
+      const result = await cancelDraftInvoice(
+        invoiceId,
+        (cancelRetryKey.current ??= globalThis.crypto.randomUUID())
+      )
       if (!result.ok) {
         setMessage(result.error ?? 'Invoice cancellation failed.')
         return

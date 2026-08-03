@@ -9,8 +9,10 @@ import { z } from 'zod'
 import {
   financeCustomerInvoiceIssueWritesUseCoreApi,
   financeCustomerInvoiceReverseWritesUseCoreApi,
+  financeCustomerInvoiceCancelWritesUseCoreApi,
   issueCustomerInvoiceThroughCoreApi,
   reverseCustomerInvoiceThroughCoreApi,
+  cancelCustomerInvoiceThroughCoreApi,
 } from '../../../lib/erp-core-client'
 
 export interface InvoiceActionResult {
@@ -51,6 +53,9 @@ function safeInvoiceError(error: unknown): string {
     'Customer invoice was not found',
     'Customer invoice was not reversed',
     'ERP Core API is unavailable. No customer invoice reversal was committed.',
+    'Customer invoice cancellation conflicts with its current state',
+    'Customer invoice was not cancelled',
+    'ERP Core API is unavailable. No customer invoice cancellation was committed.',
   ]
 
   return (
@@ -147,7 +152,8 @@ export async function issueCustomerInvoice(input: {
 }
 
 export async function cancelDraftInvoice(
-  invoiceId: string
+  invoiceId: string,
+  idempotencyKey?: string
 ): Promise<InvoiceActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -155,6 +161,30 @@ export async function cancelDraftInvoice(
     const parsedId = z.string().uuid().parse(invoiceId)
     const invoice = await requireTenantInvoice(parsedId, profile.tenantId)
     if (!invoice) return { ok: false, error: 'Invoice not found' }
+
+    if (financeCustomerInvoiceCancelWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for customer invoice cancellation.',
+        }
+      }
+      const coreResult = await cancelCustomerInvoiceThroughCoreApi(
+        parsedId,
+        {},
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Customer invoice was not cancelled. No financial posting was committed.',
+        }
+      }
+      revalidateInvoice(parsedId)
+      return { ok: true }
+    }
 
     await db.execute(sql`
       select public.cancel_customer_invoice(

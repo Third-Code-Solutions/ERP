@@ -4,6 +4,31 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.24 - Customer invoice cancellation authority (local source complete)
+
+Local source adds strict customer-invoice cancellation contracts,
+`20260803110000_customer_invoice_cancel_workflow.sql`, and the closed-by-
+default NestJS route
+`POST /v1/finance/customer-invoices/:invoiceId/cancel`. NestJS rechecks
+`finance.issue_invoice`, locks tenant membership and the invoice, claims a
+tenant-scoped idempotency record, reuses the existing
+`cancel_customer_invoice` PostgreSQL function, persists a strict cancelled
+result, and writes semantic audit atomically. Next.js remains a compatibility
+adapter with one stable retry key; selected Core failures never fall back to a
+second write. Visible invoice UI and copy remain unchanged.
+
+Validation: shared-types 147/147, database 152/152 with guarded integration
+skips, API source 240/240, Web 418/418, all package typechecks and lint, API
+build, Next build 78/78 routes, release-plan checks, workflow reference
+checks, and diff checks passed. Guarded PostgreSQL/Redis integration was not
+run without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
+
+Keep all customer-invoice cancellation controls false/empty. Source now has
+80 migrations and Supabase remains at 55 applied; do not apply this migration
+alone. GitHub publication, Railway identity, duplicate-PO remediation,
+audit-recovery approval, rollback, and spend gates still block hosted
+promotion.
+
 ## M3.23 - Customer invoice reversal authority (local source complete)
 
 Local source adds strict customer-invoice reversal contracts,

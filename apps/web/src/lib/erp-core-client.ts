@@ -20,6 +20,7 @@ import {
   cashTransactionReverseResultSchema,
   customerInvoiceIssueResultSchema,
   customerInvoiceReverseResultSchema,
+  customerInvoiceCancelResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
   stockReceiptCreationResultSchema,
@@ -66,6 +67,8 @@ import {
   type CustomerInvoiceIssueResult,
   type CustomerInvoiceReverseBody,
   type CustomerInvoiceReverseResult,
+  type CustomerInvoiceCancelBody,
+  type CustomerInvoiceCancelResult,
   type DocumentProcessingAccepted,
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
@@ -286,6 +289,16 @@ export function financeCustomerInvoiceReverseWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_VIA_API,
     process.env.ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function financeCustomerInvoiceCancelWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_VIA_API,
+    process.env.ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -2016,6 +2029,66 @@ export async function reverseCustomerInvoiceThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No customer invoice reversal was committed.',
+    }
+  }
+}
+
+export async function cancelCustomerInvoiceThroughCoreApi(
+  invoiceId: string,
+  command: CustomerInvoiceCancelBody,
+  idempotencyKey: string
+): Promise<CoreResult<CustomerInvoiceCancelResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/customer-invoices/${encodeURIComponent(
+        invoiceId
+      )}/cancel`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Customer invoice cancellation conflicts with its current state.'
+            : response.status === 404
+              ? 'Customer invoice was not found.'
+              : 'Customer invoice was not cancelled.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = customerInvoiceCancelResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid customer invoice cancellation result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No customer invoice cancellation was committed.',
     }
   }
 }
