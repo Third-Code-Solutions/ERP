@@ -26,11 +26,17 @@ Validation:
 - Database migration contract tests: 2/2; database typecheck passed.
 - API focused controller/config/observability/service tests: 62/62.
 - API typecheck passed; Nest production build passed.
+- Web full suite: 431/431; Web typecheck passed. Database-release, project-
+  cutover, audit-recovery, purchase-order-duplicate, and controlled-release
+  plan suites passed (7/7, 6/6, 4/4, 4/4, 4/4); workflow action references
+  passed.
 - `git diff --check` passed. Hosted Supabase remains 55/84 migrations; all
   supplier-confirmation controls remain false/empty. Commit `850eee5` is on
   both GitHub target branches; Railway deployment
   `3227b3a3-79e9-472f-9770-78f96faf636f` is `SUCCESS`, `/ready` is database and
   Redis `ok`, and the valid-format public confirmation probe returned `503`.
+- The serialized full API runner remains unclaimed because its prior run
+  exceeded the execution ceiling before returning a result.
 
 ## 2026-08-03 - Capability baseline and M3.28 scope
 
