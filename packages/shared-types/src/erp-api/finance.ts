@@ -95,3 +95,38 @@ export type SupplierBillPostCommand = z.infer<
 export type SupplierBillPostResult = z.infer<
   typeof supplierBillPostResultSchema
 >
+
+export const supplierBillReverseBodySchema = z
+  .object({
+    reason: z.string().trim().min(3).max(500),
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const supplierBillReverseCommandSchema = z
+  .object({
+    supplierBillId: z.string().uuid(),
+    reason: z.string().trim().min(3).max(500),
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const supplierBillReverseResultSchema = z
+  .object({
+    supplierBillId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('reversed'),
+    reversalJournalEntryId: z.string().uuid(),
+    reversalJournalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
+  })
+  .strict()
+
+export type SupplierBillReverseBody = z.infer<
+  typeof supplierBillReverseBodySchema
+>
+export type SupplierBillReverseCommand = z.infer<
+  typeof supplierBillReverseCommandSchema
+>
+export type SupplierBillReverseResult = z.infer<
+  typeof supplierBillReverseResultSchema
+>
