@@ -19,8 +19,9 @@ existing Server Actions and visible UI/copy contract, selects Core only for an
 exact flag plus UUID tenant allowlist, uses stable retry keys, and never falls
 back after a selected Core failure.
 
-The reviewed implementation is commit `8404d20`; source publication is a
-separate fast-forward action.
+The reviewed implementation is commit `8404d20`. It is published with the
+checkpoint docs as `30f0a31`; both `main` and
+`agent-02/third-code-erp-landing` now point to that fast-forward source.
 
 The source migration is
 `20260803120000_cash_transaction_draft_workflow.sql`; it is not applied to

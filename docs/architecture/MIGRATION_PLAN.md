@@ -17,8 +17,10 @@ UUIDs. Next.js remains a compatibility adapter with stable retry keys; a
 selected Core failure never falls back to a direct database write. Visible
 cash UI and copy remain unchanged.
 
-The implementation is commit `8404d20`; publication is a separate
-fast-forward action. All cash-draft controls remain false/empty. Source now has 81
+The implementation is commit `8404d20`, published with the checkpoint docs as
+`30f0a31` by fast-forward. Both `main` and
+`agent-02/third-code-erp-landing` point to that source. All cash-draft controls
+remain false/empty. Source now has 81
 migrations and Supabase remains at 55 applied; do not apply this migration
 alone. Reconcile the complete 26-migration suffix only after duplicate-PO
 mapping, canonical audit-recovery tenant approval, guarded Postgres/Redis

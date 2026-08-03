@@ -1,5 +1,14 @@
 # Work Log
 
+## 2026-08-03 - M3.25 reviewed source publication checkpoint
+
+Published the reviewed cash-draft source and checkpoint docs to
+`Third-Code-Solutions/ERP` as `30f0a31` under `kurtgav
+<kurtgavin.design@gmail.com>`. Both `main` and
+`agent-02/third-code-erp-landing` were fast-forwarded from `31c4ae0`; no
+force push, alternate account, Supabase SQL, Railway release, Vercel
+deployment, feature flag, provider setting, or hosted data changed.
+
 ## 2026-08-03 - M3.25 cash draft mutation authority
 
 Completed the local source milestone. No hosted mutation or provider action
