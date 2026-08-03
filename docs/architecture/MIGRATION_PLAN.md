@@ -29,7 +29,10 @@ Validation: shared 152/152, database 156/156 with guarded integration skips,
 focused API 56/56, Web 425/425, package typechecks/lint, Nest build, Next
 build 78/78 routes, and diff checks passed. The serialized full API runner
 exceeded the execution ceiling before returning a result and is not claimed
-green. No hosted SQL or deployment occurred.
+green. Source checkpoint `5ad72ec` is published fast-forward to both target
+branches under `kurtgav <kurtgavin.design@gmail.com>`. No hosted SQL or
+deployment occurred; Railway CLI identity is verified, but project/service/
+environment readiness is not yet verified.
 
 ## M3.25 - Cash draft mutation authority (local source complete)
 

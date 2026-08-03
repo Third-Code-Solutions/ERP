@@ -18,6 +18,11 @@ replay prevents cross-tenant deletion, duplicate retries, loss of processing
 history, and unaudited mutation while preserving the existing UI and safe
 legacy path for unselected tenants.
 
+Publication note: source checkpoint `5ad72ec` is published to both target
+branches under `kurtgav <kurtgavin.design@gmail.com>`. This does not authorize
+hosted migration or deployment; the ordered migration, data, rollback, and
+provider readiness gates remain mandatory.
+
 ## D-133 - Route cash draft mutations through Core with durable replay (2026-08-03)
 
 Decision: add closed-by-default NestJS commands for cash draft create/update

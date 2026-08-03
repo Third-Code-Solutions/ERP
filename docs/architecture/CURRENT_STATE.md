@@ -23,6 +23,14 @@ Supabase. Source now has 82 migrations versus 55 hosted (27 pending). Both
 document-delete API controls remain false/empty. No Supabase SQL, provider
 setting, Railway release, Vercel deployment, or hosted data changed.
 
+Source checkpoint `5ad72ec` is fast-forwarded to
+`Third-Code-Solutions/ERP` branches `main` and
+`agent-02/third-code-erp-landing` under verified `kurtgav
+<kurtgavin.design@gmail.com>` credentials. Railway CLI is now
+re-authenticated as that account; exact project/service/environment linkage
+and release readiness remain unverified. Vercel Git deployment remains
+disabled, so no paid build was triggered.
+
 Validation: shared full suite 152/152, database full suite 156/156 with 137
 guarded tests skipped without `DATABASE_URL`, focused API document/config/
 observability contracts 56/56, Web full suite 425/425, package typechecks and
