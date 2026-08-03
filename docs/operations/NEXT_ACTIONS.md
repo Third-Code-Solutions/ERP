@@ -22,7 +22,7 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 
 Current published source head: `9c200ccca0526d105ce7682b62e7b5047e2eb44a` on
 both remote tracking refs, authored by `kurtgav`. Local reviewed head is
-`f5bb58e` (M3.21 cash workflow authority plus release docs),
+`41ec634` (M3.21 cash workflow authority plus release docs),
 but the requested GitHub target currently returns 404 to the connected
 `kurtgav` account, so it is not published. The prior M3.20 implementation is
 `806860e49479a085f762fabaab25696cb9b854a1`; the prior M3.19
