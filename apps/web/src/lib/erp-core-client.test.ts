@@ -43,9 +43,12 @@ import {
   financeJournalReverseWritesUseCoreApi,
   financeSupplierBillPostWritesUseCoreApi,
   financeSupplierBillReverseWritesUseCoreApi,
+  financeCashWorkflowWritesUseCoreApi,
   postJournalEntryThroughCoreApi,
   postSupplierBillThroughCoreApi,
   reverseSupplierBillThroughCoreApi,
+  postCashTransactionThroughCoreApi,
+  reverseCashTransactionThroughCoreApi,
   reverseJournalEntryThroughCoreApi,
   documentProcessingJobsUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
@@ -192,6 +195,21 @@ const SUPPLIER_BILL_REVERSE_RESULT = {
   status: 'reversed' as const,
   reversalJournalEntryId: '88888888-8888-4888-8888-888888888888',
   reversalJournalEntryNumber: 'JE-2026-000011',
+}
+const CASH_POST_RESULT = {
+  cashTransactionId: SUPPLIER_BILL_POST_RESULT.supplierBillId,
+  tenantId: SUPPLIER_BILL_POST_RESULT.tenantId,
+  status: 'posted' as const,
+  cashTransactionNumber: 'CT-2026-000001',
+  journalEntryId: JOURNAL_POST_RESULT.journalEntryId,
+  journalEntryNumber: 'JE-2026-000012',
+}
+const CASH_REVERSE_RESULT = {
+  cashTransactionId: CASH_POST_RESULT.cashTransactionId,
+  tenantId: CASH_POST_RESULT.tenantId,
+  status: 'reversed' as const,
+  reversalJournalEntryId: '88888888-8888-4888-8888-888888888888',
+  reversalJournalEntryNumber: 'JE-2026-000013',
 }
 const JOURNAL_REVERSE_RESULT = {
   journalEntryId: JOURNAL_POST_RESULT.journalEntryId,
@@ -926,6 +944,84 @@ describe('ERP Core client', () => {
     )
     expect(financeSupplierBillReverseWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(financeSupplierBillReverseWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps cash posting and reversal delegation fail-closed unless one exact gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeCashWorkflowWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API', 'TRUE')
+    expect(financeCashWorkflowWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(financeCashWorkflowWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(financeCashWorkflowWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('sends an idempotent cash posting command and validates the result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(CASH_POST_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      postCashTransactionThroughCoreApi(
+        CASH_POST_RESULT.cashTransactionId,
+        { postingDate: '2026-08-02' },
+        'cash-post-1'
+      )
+    ).resolves.toEqual({ ok: true, data: CASH_POST_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/finance/cash-transactions/${CASH_POST_RESULT.cashTransactionId}/post`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ postingDate: '2026-08-02' }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'cash-post-1',
+        }),
+      })
+    )
+  })
+
+  it('sends an idempotent cash reversal command and validates the result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(CASH_REVERSE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      reverseCashTransactionThroughCoreApi(
+        CASH_REVERSE_RESULT.cashTransactionId,
+        { reason: 'Bank returned transfer', postingDate: '2026-08-03' },
+        'cash-reverse-1'
+      )
+    ).resolves.toEqual({ ok: true, data: CASH_REVERSE_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/finance/cash-transactions/${CASH_REVERSE_RESULT.cashTransactionId}/reverse`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          reason: 'Bank returned transfer',
+          postingDate: '2026-08-03',
+        }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'cash-reverse-1',
+        }),
+      })
+    )
   })
 
   it('keeps document processing delegation fail-closed unless its exact gate matches', () => {

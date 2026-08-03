@@ -199,6 +199,16 @@ export const supplierBillReverseRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const cashTransactionWorkflowActionEnum = pgEnum(
+  'cash_transaction_workflow_action',
+  ['post', 'reverse']
+)
+
+export const cashTransactionWorkflowRequestStateEnum = pgEnum(
+  'cash_transaction_workflow_request_state',
+  ['processing', 'succeeded']
+)
+
 export const stockReceiptWorkflowActionEnum = pgEnum(
   'stock_receipt_workflow_action',
   ['post', 'reverse']

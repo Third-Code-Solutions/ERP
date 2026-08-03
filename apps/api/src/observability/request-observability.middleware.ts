@@ -123,6 +123,22 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     if (
       request.method === 'POST' &&
       routePath.endsWith(
+        '/v1/finance/cash-transactions/:cashTransactionId/post'
+      )
+    ) {
+      return 'finance.cash_transaction_post'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/finance/cash-transactions/:cashTransactionId/reverse'
+      )
+    ) {
+      return 'finance.cash_transaction_reverse'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
         '/v1/procurement/deliveries/:deliveryScheduleId/site-preparation/start'
       )
     ) {

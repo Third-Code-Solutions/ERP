@@ -130,3 +130,72 @@ export type SupplierBillReverseCommand = z.infer<
 export type SupplierBillReverseResult = z.infer<
   typeof supplierBillReverseResultSchema
 >
+
+export const cashTransactionPostCommandSchema = z
+  .object({
+    cashTransactionId: z.string().uuid(),
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const cashTransactionPostBodySchema = z
+  .object({
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const cashTransactionPostResultSchema = z
+  .object({
+    cashTransactionId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('posted'),
+    cashTransactionNumber: z.string().regex(/^CT-\d{4}-\d{6}$/),
+    journalEntryId: z.string().uuid(),
+    journalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
+  })
+  .strict()
+
+export type CashTransactionPostCommand = z.infer<
+  typeof cashTransactionPostCommandSchema
+>
+export type CashTransactionPostBody = z.infer<
+  typeof cashTransactionPostBodySchema
+>
+export type CashTransactionPostResult = z.infer<
+  typeof cashTransactionPostResultSchema
+>
+
+export const cashTransactionReverseBodySchema = z
+  .object({
+    reason: z.string().trim().min(3).max(500),
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const cashTransactionReverseCommandSchema = z
+  .object({
+    cashTransactionId: z.string().uuid(),
+    reason: z.string().trim().min(3).max(500),
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const cashTransactionReverseResultSchema = z
+  .object({
+    cashTransactionId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('reversed'),
+    reversalJournalEntryId: z.string().uuid(),
+    reversalJournalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
+  })
+  .strict()
+
+export type CashTransactionReverseBody = z.infer<
+  typeof cashTransactionReverseBodySchema
+>
+export type CashTransactionReverseCommand = z.infer<
+  typeof cashTransactionReverseCommandSchema
+>
+export type CashTransactionReverseResult = z.infer<
+  typeof cashTransactionReverseResultSchema
+>
