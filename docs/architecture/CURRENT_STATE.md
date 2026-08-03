@@ -4,6 +4,35 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.26 source update (2026-08-03)
+
+Local reviewed source now adds a closed-by-default NestJS document deletion
+authority at `DELETE /v1/documents/:documentId`. The route accepts a strict
+empty body, requires `document.manage`, rechecks the locked tenant membership,
+claims a tenant-scoped durable idempotency record, blocks deletion when
+document-processing history exists, removes document-derived scope rows and
+the document in one PostgreSQL transaction, and writes semantic audit. The
+replay result retains the deleted document UUID, project, and Storage path so a
+retry never performs a second delete. Next.js remains a compatibility adapter
+with a stable browser retry key; a selected Core failure never falls back to a
+direct database mutation. Storage cleanup remains best-effort after commit.
+
+The local migration is
+`20260803130000_document_delete_workflow.sql`; it is not applied to hosted
+Supabase. Source now has 82 migrations versus 55 hosted (27 pending). Both
+document-delete API controls remain false/empty. No Supabase SQL, provider
+setting, Railway release, Vercel deployment, or hosted data changed.
+
+Validation: shared full suite 152/152, database full suite 156/156 with 137
+guarded tests skipped without `DATABASE_URL`, focused API document/config/
+observability contracts 56/56, Web full suite 425/425, package typechecks and
+lint, Nest build, Next production build with 78/78 generated routes, and
+`git diff --check` passed. A serialized full API runner exceeded the 240-second
+execution ceiling before returning a result; no new assertion failure was
+reported, so the full API suite is not claimed green for this milestone.
+Audit-hash verification remains blocked without `DATABASE_URL` and the
+owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+
 ## M3.25 source update (2026-08-03)
 
 Local reviewed source now adds a closed-by-default NestJS authority for cash

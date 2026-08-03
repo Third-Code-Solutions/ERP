@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   storageFrom: vi.fn(),
   remove: vi.fn(),
   revalidatePath: vi.fn(),
+  documentDeleteWritesUseCoreApi: vi.fn(),
+  deleteDocumentThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
@@ -46,6 +48,11 @@ vi.mock('@/lib/audit', () => ({
   writeAuditLogInTransaction: mocks.writeAuditLogInTransaction,
 }))
 
+vi.mock('@/lib/erp-core-client', () => ({
+  documentDeleteWritesUseCoreApi: mocks.documentDeleteWritesUseCoreApi,
+  deleteDocumentThroughCoreApi: mocks.deleteDocumentThroughCoreApi,
+}))
+
 import { deleteDocument } from './actions'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
@@ -68,6 +75,7 @@ describe('deleteDocument authority and integrity', () => {
     vi.clearAllMocks()
     mocks.getUser.mockResolvedValue({ id: USER_ID })
     mocks.can.mockReturnValue(true)
+    mocks.documentDeleteWritesUseCoreApi.mockReturnValue(false)
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })
     mocks.where.mockResolvedValue([{ tenant_id: TENANT_ID, role: 'pm' }])
@@ -129,6 +137,52 @@ describe('deleteDocument authority and integrity', () => {
     expect(mocks.can).toHaveBeenCalledWith('pm', 'document.manage')
     expect(mocks.transaction).not.toHaveBeenCalled()
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('uses the Nest authority without falling back to a browser-side delete', async () => {
+    mocks.documentDeleteWritesUseCoreApi.mockReturnValue(true)
+    mocks.deleteDocumentThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        documentId: DOCUMENT_ID,
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        storagePath: `${TENANT_ID}/${PROJECT_ID}/drawing.dwg`,
+        status: 'deleted',
+        derivedScopeItemsRemoved: 1,
+      },
+    })
+
+    const form = requestForm()
+    form.set('idempotency_key', 'document-delete-test-key')
+    const result = await deleteDocument(form)
+
+    expect(result).toEqual({ ok: true })
+    expect(mocks.deleteDocumentThroughCoreApi).toHaveBeenCalledWith(
+      DOCUMENT_ID,
+      'document-delete-test-key'
+    )
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.remove).toHaveBeenCalledWith([
+      `${TENANT_ID}/${PROJECT_ID}/drawing.dwg`,
+    ])
+  })
+
+  it('fails closed when the Nest authority is unavailable', async () => {
+    mocks.documentDeleteWritesUseCoreApi.mockReturnValue(true)
+    mocks.deleteDocumentThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No document was deleted.',
+    })
+
+    const result = await deleteDocument(requestForm())
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'ERP Core API is unavailable. No document was deleted.',
+    })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
   })
 
   it('does not reveal or mutate a missing, cross-tenant, or mismatched-Project document', async () => {

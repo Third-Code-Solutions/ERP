@@ -1,5 +1,29 @@
 # Next Actions
 
+## Exact next action after local M3.26 document deletion slice
+
+1. Keep `ERP_DOCUMENT_DELETE_WRITES_ENABLED`,
+   `ERP_DOCUMENT_DELETE_WRITES_TENANT_IDS`,
+   `ERP_DOCUMENT_DELETE_WRITES_VIA_API`, and
+   `ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS` false/empty. Do not apply
+   `20260803130000_document_delete_workflow.sql` alone; reconcile the complete
+   ordered 27-migration suffix only after duplicate-PO mapping,
+   owner-approved `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
+   integration, rollback, provider identity, and spend gates clear.
+2. Re-authenticate Railway as `kurtgav`; do not deploy under the current
+   `joeseffdy@gmail.com` CLI identity. Keep Vercel Git disconnected and avoid
+   preview builds.
+3. After owner inputs and exact provider identity, rerun the read-only
+   Supabase planner, execute one disposable document delete/replay/
+   processing-history refusal/rollback proof, then review one spend-bounded
+   source publication and provider action.
+
+Source now has 82 migrations versus 55 hosted. No hosted mutation, feature
+flag change, Railway release, Vercel deployment, or paid build is authorized
+by the current evidence. The serialized full API runner timed out before
+returning a result; focused API and all Web gates are recorded in the work
+log.
+
 ## Exact next action after local M3.25 cash draft mutation slice
 
 1. Keep

@@ -4,6 +4,33 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.26 - Document deletion authority (local source complete)
+
+Local source adds strict document deletion contracts,
+`20260803130000_document_delete_workflow.sql`, and the closed-by-default
+NestJS route `DELETE /v1/documents/:documentId`. NestJS derives tenant and
+actor from a locked membership, rechecks `document.manage`, claims a durable
+tenant-scoped idempotency result, refuses documents with processing history,
+deletes derived scope rows and the document transactionally, and writes
+semantic audit. Next.js remains a compatibility adapter with a stable retry
+key and post-commit Storage cleanup; selected Core failures never fall through
+to a second write.
+
+The migration is source-only. Supabase remains at 55 applied migrations
+against 82 source migrations; do not apply this migration alone. Keep
+`ERP_DOCUMENT_DELETE_WRITES_ENABLED`,
+`ERP_DOCUMENT_DELETE_WRITES_TENANT_IDS`,
+`ERP_DOCUMENT_DELETE_WRITES_VIA_API`, and
+`ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS` false/empty until ordered hosted
+parity, disposable transaction/replay proof, rollback, duplicate-data,
+audit-chain, provider-identity, and spend gates clear.
+
+Validation: shared 152/152, database 156/156 with guarded integration skips,
+focused API 56/56, Web 425/425, package typechecks/lint, Nest build, Next
+build 78/78 routes, and diff checks passed. The serialized full API runner
+exceeded the execution ceiling before returning a result and is not claimed
+green. No hosted SQL or deployment occurred.
+
 ## M3.25 - Cash draft mutation authority (local source complete)
 
 Local source adds strict cash draft command/result contracts,

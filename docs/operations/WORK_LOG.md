@@ -1,5 +1,43 @@
 # Work Log
 
+## 2026-08-03 - M3.26 document deletion authority
+
+Completed the local source milestone. No hosted mutation or provider action
+was authorized.
+
+- Added strict document-delete command/result contracts and ordered migration
+  `20260803130000_document_delete_workflow.sql` with forced RLS, service-only
+  privileges, tenant idempotency, and replay evidence that survives deletion.
+- Added the closed-by-default NestJS document route with locked membership and
+  `document.manage` checks, processing-history protection, transactional
+  derived-scope/document deletion, semantic audit, and observability labeling.
+- Added the guarded Next adapter, stable browser retry key, terminal Core
+  failure behavior, Storage cleanup adapter, environment controls, and
+  contract tests. Existing UI layout/copy and unselected legacy behavior are
+  unchanged.
+
+Validation:
+
+- Shared-types full suite: 152/152.
+- Database full suite: 156/156; 137 guarded tests skipped without
+  `DATABASE_URL`.
+- Focused API document/config/observability contracts: 56/56.
+- Web full suite: 425/425.
+- Shared/database/API/Web typechecks and lint passed.
+- Nest build passed; Next production build passed with 78/78 routes after a
+  bounded retry with `NEXT_TELEMETRY_DISABLED=1` and `CI=1`.
+- `git diff --check` passed. A serialized full API runner exceeded the
+  240-second execution ceiling before returning a result, so no full API green
+  claim is made for this milestone.
+
+Hosted boundary: Supabase remains at 55 applied migrations against 82 source
+migrations (27 pending). Document-delete flags remain false/empty. Railway
+still resolves to `joeseffdy@gmail.com` in the CLI, Vercel Git deployment is
+disabled and no new Vercel deployment appeared, and no Supabase SQL, Railway
+release, Vercel deployment, provider setting, feature flag, or hosted data
+changed. Audit-hash verification remains blocked without the required
+Postgres and owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+
 ## 2026-08-03 - M3.25 reviewed source publication checkpoint
 
 Published the reviewed cash-draft source and checkpoint docs to

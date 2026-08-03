@@ -92,6 +92,13 @@ cancellation selector remains disabled until the ordered hosted migration set
 and the same disposable, rollback, data-integrity, audit, identity, and spend
 gates clear.
 
+Document deletion follows the same boundary: the Nest command owns tenant and
+capability authorization, processing-history protection, derived-row cleanup,
+durable replay, and semantic audit; Next.js only adapts the existing UI and
+performs best-effort Storage cleanup after commit. The deletion selector and
+API controls remain disabled until hosted parity and the full release gates
+clear.
+
 ## Delivery workflow authority slice
 
 The delivery state machine is migrated one transition at a time. M3.17 makes
