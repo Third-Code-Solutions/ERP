@@ -110,6 +110,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     }
     if (
       request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/supplier-bills/:supplierBillId/post')
+    ) {
+      return 'finance.supplier_bill_post'
+    }
+    if (
+      request.method === 'POST' &&
       routePath.endsWith(
         '/v1/procurement/deliveries/:deliveryScheduleId/site-preparation/start'
       )

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import {
   deleteSupplierBillDraft,
   postSupplierBill,
@@ -21,6 +21,7 @@ export function PayableActions({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [postingDate, setPostingDate] = useState(defaultDate)
+  const postIdempotencyKeyRef = useRef<string | null>(null)
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -87,14 +88,18 @@ export function PayableActions({
             onClick={() => {
               setError(null)
               startTransition(async () => {
+                if (!postIdempotencyKeyRef.current) {
+                  postIdempotencyKeyRef.current = globalThis.crypto.randomUUID()
+                }
                 const result = await postSupplierBill({
                   billId,
                   postingDate,
-                })
+                }, postIdempotencyKeyRef.current)
                 if (!result.ok) {
                   setError(result.error ?? 'Could not post supplier bill')
                   return
                 }
+                postIdempotencyKeyRef.current = null
                 router.refresh()
               })
             }}

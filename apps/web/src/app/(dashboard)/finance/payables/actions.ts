@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
@@ -11,6 +12,10 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import {
+  financeSupplierBillPostWritesUseCoreApi,
+  postSupplierBillThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 export interface SupplierBillActionResult {
   ok: boolean
@@ -440,7 +445,8 @@ export async function deleteSupplierBillDraft(
 }
 
 export async function postSupplierBill(
-  input: z.input<typeof postingSchema>
+  input: z.input<typeof postingSchema>,
+  idempotencyKey?: string
 ): Promise<SupplierBillActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -460,6 +466,31 @@ export async function postSupplierBill(
       )
       .limit(1)
     if (!bill) return { ok: false, error: 'Supplier bill not found' }
+
+    if (financeSupplierBillPostWritesUseCoreApi(profile.tenantId)) {
+      const coreResult = await postSupplierBillThroughCoreApi(
+        bill.id,
+        { postingDate: parsed.postingDate },
+        idempotencyKey?.trim() || randomUUID()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Supplier bill was not posted. No financial posting was committed.',
+        }
+      }
+
+      revalidateSupplierBill(bill.id, bill.purchaseOrderId)
+      return {
+        ok: true,
+        id: coreResult.data.supplierBillId,
+        number: coreResult.data.supplierBillNumber,
+        journalId: coreResult.data.journalEntryId,
+        journalNumber: coreResult.data.journalEntryNumber,
+      }
+    }
 
     const rows = await db.execute<{
       journal_entry_id: string

@@ -189,6 +189,11 @@ export const journalReverseRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const supplierBillPostRequestStateEnum = pgEnum(
+  'supplier_bill_post_request_state',
+  ['processing', 'succeeded']
+)
+
 export const stockReceiptWorkflowActionEnum = pgEnum(
   'stock_receipt_workflow_action',
   ['post', 'reverse']

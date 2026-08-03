@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
+  financeSupplierBillPostWritesUseCoreApi: vi.fn(),
+  postSupplierBillThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -24,6 +26,12 @@ vi.mock('@third-code-erp/database', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  financeSupplierBillPostWritesUseCoreApi:
+    mocks.financeSupplierBillPostWritesUseCoreApi,
+  postSupplierBillThroughCoreApi: mocks.postSupplierBillThroughCoreApi,
 }))
 
 import {
@@ -57,6 +65,7 @@ describe('supplier bill actions', () => {
     vi.clearAllMocks()
     mocks.requireUserProfile.mockResolvedValue(PROFILE)
     mocks.requireCapability.mockImplementation(() => undefined)
+    mocks.financeSupplierBillPostWritesUseCoreApi.mockReturnValue(false)
   })
 
   it('checks the payable capability before database access', async () => {
@@ -123,6 +132,63 @@ describe('supplier bill actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith(
       `/purchase-orders/${PO_ID}`
     )
+  })
+
+  it('routes selected tenants through Nest with one stable retry key', async () => {
+    const query = billQuery([{ id: BILL_ID, purchaseOrderId: PO_ID }])
+    mocks.select.mockReturnValue({ from: query.from })
+    mocks.financeSupplierBillPostWritesUseCoreApi.mockReturnValue(true)
+    mocks.postSupplierBillThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        supplierBillId: BILL_ID,
+        tenantId: PROFILE.tenantId,
+        status: 'posted',
+        supplierBillNumber: 'SB-2026-000001',
+        journalEntryId: '55555555-5555-4555-8555-555555555555',
+        journalEntryNumber: 'JE-2026-000010',
+      },
+    })
+
+    const result = await postSupplierBill(
+      { billId: BILL_ID, postingDate: '2026-08-02' },
+      'supplier-bill-post-1'
+    )
+
+    expect(result).toEqual({
+      ok: true,
+      id: BILL_ID,
+      number: 'SB-2026-000001',
+      journalId: '55555555-5555-4555-8555-555555555555',
+      journalNumber: 'JE-2026-000010',
+    })
+    expect(mocks.postSupplierBillThroughCoreApi).toHaveBeenCalledWith(
+      BILL_ID,
+      { postingDate: '2026-08-02' },
+      'supplier-bill-post-1'
+    )
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('fails closed after selected core failure without direct fallback', async () => {
+    const query = billQuery([{ id: BILL_ID, purchaseOrderId: PO_ID }])
+    mocks.select.mockReturnValue({ from: query.from })
+    mocks.financeSupplierBillPostWritesUseCoreApi.mockReturnValue(true)
+    mocks.postSupplierBillThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No Supplier Bill posting was committed.',
+    })
+
+    await expect(
+      postSupplierBill(
+        { billId: BILL_ID, postingDate: '2026-08-02' },
+        'supplier-bill-post-1'
+      )
+    ).resolves.toEqual({
+      ok: false,
+      error: 'ERP Core API is unavailable. No Supplier Bill posting was committed.',
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   it('returns the linked equal-and-opposite reversal journal', async () => {
