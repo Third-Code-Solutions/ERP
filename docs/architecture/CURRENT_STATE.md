@@ -6,11 +6,11 @@ successful build.
 
 ## 2026-08-03 source publication checkpoint
 
-Reviewed source head `806860e49479a085f762fabaab25696cb9b854a1` is now published
-to both `origin/main` and `origin/agent-02/third-code-erp-landing` under
-`kurtgav <kurtgavin.design@gmail.com>`. This checkpoint changed GitHub source
-only. Supabase, Railway, Vercel, feature flags, and hosted data remain
-unchanged.
+Remote tracking refs remain at `9c200ccca0526d105ce7682b62e7b5047e2eb44a`,
+published under `kurtgav <kurtgavin.design@gmail.com>`. The local M3.21 commits
+are not published because the connected account cannot access the requested
+GitHub repository. This checkpoint changed GitHub source only; Supabase,
+Railway, Vercel, feature flags, and hosted data remain unchanged.
 
 ## M3.21 source update (2026-08-03)
 
