@@ -104,6 +104,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     }
     if (
       request.method === 'POST' &&
+      routePath.endsWith('/v1/public/signatures/:token')
+    ) {
+      return 'public.signature_sign'
+    }
+    if (
+      request.method === 'POST' &&
       routePath.endsWith('/v1/finance/journals/:journalEntryId/post')
     ) {
       return 'finance.journal_post'

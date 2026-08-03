@@ -4,6 +4,42 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.27 source update (2026-08-03)
+
+Local reviewed source now adds a closed-by-default NestJS authority for
+token-authorized client signatures at `POST /v1/public/signatures/:token`.
+The route accepts a strict signing body and required idempotency key, derives
+tenant/entity scope from the hashed signing session, validates bounded PNG
+data, uploads through the service-role Storage adapter, locks and revalidates
+the session, creates the signature document, stamps the tenant-owned BOM,
+contract, variation order, or certificate of completion, persists a durable
+replay result, and writes nullable-actor semantic audit in one transaction.
+Concurrent cleanup never removes an object while a matching replay request is
+processing or succeeded. Next.js remains a compatibility adapter and selects
+Core only for an exact flag plus UUID tenant allowlist; a selected Core error
+never falls back to a direct browser-side mutation. Existing UI and copy are
+unchanged.
+
+The local migration is
+`20260803140000_public_signing_workflow.sql`; it is not applied to hosted
+Supabase. Source now has 83 migrations versus 55 hosted (28 pending). Both
+public-signing controls remain false/empty. No Supabase SQL, provider setting,
+feature flag, Vercel deployment, or hosted data changed.
+
+Validation: shared full suite 155/155, database full suite 158/158 with 137
+guarded tests skipped without `DATABASE_URL`, focused API public-signing/
+config/observability contracts 59/59, Web full suite 431/431, package
+typechecks/lint, Nest production build, Next production build with 78/78
+routes, and `git diff --check` passed. The serialized full API runner exceeded
+the 360-second execution ceiling before returning a result; no new assertion
+failure was reported, so the full API suite is not claimed green.
+
+The source-only milestone is ready for publication under verified `kurtgav
+<kurtgavin.design@gmail.com>` credentials. Railway remains a separately
+gated source deployment; Vercel Git remains disconnected and no paid build is
+authorized. Hosted migration parity, protected-flow, rollback, duplicate-
+data, audit-chain, owner-input, and spend gates remain open.
+
 ## M3.26 source update (2026-08-03)
 
 Local reviewed source now adds a closed-by-default NestJS document deletion

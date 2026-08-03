@@ -48,6 +48,7 @@ export * from './warranty'
 export * from './notifications'
 // Phase 9 (Canvas-based in-app signing — DocuSeal alternative)
 export * from './signature-sessions'
+export * from './public-signing-requests'
 // Phase 10 (Rework-alignment delta — deliveries, claims, weekly reports, customer portal)
 export * from './deliveries'
 export * from './progress-claims'

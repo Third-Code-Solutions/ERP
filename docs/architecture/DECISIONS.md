@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-135 - Route public client signing through Core with durable replay (2026-08-03)
+
+Decision: add a closed-by-default `POST /v1/public/signatures/:token`
+NestJS command. The hashed signing token is the only unauthenticated
+authority. NestJS derives tenant and source scope from a locked session,
+validates bounded PNG data, uploads through the service-role Storage adapter,
+creates the signature document, stamps the tenant-owned source, persists a
+service-only replay result, and writes nullable-actor semantic audit in one
+transaction. A matching processing/succeeded replay row prevents cleanup from
+deleting an object that may already be owned by another attempt. Next.js
+remains a compatibility adapter with a stable retry key; selected Core
+failures never fall through to a direct database write. The migration and
+selectors remain false/empty until hosted parity, disposable replay/expiry/
+revocation/source-stamp proof, rollback, provider-identity, owner-input, and
+spend gates clear.
+
+Reason: external signatures are official ERP approvals even though the signer
+has no account. A token-derived, tenant-scoped transaction preserves the
+existing portal UX while removing browser-side authority from the canary path,
+preventing duplicate commits, cross-tenant source stamping, unaudited
+approval, and unsafe concurrent Storage cleanup.
+
 ## D-134 - Route document deletion through Core with durable replay (2026-08-03)
 
 Decision: add a closed-by-default `DELETE /v1/documents/:documentId` NestJS

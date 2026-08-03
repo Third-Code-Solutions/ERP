@@ -102,6 +102,18 @@ performs best-effort Storage cleanup after commit. The deletion selector and
 API controls remain disabled until hosted parity and the full release gates
 clear.
 
+Public client signing follows the same boundary with a capability-style
+hashed token as its only unauthenticated authority. NestJS validates a
+bounded PNG, derives tenant and source scope from the locked signature
+session, writes the document and source stamp atomically, records a
+service-only replay result, and audits the nullable external signer. The
+deterministic Storage object is retained whenever a matching request may own
+it; cleanup is only attempted when no replay row exists. Next.js keeps the
+existing portal contract and selects the route only for an exact flag plus
+UUID tenant allowlist. Public-signing migration and selectors remain
+false/empty until hosted parity, disposable replay/expiry/revocation/source-
+stamp proof, rollback, and spend gates clear.
+
 ## Delivery workflow authority slice
 
 The delivery state machine is migrated one transition at a time. M3.17 makes
