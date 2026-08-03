@@ -24,6 +24,8 @@ Validation:
 - Web: 59 files, 393 passed.
 - Focused API contracts: 72/72 passed.
 - API/web/shared/database typechecks and Nest build passed.
+- Next production build passed: compiled, linted/typechecked, and generated
+  78/78 routes.
 - Release-plan/controlled-release tests, Actionlint, Gitleaks, and diff checks
   passed.
 - Guarded delivery PostgreSQL/Redis integration compiled and was invoked; one
