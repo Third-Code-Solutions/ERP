@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-03  
-Source checkpoint: `850eee50e7a9b4effa1a2b45960d205242ce71d3`
+Source checkpoint: `e81087e7fb74997fe36a10acea400dbc99dad687`
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 This matrix is the product scope baseline. It describes business outcomes and

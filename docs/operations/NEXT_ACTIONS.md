@@ -1,6 +1,6 @@
 # Next Actions
 
-## Exact next action after local M3.29 supplier-session minting slice
+## Exact next action after M3.29 Railway source deployment
 
 1. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_ENABLED` and
    `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_TENANT_IDS` false/empty;
@@ -10,10 +10,10 @@
    insert/replay/expiry/cross-tenant proof, duplicate-PO mapping,
    owner-approved `AUDIT_RECOVERY_TENANT_ID`, rollback, provider identity, and
    spend gates clear.
-2. Run the full shared/database/Web suites, API procurement suite, package
-   typechecks, Nest/Next builds, and release-plan checks. Publish only the
-   reviewed source checkpoint under `kurtgav`; Railway may deploy the closed
-   seam through watched API files. Do not trigger Vercel or apply Supabase.
+2. Source `e81087e` is published under `kurtgav`; Railway deployment
+   `dacccb49-9bca-4754-8a48-17feded185bf` is `SUCCESS`, `/ready` is database
+   and Redis `ok`, and the valid-format public-command probe returned `503`.
+   Keep Supabase read-only at 55 applied migrations and do not trigger Vercel.
 3. Keep public link delivery separate. It may consume the redacted session
    UUID only after email-provider, token reconstruction, expiry/revocation,
    retry, rollback, and spend-bounded canary evidence passes.

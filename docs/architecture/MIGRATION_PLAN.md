@@ -4,7 +4,7 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
-## M3.29 - Protected supplier session minting (local source slice complete)
+## M3.29 - Protected supplier session minting (closed Railway runtime seam)
 
 Local source extends the M3.28 supplier-confirmation authority at the
 authorized `scm_issue` transition. A separate tenant flag gates creation of a
@@ -24,7 +24,13 @@ provider identity, owner-input, and spend gates clear. Existing supplier email
 copy, retry, and delivery state are unchanged. Public link delivery remains a
 separate follow-on slice.
 
-## M3.28 - Supplier confirmation authority (closed Railway runtime seam)
+Source checkpoint `e81087e` is published to `main` and
+`agent-02/third-code-erp-landing` under `kurtgav`. Railway deployment
+`dacccb49-9bca-4754-8a48-17feded185bf` is `SUCCESS`; `/ready` reports database
+and Redis `ok`, and a valid-format public-command probe returned `503` with the
+controls closed. Supabase remains at 55 applied migrations versus 85 in
+source; Vercel was not deployed.
+
 ## M3.28 - Supplier confirmation authority (closed Railway runtime seam)
 
 Local source now adds a tenant-scoped, hashed-token supplier-confirmation

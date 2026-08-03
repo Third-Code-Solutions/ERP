@@ -19,8 +19,12 @@ not part of this slice.
 The source migration is
 `20260803160000_vendor_confirmation_session_minting.sql`; source now has 85
 migrations against 55 hosted Supabase migrations. Session-minting flags remain
-false/empty and the token secret is unset. No hosted SQL, runtime provider
-setting, Vercel deployment, or hosted data changed in this source slice.
+false/empty and the token secret is unset. Commit `e81087e` is published to
+both target branches under `kurtgav`; Railway deployment
+`dacccb49-9bca-4754-8a48-17feded185bf` is `SUCCESS` at that SHA, `/ready`
+reports database and Redis `ok`, and the valid-format public-command probe
+returned `503` as expected with the controls closed. No hosted SQL, runtime
+provider setting, Vercel deployment, or hosted data changed.
 
 ## M3.28 source update (2026-08-03)
 
