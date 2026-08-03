@@ -2,8 +2,9 @@
 
 ## 2026-08-03 - M3.28 supplier-confirmation authority
 
-Completed the local source slice. No hosted migration, feature flag, provider
-setting, email link, or paid build changed.
+Completed the source slice and deployed the closed runtime seam to Railway.
+No hosted migration, feature flag, provider setting, email link, Vercel build,
+or paid frontend build changed.
 
 - Added strict supplier response contracts with accepted, declined, and
   changes-requested decisions; non-acceptance requires a note.
@@ -26,7 +27,10 @@ Validation:
 - API focused controller/config/observability/service tests: 62/62.
 - API typecheck passed; Nest production build passed.
 - `git diff --check` passed. Hosted Supabase remains 55/84 migrations; all
-  supplier-confirmation controls remain false/empty.
+  supplier-confirmation controls remain false/empty. Commit `850eee5` is on
+  both GitHub target branches; Railway deployment
+  `3227b3a3-79e9-472f-9770-78f96faf636f` is `SUCCESS`, `/ready` is database and
+  Redis `ok`, and the valid-format public confirmation probe returned `503`.
 
 ## 2026-08-03 - Capability baseline and M3.28 scope
 

@@ -4,7 +4,7 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
-## M3.28 - Supplier confirmation authority (local source slice complete)
+## M3.28 - Supplier confirmation authority (closed Railway runtime seam)
 
 Local source now adds a tenant-scoped, hashed-token supplier-confirmation
 session; an explicit `pending -> accepted | declined | changes_requested` state
@@ -24,6 +24,13 @@ Supabase. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED` and
 `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS` false/empty until the
 ordered hosted suffix, disposable replay/expiry/revocation/cross-tenant proof,
 rollback, provider identity, owner-input, and spend gates clear.
+
+Commit `850eee5` is published to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`3227b3a3-79e9-472f-9770-78f96faf636f` is `SUCCESS` under `kurtgav`; live
+`/ready` reports database and Redis `ok`, and a valid-format public-command
+probe returned `503` because the controls remain closed. Vercel was not
+deployed; Supabase was not mutated.
 
 See [`CAPABILITY_MATRIX.md`](./CAPABILITY_MATRIX.md) for the acceptance
 boundary and current capability evidence.
