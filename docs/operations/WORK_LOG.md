@@ -1,5 +1,39 @@
 # Work Log
 
+## 2026-08-03 - M3.20 supplier-bill reversal authority
+
+Completed source milestone at commit `806860e`, published to `origin/main` and
+`origin/agent-02/third-code-erp-landing` under `kurtgav
+<kurtgavin.design@gmail.com>`.
+
+- Added strict supplier-bill reversal contracts and ordered migration
+  `20260802220000_supplier_bill_reverse_workflow.sql` with forced RLS,
+  service-only access, tenant-composite foreign keys, and durable replay.
+- Added the closed-by-default NestJS reversal route with membership locking,
+  `finance.post` authorization, existing database reversal-function reuse,
+  atomic audit, and idempotent replay.
+- Added the fail-closed Next adapter, stable browser retry key, observability
+  label, environment controls, and guarded PostgreSQL integration assertions.
+  Existing UI/copy and legacy behavior remain unchanged for unselected tenants.
+
+Validation:
+
+- Focused shared finance contracts: 7/7 passed.
+- Database reversal contracts: 2/2 passed.
+- API/observability contracts: 18/18 passed; API typecheck and Nest build
+  passed.
+- Web adapter/action contracts: 63/63 passed; web typecheck passed.
+- Controlled-release and database-release-plan checks passed.
+- Guarded database integration invoked and skipped because
+  `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` were not configured.
+- A broad concurrent API invocation reached 216/218 tests but hit two known
+  resource/concurrency timeouts in unrelated suites; no full-suite green claim
+  is made from that run.
+
+Hosted boundary: no Supabase SQL, feature flag, Railway release, Vercel
+deployment, provider setting, or hosted data changed. Source now has 76
+migrations versus 55 hosted; duplicate PO and audit-recovery blockers remain.
+
 ## 2026-08-03 - hosted release recheck (read-only)
 
 - Rechecked source and providers without mutation. GitHub remains on the
