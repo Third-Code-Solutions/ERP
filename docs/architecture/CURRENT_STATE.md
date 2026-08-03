@@ -31,7 +31,8 @@ in production and service `Third Code ERP API`; deployment
 `d7b8b2d4-db7b-4f15-a429-7d903d353794` is `SUCCESS` at source `5ad72ec`, and
 `/ready` returned `200` with PostgreSQL and Redis ready. This does not clear
 migration-parity, protected-flow, rollback, or spend gates. Vercel Git
-deployment remains disabled, so no paid build was triggered.
+deployment remains disabled, so no paid build was triggered; production
+`/api/ready` is still on revision `31c04942a93d`.
 
 Validation: shared full suite 152/152, database full suite 156/156 with 137
 guarded tests skipped without `DATABASE_URL`, focused API document/config/
