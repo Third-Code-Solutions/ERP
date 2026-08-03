@@ -16,6 +16,8 @@ import {
   journalReverseResultSchema,
   supplierBillPostResultSchema,
   supplierBillReverseResultSchema,
+  cashTransactionPostResultSchema,
+  cashTransactionReverseResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
   stockReceiptCreationResultSchema,
@@ -54,6 +56,10 @@ import {
   type SupplierBillPostResult,
   type SupplierBillReverseBody,
   type SupplierBillReverseResult,
+  type CashTransactionPostBody,
+  type CashTransactionPostResult,
+  type CashTransactionReverseBody,
+  type CashTransactionReverseResult,
   type DocumentProcessingAccepted,
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
@@ -244,6 +250,16 @@ export function financeSupplierBillReverseWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API,
     process.env.ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function financeCashWorkflowWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API,
+    process.env.ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -1738,6 +1754,122 @@ export async function reverseSupplierBillThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Supplier Bill reversal was committed.',
+    }
+  }
+}
+
+export async function postCashTransactionThroughCoreApi(
+  cashTransactionId: string,
+  command: CashTransactionPostBody,
+  idempotencyKey: string
+): Promise<CoreResult<CashTransactionPostResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/cash-transactions/${encodeURIComponent(
+        cashTransactionId
+      )}/post`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Cash transaction posting conflicts with its current state.'
+            : response.status === 404
+              ? 'Cash transaction was not found.'
+              : 'Cash transaction was not posted.'
+      return { ok: false, error: message }
+    }
+    const parsed = cashTransactionPostResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid cash transaction posting result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No cash transaction was posted.',
+    }
+  }
+}
+
+export async function reverseCashTransactionThroughCoreApi(
+  cashTransactionId: string,
+  command: CashTransactionReverseBody,
+  idempotencyKey: string
+): Promise<CoreResult<CashTransactionReverseResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/cash-transactions/${encodeURIComponent(
+        cashTransactionId
+      )}/reverse`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Cash transaction reversal conflicts with its current state.'
+            : response.status === 404
+              ? 'Cash transaction was not found.'
+              : 'Cash transaction was not reversed.'
+      return { ok: false, error: message }
+    }
+    const parsed = cashTransactionReverseResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid cash transaction reversal result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No cash transaction was reversed.',
     }
   }
 }

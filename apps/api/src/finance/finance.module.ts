@@ -9,6 +9,8 @@ import { SupplierBillPostController } from './supplier-bill-post.controller'
 import { SupplierBillPostService } from './supplier-bill-post.service'
 import { SupplierBillReverseController } from './supplier-bill-reverse.controller'
 import { SupplierBillReverseService } from './supplier-bill-reverse.service'
+import { CashTransactionWorkflowController } from './cash-transaction-workflow.controller'
+import { CashTransactionWorkflowService } from './cash-transaction-workflow.service'
 
 @Module({
   imports: [AuditModule],
@@ -17,12 +19,14 @@ import { SupplierBillReverseService } from './supplier-bill-reverse.service'
     JournalReverseController,
     SupplierBillPostController,
     SupplierBillReverseController,
+    CashTransactionWorkflowController,
   ],
   providers: [
     JournalPostService,
     JournalReverseService,
     SupplierBillPostService,
     SupplierBillReverseService,
+    CashTransactionWorkflowService,
   ],
 })
 export class FinanceModule implements NestModule {
@@ -33,7 +37,8 @@ export class FinanceModule implements NestModule {
         JournalPostController,
         JournalReverseController,
         SupplierBillPostController,
-        SupplierBillReverseController
+        SupplierBillReverseController,
+        CashTransactionWorkflowController
       )
   }
 }

@@ -282,6 +282,34 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_TENANT_IDS')
   })
 
+  it('keeps cash workflow writes disabled and tenant-scoped', () => {
+    expect(
+      validateEnvironment(REQUIRED).ERP_FINANCE_CASH_WORKFLOW_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED).ERP_FINANCE_CASH_WORKFLOW_WRITES_TENANT_IDS
+    ).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_FINANCE_CASH_WORKFLOW_WRITES_ENABLED: 'true',
+        ERP_FINANCE_CASH_WORKFLOW_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_FINANCE_CASH_WORKFLOW_WRITES_ENABLED: true,
+      ERP_FINANCE_CASH_WORKFLOW_WRITES_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_FINANCE_CASH_WORKFLOW_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_FINANCE_CASH_WORKFLOW_WRITES_TENANT_IDS')
+  })
+
   it('keeps Change Request command writes disabled and tenant-scoped', () => {
     expect(
       validateEnvironment(REQUIRED).ERP_CHANGE_REQUEST_WRITES_ENABLED

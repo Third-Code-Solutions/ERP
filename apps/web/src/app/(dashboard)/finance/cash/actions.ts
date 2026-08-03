@@ -4,6 +4,11 @@ import { revalidatePath } from 'next/cache'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
+  financeCashWorkflowWritesUseCoreApi,
+  postCashTransactionThroughCoreApi,
+  reverseCashTransactionThroughCoreApi,
+} from '../../../../lib/erp-core-client'
+import {
   cashAccounts,
   cashAllocations,
   cashTransactions,
@@ -337,12 +342,44 @@ export async function deleteCashDraft(
 }
 
 export async function postCashTransaction(
-  input: z.input<typeof postingSchema>
+  input: z.input<typeof postingSchema>,
+  idempotencyKey?: string
 ): Promise<CashActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
     const parsed = postingSchema.parse(input)
+
+    if (financeCashWorkflowWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the cash posting command.',
+        }
+      }
+      const coreResult = await postCashTransactionThroughCoreApi(
+        parsed.transactionId,
+        { postingDate: parsed.postingDate },
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Cash transaction was not posted. No financial posting was committed.',
+        }
+      }
+      revalidateCash(parsed.transactionId)
+      return {
+        ok: true,
+        id: coreResult.data.cashTransactionId,
+        number: coreResult.data.cashTransactionNumber,
+        journalId: coreResult.data.journalEntryId,
+        journalNumber: coreResult.data.journalEntryNumber,
+      }
+    }
+
     const rows = await db.execute<{
       journal_entry_id: string
       journal_entry_number: string
@@ -372,12 +409,46 @@ export async function postCashTransaction(
 }
 
 export async function reverseCashTransaction(
-  input: z.input<typeof reversalSchema>
+  input: z.input<typeof reversalSchema>,
+  idempotencyKey?: string
 ): Promise<CashActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
     const parsed = reversalSchema.parse(input)
+
+    if (financeCashWorkflowWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the cash reversal command.',
+        }
+      }
+      const coreResult = await reverseCashTransactionThroughCoreApi(
+        parsed.transactionId,
+        {
+          reason: parsed.reason,
+          postingDate: parsed.postingDate,
+        },
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Cash transaction was not reversed. No reversal was committed.',
+        }
+      }
+      revalidateCash(parsed.transactionId)
+      return {
+        ok: true,
+        id: coreResult.data.cashTransactionId,
+        journalId: coreResult.data.reversalJournalEntryId,
+        journalNumber: coreResult.data.reversalJournalEntryNumber,
+      }
+    }
+
     const rows = await db.execute<{
       reversal_entry_id: string
       reversal_entry_number: string

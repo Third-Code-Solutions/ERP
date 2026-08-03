@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import {
   deleteCashDraft,
   postCashTransaction,
@@ -22,6 +22,8 @@ export function CashActions({
   const [postingDate, setPostingDate] = useState(defaultDate)
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const postIdempotencyKey = useRef<string | null>(null)
+  const reverseIdempotencyKey = useRef<string | null>(null)
 
   if (status === 'reversed') {
     return (
@@ -77,11 +79,12 @@ export function CashActions({
                 const result = await postCashTransaction({
                   transactionId,
                   postingDate,
-                })
+                }, postIdempotencyKey.current ??= globalThis.crypto.randomUUID())
                 if (!result.ok) {
                   setError(result.error ?? 'Could not post cash transaction')
                   return
                 }
+                postIdempotencyKey.current = null
                 router.refresh()
               })
             }}
@@ -121,11 +124,12 @@ export function CashActions({
                   transactionId,
                   postingDate,
                   reason,
-                })
+                }, reverseIdempotencyKey.current ??= globalThis.crypto.randomUUID())
                 if (!result.ok) {
                   setError(result.error ?? 'Could not reverse cash transaction')
                   return
                 }
+                reverseIdempotencyKey.current = null
                 router.refresh()
               })
             }}

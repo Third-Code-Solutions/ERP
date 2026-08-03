@@ -8,11 +8,17 @@ import {
   supplierBillPostResultSchema,
   supplierBillReverseCommandSchema,
   supplierBillReverseResultSchema,
+  cashTransactionPostBodySchema,
+  cashTransactionPostCommandSchema,
+  cashTransactionPostResultSchema,
+  cashTransactionReverseCommandSchema,
+  cashTransactionReverseResultSchema,
 } from './finance'
 
 const JOURNAL_ID = '33333333-3333-4333-8333-333333333333'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const SUPPLIER_BILL_ID = '55555555-5555-4555-8555-555555555555'
+const CASH_TRANSACTION_ID = '77777777-7777-4777-8777-777777777777'
 
 describe('finance API contracts', () => {
   it('keeps journal post commands free of caller authority', () => {
@@ -165,5 +171,70 @@ describe('finance API contracts', () => {
         reversalJournalEntryNumber: 'JE-2026-000010',
       }).success
     ).toBe(false)
+  })
+
+  it('keeps cash posting commands strict and authority-free', () => {
+    expect(
+      cashTransactionPostCommandSchema.parse({
+        cashTransactionId: CASH_TRANSACTION_ID,
+        postingDate: '2026-08-02',
+      })
+    ).toEqual({
+      cashTransactionId: CASH_TRANSACTION_ID,
+      postingDate: '2026-08-02',
+    })
+    expect(
+      cashTransactionPostBodySchema.safeParse({
+        postingDate: '2026-02-31',
+        tenantId: TENANT_ID,
+      }).success
+    ).toBe(false)
+    expect(
+      cashTransactionPostCommandSchema.safeParse({
+        cashTransactionId: CASH_TRANSACTION_ID,
+        postingDate: '2026-08-02',
+        actorId: TENANT_ID,
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires database-owned cash posting and reversal results', () => {
+    expect(
+      cashTransactionPostResultSchema.safeParse({
+        cashTransactionId: CASH_TRANSACTION_ID,
+        tenantId: TENANT_ID,
+        status: 'posted',
+        cashTransactionNumber: 'CT-2026-000001',
+        journalEntryId: '88888888-8888-4888-8888-888888888888',
+        journalEntryNumber: 'JE-2026-000010',
+      }).success
+    ).toBe(true)
+    expect(
+      cashTransactionPostResultSchema.safeParse({
+        cashTransactionId: CASH_TRANSACTION_ID,
+        tenantId: TENANT_ID,
+        status: 'posted',
+        cashTransactionNumber: 'CT-1',
+        journalEntryId: '88888888-8888-4888-8888-888888888888',
+        journalEntryNumber: 'JE-2026-000010',
+      }).success
+    ).toBe(false)
+    expect(
+      cashTransactionReverseCommandSchema.safeParse({
+        cashTransactionId: CASH_TRANSACTION_ID,
+        reason: 'Bank returned the transfer',
+        postingDate: '2026-08-02',
+        tenantId: TENANT_ID,
+      }).success
+    ).toBe(false)
+    expect(
+      cashTransactionReverseResultSchema.safeParse({
+        cashTransactionId: CASH_TRANSACTION_ID,
+        tenantId: TENANT_ID,
+        status: 'reversed',
+        reversalJournalEntryId: '99999999-9999-4999-8999-999999999999',
+        reversalJournalEntryNumber: 'JE-2026-000011',
+      }).success
+    ).toBe(true)
   })
 })
