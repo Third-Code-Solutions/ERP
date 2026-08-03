@@ -4,6 +4,34 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.25 - Cash draft mutation authority (local source complete)
+
+Local source adds strict cash draft command/result contracts,
+`20260803120000_cash_transaction_draft_workflow.sql`, and the closed-by-
+default NestJS save/delete routes. NestJS derives tenant and actor from a
+locked membership, rechecks `finance.manage_cash`, validates active Cash
+Accounts and tenant-owned open allocation targets, writes the draft and its
+allocations transactionally, claims a tenant-scoped idempotency record, and
+writes semantic audit. The replay ledger deliberately retains deleted target
+UUIDs. Next.js remains a compatibility adapter with stable retry keys; a
+selected Core failure never falls back to a direct database write. Visible
+cash UI and copy remain unchanged.
+
+The implementation is local and publication is a separate fast-forward
+action. All cash-draft controls remain false/empty. Source now has 81
+migrations and Supabase remains at 55 applied; do not apply this migration
+alone. Reconcile the complete 26-migration suffix only after duplicate-PO
+mapping, canonical audit-recovery tenant approval, guarded Postgres/Redis
+integration, rollback, provider identity, and spend gates clear.
+
+Validation: shared 149/149, database 154/154 with guarded integration skips,
+API 251/251 under an explicit 30-second Vitest timeout, Web 421/421, package
+typechecks/lint, Nest build, release-plan/workflow-reference checks, and diff
+checks passed. The default parallel API run had unrelated 5-second runner
+timeouts; the Next production build timed out at the 364-second runner limit
+and is not treated as green. Audit-hash verification remains blocked without
+the required Postgres and owner-approved tenant inputs.
+
 ## M3.24 - Customer invoice cancellation authority (local source complete)
 
 Local source adds strict customer-invoice cancellation contracts,

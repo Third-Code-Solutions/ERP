@@ -44,6 +44,7 @@ import {
   financeSupplierBillPostWritesUseCoreApi,
   financeSupplierBillReverseWritesUseCoreApi,
   financeCashWorkflowWritesUseCoreApi,
+  financeCashDraftWritesUseCoreApi,
   financeCustomerInvoiceIssueWritesUseCoreApi,
   financeCustomerInvoiceReverseWritesUseCoreApi,
   financeCustomerInvoiceCancelWritesUseCoreApi,
@@ -52,6 +53,8 @@ import {
   reverseSupplierBillThroughCoreApi,
   postCashTransactionThroughCoreApi,
   reverseCashTransactionThroughCoreApi,
+  saveCashDraftThroughCoreApi,
+  deleteCashDraftThroughCoreApi,
   issueCustomerInvoiceThroughCoreApi,
   reverseCustomerInvoiceThroughCoreApi,
   cancelCustomerInvoiceThroughCoreApi,
@@ -216,6 +219,17 @@ const CASH_REVERSE_RESULT = {
   status: 'reversed' as const,
   reversalJournalEntryId: '88888888-8888-4888-8888-888888888888',
   reversalJournalEntryNumber: 'JE-2026-000013',
+}
+const CASH_DRAFT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const CASH_DRAFT_RESULT = {
+  cashTransactionId: CASH_DRAFT_ID,
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  status: 'draft' as const,
+}
+const CASH_DRAFT_DELETE_RESULT = {
+  cashTransactionId: CASH_DRAFT_ID,
+  tenantId: CASH_DRAFT_RESULT.tenantId,
+  status: 'deleted' as const,
 }
 const CUSTOMER_INVOICE_ISSUE_RESULT = {
   invoiceId: '33333333-3333-4333-8333-333333333333',
@@ -989,6 +1003,23 @@ describe('ERP Core client', () => {
     expect(financeCashWorkflowWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
+  it('keeps cash draft delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeCashDraftWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API', 'TRUE')
+    expect(financeCashDraftWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(financeCashDraftWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(financeCashDraftWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('keeps customer invoice issuance delegation fail-closed unless its exact gate matches', () => {
     vi.stubEnv('ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API', 'true')
     vi.stubEnv(
@@ -1141,6 +1172,72 @@ describe('ERP Core client', () => {
         }),
         headers: expect.objectContaining({
           'Idempotency-Key': 'cash-reverse-1',
+        }),
+      })
+    )
+  })
+
+  it('sends an idempotent cash draft save and validates the result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(CASH_DRAFT_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const command = {
+      cashAccountId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      direction: 'receipt' as const,
+      counterpartyId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      referenceNumber: 'RCPT-001',
+      transactionDate: '2026-08-03',
+      notes: null,
+      allocations: [
+        {
+          allocationType: 'customer_current_due' as const,
+          targetId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          description: null,
+          amountCents: 10_000,
+        },
+      ],
+    }
+    await expect(
+      saveCashDraftThroughCoreApi(command, 'cash-draft-save-1')
+    ).resolves.toEqual({ ok: true, data: CASH_DRAFT_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/finance/cash-transactions/drafts',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'cash-draft-save-1',
+        }),
+      })
+    )
+  })
+
+  it('sends an idempotent cash draft deletion and validates the result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(CASH_DRAFT_DELETE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      deleteCashDraftThroughCoreApi(CASH_DRAFT_ID, 'cash-draft-delete-1')
+    ).resolves.toEqual({ ok: true, data: CASH_DRAFT_DELETE_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/finance/cash-transactions/${CASH_DRAFT_ID}/draft`,
+      expect.objectContaining({
+        method: 'DELETE',
+        body: '{}',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'cash-draft-delete-1',
         }),
       })
     )

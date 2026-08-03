@@ -307,6 +307,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Cash draft create/update/delete stays fail-closed until its ordered
+  // migration, disposable transaction proof, and tenant canary are approved.
+  ERP_FINANCE_CASH_DRAFT_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_FINANCE_CASH_DRAFT_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Customer invoice issuance stays fail-closed until its ordered migration,
   // disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED: z

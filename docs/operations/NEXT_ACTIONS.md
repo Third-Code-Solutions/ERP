@@ -1,5 +1,31 @@
 # Next Actions
 
+## Exact next action after local M3.25 cash draft mutation slice
+
+1. Keep
+   `ERP_FINANCE_CASH_DRAFT_WRITES_ENABLED`,
+   `ERP_FINANCE_CASH_DRAFT_WRITES_TENANT_IDS`,
+   `ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API`, and
+   `ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API_TENANT_IDS` false/empty. Do not
+   apply `20260803120000_cash_transaction_draft_workflow.sql` alone;
+   reconcile the complete ordered 26-migration suffix only after duplicate-PO
+   mapping, canonical `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
+   integration, rollback, and provider-identity gates clear.
+2. Rerun the isolated Next production build with a captured exit result; do
+   not release a source SHA until the build completes within the controlled
+   runner budget.
+3. Re-authenticate Railway as `kurtgav`; keep Vercel Git disconnected and
+   avoid preview builds. Source publication remains separate from hosted
+   migration and deployment.
+4. After owner inputs and exact provider identity, rerun the read-only
+   Supabase planner, execute one disposable cash-draft save/update/delete/
+   replay/rollback proof, then review one spend-bounded source publication and
+   provider action.
+
+Source now has 81 migrations versus 55 hosted. No hosted mutation, feature
+flag change, Railway release, Vercel deployment, or paid build is authorized
+by the current evidence.
+
 ## Exact next action after local M3.24 customer-invoice cancellation slice
 
 1. Keep
@@ -47,7 +73,7 @@ the current evidence.
 
 ## Immediate hosted release gate
 
-Do not apply the twenty-three pending Supabase migrations or deploy Railway/Vercel
+Do not apply the twenty-six pending Supabase migrations or deploy Railway/Vercel
 until the owner supplies:
 
 1. The canonical `AUDIT_RECOVERY_TENANT_ID` UUID for the audit-chain planner.
@@ -58,7 +84,7 @@ until the owner supplies:
 Then run the read-only planners again. Only when migration ledger, duplicate
 review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 
-- apply all twenty-three pending migrations in timestamp order with a captured ledger;
+- apply all twenty-six pending migrations in timestamp order with a captured ledger;
 - run the disposable and hosted verification gates;
 - deploy exactly one reviewed source SHA to Railway and one controlled Vercel
   production build, after confirming the billing impact;

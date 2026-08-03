@@ -1,5 +1,44 @@
 # Work Log
 
+## 2026-08-03 - M3.25 cash draft mutation authority
+
+Completed the local source milestone. No hosted mutation or provider action
+was authorized.
+
+- Added strict tenant-free save/update/delete command and result contracts for
+  cash drafts, direction-safe allocations, and fail-closed API/Next feature
+  controls.
+- Added ordered migration `20260803120000_cash_transaction_draft_workflow.sql`
+  and the matching Drizzle schema for forced-RLS, service-only,
+  tenant-scoped idempotency. The replay ledger retains deleted target UUIDs.
+- Added the NestJS cash-draft controller, strict pipes, transactional service,
+  membership/capability recheck, Cash Account and allocation validation,
+  semantic audit, observability labels, and explicit error handling.
+- Added guarded Next adapters and stable browser retry keys while preserving
+  the legacy direct-write path for unselected tenants and all visible UI/copy.
+- Added shared, database, API, observability, client, configuration, and
+  migration contract tests plus environment documentation.
+
+Validation:
+
+- Shared-types full suite: 149/149.
+- Database full suite: 154/154; 137 guarded tests skipped without
+  `DATABASE_URL`.
+- API full suite: 251/251 with an explicit 30-second Vitest timeout. The
+  default parallel runner had three unrelated 5-second timeouts (248/251).
+- Web full suite: 421/421.
+- Package typechecks and lint passed; Nest build passed.
+- Release planners, workflow-reference checks, and `git diff --check`
+  passed. Audit-hash verification remains blocked without
+  `DATABASE_URL` and owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+- Next production build timed out at the 364-second runner limit after
+  writing `.next` artifacts; no hosted build or deployment is considered
+  green from that result.
+
+Hosted boundary: Supabase remains at 55 applied migrations against 81 source
+migrations (26 pending). All cash-draft controls remain false/empty. Railway,
+Vercel, Supabase, provider settings, and hosted data were not changed.
+
 ## 2026-08-03 - M3.24 customer invoice cancellation authority
 
 Completed the local source milestone. No hosted mutation or provider action

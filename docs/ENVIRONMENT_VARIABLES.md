@@ -179,6 +179,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for Supplier Bill reversal; default empty |
 | `ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API` | no | Next server | Selects cash posting/reversal Next-to-Nest handoff; default false |
 | `ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for cash posting/reversal; default empty |
+| `ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API` | no | Next server | Selects cash draft create/update/delete Next-to-Nest handoff; default false |
+| `ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for cash draft writes; default empty |
 | `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API` | no | Next server | Selects customer invoice issuance Next-to-Nest handoff; default false |
 | `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for customer invoice issuance; default empty |
 | `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_VIA_API` | no | Next server | Selects customer invoice reversal Next-to-Nest handoff; default false |
@@ -247,6 +249,13 @@ The API-side cash posting/reversal controls are
 The Next-side selector uses the corresponding `..._VIA_API` flag and UUID
 allowlist. The Core API is the only authority when selected; a failed Core
 request never falls back to a direct browser database function call.
+
+The API-side cash draft create/update/delete controls are
+`ERP_FINANCE_CASH_DRAFT_WRITES_ENABLED` and
+`ERP_FINANCE_CASH_DRAFT_WRITES_TENANT_IDS`; both default to false/empty.
+The Next-side selector uses the corresponding `..._VIA_API` flag and UUID
+allowlist. The Core API is the only authority when selected; a failed Core
+request never falls back to a direct browser database write.
 
 The API-side customer invoice issuance controls are
 `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED` and

@@ -4,9 +4,12 @@ import { revalidatePath } from 'next/cache'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
+  deleteCashDraftThroughCoreApi,
+  financeCashDraftWritesUseCoreApi,
   financeCashWorkflowWritesUseCoreApi,
   postCashTransactionThroughCoreApi,
   reverseCashTransactionThroughCoreApi,
+  saveCashDraftThroughCoreApi,
 } from '../../../../lib/erp-core-client'
 import {
   cashAccounts,
@@ -142,7 +145,8 @@ function revalidateCash(transactionId?: string) {
 }
 
 export async function saveCashDraft(
-  input: z.input<typeof cashDraftSchema>
+  input: z.input<typeof cashDraftSchema>,
+  idempotencyKey?: string
 ): Promise<CashActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -152,6 +156,29 @@ export async function saveCashDraft(
       (sum, allocation) => sum + allocation.amountCents,
       0
     )
+
+    if (financeCashDraftWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the cash draft command.',
+        }
+      }
+      const coreResult = await saveCashDraftThroughCoreApi(
+        parsed,
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Cash draft was not saved. No cash evidence was committed.',
+        }
+      }
+      revalidateCash(coreResult.data.cashTransactionId)
+      return { ok: true, id: coreResult.data.cashTransactionId }
+    }
 
     const transactionId = await db.transaction(async (tx) => {
       const [cashAccount] = await tx
@@ -317,12 +344,37 @@ export async function saveCashDraft(
 }
 
 export async function deleteCashDraft(
-  transactionId: string
+  transactionId: string,
+  idempotencyKey?: string
 ): Promise<CashActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
     const parsedId = z.string().uuid().parse(transactionId)
+
+    if (financeCashDraftWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the cash draft deletion command.',
+        }
+      }
+      const coreResult = await deleteCashDraftThroughCoreApi(
+        parsedId,
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Cash draft was not deleted. No cash evidence was removed.',
+        }
+      }
+      revalidateCash()
+      return { ok: true, id: coreResult.data.cashTransactionId }
+    }
+
     const [deleted] = await db
       .delete(cashTransactions)
       .where(

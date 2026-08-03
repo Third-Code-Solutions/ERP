@@ -20,6 +20,12 @@ import {
   customerInvoiceCancelBodySchema,
   customerInvoiceCancelCommandSchema,
   customerInvoiceCancelResultSchema,
+  cashTransactionDraftBodySchema,
+  cashTransactionDraftCommandSchema,
+  cashTransactionDraftDeleteBodySchema,
+  cashTransactionDraftDeleteCommandSchema,
+  cashTransactionDraftDeleteResultSchema,
+  cashTransactionDraftResultSchema,
 } from './finance'
 
 const JOURNAL_ID = '33333333-3333-4333-8333-333333333333'
@@ -244,6 +250,56 @@ describe('finance API contracts', () => {
         reversalJournalEntryNumber: 'JE-2026-000011',
       }).success
     ).toBe(true)
+  })
+
+  it('keeps cash draft commands strict, tenant-free, and direction-safe', () => {
+    const body = {
+      cashAccountId: '33333333-3333-4333-8333-333333333333',
+      direction: 'receipt' as const,
+      counterpartyId: '44444444-4444-4444-8444-444444444444',
+      referenceNumber: 'RCPT-001',
+      transactionDate: '2026-08-03',
+      notes: null,
+      allocations: [
+        {
+          allocationType: 'customer_current_due' as const,
+          targetId: INVOICE_ID,
+          description: null,
+          amountCents: 10_000,
+        },
+      ],
+    }
+    expect(cashTransactionDraftBodySchema.parse(body)).toEqual(body)
+    expect(cashTransactionDraftCommandSchema.safeParse({ ...body, tenantId: TENANT_ID }).success).toBe(false)
+    expect(cashTransactionDraftBodySchema.safeParse({
+      ...body,
+      direction: 'disbursement',
+    }).success).toBe(false)
+    expect(cashTransactionDraftBodySchema.safeParse({
+      ...body,
+      transactionDate: '2026-02-31',
+    }).success).toBe(false)
+    expect(cashTransactionDraftResultSchema.parse({
+      cashTransactionId: CASH_TRANSACTION_ID,
+      tenantId: TENANT_ID,
+      status: 'draft',
+    })).toMatchObject({ status: 'draft' })
+  })
+
+  it('keeps cash draft deletion strict and replayable', () => {
+    expect(cashTransactionDraftDeleteBodySchema.parse({})).toEqual({})
+    expect(cashTransactionDraftDeleteCommandSchema.parse({
+      cashTransactionId: CASH_TRANSACTION_ID,
+    })).toEqual({ cashTransactionId: CASH_TRANSACTION_ID })
+    expect(cashTransactionDraftDeleteCommandSchema.safeParse({
+      cashTransactionId: CASH_TRANSACTION_ID,
+      tenantId: TENANT_ID,
+    }).success).toBe(false)
+    expect(cashTransactionDraftDeleteResultSchema.parse({
+      cashTransactionId: CASH_TRANSACTION_ID,
+      tenantId: TENANT_ID,
+      status: 'deleted',
+    })).toMatchObject({ status: 'deleted' })
   })
 
   it('keeps customer-invoice issuance authority-free and replayable', () => {

@@ -65,6 +65,16 @@ Browser
 
 ## Finance authority progression
 
+Cash draft create, update, and delete now have the same Core boundary as
+posted cash transitions: strict tenant-free commands, locked membership
+authorization, tenant-owned target validation, transactional allocation
+writes, durable replay, and semantic audit. The draft replay ledger retains
+deleted target UUIDs without granting browser or general-role access. The
+Next.js compatibility adapter and visible UI remain unchanged for unselected
+tenants; the exact API flag and UUID allowlist remain false/empty until the
+ordered hosted migration suffix, disposable database proof, rollback,
+duplicate-data, audit-chain, provider-identity, and spend gates clear.
+
 Customer invoice issue and reversal are now represented as separate Core
 vertical slices. Each selected route owns authorization, tenant-scoped
 idempotency, transaction orchestration, and semantic audit while PostgreSQL

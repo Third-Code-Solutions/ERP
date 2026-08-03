@@ -325,6 +325,56 @@ describe('RequestObservabilityMiddleware', () => {
     expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
   })
 
+  it('labels cash draft save without logging transaction identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/cash-transactions/drafts' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.cash_transaction_draft_save',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels cash draft deletion without logging transaction identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'DELETE',
+        route: {
+          path: '/v1/finance/cash-transactions/:cashTransactionId/draft',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.cash_transaction_draft_delete',
+      method: 'DELETE',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
   it('labels customer invoice issuance without logging invoice identifiers', () => {
     const log = vi
       .spyOn(Logger.prototype, 'log')
