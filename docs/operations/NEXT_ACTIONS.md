@@ -20,11 +20,10 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current published remote head: `ffbe471` on both `main` and
-`agent-02/third-code-erp-landing`, published by `kurtgav
-<kurtgavin.design@gmail.com>` with fast-forward pushes. The M3.22
-customer-invoice issuance implementation is `33089abe`; `ffbe471` adds the
-verified publication checkpoint. The prior M3.20 implementation is
+Both `main` and `agent-02/third-code-erp-landing` contain the reviewed M3.22
+customer-invoice issuance implementation `33089abe` plus the publication
+checkpoint docs, published by `kurtgav <kurtgavin.design@gmail.com>` with
+fast-forward pushes. The prior M3.20 implementation is
 `806860e49479a085f762fabaab25696cb9b854a1`; the prior M3.19
 implementation is in `f50c8bc5c540b97134764b56a297c41e8578f9f2`; the prior
 M3.18 implementation is in
