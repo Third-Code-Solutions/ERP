@@ -31,11 +31,11 @@ skipped without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
 
 ## 2026-08-03 source publication checkpoint
 
-Remote `main` and `agent-02/third-code-erp-landing` now point to
-`33089abe567bd39d190d08c9a1ad1098e6dc5bb0`, published under
-`kurtgav <kurtgavin.design@gmail.com>` by fast-forward push. This checkpoint
-changed GitHub source only; Supabase, Railway, Vercel, feature flags, and hosted
-data remain unchanged.
+Remote `main` and `agent-02/third-code-erp-landing` now point to `ffbe471`,
+published under `kurtgav <kurtgavin.design@gmail.com>` by fast-forward pushes;
+the M3.22 implementation is `33089abe`. This checkpoint changed GitHub source
+only; Supabase, Railway, Vercel, feature flags, and hosted data remain
+unchanged.
 
 ## M3.21 source update (2026-08-03)
 
