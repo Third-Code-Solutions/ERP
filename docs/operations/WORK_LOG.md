@@ -43,8 +43,9 @@ verified: project `ERP` /
 `/ready` returned `200` with `database: ok` and `redis: ok`. This is runtime
 readiness only; ordered migration parity, flags, protected-flow, rollback,
 and spend gates remain open. Vercel Git deployment remains disabled and no
-new Vercel deployment appeared. No Supabase SQL, Vercel deployment, provider
-setting, feature flag, or hosted data changed. Audit-hash verification remains
+new Vercel deployment appeared; production `/api/ready` is `200` on old
+revision `31c04942a93d`. No Supabase SQL, Vercel deployment, provider setting,
+feature flag, or hosted data changed. Audit-hash verification remains
 blocked without the required Postgres and owner-approved
 `AUDIT_RECOVERY_TENANT_ID`.
 
