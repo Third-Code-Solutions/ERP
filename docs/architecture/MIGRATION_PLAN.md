@@ -12,6 +12,15 @@ Reviewed source head `f50c8bc5c540b97134764b56a297c41e8578f9f2` is published to
 feature flag, or deployment changed. The release remains held by the hosted
 duplicate Purchase Order data and missing owner-approved audit-recovery tenant.
 
+## 2026-08-03 hosted recheck checkpoint
+
+The read-only recheck confirmed the same 55/75 Supabase migration gap, one
+12-record duplicate Purchase Order group, and missing owner-approved audit
+tenant. Railway health/readiness are green but CLI authorization is not
+`kurtgav`; Vercel production remains on `31c04942a93d` with no recent runtime
+errors. No hosted mutation or paid build occurred. The next release action is
+still owner input plus one rerun of the planner, not a bypass.
+
 ## M3.19 - Supplier Bill posting authority (source complete)
 
 Source commit `f50c8bc5c540b97134764b56a297c41e8578f9f2` is published to both

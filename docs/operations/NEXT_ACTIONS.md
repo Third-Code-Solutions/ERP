@@ -30,6 +30,11 @@ the external GitHub account payment/spending-limit gate remains unresolved.
 Local gates are recorded in the work log. Source now has 75 migrations versus
 55 hosted.
 
+Read-only recheck 2026-08-03: the duplicate group is still 12 records, the
+populated demo tenant has 661 audit rows, Railway is healthy but not authorized
+under `kurtgav`, and Vercel still serves `31c04942a93d`. No deployment or paid
+build is authorized by this evidence.
+
 ## Exact next action after M3.19 supplier-bill-posting source slice
 
 1. Treat `f50c8bc5c540b97134764b56a297c41e8578f9f2` as the reviewed pushed

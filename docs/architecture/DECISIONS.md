@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-126 - Treat provider readiness as necessary, not sufficient
+
+Decision: a green Railway/Vercel readiness response never authorizes a hosted
+release by itself. The controlled release gate must also clear migration
+parity, duplicate Purchase Order review, audit-chain tenant approval,
+integration evidence, exact source identity, rollback, and spend controls.
+Keep Vercel Git deployment disabled and do not create preview builds while any
+gate is unresolved.
+
+Reason: the 2026-08-03 recheck returned healthy providers while Supabase was
+still 55/75 migrations and the Railway CLI was unauthorized under the requested
+`kurtgav` identity. Separating liveness from release authorization prevents a
+healthy but unreviewed artifact or wrong-account deployment.
+
 ## D-125 - Reuse the database payable function behind a Core supplier-bill command
 
 Decision: add `POST /v1/finance/supplier-bills/:supplierBillId/post` as a
