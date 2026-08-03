@@ -5,6 +5,8 @@
 Completed the local source milestone. No hosted mutation or provider action
 was authorized.
 
+Reviewed source commit: `8404d20`.
+
 - Added strict tenant-free save/update/delete command and result contracts for
   cash drafts, direction-safe allocations, and fail-closed API/Next feature
   controls.
