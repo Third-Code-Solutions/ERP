@@ -5,16 +5,30 @@ import { JournalPostController } from './journal-post.controller'
 import { JournalPostService } from './journal-post.service'
 import { JournalReverseController } from './journal-reverse.controller'
 import { JournalReverseService } from './journal-reverse.service'
+import { SupplierBillPostController } from './supplier-bill-post.controller'
+import { SupplierBillPostService } from './supplier-bill-post.service'
 
 @Module({
   imports: [AuditModule],
-  controllers: [JournalPostController, JournalReverseController],
-  providers: [JournalPostService, JournalReverseService],
+  controllers: [
+    JournalPostController,
+    JournalReverseController,
+    SupplierBillPostController,
+  ],
+  providers: [
+    JournalPostService,
+    JournalReverseService,
+    SupplierBillPostService,
+  ],
 })
 export class FinanceModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestObservabilityMiddleware)
-      .forRoutes(JournalPostController, JournalReverseController)
+      .forRoutes(
+        JournalPostController,
+        JournalReverseController,
+        SupplierBillPostController
+      )
   }
 }

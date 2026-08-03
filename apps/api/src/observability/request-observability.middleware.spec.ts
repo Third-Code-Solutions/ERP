@@ -225,6 +225,30 @@ describe('RequestObservabilityMiddleware', () => {
     expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
   })
 
+  it('labels Supplier Bill posting without logging bill identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/supplier-bills/:supplierBillId/post' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.supplier_bill_post',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
   it('labels delivery site-preparation starts without logging schedule identifiers', () => {
     const log = vi
       .spyOn(Logger.prototype, 'log')

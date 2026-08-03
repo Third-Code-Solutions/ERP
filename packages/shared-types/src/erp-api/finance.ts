@@ -71,3 +71,27 @@ export const journalReverseResultSchema = z
 export type JournalReverseCommand = z.infer<typeof journalReverseCommandSchema>
 export type JournalReverseBody = z.infer<typeof journalReverseBodySchema>
 export type JournalReverseResult = z.infer<typeof journalReverseResultSchema>
+
+export const supplierBillPostCommandSchema = z
+  .object({
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const supplierBillPostResultSchema = z
+  .object({
+    supplierBillId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('posted'),
+    supplierBillNumber: z.string().regex(/^SB-\d{4}-\d{6}$/),
+    journalEntryId: z.string().uuid(),
+    journalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
+  })
+  .strict()
+
+export type SupplierBillPostCommand = z.infer<
+  typeof supplierBillPostCommandSchema
+>
+export type SupplierBillPostResult = z.infer<
+  typeof supplierBillPostResultSchema
+>

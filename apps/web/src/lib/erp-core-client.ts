@@ -14,6 +14,7 @@ import {
   changeRequestCreationResultSchema,
   journalPostResultSchema,
   journalReverseResultSchema,
+  supplierBillPostResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
   stockReceiptCreationResultSchema,
@@ -48,6 +49,8 @@ import {
   type JournalPostResult,
   type JournalReverseBody,
   type JournalReverseResult,
+  type SupplierBillPostCommand,
+  type SupplierBillPostResult,
   type DocumentProcessingAccepted,
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
@@ -218,6 +221,16 @@ export function financeJournalReverseWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API,
     process.env.ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function financeSupplierBillPostWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_VIA_API,
+    process.env.ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -1594,6 +1607,65 @@ export async function postJournalEntryThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No journal was posted.',
+    }
+  }
+}
+
+export async function postSupplierBillThroughCoreApi(
+  supplierBillId: string,
+  command: SupplierBillPostCommand,
+  idempotencyKey: string
+): Promise<CoreResult<SupplierBillPostResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/supplier-bills/${encodeURIComponent(
+        supplierBillId
+      )}/post`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Supplier Bill posting conflicts with its current state.'
+            : response.status === 404
+              ? 'Supplier Bill was not found.'
+              : 'Supplier Bill was not posted.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = supplierBillPostResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Supplier Bill posting result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No Supplier Bill posting was committed.',
     }
   }
 }
