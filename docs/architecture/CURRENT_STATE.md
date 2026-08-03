@@ -4,6 +4,33 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.24 source update (2026-08-03)
+
+Local reviewed source now adds closed-by-default NestJS authority for draft
+customer-invoice cancellation. `POST /v1/finance/customer-invoices/:invoiceId/cancel`
+strictly validates an empty command body, rechecks tenant membership and
+`finance.issue_invoice`, locks the invoice, claims a tenant-scoped idempotency
+record, reuses the existing `cancel_customer_invoice` PostgreSQL function for
+the official state transition, persists a strict replay result, and writes
+semantic audit in one transaction. Next.js keeps the existing Server Action
+and visible UI/copy contract, selects Core only for an exact flag plus UUID
+tenant allowlist, uses one stable cancellation retry key, and never falls back
+after a selected Core failure.
+
+The source migration is
+`20260803110000_customer_invoice_cancel_workflow.sql`; it is not applied to
+hosted Supabase. All customer-invoice cancellation controls remain
+false/empty. Source now has 80 migrations versus 55 hosted (25 pending). No
+Supabase SQL, provider setting, feature flag, Railway release, Vercel
+deployment, or hosted data changed.
+
+Validation: shared-types full suite 147/147, database full suite 152/152
+(137 guarded tests skipped without `DATABASE_URL`), API source suite 240/240,
+Web full suite 418/418, all package typechecks and lint, API build, Next
+production build with 78/78 routes, release-plan checks, workflow reference
+checks, and diff checks passed. Guarded PostgreSQL/Redis integration remains
+skipped without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
+
 ## M3.23 source update (2026-08-03)
 
 Local reviewed source now adds closed-by-default NestJS authority for customer

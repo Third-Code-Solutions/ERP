@@ -183,6 +183,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for customer invoice issuance; default empty |
 | `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_VIA_API` | no | Next server | Selects customer invoice reversal Next-to-Nest handoff; default false |
 | `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for customer invoice reversal; default empty |
+| `ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_VIA_API` | no | Next server | Selects customer invoice cancellation Next-to-Nest handoff; default false |
+| `ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for customer invoice cancellation; default empty |
 | `ERP_DELIVERY_SITE_PREPARATION_START_WRITES_VIA_API` | no | Next server | Selects the delivery site-preparation-start Next-to-Nest handoff; default false |
 | `ERP_DELIVERY_SITE_PREPARATION_START_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for delivery site-preparation start; default empty |
 | `ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API` | no | Next server | Selects the delivery site-preparation-complete Next-to-Nest handoff; default false |
@@ -256,6 +258,13 @@ Core request never falls back to a direct browser database function call.
 The API-side customer invoice reversal controls are
 `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED` and
 `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS`; both default to
+false/empty. The Next-side selector uses the corresponding `..._VIA_API` flag
+and UUID allowlist. The Core API is the only authority when selected; a failed
+Core request never falls back to a direct browser database function call.
+
+The API-side customer invoice cancellation controls are
+`ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_ENABLED` and
+`ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_TENANT_IDS`; both default to
 false/empty. The Next-side selector uses the corresponding `..._VIA_API` flag
 and UUID allowlist. The Core API is the only authority when selected; a failed
 Core request never falls back to a direct browser database function call.

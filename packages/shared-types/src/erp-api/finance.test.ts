@@ -17,6 +17,9 @@ import {
   customerInvoiceIssueResultSchema,
   customerInvoiceReverseCommandSchema,
   customerInvoiceReverseResultSchema,
+  customerInvoiceCancelBodySchema,
+  customerInvoiceCancelCommandSchema,
+  customerInvoiceCancelResultSchema,
 } from './finance'
 
 const JOURNAL_ID = '33333333-3333-4333-8333-333333333333'
@@ -311,6 +314,37 @@ describe('finance API contracts', () => {
         status: 'reversed',
         reversalJournalEntryId: '99999999-9999-4999-8999-999999999999',
         reversalJournalEntryNumber: 'JE-2026-000013',
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps customer-invoice cancellation strict and tenant-scoped', () => {
+    expect(customerInvoiceCancelBodySchema.parse({})).toEqual({})
+    expect(
+      customerInvoiceCancelCommandSchema.parse({ invoiceId: INVOICE_ID })
+    ).toEqual({ invoiceId: INVOICE_ID })
+    expect(
+      customerInvoiceCancelResultSchema.parse({
+        invoiceId: INVOICE_ID,
+        tenantId: TENANT_ID,
+        status: 'cancelled',
+      })
+    ).toMatchObject({ status: 'cancelled' })
+    expect(
+      customerInvoiceCancelBodySchema.safeParse({ tenantId: TENANT_ID })
+        .success
+    ).toBe(false)
+    expect(
+      customerInvoiceCancelCommandSchema.safeParse({
+        invoiceId: INVOICE_ID,
+        tenantId: TENANT_ID,
+      }).success
+    ).toBe(false)
+    expect(
+      customerInvoiceCancelResultSchema.safeParse({
+        invoiceId: INVOICE_ID,
+        tenantId: TENANT_ID,
+        status: 'draft',
       }).success
     ).toBe(false)
   })

@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-132 - Route draft customer-invoice cancellation through Core (2026-08-03)
+
+Decision: add closed-by-default
+`POST /v1/finance/customer-invoices/:invoiceId/cancel`. NestJS derives tenant
+and actor from a locked membership, rechecks `finance.issue_invoice`, locks the
+invoice, claims a separate tenant-scoped idempotency ledger, reuses the
+existing `cancel_customer_invoice` database function for state authority, and
+writes semantic audit in the same transaction. Next.js remains a compatibility
+adapter with a stable retry key; selected Core failures never fall through to a
+second write. The migration and selectors remain false/empty until hosted
+parity, disposable integration, rollback, duplicate-data, audit-chain, and
+provider-identity gates clear.
+
+Reason: draft cancellation changes official invoice state even though it does
+not post a journal. It therefore needs the same tenant lock, capability check,
+replay safety, audit attribution, and database transaction boundary as posting
+and reversal. A separate ledger prevents idempotency keys from colliding
+across distinct invoice operations.
+
 ## D-131 - Route customer-invoice reversal through Core with a durable replay boundary (2026-08-03)
 
 Decision: add closed-by-default

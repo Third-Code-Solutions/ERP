@@ -1,5 +1,42 @@
 # Work Log
 
+## 2026-08-03 - M3.24 customer invoice cancellation authority
+
+Completed the local source milestone. No hosted mutation or provider action
+was authorized.
+
+- Added strict customer-invoice cancellation command/result contracts and
+  ordered migration `20260803110000_customer_invoice_cancel_workflow.sql`
+  with forced RLS, service-only privileges, tenant-composite foreign keys,
+  and durable replay.
+- Added the closed-by-default NestJS route
+  `POST /v1/finance/customer-invoices/:invoiceId/cancel` with membership and
+  invoice locking, `finance.issue_invoice` authorization, existing PostgreSQL
+  state-function reuse, strict replay validation, atomic semantic audit,
+  observability labeling, and error mapping.
+- Added the guarded Next adapter, stable browser cancellation retry key,
+  action delegation tests, environment controls, and migration documentation.
+  The legacy direct database function remains unchanged for unselected
+  tenants; visible UI/copy remains unchanged.
+
+Validation:
+
+- Shared-types full suite: 147/147.
+- Database full suite: 152/152; 137 guarded tests skipped without
+  `DATABASE_URL`.
+- API source suite: 240/240.
+- Web full suite: 418/418.
+- Shared/database/API/Web typechecks and lint passed.
+- API build passed; Next production build passed with 78/78 routes.
+- Controlled release, database release, workflow-reference, and diff checks
+  passed.
+
+Hosted boundary: Supabase remains 55 applied migrations against 80 source
+migrations. Duplicate PO mapping, canonical audit-recovery tenant, Railway
+identity, and spend-bounded provider gates remain unresolved. No Supabase SQL,
+feature flag, Railway release, Vercel deployment, provider setting, or hosted
+data changed.
+
 ## 2026-08-03 - M3.23 customer invoice reversal authority
 
 Completed the local source milestone. No hosted mutation or provider action

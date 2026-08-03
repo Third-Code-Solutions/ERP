@@ -15,6 +15,8 @@ import { CustomerInvoiceIssueController } from './customer-invoice-issue.control
 import { CustomerInvoiceIssueService } from './customer-invoice-issue.service'
 import { CustomerInvoiceReverseController } from './customer-invoice-reverse.controller'
 import { CustomerInvoiceReverseService } from './customer-invoice-reverse.service'
+import { CustomerInvoiceCancelController } from './customer-invoice-cancel.controller'
+import { CustomerInvoiceCancelService } from './customer-invoice-cancel.service'
 
 @Module({
   imports: [AuditModule],
@@ -26,6 +28,7 @@ import { CustomerInvoiceReverseService } from './customer-invoice-reverse.servic
     CashTransactionWorkflowController,
     CustomerInvoiceIssueController,
     CustomerInvoiceReverseController,
+    CustomerInvoiceCancelController,
   ],
   providers: [
     JournalPostService,
@@ -35,6 +38,7 @@ import { CustomerInvoiceReverseService } from './customer-invoice-reverse.servic
     CashTransactionWorkflowService,
     CustomerInvoiceIssueService,
     CustomerInvoiceReverseService,
+    CustomerInvoiceCancelService,
   ],
 })
 export class FinanceModule implements NestModule {
@@ -48,7 +52,8 @@ export class FinanceModule implements NestModule {
         SupplierBillReverseController,
         CashTransactionWorkflowController,
         CustomerInvoiceIssueController,
-        CustomerInvoiceReverseController
+        CustomerInvoiceReverseController,
+        CustomerInvoiceCancelController
       )
   }
 }

@@ -75,6 +75,13 @@ invoice issue and reversal selectors and API flags stay false/empty until the
 ordered hosted migration set, disposable integration, rollback, duplicate-data,
 audit-chain, provider-identity, and spend gates are cleared.
 
+Customer invoice cancellation follows the same boundary as a third finance
+slice: a separate idempotency ledger and route, no browser authority fields,
+and a PostgreSQL state transition reused inside the Nest transaction. The
+cancellation selector remains disabled until the ordered hosted migration set
+and the same disposable, rollback, data-integrity, audit, identity, and spend
+gates clear.
+
 ## Delivery workflow authority slice
 
 The delivery state machine is migrated one transition at a time. M3.17 makes

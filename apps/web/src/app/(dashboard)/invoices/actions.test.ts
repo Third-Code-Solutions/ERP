@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   issueCustomerInvoiceThroughCoreApi: vi.fn(),
   financeCustomerInvoiceReverseWritesUseCoreApi: vi.fn(),
   reverseCustomerInvoiceThroughCoreApi: vi.fn(),
+  financeCustomerInvoiceCancelWritesUseCoreApi: vi.fn(),
+  cancelCustomerInvoiceThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -37,6 +39,10 @@ vi.mock('../../../lib/erp-core-client', () => ({
     mocks.financeCustomerInvoiceReverseWritesUseCoreApi,
   reverseCustomerInvoiceThroughCoreApi:
     mocks.reverseCustomerInvoiceThroughCoreApi,
+  financeCustomerInvoiceCancelWritesUseCoreApi:
+    mocks.financeCustomerInvoiceCancelWritesUseCoreApi,
+  cancelCustomerInvoiceThroughCoreApi:
+    mocks.cancelCustomerInvoiceThroughCoreApi,
 }))
 
 import {
@@ -68,6 +74,7 @@ describe('customer invoice posting actions', () => {
     mocks.requireCapability.mockImplementation(() => undefined)
     mocks.financeCustomerInvoiceIssueWritesUseCoreApi.mockReturnValue(false)
     mocks.financeCustomerInvoiceReverseWritesUseCoreApi.mockReturnValue(false)
+    mocks.financeCustomerInvoiceCancelWritesUseCoreApi.mockReturnValue(false)
   })
 
   it('requires the invoice issuance capability before database access', async () => {
@@ -174,6 +181,45 @@ describe('customer invoice posting actions', () => {
     expect(result).toEqual({ ok: true })
     expect(mocks.execute).toHaveBeenCalledOnce()
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/invoices/${INVOICE_ID}`)
+  })
+
+  it('uses the selected Core authority for invoice cancellation with no fallback write', async () => {
+    const query = invoiceQuery([{ id: INVOICE_ID }])
+    mocks.select.mockReturnValue({ from: query.from })
+    mocks.financeCustomerInvoiceCancelWritesUseCoreApi.mockReturnValue(true)
+    mocks.cancelCustomerInvoiceThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        invoiceId: INVOICE_ID,
+        tenantId: PROFILE.tenantId,
+        status: 'cancelled',
+      },
+    })
+
+    const result = await cancelDraftInvoice(INVOICE_ID, 'invoice-cancel-retry-1')
+
+    expect(result).toEqual({ ok: true })
+    expect(mocks.cancelCustomerInvoiceThroughCoreApi).toHaveBeenCalledWith(
+      INVOICE_ID,
+      {},
+      'invoice-cancel-retry-1'
+    )
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('requires a retry token when Core owns invoice cancellation', async () => {
+    const query = invoiceQuery([{ id: INVOICE_ID }])
+    mocks.select.mockReturnValue({ from: query.from })
+    mocks.financeCustomerInvoiceCancelWritesUseCoreApi.mockReturnValue(true)
+
+    const result = await cancelDraftInvoice(INVOICE_ID)
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Retry token is required for customer invoice cancellation.',
+    })
+    expect(mocks.cancelCustomerInvoiceThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   it('returns the linked invoice reversal journal', async () => {

@@ -258,3 +258,29 @@ export type CustomerInvoiceReverseCommand = z.infer<
 export type CustomerInvoiceReverseResult = z.infer<
   typeof customerInvoiceReverseResultSchema
 >
+
+export const customerInvoiceCancelBodySchema = z.object({}).strict()
+
+export const customerInvoiceCancelCommandSchema = z
+  .object({
+    invoiceId: z.string().uuid(),
+  })
+  .strict()
+
+export const customerInvoiceCancelResultSchema = z
+  .object({
+    invoiceId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('cancelled'),
+  })
+  .strict()
+
+export type CustomerInvoiceCancelBody = z.infer<
+  typeof customerInvoiceCancelBodySchema
+>
+export type CustomerInvoiceCancelCommand = z.infer<
+  typeof customerInvoiceCancelCommandSchema
+>
+export type CustomerInvoiceCancelResult = z.infer<
+  typeof customerInvoiceCancelResultSchema
+>
