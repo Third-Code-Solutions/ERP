@@ -6,11 +6,12 @@ evidence is green.
 
 ## 2026-08-03 GitHub source publication checkpoint
 
-Reviewed source head `806860e49479a085f762fabaab25696cb9b854a1` is published to
-`origin/main` and `origin/agent-02/third-code-erp-landing` by
-`kurtgav <kurtgavin.design@gmail.com>`. No hosted SQL, provider setting,
-feature flag, or deployment changed. The release remains held by the hosted
-duplicate Purchase Order data and missing owner-approved audit-recovery tenant.
+Remote tracking refs remain at `9c200ccca0526d105ce7682b62e7b5047e2eb44a`,
+published by `kurtgav <kurtgavin.design@gmail.com>`. Local M3.21 commits are
+not published because the connected account cannot access the requested GitHub
+repository. No hosted SQL, provider setting, feature flag, or deployment
+changed; the release remains held by duplicate Purchase Order data and the
+missing owner-approved audit-recovery tenant.
 
 ## M3.21 - Cash transaction posting/reversal authority (local source complete)
 
