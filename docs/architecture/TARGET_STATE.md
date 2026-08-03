@@ -109,6 +109,17 @@ selected Core failure never falls through to a direct second write. Cash
 controls stay false/empty until the ordered hosted suffix, disposable
 integration, rollback, duplicate-data, audit-chain, and spend gates clear.
 
+M3.22 applies the same boundary to customer invoice issuance: NestJS owns
+`POST /v1/finance/customer-invoices/:invoiceId/issue`, rechecks
+`finance.issue_invoice`, locks the tenant membership and invoice, claims a
+tenant-scoped idempotency ledger, reuses the existing
+`issue_customer_invoice` database function, persists a strict issued result,
+and audits the status change atomically. Next.js remains a compatibility
+adapter with one stable retry key; selected Core failures never fall through
+to a direct database function. Invoice issuance controls remain false/empty
+until the complete ordered hosted suffix, disposable integration, duplicate
+data, audit-chain, rollback, provider-identity, and spend gates clear.
+
 ## Nest module shape
 
 Modules align to business capabilities: identity/access, tenants, CRM,

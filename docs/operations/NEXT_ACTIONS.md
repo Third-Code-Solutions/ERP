@@ -2,7 +2,7 @@
 
 ## Immediate hosted release gate
 
-Do not apply the twenty-two pending Supabase migrations or deploy Railway/Vercel
+Do not apply the twenty-three pending Supabase migrations or deploy Railway/Vercel
 until the owner supplies:
 
 1. The canonical `AUDIT_RECOVERY_TENANT_ID` UUID for the audit-chain planner.
@@ -13,7 +13,7 @@ until the owner supplies:
 Then run the read-only planners again. Only when migration ledger, duplicate
 review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 
-- apply all twenty-two pending migrations in timestamp order with a captured ledger;
+- apply all twenty-three pending migrations in timestamp order with a captured ledger;
 - run the disposable and hosted verification gates;
 - deploy exactly one reviewed source SHA to Railway and one controlled Vercel
   production build, after confirming the billing impact;
@@ -21,8 +21,8 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
   database state, logs, and rollback before calling production green.
 
 Current published source head: `9c200ccca0526d105ce7682b62e7b5047e2eb44a` on
-both remote tracking refs, authored by `kurtgav`. Local reviewed head is
-`41ec634` (M3.21 cash workflow authority plus release docs),
+both remote tracking refs, authored by `kurtgav`. Local reviewed head is the
+current M3.22 customer-invoice issuance source plus release docs,
 but the requested GitHub target currently returns 404 to the connected
 `kurtgav` account, so it is not published. The prior M3.20 implementation is
 `806860e49479a085f762fabaab25696cb9b854a1`; the prior M3.19
@@ -32,7 +32,7 @@ M3.18 implementation is in
 `0b7cb532b0b3a32f687f58437f2756259ba68c27`. CI run
 `30755868510` failed before any job step and all other jobs were skipped;
 the external GitHub account payment/spending-limit gate remains unresolved.
-Local gates are recorded in the work log. Source now has 77 migrations versus
+Local gates are recorded in the work log. Source now has 78 migrations versus
 55 hosted. No hosted mutation is authorized by this evidence.
 
 Read-only recheck 2026-08-03: the duplicate group is still 12 records, the
@@ -40,6 +40,25 @@ populated demo tenant has 661 audit rows, Railway is healthy but not authorized
 under `kurtgav`, Vercel still serves `31c04942a93d`, and GitHub target access is
 404 under `kurtgav`. No deployment, hosted migration, or paid build is
 authorized by this evidence.
+
+## Exact next action after local M3.22 customer-invoice issuance slice
+
+1. Keep `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED`,
+   `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS`,
+   `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API`, and
+   `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API_TENANT_IDS` false/empty.
+   Do not apply `20260803090000_customer_invoice_issue_workflow.sql` alone;
+   reconcile the complete ordered 23-migration suffix only after the duplicate
+   PO mapping, canonical `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
+   integration, rollback, and provider-identity gates clear.
+2. Grant `kurtgav` access to `Third-Code-Solutions/ERP` and re-authenticate
+   Railway as `kurtgav`; do not substitute a fork/account or reconnect
+   Vercel Git. The current target returns GitHub 404 and Railway CLI resolves
+   to `joeseffdy@gmail.com`.
+3. After owner inputs and exact provider identity, rerun the read-only
+   Supabase planner, execute one disposable invoice issue/replay/rollback
+   proof, then review one spend-bounded source publication and provider action.
+   Invoice reversal and cancel remain separate legacy authority work.
 
 ## Exact next action after local M3.21 cash workflow slice
 
@@ -49,7 +68,7 @@ authorized by this evidence.
    substitute account.
 2. Keep all four cash controls false/empty. Do not apply
    `20260802230000_cash_transaction_workflow_idempotency.sql` alone; reconcile
-   the complete 22-migration suffix only after the duplicate PO mapping,
+   the complete 23-migration suffix only after the duplicate PO mapping,
    canonical `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis integration,
    and rollback evidence are supplied.
 3. Re-authenticate Railway as `kurtgav`; keep Vercel Git disconnected and avoid

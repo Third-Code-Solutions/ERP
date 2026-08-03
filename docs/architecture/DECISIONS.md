@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-129 - Reuse the database receivables function behind Core invoice issuance
+
+Decision: add the closed-by-default
+`POST /v1/finance/customer-invoices/:invoiceId/issue` command. NestJS derives
+tenant and actor, rechecks `finance.issue_invoice`, locks membership and the
+invoice, claims a tenant-scoped idempotency ledger, calls the existing
+`issue_customer_invoice` function, stores a strict result, and writes semantic
+audit in the same transaction. Next.js remains a compatibility adapter with
+one stable retry key; selected Core failures never fall through to a second
+write. Invoice cancel and reversal remain separate legacy paths in this
+slice.
+
+Reason: PostgreSQL already owns customer receivables journal balancing,
+numbering, fiscal-period validation, and invoice state. Reusing that function
+avoids duplicate accounting logic while moving authorization, replay safety,
+tenant isolation, and audit orchestration into the modular Nest boundary. Keep
+the migration and selectors false/empty until hosted parity, disposable
+integration, rollback, duplicate-data, audit-chain, and provider-identity
+gates clear.
+
 ## D-128 - Reuse database cash functions behind a Core command
 
 Decision: add closed-by-default NestJS commands for cash posting and reversal.

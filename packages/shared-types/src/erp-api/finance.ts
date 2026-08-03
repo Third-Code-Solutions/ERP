@@ -199,3 +199,27 @@ export type CashTransactionReverseCommand = z.infer<
 export type CashTransactionReverseResult = z.infer<
   typeof cashTransactionReverseResultSchema
 >
+
+export const customerInvoiceIssueCommandSchema = z
+  .object({
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const customerInvoiceIssueResultSchema = z
+  .object({
+    invoiceId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('issued'),
+    invoiceNumber: z.string().trim().min(1).max(50),
+    journalEntryId: z.string().uuid(),
+    journalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
+  })
+  .strict()
+
+export type CustomerInvoiceIssueCommand = z.infer<
+  typeof customerInvoiceIssueCommandSchema
+>
+export type CustomerInvoiceIssueResult = z.infer<
+  typeof customerInvoiceIssueResultSchema
+>

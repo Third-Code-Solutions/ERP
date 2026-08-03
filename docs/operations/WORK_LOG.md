@@ -1,5 +1,42 @@
 # Work Log
 
+## 2026-08-03 - M3.22 customer invoice issuance authority
+
+Completed the local source milestone. No hosted mutation or provider action
+was authorized.
+
+- Added strict customer-invoice issuance command/result contracts and ordered
+  migration `20260803090000_customer_invoice_issue_workflow.sql` with forced
+  RLS, service-only privileges, tenant-composite foreign keys, and durable
+  replay.
+- Added the closed-by-default NestJS route
+  `POST /v1/finance/customer-invoices/:invoiceId/issue` with membership
+  locking, `finance.issue_invoice` authorization, existing PostgreSQL
+  receivables-function reuse, strict result validation, atomic semantic audit,
+  and idempotent replay.
+- Added the guarded Next adapter, stable invoice issue retry key,
+  observability label, environment controls, and contract tests. Cancel,
+  reversal, visible UI, and copy remain unchanged.
+
+Validation:
+
+- Shared finance contracts: 10/10.
+- Database migration contracts: 3/3.
+- API focused contracts: 47/47.
+- Web client/invoice action contracts: 63/63.
+- Shared/database/API/Web typechecks passed.
+- Nest production build passed.
+- Next production build passed with 78/78 routes.
+- `git diff --check` passed.
+- Guarded PostgreSQL/Redis integration remains skipped without
+  `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
+
+Hosted boundary: Supabase remains 55 applied migrations against 78 source
+migrations. Duplicate PO mapping, canonical audit-recovery tenant, GitHub
+repository access, Railway identity, and spend-bounded provider gates remain
+unresolved. No Supabase SQL, feature flag, Railway release, Vercel deployment,
+provider setting, or hosted data changed.
+
 ## 2026-08-03 - M3.21 cash transaction workflow authority
 
 Completed local source milestone at commit `44e678e` under

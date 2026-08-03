@@ -6,6 +6,10 @@ import { db } from '@third-code-erp/database'
 import { invoices } from '@third-code-erp/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import {
+  financeCustomerInvoiceIssueWritesUseCoreApi,
+  issueCustomerInvoiceThroughCoreApi,
+} from '../../../lib/erp-core-client'
 
 export interface InvoiceActionResult {
   ok: boolean
@@ -71,7 +75,7 @@ function revalidateInvoice(invoiceId: string) {
 export async function issueCustomerInvoice(input: {
   invoiceId: string
   postingDate: string
-}): Promise<InvoiceActionResult> {
+}, idempotencyKey?: string): Promise<InvoiceActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.issue_invoice')
@@ -82,6 +86,34 @@ export async function issueCustomerInvoice(input: {
       profile.tenantId
     )
     if (!invoice) return { ok: false, error: 'Invoice not found' }
+
+    if (financeCustomerInvoiceIssueWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for customer invoice issuance.',
+        }
+      }
+      const coreResult = await issueCustomerInvoiceThroughCoreApi(
+        parsed.invoiceId,
+        { postingDate: parsed.postingDate },
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Customer invoice was not issued. No financial posting was committed.',
+        }
+      }
+      revalidateInvoice(parsed.invoiceId)
+      return {
+        ok: true,
+        journalId: coreResult.data.journalEntryId,
+        journalNumber: coreResult.data.journalEntryNumber,
+      }
+    }
 
     const rows = await db.execute<{
       journal_entry_id: string

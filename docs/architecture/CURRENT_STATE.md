@@ -4,10 +4,35 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.22 source update (2026-08-03)
+
+Local reviewed source now adds closed-by-default NestJS authority for customer
+invoice issuance. `POST /v1/finance/customer-invoices/:invoiceId/issue`
+rechecks tenant membership and `finance.issue_invoice`, locks the invoice,
+claims a tenant-scoped idempotency record, reuses the existing
+`issue_customer_invoice` PostgreSQL function for the official journal and
+invoice state, persists a strict replay result, and writes semantic audit in
+one transaction. Next.js keeps the existing Server Action and UI contract,
+selects Core only for an exact flag plus UUID tenant allowlist, and never
+falls back after a selected Core failure. Cancel and reversal remain legacy in
+this slice; visible UI/copy is unchanged.
+
+The source migration is
+`20260803090000_customer_invoice_issue_workflow.sql`; it is not applied to
+hosted Supabase. All invoice controls remain false/empty. Source now has 78
+migrations versus 55 hosted. No Supabase SQL, provider setting, feature flag,
+Railway release, Vercel deployment, or hosted data changed.
+
+Validation: shared finance contracts 10/10, database migration contracts 3/3,
+API focused contracts 47/47, Web client/invoice actions 63/63, shared/
+database/API/Web typechecks, Nest build, Next production build with 78/78
+routes, and diff checks passed. Guarded PostgreSQL/Redis integration remains
+skipped without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
+
 ## 2026-08-03 source publication checkpoint
 
 Remote tracking refs remain at `9c200ccca0526d105ce7682b62e7b5047e2eb44a`,
-published under `kurtgav <kurtgavin.design@gmail.com>`. The local M3.21 commits
+published under `kurtgav <kurtgavin.design@gmail.com>`. The local M3.21/M3.22 commits
 are not published because the connected account cannot access the requested
 GitHub repository. This checkpoint changed GitHub source only; Supabase,
 Railway, Vercel, feature flags, and hosted data remain unchanged.
@@ -42,13 +67,13 @@ runner did not terminate before its process ceiling; this is recorded as an
 exit-handle timeout, not a green command exit. Guarded PostgreSQL integration
 remains skipped without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
 
-Source now has 77 migrations versus 55 hosted; the ordered 22-migration
+Source now has 78 migrations versus 55 hosted; the ordered 23-migration
 suffix remains unapplied.
 
 ## 2026-08-03 hosted release recheck
 
 Read-only verification was repeated after the prior source publication. Supabase project
-`aqqrtkmtcsfkbyyqxowv` still reports 55 applied migrations against 77
+`aqqrtkmtcsfkbyyqxowv` still reports 55 applied migrations against 78
 repository migrations. The duplicate evidence remains one tenant- and
 project-scoped Purchase Order-number group with 12 demo records (4 draft, 1
 pending PM approval, 1 pending SCM issuance, 6 issued). The audit table has
@@ -63,7 +88,7 @@ the local Railway CLI is unauthorized and still resolves to the wrong
 `31c04942a93d`, and the Vercel runtime-error report showed no errors in the
 last 24 hours. `apps/web/vercel.json` keeps Git deployment disabled. No
 Supabase SQL, feature flag, provider setting, or deployment changed. The new
-source head now contains 77 migrations; hosted parity remains 55.
+source head now contains 78 migrations; hosted parity remains 55.
 
 ## M3.20 source update (2026-08-03)
 
