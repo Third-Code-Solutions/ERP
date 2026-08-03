@@ -1,6 +1,6 @@
 # Next Actions
 
-## Exact next action after local M3.28 supplier-confirmation slice
+## Exact next action after M3.28 Railway source deployment (2026-08-03)
 
 1. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED` and
    `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS` false/empty. Do not apply
@@ -13,10 +13,9 @@
    deterministic session replay and redacted supplier-link payload. Preserve
    the current supplier email retry and Purchase Order status behavior; do not
    expose a public link until the email and rollback proof pass.
-3. Re-run shared/database/API/Web focused contracts, package typechecks, Nest
-   and Next builds, and the existing release-plan checks. Publish only the
-   reviewed source checkpoint under `kurtgav`; do not trigger Vercel or apply
-   Supabase.
+3. Keep the deployed Railway SHA `850eee5` as the only M3.28 runtime; do not
+   trigger Vercel or apply Supabase. The next source action is the protected
+   session-minting seam only after the gates above clear.
 
 The landing page remains protected by the existing desktop/mobile screenshots,
 behavior sweep, SEO metadata, and no-reference-brand scan. No UI rewrite is

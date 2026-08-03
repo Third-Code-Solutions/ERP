@@ -17,10 +17,14 @@ Session minting and email-link delivery remain a separate follow-on slice.
 
 The source migration is
 `20260803150000_vendor_confirmation_workflow.sql`; Supabase remains at 55
-applied migrations against 84 source migrations. Both supplier-confirmation
-controls remain false/empty. No hosted SQL, feature flag, email link, provider
-setting, Vercel deployment, or hosted data changed. Focused shared/database/API
-contracts and typechecks, the Nest build, and `git diff --check` passed.
+applied migrations against 84 source migrations. Commit `850eee5` is published
+to both GitHub target branches and Railway deployment
+`3227b3a3-79e9-472f-9770-78f96faf636f` is `SUCCESS` at that SHA. Live `/ready`
+reported database and Redis `ok`; a valid-format confirmation probe returned
+`503` as expected because both supplier-confirmation controls remain
+false/empty. No hosted SQL, email link, Vercel deployment, or hosted data
+changed. Focused shared/database/API contracts and typechecks, the Nest build,
+and `git diff --check` passed.
 
 ## Capability baseline checkpoint (2026-08-03)
 

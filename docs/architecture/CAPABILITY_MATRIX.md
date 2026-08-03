@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-03  
-Source checkpoint: `5e61b28079dab468fe19258f0bf565ccf1ba53d5`  
+Source checkpoint: `850eee50e7a9b4effa1a2b45960d205242ce71d3`
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 This matrix is the product scope baseline. It describes business outcomes and
@@ -30,7 +30,7 @@ authorization.
 | Capture drawings, takeoffs, scope, BOM, and rate cards | BOM routes, CAD worker, evidence tables | Live | Python extracts evidence; official BOM remains server-owned |
 | Compare suppliers and dispatch RFQs | RFQ routes, quote workflow, BullMQ/outbox | Live | Nest adapter plus durable outbox |
 | Approve and issue Purchase Orders | PO creation and three-step workflow | Adapter | Nest route is closed by tenant flag; legacy path remains for unselected tenants |
-| Confirm a supplier response to an issued PO | No session, decision, or replay ledger yet | Planned M3.28 | Public token authority, server transaction, explicit decision state |
+| Confirm a supplier response to an issued PO | M3.28 Nest public route, hashed session/replay schema, and closed runtime seam; session minting/email link pending | Local | Public token authority, server transaction, explicit decision state |
 | Schedule deliveries and prepare a site | Delivery routes and state machine | Local | Nest transition slices, tenant-scoped idempotency |
 | Inspect and accept/reject delivery | Inspection routes and evidence | Local | Nest transition slices, audit and guarded status changes |
 | Receive, transfer, consume, and count stock | Inventory control center and ledger schema | Local | PostgreSQL ledger constraints; Core posting/reversal slices |
@@ -73,16 +73,17 @@ The next implementation slice is intentionally narrow:
    until disposable replay, expiry, revocation, cross-tenant, rollback, and
    provider-spend gates are proven.
 
-Acceptance is source-level only until the ordered hosted migration suffix is
-reconciled. The source migration and closed route now exist; no flag, email
-link, or provider deployment is implied by this plan. Session minting and
-supplier-email link delivery are intentionally deferred to the follow-on slice
-so the existing notification retry path remains unchanged.
+Acceptance is source-level plus a closed Railway runtime seam until the
+ordered hosted migration suffix is reconciled. The source migration and route
+are deployed with both controls false; no Supabase SQL, public flag, or email
+link is active. Session minting and supplier-email link delivery are
+intentionally deferred to the follow-on slice so the existing notification
+retry path remains unchanged.
 
 ## Release boundary
 
-Current hosted Supabase is at 55 applied migrations while source contains 83.
-The 28-migration suffix must be planned and applied in order as one reviewed
+Current hosted Supabase is at 55 applied migrations while source contains 84.
+The 29-migration suffix must be planned and applied in order as one reviewed
 release. Duplicate Purchase Order data, the owner-approved audit-recovery
 tenant, disposable database/Redis evidence, rollback, exact provider identity,
 and spend controls remain independent gates. Vercel Git stays disconnected to
