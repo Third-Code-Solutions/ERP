@@ -33,8 +33,12 @@ Validation:
   workflow action references passed; `git diff --check` passed.
 - Source now contains 85 migrations versus 55 hosted Supabase migrations.
   Session-minting flags remain false/empty and the token secret is unset.
-  Supabase and Vercel remain unchanged pending the ordered hosted suffix,
-  replay/rollback, provider, and spend gates.
+  Commit `e81087e` is published to both target branches under `kurtgav`.
+  Railway deployment `dacccb49-9bca-4754-8a48-17feded185bf` is `SUCCESS` at
+  that SHA; `/ready` reports database and Redis `ok`, and a valid-format
+  public-command probe returned `503`. Supabase and Vercel remain unchanged
+  pending the ordered hosted suffix, replay/rollback, provider, and spend
+  gates.
 
 ## 2026-08-03 - M3.28 supplier-confirmation authority
 
