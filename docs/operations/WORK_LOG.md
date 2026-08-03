@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-03 - hosted release recheck (read-only)
+
+- Rechecked source and providers without mutation. GitHub remains on the
+  reviewed M3.19 source under `kurtgav`; worktree is clean.
+- Supabase `aqqrtkmtcsfkbyyqxowv`: 55 applied / 75 source migrations; one
+  12-record duplicate Purchase Order-number group; audit table counts are 661
+  for the populated demo tenant and 1 for the fixture tenant. Owner mapping
+  and canonical `AUDIT_RECOVERY_TENANT_ID` remain absent.
+- Railway `/health` and `/ready`: HTTP 200, database/Redis ready. Railway CLI
+  remains unauthorized and resolves to `joeseffdy`, so no deploy was run.
+- Vercel `/api/ready` and `/`: HTTP 200; live production revision remains
+  `31c04942a93d`; runtime-error report found none in the last 24 hours. Git
+  deployment remains disabled in `apps/web/vercel.json`.
+- No Supabase SQL, flags, provider settings, deployment, or paid build changed.
+
 ## 2026-08-03 - M3.19 supplier-bill posting authority
 
 Completed source milestone:

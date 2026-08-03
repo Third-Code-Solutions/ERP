@@ -12,6 +12,25 @@ to both `origin/main` and `origin/agent-02/third-code-erp-landing` under
 only. Supabase, Railway, Vercel, feature flags, and hosted data remain
 unchanged.
 
+## 2026-08-03 hosted release recheck
+
+Read-only verification was repeated after source publication. Supabase project
+`aqqrtkmtcsfkbyyqxowv` still reports 55 applied migrations against 75
+repository migrations. The duplicate evidence remains one tenant- and
+project-scoped Purchase Order-number group with 12 demo records (4 draft, 1
+pending PM approval, 1 pending SCM issuance, 6 issued). The audit table has
+661 rows for the populated demo tenant and 1 row for the fixture tenant; no
+owner-approved `AUDIT_RECOVERY_TENANT_ID` was supplied, so audit integrity was
+not treated as cleared.
+
+Railway `/health` and `/ready` returned 200 with database and Redis ready, but
+the local Railway CLI is unauthorized and still resolves to the wrong
+`joeseffdy` account; no Railway release was attempted. Vercel production
+`/api/ready` and the landing page returned 200; the live revision remains
+`31c04942a93d`, and the Vercel runtime-error report showed no errors in the
+last 24 hours. `apps/web/vercel.json` keeps Git deployment disabled. No
+Supabase SQL, feature flag, provider setting, or deployment changed.
+
 ## M3.19 source update (2026-08-03)
 
 Source commit `f50c8bc5c540b97134764b56a297c41e8578f9f2` is the reviewed
