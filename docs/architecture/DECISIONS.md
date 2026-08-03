@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-136 - Maintain a clean-room capability baseline before breadth (2026-08-03)
+
+Decision: use `docs/architecture/CAPABILITY_MATRIX.md` as the product-scope
+baseline for construction parity and multi-business expansion. Measure
+capability by user outcome, state machine, invariant, authority boundary, and
+release evidence rather than by route count or visual similarity. The next
+bounded source slice is a closed-by-default, token-authorized supplier
+confirmation command for an issued Purchase Order.
+
+Reason: the existing construction spine is broad enough that a big-bang module
+catalog would increase complexity and hosted migration risk. A capability
+matrix exposes the one missing Rework-aligned handoff without inventing
+requirements, copying another system's internals, or weakening tenant,
+permission, audit, idempotency, and rollback controls. The supplier decision
+must remain independent from delivery, inventory, and payment state.
+
 ## D-135 - Route public client signing through Core with durable replay (2026-08-03)
 
 Decision: add a closed-by-default `POST /v1/public/signatures/:token`

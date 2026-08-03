@@ -13,6 +13,16 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## Capability baseline
+
+The product scope is maintained in
+[`CAPABILITY_MATRIX.md`](./CAPABILITY_MATRIX.md). It treats construction
+workflow depth, multi-business ERP breadth, and hosted release readiness as
+separate dimensions. The next bounded capability is supplier confirmation for
+an issued Purchase Order; it must not mutate delivery, inventory, or payment
+state and remains closed by default until its transaction and replay evidence
+is complete.
+
 ## Authority boundaries
 
 ```text

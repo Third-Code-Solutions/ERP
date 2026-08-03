@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-03 - Capability baseline and M3.28 scope
+
+Completed a source-planning milestone. No application code, hosted migration,
+feature flag, provider setting, email link, or paid build changed.
+
+- Added `docs/architecture/CAPABILITY_MATRIX.md` with the verified construction
+  spine, multi-business capability gaps, status vocabulary, release boundary,
+  and a bounded supplier-confirmation scope.
+- Recorded the next slice as a token-authorized, tenant-scoped supplier
+  decision with explicit state, durable replay, nullable-actor audit, and no
+  implicit delivery, inventory, or payment mutation.
+- Updated the current/target architecture, decisions, migration plan, next
+  actions, and Rework alignment references. The existing landing surface stays
+  unchanged; browser evidence already covers desktop/mobile layout, behavior,
+  SEO metadata, and reference-brand scanning.
+
+Validation boundary: documentation links and changed-file diff checks remain;
+the next code milestone owns the focused contract, typecheck, build, and
+disposable replay gates. Hosted Supabase remains at 55/83 migrations, Railway
+remains on the verified M3.27 runtime, and Vercel Git remains disconnected.
+
 ## 2026-08-03 - M3.27 public client-signing authority
 
 Completed the local source milestone. No hosted migration, feature flag, or
