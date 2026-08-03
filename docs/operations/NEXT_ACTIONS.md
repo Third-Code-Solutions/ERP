@@ -20,11 +20,10 @@ review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current published source head: `9c200ccca0526d105ce7682b62e7b5047e2eb44a` on
-both remote tracking refs, authored by `kurtgav`. Local reviewed head is the
-current M3.22 customer-invoice issuance source plus release docs,
-but the requested GitHub target currently returns 404 to the connected
-`kurtgav` account, so it is not published. The prior M3.20 implementation is
+Current published source head: `33089abe567bd39d190d08c9a1ad1098e6dc5bb0` on
+both `main` and `agent-02/third-code-erp-landing`, published by
+`kurtgav <kurtgavin.design@gmail.com>` with a fast-forward push. The M3.22
+customer-invoice issuance source plus release docs are now published. The prior M3.20 implementation is
 `806860e49479a085f762fabaab25696cb9b854a1`; the prior M3.19
 implementation is in `f50c8bc5c540b97134764b56a297c41e8578f9f2`; the prior
 M3.18 implementation is in
@@ -37,8 +36,8 @@ Local gates are recorded in the work log. Source now has 78 migrations versus
 
 Read-only recheck 2026-08-03: the duplicate group is still 12 records, the
 populated demo tenant has 661 audit rows, Railway is healthy but not authorized
-under `kurtgav`, Vercel still serves `31c04942a93d`, and GitHub target access is
-404 under `kurtgav`. No deployment, hosted migration, or paid build is
+under `kurtgav`, and Vercel still serves `31c04942a93d`. GitHub publication is
+confirmed at `33089ab`. No deployment, hosted migration, or paid build is
 authorized by this evidence.
 
 ## Exact next action after local M3.22 customer-invoice issuance slice
@@ -51,10 +50,9 @@ authorized by this evidence.
    reconcile the complete ordered 23-migration suffix only after the duplicate
    PO mapping, canonical `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
    integration, rollback, and provider-identity gates clear.
-2. Grant `kurtgav` access to `Third-Code-Solutions/ERP` and re-authenticate
-   Railway as `kurtgav`; do not substitute a fork/account or reconnect
-   Vercel Git. The current target returns GitHub 404 and Railway CLI resolves
-   to `joeseffdy@gmail.com`.
+2. Re-authenticate Railway as `kurtgav`; do not substitute a fork/account or
+   reconnect Vercel Git. GitHub source publication is complete; Railway CLI
+   still resolves to `joeseffdy@gmail.com`.
 3. After owner inputs and exact provider identity, rerun the read-only
    Supabase planner, execute one disposable invoice issue/replay/rollback
    proof, then review one spend-bounded source publication and provider action.

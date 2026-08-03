@@ -1,5 +1,18 @@
 # Architecture Decisions
 
+## D-130 - Publish reviewed source with an identity-verified fast-forward
+
+Decision: publish reviewed ERP source only after confirming the exact GitHub
+repository, active `kurtgav` identity, remote base SHA, and clean local tree.
+Use a non-forced fast-forward push to both the default branch and the reviewed
+working branch. A successful source push does not authorize Supabase migration,
+Railway release, Vercel build, feature-flag enablement, or hosted-data changes.
+
+Reason: source publication and hosted promotion have different risk and billing
+surfaces. Separating them preserves rollback, prevents accidental account or
+fork writes, and keeps production gates explicit when hosted schema/data parity
+is unresolved.
+
 ## D-129 - Reuse the database receivables function behind Core invoice issuance
 
 Decision: add the closed-by-default

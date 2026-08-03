@@ -31,11 +31,11 @@ skipped without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
 
 ## 2026-08-03 source publication checkpoint
 
-Remote tracking refs remain at `9c200ccca0526d105ce7682b62e7b5047e2eb44a`,
-published under `kurtgav <kurtgavin.design@gmail.com>`. The local M3.21/M3.22 commits
-are not published because the connected account cannot access the requested
-GitHub repository. This checkpoint changed GitHub source only; Supabase,
-Railway, Vercel, feature flags, and hosted data remain unchanged.
+Remote `main` and `agent-02/third-code-erp-landing` now point to
+`33089abe567bd39d190d08c9a1ad1098e6dc5bb0`, published under
+`kurtgav <kurtgavin.design@gmail.com>` by fast-forward push. This checkpoint
+changed GitHub source only; Supabase, Railway, Vercel, feature flags, and hosted
+data remain unchanged.
 
 ## M3.21 source update (2026-08-03)
 

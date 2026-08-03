@@ -29,12 +29,12 @@ hosted promotion.
 
 ## 2026-08-03 GitHub source publication checkpoint
 
-Remote tracking refs remain at `9c200ccca0526d105ce7682b62e7b5047e2eb44a`,
-published by `kurtgav <kurtgavin.design@gmail.com>`. Local M3.21/M3.22 commits are
-not published because the connected account cannot access the requested GitHub
-repository. No hosted SQL, provider setting, feature flag, or deployment
-changed; the release remains held by duplicate Purchase Order data and the
-missing owner-approved audit-recovery tenant.
+Remote `main` and `agent-02/third-code-erp-landing` now point to
+`33089abe567bd39d190d08c9a1ad1098e6dc5bb0`, published by
+`kurtgav <kurtgavin.design@gmail.com>` with a fast-forward push. No hosted SQL,
+provider setting, feature flag, or deployment changed; the release remains held
+by duplicate Purchase Order data and the missing owner-approved audit-recovery
+tenant.
 
 ## M3.21 - Cash transaction posting/reversal authority (local source complete)
 
