@@ -23,8 +23,11 @@ to both GitHub target branches and Railway deployment
 reported database and Redis `ok`; a valid-format confirmation probe returned
 `503` as expected because both supplier-confirmation controls remain
 false/empty. No hosted SQL, email link, Vercel deployment, or hosted data
-changed. Focused shared/database/API contracts and typechecks, the Nest build,
-and `git diff --check` passed.
+changed. Focused shared/database/API contracts and typechecks, the full Web
+suite (431/431) and typecheck, the Nest build, release-plan suites, and
+`git diff --check` passed. The serialized full API runner remains unclaimed
+because its prior run exceeded the execution ceiling before returning a
+result.
 
 ## Capability baseline checkpoint (2026-08-03)
 
