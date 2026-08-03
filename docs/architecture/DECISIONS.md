@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-131 - Route customer-invoice reversal through Core with a durable replay boundary (2026-08-03)
+
+Decision: add closed-by-default
+`POST /v1/finance/customer-invoices/:invoiceId/reverse`. NestJS derives tenant
+and actor from a locked membership, rechecks `finance.issue_invoice`, locks the
+invoice, claims a tenant-scoped idempotency ledger, reuses the existing
+`reverse_customer_invoice` database function for journal/state authority, and
+writes semantic audit in the same transaction. Next.js remains a compatibility
+adapter with a stable retry key; selected Core failures never fall through to a
+second write. The migration and selectors remain false/empty until hosted
+parity, disposable integration, rollback, duplicate-data, audit-chain, and
+provider-identity gates clear.
+
+Reason: PostgreSQL already owns reversal journal balancing, fiscal-period
+validation, receipt-allocation safeguards, and invoice state. Reusing it avoids
+duplicate accounting logic while moving authorization, replay safety, tenant
+isolation, and audit orchestration into the modular Nest boundary. A durable
+tenant-scoped result also makes retries safe without exposing authority fields
+to the browser.
+
 ## D-130 - Publish reviewed source with an identity-verified fast-forward
 
 Decision: publish reviewed ERP source only after confirming the exact GitHub

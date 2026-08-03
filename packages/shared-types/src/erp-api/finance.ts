@@ -223,3 +223,38 @@ export type CustomerInvoiceIssueCommand = z.infer<
 export type CustomerInvoiceIssueResult = z.infer<
   typeof customerInvoiceIssueResultSchema
 >
+
+export const customerInvoiceReverseBodySchema = z
+  .object({
+    reason: z.string().trim().min(3).max(500),
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const customerInvoiceReverseCommandSchema = z
+  .object({
+    invoiceId: z.string().uuid(),
+    reason: z.string().trim().min(3).max(500),
+    postingDate: isoDateSchema,
+  })
+  .strict()
+
+export const customerInvoiceReverseResultSchema = z
+  .object({
+    invoiceId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('cancelled'),
+    reversalJournalEntryId: z.string().uuid(),
+    reversalJournalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
+  })
+  .strict()
+
+export type CustomerInvoiceReverseBody = z.infer<
+  typeof customerInvoiceReverseBodySchema
+>
+export type CustomerInvoiceReverseCommand = z.infer<
+  typeof customerInvoiceReverseCommandSchema
+>
+export type CustomerInvoiceReverseResult = z.infer<
+  typeof customerInvoiceReverseResultSchema
+>

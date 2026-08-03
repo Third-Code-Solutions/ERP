@@ -15,6 +15,8 @@ import {
   cashTransactionReverseResultSchema,
   customerInvoiceIssueCommandSchema,
   customerInvoiceIssueResultSchema,
+  customerInvoiceReverseCommandSchema,
+  customerInvoiceReverseResultSchema,
 } from './finance'
 
 const JOURNAL_ID = '33333333-3333-4333-8333-333333333333'
@@ -269,6 +271,46 @@ describe('finance API contracts', () => {
         invoiceNumber: 'INV-202608-001',
         journalEntryId: '99999999-9999-4999-8999-999999999999',
         journalEntryNumber: 'JE-2026-000012',
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps customer-invoice reversal strict and replayable', () => {
+    expect(
+      customerInvoiceReverseCommandSchema.parse({
+        invoiceId: INVOICE_ID,
+        reason: 'Duplicate billing correction',
+        postingDate: '2026-08-03',
+      })
+    ).toEqual({
+      invoiceId: INVOICE_ID,
+      reason: 'Duplicate billing correction',
+      postingDate: '2026-08-03',
+    })
+    expect(
+      customerInvoiceReverseCommandSchema.safeParse({
+        invoiceId: INVOICE_ID,
+        reason: 'x',
+        postingDate: '2026-02-31',
+        tenantId: TENANT_ID,
+      }).success
+    ).toBe(false)
+    expect(
+      customerInvoiceReverseResultSchema.safeParse({
+        invoiceId: INVOICE_ID,
+        tenantId: TENANT_ID,
+        status: 'cancelled',
+        reversalJournalEntryId: '99999999-9999-4999-8999-999999999999',
+        reversalJournalEntryNumber: 'JE-2026-000013',
+      }).success
+    ).toBe(true)
+    expect(
+      customerInvoiceReverseResultSchema.safeParse({
+        invoiceId: INVOICE_ID,
+        tenantId: TENANT_ID,
+        status: 'reversed',
+        reversalJournalEntryId: '99999999-9999-4999-8999-999999999999',
+        reversalJournalEntryNumber: 'JE-2026-000013',
       }).success
     ).toBe(false)
   })

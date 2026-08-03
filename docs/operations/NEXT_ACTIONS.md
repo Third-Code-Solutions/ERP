@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after local M3.23 customer-invoice reversal slice
+
+1. Keep
+   `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED`,
+   `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS`,
+   `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_VIA_API`, and
+   `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_VIA_API_TENANT_IDS`
+   false/empty. Do not apply
+   `20260803100000_customer_invoice_reverse_workflow.sql` alone; reconcile
+   the complete ordered 24-migration suffix only after the duplicate PO
+   mapping, canonical `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
+   integration, rollback, and provider-identity gates clear.
+2. Re-authenticate Railway as `kurtgav`; do not substitute a fork/account or
+   reconnect Vercel Git. GitHub source publication remains a separate action.
+3. After owner inputs and exact provider identity, rerun the read-only
+   Supabase planner, execute one disposable invoice reversal/replay/rollback
+   proof, then review one spend-bounded source publication and provider action.
+
+Source now has 79 migrations versus 55 hosted. No hosted mutation, feature
+flag change, Railway release, Vercel deployment, or paid build is authorized by
+the current evidence.
+
 ## Immediate hosted release gate
 
 Do not apply the twenty-three pending Supabase migrations or deploy Railway/Vercel

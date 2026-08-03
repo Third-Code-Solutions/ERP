@@ -1,5 +1,42 @@
 # Work Log
 
+## 2026-08-03 - M3.23 customer invoice reversal authority
+
+Completed the local source milestone. No hosted mutation or provider action
+was authorized.
+
+- Added strict customer-invoice reversal command/result contracts and ordered
+  migration `20260803100000_customer_invoice_reverse_workflow.sql` with forced
+  RLS, service-only privileges, tenant-composite foreign keys, and durable
+  replay.
+- Added the closed-by-default NestJS route
+  `POST /v1/finance/customer-invoices/:invoiceId/reverse` with membership and
+  invoice locking, `finance.issue_invoice` authorization, existing PostgreSQL
+  reversal-function reuse, strict replay validation, atomic semantic audit,
+  observability labeling, and error mapping.
+- Added the guarded Next adapter, stable browser reversal retry key, action
+  delegation tests, environment controls, and migration documentation. The
+  legacy direct database function remains unchanged for unselected tenants;
+  visible UI/copy remains unchanged.
+
+Validation:
+
+- Shared-types full suite: 146/146.
+- Database full suite: 150/150; 137 guarded tests skipped without
+  `DATABASE_URL`.
+- API source suite: 234/234.
+- Web full suite: 414/414.
+- Shared/database/API/Web typechecks passed.
+- Nest production build passed.
+- Next production build passed with 78/78 routes.
+- `git diff --check` passed.
+
+Hosted boundary: Supabase remains 55 applied migrations against 79 source
+migrations. Duplicate PO mapping, canonical audit-recovery tenant, Railway
+identity, and spend-bounded provider gates remain unresolved. No Supabase SQL,
+feature flag, Railway release, Vercel deployment, provider setting, or hosted
+data changed.
+
 ## 2026-08-03 - Reviewed source published as kurtgav
 
 Published the reviewed M3.21/M3.22 source and release documentation to

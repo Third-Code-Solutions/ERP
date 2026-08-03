@@ -8,7 +8,9 @@ import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   financeCustomerInvoiceIssueWritesUseCoreApi,
+  financeCustomerInvoiceReverseWritesUseCoreApi,
   issueCustomerInvoiceThroughCoreApi,
+  reverseCustomerInvoiceThroughCoreApi,
 } from '../../../lib/erp-core-client'
 
 export interface InvoiceActionResult {
@@ -45,6 +47,10 @@ function safeInvoiceError(error: unknown): string {
     'Invoice reversal reason is required',
     'Only a posted open invoice can be reversed',
     'Customer invoice already has a reversal',
+    'Customer invoice reversal conflicts with its current state',
+    'Customer invoice was not found',
+    'Customer invoice was not reversed',
+    'ERP Core API is unavailable. No customer invoice reversal was committed.',
   ]
 
   return (
@@ -168,7 +174,9 @@ export async function reverseCustomerInvoice(input: {
   invoiceId: string
   postingDate: string
   reason: string
-}): Promise<InvoiceActionResult> {
+},
+  idempotencyKey?: string
+): Promise<InvoiceActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.issue_invoice')
@@ -184,6 +192,37 @@ export async function reverseCustomerInvoice(input: {
       profile.tenantId
     )
     if (!invoice) return { ok: false, error: 'Invoice not found' }
+
+    if (financeCustomerInvoiceReverseWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for customer invoice reversal.',
+        }
+      }
+      const coreResult = await reverseCustomerInvoiceThroughCoreApi(
+        parsed.invoiceId,
+        {
+          reason: parsed.reason,
+          postingDate: parsed.postingDate,
+        },
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Customer invoice was not reversed. No financial posting was committed.',
+        }
+      }
+      revalidateInvoice(parsed.invoiceId)
+      return {
+        ok: true,
+        journalId: coreResult.data.reversalJournalEntryId,
+        journalNumber: coreResult.data.reversalJournalEntryNumber,
+      }
+    }
 
     const rows = await db.execute<{
       reversal_entry_id: string

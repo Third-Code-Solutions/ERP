@@ -4,6 +4,34 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.23 source update (2026-08-03)
+
+Local reviewed source now adds closed-by-default NestJS authority for customer
+invoice reversal. `POST /v1/finance/customer-invoices/:invoiceId/reverse`
+strictly validates the correction reason and posting date, rechecks the
+tenant membership and `finance.issue_invoice` capability, locks the invoice,
+claims a tenant-scoped idempotency record, reuses the existing
+`reverse_customer_invoice` PostgreSQL function for the official reversal
+journal and invoice state, persists a strict replay result, and writes
+semantic audit in one transaction. Next.js keeps the existing Server Action
+and visible UI/copy contract, selects Core only for an exact flag plus UUID
+tenant allowlist, uses one stable reversal retry key, and never falls back after
+a selected Core failure.
+
+The source migration is
+`20260803100000_customer_invoice_reverse_workflow.sql`; it is not applied to
+hosted Supabase. All customer-invoice reversal controls remain false/empty.
+Source now has 79 migrations versus 55 hosted (24 pending). No Supabase SQL,
+provider setting, feature flag, Railway release, Vercel deployment, or hosted
+data changed.
+
+Validation: shared-types full suite 146/146, database full suite 150/150
+(137 guarded tests skipped without `DATABASE_URL`), API source suite 234/234,
+Web full suite 414/414, all package typechecks, Nest build, Next production
+build with 78/78 routes, and diff checks passed. Guarded PostgreSQL/Redis
+integration remains skipped without `DATABASE_URL` and
+`ERP_API_INTEGRATION_EXPECTED=1`.
+
 ## M3.22 source update (2026-08-03)
 
 Local reviewed source now adds closed-by-default NestJS authority for customer
