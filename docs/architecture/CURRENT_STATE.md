@@ -19,9 +19,9 @@ existing Server Actions and visible UI/copy contract, selects Core only for an
 exact flag plus UUID tenant allowlist, uses stable retry keys, and never falls
 back after a selected Core failure.
 
-The reviewed implementation is commit `8404d20`. It is published with the
-checkpoint docs as `30f0a31`; both `main` and
-`agent-02/third-code-erp-landing` now point to that fast-forward source.
+The reviewed implementation is commit `8404d20`. The source publication
+checkpoint is `46035fa`; both `main` and `agent-02/third-code-erp-landing`
+include that fast-forward source.
 
 The source migration is
 `20260803120000_cash_transaction_draft_workflow.sql`; it is not applied to
@@ -35,9 +35,10 @@ explicit 30-second Vitest timeout, Web full suite 421/421, package
 typechecks/lint, Nest build, release-plan checks, workflow-reference checks,
 and diff checks passed. The default parallel API command still had three
 unrelated 5-second test timeouts (248/251); the bounded 30-second run passed.
-The Next production build timed out at the 364-second runner limit after
-writing `.next` artifacts, so no hosted build or deployment is considered
-green. Audit-hash verification remains blocked without the required
+An initial Next production-build runner attempt timed out before returning,
+but an isolated retry with `NEXT_TELEMETRY_DISABLED=1` and `CI=1` passed with
+78/78 generated routes. This is local evidence only; no hosted build or
+deployment occurred. Audit-hash verification remains blocked without the
 `DATABASE_URL` and owner-approved `AUDIT_RECOVERY_TENANT_ID`.
 
 ## M3.24 source update (2026-08-03)

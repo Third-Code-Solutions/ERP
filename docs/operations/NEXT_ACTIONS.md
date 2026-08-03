@@ -11,9 +11,9 @@
    reconcile the complete ordered 26-migration suffix only after duplicate-PO
    mapping, canonical `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
    integration, rollback, and provider-identity gates clear.
-2. Rerun the isolated Next production build with a captured exit result; do
-   not release a source SHA until the build completes within the controlled
-   runner budget.
+2. The isolated Next production build now passes with 78/78 generated routes
+   under `NEXT_TELEMETRY_DISABLED=1` and `CI=1`; keep hosted release held by
+   the DB, data, identity, rollback, and spend gates.
 3. Re-authenticate Railway as `kurtgav`; keep Vercel Git disconnected and
    avoid preview builds. Source publication remains separate from hosted
    migration and deployment.
@@ -26,8 +26,8 @@ Source now has 81 migrations versus 55 hosted. No hosted mutation, feature
 flag change, Railway release, Vercel deployment, or paid build is authorized
 by the current evidence.
 
-GitHub publication checkpoint: `main` and
-`agent-02/third-code-erp-landing` both point to `30f0a31` under the verified
+GitHub source checkpoint: `main` and
+`agent-02/third-code-erp-landing` both include `46035fa` under the verified
 `kurtgav <kurtgavin.design@gmail.com>` identity.
 
 ## Exact next action after local M3.24 customer-invoice cancellation slice

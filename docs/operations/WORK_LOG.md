@@ -3,7 +3,7 @@
 ## 2026-08-03 - M3.25 reviewed source publication checkpoint
 
 Published the reviewed cash-draft source and checkpoint docs to
-`Third-Code-Solutions/ERP` as `30f0a31` under `kurtgav
+`Third-Code-Solutions/ERP`; the latest source checkpoint is `46035fa` under `kurtgav
 <kurtgavin.design@gmail.com>`. Both `main` and
 `agent-02/third-code-erp-landing` were fast-forwarded from `31c4ae0`; no
 force push, alternate account, Supabase SQL, Railway release, Vercel
@@ -42,9 +42,10 @@ Validation:
 - Release planners, workflow-reference checks, and `git diff --check`
   passed. Audit-hash verification remains blocked without
   `DATABASE_URL` and owner-approved `AUDIT_RECOVERY_TENANT_ID`.
-- Next production build timed out at the 364-second runner limit after
-  writing `.next` artifacts; no hosted build or deployment is considered
-  green from that result.
+- An initial Next production-build runner attempt timed out before returning;
+  an isolated retry with `NEXT_TELEMETRY_DISABLED=1` and `CI=1` passed with
+  78/78 generated routes. This is local evidence only; no hosted build or
+  deployment is considered green from it.
 
 Hosted boundary: Supabase remains at 55 applied migrations against 81 source
 migrations (26 pending). All cash-draft controls remain false/empty. Railway,

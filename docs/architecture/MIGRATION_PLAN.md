@@ -17,9 +17,9 @@ UUIDs. Next.js remains a compatibility adapter with stable retry keys; a
 selected Core failure never falls back to a direct database write. Visible
 cash UI and copy remain unchanged.
 
-The implementation is commit `8404d20`, published with the checkpoint docs as
-`30f0a31` by fast-forward. Both `main` and
-`agent-02/third-code-erp-landing` point to that source. All cash-draft controls
+The implementation is commit `8404d20`, with source publication checkpoint
+`46035fa` by fast-forward. Both `main` and
+`agent-02/third-code-erp-landing` include that source. All cash-draft controls
 remain false/empty. Source now has 81
 migrations and Supabase remains at 55 applied; do not apply this migration
 alone. Reconcile the complete 26-migration suffix only after duplicate-PO
@@ -30,9 +30,11 @@ Validation: shared 149/149, database 154/154 with guarded integration skips,
 API 251/251 under an explicit 30-second Vitest timeout, Web 421/421, package
 typechecks/lint, Nest build, release-plan/workflow-reference checks, and diff
 checks passed. The default parallel API run had unrelated 5-second runner
-timeouts; the Next production build timed out at the 364-second runner limit
-and is not treated as green. Audit-hash verification remains blocked without
-the required Postgres and owner-approved tenant inputs.
+timeouts. An initial Next production-build runner attempt timed out before
+returning; an isolated retry with `NEXT_TELEMETRY_DISABLED=1` and `CI=1`
+passed with 78/78 generated routes. This remains local evidence only; no
+hosted build or deployment occurred. Audit-hash verification remains blocked
+without the required Postgres and owner-approved tenant inputs.
 
 ## M3.24 - Customer invoice cancellation authority (local source complete)
 
