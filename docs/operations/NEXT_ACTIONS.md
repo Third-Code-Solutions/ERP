@@ -10,10 +10,10 @@
    ordered 27-migration suffix only after duplicate-PO mapping,
    owner-approved `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
    integration, rollback, provider identity, and spend gates clear.
-2. Railway CLI re-authentication is complete as `kurtgav` /
-   `kurtgavin.design@gmail.com`. Read-only verify the exact Railway project,
-   service, environment, source SHA, variables, readiness, logs, and rollback
-   target before any release. Keep Vercel Git disconnected and avoid preview
+2. Railway project/service/environment linkage, source `5ad72ec`, deployment
+   success, and `/ready` database/Redis readiness are verified under `kurtgav`.
+   Still read-only verify variables, protected flows, logs, and rollback target
+   before another release. Keep Vercel Git disconnected and avoid preview
    builds.
 3. After owner inputs and exact provider identity, rerun the read-only
    Supabase planner, execute one disposable document delete/replay/
