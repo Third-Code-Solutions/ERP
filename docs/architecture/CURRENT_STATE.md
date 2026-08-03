@@ -19,6 +19,9 @@ existing Server Actions and visible UI/copy contract, selects Core only for an
 exact flag plus UUID tenant allowlist, uses stable retry keys, and never falls
 back after a selected Core failure.
 
+The reviewed implementation is commit `8404d20`; source publication is a
+separate fast-forward action.
+
 The source migration is
 `20260803120000_cash_transaction_draft_workflow.sql`; it is not applied to
 hosted Supabase. All cash-draft controls remain false/empty. Source now has 81
