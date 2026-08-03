@@ -175,6 +175,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for journal reversal; default empty |
 | `ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_VIA_API` | no | Next server | Selects the Supplier Bill posting Next-to-Nest handoff; default false |
 | `ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for Supplier Bill posting; default empty |
+| `ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API` | no | Next server | Selects the Supplier Bill reversal Next-to-Nest handoff; default false |
+| `ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for Supplier Bill reversal; default empty |
 | `ERP_DELIVERY_SITE_PREPARATION_START_WRITES_VIA_API` | no | Next server | Selects the delivery site-preparation-start Next-to-Nest handoff; default false |
 | `ERP_DELIVERY_SITE_PREPARATION_START_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for delivery site-preparation start; default empty |
 | `ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_VIA_API` | no | Next server | Selects the delivery site-preparation-complete Next-to-Nest handoff; default false |
@@ -222,6 +224,12 @@ allowlist.
 The API-side Supplier Bill posting controls are
 `ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_ENABLED` and
 `ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_TENANT_IDS`; both default to
+false/empty. The Next-side selector uses the corresponding
+`..._VIA_API` flag and UUID allowlist.
+
+The API-side Supplier Bill reversal controls are
+`ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_ENABLED` and
+`ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_TENANT_IDS`; both default to
 false/empty. The Next-side selector uses the corresponding
 `..._VIA_API` flag and UUID allowlist.
 

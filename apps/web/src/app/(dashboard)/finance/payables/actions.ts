@@ -13,8 +13,10 @@ import {
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
+  financeSupplierBillReverseWritesUseCoreApi,
   financeSupplierBillPostWritesUseCoreApi,
   postSupplierBillThroughCoreApi,
+  reverseSupplierBillThroughCoreApi,
 } from '@/lib/erp-core-client'
 
 export interface SupplierBillActionResult {
@@ -521,7 +523,8 @@ export async function postSupplierBill(
 }
 
 export async function reverseSupplierBill(
-  input: z.input<typeof reversalSchema>
+  input: z.input<typeof reversalSchema>,
+  idempotencyKey?: string
 ): Promise<SupplierBillActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -541,6 +544,38 @@ export async function reverseSupplierBill(
       )
       .limit(1)
     if (!bill) return { ok: false, error: 'Supplier bill not found' }
+
+    if (financeSupplierBillReverseWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Supplier Bill reversal command.',
+        }
+      }
+      const coreResult = await reverseSupplierBillThroughCoreApi(
+        bill.id,
+        {
+          reason: parsed.reason,
+          postingDate: parsed.postingDate,
+        },
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Supplier Bill reversal could not be committed through ERP Core.',
+        }
+      }
+      revalidateSupplierBill(bill.id, bill.purchaseOrderId)
+      return {
+        ok: true,
+        id: bill.id,
+        journalId: coreResult.data.reversalJournalEntryId,
+        journalNumber: coreResult.data.reversalJournalEntryNumber,
+      }
+    }
 
     const rows = await db.execute<{
       reversal_entry_id: string

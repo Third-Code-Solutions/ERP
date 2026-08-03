@@ -42,8 +42,10 @@ import {
   financeJournalPostWritesUseCoreApi,
   financeJournalReverseWritesUseCoreApi,
   financeSupplierBillPostWritesUseCoreApi,
+  financeSupplierBillReverseWritesUseCoreApi,
   postJournalEntryThroughCoreApi,
   postSupplierBillThroughCoreApi,
+  reverseSupplierBillThroughCoreApi,
   reverseJournalEntryThroughCoreApi,
   documentProcessingJobsUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
@@ -183,6 +185,13 @@ const SUPPLIER_BILL_POST_RESULT = {
   supplierBillNumber: 'SB-2026-000001',
   journalEntryId: '77777777-7777-4777-8777-777777777777',
   journalEntryNumber: 'JE-2026-000010',
+}
+const SUPPLIER_BILL_REVERSE_RESULT = {
+  supplierBillId: SUPPLIER_BILL_POST_RESULT.supplierBillId,
+  tenantId: SUPPLIER_BILL_POST_RESULT.tenantId,
+  status: 'reversed' as const,
+  reversalJournalEntryId: '88888888-8888-4888-8888-888888888888',
+  reversalJournalEntryNumber: 'JE-2026-000011',
 }
 const JOURNAL_REVERSE_RESULT = {
   journalEntryId: JOURNAL_POST_RESULT.journalEntryId,
@@ -899,6 +908,26 @@ describe('ERP Core client', () => {
     expect(financeSupplierBillPostWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
+  it('keeps Supplier Bill reversal delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeSupplierBillReverseWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API', 'TRUE')
+    expect(financeSupplierBillReverseWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(financeSupplierBillReverseWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(financeSupplierBillReverseWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('keeps document processing delegation fail-closed unless its exact gate matches', () => {
     vi.stubEnv('ERP_DOCUMENT_PROCESSING_VIA_API', 'true')
     vi.stubEnv(
@@ -1252,6 +1281,41 @@ describe('ERP Core client', () => {
         body: JSON.stringify({ postingDate: '2026-08-02' }),
         headers: expect.objectContaining({
           'Idempotency-Key': 'supplier-bill-post-1',
+        }),
+      })
+    )
+  })
+
+  it('sends an idempotent Supplier Bill reversal command and validates result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(SUPPLIER_BILL_REVERSE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      reverseSupplierBillThroughCoreApi(
+        SUPPLIER_BILL_REVERSE_RESULT.supplierBillId,
+        {
+          reason: 'Vendor issued a corrected bill',
+          postingDate: '2026-08-02',
+        },
+        'supplier-bill-reverse-1'
+      )
+    ).resolves.toEqual({ ok: true, data: SUPPLIER_BILL_REVERSE_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/finance/supplier-bills/${SUPPLIER_BILL_REVERSE_RESULT.supplierBillId}/reverse`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          reason: 'Vendor issued a corrected bill',
+          postingDate: '2026-08-02',
+        }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'supplier-bill-reverse-1',
         }),
       })
     )
