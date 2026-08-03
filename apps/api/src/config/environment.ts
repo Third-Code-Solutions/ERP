@@ -275,6 +275,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Supplier Bill reversal stays fail-closed until its ordered migration,
+  // disposable transaction proof, and tenant canary are approved.
+  ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Stock Receipt draft creation stays fail-closed until hosted migration and
   // a tenant-scoped canary prove inventory transaction parity.
   ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED: z
