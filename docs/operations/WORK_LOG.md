@@ -20,6 +20,10 @@ Validation boundary: documentation links and changed-file diff checks remain;
 the next code milestone owns the focused contract, typecheck, build, and
 disposable replay gates. Hosted Supabase remains at 55/83 migrations, Railway
 remains on the verified M3.27 runtime, and Vercel Git remains disconnected.
+Source commit `5e61b28` is published to both target branches under `kurtgav`.
+Railway created deployment `006d74a9-ac85-4b0c-a82d-428c2b8c5645` for this
+commit and correctly skipped it because no watched API files changed; the
+verified runtime remains deployment `d4afe970-6958-4f38-a17a-fa8c01ca13d4`.
 
 ## 2026-08-03 - M3.27 public client-signing authority
 

@@ -11,7 +11,8 @@ spine, multi-business expansion gaps, and the bounded M3.28 supplier-confirmatio
 scope. This is a source-planning milestone only: no application code,
 Supabase migration, feature flag, email link, hosted data, or provider setting
 changed. The current landing page remains protected by the existing responsive
-and behavior evidence; no visual rewrite is part of this checkpoint.
+and behavior evidence; no visual rewrite is part of this checkpoint. The
+checkpoint is published as source commit `5e61b28` to both target branches.
 
 ## M3.27 source update (2026-08-03)
 
