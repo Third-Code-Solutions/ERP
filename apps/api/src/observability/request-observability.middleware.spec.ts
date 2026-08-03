@@ -349,6 +349,30 @@ describe('RequestObservabilityMiddleware', () => {
     expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
   })
 
+  it('labels customer invoice reversal without logging invoice identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/customer-invoices/:invoiceId/reverse' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.customer_invoice_reverse',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
   it('labels delivery site-preparation starts without logging schedule identifiers', () => {
     const log = vi
       .spyOn(Logger.prototype, 'log')

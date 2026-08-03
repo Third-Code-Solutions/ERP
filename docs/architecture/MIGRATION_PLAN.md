@@ -4,6 +4,33 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.23 - Customer invoice reversal authority (local source complete)
+
+Local source adds strict customer-invoice reversal contracts,
+`20260803100000_customer_invoice_reverse_workflow.sql`, and the
+closed-by-default NestJS route
+`POST /v1/finance/customer-invoices/:invoiceId/reverse`. NestJS rechecks
+`finance.issue_invoice`, locks tenant membership and the invoice, claims a
+tenant-scoped idempotency record, reuses the existing
+`reverse_customer_invoice` PostgreSQL function, persists a strict cancelled
+result, and writes semantic audit atomically. Next.js remains a compatibility
+adapter with one stable retry key; selected Core failures never fall back to a
+second write. Visible invoice UI and copy remain unchanged.
+
+Validation: shared-types 146/146, database 150/150 with guarded integration
+skips, API source 234/234, Web 414/414, all package typechecks, Nest build,
+Next build 78/78 routes, and diff checks passed. The focused additions were
+the shared reversal contract, database migration contract, four API boundary
+tests, and the Core/action delegation tests. Guarded PostgreSQL/Redis
+integration was not run without `DATABASE_URL` and
+`ERP_API_INTEGRATION_EXPECTED=1`.
+
+Keep all customer-invoice reversal controls false/empty. Source now has 79
+migrations and Supabase remains at 55 applied; do not apply this migration
+alone. GitHub publication, Railway identity, duplicate-PO remediation,
+audit-recovery approval, rollback, and spend gates still block hosted
+promotion.
+
 ## M3.22 - Customer invoice issuance authority (local source complete)
 
 Local source adds strict customer-invoice issuance contracts,

@@ -63,6 +63,18 @@ Browser
     objects, no client execution privilege, and atomic tenant/Admin creation.
     User-editable signup metadata is display data only, never authorization.
 
+## Finance authority progression
+
+Customer invoice issue and reversal are now represented as separate Core
+vertical slices. Each selected route owns authorization, tenant-scoped
+idempotency, transaction orchestration, and semantic audit while PostgreSQL
+continues to own journal balancing, fiscal-period rules, and invoice state.
+The Next.js Server Actions remain compatibility adapters during migration; a
+selected Core failure is terminal and cannot fall back to a second write. Both
+invoice issue and reversal selectors and API flags stay false/empty until the
+ordered hosted migration set, disposable integration, rollback, duplicate-data,
+audit-chain, provider-identity, and spend gates are cleared.
+
 ## Delivery workflow authority slice
 
 The delivery state machine is migrated one transition at a time. M3.17 makes

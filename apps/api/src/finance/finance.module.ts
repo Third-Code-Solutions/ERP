@@ -13,6 +13,8 @@ import { CashTransactionWorkflowController } from './cash-transaction-workflow.c
 import { CashTransactionWorkflowService } from './cash-transaction-workflow.service'
 import { CustomerInvoiceIssueController } from './customer-invoice-issue.controller'
 import { CustomerInvoiceIssueService } from './customer-invoice-issue.service'
+import { CustomerInvoiceReverseController } from './customer-invoice-reverse.controller'
+import { CustomerInvoiceReverseService } from './customer-invoice-reverse.service'
 
 @Module({
   imports: [AuditModule],
@@ -23,6 +25,7 @@ import { CustomerInvoiceIssueService } from './customer-invoice-issue.service'
     SupplierBillReverseController,
     CashTransactionWorkflowController,
     CustomerInvoiceIssueController,
+    CustomerInvoiceReverseController,
   ],
   providers: [
     JournalPostService,
@@ -31,6 +34,7 @@ import { CustomerInvoiceIssueService } from './customer-invoice-issue.service'
     SupplierBillReverseService,
     CashTransactionWorkflowService,
     CustomerInvoiceIssueService,
+    CustomerInvoiceReverseService,
   ],
 })
 export class FinanceModule implements NestModule {
@@ -43,7 +47,8 @@ export class FinanceModule implements NestModule {
         SupplierBillPostController,
         SupplierBillReverseController,
         CashTransactionWorkflowController,
-        CustomerInvoiceIssueController
+        CustomerInvoiceIssueController,
+        CustomerInvoiceReverseController
       )
   }
 }

@@ -25,6 +25,7 @@ export function InvoiceStatusActions({
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const issueRetryKey = useRef<string | null>(null)
+  const reverseRetryKey = useRef<string | null>(null)
 
   const isDraft = currentStatus === 'draft'
   const isReversible = ['issued', 'overdue', 'partial_payment'].includes(
@@ -64,11 +65,14 @@ export function InvoiceStatusActions({
   function reverse() {
     setMessage(null)
     startTransition(async () => {
-      const result = await reverseCustomerInvoice({
-        invoiceId,
-        postingDate,
-        reason,
-      })
+      const result = await reverseCustomerInvoice(
+        {
+          invoiceId,
+          postingDate,
+          reason,
+        },
+        (reverseRetryKey.current ??= globalThis.crypto.randomUUID())
+      )
       if (!result.ok) {
         setMessage(result.error ?? 'Invoice reversal failed.')
         return

@@ -19,6 +19,7 @@ import {
   cashTransactionPostResultSchema,
   cashTransactionReverseResultSchema,
   customerInvoiceIssueResultSchema,
+  customerInvoiceReverseResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
   stockReceiptCreationResultSchema,
@@ -63,6 +64,8 @@ import {
   type CashTransactionReverseResult,
   type CustomerInvoiceIssueCommand,
   type CustomerInvoiceIssueResult,
+  type CustomerInvoiceReverseBody,
+  type CustomerInvoiceReverseResult,
   type DocumentProcessingAccepted,
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
@@ -273,6 +276,16 @@ export function financeCustomerInvoiceIssueWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API,
     process.env.ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function financeCustomerInvoiceReverseWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_VIA_API,
+    process.env.ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -1943,6 +1956,66 @@ export async function issueCustomerInvoiceThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No customer invoice issuance was committed.',
+    }
+  }
+}
+
+export async function reverseCustomerInvoiceThroughCoreApi(
+  invoiceId: string,
+  command: CustomerInvoiceReverseBody,
+  idempotencyKey: string
+): Promise<CoreResult<CustomerInvoiceReverseResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/customer-invoices/${encodeURIComponent(
+        invoiceId
+      )}/reverse`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Customer invoice reversal conflicts with its current state.'
+            : response.status === 404
+              ? 'Customer invoice was not found.'
+              : 'Customer invoice was not reversed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = customerInvoiceReverseResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid customer invoice reversal result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No customer invoice reversal was committed.',
     }
   }
 }
