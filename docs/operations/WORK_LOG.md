@@ -5,6 +5,8 @@
 Completed the local source milestone. No hosted mutation or provider action
 was authorized.
 
+Reviewed source commit: `8c7159c`.
+
 - Added strict customer-invoice reversal command/result contracts and ordered
   migration `20260803100000_customer_invoice_reverse_workflow.sql` with forced
   RLS, service-only privileges, tenant-composite foreign keys, and durable
