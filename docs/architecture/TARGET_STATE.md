@@ -99,6 +99,16 @@ a second write. Reversal controls stay false/empty until hosted migration,
 duplicate-data, audit-chain, integration, rollback, and spend gates clear.
 Python/AI has no approval or posting authority.
 
+M3.21 applies the same boundary to cash posting and reversal: NestJS owns
+`POST /v1/finance/cash-transactions/:cashTransactionId/post` and `/reverse`,
+rechecks `finance.manage_cash`, locks the tenant membership and cash record,
+reuses the existing database posting/reversal functions, persists one shared
+tenant-scoped idempotency result, and audits the status change atomically. The
+Next cash actions remain compatibility adapters with stable retry keys; a
+selected Core failure never falls through to a direct second write. Cash
+controls stay false/empty until the ordered hosted suffix, disposable
+integration, rollback, duplicate-data, audit-chain, and spend gates clear.
+
 ## Nest module shape
 
 Modules align to business capabilities: identity/access, tenants, CRM,

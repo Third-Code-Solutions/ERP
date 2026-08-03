@@ -12,10 +12,43 @@ to both `origin/main` and `origin/agent-02/third-code-erp-landing` under
 only. Supabase, Railway, Vercel, feature flags, and hosted data remain
 unchanged.
 
+## M3.21 source update (2026-08-03)
+
+Local reviewed source commit `44e678e` adds closed-by-default NestJS authority
+for cash posting and reversal. It exposes
+`POST /v1/finance/cash-transactions/:cashTransactionId/post` and `/reverse`,
+derives tenant and actor from locked membership, requires
+`finance.manage_cash`, reuses the existing database accounting functions,
+stores a strict tenant-scoped idempotency result, and writes semantic audit in
+the same transaction. Next.js keeps its existing action/UI contract, sends a
+stable retry key through a guarded Core adapter, and never falls back to a
+second write after a selected Core failure.
+
+The source migration is
+`20260802230000_cash_transaction_workflow_idempotency.sql`; it creates a
+forced-RLS, service-only workflow ledger with tenant-composite foreign keys.
+All cash workflow controls remain false/empty. No hosted SQL, provider
+setting, feature flag, or deployment changed. GitHub publication is blocked
+because the connected `kurtgav` account has no access to
+`Third-Code-Solutions/ERP` (GitHub API returns 404); no alternate repository
+was used.
+
+Validation: shared finance contracts 9/9, cash database contracts 2/2, cash
+API contracts 4/4, web cash/client contracts 62/62, shared/database/API/web
+typechecks, Nest build, Next production build with 78/78 routes, controlled
+release plan 4/4, database release plan 7/7, and diff checks passed. The full
+serial Nest run produced 40/40 files and 226/226 passing tests but the Windows
+runner did not terminate before its process ceiling; this is recorded as an
+exit-handle timeout, not a green command exit. Guarded PostgreSQL integration
+remains skipped without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
+
+Source now has 77 migrations versus 55 hosted; the ordered 22-migration
+suffix remains unapplied.
+
 ## 2026-08-03 hosted release recheck
 
-Read-only verification was repeated after source publication. Supabase project
-`aqqrtkmtcsfkbyyqxowv` still reports 55 applied migrations against 75
+Read-only verification was repeated after the prior source publication. Supabase project
+`aqqrtkmtcsfkbyyqxowv` still reports 55 applied migrations against 77
 repository migrations. The duplicate evidence remains one tenant- and
 project-scoped Purchase Order-number group with 12 demo records (4 draft, 1
 pending PM approval, 1 pending SCM issuance, 6 issued). The audit table has
@@ -30,7 +63,7 @@ the local Railway CLI is unauthorized and still resolves to the wrong
 `31c04942a93d`, and the Vercel runtime-error report showed no errors in the
 last 24 hours. `apps/web/vercel.json` keeps Git deployment disabled. No
 Supabase SQL, feature flag, provider setting, or deployment changed. The new
-source head now contains 76 migrations; hosted parity remains 55.
+source head now contains 77 migrations; hosted parity remains 55.
 
 ## M3.20 source update (2026-08-03)
 

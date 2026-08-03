@@ -2,7 +2,7 @@
 
 ## Immediate hosted release gate
 
-Do not apply the twenty-one pending Supabase migrations or deploy Railway/Vercel
+Do not apply the twenty-two pending Supabase migrations or deploy Railway/Vercel
 until the owner supplies:
 
 1. The canonical `AUDIT_RECOVERY_TENANT_ID` UUID for the audit-chain planner.
@@ -13,29 +13,49 @@ until the owner supplies:
 Then run the read-only planners again. Only when migration ledger, duplicate
 review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 
-- apply all twenty-one pending migrations in timestamp order with a captured ledger;
+- apply all twenty-two pending migrations in timestamp order with a captured ledger;
 - run the disposable and hosted verification gates;
 - deploy exactly one reviewed source SHA to Railway and one controlled Vercel
   production build, after confirming the billing impact;
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current reviewed source head: `806860e49479a085f762fabaab25696cb9b854a1` on
+Current published source head: `806860e49479a085f762fabaab25696cb9b854a1` on
 both `origin/main` and `origin/agent-02/third-code-erp-landing`, authored by
-`kurtgav`. It is the published M3.20 implementation. The prior M3.19
+`kurtgav`. Local reviewed head is `44e678e` (M3.21 cash workflow authority),
+but the requested GitHub target currently returns 404 to the connected
+`kurtgav` account, so it is not published. The prior M3.20 implementation is
+`806860e49479a085f762fabaab25696cb9b854a1`; the prior M3.19
 implementation is in `f50c8bc5c540b97134764b56a297c41e8578f9f2`; the prior
 M3.18 implementation is in
 `140f4e8cb518445ab0903d7d885b68cebc7ce8f0`; the prior M3.17 implementation is in
 `0b7cb532b0b3a32f687f58437f2756259ba68c27`. CI run
 `30755868510` failed before any job step and all other jobs were skipped;
 the external GitHub account payment/spending-limit gate remains unresolved.
-Local gates are recorded in the work log. Source now has 76 migrations versus
+Local gates are recorded in the work log. Source now has 77 migrations versus
 55 hosted. No hosted mutation is authorized by this evidence.
 
 Read-only recheck 2026-08-03: the duplicate group is still 12 records, the
 populated demo tenant has 661 audit rows, Railway is healthy but not authorized
-under `kurtgav`, and Vercel still serves `31c04942a93d`. No deployment or paid
-build is authorized by this evidence.
+under `kurtgav`, Vercel still serves `31c04942a93d`, and GitHub target access is
+404 under `kurtgav`. No deployment, hosted migration, or paid build is
+authorized by this evidence.
+
+## Exact next action after local M3.21 cash workflow slice
+
+1. Grant `kurtgav` access to `Third-Code-Solutions/ERP` (or reconnect the
+   GitHub plugin to an explicitly authorized account) and verify the target
+   repository before retrying the exact source push. Do not push to a fork or
+   substitute account.
+2. Keep all four cash controls false/empty. Do not apply
+   `20260802230000_cash_transaction_workflow_idempotency.sql` alone; reconcile
+   the complete 22-migration suffix only after the duplicate PO mapping,
+   canonical `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis integration,
+   and rollback evidence are supplied.
+3. Re-authenticate Railway as `kurtgav`; keep Vercel Git disconnected and avoid
+   previews. Only after exact provider identity, migration parity, production
+   build, live protected-flow checks, rollback, and spend-bounded authorization
+   may one Railway/Vercel production action occur.
 
 ## Exact next action after M3.20 supplier-bill-reversal source slice
 
