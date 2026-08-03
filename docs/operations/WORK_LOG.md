@@ -1,5 +1,50 @@
 # Work Log
 
+## 2026-08-03 - M3.27 public client-signing authority
+
+Completed the local source milestone. No hosted migration, feature flag, or
+paid provider action was authorized.
+
+- Added strict public-signing command/result contracts and ordered migration
+  `20260803140000_public_signing_workflow.sql` with forced RLS, service-only
+  privileges, tenant-scoped idempotency, and durable replay evidence.
+- Added the closed-by-default NestJS public route with token-derived tenant
+  scope, expiry/revocation/signed-state checks, bounded deterministic PNG
+  validation, service-role Storage upload, transactional document creation,
+  BOM/contract/variation-order/COC source stamping, nullable-actor audit, and
+  concurrency-safe cleanup.
+- Added the guarded Next adapter, stable signing retry key, terminal selected
+  Core failure behavior, environment controls, observability label, and
+  shared/database/API/Web contracts. Existing portal UI/copy and unselected
+  legacy behavior remain unchanged.
+- Declared Express as an explicit API runtime dependency because the bounded
+  JSON parser is used by production Nest bootstrap; lockfile was updated from
+  the existing resolved package.
+
+Validation:
+
+- Shared-types full suite: 155/155.
+- Database full suite: 158/158; 137 guarded tests skipped without
+  `DATABASE_URL`.
+- Focused API public-signing/config/observability contracts: 59/59.
+- Web full suite: 431/431.
+- Shared/database/API/Web typechecks and lint passed.
+- Nest production build passed.
+- Next production build passed with 78/78 generated routes using
+  `NEXT_TELEMETRY_DISABLED=1` and `CI=1`.
+- `git diff --check` passed before final docs/source commit. A serialized full API
+  runner exceeded the 360-second execution ceiling before returning a result;
+  no new assertion failure was reported, so no full API green claim is made.
+
+Hosted boundary: Supabase remains at 55 applied migrations against 83 source
+migrations (28 pending). Public-signing flags remain false/empty. No Supabase
+SQL, Vercel deployment, provider setting, feature flag, or hosted data
+changed. Vercel Git remains disconnected to control spend. Railway source
+deployment is gated on final publication and readiness verification under
+`kurtgav <kurtgavin.design@gmail.com>`; migration parity, protected-flow,
+rollback, duplicate-data, audit-chain, owner-input, and spend gates remain
+open.
+
 ## 2026-08-03 - M3.26 document deletion authority
 
 Completed the local source milestone. No hosted mutation or provider action

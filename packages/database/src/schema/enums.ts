@@ -26,6 +26,11 @@ export const cadEvidenceCommitRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const publicSigningRequestStateEnum = pgEnum(
+  'public_signing_request_state',
+  ['processing', 'succeeded']
+)
+
 // KYC review status for Account onboarding (REFACTOR M1 US-001..US-003)
 export const kycStatusEnum = pgEnum('kyc_status', [
   'pending',

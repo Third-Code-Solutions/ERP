@@ -2,6 +2,7 @@ import 'reflect-metadata'
 import { Logger, ValidationPipe } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { NestFactory } from '@nestjs/core'
+import { json } from 'express'
 import helmet from 'helmet'
 import { AppModule } from './app.module'
 import { corsOrigins } from './config/environment'
@@ -9,8 +10,14 @@ import { corsOrigins } from './config/environment'
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
+    // Public canvas signatures are bounded to 512 KiB of PNG bytes plus
+    // base64/JSON overhead. Keep the parser limit explicit rather than using
+    // an unbounded body parser.
+    bodyParser: false,
   })
   const config = app.get(ConfigService)
+
+  app.use(json({ limit: '1mb' }))
 
   app.use(helmet())
   app.enableCors({

@@ -1,5 +1,30 @@
 # Next Actions
 
+## Exact next action after local M3.27 public client-signing slice
+
+1. Keep `ERP_PUBLIC_SIGNING_WRITES_ENABLED`,
+   `ERP_PUBLIC_SIGNING_WRITES_TENANT_IDS`, `ERP_PUBLIC_SIGNING_VIA_API`, and
+   `ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS` false/empty. Do not apply
+   `20260803140000_public_signing_workflow.sql` alone; reconcile the complete
+   ordered 28-migration suffix only after duplicate-PO mapping,
+   owner-approved `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
+   integration, disposable signing replay/expiry/revocation/source-stamp and
+   Storage-cleanup proof, rollback, provider identity, and spend gates clear.
+2. Publish the reviewed source under `kurtgav` with `[skip ci]` only for docs
+   follow-ups. Railway may build the watched API source once after the green
+   local gates; verify exact source SHA, deployment logs, `/ready`, and the
+   protected route remains closed by default. Keep Vercel Git disconnected and
+   do not trigger preview or production builds.
+3. After owner inputs and exact provider identity, rerun the read-only
+   Supabase planner, execute one disposable public-signing transaction and
+   replay/rollback proof, then review one spend-bounded canary. The serialized
+   full API runner timed out before returning a result and must be rerun in a
+   bounded CI environment before broad promotion.
+
+Source now has 83 migrations versus 55 hosted. No hosted mutation, feature
+flag change, Vercel deployment, or paid build is authorized by the current
+evidence.
+
 ## Exact next action after local M3.26 document deletion slice
 
 1. Keep `ERP_DOCUMENT_DELETE_WRITES_ENABLED`,

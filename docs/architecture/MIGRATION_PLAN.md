@@ -4,6 +4,37 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.27 - Public client-signing authority (local source complete)
+
+Local source adds strict public-signing body/result contracts,
+`20260803140000_public_signing_workflow.sql`, and the closed-by-default
+NestJS route `POST /v1/public/signatures/:token`. The route uses the hashed
+session token as its only unauthenticated authority, derives tenant and source
+scope from the locked session, bounds and validates PNG data, uploads through
+the service-role Storage adapter, writes the signature document and source
+stamp transactionally, persists a service-only replay result, and writes
+nullable-actor semantic audit. Matching concurrent retries cannot delete a
+Storage object that may belong to a processing or succeeded request. Next.js
+remains a compatibility adapter with a stable retry key; selected Core errors
+never fall back to direct database writes. Existing portal UI and copy remain
+unchanged.
+
+The migration is source-only. Supabase remains at 55 applied migrations
+against 83 source migrations; do not apply this migration alone. Keep
+`ERP_PUBLIC_SIGNING_WRITES_ENABLED`,
+`ERP_PUBLIC_SIGNING_WRITES_TENANT_IDS`, `ERP_PUBLIC_SIGNING_VIA_API`, and
+`ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS` false/empty until ordered hosted
+parity, disposable signing replay/expiry/revocation/source-stamp proof,
+rollback, duplicate-data, audit-chain, provider-identity, owner-input, and
+spend gates clear.
+
+Validation: shared 155/155, database 158/158 with guarded integration skips,
+focused API 59/59, Web 431/431, package typechecks/lint, Nest build, Next
+build 78/78 routes, and diff checks passed. The serialized full API runner
+exceeded the 360-second execution ceiling before returning a result and is
+not claimed green. No hosted SQL, feature flag, Vercel deployment, or
+provider setting changed.
+
 ## M3.26 - Document deletion authority (local source complete)
 
 Local source adds strict document deletion contracts,

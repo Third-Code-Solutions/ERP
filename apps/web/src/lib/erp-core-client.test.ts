@@ -62,6 +62,8 @@ import {
   documentProcessingJobsUseCoreApi,
   documentDeleteWritesUseCoreApi,
   deleteDocumentThroughCoreApi,
+  publicSigningWritesUseCoreApi,
+  signPublicSignatureThroughCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
   getDocumentProcessingStatusThroughCoreApi,
 } from './erp-core-client'
@@ -265,6 +267,15 @@ const RFQ_TRANSITION_RESULT = {
   transitioned: true as const,
 }
 const DOCUMENT_ID = '88888888-8888-4888-8888-888888888888'
+const PUBLIC_SIGNING_TOKEN = 'a'.repeat(64)
+const PUBLIC_SIGNING_RESULT = {
+  sessionId: '11111111-1111-4111-8111-111111111111',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  entityType: 'contract' as const,
+  entityId: '33333333-3333-4333-8333-333333333333',
+  signatureDocumentId: DOCUMENT_ID,
+  signedAt: '2026-08-03T00:00:00.000Z',
+}
 const DOCUMENT_PROCESSING_JOB_ID = '99999999-9999-4999-8999-999999999999'
 const DOCUMENT_PROCESSING_ACCEPTED = {
   jobId: DOCUMENT_PROCESSING_JOB_ID,
@@ -1417,6 +1428,72 @@ describe('ERP Core client', () => {
       ok: false,
       error: 'Document was not deleted.',
     })
+  })
+
+  it('keeps public signing delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_PUBLIC_SIGNING_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(publicSigningWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_PUBLIC_SIGNING_VIA_API', 'TRUE')
+    expect(publicSigningWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+  })
+
+  it('posts a token-authorized signature without forwarding an authenticated bearer', async () => {
+    const body = {
+      signerName: 'Ana Reyes',
+      signerEmail: 'ana@example.com',
+      signatureDataUrl: 'data:image/png;base64,abc=',
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(PUBLIC_SIGNING_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      signPublicSignatureThroughCoreApi(
+        PUBLIC_SIGNING_TOKEN,
+        body,
+        'public-signing-1'
+      )
+    ).resolves.toEqual({ ok: true, data: PUBLIC_SIGNING_RESULT })
+
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/public/signatures/${PUBLIC_SIGNING_TOKEN}`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'public-signing-1',
+        }),
+      })
+    )
+    expect(request.headers).not.toHaveProperty('authorization')
+  })
+
+  it('returns a terminal error when Core signing is unavailable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('unavailable', { status: 503 }))
+    )
+    await expect(
+      signPublicSignatureThroughCoreApi(
+        PUBLIC_SIGNING_TOKEN,
+        {
+          signerName: 'Ana Reyes',
+          signerEmail: null,
+          signatureDataUrl: 'data:image/png;base64,abc=',
+        },
+        'public-signing-2'
+      )
+    ).resolves.toEqual({ ok: false, error: 'Could not record signature. Try again.' })
   })
 
   it('queues idempotent document processing and validates accepted output', async () => {

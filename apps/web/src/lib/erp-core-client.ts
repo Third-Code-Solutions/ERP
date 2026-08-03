@@ -24,6 +24,7 @@ import {
   customerInvoiceReverseResultSchema,
   customerInvoiceCancelResultSchema,
   documentDeleteResultSchema,
+  publicSigningResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
   stockReceiptCreationResultSchema,
@@ -76,6 +77,8 @@ import {
   type CustomerInvoiceCancelBody,
   type CustomerInvoiceCancelResult,
   type DocumentDeleteResult,
+  type PublicSigningBody,
+  type PublicSigningResult,
   type DocumentProcessingAccepted,
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
@@ -431,6 +434,20 @@ export function documentDeleteWritesUseCoreApi(tenantId: string): boolean {
   )
 }
 
+/** Public token signing is delegated only for an explicit tenant canary. */
+export function publicSigningWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PUBLIC_SIGNING_VIA_API,
+    process.env.ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS
+  )
+}
+
+function getCoreApiBaseUrl(): string | null {
+  const baseUrl = process.env.ERP_CORE_API_URL?.replace(/\/+$/, '')
+  return baseUrl || null
+}
+
 async function getCoreApiAccess(): Promise<
   | { ok: true; baseUrl: string; accessToken: string }
   | { ok: false; error: string }
@@ -509,6 +526,61 @@ export async function deleteDocumentThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No document was deleted.',
+    }
+  }
+}
+
+export async function signPublicSignatureThroughCoreApi(
+  token: string,
+  body: PublicSigningBody,
+  idempotencyKey: string
+): Promise<CoreResult<PublicSigningResult>> {
+  const baseUrl = getCoreApiBaseUrl()
+  if (!baseUrl) {
+    return { ok: false, error: 'ERP Core API is not configured.' }
+  }
+
+  try {
+    const response = await fetch(
+      `${baseUrl}/v1/public/signatures/${encodeURIComponent(token)}`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(body),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(15_000),
+      }
+    )
+    const payload = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof payload?.message === 'string'
+          ? payload.message
+          : response.status === 404
+            ? 'Invalid signing link.'
+            : response.status === 409
+              ? 'This signing link is no longer available.'
+              : 'Could not record signature. Try again.'
+      return { ok: false, error: message }
+    }
+    const parsed = publicSigningResultSchema.safeParse(payload)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid signature result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No signature was recorded.',
     }
   }
 }
