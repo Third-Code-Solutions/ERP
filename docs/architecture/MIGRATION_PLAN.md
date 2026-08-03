@@ -29,11 +29,12 @@ hosted promotion.
 
 ## 2026-08-03 GitHub source publication checkpoint
 
-Remote `main` and `agent-02/third-code-erp-landing` now point to `ffbe471`,
-published by `kurtgav <kurtgavin.design@gmail.com>` with fast-forward pushes;
-the M3.22 implementation is `33089abe`. No hosted SQL, provider setting,
-feature flag, or deployment changed; the release remains held by duplicate
-Purchase Order data and the missing owner-approved audit-recovery tenant.
+Remote `main` and `agent-02/third-code-erp-landing` contain the M3.22
+implementation `33089abe` plus the publication checkpoint docs, published by
+`kurtgav <kurtgavin.design@gmail.com>` with fast-forward pushes. No hosted SQL,
+provider setting, feature flag, or deployment changed; the release remains held
+by duplicate Purchase Order data and the missing owner-approved audit-recovery
+tenant.
 
 ## M3.21 - Cash transaction posting/reversal authority (local source complete)
 
