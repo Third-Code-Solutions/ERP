@@ -22,6 +22,7 @@ export function PayableActions({
   const [pending, startTransition] = useTransition()
   const [postingDate, setPostingDate] = useState(defaultDate)
   const postIdempotencyKeyRef = useRef<string | null>(null)
+  const reverseIdempotencyKeyRef = useRef<string | null>(null)
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -135,15 +136,19 @@ export function PayableActions({
               }
               setError(null)
               startTransition(async () => {
+                if (!reverseIdempotencyKeyRef.current) {
+                  reverseIdempotencyKeyRef.current = globalThis.crypto.randomUUID()
+                }
                 const result = await reverseSupplierBill({
                   billId,
                   postingDate,
                   reason,
-                })
+                }, reverseIdempotencyKeyRef.current)
                 if (!result.ok) {
                   setError(result.error ?? 'Could not reverse supplier bill')
                   return
                 }
+                reverseIdempotencyKeyRef.current = null
                 router.refresh()
               })
             }}
