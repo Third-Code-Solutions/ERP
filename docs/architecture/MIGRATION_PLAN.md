@@ -17,6 +17,9 @@ result, and writes semantic audit atomically. Next.js remains a compatibility
 adapter with one stable retry key; selected Core failures never fall back to a
 second write. Visible invoice UI and copy remain unchanged.
 
+The reviewed implementation is commit `c71fbd4`; publishing that source does
+not authorize hosted SQL, feature flags, or provider deployments.
+
 Validation: shared-types 147/147, database 152/152 with guarded integration
 skips, API source 240/240, Web 418/418, all package typechecks and lint, API
 build, Next build 78/78 routes, release-plan checks, workflow reference

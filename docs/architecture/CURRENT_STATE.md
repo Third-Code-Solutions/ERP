@@ -17,6 +17,9 @@ and visible UI/copy contract, selects Core only for an exact flag plus UUID
 tenant allowlist, uses one stable cancellation retry key, and never falls back
 after a selected Core failure.
 
+The reviewed implementation is commit `c71fbd4` on the local working branch;
+source publication is a separate fast-forward action.
+
 The source migration is
 `20260803110000_customer_invoice_cancel_workflow.sql`; it is not applied to
 hosted Supabase. All customer-invoice cancellation controls remain

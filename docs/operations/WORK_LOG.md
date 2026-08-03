@@ -5,6 +5,8 @@
 Completed the local source milestone. No hosted mutation or provider action
 was authorized.
 
+Reviewed source commit: `c71fbd4`.
+
 - Added strict customer-invoice cancellation command/result contracts and
   ordered migration `20260803110000_customer_invoice_cancel_workflow.sql`
   with forced RLS, service-only privileges, tenant-composite foreign keys,
