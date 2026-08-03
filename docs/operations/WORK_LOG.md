@@ -34,13 +34,19 @@ Hosted boundary: Supabase remains at 55 applied migrations against 82 source
 migrations (27 pending). Document-delete flags remain false/empty. The
 reviewed source checkpoint `5ad72ec` is fast-forwarded to both `main` and
 `agent-02/third-code-erp-landing` under `kurtgav
-<kurtgavin.design@gmail.com>`. Railway CLI re-authentication is now verified
-as `Kurt Gavin (kurtgavin.design@gmail.com)`, but the exact project/service/
-environment link and release readiness are still unverified. Vercel Git
-deployment remains disabled and no new Vercel deployment appeared. No
-Supabase SQL, Railway release, Vercel deployment, provider setting, feature
-flag, or hosted data changed. Audit-hash verification remains blocked without
-the required Postgres and owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+<kurtgavin.design@gmail.com>`. Railway CLI re-authentication and linkage are
+verified: project `ERP` /
+`a21fd382-80b2-4218-8025-11f420a062e3`, production environment
+`ce3a09da-9334-4256-a0a6-85d69676cb89`, service `Third Code ERP API` /
+`c45b3d01-036a-4663-a524-0713d782fce3`. Deployment
+`d7b8b2d4-db7b-4f15-a429-7d903d353794` is `SUCCESS` at source `5ad72ec`;
+`/ready` returned `200` with `database: ok` and `redis: ok`. This is runtime
+readiness only; ordered migration parity, flags, protected-flow, rollback,
+and spend gates remain open. Vercel Git deployment remains disabled and no
+new Vercel deployment appeared. No Supabase SQL, Vercel deployment, provider
+setting, feature flag, or hosted data changed. Audit-hash verification remains
+blocked without the required Postgres and owner-approved
+`AUDIT_RECOVERY_TENANT_ID`.
 
 ## 2026-08-03 - M3.25 reviewed source publication checkpoint
 

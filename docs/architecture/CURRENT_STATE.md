@@ -26,10 +26,12 @@ setting, Railway release, Vercel deployment, or hosted data changed.
 Source checkpoint `5ad72ec` is fast-forwarded to
 `Third-Code-Solutions/ERP` branches `main` and
 `agent-02/third-code-erp-landing` under verified `kurtgav
-<kurtgavin.design@gmail.com>` credentials. Railway CLI is now
-re-authenticated as that account; exact project/service/environment linkage
-and release readiness remain unverified. Vercel Git deployment remains
-disabled, so no paid build was triggered.
+<kurtgavin.design@gmail.com>` credentials. Railway is linked to project `ERP`
+in production and service `Third Code ERP API`; deployment
+`d7b8b2d4-db7b-4f15-a429-7d903d353794` is `SUCCESS` at source `5ad72ec`, and
+`/ready` returned `200` with PostgreSQL and Redis ready. This does not clear
+migration-parity, protected-flow, rollback, or spend gates. Vercel Git
+deployment remains disabled, so no paid build was triggered.
 
 Validation: shared full suite 152/152, database full suite 156/156 with 137
 guarded tests skipped without `DATABASE_URL`, focused API document/config/
