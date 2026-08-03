@@ -25,10 +25,11 @@ is complete.
 
 The local M3.28 authority now implements that boundary with a hashed session,
 explicit supplier decision state, tenant-scoped replay, and nullable-actor
-audit. The next slice may mint sessions during an authorized supplier issuance
-and place a redacted public link in the existing outbox only after its own
-idempotency and delivery proof; supplier response must remain independent from
-delivery, inventory, receipt, and payment state.
+audit. M3.29 adds a separate closed SCM-issuance minting seam: deterministic
+HMAC-derived token, hash-only persistence, workflow-request association, and a
+redacted session UUID in the supplier outbox. It does not emit a public link or
+change delivery, inventory, receipt, or payment state. Link delivery remains a
+separate proof-gated slice.
 
 ## Authority boundaries
 

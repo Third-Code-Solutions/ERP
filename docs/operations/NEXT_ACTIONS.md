@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after local M3.29 supplier-session minting slice
+
+1. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_ENABLED` and
+   `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_TENANT_IDS` false/empty;
+   keep `ERP_PUBLIC_VENDOR_CONFIRMATION_TOKEN_SECRET` unset. Do not apply
+   `20260803160000_vendor_confirmation_session_minting.sql` alone; reconcile
+   the complete ordered 30-migration suffix only after disposable session
+   insert/replay/expiry/cross-tenant proof, duplicate-PO mapping,
+   owner-approved `AUDIT_RECOVERY_TENANT_ID`, rollback, provider identity, and
+   spend gates clear.
+2. Run the full shared/database/Web suites, API procurement suite, package
+   typechecks, Nest/Next builds, and release-plan checks. Publish only the
+   reviewed source checkpoint under `kurtgav`; Railway may deploy the closed
+   seam through watched API files. Do not trigger Vercel or apply Supabase.
+3. Keep public link delivery separate. It may consume the redacted session
+   UUID only after email-provider, token reconstruction, expiry/revocation,
+   retry, rollback, and spend-bounded canary evidence passes.
+
+The landing page remains protected by the existing desktop/mobile screenshots,
+behavior sweep, SEO metadata, and no-reference-brand scan. No UI rewrite is
+authorized by this backend milestone.
+
 ## Exact next action after M3.28 Railway source deployment (2026-08-03)
 
 1. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED` and

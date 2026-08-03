@@ -374,7 +374,21 @@ describe('RFQ notification delivery contracts', () => {
       purchaseOrderSupplierIssuedPayloadSchema.safeParse({
         schemaVersion: 1,
         purchase_order_id: UUID,
+        vendor_confirmation_session_id: UUID,
+      }).success
+    ).toBe(true)
+    expect(
+      purchaseOrderSupplierIssuedPayloadSchema.safeParse({
+        schemaVersion: 1,
+        purchase_order_id: UUID,
         recipientEmail: 'supplier@example.test',
+      }).success
+    ).toBe(false)
+    expect(
+      purchaseOrderSupplierIssuedPayloadSchema.safeParse({
+        schemaVersion: 1,
+        purchase_order_id: UUID,
+        token: 'a'.repeat(64),
       }).success
     ).toBe(false)
   })

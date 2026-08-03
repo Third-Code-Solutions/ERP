@@ -4,6 +4,24 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.29 source update (2026-08-03)
+
+Local source adds a protected SCM-issuance session-minting seam. When its
+separate tenant flag is enabled, Nest derives a 64-hex public token from a
+random session id, tenant id, and server-only HMAC secret; PostgreSQL stores
+only the SHA-256 token hash plus the source `purchase_order_workflow_requests`
+id. A pending-PO partial unique index prevents duplicate active sessions, and
+the supplier-issued outbox carries only the session UUID. No raw token is
+stored in PostgreSQL, audit metadata, or outbox JSON. Existing supplier email
+copy, retry, and delivery behavior remain unchanged; public link delivery is
+not part of this slice.
+
+The source migration is
+`20260803160000_vendor_confirmation_session_minting.sql`; source now has 85
+migrations against 55 hosted Supabase migrations. Session-minting flags remain
+false/empty and the token secret is unset. No hosted SQL, runtime provider
+setting, Vercel deployment, or hosted data changed in this source slice.
+
 ## M3.28 source update (2026-08-03)
 
 Local reviewed source adds a closed-by-default NestJS public supplier response

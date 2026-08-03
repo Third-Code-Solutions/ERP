@@ -1,5 +1,41 @@
 # Work Log
 
+## 2026-08-03 - M3.29 protected supplier-session minting
+
+Completed and validated the source implementation for deterministic supplier
+confirmation-session minting at SCM Purchase Order issuance. This remains a
+closed source slice: no Supabase SQL, hosted feature flag, Vercel deployment,
+email-link delivery, or hosted data changed.
+
+- Added the source migration and Drizzle schema boundary for the workflow
+  request association, tenant-scoped pending-session uniqueness, and composite
+  tenant foreign key.
+- Added a server-only HMAC token derivation helper. PostgreSQL, audit metadata,
+  and notification outbox JSON receive only the SHA-256 hash and session UUID;
+  the raw token is never persisted or emitted.
+- Added a separate tenant allowlist/secret/TTL gate. Minting is disabled by
+  default, validates configuration before database access, reuses compatible
+  sessions, and rejects Purchase Order/vendor scope drift.
+- Integrated minting into the existing `scm_issue` transaction without
+  changing supplier email copy, retry behavior, or delivery processing.
+
+Validation:
+
+- Shared-types full suite: 159/159; database full suite: 162 passed, 137
+  skipped because `DATABASE_URL` is not configured locally.
+- API procurement suite: 118/118; focused environment/token/session tests:
+  40/40; API typecheck and lint passed; Nest production build passed.
+- Web full suite: 431/431 with the isolated clean-room scan allowed its
+  measured filesystem work; web typecheck passed. Root lint passed.
+- Next production build generated 78/78 routes; root build passed.
+- Database-release, project-cutover, audit-recovery, purchase-order-duplicate,
+  and controlled-release plan suites passed (7/7, 6/6, 4/4, 4/4, 4/4);
+  workflow action references passed; `git diff --check` passed.
+- Source now contains 85 migrations versus 55 hosted Supabase migrations.
+  Session-minting flags remain false/empty and the token secret is unset.
+  Supabase and Vercel remain unchanged pending the ordered hosted suffix,
+  replay/rollback, provider, and spend gates.
+
 ## 2026-08-03 - M3.28 supplier-confirmation authority
 
 Completed the source slice and deployed the closed runtime seam to Railway.

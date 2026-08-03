@@ -4,6 +4,27 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.29 - Protected supplier session minting (local source slice complete)
+
+Local source extends the M3.28 supplier-confirmation authority at the
+authorized `scm_issue` transition. A separate tenant flag gates creation of a
+pending confirmation session. The token is deterministically derived from a
+random session UUID, tenant UUID, and server-only HMAC secret; only its SHA-256
+hash is persisted. The session records the source workflow-request id for
+replay association and the schema prevents two pending sessions for one
+tenant-scoped Purchase Order. The supplier-issued outbox contains only the
+session UUID as a redacted association; no raw token or public link is emitted.
+
+The source migration is
+`20260803160000_vendor_confirmation_session_minting.sql`. Keep
+`ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_ENABLED` and its tenant
+allowlist false/empty, and keep the token secret unset, until the complete
+ordered hosted suffix, disposable insert/replay/expiry proof, rollback,
+provider identity, owner-input, and spend gates clear. Existing supplier email
+copy, retry, and delivery state are unchanged. Public link delivery remains a
+separate follow-on slice.
+
+## M3.28 - Supplier confirmation authority (closed Railway runtime seam)
 ## M3.28 - Supplier confirmation authority (closed Railway runtime seam)
 
 Local source now adds a tenant-scoped, hashed-token supplier-confirmation

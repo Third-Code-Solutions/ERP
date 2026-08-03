@@ -39,6 +39,7 @@ import {
   purchaseOrderWorkflowNotificationRoles,
 } from './purchase-order-workflow-notifications'
 import { NotificationDeliveryQueue } from './notification-delivery.queue'
+import { VendorConfirmationSessionMintingService } from './vendor-confirmation-session-minting.service'
 
 type WorkflowStatus =
   | 'draft'
@@ -177,7 +178,10 @@ export class PurchaseOrderWorkflowService {
     @Inject(AuditService) private readonly audit: AuditService,
     @Optional()
     @Inject(NotificationDeliveryQueue)
-    private readonly notificationQueue?: NotificationDeliveryQueue
+    private readonly notificationQueue?: NotificationDeliveryQueue,
+    @Optional()
+    @Inject(VendorConfirmationSessionMintingService)
+    private readonly vendorConfirmationSessions?: VendorConfirmationSessionMintingService
   ) {}
 
   async transition(
@@ -454,15 +458,26 @@ export class PurchaseOrderWorkflowService {
       }
 
       let supplierOutboxId: string | null = null
+      let vendorConfirmationSessionId: string | null = null
       if (parsedCommand.action === 'scm_issue') {
         const recipientEmail = supplierEmailSnapshot(supplierEmail)
         const supplierNameSnapshot = supplierName?.trim() ?? ''
         if (recipientEmail && supplierNameSnapshot.length > 0) {
+          const session = await this.vendorConfirmationSessions?.mint({
+            transaction,
+            tenantId: authorizedPrincipal.tenantId,
+            purchaseOrderId,
+            vendorId: po.vendorId!,
+            sourceWorkflowRequestId: request.id,
+            createdBy: authorizedPrincipal.userId,
+          })
+          vendorConfirmationSessionId = session?.sessionId ?? null
           supplierOutboxId = randomUUID()
           const supplierPayload =
             purchaseOrderSupplierIssuedPayloadSchema.parse({
               schemaVersion: 1,
               purchase_order_id: purchaseOrderId,
+              vendor_confirmation_session_id: vendorConfirmationSessionId,
             })
           await transaction.insert(notificationOutbox).values({
             id: supplierOutboxId,
@@ -532,6 +547,8 @@ export class PurchaseOrderWorkflowService {
           ...(parsedCommand.action === 'scm_issue'
             ? {
                 supplier_email_queued: supplierOutboxId !== null,
+                supplier_confirmation_session_minted:
+                  vendorConfirmationSessionId !== null,
               }
             : {}),
         },

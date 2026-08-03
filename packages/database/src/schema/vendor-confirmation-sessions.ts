@@ -13,6 +13,7 @@ import { purchaseOrders } from './purchase-orders'
 import { tenants } from './tenants'
 import { users } from './users'
 import { vendors } from './vendors'
+import { purchaseOrderWorkflowRequests } from './purchase-order-workflow-requests'
 import { vendorConfirmationStateEnum } from './enums'
 
 /** Single-purpose, hashed-token supplier response sessions. */
@@ -25,6 +26,7 @@ export const vendorConfirmationSessions = pgTable(
       .references(() => tenants.id, { onDelete: 'cascade' }),
     purchase_order_id: uuid('purchase_order_id').notNull(),
     vendor_id: uuid('vendor_id').notNull(),
+    source_workflow_request_id: uuid('source_workflow_request_id'),
     token_hash: varchar('token_hash', { length: 64 }).notNull(),
     state: vendorConfirmationStateEnum('state').notNull().default('pending'),
     expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -51,6 +53,14 @@ export const vendorConfirmationSessions = pgTable(
       table.tenant_id,
       table.purchase_order_id
     ),
+    pendingPurchaseOrderUniqueIdx: uniqueIndex(
+      'ux_vendor_confirmation_sessions_pending_tenant_po'
+    )
+      .on(table.tenant_id, table.purchase_order_id)
+      .where(sql`${table.state} = 'pending'`),
+    sourceWorkflowRequestUniqueIdx: uniqueIndex(
+      'ux_vendor_confirmation_sessions_tenant_source_request'
+    ).on(table.tenant_id, table.source_workflow_request_id),
     tenantStateIdx: index('idx_vendor_confirmation_sessions_tenant_state').on(
       table.tenant_id,
       table.state,
@@ -70,6 +80,14 @@ export const vendorConfirmationSessions = pgTable(
       name: 'vendor_confirmation_sessions_created_by_tenant_fk',
       columns: [table.tenant_id, table.created_by],
       foreignColumns: [users.tenant_id, users.id],
+    }).onDelete('restrict'),
+    sourceWorkflowRequestTenantFk: foreignKey({
+      name: 'vendor_confirmation_sessions_source_workflow_request_tenant_fk',
+      columns: [table.tenant_id, table.source_workflow_request_id],
+      foreignColumns: [
+        purchaseOrderWorkflowRequests.tenant_id,
+        purchaseOrderWorkflowRequests.id,
+      ],
     }).onDelete('restrict'),
     tokenHashCheck: check(
       'vendor_confirmation_sessions_token_hash_hex',

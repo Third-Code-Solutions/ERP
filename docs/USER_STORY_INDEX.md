@@ -58,7 +58,7 @@ with their route under `actions.ts` unless noted.
 | US-Pre-002 — Permit Tracker | `/(dashboard)/permits`, `/(dashboard)/projects/[id]/permits` | `projects/[id]/permits/actions.ts` | `permits`, `sla_logs` | Live |
 | US-Pre-003 — Purchase Order Generation | `/(dashboard)/procurement`, `/(dashboard)/purchase-orders` | `procurement/actions.ts` | `rfqs`, `purchase_orders`, `po_lines`, `vendors` | Live |
 | US-013 — RFQ Auto-Dispatch | `/(dashboard)/procurement` | `procurement/actions.ts` (`dispatchRfq`) | `rfqs`, `vendors`, `sla_logs` | Live |
-| US-014 — Supplier PO Confirmation | planned supplier response surface | planned M3.28 Core public command | planned confirmation session + replay ledger | Pending |
+| US-014 — Supplier PO Confirmation | planned supplier response surface | M3.28 Core public command; M3.29 SCM session minting | confirmation session + replay ledger + workflow association | Pending |
 
 ---
 
