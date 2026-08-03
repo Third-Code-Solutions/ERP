@@ -1,5 +1,16 @@
 # Work Log
 
+## 2026-08-03 - Reviewed source published as kurtgav
+
+Published the reviewed M3.21/M3.22 source and release documentation to
+`Third-Code-Solutions/ERP` using the stored `kurtgav
+<kurtgavin.design@gmail.com>` GitHub CLI identity. The push was fast-forward
+only from `9c200cc` to `33089abe567bd39d190d08c9a1ad1098e6dc5bb0` on both
+`main` and `agent-02/third-code-erp-landing`. No force push, alternate account,
+fork, Supabase SQL, Railway release, Vercel deployment, feature flag, provider
+setting, or hosted data changed. Railway identity and the hosted migration/data
+release gates remain unresolved.
+
 ## 2026-08-03 - M3.22 customer invoice issuance authority
 
 Completed the local source milestone. No hosted mutation or provider action
