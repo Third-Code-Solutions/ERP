@@ -537,6 +537,32 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Session minting is a separate closed seam. It can create only a hashed
+  // token session during SCM issuance; public link delivery remains off.
+  ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  ERP_PUBLIC_VENDOR_CONFIRMATION_TOKEN_SECRET: z
+    .string()
+    .min(32)
+    .optional(),
+  ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_TTL_HOURS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(2_160)
+    .default(720),
   DXF_PARSER_URL: optionalHttpUrl,
   PARSER_SHARED_SECRET: z.string().min(20).optional(),
 })

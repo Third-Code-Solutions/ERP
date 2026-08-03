@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-138 - Mint supplier sessions without persisting raw tokens (2026-08-03)
+
+Decision: at authorized `scm_issue`, optionally create one tenant-scoped
+pending supplier-confirmation session associated with the durable workflow
+request. Derive the public token from the random session UUID, tenant UUID, and
+a server-only HMAC secret; persist only the SHA-256 hash. Put only the session
+UUID in the supplier-issued outbox payload. Keep the session flag, tenant
+allowlist, and secret closed/unset by default; do not add a public link to the
+existing supplier email in this slice.
+
+Reason: deterministic derivation lets a future delivery worker reconstruct a
+link without storing a bearer secret in PostgreSQL or outbox JSON. The
+workflow-request association and pending-PO uniqueness make retries safe while
+preserving the existing SCM status, supplier-email retry, and delivery
+behavior. Link delivery requires its own provider, expiry, rollback, and
+spend-bounded evidence.
+
 ## D-137 - Keep supplier confirmation independent from fulfillment (2026-08-03)
 
 Decision: add a closed-by-default

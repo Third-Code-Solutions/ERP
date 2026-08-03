@@ -153,6 +153,10 @@ export const purchaseOrderSupplierIssuedPayloadSchema = z
   .object({
     schemaVersion: z.literal(1),
     purchase_order_id: z.string().uuid(),
+    // Source-only session association. The raw public token is never placed
+    // in an outbox payload; the email path remains unchanged until link
+    // delivery is explicitly enabled in a later slice.
+    vendor_confirmation_session_id: z.string().uuid().nullable().optional(),
   })
   .strict()
 

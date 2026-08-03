@@ -26,12 +26,9 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { hashVendorConfirmationToken } from './vendor-confirmation-token'
 
 const TOKEN_PATTERN = /^[0-9a-f]{64}$/i
-
-function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex')
-}
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
@@ -138,7 +135,7 @@ export class PublicVendorConfirmationService {
       )
     }
 
-    const tokenHash = hashToken(command.token)
+    const tokenHash = hashVendorConfirmationToken(command.token)
     const [session] = await this.database.client
       .select()
       .from(vendorConfirmationSessions)

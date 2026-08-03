@@ -162,6 +162,10 @@ false and tenant list empty until the controlled release gate is clear.
 | `ERP_PUBLIC_SIGNING_WRITES_TENANT_IDS` | no | API server | Explicit public-signing tenant allowlist; default empty |
 | `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED` | no | API server | Nest token-authorized supplier confirmation gate; default false |
 | `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS` | no | API server | Explicit supplier-confirmation tenant allowlist; default empty |
+| `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_ENABLED` | no | API server | Closed SCM-issuance session-minting seam; default false |
+| `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_TENANT_IDS` | no | API server | Explicit session-minting tenant allowlist; default empty |
+| `ERP_PUBLIC_VENDOR_CONFIRMATION_TOKEN_SECRET` | no* | API server | Server-only HMAC secret for deterministic token derivation; required when minting is enabled |
+| `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_TTL_HOURS` | no | API server | Pending session lifetime, 1-2160 hours; default 720 |
 
 The Next.js upload compatibility selector is separate from the API-side gates:
 
