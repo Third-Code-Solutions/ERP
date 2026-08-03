@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-133 - Route cash draft mutations through Core with durable replay (2026-08-03)
+
+Decision: add closed-by-default NestJS commands for cash draft create/update
+and delete. NestJS derives tenant and actor from a locked membership,
+rechecks `finance.manage_cash`, validates tenant-owned Cash Accounts and open
+allocation targets, commits draft rows and allocations in one transaction,
+stores a tenant-scoped idempotency result, and writes semantic audit. The
+replay ledger intentionally keeps deleted target UUIDs. Next.js remains a
+compatibility adapter with stable retry keys; selected Core failures never
+fall through to a second write. The migration and selectors remain
+false/empty until hosted parity, disposable integration, rollback,
+duplicate-data, audit-chain, provider-identity, and spend gates clear.
+
+Reason: draft cash evidence is mutable but still affects the official
+financial workflow and later posting. A server-owned transaction boundary
+prevents cross-tenant target references, duplicate retries, unaudited deletes,
+and browser-side authority while preserving the existing UI and safe legacy
+path during the strangler migration.
+
 ## D-132 - Route draft customer-invoice cancellation through Core (2026-08-03)
 
 Decision: add closed-by-default

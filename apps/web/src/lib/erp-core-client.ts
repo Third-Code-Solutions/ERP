@@ -18,6 +18,8 @@ import {
   supplierBillReverseResultSchema,
   cashTransactionPostResultSchema,
   cashTransactionReverseResultSchema,
+  cashTransactionDraftResultSchema,
+  cashTransactionDraftDeleteResultSchema,
   customerInvoiceIssueResultSchema,
   customerInvoiceReverseResultSchema,
   customerInvoiceCancelResultSchema,
@@ -63,6 +65,9 @@ import {
   type CashTransactionPostResult,
   type CashTransactionReverseBody,
   type CashTransactionReverseResult,
+  type CashTransactionDraftBody,
+  type CashTransactionDraftResult,
+  type CashTransactionDraftDeleteResult,
   type CustomerInvoiceIssueCommand,
   type CustomerInvoiceIssueResult,
   type CustomerInvoiceReverseBody,
@@ -269,6 +274,16 @@ export function financeCashWorkflowWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API,
     process.env.ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function financeCashDraftWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API,
+    process.env.ERP_FINANCE_CASH_DRAFT_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -1851,6 +1866,110 @@ export async function postCashTransactionThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No cash transaction was posted.',
+    }
+  }
+}
+
+export async function saveCashDraftThroughCoreApi(
+  command: CashTransactionDraftBody,
+  idempotencyKey: string
+): Promise<CoreResult<CashTransactionDraftResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/cash-transactions/drafts`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Cash draft conflicts with existing evidence.'
+            : 'Cash draft was not saved.'
+      return { ok: false, error: message }
+    }
+    const parsed = cashTransactionDraftResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid cash draft result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No cash draft was saved.',
+    }
+  }
+}
+
+export async function deleteCashDraftThroughCoreApi(
+  cashTransactionId: string,
+  idempotencyKey: string
+): Promise<CoreResult<CashTransactionDraftDeleteResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/cash-transactions/${encodeURIComponent(
+        cashTransactionId
+      )}/draft`,
+      {
+        method: 'DELETE',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify({}),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 404
+            ? 'Cash draft was not found.'
+            : 'Cash draft was not deleted.'
+      return { ok: false, error: message }
+    }
+    const parsed = cashTransactionDraftDeleteResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid cash draft deletion result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No cash draft was deleted.',
     }
   }
 }

@@ -4,6 +4,38 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.25 source update (2026-08-03)
+
+Local reviewed source now adds a closed-by-default NestJS authority for cash
+draft create, update, and delete. `POST
+/v1/finance/cash-transactions/drafts` and `DELETE
+/v1/finance/cash-transactions/:cashTransactionId/draft` validate strict
+tenant-free commands, recheck the locked tenant membership and
+`finance.manage_cash`, validate tenant-owned Cash Account and open allocation
+targets, commit draft rows and allocations in one transaction, persist a
+tenant-scoped idempotency result, and write semantic audit. Deleted draft
+target UUIDs remain in the service-only replay ledger. Next.js keeps its
+existing Server Actions and visible UI/copy contract, selects Core only for an
+exact flag plus UUID tenant allowlist, uses stable retry keys, and never falls
+back after a selected Core failure.
+
+The source migration is
+`20260803120000_cash_transaction_draft_workflow.sql`; it is not applied to
+hosted Supabase. All cash-draft controls remain false/empty. Source now has 81
+migrations versus 55 hosted (26 pending). No Supabase SQL, provider setting,
+feature flag, Railway release, Vercel deployment, or hosted data changed.
+
+Validation: shared full suite 149/149, database full suite 154/154 with 137
+guarded tests skipped without `DATABASE_URL`, API full suite 251/251 with an
+explicit 30-second Vitest timeout, Web full suite 421/421, package
+typechecks/lint, Nest build, release-plan checks, workflow-reference checks,
+and diff checks passed. The default parallel API command still had three
+unrelated 5-second test timeouts (248/251); the bounded 30-second run passed.
+The Next production build timed out at the 364-second runner limit after
+writing `.next` artifacts, so no hosted build or deployment is considered
+green. Audit-hash verification remains blocked without the required
+`DATABASE_URL` and owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+
 ## M3.24 source update (2026-08-03)
 
 Local reviewed source now adds closed-by-default NestJS authority for draft

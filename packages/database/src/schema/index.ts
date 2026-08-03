@@ -65,6 +65,7 @@ export * from './accounting'
 export * from './supplier-bills'
 // Cash receipt and disbursement allocation foundation
 export * from './cash'
+export * from './cash-draft-requests'
 // Bank statement matching and reconciliation
 export * from './bank-reconciliation'
 export * from './inventory-masters'

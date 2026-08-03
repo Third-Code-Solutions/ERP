@@ -11,6 +11,8 @@ import { SupplierBillReverseController } from './supplier-bill-reverse.controlle
 import { SupplierBillReverseService } from './supplier-bill-reverse.service'
 import { CashTransactionWorkflowController } from './cash-transaction-workflow.controller'
 import { CashTransactionWorkflowService } from './cash-transaction-workflow.service'
+import { CashDraftController } from './cash-draft.controller'
+import { CashDraftService } from './cash-draft.service'
 import { CustomerInvoiceIssueController } from './customer-invoice-issue.controller'
 import { CustomerInvoiceIssueService } from './customer-invoice-issue.service'
 import { CustomerInvoiceReverseController } from './customer-invoice-reverse.controller'
@@ -26,6 +28,7 @@ import { CustomerInvoiceCancelService } from './customer-invoice-cancel.service'
     SupplierBillPostController,
     SupplierBillReverseController,
     CashTransactionWorkflowController,
+    CashDraftController,
     CustomerInvoiceIssueController,
     CustomerInvoiceReverseController,
     CustomerInvoiceCancelController,
@@ -36,6 +39,7 @@ import { CustomerInvoiceCancelService } from './customer-invoice-cancel.service'
     SupplierBillPostService,
     SupplierBillReverseService,
     CashTransactionWorkflowService,
+    CashDraftService,
     CustomerInvoiceIssueService,
     CustomerInvoiceReverseService,
     CustomerInvoiceCancelService,
@@ -51,6 +55,7 @@ export class FinanceModule implements NestModule {
         SupplierBillPostController,
         SupplierBillReverseController,
         CashTransactionWorkflowController,
+        CashDraftController,
         CustomerInvoiceIssueController,
         CustomerInvoiceReverseController,
         CustomerInvoiceCancelController

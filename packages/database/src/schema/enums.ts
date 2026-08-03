@@ -209,6 +209,16 @@ export const cashTransactionWorkflowRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const cashTransactionDraftRequestActionEnum = pgEnum(
+  'cash_transaction_draft_request_action',
+  ['save', 'delete']
+)
+
+export const cashTransactionDraftRequestStateEnum = pgEnum(
+  'cash_transaction_draft_request_state',
+  ['processing', 'succeeded']
+)
+
 export const customerInvoiceIssueRequestStateEnum = pgEnum(
   'customer_invoice_issue_request_state',
   ['processing', 'succeeded']

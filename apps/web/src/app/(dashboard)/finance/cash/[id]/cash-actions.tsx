@@ -24,6 +24,7 @@ export function CashActions({
   const [error, setError] = useState<string | null>(null)
   const postIdempotencyKey = useRef<string | null>(null)
   const reverseIdempotencyKey = useRef<string | null>(null)
+  const deleteIdempotencyKey = useRef<string | null>(null)
 
   if (status === 'reversed') {
     return (
@@ -58,11 +59,15 @@ export function CashActions({
               if (!window.confirm('Delete this unposted cash draft?')) return
               setError(null)
               startTransition(async () => {
-                const result = await deleteCashDraft(transactionId)
+                const result = await deleteCashDraft(
+                  transactionId,
+                  (deleteIdempotencyKey.current ??= globalThis.crypto.randomUUID())
+                )
                 if (!result.ok) {
                   setError(result.error ?? 'Could not delete cash draft')
                   return
                 }
+                deleteIdempotencyKey.current = null
                 router.push('/finance/cash')
               })
             }}

@@ -200,6 +200,120 @@ export type CashTransactionReverseResult = z.infer<
   typeof cashTransactionReverseResultSchema
 >
 
+const cashAllocationTypeSchema = z.enum([
+  'customer_current_due',
+  'customer_retention',
+  'supplier_bill',
+])
+
+export const cashTransactionDraftAllocationSchema = z
+  .object({
+    allocationType: cashAllocationTypeSchema,
+    targetId: z.string().uuid(),
+    description: z.string().trim().max(500).nullable().optional(),
+    amountCents: z
+      .number()
+      .int()
+      .min(1)
+      .max(Number.MAX_SAFE_INTEGER),
+  })
+  .strict()
+
+export const cashTransactionDraftBodySchema = z
+  .object({
+    transactionId: z.string().uuid().optional(),
+    cashAccountId: z.string().uuid(),
+    direction: z.enum(['receipt', 'disbursement']),
+    counterpartyId: z.string().uuid(),
+    referenceNumber: z.string().trim().min(1).max(100),
+    transactionDate: isoDateSchema,
+    notes: z.string().trim().max(2_000).nullable().optional(),
+    allocations: z
+      .array(cashTransactionDraftAllocationSchema)
+      .min(1)
+      .max(100),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const expected =
+      value.direction === 'receipt'
+        ? ['customer_current_due', 'customer_retention']
+        : ['supplier_bill']
+    if (
+      value.allocations.some(
+        (allocation) => !expected.includes(allocation.allocationType)
+      )
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['allocations'],
+        message: 'Allocations do not match the cash direction.',
+      })
+    }
+
+    const total = value.allocations.reduce(
+      (sum, allocation) => sum + allocation.amountCents,
+      0
+    )
+    if (!Number.isSafeInteger(total) || total <= 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['allocations'],
+        message: 'Enter a valid positive allocation total.',
+      })
+    }
+  })
+
+export const cashTransactionDraftCommandSchema =
+  cashTransactionDraftBodySchema
+
+export const cashTransactionDraftResultSchema = z
+  .object({
+    cashTransactionId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('draft'),
+  })
+  .strict()
+
+export type CashTransactionDraftAllocation = z.infer<
+  typeof cashTransactionDraftAllocationSchema
+>
+export type CashTransactionDraftBody = z.infer<
+  typeof cashTransactionDraftBodySchema
+>
+export type CashTransactionDraftCommand = z.infer<
+  typeof cashTransactionDraftCommandSchema
+>
+export type CashTransactionDraftResult = z.infer<
+  typeof cashTransactionDraftResultSchema
+>
+
+export const cashTransactionDraftDeleteBodySchema = z.object({}).strict()
+
+export const cashTransactionDraftDeleteCommandSchema = z
+  .object({
+    cashTransactionId: z.string().uuid(),
+  })
+  .strict()
+
+export const cashTransactionDraftDeleteResultSchema = z
+  .object({
+    cashTransactionId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('deleted'),
+  })
+  .strict()
+
+export type CashTransactionDraftDeleteBody = z.infer<
+  typeof cashTransactionDraftDeleteBodySchema
+>
+export type CashTransactionDraftDeleteCommand = z.infer<
+  typeof cashTransactionDraftDeleteCommandSchema
+>
+export type CashTransactionDraftDeleteResult = z.infer<
+  typeof cashTransactionDraftDeleteResultSchema
+>
+
 export const customerInvoiceIssueCommandSchema = z
   .object({
     postingDate: isoDateSchema,

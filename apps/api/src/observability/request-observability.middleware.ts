@@ -138,6 +138,18 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     }
     if (
       request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/cash-transactions/drafts')
+    ) {
+      return 'finance.cash_transaction_draft_save'
+    }
+    if (
+      request.method === 'DELETE' &&
+      routePath.endsWith('/v1/finance/cash-transactions/:cashTransactionId/draft')
+    ) {
+      return 'finance.cash_transaction_draft_delete'
+    }
+    if (
+      request.method === 'POST' &&
       routePath.endsWith('/v1/finance/customer-invoices/:invoiceId/issue')
     ) {
       return 'finance.customer_invoice_issue'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveCashDraft } from './actions'
 
@@ -71,6 +71,7 @@ export function CashForm({
   const [transactionDate, setTransactionDate] = useState(defaultDate)
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<DraftLine[]>([blankLine('allocation-1')])
+  const saveIdempotencyKey = useRef<string | null>(null)
 
   const allTargets =
     direction === 'receipt' ? receiptTargets : disbursementTargets
@@ -138,19 +139,23 @@ export function CashForm({
               amountCents: parseMoney(line.amount) ?? -1,
             }
           })
-          const result = await saveCashDraft({
-            cashAccountId,
-            direction,
-            counterpartyId,
-            referenceNumber,
-            transactionDate,
-            notes: notes || null,
-            allocations,
-          })
+          const result = await saveCashDraft(
+            {
+              cashAccountId,
+              direction,
+              counterpartyId,
+              referenceNumber,
+              transactionDate,
+              notes: notes || null,
+              allocations,
+            },
+            (saveIdempotencyKey.current ??= globalThis.crypto.randomUUID())
+          )
           if (!result.ok || !result.id) {
             setError(result.error ?? 'Could not save cash draft')
             return
           }
+          saveIdempotencyKey.current = null
           router.push(`/finance/cash/${result.id}`)
         })
       }}
