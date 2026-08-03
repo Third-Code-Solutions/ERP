@@ -4,6 +4,15 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## Capability baseline checkpoint (2026-08-03)
+
+`docs/architecture/CAPABILITY_MATRIX.md` now records the verified construction
+spine, multi-business expansion gaps, and the bounded M3.28 supplier-confirmation
+scope. This is a source-planning milestone only: no application code,
+Supabase migration, feature flag, email link, hosted data, or provider setting
+changed. The current landing page remains protected by the existing responsive
+and behavior evidence; no visual rewrite is part of this checkpoint.
+
 ## M3.27 source update (2026-08-03)
 
 Local reviewed source now adds a closed-by-default NestJS authority for

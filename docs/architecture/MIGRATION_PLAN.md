@@ -4,6 +4,23 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.28 - Supplier confirmation authority (planned scope)
+
+The capability baseline identifies supplier confirmation as the next narrow
+construction handoff. The slice will add a tenant-scoped, hashed-token session;
+an explicit `pending -> accepted | declined | changes_requested` state machine;
+a durable tenant/idempotency replay ledger; and a closed-by-default NestJS
+public command. NestJS will derive Purchase Order and tenant scope from a
+locked session, commit response metadata and nullable-actor audit atomically,
+and never alter delivery, receipt, inventory, or payment state. Existing
+supplier email and Purchase Order UI behavior remain unchanged until the
+source contract, disposable database/Redis replay proof, expiry/revocation and
+cross-tenant tests, rollback, provider identity, owner-input, and spend gates
+are complete. No migration or feature flag exists for this planned slice yet.
+
+See [`CAPABILITY_MATRIX.md`](./CAPABILITY_MATRIX.md) for the acceptance
+boundary and current capability evidence.
+
 ## M3.27 - Public client-signing authority (local source complete)
 
 Local source adds strict public-signing body/result contracts,

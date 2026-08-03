@@ -1,5 +1,22 @@
 # Next Actions
 
+## Exact next action after capability baseline checkpoint (2026-08-03)
+
+1. Define and test the M3.28 supplier-confirmation command/result contract,
+   session state machine, replay result, and token threat model. Keep the
+   implementation source-only and closed by default; do not add a supplier
+   email link or hosted migration in the first step.
+2. Reconcile the existing PO notification/outbox model before adding any new
+   session creation side effect. Preserve the current supplier email retry and
+   Purchase Order status behavior.
+3. Run shared/database/API/Web focused contracts, package typechecks, Nest and
+   Next builds, and the existing release-plan checks. Publish only the reviewed
+   source checkpoint under `kurtgav`; do not trigger Vercel or apply Supabase.
+
+The landing page remains protected by the existing desktop/mobile screenshots,
+behavior sweep, SEO metadata, and no-reference-brand scan. No UI rewrite is
+authorized by this checkpoint.
+
 ## Exact next action after local M3.27 public client-signing slice
 
 1. Keep `ERP_PUBLIC_SIGNING_WRITES_ENABLED`,
