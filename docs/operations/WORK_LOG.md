@@ -31,12 +31,16 @@ Validation:
   claim is made for this milestone.
 
 Hosted boundary: Supabase remains at 55 applied migrations against 82 source
-migrations (27 pending). Document-delete flags remain false/empty. Railway
-still resolves to `joeseffdy@gmail.com` in the CLI, Vercel Git deployment is
-disabled and no new Vercel deployment appeared, and no Supabase SQL, Railway
-release, Vercel deployment, provider setting, feature flag, or hosted data
-changed. Audit-hash verification remains blocked without the required
-Postgres and owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+migrations (27 pending). Document-delete flags remain false/empty. The
+reviewed source checkpoint `5ad72ec` is fast-forwarded to both `main` and
+`agent-02/third-code-erp-landing` under `kurtgav
+<kurtgavin.design@gmail.com>`. Railway CLI re-authentication is now verified
+as `Kurt Gavin (kurtgavin.design@gmail.com)`, but the exact project/service/
+environment link and release readiness are still unverified. Vercel Git
+deployment remains disabled and no new Vercel deployment appeared. No
+Supabase SQL, Railway release, Vercel deployment, provider setting, feature
+flag, or hosted data changed. Audit-hash verification remains blocked without
+the required Postgres and owner-approved `AUDIT_RECOVERY_TENANT_ID`.
 
 ## 2026-08-03 - M3.25 reviewed source publication checkpoint
 

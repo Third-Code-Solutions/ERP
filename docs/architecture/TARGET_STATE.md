@@ -7,8 +7,10 @@ Release evidence policy (rechecked 2026-08-03): provider readiness is only a
 necessary signal. A production promotion also requires an exact source SHA,
 complete ordered migration ledger, duplicate-record decision, audit-chain
 tenant approval, disposable integration evidence, rollback evidence, and a
-spend-bounded provider action. Keep Vercel Git deployment disabled and avoid
-preview builds while those gates are incomplete.
+spend-bounded provider action. Railway CLI identity is verified as `kurtgav`,
+but exact project/service/environment readiness is still required. Keep
+Vercel Git deployment disabled and avoid preview builds while those gates are
+incomplete.
 
 ## Authority boundaries
 

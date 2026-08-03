@@ -10,9 +10,11 @@
    ordered 27-migration suffix only after duplicate-PO mapping,
    owner-approved `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
    integration, rollback, provider identity, and spend gates clear.
-2. Re-authenticate Railway as `kurtgav`; do not deploy under the current
-   `joeseffdy@gmail.com` CLI identity. Keep Vercel Git disconnected and avoid
-   preview builds.
+2. Railway CLI re-authentication is complete as `kurtgav` /
+   `kurtgavin.design@gmail.com`. Read-only verify the exact Railway project,
+   service, environment, source SHA, variables, readiness, logs, and rollback
+   target before any release. Keep Vercel Git disconnected and avoid preview
+   builds.
 3. After owner inputs and exact provider identity, rerun the read-only
    Supabase planner, execute one disposable document delete/replay/
    processing-history refusal/rollback proof, then review one spend-bounded
@@ -20,7 +22,8 @@
 
 Source now has 82 migrations versus 55 hosted. No hosted mutation, feature
 flag change, Railway release, Vercel deployment, or paid build is authorized
-by the current evidence. The serialized full API runner timed out before
+by the current evidence. Source checkpoint `5ad72ec` is published to both
+target branches. The serialized full API runner timed out before
 returning a result; focused API and all Web gates are recorded in the work
 log.
 
