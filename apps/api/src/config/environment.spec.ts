@@ -811,4 +811,29 @@ describe('ERP API environment', () => {
       })
     ).toThrow('ERP_PUBLIC_SIGNING_WRITES_TENANT_IDS')
   })
+
+  it('keeps supplier confirmation fail-closed and tenant-scoped', () => {
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS
+    ).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED: 'true',
+        ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS:
+          '33333333-3333-4333-8333-333333333333',
+      }).ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS
+    ).toEqual(['33333333-3333-4333-8333-333333333333'])
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS')
+  })
 })

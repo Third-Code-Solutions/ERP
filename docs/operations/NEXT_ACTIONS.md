@@ -1,17 +1,22 @@
 # Next Actions
 
-## Exact next action after capability baseline checkpoint (2026-08-03)
+## Exact next action after local M3.28 supplier-confirmation slice
 
-1. Define and test the M3.28 supplier-confirmation command/result contract,
-   session state machine, replay result, and token threat model. Keep the
-   implementation source-only and closed by default; do not add a supplier
-   email link or hosted migration in the first step.
-2. Reconcile the existing PO notification/outbox model before adding any new
-   session creation side effect. Preserve the current supplier email retry and
-   Purchase Order status behavior.
-3. Run shared/database/API/Web focused contracts, package typechecks, Nest and
-   Next builds, and the existing release-plan checks. Publish only the reviewed
-   source checkpoint under `kurtgav`; do not trigger Vercel or apply Supabase.
+1. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED` and
+   `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS` false/empty. Do not apply
+   `20260803150000_vendor_confirmation_workflow.sql` alone; reconcile the
+   complete ordered 29-migration suffix only after duplicate-PO mapping,
+   owner-approved `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
+   integration, disposable response replay/expiry/revocation/cross-tenant
+   proof, rollback, provider identity, and spend gates clear.
+2. Implement the follow-on protected session-minting seam at `scm_issue` with
+   deterministic session replay and redacted supplier-link payload. Preserve
+   the current supplier email retry and Purchase Order status behavior; do not
+   expose a public link until the email and rollback proof pass.
+3. Re-run shared/database/API/Web focused contracts, package typechecks, Nest
+   and Next builds, and the existing release-plan checks. Publish only the
+   reviewed source checkpoint under `kurtgav`; do not trigger Vercel or apply
+   Supabase.
 
 The landing page remains protected by the existing desktop/mobile screenshots,
 behavior sweep, SEO metadata, and no-reference-brand scan. No UI rewrite is

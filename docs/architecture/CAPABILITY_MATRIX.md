@@ -74,8 +74,10 @@ The next implementation slice is intentionally narrow:
    provider-spend gates are proven.
 
 Acceptance is source-level only until the ordered hosted migration suffix is
-reconciled. No flag, migration, email link, or provider deployment is implied
-by this plan.
+reconciled. The source migration and closed route now exist; no flag, email
+link, or provider deployment is implied by this plan. Session minting and
+supplier-email link delivery are intentionally deferred to the follow-on slice
+so the existing notification retry path remains unchanged.
 
 ## Release boundary
 

@@ -4,19 +4,26 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
-## M3.28 - Supplier confirmation authority (planned scope)
+## M3.28 - Supplier confirmation authority (local source slice complete)
 
-The capability baseline identifies supplier confirmation as the next narrow
-construction handoff. The slice will add a tenant-scoped, hashed-token session;
-an explicit `pending -> accepted | declined | changes_requested` state machine;
-a durable tenant/idempotency replay ledger; and a closed-by-default NestJS
-public command. NestJS will derive Purchase Order and tenant scope from a
-locked session, commit response metadata and nullable-actor audit atomically,
-and never alter delivery, receipt, inventory, or payment state. Existing
-supplier email and Purchase Order UI behavior remain unchanged until the
-source contract, disposable database/Redis replay proof, expiry/revocation and
-cross-tenant tests, rollback, provider identity, owner-input, and spend gates
-are complete. No migration or feature flag exists for this planned slice yet.
+Local source now adds a tenant-scoped, hashed-token supplier-confirmation
+session; an explicit `pending -> accepted | declined | changes_requested` state
+machine; a durable tenant/idempotency replay ledger; and a closed-by-default
+NestJS public command at
+`POST /v1/public/purchase-orders/:token/confirmation`. NestJS derives Purchase
+Order and tenant scope from a locked session, requires the Purchase Order to be
+issued, commits response metadata and nullable-actor audit atomically, and
+never alters delivery, receipt, inventory, or payment state. Existing supplier
+email and Purchase Order UI behavior remain unchanged; session minting and
+email-link delivery are a follow-on slice so no existing notification retry
+path is changed here.
+
+The source migration is
+`20260803150000_vendor_confirmation_workflow.sql`; it is not applied to hosted
+Supabase. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED` and
+`ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS` false/empty until the
+ordered hosted suffix, disposable replay/expiry/revocation/cross-tenant proof,
+rollback, provider identity, owner-input, and spend gates clear.
 
 See [`CAPABILITY_MATRIX.md`](./CAPABILITY_MATRIX.md) for the acceptance
 boundary and current capability evidence.
