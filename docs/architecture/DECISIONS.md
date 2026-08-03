@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-137 - Keep supplier confirmation independent from fulfillment (2026-08-03)
+
+Decision: add a closed-by-default
+`POST /v1/public/purchase-orders/:token/confirmation` NestJS command backed by
+tenant-scoped hashed sessions and a durable replay ledger. Accept, decline, or
+request-changes is persisted with responder metadata and nullable-actor audit
+inside one transaction. The command requires an issued Purchase Order but does
+not change its delivery, receipt, inventory, or payment state. Session minting
+and email-link delivery remain a separate follow-on slice.
+
+Reason: a supplier acknowledgement is an external response, not fulfillment
+evidence. Keeping the state machine separate prevents a public link from
+creating stock, delivery, or financial effects, while preserving replay safety,
+tenant isolation, expiry/revocation controls, and the existing supplier email
+retry path.
+
 ## D-136 - Maintain a clean-room capability baseline before breadth (2026-08-03)
 
 Decision: use `docs/architecture/CAPABILITY_MATRIX.md` as the product-scope

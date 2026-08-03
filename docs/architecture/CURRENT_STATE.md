@@ -4,6 +4,24 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.28 source update (2026-08-03)
+
+Local reviewed source adds a closed-by-default NestJS public supplier response
+authority at `POST /v1/public/purchase-orders/:token/confirmation`. The strict
+body allows `accepted`, `declined`, or `changes_requested` (with a note for the
+latter two), derives tenant/Purchase Order/vendor scope from a hashed session,
+locks an issued Purchase Order and the session, claims a durable tenant-scoped
+replay key, commits response metadata and nullable-actor semantic audit in one
+transaction, and never changes delivery, inventory, receipt, or payment state.
+Session minting and email-link delivery remain a separate follow-on slice.
+
+The source migration is
+`20260803150000_vendor_confirmation_workflow.sql`; Supabase remains at 55
+applied migrations against 84 source migrations. Both supplier-confirmation
+controls remain false/empty. No hosted SQL, feature flag, email link, provider
+setting, Vercel deployment, or hosted data changed. Focused shared/database/API
+contracts and typechecks, the Nest build, and `git diff --check` passed.
+
 ## Capability baseline checkpoint (2026-08-03)
 
 `docs/architecture/CAPABILITY_MATRIX.md` now records the verified construction

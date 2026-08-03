@@ -31,6 +31,16 @@ export const publicSigningRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const vendorConfirmationStateEnum = pgEnum(
+  'vendor_confirmation_state',
+  ['pending', 'accepted', 'declined', 'changes_requested']
+)
+
+export const vendorConfirmationRequestStateEnum = pgEnum(
+  'vendor_confirmation_request_state',
+  ['processing', 'succeeded']
+)
+
 // KYC review status for Account onboarding (REFACTOR M1 US-001..US-003)
 export const kycStatusEnum = pgEnum('kyc_status', [
   'pending',

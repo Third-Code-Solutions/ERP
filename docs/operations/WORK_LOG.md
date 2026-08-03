@@ -1,5 +1,33 @@
 # Work Log
 
+## 2026-08-03 - M3.28 supplier-confirmation authority
+
+Completed the local source slice. No hosted migration, feature flag, provider
+setting, email link, or paid build changed.
+
+- Added strict supplier response contracts with accepted, declined, and
+  changes-requested decisions; non-acceptance requires a note.
+- Added tenant-scoped hashed confirmation sessions, explicit response checks,
+  durable replay evidence, composite tenant foreign keys, forced RLS, and
+  service-only privileges in
+  `20260803150000_vendor_confirmation_workflow.sql`.
+- Added the closed-by-default NestJS public route. It locks the session and an
+  issued Purchase Order, validates vendor scope and replay hashes, commits
+  responder metadata and nullable-actor semantic audit atomically, and never
+  mutates delivery, receipt, inventory, or payment state.
+- Added fail-closed API configuration, observability label, contract tests, and
+  environment documentation. Session minting and supplier email-link delivery
+  remain a follow-on slice; existing notification behavior is unchanged.
+
+Validation:
+
+- Shared supplier contract tests: 4/4; shared typecheck passed.
+- Database migration contract tests: 2/2; database typecheck passed.
+- API focused controller/config/observability/service tests: 62/62.
+- API typecheck passed; Nest production build passed.
+- `git diff --check` passed. Hosted Supabase remains 55/84 migrations; all
+  supplier-confirmation controls remain false/empty.
+
 ## 2026-08-03 - Capability baseline and M3.28 scope
 
 Completed a source-planning milestone. No application code, hosted migration,

@@ -521,6 +521,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Supplier confirmation is token-authorized but closed until the response
+  // state machine, replay, and rollback proofs pass for one tenant.
+  ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   DXF_PARSER_URL: optionalHttpUrl,
   PARSER_SHARED_SECRET: z.string().min(20).optional(),
 })

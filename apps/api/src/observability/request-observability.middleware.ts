@@ -110,6 +110,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     }
     if (
       request.method === 'POST' &&
+      routePath.endsWith('/v1/public/purchase-orders/:token/confirmation')
+    ) {
+      return 'public.vendor_confirmation'
+    }
+    if (
+      request.method === 'POST' &&
       routePath.endsWith('/v1/finance/journals/:journalEntryId/post')
     ) {
       return 'finance.journal_post'

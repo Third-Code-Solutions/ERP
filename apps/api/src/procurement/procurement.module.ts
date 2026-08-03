@@ -31,6 +31,9 @@ import { NotificationDeliveryProcessor } from './notification-delivery.processor
 import { NotificationDeliveryQueue } from './notification-delivery.queue'
 import { NotificationDeliveryService } from './notification-delivery.service'
 import { NotificationEmailService } from './notification-email.service'
+import { PublicVendorConfirmationController } from './public-vendor-confirmation.controller'
+import { PublicVendorConfirmationPipe } from './public-vendor-confirmation.pipe'
+import { PublicVendorConfirmationService } from './public-vendor-confirmation.service'
 
 @Module({
   imports: [
@@ -45,6 +48,7 @@ import { NotificationEmailService } from './notification-email.service'
     ProcurementController,
     PurchaseOrderController,
     DeliveryWorkflowController,
+    PublicVendorConfirmationController,
   ],
   providers: [
     ProcurementService,
@@ -64,6 +68,8 @@ import { NotificationEmailService } from './notification-email.service'
     NotificationDeliveryProcessor,
     NotificationDeliveryService,
     NotificationEmailService,
+    PublicVendorConfirmationPipe,
+    PublicVendorConfirmationService,
   ],
 })
 export class ProcurementModule implements NestModule {
@@ -73,7 +79,8 @@ export class ProcurementModule implements NestModule {
       .forRoutes(
         ProcurementController,
         PurchaseOrderController,
-        DeliveryWorkflowController
+        DeliveryWorkflowController,
+        PublicVendorConfirmationController
       )
   }
 }

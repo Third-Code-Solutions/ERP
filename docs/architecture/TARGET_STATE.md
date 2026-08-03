@@ -23,6 +23,13 @@ an issued Purchase Order; it must not mutate delivery, inventory, or payment
 state and remains closed by default until its transaction and replay evidence
 is complete.
 
+The local M3.28 authority now implements that boundary with a hashed session,
+explicit supplier decision state, tenant-scoped replay, and nullable-actor
+audit. The next slice may mint sessions during an authorized supplier issuance
+and place a redacted public link in the existing outbox only after its own
+idempotency and delivery proof; supplier response must remain independent from
+delivery, inventory, receipt, and payment state.
+
 ## Authority boundaries
 
 ```text
