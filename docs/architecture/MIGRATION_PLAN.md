@@ -32,8 +32,12 @@ Validation: shared 155/155, database 158/158 with guarded integration skips,
 focused API 59/59, Web 431/431, package typechecks/lint, Nest build, Next
 build 78/78 routes, and diff checks passed. The serialized full API runner
 exceeded the 360-second execution ceiling before returning a result and is
-not claimed green. No hosted SQL, feature flag, Vercel deployment, or
-provider setting changed.
+not claimed green. Source checkpoint `af8690d` is published to both target
+branches; Railway deployment `d4afe970-6958-4f38-a17a-fa8c01ca13d4` is
+`SUCCESS` at that SHA and `/ready` is green. Vercel Git remains disconnected;
+no `af8690d` deployment or paid build occurred, and production remains on
+the older revision `31c04942a93d`. No hosted SQL, feature flag, or provider
+setting changed.
 
 ## M3.26 - Document deletion authority (local source complete)
 

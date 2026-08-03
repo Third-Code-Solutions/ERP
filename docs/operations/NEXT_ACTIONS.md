@@ -10,11 +10,11 @@
    owner-approved `AUDIT_RECOVERY_TENANT_ID`, guarded Postgres/Redis
    integration, disposable signing replay/expiry/revocation/source-stamp and
    Storage-cleanup proof, rollback, provider identity, and spend gates clear.
-2. Publish the reviewed source under `kurtgav` with `[skip ci]` only for docs
-   follow-ups. Railway may build the watched API source once after the green
-   local gates; verify exact source SHA, deployment logs, `/ready`, and the
-   protected route remains closed by default. Keep Vercel Git disconnected and
-   do not trigger preview or production builds.
+2. Source `af8690d` is published under `kurtgav`; Railway deployment
+   `d4afe970-6958-4f38-a17a-fa8c01ca13d4` is `SUCCESS` at that SHA, Docker
+   build and `/ready` are green, and a no-write signing probe returned `503`.
+   Keep Vercel Git disconnected: production remains on revision
+   `31c04942a93d` and no `af8690d` preview or production build exists.
 3. After owner inputs and exact provider identity, rerun the read-only
    Supabase planner, execute one disposable public-signing transaction and
    replay/rollback proof, then review one spend-bounded canary. The serialized
