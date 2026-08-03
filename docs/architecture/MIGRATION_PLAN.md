@@ -32,10 +32,10 @@ has occurred.
 
 Source validation passed: shared types 139/139; database 138 passed with 137
 guarded skips; web 59 files/393 passed; focused API 72/72; API/web/shared/
-database typechecks; Nest build; release-plan/controlled-release tests;
-Actionlint; Gitleaks; diff checks. The PostgreSQL/Redis integration compiled
-but skipped without its explicit environment. No hosted SQL or provider
-mutation occurred.
+database typechecks; Nest build; Next production build with 78/78 routes;
+release-plan/controlled-release tests; Actionlint; Gitleaks; diff checks. The
+PostgreSQL/Redis integration compiled but skipped without its explicit
+environment. No hosted SQL or provider mutation occurred.
 
 Release gate: keep
 `ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_ENABLED`,

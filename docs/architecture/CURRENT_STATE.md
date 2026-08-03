@@ -32,10 +32,11 @@ migrations versus 55 hosted.
 
 Validation: shared types 139/139, database 138 passed with 137 guarded tests
 skipped, web 59 files/393 passed, focused API contracts 72/72 passed, API/web/
-shared/database typechecks passed, Nest build passed, release-plan,
-controlled-release, Actionlint, Gitleaks, diff checks passed. The guarded
-PostgreSQL/Redis integration compiled and was skipped because `DATABASE_URL`
-and the explicit integration gate were absent.
+shared/database typechecks passed, Nest build passed, and the Next production
+build compiled and generated 78/78 routes. Release-plan, controlled-release,
+Actionlint, Gitleaks, and diff checks passed. The guarded PostgreSQL/Redis
+integration compiled and was skipped because `DATABASE_URL` and the explicit
+integration gate were absent.
 
 ## M3.17 source update (2026-08-02)
 

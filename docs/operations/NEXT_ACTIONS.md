@@ -45,9 +45,10 @@ Local gates are recorded in the work log. Source now has 74 migrations versus
 3. Obtain the owner-approved duplicate PO mapping and canonical
    `AUDIT_RECOVERY_TENANT_ID`; provide guarded Postgres/Redis integration
    credentials; rerun the hosted planner and disposable lane.
-4. Only after a clear planner, exact-SHA readiness, definitive production
-   build, rollback evidence, and spend-bounded provider authorization may one
-   hosted migration and one Railway/Vercel production action occur.
+4. The definitive local production build is green; only after a clear planner,
+   exact-SHA readiness, rollback evidence, and spend-bounded provider
+   authorization may one hosted migration and one Railway/Vercel production
+   action occur.
 
 ## Exact next action after M3.17 site-preparation-start source slice
 
