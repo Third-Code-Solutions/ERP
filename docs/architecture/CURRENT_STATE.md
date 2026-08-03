@@ -56,8 +56,9 @@ Validation: focused shared finance contracts 7/7, database reversal contracts
 checks passed. The guarded PostgreSQL integration was invoked and skipped
 because `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` were absent. A
 broad concurrent API invocation reached 216/218 tests but had two known
-resource/concurrency timeouts in unrelated pre-existing suites; it is not
-treated as a full-suite green gate.
+resource/concurrency timeouts in unrelated pre-existing suites; the bounded
+serial API suite then completed cleanly at 38 files/219 tests. No full-suite
+green claim relies on the concurrent run.
 
 ## M3.19 source update (2026-08-03)
 

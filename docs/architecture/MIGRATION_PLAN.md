@@ -50,9 +50,10 @@ Source validation: focused shared 7/7, database 2/2, API/observability 18/18,
 web 63/63, API/web typechecks, Nest build, controlled-release and
 database-release-plan checks passed. The guarded PostgreSQL integration was
 invoked and skipped without its explicit environment. A broad concurrent API
-run had two known resource/concurrency timeouts in unrelated suites, so it is
-not represented as a full-suite pass. No hosted SQL or provider mutation
-occurred. Source now has 76 migrations versus 55 hosted.
+run had two known resource/concurrency timeouts in unrelated suites; the
+bounded serial API suite then completed cleanly at 38 files/219 tests. No
+hosted SQL or provider mutation occurred. Source now has 76 migrations versus
+55 hosted.
 
 Release gate: keep
 `ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_ENABLED`,
