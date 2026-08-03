@@ -6,6 +6,8 @@ import {
   journalReverseResultSchema,
   supplierBillPostCommandSchema,
   supplierBillPostResultSchema,
+  supplierBillReverseCommandSchema,
+  supplierBillReverseResultSchema,
 } from './finance'
 
 const JOURNAL_ID = '33333333-3333-4333-8333-333333333333'
@@ -121,6 +123,46 @@ describe('finance API contracts', () => {
         supplierBillNumber: 'SB-1',
         journalEntryId: '66666666-6666-4666-8666-666666666666',
         journalEntryNumber: 'JE-2026-000010',
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps supplier-bill reversal authority-free and strictly replayable', () => {
+    expect(
+      supplierBillReverseCommandSchema.parse({
+        supplierBillId: SUPPLIER_BILL_ID,
+        reason: 'Correct duplicate accrual',
+        postingDate: '2026-08-02',
+      })
+    ).toEqual({
+      supplierBillId: SUPPLIER_BILL_ID,
+      reason: 'Correct duplicate accrual',
+      postingDate: '2026-08-02',
+    })
+    expect(
+      supplierBillReverseCommandSchema.safeParse({
+        supplierBillId: SUPPLIER_BILL_ID,
+        reason: 'ok',
+        postingDate: '2026-02-31',
+        tenantId: TENANT_ID,
+      }).success
+    ).toBe(false)
+    expect(
+      supplierBillReverseResultSchema.safeParse({
+        supplierBillId: SUPPLIER_BILL_ID,
+        tenantId: TENANT_ID,
+        status: 'reversed',
+        reversalJournalEntryId: '66666666-6666-4666-8666-666666666666',
+        reversalJournalEntryNumber: 'JE-2026-000010',
+      }).success
+    ).toBe(true)
+    expect(
+      supplierBillReverseResultSchema.safeParse({
+        supplierBillId: SUPPLIER_BILL_ID,
+        tenantId: TENANT_ID,
+        status: 'posted',
+        reversalJournalEntryId: '66666666-6666-4666-8666-666666666666',
+        reversalJournalEntryNumber: 'JE-2026-000010',
       }).success
     ).toBe(false)
   })
