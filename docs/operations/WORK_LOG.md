@@ -27,8 +27,8 @@ Validation:
 - Guarded database integration invoked and skipped because
   `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` were not configured.
 - A broad concurrent API invocation reached 216/218 tests but hit two known
-  resource/concurrency timeouts in unrelated suites; no full-suite green claim
-  is made from that run.
+  resource/concurrency timeouts in unrelated suites; the bounded serial API
+  suite then completed cleanly at 38 files/219 tests.
 
 Hosted boundary: no Supabase SQL, feature flag, Railway release, Vercel
 deployment, provider setting, or hosted data changed. Source now has 76
