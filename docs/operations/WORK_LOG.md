@@ -39,11 +39,15 @@ Validation:
 Hosted boundary: Supabase remains at 55 applied migrations against 83 source
 migrations (28 pending). Public-signing flags remain false/empty. No Supabase
 SQL, Vercel deployment, provider setting, feature flag, or hosted data
-changed. Vercel Git remains disconnected to control spend. Railway source
-deployment is gated on final publication and readiness verification under
-`kurtgav <kurtgavin.design@gmail.com>`; migration parity, protected-flow,
-rollback, duplicate-data, audit-chain, owner-input, and spend gates remain
-open.
+changed. Vercel Git remains disconnected to control spend; no `af8690d`
+deployment occurred and production `/api/ready` remains on revision
+`31c04942a93d`. Source checkpoint `af8690d` was published to both branches
+under `kurtgav <kurtgavin.design@gmail.com>`. Railway deployment
+`d4afe970-6958-4f38-a17a-fa8c01ca13d4` is `SUCCESS` at that SHA, its Docker
+build passed, `/ready` returned `200` with PostgreSQL and Redis ready, and a
+no-write public-signing probe returned `503` while the route remained closed.
+Migration parity, protected-flow, rollback, duplicate-data, audit-chain,
+owner-input, and spend gates remain open.
 
 ## 2026-08-03 - M3.26 document deletion authority
 

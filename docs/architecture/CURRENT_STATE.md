@@ -34,11 +34,16 @@ routes, and `git diff --check` passed. The serialized full API runner exceeded
 the 360-second execution ceiling before returning a result; no new assertion
 failure was reported, so the full API suite is not claimed green.
 
-The source-only milestone is ready for publication under verified `kurtgav
-<kurtgavin.design@gmail.com>` credentials. Railway remains a separately
-gated source deployment; Vercel Git remains disconnected and no paid build is
-authorized. Hosted migration parity, protected-flow, rollback, duplicate-
-data, audit-chain, owner-input, and spend gates remain open.
+The source checkpoint `af8690d` is published to both target branches under
+verified `kurtgav <kurtgavin.design@gmail.com>` credentials. Railway
+deployment `d4afe970-6958-4f38-a17a-fa8c01ca13d4` is `SUCCESS` at that exact
+SHA; its Docker build passed and `/ready` returned `200` with PostgreSQL and
+Redis ready. A no-write public-signing probe returned `503`, confirming the
+new authority is closed by default. Vercel Git remains disconnected: no
+deployment for `af8690d` exists, production `/api/ready` remains `200` on the
+older revision `31c04942a93d`, and no paid Vercel build was triggered.
+Hosted migration parity, protected-flow, rollback, duplicate-data,
+audit-chain, owner-input, and spend gates remain open.
 
 ## M3.26 source update (2026-08-03)
 
