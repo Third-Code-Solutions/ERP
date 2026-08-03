@@ -6,7 +6,7 @@ evidence is green.
 
 ## 2026-08-03 GitHub source publication checkpoint
 
-Reviewed source head `f50c8bc5c540b97134764b56a297c41e8578f9f2` is published to
+Reviewed source head `806860e49479a085f762fabaab25696cb9b854a1` is published to
 `origin/main` and `origin/agent-02/third-code-erp-landing` by
 `kurtgav <kurtgavin.design@gmail.com>`. No hosted SQL, provider setting,
 feature flag, or deployment changed. The release remains held by the hosted
@@ -20,6 +20,48 @@ tenant. Railway health/readiness are green but CLI authorization is not
 `kurtgav`; Vercel production remains on `31c04942a93d` with no recent runtime
 errors. No hosted mutation or paid build occurred. The next release action is
 still owner input plus one rerun of the planner, not a bypass.
+
+## M3.20 - Supplier Bill reversal authority (source complete)
+
+Source commit `806860e` is published to both `origin/main` and
+`origin/agent-02/third-code-erp-landing` under `kurtgav`. This slice moves
+supplier-bill reversal behind the NestJS transaction authority while keeping
+the existing Next.js action behavior for unselected tenants.
+
+1. Add the strict reversal body/command/result contracts and the ordered
+   migration `20260802220000_supplier_bill_reverse_workflow.sql`. The
+   migration creates a forced-RLS, service-only, tenant-scoped idempotency
+   ledger with request-hash and result validation plus tenant-composite
+   foreign keys.
+2. Add the closed-by-default NestJS route
+   `POST /v1/finance/supplier-bills/:supplierBillId/reverse`. Recheck
+   membership and `finance.post`, lock the bill, call the existing
+   `reverse_supplier_bill` function, store a strict replay result, and write
+   semantic audit atomically.
+3. Route the existing Next action only when the exact API selector and UUID
+   tenant allowlist match. Preserve the visible UI and legacy behavior for
+   unselected tenants; selected Core errors never fall through to a duplicate
+   write. Keep one opaque reversal retry key across retries.
+4. Keep the four reversal controls false/empty until the ordered hosted
+   suffix, duplicate PO decision, audit-recovery tenant, disposable
+   integration, canary, rollback, and spend gates are green.
+
+Source validation: focused shared 7/7, database 2/2, API/observability 18/18,
+web 63/63, API/web typechecks, Nest build, controlled-release and
+database-release-plan checks passed. The guarded PostgreSQL integration was
+invoked and skipped without its explicit environment. A broad concurrent API
+run had two known resource/concurrency timeouts in unrelated suites, so it is
+not represented as a full-suite pass. No hosted SQL or provider mutation
+occurred. Source now has 76 migrations versus 55 hosted.
+
+Release gate: keep
+`ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_ENABLED`,
+`ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_TENANT_IDS`,
+`ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API`, and
+`ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_VIA_API_TENANT_IDS` false/empty. Do
+not apply `20260802220000_supplier_bill_reverse_workflow.sql` alone; reconcile
+the complete 21-migration suffix only after owner-approved data and audit
+inputs.
 
 ## M3.19 - Supplier Bill posting authority (source complete)
 

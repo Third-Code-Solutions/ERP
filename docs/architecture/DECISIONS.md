@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-127 - Route supplier-bill reversal through Core
+
+Decision: add `POST /v1/finance/supplier-bills/:supplierBillId/reverse` as a
+closed-by-default NestJS command. NestJS derives tenant and actor, rechecks
+`finance.post`, locks membership and the bill, calls the existing
+`reverse_supplier_bill` database function, stores a strict result in a
+tenant-scoped idempotency ledger, and writes semantic audit in the same
+transaction. The Next Server Action is a compatibility adapter with one stable
+retry key; selected Core failures never fall through to a second write.
+
+Reason: the database function already owns the balanced reversal journal
+effect. Wrapping it in the Core authority adds authorization, retry safety,
+tenant isolation, and audit without duplicating accounting rules or changing
+the visible UI. Keep all reversal controls false/empty until the ordered
+hosted migration suffix, duplicate-data review, audit-recovery input,
+disposable integration, rollback, and spend gates clear.
+
 ## D-126 - Treat provider readiness as necessary, not sufficient
 
 Decision: a green Railway/Vercel readiness response never authorizes a hosted

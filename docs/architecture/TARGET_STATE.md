@@ -88,8 +88,16 @@ capability from tenant membership, locks the bill, calls the existing payable
 posting function, persists a strict idempotent result, and audits the status
 change in one transaction. The Next action remains a compatibility adapter;
 the API and frontend selectors are exact, tenant-allowlisted, and fail closed.
-Supplier-bill reversal remains a separate migration slice, and Python/AI has
-no approval or posting authority.
+
+M3.20 applies the same boundary to supplier-bill reversal: NestJS owns
+`POST /v1/finance/supplier-bills/:supplierBillId/reverse`, validates the
+bounded reason and posting date, rechecks `finance.post`, locks the bill,
+reuses the existing reversal function, persists an idempotent result, and
+audits the status change atomically. The Next action is a compatibility
+adapter with a stable retry key; selected Core failures never fall through to
+a second write. Reversal controls stay false/empty until hosted migration,
+duplicate-data, audit-chain, integration, rollback, and spend gates clear.
+Python/AI has no approval or posting authority.
 
 ## Nest module shape
 

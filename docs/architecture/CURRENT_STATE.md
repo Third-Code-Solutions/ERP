@@ -6,7 +6,7 @@ successful build.
 
 ## 2026-08-03 source publication checkpoint
 
-Reviewed source head `f50c8bc5c540b97134764b56a297c41e8578f9f2` is now published
+Reviewed source head `806860e49479a085f762fabaab25696cb9b854a1` is now published
 to both `origin/main` and `origin/agent-02/third-code-erp-landing` under
 `kurtgav <kurtgavin.design@gmail.com>`. This checkpoint changed GitHub source
 only. Supabase, Railway, Vercel, feature flags, and hosted data remain
@@ -29,7 +29,35 @@ the local Railway CLI is unauthorized and still resolves to the wrong
 `/api/ready` and the landing page returned 200; the live revision remains
 `31c04942a93d`, and the Vercel runtime-error report showed no errors in the
 last 24 hours. `apps/web/vercel.json` keeps Git deployment disabled. No
-Supabase SQL, feature flag, provider setting, or deployment changed.
+Supabase SQL, feature flag, provider setting, or deployment changed. The new
+source head now contains 76 migrations; hosted parity remains 55.
+
+## M3.20 source update (2026-08-03)
+
+Source commit `806860e` is the reviewed supplier-bill reversal authority
+slice, published to both GitHub refs under `kurtgav`. NestJS now owns the
+closed-by-default `POST /v1/finance/supplier-bills/:supplierBillId/reverse`
+command when its exact API and tenant controls are selected. It validates the
+strict reason and posting date, rechecks `finance.post`, locks membership and
+the bill, reuses the existing `reverse_supplier_bill` database function,
+stores a strict tenant-scoped idempotency result, and writes semantic audit in
+one transaction. Next.js keeps its action contract, uses one stable reversal
+retry key, and fails closed after a selected Core API error; unselected
+tenants retain the legacy path.
+
+The source migration is
+`20260802220000_supplier_bill_reverse_workflow.sql`; it creates a forced-RLS,
+service-only reversal request ledger with tenant-composite foreign keys. No
+hosted SQL, feature flag, provider setting, or deployment changed.
+
+Validation: focused shared finance contracts 7/7, database reversal contracts
+2/2, focused API/observability contracts 18/18, web adapter/action contracts
+63/63, API/web typechecks, Nest build, controlled-release and database-plan
+checks passed. The guarded PostgreSQL integration was invoked and skipped
+because `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` were absent. A
+broad concurrent API invocation reached 216/218 tests but had two known
+resource/concurrency timeouts in unrelated pre-existing suites; it is not
+treated as a full-suite green gate.
 
 ## M3.19 source update (2026-08-03)
 
