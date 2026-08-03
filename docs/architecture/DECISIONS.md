@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-128 - Reuse database cash functions behind a Core command
+
+Decision: add closed-by-default NestJS commands for cash posting and reversal.
+NestJS derives tenant and actor, rechecks `finance.manage_cash`, locks the
+tenant membership and cash transaction, claims a shared tenant-scoped
+idempotency ledger, calls the existing `post_cash_transaction` or
+`reverse_cash_transaction` function, and audits the status change in one
+transaction. Next.js remains a compatibility adapter with stable retry keys;
+selected Core failures never fall through to a second write.
+
+Reason: PostgreSQL already owns balanced cash journals, numbering, allocation
+validation, and reversal invariants. Reusing those functions avoids duplicate
+accounting logic while moving authorization, replay safety, and audit
+orchestration into the modular Nest boundary. Keep the migration and both
+selectors disabled until hosted parity, disposable integration, rollback,
+duplicate-data, audit-chain, and provider-identity gates clear.
+
 ## D-127 - Route supplier-bill reversal through Core
 
 Decision: add `POST /v1/finance/supplier-bills/:supplierBillId/reverse` as a

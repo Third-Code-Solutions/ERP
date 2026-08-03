@@ -1,5 +1,41 @@
 # Work Log
 
+## 2026-08-03 - M3.21 cash transaction workflow authority
+
+Completed local source milestone at commit `44e678e` under
+`kurtgav <kurtgavin.design@gmail.com>`. Direct GitHub push was attempted but
+the requested `Third-Code-Solutions/ERP` target returned 404 for the connected
+account; no alternate repository or account was used.
+
+- Added strict cash posting/reversal contracts and ordered migration
+  `20260802230000_cash_transaction_workflow_idempotency.sql` with forced RLS,
+  service-only access, tenant-composite foreign keys, and durable replay.
+- Added the closed-by-default NestJS routes with membership locking,
+  `finance.manage_cash` authorization, existing database function reuse,
+  atomic audit, error mapping, and idempotent replay.
+- Added fail-closed Next adapters, stable browser retry keys, observability
+  labels, environment controls, and cash contract tests. Visible UI/copy and
+  legacy behavior remain unchanged for unselected tenants.
+
+Validation:
+
+- Shared finance contracts: 9/9.
+- Cash database contracts: 2/2.
+- Cash API contracts: 4/4.
+- Web cash/client contracts: 62/62.
+- Shared/database/API/web typechecks passed.
+- Nest build passed; Next production build passed with 78/78 routes.
+- Controlled release plan: 4/4; database release plan: 7/7; diff checks passed.
+- Full serial Nest run reported 40/40 files and 226/226 passing tests, then
+  hit the Windows process-exit ceiling; no test assertion failed.
+- Guarded PostgreSQL integration remains skipped without `DATABASE_URL` and
+  `ERP_API_INTEGRATION_EXPECTED=1`.
+
+Hosted boundary: no Supabase SQL, feature flag, Railway release, Vercel
+deployment, provider setting, or hosted data changed. Source has 77
+migrations versus 55 hosted; duplicate PO, audit-recovery, and provider
+identity blockers remain.
+
 ## 2026-08-03 - M3.20 supplier-bill reversal authority
 
 Completed source milestone at commit `806860e`, published to `origin/main` and

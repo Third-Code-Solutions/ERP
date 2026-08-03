@@ -12,9 +12,37 @@ Reviewed source head `806860e49479a085f762fabaab25696cb9b854a1` is published to
 feature flag, or deployment changed. The release remains held by the hosted
 duplicate Purchase Order data and missing owner-approved audit-recovery tenant.
 
+## M3.21 - Cash transaction posting/reversal authority (local source complete)
+
+Local reviewed commit `44e678e` adds strict cash post/reverse contracts,
+`20260802230000_cash_transaction_workflow_idempotency.sql`, the NestJS
+transaction authority, semantic audit, observability labels, guarded Next
+adapters, and stable UI retry keys. The database functions remain the sole
+accounting/journal authority; NestJS owns authorization, idempotency, and
+commit orchestration. Existing UI copy/layout and the legacy path for
+unselected tenants are unchanged.
+
+Validation: shared 9/9, database 2/2, cash API 4/4, web cash/client 62/62,
+all package typechecks, Nest build, Next build 78/78, controlled-release 4/4,
+database-release 7/7, and diff checks. The full serial Nest run reached
+40/40 files and 226/226 passing tests before the Windows runner timed out
+waiting for process exit; no failed assertion was reported. Guarded database
+integration was not run without explicit Postgres credentials and gate.
+
+Keep these controls false/empty:
+`ERP_FINANCE_CASH_WORKFLOW_WRITES_ENABLED`,
+`ERP_FINANCE_CASH_WORKFLOW_WRITES_TENANT_IDS`,
+`ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API`, and
+`ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API_TENANT_IDS`. Do not apply the
+migration independently; reconcile the complete ordered 22-migration suffix
+only after duplicate PO mapping, canonical audit-recovery tenant, disposable
+integration, rollback, and provider identity gates clear. GitHub publication
+to `Third-Code-Solutions/ERP` is blocked under the requested `kurtgav`
+connection because that account currently receives 404/no repository access.
+
 ## 2026-08-03 hosted recheck checkpoint
 
-The read-only recheck confirmed the same 55/75 Supabase migration gap, one
+The read-only recheck confirmed the same 55/77 Supabase migration gap, one
 12-record duplicate Purchase Order group, and missing owner-approved audit
 tenant. Railway health/readiness are green but CLI authorization is not
 `kurtgav`; Vercel production remains on `31c04942a93d` with no recent runtime
