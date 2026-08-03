@@ -219,6 +219,11 @@ export const cashTransactionDraftRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const documentDeleteRequestStateEnum = pgEnum(
+  'document_delete_request_state',
+  ['processing', 'succeeded']
+)
+
 export const customerInvoiceIssueRequestStateEnum = pgEnum(
   'customer_invoice_issue_request_state',
   ['processing', 'succeeded']

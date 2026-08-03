@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-134 - Route document deletion through Core with durable replay (2026-08-03)
+
+Decision: add a closed-by-default `DELETE /v1/documents/:documentId` NestJS
+command. NestJS derives tenant and actor from a locked membership, rechecks
+`document.manage`, refuses deletion when processing history exists, removes
+derived scope rows and the document in one transaction, stores a
+tenant-scoped replay result, and writes semantic audit. Next.js remains a
+compatibility adapter with a stable retry key; selected Core failures never
+fall through to a second write. The migration and selectors remain false/empty
+until hosted schema parity, disposable integration, rollback, duplicate-data,
+audit-chain, provider-identity, and spend gates clear.
+
+Reason: deleting a source document can remove derived scope evidence and has
+irreversible Storage consequences. A server-owned transaction plus durable
+replay prevents cross-tenant deletion, duplicate retries, loss of processing
+history, and unaudited mutation while preserving the existing UI and safe
+legacy path for unselected tenants.
+
 ## D-133 - Route cash draft mutations through Core with durable replay (2026-08-03)
 
 Decision: add closed-by-default NestJS commands for cash draft create/update

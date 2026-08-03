@@ -23,6 +23,7 @@ import {
   customerInvoiceIssueResultSchema,
   customerInvoiceReverseResultSchema,
   customerInvoiceCancelResultSchema,
+  documentDeleteResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
   stockReceiptCreationResultSchema,
@@ -74,6 +75,7 @@ import {
   type CustomerInvoiceReverseResult,
   type CustomerInvoiceCancelBody,
   type CustomerInvoiceCancelResult,
+  type DocumentDeleteResult,
   type DocumentProcessingAccepted,
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
@@ -416,6 +418,19 @@ export function documentProcessingJobsUseCoreApi(
   )
 }
 
+/**
+ * Document deletion is delegated only for an explicit tenant canary. The
+ * Nest transaction is authoritative; a failed Core call never falls back to
+ * the legacy Server Action mutation.
+ */
+export function documentDeleteWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DOCUMENT_DELETE_WRITES_VIA_API,
+    process.env.ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
 async function getCoreApiAccess(): Promise<
   | { ok: true; baseUrl: string; accessToken: string }
   | { ok: false; error: string }
@@ -440,6 +455,61 @@ async function getCoreApiAccess(): Promise<
     ok: true,
     baseUrl,
     accessToken: session.access_token,
+  }
+}
+
+export async function deleteDocumentThroughCoreApi(
+  documentId: string,
+  idempotencyKey: string
+): Promise<CoreResult<DocumentDeleteResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/documents/${encodeURIComponent(documentId)}`,
+      {
+        method: 'DELETE',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify({}),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 404
+            ? 'Document not found.'
+            : response.status === 409
+              ? 'Document cannot be deleted in its current state.'
+              : 'Document was not deleted.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = documentDeleteResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid document deletion result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No document was deleted.',
+    }
   }
 }
 

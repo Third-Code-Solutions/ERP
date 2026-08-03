@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { deleteDocument } from '@/app/(dashboard)/projects/[id]/documents/actions'
 
@@ -18,6 +18,7 @@ export function DeleteDocumentButton({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
   const router = useRouter()
+  const idempotencyKeyRef = useRef<string | null>(null)
 
   function handleDelete() {
     if (!confirm(`Delete "${fileName}"? This removes the file from storage and cannot be undone.`)) {
@@ -28,11 +29,14 @@ export function DeleteDocumentButton({
       const fd = new FormData()
       fd.append('document_id', documentId)
       fd.append('project_id', projectId)
+      idempotencyKeyRef.current ??= crypto.randomUUID()
+      fd.append('idempotency_key', idempotencyKeyRef.current)
       const result = await deleteDocument(fd)
       if (!result.ok) {
         setError(result.error ?? 'Delete failed')
         return
       }
+      idempotencyKeyRef.current = null
       router.refresh()
     })
   }

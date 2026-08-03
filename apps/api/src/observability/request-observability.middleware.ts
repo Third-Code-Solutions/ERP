@@ -97,6 +97,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
       return 'document.processing_enqueue'
     }
     if (
+      request.method === 'DELETE' &&
+      routePath.endsWith('/v1/documents/:documentId')
+    ) {
+      return 'document.delete'
+    }
+    if (
       request.method === 'POST' &&
       routePath.endsWith('/v1/finance/journals/:journalEntryId/post')
     ) {

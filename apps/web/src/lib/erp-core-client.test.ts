@@ -60,6 +60,8 @@ import {
   cancelCustomerInvoiceThroughCoreApi,
   reverseJournalEntryThroughCoreApi,
   documentProcessingJobsUseCoreApi,
+  documentDeleteWritesUseCoreApi,
+  deleteDocumentThroughCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
   getDocumentProcessingStatusThroughCoreApi,
 } from './erp-core-client'
@@ -1351,6 +1353,70 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_DOCUMENT_PROCESSING_TENANT_IDS', '*')
     expect(documentProcessingJobsUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(documentProcessingJobsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps document deletion delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_DOCUMENT_DELETE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_DOCUMENT_DELETE_WRITES_VIA_API', 'TRUE')
+    expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_DOCUMENT_DELETE_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(documentDeleteWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(documentDeleteWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('sends an idempotent document deletion and validates the result', async () => {
+    const result = {
+      documentId: DOCUMENT_ID,
+      tenantId: RESULT.tenantId,
+      projectId: PROJECT_ID,
+      storagePath: `${RESULT.tenantId}/${PROJECT_ID}/drawing.dwg`,
+      status: 'deleted' as const,
+      derivedScopeItemsRemoved: 2,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      deleteDocumentThroughCoreApi(DOCUMENT_ID, 'document-delete-1')
+    ).resolves.toEqual({ ok: true, data: result })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/documents/${DOCUMENT_ID}`,
+      expect.objectContaining({
+        method: 'DELETE',
+        body: '{}',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'document-delete-1',
+        }),
+      })
+    )
+  })
+
+  it('returns a terminal error when document deletion Core is unavailable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('unavailable', { status: 503 }))
+    )
+
+    await expect(
+      deleteDocumentThroughCoreApi(DOCUMENT_ID, 'document-delete-2')
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Document was not deleted.',
+    })
   })
 
   it('queues idempotent document processing and validates accepted output', async () => {
