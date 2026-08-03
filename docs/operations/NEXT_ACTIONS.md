@@ -2,7 +2,7 @@
 
 ## Immediate hosted release gate
 
-Do not apply the nineteen pending Supabase migrations or deploy Railway/Vercel
+Do not apply the twenty pending Supabase migrations or deploy Railway/Vercel
 until the owner supplies:
 
 1. The canonical `AUDIT_RECOVERY_TENANT_ID` UUID for the audit-chain planner.
@@ -13,21 +13,45 @@ until the owner supplies:
 Then run the read-only planners again. Only when migration ledger, duplicate
 review, audit recovery, Railway readiness, and Vercel readiness are all clear:
 
-- apply all nineteen pending migrations in timestamp order with a captured ledger;
+- apply all twenty pending migrations in timestamp order with a captured ledger;
 - run the disposable and hosted verification gates;
 - deploy exactly one reviewed source SHA to Railway and one controlled Vercel
   production build, after confirming the billing impact;
 - verify live revision identity, readiness, protected flows, browser behavior,
   database state, logs, and rollback before calling production green.
 
-Current reviewed source head: `140f4e8cb518445ab0903d7d885b68cebc7ce8f0` on
+Current reviewed source head: `f50c8bc5c540b97134764b56a297c41e8578f9f2` on
 both `origin/main` and `origin/agent-02/third-code-erp-landing`, authored by
-`kurtgav`. It is the published M3.18 implementation. The prior M3.17 implementation is in
+`kurtgav`. It is the published M3.19 implementation. The prior M3.18 implementation is in
+`140f4e8cb518445ab0903d7d885b68cebc7ce8f0`; the prior M3.17 implementation is in
 `0b7cb532b0b3a32f687f58437f2756259ba68c27`. CI run
 `30755868510` failed before any job step and all other jobs were skipped;
 the external GitHub account payment/spending-limit gate remains unresolved.
-Local gates are recorded in the work log. Source now has 74 migrations versus
+Local gates are recorded in the work log. Source now has 75 migrations versus
 55 hosted.
+
+## Exact next action after M3.19 supplier-bill-posting source slice
+
+1. Treat `f50c8bc5c540b97134764b56a297c41e8578f9f2` as the reviewed pushed
+   source candidate. Keep production held: the guarded supplier-bill database
+   integration skipped without its explicit Postgres environment, and hosted
+   Supabase remains 55/75 migrations with unresolved duplicate PO and
+   audit-recovery inputs.
+2. Keep these four controls false/empty:
+   `ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_ENABLED`,
+   `ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_TENANT_IDS`,
+   `ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_VIA_API`, and
+   `ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_VIA_API_TENANT_IDS`. Do not apply
+   `20260802210000_supplier_bill_post_workflow.sql` independently; reconcile
+   the complete ordered 20-migration suffix.
+3. Obtain the owner-approved reversible mapping for the 12-record duplicate
+   PO group and canonical `AUDIT_RECOVERY_TENANT_ID`; provide guarded
+   Postgres/Redis integration credentials; rerun the hosted planner and
+   supplier-bill integration before any canary.
+4. The definitive local production gates are green serially. Only after a
+   clear planner, exact-SHA readiness, rollback evidence, and spend-bounded
+   provider authorization may one hosted migration and one Railway/Vercel
+   production action occur. Keep Vercel Git disconnected and avoid previews.
 
 ## Exact next action after M3.18 site-preparation-completion source slice
 

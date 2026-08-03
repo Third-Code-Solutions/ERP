@@ -6,11 +6,51 @@ evidence is green.
 
 ## 2026-08-03 GitHub source publication checkpoint
 
-Reviewed source head `140f4e8cb518445ab0903d7d885b68cebc7ce8f0` is published to
+Reviewed source head `f50c8bc5c540b97134764b56a297c41e8578f9f2` is published to
 `origin/main` and `origin/agent-02/third-code-erp-landing` by
 `kurtgav <kurtgavin.design@gmail.com>`. No hosted SQL, provider setting,
 feature flag, or deployment changed. The release remains held by the hosted
 duplicate Purchase Order data and missing owner-approved audit-recovery tenant.
+
+## M3.19 - Supplier Bill posting authority (source complete)
+
+Source commit `f50c8bc5c540b97134764b56a297c41e8578f9f2` is published to both
+`origin/main` and `origin/agent-02/third-code-erp-landing` under `kurtgav`.
+This slice keeps supplier-bill reversal separate and moves only posting behind
+the NestJS transaction authority.
+
+1. Add the strict `postingDate` command/result and the ordered migration
+   `20260802210000_supplier_bill_post_workflow.sql`. The migration creates a
+   service-only, forced-RLS, tenant-scoped idempotency ledger with validated
+   replay payloads and tenant-composite foreign keys.
+2. Add the closed-by-default NestJS route
+   `POST /v1/finance/supplier-bills/:supplierBillId/post`. Recheck membership
+   and `finance.post`, lock the draft bill, call the existing database payable
+   function, store the strict result, and write semantic audit atomically.
+3. Route the existing Next action only when the exact API selector and UUID
+   tenant allowlist match. Preserve the visible UI and legacy direct RPC for
+   unselected tenants; selected Core errors never fall through to a second
+   write.
+4. Keep the API and frontend controls false/empty until the ordered hosted
+   suffix, duplicate PO decision, audit-recovery tenant, disposable integration,
+   canary, rollback, and spend gates are green.
+
+Source validation: shared types 141/141; database 141 passed with 137 guarded
+skips; web 59 files/397 passed; API serial 36 files/213 passed; focused API
+40/40; API/web/shared/database typechecks; Nest build; Next build 78/78;
+release-plan/controlled-release/workflow-reference tests; Actionlint;
+Gitleaks; diff checks. The guarded database integration compiled and skipped
+without its explicit environment. No hosted SQL or provider mutation occurred.
+The root Turbo test was attempted but its concurrent API harness timed out in
+five pre-existing suites; the API suite passed serially with one worker.
+
+Release gate: keep
+`ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_ENABLED`,
+`ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_TENANT_IDS`,
+`ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_VIA_API`, and
+`ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_VIA_API_TENANT_IDS` false/empty. Do not
+apply `20260802210000_supplier_bill_post_workflow.sql` alone; reconcile the
+complete 20-migration suffix only after owner-approved data and audit inputs.
 
 ## M3.18 - Delivery site-preparation completion authority (source complete)
 

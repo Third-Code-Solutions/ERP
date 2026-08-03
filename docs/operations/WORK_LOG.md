@@ -1,5 +1,43 @@
 # Work Log
 
+## 2026-08-03 - M3.19 supplier-bill posting authority
+
+Completed source milestone:
+
+- Reviewed source commit `f50c8bc5c540b97134764b56a297c41e8578f9f2`, published to
+  `origin/main` and `origin/agent-02/third-code-erp-landing` under
+  `kurtgav <kurtgavin.design@gmail.com>`.
+- Added strict supplier-bill posting contracts and migration
+  `20260802210000_supplier_bill_post_workflow.sql` with forced RLS,
+  service-only access, tenant-composite foreign keys, and durable replay.
+- Added the closed-by-default NestJS route and transaction authority with
+  tenant membership locking, `finance.post` authorization, existing database
+  payable-function reuse, atomic audit, and idempotent replay.
+- Added the fail-closed Next adapter, stable browser retry key, observability
+  label, environment controls, contract tests, and a guarded PostgreSQL
+  integration proof. Supplier-bill reversal and visible UI remain unchanged.
+
+Validation:
+
+- Shared types: 141/141 passed.
+- Database: 141 passed; 137 guarded tests skipped without `DATABASE_URL`.
+- Web: 59 files, 397 passed.
+- API: 36 files, 213 passed serially with one worker; focused contracts 40/40.
+- API/web/shared/database typechecks and API/Web lint commands passed (shared
+  and database expose no lint script).
+- Nest build passed; Next production build compiled and generated 78/78 routes.
+- Database-release/controlled-release/workflow-reference tests, Actionlint,
+  Gitleaks, and `git diff --check` passed.
+- Guarded supplier-bill PostgreSQL integration compiled and was invoked; it
+  skipped because `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` were not
+  configured. A root Turbo test was attempted, but five concurrent API harness
+  timeouts made that aggregate command fail; the serial API suite is green.
+
+Hosted boundary: no Supabase SQL, feature flag, Railway release, Vercel
+deployment, provider setting, or hosted data changed. Source now has 75
+migrations versus 55 hosted; the duplicate PO and audit-recovery blockers
+remain.
+
 ## 2026-08-03 - M3.18 delivery site-preparation completion authority
 
 Completed source milestone:
