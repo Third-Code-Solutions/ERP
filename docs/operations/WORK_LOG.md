@@ -24,6 +24,8 @@ Validation:
 
 - Shared supplier contract tests: 4/4; shared typecheck passed.
 - Database migration contract tests: 2/2; database typecheck passed.
+- Full shared suite: 159/159. Full database suite: 160 passed, 137 skipped
+  because `DATABASE_URL` is not configured in this local runner.
 - API focused controller/config/observability/service tests: 62/62.
 - API typecheck passed; Nest production build passed.
 - Web full suite: 431/431; Web typecheck passed. Database-release, project-
