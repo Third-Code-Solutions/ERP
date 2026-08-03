@@ -26,6 +26,10 @@ Source now has 81 migrations versus 55 hosted. No hosted mutation, feature
 flag change, Railway release, Vercel deployment, or paid build is authorized
 by the current evidence.
 
+GitHub publication checkpoint: `main` and
+`agent-02/third-code-erp-landing` both point to `30f0a31` under the verified
+`kurtgav <kurtgavin.design@gmail.com>` identity.
+
 ## Exact next action after local M3.24 customer-invoice cancellation slice
 
 1. Keep
