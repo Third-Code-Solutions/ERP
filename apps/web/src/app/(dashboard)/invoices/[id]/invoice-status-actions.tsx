@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   cancelDraftInvoice,
@@ -24,6 +24,7 @@ export function InvoiceStatusActions({
   const [message, setMessage] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
+  const issueRetryKey = useRef<string | null>(null)
 
   const isDraft = currentStatus === 'draft'
   const isReversible = ['issued', 'overdue', 'partial_payment'].includes(
@@ -35,7 +36,10 @@ export function InvoiceStatusActions({
   function issue() {
     setMessage(null)
     startTransition(async () => {
-      const result = await issueCustomerInvoice({ invoiceId, postingDate })
+      const result = await issueCustomerInvoice(
+        { invoiceId, postingDate },
+        (issueRetryKey.current ??= globalThis.crypto.randomUUID())
+      )
       if (!result.ok) {
         setMessage(result.error ?? 'Invoice issuance failed.')
         return

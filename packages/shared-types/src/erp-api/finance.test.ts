@@ -13,12 +13,15 @@ import {
   cashTransactionPostResultSchema,
   cashTransactionReverseCommandSchema,
   cashTransactionReverseResultSchema,
+  customerInvoiceIssueCommandSchema,
+  customerInvoiceIssueResultSchema,
 } from './finance'
 
 const JOURNAL_ID = '33333333-3333-4333-8333-333333333333'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const SUPPLIER_BILL_ID = '55555555-5555-4555-8555-555555555555'
 const CASH_TRANSACTION_ID = '77777777-7777-4777-8777-777777777777'
+const INVOICE_ID = '88888888-8888-4888-8888-888888888888'
 
 describe('finance API contracts', () => {
   it('keeps journal post commands free of caller authority', () => {
@@ -236,5 +239,37 @@ describe('finance API contracts', () => {
         reversalJournalEntryNumber: 'JE-2026-000011',
       }).success
     ).toBe(true)
+  })
+
+  it('keeps customer-invoice issuance authority-free and replayable', () => {
+    expect(
+      customerInvoiceIssueCommandSchema.parse({ postingDate: '2026-08-02' })
+    ).toEqual({ postingDate: '2026-08-02' })
+    expect(
+      customerInvoiceIssueCommandSchema.safeParse({
+        postingDate: '2026-02-31',
+        tenantId: TENANT_ID,
+      }).success
+    ).toBe(false)
+    expect(
+      customerInvoiceIssueResultSchema.safeParse({
+        invoiceId: INVOICE_ID,
+        tenantId: TENANT_ID,
+        status: 'issued',
+        invoiceNumber: 'INV-202608-001',
+        journalEntryId: '99999999-9999-4999-8999-999999999999',
+        journalEntryNumber: 'JE-2026-000012',
+      }).success
+    ).toBe(true)
+    expect(
+      customerInvoiceIssueResultSchema.safeParse({
+        invoiceId: INVOICE_ID,
+        tenantId: TENANT_ID,
+        status: 'draft',
+        invoiceNumber: 'INV-202608-001',
+        journalEntryId: '99999999-9999-4999-8999-999999999999',
+        journalEntryNumber: 'JE-2026-000012',
+      }).success
+    ).toBe(false)
   })
 })

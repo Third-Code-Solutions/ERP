@@ -44,11 +44,13 @@ import {
   financeSupplierBillPostWritesUseCoreApi,
   financeSupplierBillReverseWritesUseCoreApi,
   financeCashWorkflowWritesUseCoreApi,
+  financeCustomerInvoiceIssueWritesUseCoreApi,
   postJournalEntryThroughCoreApi,
   postSupplierBillThroughCoreApi,
   reverseSupplierBillThroughCoreApi,
   postCashTransactionThroughCoreApi,
   reverseCashTransactionThroughCoreApi,
+  issueCustomerInvoiceThroughCoreApi,
   reverseJournalEntryThroughCoreApi,
   documentProcessingJobsUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
@@ -210,6 +212,14 @@ const CASH_REVERSE_RESULT = {
   status: 'reversed' as const,
   reversalJournalEntryId: '88888888-8888-4888-8888-888888888888',
   reversalJournalEntryNumber: 'JE-2026-000013',
+}
+const CUSTOMER_INVOICE_ISSUE_RESULT = {
+  invoiceId: '33333333-3333-4333-8333-333333333333',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  status: 'issued' as const,
+  invoiceNumber: 'INV-202608-001',
+  journalEntryId: '77777777-7777-4777-8777-777777777777',
+  journalEntryNumber: 'JE-2026-000014',
 }
 const JOURNAL_REVERSE_RESULT = {
   journalEntryId: JOURNAL_POST_RESULT.journalEntryId,
@@ -963,6 +973,38 @@ describe('ERP Core client', () => {
     expect(financeCashWorkflowWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
+  it('keeps customer invoice issuance delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API_TENANT_IDS',
+      CUSTOMER_INVOICE_ISSUE_RESULT.tenantId
+    )
+    expect(
+      financeCustomerInvoiceIssueWritesUseCoreApi(
+        CUSTOMER_INVOICE_ISSUE_RESULT.tenantId
+      )
+    ).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API', 'TRUE')
+    expect(
+      financeCustomerInvoiceIssueWritesUseCoreApi(
+        CUSTOMER_INVOICE_ISSUE_RESULT.tenantId
+      )
+    ).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(
+      financeCustomerInvoiceIssueWritesUseCoreApi(
+        CUSTOMER_INVOICE_ISSUE_RESULT.tenantId
+      )
+    ).toBe(true)
+    expect(financeCustomerInvoiceIssueWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('sends an idempotent cash posting command and validates the result', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(CASH_POST_RESULT), {
@@ -1019,6 +1061,35 @@ describe('ERP Core client', () => {
         }),
         headers: expect.objectContaining({
           'Idempotency-Key': 'cash-reverse-1',
+        }),
+      })
+    )
+  })
+
+  it('sends an idempotent customer invoice issuance command and validates the result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(CUSTOMER_INVOICE_ISSUE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      issueCustomerInvoiceThroughCoreApi(
+        CUSTOMER_INVOICE_ISSUE_RESULT.invoiceId,
+        { postingDate: '2026-08-03' },
+        'invoice-issue-1'
+      )
+    ).resolves.toEqual({ ok: true, data: CUSTOMER_INVOICE_ISSUE_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/finance/customer-invoices/${CUSTOMER_INVOICE_ISSUE_RESULT.invoiceId}/issue`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ postingDate: '2026-08-03' }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'invoice-issue-1',
         }),
       })
     )

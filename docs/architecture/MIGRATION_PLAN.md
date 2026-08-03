@@ -4,10 +4,33 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.22 - Customer invoice issuance authority (local source complete)
+
+Local source adds strict customer-invoice issuance contracts,
+`20260803090000_customer_invoice_issue_workflow.sql`, and the closed-by-
+default NestJS route
+`POST /v1/finance/customer-invoices/:invoiceId/issue`. NestJS rechecks
+`finance.issue_invoice`, locks tenant membership and the invoice, claims a
+tenant-scoped idempotency record, reuses the existing
+`issue_customer_invoice` PostgreSQL function, persists a strict issued result,
+and writes semantic audit atomically. Next.js remains a compatibility adapter
+with one stable retry key; selected Core failures never fall back to a second
+write. Invoice cancel and reversal remain legacy in this slice.
+
+Validation: shared finance 10/10, database migration 3/3, API focused 47/47,
+Web client/invoice 63/63, all package typechecks, Nest build, Next build
+78/78 routes, and diff checks passed. Guarded PostgreSQL/Redis integration was
+not run without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
+
+Keep all invoice issue controls false/empty. Source now has 78 migrations and
+Supabase remains at 55 applied; do not apply this migration alone. GitHub,
+Railway, duplicate-PO, audit-recovery, rollback, and spend gates still block
+hosted promotion.
+
 ## 2026-08-03 GitHub source publication checkpoint
 
 Remote tracking refs remain at `9c200ccca0526d105ce7682b62e7b5047e2eb44a`,
-published by `kurtgav <kurtgavin.design@gmail.com>`. Local M3.21 commits are
+published by `kurtgav <kurtgavin.design@gmail.com>`. Local M3.21/M3.22 commits are
 not published because the connected account cannot access the requested GitHub
 repository. No hosted SQL, provider setting, feature flag, or deployment
 changed; the release remains held by duplicate Purchase Order data and the
@@ -35,7 +58,7 @@ Keep these controls false/empty:
 `ERP_FINANCE_CASH_WORKFLOW_WRITES_TENANT_IDS`,
 `ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API`, and
 `ERP_FINANCE_CASH_WORKFLOW_WRITES_VIA_API_TENANT_IDS`. Do not apply the
-migration independently; reconcile the complete ordered 22-migration suffix
+migration independently; reconcile the complete ordered 23-migration suffix
 only after duplicate PO mapping, canonical audit-recovery tenant, disposable
 integration, rollback, and provider identity gates clear. GitHub publication
 to `Third-Code-Solutions/ERP` is blocked under the requested `kurtgav`
@@ -43,7 +66,7 @@ connection because that account currently receives 404/no repository access.
 
 ## 2026-08-03 hosted recheck checkpoint
 
-The read-only recheck confirmed the same 55/77 Supabase migration gap, one
+The read-only recheck confirmed the same 55/78 Supabase migration gap, one
 12-record duplicate Purchase Order group, and missing owner-approved audit
 tenant. Railway health/readiness are green but CLI authorization is not
 `kurtgav`; Vercel production remains on `31c04942a93d` with no recent runtime
