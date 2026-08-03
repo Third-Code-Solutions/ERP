@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-125 - Reuse the database payable function behind a Core supplier-bill command
+
+Decision: add `POST /v1/finance/supplier-bills/:supplierBillId/post` as a
+closed-by-default NestJS command. The browser sends only `postingDate`; NestJS
+derives tenant and actor, rechecks `finance.post`, locks the draft bill, calls
+the existing database `post_supplier_bill` function, stores a strict result in
+a dedicated tenant-scoped idempotency ledger, and writes semantic audit in the
+same transaction. The Next Server Action remains a compatibility adapter;
+supplier-bill reversal is not moved in this slice.
+
+Reason: the database function already owns balanced payable/journal posting,
+so wrapping it in one server transaction moves authorization, retry safety, and
+audit authority without duplicating accounting rules or introducing a second
+financial posting implementation. Keep all controls false/empty until the
+ordered hosted migration suffix, duplicate data review, audit-recovery input,
+and disposable integration gates clear.
+
 ## D-124 - Reuse the delivery workflow ledger for site-preparation completion
 
 Decision: add `complete_site_preparation` to the existing

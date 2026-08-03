@@ -75,6 +75,15 @@ the legacy behavior for unselected tenants and fails closed after a selected
 core error. Its API and frontend controls remain false/empty until hosted
 parity and canary gates clear.
 
+M3.19 applies the same boundary to supplier-bill posting: NestJS owns
+`POST /v1/finance/supplier-bills/:supplierBillId/post`, rechecks the finance
+capability from tenant membership, locks the bill, calls the existing payable
+posting function, persists a strict idempotent result, and audits the status
+change in one transaction. The Next action remains a compatibility adapter;
+the API and frontend selectors are exact, tenant-allowlisted, and fail closed.
+Supplier-bill reversal remains a separate migration slice, and Python/AI has
+no approval or posting authority.
+
 ## Nest module shape
 
 Modules align to business capabilities: identity/access, tenants, CRM,

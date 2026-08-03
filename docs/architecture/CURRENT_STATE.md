@@ -6,11 +6,40 @@ successful build.
 
 ## 2026-08-03 source publication checkpoint
 
-Reviewed source head `140f4e8cb518445ab0903d7d885b68cebc7ce8f0` is now published
+Reviewed source head `f50c8bc5c540b97134764b56a297c41e8578f9f2` is now published
 to both `origin/main` and `origin/agent-02/third-code-erp-landing` under
 `kurtgav <kurtgavin.design@gmail.com>`. This checkpoint changed GitHub source
 only. Supabase, Railway, Vercel, feature flags, and hosted data remain
 unchanged.
+
+## M3.19 source update (2026-08-03)
+
+Source commit `f50c8bc5c540b97134764b56a297c41e8578f9f2` is the reviewed
+supplier-bill posting authority slice. NestJS now owns the closed-by-default
+`POST /v1/finance/supplier-bills/:supplierBillId/post` transaction when its
+exact API and tenant controls are selected. It rechecks `finance.post`, locks
+the tenant membership and draft bill, calls the existing database payable
+function, records a durable tenant-scoped idempotency result, and writes
+semantic audit in the same transaction. Next.js preserves its action contract,
+uses one stable retry key, and fails closed after a selected Core API error;
+reversal remains a separate legacy authority slice.
+
+The source migration is
+`20260802210000_supplier_bill_post_workflow.sql`; it creates a service-only,
+forced-RLS idempotency ledger with tenant-composite foreign keys. No hosted
+SQL, feature flag, provider setting, or deployment changed. Source now has 75
+migrations versus 55 hosted.
+
+Validation: shared types 141/141, database 141 passed with 137 guarded tests
+skipped, web 59 files/397 passed, API serial suite 36 files/213 passed,
+focused API contracts 40/40 passed, API/web/shared/database typechecks passed,
+Nest build passed, and the Next production build compiled and generated
+78/78 routes. Release-plan, controlled-release, workflow-reference,
+Actionlint, Gitleaks, and diff checks passed. The guarded supplier-bill
+PostgreSQL integration compiled and was invoked; it skipped because
+`DATABASE_URL` and the explicit integration gate were absent. The root Turbo
+test was also attempted; concurrent API harness timeouts caused five failures,
+while the same API suite passed serially with one worker.
 
 ## M3.18 source update (2026-08-03)
 
@@ -71,7 +100,7 @@ of hosted provider artifacts.
 | Frontend | `apps/web`: Next.js 15.5.18 App Router, React 19.2.6, TypeScript 5.9.3 |
 | Existing application backend | 47 Next.js Server Action files, 24 Route Handler files, SQL functions/triggers, and Supabase clients |
 | New core ERP boundary | `apps/api`: NestJS 11 modular monolith. Project and procurement adapters are disabled by default; approved-BOM RFQ dispatch now has an inert BullMQ producer/consumer path |
-| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 73 SQL migrations and 46 Drizzle schema files |
+| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 75 SQL migrations and 47 Drizzle schema files |
 | Authentication | Supabase Auth. Tenant membership and role come from PostgreSQL, not client claims |
 | Authorization | RLS plus mixed application checks in the legacy path. The Nest slice has deny-by-default capability metadata and tenant-scoped queries |
 | Async work | Inngest remains authoritative. Redis 5/BullMQ 5 now carry one disabled approved-BOM RFQ job contract with bounded retry and explicit dead-letter handling |
@@ -96,9 +125,9 @@ The authorized Supabase target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17 and
 matches the repository migration contract:
 
 The historical 54/54 baseline below is retained as the last fully reconciled
-hosted baseline. The current source branch has 73 ordered migrations through
-`20260802190000_delivery_site_preparation_start_workflow.sql`; the Supabase
-connector read-only ledger still reports 55 applied, with an 18-migration
+hosted baseline. The current source branch has 75 ordered migrations through
+`20260802210000_supplier_bill_post_workflow.sql`; the Supabase connector
+read-only ledger still reports 55 applied, with a 20-migration
 suffix pending and no hosted SQL applied. The hosted release remains blocked
 until the duplicate Purchase Order-number group and audit-recovery tenant are
 resolved by the owner.
