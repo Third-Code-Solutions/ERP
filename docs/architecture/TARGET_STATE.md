@@ -25,7 +25,9 @@ leave stale records openable. The source implementation is complete at
 Authenticated desktop/mobile browser proof remains open because the local
 Next Edge runtime could not resolve the configured Supabase host. Keep Vercel
 Git disconnected and spend-protected, apply no hosted SQL, and do not treat a
-local unauthenticated redirect as Cortex runtime proof.
+local unauthenticated redirect as Cortex runtime proof. Source/evidence are
+pushed at `e6fe073`; GitHub's Railway check and live API readiness are green,
+while Supabase and Vercel remain unchanged.
 
 ## M3.44 admin data-quality target (2026-08-04)
 

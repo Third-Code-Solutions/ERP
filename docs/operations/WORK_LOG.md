@@ -30,6 +30,14 @@ repeat authenticated desktop/mobile proof from a runtime with working
 Supabase DNS, then continue the supported backup and owner-approved duplicate
 Purchase Order repair gate.
 
+Post-push evidence: source/evidence `e6fe073` are on both target branches as
+`kurtgav`. GitHub's exact-SHA Railway check is `success`; Railway project
+`a21fd382-80b2-4218-8025-11f420a062e3` service
+`c45b3d01-036a-4663-a524-0713d782fce3` remains online and live `/ready` plus
+`/health` return 200. Supabase is unchanged at 55 migrations with the
+protected duplicate-PO failure. Vercel's read-only deployment query returns
+zero deployments after the push, so no paid build was triggered.
+
 ## 2026-08-04 - M3.44 admin data-quality review
 
 Implemented the next smallest original ERP slice after the hosted
