@@ -13,6 +13,26 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.75 Stock Movement draft creation authority (2026-08-05)
+
+Stock Movement draft creation is a transactional Nest command, not a browser
+database write. The command derives tenant and actor from the verified
+principal, rechecks `inventory.manage`, validates the database-matching
+Warehouse/Project/Item/Cost Code rules, uses exact integer conversions, claims
+and replays a tenant-scoped idempotency key, creates the draft and lines, and
+writes an audit event before commit. Posting and reversal stay in their
+existing database workflows until their own seams are verified.
+
+Next adoption requires both
+`ERP_INVENTORY_STOCK_MOVEMENT_CREATE_VIA_API=true` with a strict tenant UUID
+allowlist and the API-side
+`ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_ENABLED=true` with the same
+allowlist. Both remain disabled/empty. Source SHA
+`3b920185fdc438dfc5dd5972f738ea9e0a1d7e30` is Railway deployment
+`e231fe1f-bd37-4e68-bef9-a2d26e0c1061`; readiness/health are 200 and the
+unauthenticated command boundary is 401. Supabase is read-only at 55/89 with
+34 migrations pending; no Vercel deployment is implied.
+
 ## M3.74 Stock Movement detail read authority (2026-08-05)
 
 Stock Movement detail is a read-only Nest authority. It must return one

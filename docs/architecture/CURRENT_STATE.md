@@ -4,6 +4,34 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.75 Stock Movement draft creation authority (2026-08-05)
+
+Moved draft Stock Movement creation behind a Nest command at
+`POST /v1/inventory/stock-movements`. The shared contract keeps signed
+micro-unit quantities and cent values exact; Nest rechecks tenant membership
+and `inventory.manage`, validates the same Warehouse/Project/Item/Cost Code
+invariants as the database, claims a tenant-scoped idempotency key, inserts
+the draft and lines in one transaction, and writes semantic audit evidence.
+Posting, reversal, and deletion remain the existing database-backed workflows.
+Next has a stable retry token and Core adapter, but both API and Next write
+flags remain disabled/empty; the legacy Server Action remains the default.
+Visible layout and copy are unchanged.
+
+Validation: shared 17/192; API 85 files/378 tests in an isolated single-worker
+run; Web 86 files/537 tests; database 42 files with 169 active tests and 140
+environment-skipped tests; root typecheck; serial TS-only lint; local Nest/Web
+production builds; focused command/transaction/client/migration tests; and
+`git diff --check`. Source commit
+`3b920185fdc438dfc5dd5972f738ea9e0a1d7e30` is pushed to both target refs under
+`kurtgav`. Railway deployment `e231fe1f-bd37-4e68-bef9-a2d26e0c1061` is
+`SUCCESS` for that exact SHA using `apps/api/Dockerfile`, `/ready`, and
+`node apps/api/dist/main.js`; live `/ready` and `/health` are 200 with
+PostgreSQL/Redis healthy and unauthenticated draft creation is 401.
+Supabase remains read-only at 55/89 with 34 source migrations pending;
+`20260805110000_stock_movement_create_idempotency.sql` is source-only and no
+SQL/data/Storage/provider setting changed. Vercel remains untouched for spend
+control.
+
 ## M3.74 Stock Movement detail read authority (2026-08-05)
 
 Moved the Stock Movement detail page’s header, line, and immutable ledger

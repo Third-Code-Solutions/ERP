@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-08-05 - M3.75 Stock Movement draft creation authority
+
+Moved Stock Movement draft creation into a disabled-by-default Nest command.
+The shared contract accepts exact signed quantities and optional evidenced
+costs; the transaction locks membership, rechecks `inventory.manage`, claims
+tenant-scoped idempotency, validates Warehouse/Project/Item/Cost Code rules,
+creates the draft and lines, completes the request record, and writes a
+semantic audit event. Next carries one stable retry key and uses the Core
+adapter only behind exact flags; no direct fallback occurs after selection.
+Posting, reversal, deletion, visible UI, and copy are unchanged.
+
+Results: shared 17/192; API 85 files/378 tests; Web 86/537; database 42 files
+with 169 active tests and 140 skipped without explicit `DATABASE_URL`; root
+typecheck; serial TS-only lint; Nest/Web production builds; focused command,
+transaction, client, and migration-contract tests; `git diff --check`; and a
+read-only migration plan. Source commit
+`3b920185fdc438dfc5dd5972f738ea9e0a1d7e30` was pushed to both target GitHub
+refs under `kurtgav`. Railway deployment
+`e231fe1f-bd37-4e68-bef9-a2d26e0c1061` completed `SUCCESS` for that exact SHA;
+live `/ready` and `/health` returned 200 with database/Redis healthy and the
+unauthenticated command returned 401. Supabase remains read-only at 55/89 with
+34 pending source migrations; the new migration was not applied. Vercel
+remains untouched to control billing; all create flags/tenant lists remain
+false/empty.
+
 ## 2026-08-05 - M3.74 Stock Movement detail read authority
 
 Moved the detail page’s three direct SQL reads into a bounded Nest read. The
