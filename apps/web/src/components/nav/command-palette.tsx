@@ -10,6 +10,10 @@ import {
   commandPaletteOptionCount,
   resolveCommandPaletteSelection,
 } from './command-palette-selection'
+import {
+  activeCommandPaletteIndex,
+  nextCommandPaletteIndex,
+} from './command-palette-navigation'
 
 interface SearchHit {
   type: SearchHitType
@@ -76,6 +80,7 @@ export function CommandPalette({ open, onClose }: Props) {
   const [hint, setHint] = useState<string | null>(null)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const requestSeqRef = useRef(0)
   const term = q.trim()
   const visibleHits = mode === 'search' ? hits : []
   const canAskCortex = mode === 'ask' && term.length >= 2
@@ -132,6 +137,7 @@ export function CommandPalette({ open, onClose }: Props) {
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current)
     if (abortRef.current) abortRef.current.abort()
+    const requestSeq = ++requestSeqRef.current
 
     if (!open || mode !== 'search') {
       setHits([])
@@ -147,6 +153,11 @@ export function CommandPalette({ open, onClose }: Props) {
       return
     }
 
+    // Do not leave results for the previous term visible while the next
+    // request is waiting on its debounce window.
+    setHits([])
+    setActiveIdx(0)
+    setHint(null)
     debounceRef.current = window.setTimeout(async () => {
       const ctrl = new AbortController()
       abortRef.current = ctrl
@@ -157,22 +168,27 @@ export function CommandPalette({ open, onClose }: Props) {
           `/api/search?q=${encodeURIComponent(term)}`,
           { signal: ctrl.signal, headers: { Accept: 'application/json' } }
         )
+        if (requestSeq !== requestSeqRef.current) return
         if (!res.ok) {
           setHits([])
           setHint(`Search failed (${res.status})`)
           return
         }
         const data = (await res.json()) as { hits: SearchHit[]; hint?: string }
+        if (requestSeq !== requestSeqRef.current) return
         setHits(data.hits ?? [])
         setHint(data.hint ?? (data.hits.length === 0 ? 'No matches.' : null))
         setActiveIdx(0)
       } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
+        if (
+          requestSeq === requestSeqRef.current &&
+          (err as Error).name !== 'AbortError'
+        ) {
           setHits([])
           setHint('Network error.')
         }
       } finally {
-        setLoading(false)
+        if (requestSeq === requestSeqRef.current) setLoading(false)
       }
     }, 180)
 
@@ -214,14 +230,12 @@ export function CommandPalette({ open, onClose }: Props) {
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActiveIdx((i) =>
-        Math.min(Math.max(0, optionCount - 1), i + 1)
-      )
+      setActiveIdx((i) => nextCommandPaletteIndex(i, optionCount, 1))
       return
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setActiveIdx((i) => Math.max(0, i - 1))
+      setActiveIdx((i) => nextCommandPaletteIndex(i, optionCount, -1))
       return
     }
     if (e.key === 'Enter') {
@@ -242,6 +256,14 @@ export function CommandPalette({ open, onClose }: Props) {
   }
 
   if (!open) return null
+
+  const activeOptionIndex = activeCommandPaletteIndex(activeIdx, optionCount)
+  const activeOptionId =
+    activeOptionIndex >= 0
+      ? activeOptionIndex < visibleHits.length
+        ? `cmdpal-option-hit-${activeOptionIndex}`
+        : 'cmdpal-option-cortex'
+      : undefined
 
   return (
     <div
@@ -267,10 +289,6 @@ export function CommandPalette({ open, onClose }: Props) {
     >
       <div
         ref={panelRef}
-        role="combobox"
-        aria-expanded
-        aria-controls="cmdpal-results"
-        aria-haspopup="listbox"
         style={{
           width: '100%',
           maxWidth: 640,
@@ -307,6 +325,12 @@ export function CommandPalette({ open, onClose }: Props) {
                 : 'Ask across records you can access…'
             }
             aria-label={mode === 'search' ? 'Search' : 'Ask Cortex'}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={optionCount > 0}
+            aria-controls="cmdpal-results"
+            aria-haspopup="listbox"
+            aria-activedescendant={activeOptionId}
             autoComplete="off"
             spellCheck={false}
             maxLength={100}
@@ -392,15 +416,28 @@ export function CommandPalette({ open, onClose }: Props) {
         <div
           id="cmdpal-results"
           role="listbox"
+          aria-label={mode === 'search' ? 'Search results' : 'Cortex actions'}
           style={{ maxHeight: '60vh', overflowY: 'auto' }}
         >
           {mode === 'search' && loading && (
-            <div style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}>
+            <div
+              role="status"
+              aria-live="polite"
+              style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}
+            >
               Searching…
             </div>
           )}
           {mode === 'search' && !loading && hits.length === 0 && hint && (
-            <div style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}>
+            <div
+              role={
+                hint.startsWith('Search failed') || hint === 'Network error.'
+                  ? 'alert'
+                  : 'status'
+              }
+              aria-live="polite"
+              style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}
+            >
               {hint}
             </div>
           )}
@@ -443,6 +480,7 @@ export function CommandPalette({ open, onClose }: Props) {
             <button
               type="button"
               key={`${hit.type}-${hit.id}`}
+              id={`cmdpal-option-hit-${i}`}
               role="option"
               aria-selected={i === activeIdx}
               onMouseEnter={() => setActiveIdx(i)}
@@ -515,6 +553,7 @@ export function CommandPalette({ open, onClose }: Props) {
           {canAskCortex && (
             <button
               type="button"
+              id="cmdpal-option-cortex"
               role="option"
               aria-selected={activeIdx === visibleHits.length}
               aria-label={`Ask Cortex: ${term}`}
