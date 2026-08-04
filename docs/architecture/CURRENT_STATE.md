@@ -4,6 +4,24 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.59 Railway Nest Redis module wiring (source fix, 2026-08-04)
+
+The first M3.58 Railway deployment built successfully but failed its `/ready`
+health check because `ProviderQuotaService` lived in a child module while the
+Redis token was declared only in `AppModule`. Redis is now one global,
+explicitly exported Nest module imported by both the root application and the
+provider-quota module. This preserves one client/lifecycle and makes the
+quota/health dependency resolvable at runtime.
+
+Changed files: `apps/api/src/observability/redis.module.ts`, its wiring test,
+`provider-quota.module.ts`, and `app.module.ts`. Focused Redis/quota tests pass
+5/5; API typecheck and Nest build pass. The failed Railway deployment remains
+the current hosted source boundary; no database, Railway setting, or Vercel
+build/deploy was changed by this fix yet.
+
+Next action: run the full API gate, push one corrective commit, inspect Railway
+build/deploy logs and exact-SHA status, then verify `/ready` and `/health`.
+
 ## M3.58 Nest project detail read contract (source-only, 2026-08-04)
 
 Added a tenant- and role-authorized `GET /v1/projects/:id` contract to the Nest

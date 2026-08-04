@@ -13,6 +13,18 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.59 Nest Redis dependency boundary (2026-08-04)
+
+Redis transport must be owned by one global Nest module that exports the shared
+`REDIS_CLIENT` token. Health checks, quotas, locks, and future queue workers
+import that boundary instead of relying on providers declared in the root
+module. The module owns one lifecycle and keeps Redis accounting separate from
+PostgreSQL ERP authority.
+
+The source fix is not a release claim until the exact Railway deployment passes
+build, startup, `/ready`, and `/health` checks. Keep frontend deployment and
+paid Vercel builds closed.
+
 ## M3.58 Project detail read target (2026-08-04)
 
 Project detail reads may move from the Next compatibility query to Nest only

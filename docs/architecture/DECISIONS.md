@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-169 - Redis is a shared exported Nest module (2026-08-04)
+
+Decision: move the existing Redis client factory and shutdown lifecycle out of
+`AppModule` into a global `RedisModule` that exports `REDIS_CLIENT`; import it
+from the root application and every module that directly injects the token.
+
+Reason: Nest child modules cannot resolve providers declared only on their
+parent. Railway proved the defect at startup when `ProviderQuotaService` could
+not inject Redis. One module preserves the existing client semantics and
+avoids silently creating duplicate Redis connections.
+
+Boundary: Redis remains transport/accounting only. PostgreSQL transactions,
+constraints, and audit records remain ERP authority. The source fix requires
+exact Railway build/start/readiness evidence before production is called green;
+no Vercel or Supabase mutation is implied.
+
 ## D-168 - Project detail reads use a gated Nest contract (2026-08-04)
 
 Decision: add a tenant- and role-authorized `GET /v1/projects/:id` to the Nest
