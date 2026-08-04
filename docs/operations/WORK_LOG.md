@@ -12,8 +12,17 @@ tenant allowlist; direct behavior remains default.
 Results: shared 17/179; API 71/341; Web 79/512; focused command/client/action
 tests; all typechecks; serial root lint; Nest build; Web 80-route build; and
 `git diff --check`. No Supabase SQL/data/provider mutation and no Vercel
-preview/production build. Reviewed source push and controlled Railway live
-verification are the next release gate.
+preview/production build.
+
+Source commit `8a0c059826aabf3b0711277c68f1b182db46aa25` was pushed to both
+target GitHub refs under `kurtgav`. Railway deployment
+`19b808c7-f07c-40f3-a268-df35aaf86071` completed `SUCCESS` for that exact SHA
+with the effective API Dockerfile manifest. Live `/ready` and `/health`
+returned 200 with database and Redis healthy, unauthenticated inventory
+summary returned 401, and startup logs mapped the item-policy PATCH route.
+No Vercel build/deploy or Supabase mutation occurred. The item-policy canary
+and all related flags remain false/empty. The next docs-only push must stay
+outside API watch patterns to avoid a paid rebuild.
 
 ## 2026-08-05 - M3.66 inventory summary authority seam and ledger refresh
 

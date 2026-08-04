@@ -25,8 +25,20 @@ Validation: shared 17 files/179 tests; API 71 files/341 tests; Web 79
 files/512 tests; focused command/client/action tests; shared/API/Web
 typecheck; serial root lint; Nest build; Web 80-route production build; and
 `git diff --check`. No Supabase SQL/data repair, Vercel build/deploy, or
-provider setting changed. Source release evidence is pending the exact
-reviewed SHA push and controlled Railway deployment.
+provider setting changed. Source commit
+`8a0c059826aabf3b0711277c68f1b182db46aa25` is pushed to both
+`origin/main` and `origin/agent-02/third-code-erp-landing` under `kurtgav`.
+Railway deployment `19b808c7-f07c-40f3-a268-df35aaf86071` is `SUCCESS` for
+that exact SHA with the effective `apps/api/Dockerfile` manifest, healthcheck
+`/ready`, and `node apps/api/dist/main.js`. Live `/ready` and `/health` are
+200 with PostgreSQL and Redis healthy; unauthenticated
+`/v1/inventory/summary` is 401; startup logs map
+`PATCH /v1/inventory/items/:materialItemId/configuration`. Supabase remains
+read-only at 55/87 and Vercel remains untouched for spend control.
+
+The item-policy canary and all new write flags remain disabled; source and
+basic production readiness are not protected tenant browser, rollback, or
+hosted-ledger proof.
 
 ## M3.66 Inventory summary authority seam and Supabase ledger refresh (2026-08-05)
 

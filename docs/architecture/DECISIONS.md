@@ -12,9 +12,13 @@ command idempotent without a new request table. Next adopts only through the
 exact flag and tenant allowlist; direct server-action behavior remains the
 default.
 
-Boundary: the feature is source-validated but not canary-approved. No
-Supabase migration/data action, Vercel build, or provider setting is implied.
-Rollback is the disabled adapter flag and the prior API deployment.
+Boundary: the source release is production-ready at the basic API boundary but
+not canary-approved. Source SHA
+`8a0c059826aabf3b0711277c68f1b182db46aa25` is Railway deployment
+`19b808c7-f07c-40f3-a268-df35aaf86071` with healthy database/Redis readiness,
+route mapping, and unauthenticated 401 evidence. No Supabase migration/data
+action, Vercel build, or provider setting is implied. Rollback is the disabled
+adapter flag and the prior API deployment.
 
 ## D-176 - Inventory summary reads are bounded and canary-gated (2026-08-05)
 

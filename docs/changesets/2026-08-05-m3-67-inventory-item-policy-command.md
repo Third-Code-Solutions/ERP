@@ -14,4 +14,7 @@ default behind exact feature flags and tenant allowlists. Existing direct
 server-action behavior remains the compatibility path.
 
 No Supabase migration, hosted data action, Vercel build/deploy, or Railway
-provider setting changed in this changeset.
+provider setting changed in this changeset. The reviewed source push triggered
+one controlled Railway deployment; its exact SHA, effective API Dockerfile
+manifest, readiness, and protected-route 401 evidence are recorded in the
+architecture and operations logs. No additional deploy was triggered.
