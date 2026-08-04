@@ -36,7 +36,7 @@ with their route under `actions.ts` unless noted.
 | US-006 — Digital PPRF Form | `/(dashboard)/crm/opportunities/[id]/proposal` (PPRF tab) | `crm/opportunities/[id]/proposal/actions.ts` | `proposals`, `pprf_responses` | Live |
 | US-007 — Site Inspection Report | `/(dashboard)/crm/opportunities/[id]/proposal` (inspection tab) | `crm/opportunities/[id]/proposal/actions.ts` | `site_inspections`, `documents` | Live |
 | US-008 — Design Upload & Approval | `/(dashboard)/crm/opportunities/[id]/proposal` (design tab) | `crm/opportunities/[id]/proposal/actions.ts` | `design_uploads`, `documents` | Live |
-| US-009 — Client Change Request Log | `/(dashboard)/crm/opportunities/[id]/proposal` (changes tab) | `crm/opportunities/[id]/proposal/actions.ts` | `client_changes` | Dev-stub |
+| US-009 — Client Change Request Log | `/(dashboard)/crm/opportunities/[id]/proposal` (changes tab) | `crm/opportunities/[id]/proposal/actions.ts` | `change_requests`, `design_files` | Live |
 
 ---
 
