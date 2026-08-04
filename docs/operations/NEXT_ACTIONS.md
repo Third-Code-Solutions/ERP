@@ -3,11 +3,12 @@
 ## Exact next action after M3.66 inventory seam and ledger refresh
 
 1. Keep `ERP_INVENTORY_SUMMARY_READS_VIA_API=false` and its tenant allowlist
-   empty; source tests/builds are not protected tenant browser or rollback
-   evidence.
-2. Push the reviewed source/docs under `kurtgav`; deploy Railway only after
-   the exact source SHA and backend watch patterns are confirmed. Verify live
-   `/ready`, `/health`, and unauthenticated `/v1/inventory/summary` = 401.
+   empty; source, Railway readiness/401, and route-log evidence are not a
+   protected tenant browser canary or rollback proof.
+2. Preserve the Railway release identity: deployment
+   `6ba50aba-0f58-4f02-b7b4-655b3e71a70f` and source SHA
+   `4da9772516f80255a2cb4adbe376d4ca733513e4`. Docs-only changes must stay
+   outside the API watch patterns; do not trigger another paid rebuild.
 3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain supported
    backup/export, dependent/audit export, owner-approved mapping, disposable
    PostgreSQL 17 replay, and an explicit spend cap before any hosted action.

@@ -20,9 +20,18 @@ Results: shared 17/178; API 69/336 serial; Web 78/509; focused API 15/15 and
 Web 90/90; typecheck; serial root lint; Nest build; Web 80/80 production build;
 and `git diff --check`.
 
-Next: push only reviewed source and memory docs. Keep Vercel untouched to
-control billing; Railway deployment is conditional on green tests/build and
-watched backend changes, followed by live readiness and 401 checks.
+Source commit `4da9772516f80255a2cb4adbe376d4ca733513e4` was pushed to both
+target GitHub refs under `kurtgav`. Railway deployment
+`6ba50aba-0f58-4f02-b7b4-655b3e71a70f` completed `SUCCESS` for that exact SHA
+with the API Dockerfile. Live `/ready` and `/health` returned 200,
+unauthenticated `/v1/inventory/summary` returned 401, and startup logs mapped
+the route. The Vercel Git-disabled project received no build/deploy; Supabase
+received no SQL or provider mutation. The follow-up docs-only push is outside
+Railway watch patterns, so it must not create a paid backend rebuild.
+
+Next: keep the inventory canary disabled; obtain protected tenant browser and
+rollback evidence before any cutover. Keep the 55/87 Supabase ledger read-only
+and do not trigger Vercel previews or production builds.
 
 ## 2026-08-05 - M3.65 Nest CRM opportunity detail read handoff
 

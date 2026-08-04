@@ -13,9 +13,14 @@ page path by default; no schema migration added.
 
 Validation: focused shared/API/Web tests, serial full suites (shared 17/178,
 API 69/336, Web 78/509), typecheck, serial root lint, Nest build, Web
-production build (80 routes), and `git diff --check`. Rollback is the disabled
-adapter flag plus the prior Railway API deployment; no hosted state requires
-repair. No Vercel or Supabase provider action was triggered.
+production build (80 routes), and `git diff --check`. Commit
+`4da9772516f80255a2cb4adbe376d4ca733513e4` is pushed to both target refs.
+Railway deployment `6ba50aba-0f58-4f02-b7b4-655b3e71a70f` is `SUCCESS` for
+that SHA; `/ready` and `/health` are 200, unauthenticated inventory summary
+access is 401, and startup logs expose the mapped route. Rollback is the
+disabled adapter flag plus the prior Railway API deployment; no hosted state
+requires repair. A docs-only push is outside Railway watch patterns. No
+Vercel or Supabase provider action was triggered.
 
 ## M3.65 - Nest CRM opportunity detail read handoff (Railway verified, 2026-08-05)
 

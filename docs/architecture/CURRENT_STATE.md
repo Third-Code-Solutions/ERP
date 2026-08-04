@@ -29,6 +29,14 @@ typecheck; serial root lint; Nest build; Web 80/80 production build; and
 `git diff --check`. No Supabase SQL/data repair, hosted migration, Vercel
 build/deploy, or provider setting changed.
 
+Source commit `4da9772516f80255a2cb4adbe376d4ca733513e4` is pushed to both
+`origin/main` and `origin/agent-02/third-code-erp-landing` under `kurtgav`.
+Railway deployment `6ba50aba-0f58-4f02-b7b4-655b3e71a70f` is `SUCCESS` for
+that exact SHA using `apps/api/Dockerfile`; live `/ready` and `/health` are
+200, unauthenticated `/v1/inventory/summary` is 401, and startup logs map the
+route. The docs-only follow-up is outside the API watch patterns and must not
+trigger a paid backend rebuild. Vercel and Supabase remain untouched.
+
 Next action: keep the inventory canary disabled, preserve the Vercel spend
 guard, and obtain protected browser/rollback evidence before any tenant
 cutover. The 55/87 migration ledger remains read-only.
