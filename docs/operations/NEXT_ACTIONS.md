@@ -20,6 +20,24 @@ workspace lint/typecheck, 80/80 build, GitHub/Railway `success`, live Railway
 readiness healthy, and zero Vercel deployments since the recorded timestamp.
 No hosted mutation occurred.
 
+## Exact next action after M3.55 provider-backed burst cost guard
+
+1. Keep Vercel Git deployment disabled and create no preview/production build;
+   source push is not frontend release evidence and spend risk remains active.
+2. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Do not apply the
+   suffix, edit migration history, repair/rename/delete duplicate Purchase
+   Orders, or run direct DDL.
+3. Obtain supported recoverable backup plus dependent-row/audit export and
+   owner-approved canonical mapping for the 12-record duplicate group. Rerun
+   planners and disposable PostgreSQL 17 replay.
+4. Treat edge provider limits as burst protection only. Plan shared Redis
+   quota/lock accounting in NestJS as a separate tested milestone; do not claim
+   global quota from current per-instance map.
+
+Completed gates for `4d190dfd`: focused 5/5, Web 72/468, workspace
+lint/typecheck, 80/80 build, clean diff, and source push under `kurtgav`. No
+Vercel build or hosted DB/provider mutation occurred.
+
 ## Exact next action after M3.53 clean-room runtime branding audit
 
 1. Keep the verified source `0c911f8` on both target Git branches. Do not

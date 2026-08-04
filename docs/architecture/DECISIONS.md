@@ -18,6 +18,24 @@ Validation/release boundary: source `6c975261` passes focused/full Web tests,
 workspace gates, and the 80/80 build. GitHub/Railway is green; no Vercel
 deployment, Supabase SQL/data, Storage, or Railway setting changed.
 
+## D-165 - Provider routes get explicit edge burst limits (2026-08-04)
+
+Decision: classify Cortex chat, AI chat, similar-item retrieval, and Cortex
+embedding as provider-backed buckets in the existing edge limiter. Keep
+general traffic policy unchanged. Enforce 20/minute authenticated (10
+anonymous) for chat/similar-item routes and 6/2 for embedding. Include limit
+and bucket headers on 429 responses.
+
+Reason: authenticated traffic currently allowed 1,000 requests/minute, which
+could create avoidable provider and function spend. Route-specific protection
+reduces burst risk without changing API contracts or silently disabling the
+AI brain.
+
+Boundary: map is per edge instance and not authoritative global quota. Shared
+Redis accounting, tenant budgets, and operator controls remain future NestJS
+work. Source `4d190dfd` passes focused/full tests, workspace gates, and the
+80/80 build; no hosted/provider mutation occurred.
+
 ## D-163 - Product clean-room scan excludes research provenance (2026-08-04)
 
 Decision: enforce forbidden legacy/vendor markers across product-facing web,

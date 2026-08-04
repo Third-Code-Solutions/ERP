@@ -27,6 +27,24 @@ Next gate: supported Supabase backup plus dependent-row/audit export and
 owner-approved mapping for the 12 duplicate Purchase Orders, followed by
 read-only planner and disposable PostgreSQL 17 replay. Keep Vercel closed.
 
+## M3.55 - Provider-backed burst cost guard (source complete, 2026-08-04)
+
+Extended the existing edge-compatible request limiter with a pure policy and
+counter helper. General traffic remains unchanged. Chat/similar-item provider
+routes share a 20/minute authenticated bucket (10 anonymous), while embedding
+uses 6 authenticated (2 anonymous). Middleware emits `X-RateLimit-Limit` and
+`X-RateLimit-Scope` on rejection. No route body, authorization rule, schema, or
+provider setting changed.
+
+Validation: focused rate-limit tests 5/5; Web 72 files/468 tests; workspace
+lint/typecheck; `git diff --check`; and 80/80 production routes pass. Source
+`4d190dfdf01c753812f7d5924f8c269c8a9de8bd` was pushed once to both target
+branches. No Vercel build or hosted DB mutation occurred.
+
+This is burst protection only: cold starts and multiple edge instances can
+reset the map. Next backend milestone: shared Redis quota/lock accounting in
+NestJS, with tenant/user dimensions and audit/metrics, after disposable tests.
+
 ## M3.53 - Clean-room runtime branding audit (source complete, 2026-08-04)
 
 Expanded `branding-clean-room.test.ts` to scan web source/public, API source,

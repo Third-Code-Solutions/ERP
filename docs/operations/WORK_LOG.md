@@ -34,6 +34,31 @@ Rollback: revert `6c975261` to remove the palette source surface; no hosted
 state needs repair. Next action is the existing duplicate-PO backup/export,
 owner mapping, and disposable migration replay gate.
 
+## 2026-08-04 - M3.55 Provider-backed burst cost guard
+
+Reduced avoidable provider burst risk at Next middleware. `/api/cortex/chat`,
+`/api/ai/chat`, and `/api/ai/similar-items` now share a 20/minute
+authenticated (10 anonymous) bucket; `/api/cortex/embed` uses 6/2. General
+traffic policy remains 1,000/100. Pure counter tests cover allow, block, and
+window reset. This is per-instance edge protection, not global quota.
+
+Changed files:
+
+- `apps/web/src/middleware.ts`
+- `apps/web/src/lib/request-rate-limit.ts`
+- `apps/web/src/lib/request-rate-limit.test.ts`
+- architecture and operations memory files (M3.55 entries)
+
+Results: focused 5/5; Web 72/468; workspace lint/typecheck;
+`git diff --check`; and sequential 80/80-route production build pass. No UI,
+API payload, DB schema/data, Storage, provider setting, or Vercel deployment
+changed.
+
+Source `4d190dfdf01c753812f7d5924f8c269c8a9de8bd` pushed once to both target
+branches as `kurtgav`. Rollback: revert source commit; no hosted state needs
+repair. Next: supported duplicate-PO backup/export and owner mapping; later,
+shared Redis quota in NestJS.
+
 ## 2026-08-04 - M3.53 Clean-room runtime branding audit
 
 Audited production-facing source, metadata, assets, and the live public
