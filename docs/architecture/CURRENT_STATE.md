@@ -15,6 +15,13 @@ to Live with its actual tables. Focused proposal actions pass 2/2; Web passes
 production build pass. No hosted SQL/data, Storage, Railway setting, or Vercel
 deployment changed. Authenticated browser proof remains provider-runtime
 gated when local Supabase DNS cannot resolve.
+Post-push evidence: source/docs `5a5e525` are on both target branches;
+GitHub's exact-SHA Railway check is `success`. Railway recorded `SKIPPED` for
+the commit because no watched API files changed; live `/ready` and `/health`
+remain 200. Vercel reports zero deployments after the push. Supabase remains
+`ACTIVE_HEALTHY` at 55 migrations; its branch API currently reports
+`CREATING_PROJECT`, while the latest branch-action log still fails the first
+pending migration with `P0001` because duplicate tenant `PO-0002` rows exist.
 
 ## M3.46 Command palette accessibility (source complete, 2026-08-04)
 

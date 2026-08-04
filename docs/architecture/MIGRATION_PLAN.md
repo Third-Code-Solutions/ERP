@@ -11,8 +11,14 @@ Validation: focused proposal actions 2/2; Web 66 files/450 tests; workspace
 lint/typecheck, diff check, and 79/79-route production build pass. No migration
 is required; no hosted SQL or provider action is authorized for this slice.
 
-Exact next action: push source/docs once, verify exact GitHub/Railway status and
-live readiness, and preserve the Supabase/Vercel release gates.
+Exact next action: preserve the Supabase/Vercel release gates; do not call this
+a DB release. Post-push evidence: `5a5e525` is on both target branches;
+GitHub's exact-SHA Railway check is `success`, Railway skipped the
+frontend/docs-only commit, and live `/ready`/`/health` are 200. Vercel reports
+zero deployments after the push. Supabase remains at 55 migrations; the
+branch API says `CREATING_PROJECT` but its latest branch-action log still fails
+`20260801090000_purchase_order_create_idempotency.sql` with `P0001` for the
+duplicate tenant `PO-0002` group.
 
 ## M3.46 - command palette accessibility and race safety (source complete, 2026-08-04)
 

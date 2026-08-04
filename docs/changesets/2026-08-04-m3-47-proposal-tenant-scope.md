@@ -9,3 +9,9 @@ Dev-stub to Live and mapped its actual `change_requests`/`design_files` tables.
 Source checkpoint: `9270919`. Validation: focused proposal actions 2/2, Web 66 files/450 tests, workspace
 lint/typecheck, `git diff --check`, and the 79/79-route production build pass.
 No hosted SQL/data, Storage, Railway, or Vercel mutation occurred.
+
+Post-push: `5a5e525` is on both target branches. GitHub's Railway check is
+successful; Railway skipped the unchanged-API commit and live readiness is
+200. Vercel reported zero new deployments. Supabase remains at 55 migrations;
+its branch API reports `CREATING_PROJECT` while the latest migration log still
+fails the duplicate-PO preflight with `P0001`. No DB release is claimed.
