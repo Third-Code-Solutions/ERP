@@ -1,5 +1,33 @@
 # Work Log
 
+## 2026-08-04 - M3.44 admin data-quality review
+
+Implemented the next smallest original ERP slice after the hosted
+reconciliation audit: an admin-only, server-rendered, read-only report for
+duplicate Purchase Order numbers. The route repeats `tenant_id` on both
+queries, caps groups/records, surfaces live status counts, and links to
+existing Purchase Order records without adding any mutation authority.
+
+Changed source: `apps/web/src/app/(dashboard)/admin/page.tsx`, the new
+`apps/web/src/app/(dashboard)/admin/data-quality/` page/CSS, the new
+`apps/web/src/lib/admin/data-quality-queries.ts` and pure tests. Added the
+measured spec at `docs/research/components/admin-data-quality.spec.md`.
+Source commit: `63bbf22`.
+
+Validation: focused 2/2; Web 64 files/444 tests; API 294; shared-types 162;
+database 166 executed with 140 environment-gated skips; lint, typecheck,
+`git diff --check`, and Next production build 79/79 routes passed. Authenticated
+browser MCP proof at 1440px and 390px rendered one duplicate group and 12
+records, showed no repair controls, had no horizontal overflow, and produced
+no new console errors. Local Next dev server was stopped after proof.
+
+Release boundary: no Supabase SQL, hosted row, Storage object, migration
+history, Railway setting/deployment action, or Vercel build/promotion changed.
+Supabase remains the verified 55-row prefix with its safe duplicate preflight
+failure; Vercel remains disconnected and spend-protected. Exact next action:
+push source plus docs once, verify GitHub/Railway identity and readiness, then
+obtain the supported backup and owner-approved duplicate repair.
+
 ## 2026-08-04 - M3.43 Supabase reconciliation gate
 
 Performed the supported-provider read-only audit before attempting any hosted

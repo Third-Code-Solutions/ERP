@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-153 - Data-quality review is read-only and tenant-repeated (2026-08-04)
+
+Decision: add `/admin/data-quality` as a server-rendered review surface for
+duplicate Purchase Order identifiers, gated by `admin.system_config` and
+backed by repeated authenticated tenant predicates. It may expose counts,
+status buckets, chronological candidates, and links to existing authorized
+records, but it may not rename, delete, canonicalize, approve, or finalize
+anything.
+
+Reason: the supported Supabase migration is correctly stopped by 12 duplicate
+`PO-0002` rows. Giving an owner transparent evidence is useful now; inventing
+a repair control would create an unreviewed authority path and risk issued
+document history. Group/detail caps and explicit omission counts keep bounded
+read performance honest.
+
+Validation/release boundary: source `63bbf22`; focused/full tests, lint,
+typecheck, production build, and authenticated 390px/1440px browser proof
+pass. No database, Storage, provider variable, or Vercel deployment changed.
+The next mutation remains the supported backup + owner-approved repair gate.
+
 ## D-152 - Hosted migration reconciliation is a release gate (2026-08-04)
 
 Decision: treat the configured Supabase target as a data-repair and migration

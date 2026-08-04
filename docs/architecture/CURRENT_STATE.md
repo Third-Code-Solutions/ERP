@@ -4,6 +4,28 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.44 Admin data-quality review (source complete, 2026-08-04)
+
+Source checkpoint: `63bbf22` (`feat(web): add admin data quality review`). The
+admin workspace now includes a server-rendered, read-only review of duplicate
+Purchase Order numbers. The route requires `admin.system_config`, repeats the
+authenticated `tenant_id` predicate on group and detail reads, caps the review
+set, and offers only links to existing authorized records. It cannot rename,
+delete, canonicalize, approve, or finalize an ERP transaction.
+
+The configured demo tenant renders one `PO-0002` group with 12 records and
+the four live status buckets. Pure report-shaping tests cover deterministic
+status counts and the 100-record cap. No schema, hosted row, Storage object,
+Railway setting, or Vercel deployment changed. The route spec is recorded at
+[`docs/research/components/admin-data-quality.spec.md`](../research/components/admin-data-quality.spec.md).
+
+Validation: focused 2/2; Web 64 files/444 tests; full workspace API 294,
+shared-types 162, and database 166 executed with 140 environment-gated skips;
+lint, typecheck, diff check, and 79/79-route production build passed. Authenticated
+browser proof at 1440px and 390px showed no horizontal overflow, no repair
+controls, and no new console errors. Exact next action: push once, verify
+GitHub/Railway against `63bbf22`, and retain the Supabase/Vercel release gates.
+
 ## M3.43 Supabase reconciliation gate (read-only, 2026-08-04)
 
 The configured Supabase target was rechecked without mutation. Hosted state is
