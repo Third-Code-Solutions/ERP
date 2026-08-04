@@ -15,6 +15,9 @@ permissioned search contract without adding a new authority seam.
 Validation/release boundary: focused 7/7 and Web 66/450 pass; Web typecheck
 passes. Full workspace/build and authenticated browser gates remain open. No
 hosted data, schema, Railway setting, or Vercel deployment changed.
+Post-push evidence: source/docs `0a085b7` is on both target branches; GitHub's
+Railway check is `success`, Railway skipped the unchanged-API commit, and
+live readiness is 200. Supabase and Vercel remain unchanged by design.
 
 ## D-154 - Cortex search selection is pure, actionable, and read-only (2026-08-04)
 

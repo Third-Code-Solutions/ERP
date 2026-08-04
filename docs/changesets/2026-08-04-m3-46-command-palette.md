@@ -13,3 +13,9 @@ open when local Supabase DNS cannot resolve.
 No hosted SQL, data, Storage, Railway setting/deployment, or Vercel build was
 changed. Vercel remains disconnected and spend-protected; Supabase remains at
 its blocked 55/87 migration boundary.
+
+Post-push: source/docs `0a085b7` are on both target branches. GitHub's exact
+Railway status is successful; Railway skipped this frontend/docs-only commit
+because no API watch pattern changed, and live `/ready`/`/health` remain 200.
+Vercel reported zero deployments after the push, so no paid build was
+triggered. Supabase was not mutated and remains blocked at 55/87.

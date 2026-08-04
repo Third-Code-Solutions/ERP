@@ -15,9 +15,16 @@ build pass. Authenticated browser proof remains a provider-runtime gate when
 local Supabase DNS is unavailable. No Supabase SQL/row/Storage change, Railway
 setting/deployment mutation, or Vercel build/promotion occurred.
 
-Exact next action: finish source gates, push both target branches once, verify
-the exact GitHub/Railway SHA and live readiness, and preserve the Supabase
-55/87 and Vercel spend boundaries.
+Post-push evidence: source/docs `0a085b7` are on both target branches as
+`kurtgav`; GitHub's exact-SHA Railway check is `success`. Railway recorded
+`SKIPPED` because no watched API files changed, and the existing service is
+Online with `/ready` and `/health` 200. Supabase remains at 55/87 with the
+protected duplicate-PO failure. Vercel's deployment query returned zero new
+deployments, preserving the spend boundary.
+
+Exact next action: authenticated desktop/mobile palette proof from a runtime
+with working Supabase DNS, then supported backup and owner-approved duplicate
+Purchase Order repair before ordered migration replay.
 
 ## 2026-08-04 - M3.45 Cortex search accessibility
 

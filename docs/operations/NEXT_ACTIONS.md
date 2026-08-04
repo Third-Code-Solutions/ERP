@@ -9,6 +9,10 @@
    supported backup, dependent-row/audit export, and owner-approved duplicate
    `PO-0002` repair are available. Keep Vercel Git/deployments disconnected
    and spend-protected.
+3. Current evidence: `0a085b7` is on both target branches, GitHub's Railway
+   check is `success`, Railway skipped the frontend/docs-only commit, live API
+   readiness is 200, Supabase is unchanged at 55/87, and Vercel has no new
+   deployment. Do not infer production frontend rollout from the source push.
 
 ## Exact next action after M3.45 Cortex search accessibility
 

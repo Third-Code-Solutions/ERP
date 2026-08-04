@@ -27,6 +27,11 @@ lint/typecheck, diff check, and 79/79-route production build. Authenticated
 browser proof remains a provider-runtime gate. Keep Vercel Git disconnected
 and spend-protected, do not apply hosted SQL, and do not promote a
 source-only palette change as production-deployed evidence.
+Source/docs `0a085b7` is present on both target branches. GitHub's Railway
+check is successful, but Railway correctly skipped the commit because its API
+watch set did not change; live readiness remains 200. Vercel reports no
+deployment for this SHA, intentionally preserving the spend gate. Supabase
+remains the unchanged 55/87 migration prefix with its duplicate-data block.
 
 ## M3.45 Cortex search target (2026-08-04)
 
