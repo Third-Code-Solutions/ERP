@@ -12,11 +12,14 @@ entity, conversation, and embedding handlers. Every handler response now uses
 longer permits a private fifteen-second cache. Request/response bodies,
 streaming, citations, tenant filters, and authorization behavior are unchanged.
 
-Validation is complete for 31 focused route tests, web lint, web typecheck, and
-local unauthenticated POST/header probes. This milestone has no database or
-provider mutation. The next step is authenticated browser permission/citation
-verification with disposable tenant fixtures, followed by a separately
-approved, spend-bounded promotion.
+Validation is complete for 31 focused route tests, full workspace tests (API
+287, shared types 159, web 434, database 162 passed with 137
+environment-skipped), root lint/typecheck, the 78-page production build, and
+local unauthenticated POST/header probes. Commit `36a37e9` is pushed to both
+target branches under `kurtgav`; no database or provider mutation occurred.
+The next step is authenticated browser permission/citation verification with
+disposable tenant fixtures, followed by a separately approved, spend-bounded
+promotion.
 
 ## M3.32 - Landing Cortex preview and evidence-led UI slice (source complete)
 
