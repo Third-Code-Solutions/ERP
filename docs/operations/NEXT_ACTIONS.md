@@ -13,6 +13,9 @@
 4. Authenticated landing/product browser proof remains a provider-runtime gate
    if local Supabase DNS cannot resolve; local production HTML evidence does
    not replace it.
+5. Before claiming the GEO graph live, obtain an explicitly spend-approved
+   Vercel release path or use a bounded alternative host; the current public
+   deployment predates `ce1ae6e` and no Vercel build was triggered.
 
 ## Exact next action after M3.47 proposal read tenant scope
 

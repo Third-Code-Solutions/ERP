@@ -26,6 +26,11 @@ Source validation is green: focused 5/5, Web 67/451, workspace lint/typecheck,
 diff check, and 79/79-route build. This does not authorize a hosted DB replay or
 a paid Vercel deployment. Supabase duplicate-PO and Vercel spend gates remain
 closed.
+Post-push source evidence: `ce1ae6e` is on both target branches, the exact
+GitHub Railway check is successful, Railway safely skipped the API service,
+and its live readiness remains 200. Vercel reports no deployment after the
+push and the public URL is still the previous release; do not present the new
+GEO graph as production until a spend-approved deployment path exists.
 
 ## M3.47 proposal read target (2026-08-04)
 

@@ -17,6 +17,15 @@ setting/deployment, or Vercel build/promotion. Supabase remains blocked by the
 duplicate `PO-0002` migration preflight; Vercel remains disconnected and
 spend-protected. Exact next action: push once, verify source/provider status,
 and keep the DB/Vercel gates closed.
+Post-push evidence: `ce1ae6e` is on `main` and
+`agent-02/third-code-erp-landing` as `kurtgav`; GitHub's exact-SHA Railway
+check is `success`, Railway recorded the commit as `SKIPPED` with reason
+`No changes to watched files`, and live `/ready`/`/health` are 200. Vercel's
+post-push query returned zero deployments; the public site is still the older
+release (HTTP 200, brand/FAQ present, new `WebSite` graph absent). Supabase's
+default branch is `MIGRATIONS_FAILED` at 55 migrations, with the latest
+branch-action log failing the duplicate `PO-0002` uniqueness preflight using
+`SQLSTATE P0001`. No hosted DB or paid deployment was performed.
 
 ## 2026-08-04 - M3.47 proposal read tenant scope
 
