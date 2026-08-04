@@ -1,5 +1,26 @@
 # Next Actions
 
+## Exact next action after M3.70 inventory Warehouse update/deactivation command
+
+1. Keep `ERP_INVENTORY_WAREHOUSE_UPDATE_VIA_API=false`,
+   `ERP_INVENTORY_WAREHOUSE_UPDATE_TENANT_IDS` empty,
+   `ERP_INVENTORY_WAREHOUSE_UPDATE_WRITES_ENABLED=false`, and
+   `ERP_INVENTORY_WAREHOUSE_UPDATE_WRITES_TENANT_IDS` empty. Source and basic
+   Railway readiness/401 evidence are not protected tenant browser,
+   rollback, or hosted-schema proof.
+2. Preserve verified release identity: source SHA
+   `4737fec37f97360f8c3ffe6bc98f0bdc78a4cdf5`, Railway deployment
+   `382d281a-b022-4296-8b9d-ee84a07c80b1`, and live `/ready`/`/health` 200.
+   Docs-only follow-ups must stay outside API watch patterns; do not trigger a
+   second paid backend rebuild.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain supported
+   backup/export, dependent/audit export, owner-approved mapping, disposable
+   PostgreSQL 17 replay, and explicit spend cap before hosted action.
+4. Do not trigger Vercel previews or production builds. Keep the Git-disabled
+   project untouched to cap billing.
+5. Next source-only candidate: define a tenant-scoped Warehouse balance
+   closeout/readiness check before considering any protected canary.
+
 ## Exact next action after M3.69 inventory Warehouse creation command
 
 1. Keep `ERP_INVENTORY_WAREHOUSE_CREATE_VIA_API=false`,

@@ -13,6 +13,21 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.70 Inventory Warehouse update/deactivation command boundary (2026-08-05)
+
+Inventory setup now has a narrow Warehouse state authority in Nest. The
+command accepts only a trimmed name and explicit active boolean; Warehouse
+code and project scope remain immutable identity fields once stock evidence
+exists. Nest derives tenant and actor from the verified principal, rechecks
+`inventory.manage` inside one transaction, locks the tenant row, makes the
+state setter idempotent, and audits the before/after state. Next adoption stays
+behind an exact flag plus tenant allowlist, with the direct Server Action as
+compatibility path. Source SHA
+`4737fec37f97360f8c3ffe6bc98f0bdc78a4cdf5` is live on Railway as successful
+deployment `382d281a-b022-4296-8b9d-ee84a07c80b1`; readiness and health are
+200 and both unauthenticated Warehouse write routes return 401. No hosted
+schema/data or Vercel deployment is implied.
+
 ## M3.69 Inventory Warehouse creation command boundary (2026-08-05)
 
 Inventory setup now includes a narrow Warehouse creation authority in Nest.

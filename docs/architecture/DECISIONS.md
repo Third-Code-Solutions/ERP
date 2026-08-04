@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-180 - Inventory Warehouse state updates are tenant-scoped and canary-gated (2026-08-05)
+
+Decision: expose Warehouse state changes through
+`PATCH /v1/inventory/warehouses/:warehouseId`. Accept only a trimmed name and
+explicit active boolean; do not expose code or project scope because the
+database guard makes Warehouse identity immutable after receipt or movement
+evidence. Derive tenant and actor from the verified principal; recheck
+`inventory.manage` inside the transaction; lock the tenant row; make repeated
+state submissions idempotent; and write a semantic before/after audit record.
+Next adopts only through an exact flag and tenant allowlist; direct Server
+Action behavior remains default.
+
+Boundary: source and basic Railway API release are verified, but no protected
+tenant canary is approved. Source SHA
+`4737fec37f97360f8c3ffe6bc98f0bdc78a4cdf5` is deployment
+`382d281a-b022-4296-8b9d-ee84a07c80b1`; readiness/health are 200 and both
+unauthenticated route boundaries are 401. No Supabase migration/data action,
+Vercel build, or provider setting is implied. Rollback is the disabled adapter
+flag and prior API deployment.
+
 ## D-179 - Inventory Warehouse creation is tenant-scoped and canary-gated (2026-08-05)
 
 Decision: expose Warehouse setup through `POST /v1/inventory/warehouses`.
