@@ -4,6 +4,19 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.46 Command palette accessibility (source complete, 2026-08-04)
+
+The universal Search/Ask Cortex palette now has a pure wrapped-navigation
+helper, stable combobox/listbox relationships, announced loading/empty/error
+states, and a request-sequence guard that rejects late responses from an older
+query. Source checkpoint: `e3dc6d6` (`feat(web): harden command palette
+navigation`). Focused navigation/selection tests pass 7/7; the Web suite
+passes 66 files/450 tests. Workspace lint/typecheck, `git diff --check`, and
+the 79/79-route production build pass. Authenticated browser proof remains a
+provider-runtime gate when local Supabase DNS is unavailable. No hosted SQL,
+data, Storage, Railway setting, or Vercel build changed; the Supabase 55/87
+migration gate and Vercel spend gate remain closed.
+
 ## M3.45 Cortex search accessibility (source complete, 2026-08-04)
 
 Source checkpoint: `71c5cba` (`feat(web): harden cortex search navigation`).

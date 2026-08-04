@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.46 command palette accessibility
+
+1. Push the reviewed source/docs once to `main` and
+   `agent-02/third-code-erp-landing` as `kurtgav`; verify the exact GitHub
+   status and linked Railway service readiness. Do not trigger Vercel.
+2. Keep Supabase `aqqrtkmtcsfkbyyqxowv` unchanged at the 55/87 boundary until
+   supported backup, dependent-row/audit export, and owner-approved duplicate
+   `PO-0002` repair are available. Keep Vercel Git/deployments disconnected
+   and spend-protected.
+
 ## Exact next action after M3.45 Cortex search accessibility
 
 1. Re-run authenticated Cortex desktop/mobile browser proof from a runtime

@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-155 - Command palette owns one accessible result relationship (2026-08-04)
+
+Decision: make the input the single `combobox`, keep Search and Ask Cortex
+actions in one labelled `listbox`, and navigate with a pure wrapping index
+helper. Clear stale results before a new debounce cycle and sequence-check
+responses so abort races cannot reopen records from an earlier term.
+
+Reason: the palette is the ERP's fastest cross-module path. Stable ARIA IDs
+help keyboard and assistive-technology users understand the active choice,
+while deterministic navigation and late-response rejection protect the
+permissioned search contract without adding a new authority seam.
+
+Validation/release boundary: focused 7/7 and Web 66/450 pass; Web typecheck
+passes. Full workspace/build and authenticated browser gates remain open. No
+hosted data, schema, Railway setting, or Vercel deployment changed.
+
 ## D-154 - Cortex search selection is pure, actionable, and read-only (2026-08-04)
 
 Decision: keep keyboard navigation in a pure helper and let the Cortex graph

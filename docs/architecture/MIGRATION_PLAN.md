@@ -1,5 +1,22 @@
 # Migration Plan
 
+## M3.46 - command palette accessibility and race safety (source complete, 2026-08-04)
+
+Added a pure navigation helper and a presentation-only command-palette
+hardening slice. The input now owns combobox semantics; Search/Cortex options
+have stable IDs and announced status states; each debounced request is
+sequence-checked so an older response cannot replace a newer query.
+
+Source checkpoint: `e3dc6d6`. Validation: focused navigation/selection 7/7,
+Web 66 files/450 tests, workspace lint/typecheck, `git diff --check`, and the
+79/79-route production build pass. Authenticated browser proof remains open
+when local Supabase DNS cannot resolve. No migration is needed. Do not trigger
+Vercel or apply Supabase SQL for this source-only slice.
+
+Exact next action: push both target branches once, verify
+the exact GitHub/Railway SHA and live readiness, then record the unchanged
+Supabase/Vercel provider state.
+
 ## M3.45 - Cortex search accessibility (source complete, 2026-08-04)
 
 Source checkpoint: `71c5cba`. Added pure, tested result selection and
