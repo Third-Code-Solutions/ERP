@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 import { requestRateLimitKey } from '@/lib/request-rate-limit'
+import { isProtectedRoute } from '@/lib/protected-route'
 
 // ---------------------------------------------------------------------------
 // Rate limiting — in-memory sliding window per IP (Edge-compatible)
@@ -168,30 +169,6 @@ export async function middleware(request: NextRequest) {
   supabaseResponse.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
 
   return supabaseResponse
-}
-
-function isProtectedRoute(pathname: string): boolean {
-  const protectedPrefixes = [
-    '/dashboard',
-    '/projects',
-    '/pipeline',
-    '/bom',
-    '/invoices',
-    '/purchase-orders',
-    '/documents',
-    '/reports',
-    '/settings',
-    '/procurement',
-    // Third Code ERP modules added across the refactor
-    '/crm',
-    '/admin',
-    '/tasks',
-    '/permits',
-    '/punchlist',
-    '/warranty',
-    '/claims',
-  ]
-  return protectedPrefixes.some((prefix) => pathname.startsWith(prefix))
 }
 
 export const config = {

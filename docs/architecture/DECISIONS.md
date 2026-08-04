@@ -1,5 +1,17 @@
 # Architecture Decisions
 
+## D-143 - Gate browser ERP modules by exact route segments (2026-08-04)
+
+Decision: centralize browser-rendered protected prefixes and require an exact
+segment match. Include Cortex, finance, and inventory with existing dashboard
+modules. Keep `/api/*` outside redirect matching so API callers receive typed
+authorization responses from their handlers.
+
+Reason: `/cortex` previously reached its server component without middleware
+session gating, and finance/inventory had the same drift. A shared segment-safe
+contract prevents unauthenticated route rendering without weakening existing
+tenant/RBAC checks or turning API errors into login HTML.
+
 ## D-142 - Make authenticated Cortex responses private and non-cacheable (2026-08-04)
 
 Decision: apply `Cache-Control: private, no-store, max-age=0` and `Vary: Cookie`
