@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-04 - M3.46 command palette accessibility and race safety
+
+Implemented a bounded universal-search slice. The Search/Ask Cortex input now
+owns combobox semantics and the labelled result list exposes stable active
+option IDs. Arrow navigation wraps, status messages are announced, stale hits
+clear before debounce, and a request sequence guard prevents an older response
+from overwriting a newer term. Added pure helper tests and the measured spec/
+changeset.
+
+Validation: focused navigation/selection 7/7; Web 66 files/450 tests;
+workspace lint/typecheck, `git diff --check`, and the 79/79-route production
+build pass. Authenticated browser proof remains a provider-runtime gate when
+local Supabase DNS is unavailable. No Supabase SQL/row/Storage change, Railway
+setting/deployment mutation, or Vercel build/promotion occurred.
+
+Exact next action: finish source gates, push both target branches once, verify
+the exact GitHub/Railway SHA and live readiness, and preserve the Supabase
+55/87 and Vercel spend boundaries.
+
 ## 2026-08-04 - M3.45 Cortex search accessibility
 
 Implemented the next bounded Cortex/Obsidian UX slice. The graph search now

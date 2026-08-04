@@ -13,6 +13,21 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.46 universal command palette target (2026-08-04)
+
+Search and Ask Cortex share one calm, keyboard-first entry point. The input
+owns the combobox state, results expose stable active descendants, and the
+palette wraps navigation without opening a dead or stale destination. New
+terms clear old results and late network responses are ignored. This remains a
+read/navigation surface; existing server-side tenant and permission checks
+stay authoritative.
+
+Source validation is green at `e3dc6d6`: focused 7/7, Web 66/450, workspace
+lint/typecheck, diff check, and 79/79-route production build. Authenticated
+browser proof remains a provider-runtime gate. Keep Vercel Git disconnected
+and spend-protected, do not apply hosted SQL, and do not promote a
+source-only palette change as production-deployed evidence.
+
 ## M3.45 Cortex search target (2026-08-04)
 
 The Obsidian-like Cortex search must remain a read-only, tenant-authorized
