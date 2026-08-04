@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
-import { getCortexGraphStats } from '@third-code-erp/database'
+import { getCortexOperationalBrief } from '@third-code-erp/database'
 import { AccountNotProvisioned } from '@/components/auth/account-not-provisioned'
+import { CortexBriefPanel } from '@/components/cortex/cortex-brief-panel'
 import { CortexGraphView } from '@/components/cortex/cortex-graph-view'
 import { CortexAgent } from '@/components/cortex/cortex-agent'
 import { CortexIndexButton } from '@/components/cortex/cortex-index-button'
 import { canonicalRole } from '@/lib/operations/nav-config'
+import { presentCortexBrief } from '@/lib/cortex/brief-presentation'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
 
@@ -50,7 +52,12 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
       : null
 
   // RBAC: KPIs reflect only what this role may see (admin/owner = everything).
-  const stats = await getCortexGraphStats(profile.tenantId, cortexNodeTypeScope(profile.role))
+  const brief = await getCortexOperationalBrief(
+    profile.tenantId,
+    cortexNodeTypeScope(profile.role),
+    8
+  )
+  const stats = brief.stats
 
   const kpis = [
     { label: 'Records', value: stats.nodes },
@@ -82,6 +89,8 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
           </div>
         ))}
       </div>
+
+      <CortexBriefPanel brief={presentCortexBrief(brief)} />
 
       <div className="cortex-layout">
         <div className="cortex-layout__graph">
