@@ -65,6 +65,32 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_PO_CREATE_WRITES_TENANT_IDS')
   })
 
+  it('keeps project creation authority disabled and tenant-scoped', () => {
+    expect(
+      validateEnvironment(REQUIRED).ERP_PROJECT_CREATE_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED).ERP_PROJECT_CREATE_WRITES_TENANT_IDS
+    ).toEqual([])
+
+    const enabled = validateEnvironment({
+      ...REQUIRED,
+      ERP_PROJECT_CREATE_WRITES_ENABLED: 'true',
+      ERP_PROJECT_CREATE_WRITES_TENANT_IDS:
+        '22222222-2222-4222-8222-222222222222',
+    })
+    expect(enabled.ERP_PROJECT_CREATE_WRITES_ENABLED).toBe(true)
+    expect(enabled.ERP_PROJECT_CREATE_WRITES_TENANT_IDS).toEqual([
+      '22222222-2222-4222-8222-222222222222',
+    ])
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PROJECT_CREATE_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_PROJECT_CREATE_WRITES_TENANT_IDS')
+  })
+
   it('keeps BOM Purchase Order writes disabled and tenant-scoped', () => {
     expect(
       validateEnvironment(REQUIRED).ERP_PO_BOM_CREATE_WRITES_ENABLED

@@ -7,6 +7,7 @@ import {
   projectUpdateResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
+  projectCreationResultSchema,
   purchaseOrderCreationResultSchema,
   purchaseOrderBomCreationResultSchema,
   purchaseOrdersGroupedFromBomResultSchema,
@@ -42,6 +43,8 @@ import {
   type CreatePurchaseOrderCommand,
   type CreatePurchaseOrderFromBomCommand,
   type ProjectUpdateResult,
+  type CreateProjectCommand,
+  type ProjectCreationResult,
   type RfqCreationResult,
   type RfqDispatchResult,
   type RfqQuoteResult,
@@ -143,6 +146,14 @@ export function projectWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_PROJECT_WRITES_VIA_API,
     process.env.ERP_PROJECT_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function projectCreateWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PROJECT_CREATE_WRITES_VIA_API,
+    process.env.ERP_PROJECT_CREATE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -633,6 +644,54 @@ export async function updateProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project change was committed.',
+    }
+  }
+}
+
+export async function createProjectThroughCoreApi(
+  command: CreateProjectCommand
+): Promise<CoreResult<ProjectCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/projects`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'content-type': 'application/json',
+        'x-request-id': randomUUID(),
+      },
+      body: JSON.stringify(command),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    })
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 503
+            ? 'Project creation is not enabled for this tenant.'
+            : 'Project was not created.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = projectCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Project creation result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No Project was created.',
     }
   }
 }

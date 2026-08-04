@@ -34,6 +34,22 @@ const environmentSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
   REDIS_URL: z.string().url(),
   ERP_API_CORS_ORIGINS: z.string().default('http://localhost:3000'),
+  // Project creation authority stays fail-closed until idempotency and a
+  // tenant-scoped canary are approved.
+  ERP_PROJECT_CREATE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_PROJECT_CREATE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   RESEND_API_KEY: z.string().min(20).optional(),
   EMAIL_FROM: z.string().min(3).max(320).optional(),
   ERP_WEB_BASE_URL: optionalHttpUrl,

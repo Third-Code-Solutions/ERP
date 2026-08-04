@@ -4,7 +4,10 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common'
-import type { UpdateProjectCommand } from '@third-code-erp/shared-types'
+import type {
+  CreateProjectCommand,
+  UpdateProjectCommand,
+} from '@third-code-erp/shared-types'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -47,7 +50,7 @@ const COMMAND: UpdateProjectCommand = {
   expectedUpdatedAt: UPDATED_AT.toISOString(),
 }
 
-function harness(existingRows = [EXISTING]) {
+function harness(existingRows = [EXISTING], createEnabled = true) {
   const forUpdate = vi.fn().mockResolvedValue(existingRows)
   const limit = vi.fn().mockReturnValue({ for: forUpdate })
   const whereSelect = vi.fn().mockReturnValue({ limit })
@@ -70,7 +73,11 @@ function harness(existingRows = [EXISTING]) {
   const set = vi.fn().mockReturnValue({ where: whereUpdate })
   const update = vi.fn().mockReturnValue({ set })
 
-  const transactionClient = { select, update }
+  const insertReturning = vi.fn().mockResolvedValue([EXISTING])
+  const values = vi.fn().mockReturnValue({ returning: insertReturning })
+  const insert = vi.fn().mockReturnValue({ values })
+
+  const transactionClient = { select, update, insert }
   const transaction = vi
     .fn()
     .mockImplementation(
@@ -83,7 +90,16 @@ function harness(existingRows = [EXISTING]) {
   const audit = {
     stampActor: vi.fn().mockResolvedValue(undefined),
   } as unknown as AuditService
-  const service = new ProjectsService(database, audit)
+  const config = {
+    get: vi.fn((key: string, fallback: unknown) =>
+      key === 'ERP_PROJECT_CREATE_WRITES_ENABLED'
+        ? createEnabled
+        : key === 'ERP_PROJECT_CREATE_WRITES_TENANT_IDS'
+          ? [PRINCIPAL.tenantId]
+          : fallback
+    ),
+  } as unknown as import('@nestjs/config').ConfigService
+  const service = new ProjectsService(config, database, audit)
 
   return {
     service,
@@ -91,10 +107,66 @@ function harness(existingRows = [EXISTING]) {
     transactionClient,
     audit,
     set,
+    values,
   }
 }
 
 describe('ProjectsService', () => {
+  it('keeps project creation fail-closed until the tenant canary is enabled', async () => {
+    const probe = harness([EXISTING], false)
+    const command: CreateProjectCommand = {
+      name: 'New Project',
+      client: 'New Client',
+      status: 'lead',
+      projectType: null,
+      totalSqm: null,
+      location: null,
+      notes: null,
+    }
+
+    await expect(probe.service.create(command, PRINCIPAL)).rejects.toMatchObject(
+      { status: 503 }
+    )
+    expect(probe.transaction).not.toHaveBeenCalled()
+  })
+
+  it('creates tenant-scoped Project evidence inside one transaction', async () => {
+    const probe = harness()
+    const command: CreateProjectCommand = {
+      name: 'New Project',
+      client: 'New Client',
+      status: 'lead',
+      projectType: null,
+      totalSqm: null,
+      location: null,
+      notes: null,
+    }
+
+    const result = await probe.service.create(command, PRINCIPAL)
+
+    expect(probe.transaction).toHaveBeenCalledOnce()
+    expect(probe.audit.stampActor).toHaveBeenCalledWith(
+      probe.transactionClient,
+      PRINCIPAL
+    )
+    expect(probe.values).toHaveBeenCalledWith({
+      tenant_id: PRINCIPAL.tenantId,
+      created_by: PRINCIPAL.userId,
+      name: command.name,
+      client: command.client,
+      status: command.status,
+      project_type: null,
+      total_sqm: null,
+      location: null,
+      notes: null,
+    })
+    expect(result).toMatchObject({
+      id: EXISTING.id,
+      tenantId: PRINCIPAL.tenantId,
+      name: EXISTING.name,
+    })
+  })
+
   it('updates tenant-scoped Project evidence inside one transaction', async () => {
     const probe = harness()
 

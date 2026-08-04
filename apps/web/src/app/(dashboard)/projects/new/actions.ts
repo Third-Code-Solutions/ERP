@@ -1,11 +1,15 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { requireUser } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { projects, users } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import {
+  createProjectThroughCoreApi,
+  projectCreateWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 
 const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
@@ -17,7 +21,8 @@ const createProjectSchema = z.object({
 })
 
 export async function createProject(formData: FormData) {
-  const user = await requireUser()
+  const profile = await requireUserProfile()
+  const user = profile.user
 
   const [userRow] = await db
     .select({ tenant_id: users.tenant_id })
@@ -36,6 +41,23 @@ export async function createProject(formData: FormData) {
     total_sqm: formData.get('total_sqm') || undefined,
     notes: formData.get('notes') || undefined,
   })
+
+  if (projectCreateWritesUseCoreApi(profile.tenantId)) {
+    requireCapability(profile, 'project.create')
+    const result = await createProjectThroughCoreApi({
+      name: input.name,
+      client: input.client,
+      status: 'lead',
+      projectType: input.project_type ?? null,
+      totalSqm: input.total_sqm ?? null,
+      location: input.location ?? null,
+      notes: input.notes ?? null,
+    })
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Project was not created')
+    }
+    redirect(`/projects/${result.data.id}`)
+  }
 
   const [inserted] = await db
     .insert(projects)

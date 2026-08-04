@@ -38,6 +38,8 @@ import {
   rfqTerminalWritesUseCoreApi,
   transitionRfqThroughCoreApi,
   transitionPurchaseOrderThroughCoreApi,
+  createProjectThroughCoreApi,
+  projectCreateWritesUseCoreApi,
   updateProjectThroughCoreApi,
   financeJournalPostWritesUseCoreApi,
   financeJournalReverseWritesUseCoreApi,
@@ -307,6 +309,16 @@ const RESULT = {
   notes: 'Controlled update',
   updatedAt: '2026-07-28T00:00:00.000Z',
 }
+const CREATED_PROJECT_RESULT = {
+  ...RESULT,
+  status: 'lead' as const,
+  projectType: null,
+  totalSqm: null,
+  location: null,
+  notes: null,
+  createdAt: '2026-08-04T00:00:00.000Z',
+  updatedAt: '2026-08-04T00:00:00.000Z',
+}
 
 describe('ERP Core client', () => {
   beforeEach(() => {
@@ -369,6 +381,26 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PROJECT_WRITES_VIA_API_TENANT_IDS', '*')
     expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(projectWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Project creation delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_PROJECT_CREATE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(projectCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API', 'TRUE')
+    expect(projectCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API_TENANT_IDS', '')
+    expect(projectCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(projectCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(projectCreateWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Purchase Order writes fail-closed unless its independent gate matches', () => {
@@ -1902,6 +1934,44 @@ describe('ERP Core client', () => {
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
       ),
     })
+  })
+
+  it('creates a Project through the Nest command boundary and validates its response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(CREATED_PROJECT_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createProjectThroughCoreApi({
+        name: 'New Project',
+        client: 'New Client',
+        status: 'lead',
+        projectType: null,
+        totalSqm: null,
+        location: null,
+        notes: null,
+      })
+    ).resolves.toEqual({ ok: true, data: CREATED_PROJECT_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/projects',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'New Project',
+          client: 'New Client',
+          status: 'lead',
+          projectType: null,
+          totalSqm: null,
+          location: null,
+          notes: null,
+        }),
+      })
+    )
   })
 
   it('keeps RFQ quote writes on the legacy path unless its exact flag and tenant match', () => {

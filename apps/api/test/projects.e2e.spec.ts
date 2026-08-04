@@ -30,6 +30,85 @@ describe('Projects API contract', () => {
   })
 
   it(
+    'creates a Project through the typed POST command boundary',
+    async () => {
+      const create = vi.fn().mockResolvedValue({
+        id: PROJECT_ID,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        name: 'New Project',
+        client: 'New Client',
+        status: 'lead',
+        projectType: null,
+        totalSqm: null,
+        location: null,
+        notes: null,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T00:00:00.000Z',
+      })
+      const moduleRef = await Test.createTestingModule({
+        controllers: [ProjectsController],
+        providers: [
+          {
+            provide: ProjectsService,
+            useValue: { create, update: vi.fn() },
+          },
+        ],
+      }).compile()
+      const app = moduleRef.createNestApplication()
+      app.use(
+        (
+          req: Request,
+          _res: Response,
+          next: NextFunction
+        ) => {
+          ;(req as AuthenticatedRequest).principal = {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId:
+              '22222222-2222-4222-8222-222222222222',
+            role: 'admin',
+            email: 'admin@example.test',
+          }
+          next()
+        }
+      )
+      app.useGlobalPipes(
+        new ValidationPipe({
+          transform: true,
+          whitelist: true,
+          forbidNonWhitelisted: true,
+        })
+      )
+      await app.init()
+      close = () => app.close()
+
+      const response = await request(app.getHttpServer())
+        .post('/v1/projects')
+        .send({ name: 'New Project', client: 'New Client' })
+        .expect(201)
+
+      expect(response.body).toMatchObject({
+        id: PROJECT_ID,
+        status: 'lead',
+      })
+      expect(create).toHaveBeenCalledWith(
+        {
+          name: 'New Project',
+          client: 'New Client',
+          status: 'lead',
+          projectType: null,
+          totalSqm: null,
+          location: null,
+          notes: null,
+        },
+        expect.objectContaining({
+          tenantId: '22222222-2222-4222-8222-222222222222',
+        })
+      )
+    },
+    HTTP_TEST_TIMEOUT_MS
+  )
+
+  it(
     'preserves the Project update HTTP contract for existing UUID formats',
     async () => {
       const update = vi.fn().mockResolvedValue({
@@ -211,7 +290,7 @@ describe('Projects API contract', () => {
         providers: [
           {
             provide: ProjectsService,
-            useValue: { update: vi.fn() },
+            useValue: { create: vi.fn(), update: vi.fn() },
           },
         ],
       }).compile()

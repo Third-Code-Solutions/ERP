@@ -144,6 +144,7 @@ export function hasRole(role: AppRole, minRole: AppRole): boolean {
  * and route guards. Returns true if the role is in the allow-list.
  */
 export type ErpCapability =
+  | 'project.create'
   | 'account.create'
   | 'account.kyc_review'
   | 'opportunity.create'
@@ -186,6 +187,7 @@ export type ErpCapability =
   | 'budget.approve_finance'
 
 const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
+  'project.create': ['admin', 'owner', 'sales', 'commercial', 'sd_pm_pe', 'pm', 'estimator'],
   // CRM
   'account.create': ['admin', 'owner', 'sales'],
   'account.kyc_review': ['admin', 'owner', 'finance'],
