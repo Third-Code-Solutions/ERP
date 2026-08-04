@@ -3,7 +3,7 @@
 ## 2026-08-04 - M3.37 live-provider incident and catalog reconciliation audit
 
 Read-only checks verified the source and provider boundary after M3.36. Both
-GitHub target branches point to `ead237c028641af384283ec8498ef3c3cdbb92fe`
+GitHub target branches point to `318b7e0d9efdc115624d70a43384f086d10a73b2`
 under `kurtgav`; Railway `/ready` and `/health` returned HTTP 200 with
 database/Redis healthy. Vercel remains Git-disconnected and `live:false`.
 
