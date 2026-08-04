@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-05 - M3.68 inventory UOM creation command boundary
+
+Implemented one inventory setup vertical slice. Shared types define strict
+UOM creation input/result. Nest owns `POST /v1/inventory/uoms`, rechecks tenant
+membership and `inventory.manage` inside a transaction, enforces tenant/code
+uniqueness, creates the row, and appends semantic audit evidence. Next uses
+the adapter only behind a disabled exact flag and allowlist; direct Server
+Action behavior remains unchanged by default.
+
+Results: shared 17/180; API 73/346; Web 80/515; focused UOM contract,
+transaction, HTTP, client, and action tests; all typechecks; serial root lint;
+Nest build; Web 80-route build; and `git diff --check`. No Supabase SQL/data
+or provider setting changed and no Vercel preview/production build occurred.
+
+Source commit `ae6d7992ebdfcb0439f181ecdcd72b9cb8673c2b` was pushed to both
+target GitHub refs under `kurtgav`. Railway deployment
+`5ffd0087-7951-4111-92b6-72293cadef14` completed `SUCCESS` for that exact SHA.
+Its initial provider snapshot briefly reported stale Railpack/web metadata;
+the settled deployment manifest is the API Dockerfile with `/ready` healthcheck
+and `node apps/api/dist/main.js`. Live `/ready` and `/health` returned 200
+with database and Redis healthy; unauthenticated UOM creation returned 401.
+The UOM canary and related flags remain false/empty. Vercel remains untouched
+to control spend; Supabase remains read-only at 55/87.
+
 ## 2026-08-05 - M3.67 inventory item policy command boundary
 
 Defined and implemented one vertical write slice. Shared types now expose a

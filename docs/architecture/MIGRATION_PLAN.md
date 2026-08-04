@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.68 - Inventory UOM creation command boundary (2026-08-05)
+
+Implemented `POST /v1/inventory/uoms` as a strict tenant-scoped Nest command.
+The transaction locks and rechecks membership/capability, checks the tenant
+UOM code, uses a database uniqueness conflict guard, creates the UOM, and
+writes semantic audit evidence. The Next adapter is exact-flag plus
+tenant-allowlist gated; direct Server Action behavior remains default. No
+migration was added.
+
+Validation: shared 17/180, API 73/346, Web 80/515, focused UOM tests,
+typechecks, serial lint, Nest build, Web production build, and
+`git diff --check`. Commit `ae6d7992ebdfcb0439f181ecdcd72b9cb8673c2b` is
+pushed to both target refs. Railway deployment
+`5ffd0087-7951-4111-92b6-72293cadef14` is `SUCCESS` for that exact SHA using
+the settled `apps/api/Dockerfile` manifest; `/ready` and `/health` are 200
+with database and Redis healthy, and unauthenticated UOM creation is 401.
+Rollback is the disabled adapter flag or prior successful API deployment; no
+hosted state requires repair. No Supabase or Vercel provider action was
+triggered.
+
 ## M3.67 - Inventory item policy command boundary (2026-08-05)
 
 Implemented a strict, tenant-scoped Nest command for setting a material item’s

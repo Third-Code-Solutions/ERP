@@ -4,6 +4,30 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.68 Inventory UOM creation command boundary (2026-08-05)
+
+Added a strict `POST /v1/inventory/uoms` Nest command for tenant-owned Unit of
+Measure setup. The transaction rechecks membership and `inventory.manage`,
+locks the actor membership, enforces tenant/code uniqueness, inserts only
+validated code/name/decimal-place fields, and writes a semantic audit record.
+The result carries tenant identity and database timestamps. The Next inventory
+Server Action delegates only when `ERP_INVENTORY_UOM_CREATE_VIA_API=true` and
+its exact tenant allowlist matches; direct database insertion remains default.
+No schema migration or UI layout/copy change was made.
+
+Validation: shared 17 files/180 tests; API 73 files/346 tests; Web 80
+files/515 tests; focused UOM contract/service/controller/client/action tests;
+shared/API/Web typecheck; serial root lint; Nest build; Web 80-route
+production build; and `git diff --check`. Source commit
+`ae6d7992ebdfcb0439f181ecdcd72b9cb8673c2b` is pushed to both target refs
+under `kurtgav`. Railway deployment
+`5ffd0087-7951-4111-92b6-72293cadef14` is `SUCCESS` for that exact SHA with
+the settled `apps/api/Dockerfile` manifest, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` are 200 with
+PostgreSQL and Redis healthy; unauthenticated `POST /v1/inventory/uoms`
+returns 401. Supabase remains read-only at 55/87; Vercel remains untouched
+for spend control. The UOM canary and all new write flags remain disabled.
+
 ## M3.67 Inventory item policy command boundary (2026-08-05)
 
 Added the smallest inventory setup write seam: Nest

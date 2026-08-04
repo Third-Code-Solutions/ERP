@@ -13,6 +13,19 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.68 Inventory UOM creation command boundary (2026-08-05)
+
+Inventory setup now has a narrow UOM creation authority in Nest. The command
+accepts only code, name, and decimal precision; derives tenant and actor from
+the verified principal; rechecks `inventory.manage` inside one transaction;
+enforces tenant-scoped uniqueness; and audits the create. Next adoption stays
+behind an exact flag plus tenant allowlist, with direct Server Action behavior
+as compatibility path. Source SHA `ae6d7992ebdfcb0439f181ecdcd72b9cb8673c2b`
+is live on Railway as successful deployment
+`5ffd0087-7951-4111-92b6-72293cadef14`; readiness and health are 200 and the
+unauthenticated UOM route returns 401. No hosted schema/data or Vercel
+deployment is implied.
+
 ## M3.66 Inventory summary authority seam and read-only ledger (2026-08-05)
 
 The safe inventory slice is now implemented as a tenant-scoped Nest summary

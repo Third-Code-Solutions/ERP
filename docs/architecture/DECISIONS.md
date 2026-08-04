@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-178 - Inventory UOM creation is tenant-scoped and canary-gated (2026-08-05)
+
+Decision: expose UOM setup through `POST /v1/inventory/uoms`. Accept only
+code, name, and decimal precision; derive tenant and actor from the verified
+principal; recheck `inventory.manage` inside the transaction; enforce the
+tenant/code unique constraint; and write a semantic audit record. Next adopts
+only through an exact flag and tenant allowlist; direct Server Action behavior
+remains default.
+
+Boundary: source and basic Railway API release are verified, but no protected
+tenant canary is approved. Source SHA
+`ae6d7992ebdfcb0439f181ecdcd72b9cb8673c2b` is deployment
+`5ffd0087-7951-4111-92b6-72293cadef14`; readiness/health are 200 and the
+unauthenticated route boundary is 401. No Supabase migration/data action,
+Vercel build, or provider setting is implied. Rollback is the disabled adapter
+flag and prior API deployment.
+
 ## D-177 - Inventory item policy writes are transactional and canary-gated (2026-08-05)
 
 Decision: expose item policy changes through Nest
