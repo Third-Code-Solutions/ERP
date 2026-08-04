@@ -15,9 +15,12 @@ the core authority without a big-bang rewrite, browser-side sensitive reads,
 cross-tenant leakage, or loss of exact numeric integrity.
 
 Boundary: direct server-side inventory reads remain default. The adapter
-rejects tenant drift, truncation, and unsafe display numbers. No Supabase
-schema, hosted migration, Vercel build, or provider setting is implied. The
-55/87 migration ledger remains read-only pending supported recovery and replay.
+rejects tenant drift, truncation, and unsafe display numbers. Source SHA
+`4da9772516f80255a2cb4adbe376d4ca733513e4` is deployed successfully on
+Railway with readiness, route, and unauthenticated 401 evidence. No Supabase
+schema/hosted migration or Vercel build/provider action is implied; the
+55/87 migration ledger remains read-only pending supported recovery and replay,
+and the canary flag remains disabled.
 
 ## D-175 - CRM opportunity detail reads are bounded and canary-gated (2026-08-05)
 

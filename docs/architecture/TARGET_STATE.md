@@ -20,9 +20,13 @@ read. It returns strict shared types, exact bigint money/quantity strings,
 bounded collections, explicit `inventory.read`, repeated tenant predicates,
 and no browser write authority. Next adoption remains disabled behind an
 exact flag and tenant allowlist; the existing inventory page is the
-compatibility path. The hosted migration ledger remains read-only at 55/87
-until recovery/export, dependency audit, owner mapping, and disposable
-PostgreSQL 17 replay gates are complete.
+compatibility path. Source SHA `4da9772516f80255a2cb4adbe376d4ca733513e4`
+is live on Railway as successful deployment
+`6ba50aba-0f58-4f02-b7b4-655b3e71a70f`; readiness is 200 and the protected
+route returns 401 without a principal. The hosted migration ledger remains
+read-only at 55/87 until recovery/export, dependency audit, owner mapping,
+and disposable PostgreSQL 17 replay gates are complete. Vercel remains
+deployment-disabled for this slice.
 
 ## M3.65 CRM opportunity detail graph boundary (2026-08-05)
 
