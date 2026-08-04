@@ -44,6 +44,13 @@ type TeamPriority = {
   context: string
 }
 
+type CortexQuery = {
+  id: string
+  label: string
+  answer: string
+  sources: string[]
+}
+
 const capabilities: Capability[] = [
   {
     id: 'find',
@@ -133,6 +140,30 @@ const teamPriorities: TeamPriority[] = [
   },
 ]
 
+const cortexQueries: CortexQuery[] = [
+  {
+    id: 'attention',
+    label: 'What needs attention now?',
+    answer:
+      'Harbor Point needs a delivery confirmation before tomorrow’s slab pour. The open supplier response and site task share the same project record.',
+    sources: ['Harbor Point · site task', 'PO-1042 · supplier response', 'Schedule · pour milestone'],
+  },
+  {
+    id: 'margin',
+    label: 'Why did margin move?',
+    answer:
+      'Forecast margin moved 2.4 points after the approved steel variation. The estimate, change request, and cost entry are linked for review.',
+    sources: ['Harbor Point · cost forecast', 'VO-018 · approved variation', 'Cost ledger · steel package'],
+  },
+  {
+    id: 'blocker',
+    label: 'What is blocking delivery?',
+    answer:
+      'The delivery is waiting on an inspection completion. No inventory or payment state changes until an authorized reviewer closes that step.',
+    sources: ['Delivery · inspection state', 'Stock receipt · pending', 'Approval policy · reviewer required'],
+  },
+]
+
 const proofItems = [
   'CRM',
   'Estimating',
@@ -210,6 +241,7 @@ function ProductIcon({ name }: { name: IconName }) {
 export function ThirdCodeLanding() {
   const root = useRef<HTMLElement>(null)
   const [activeCapability, setActiveCapability] = useState('find')
+  const [activeCortexQuery, setActiveCortexQuery] = useState('attention')
   const [priorityIndex, setPriorityIndex] = useState(0)
 
   useGSAP(
@@ -283,6 +315,8 @@ export function ThirdCodeLanding() {
   )
 
   const currentPriority = teamPriorities[priorityIndex] ?? teamPriorities[0]!
+  const currentCortexQuery =
+    cortexQueries.find((query) => query.id === activeCortexQuery) ?? cortexQueries[0]!
 
   function movePriority(direction: -1 | 1) {
     setPriorityIndex((current) => {
@@ -438,6 +472,34 @@ export function ThirdCodeLanding() {
                 Cortex reasons across live ERP records, relationships, documents,
                 history, and approvals while staying inside each user&apos;s access.
               </p>
+              <div aria-label="Cortex query preview" className={styles.cortexDemo}>
+                <div className={styles.cortexDemoHeader}>
+                  <span className={styles.cortexPulse} />
+                  <span>Cortex preview</span>
+                  <small>Read-only</small>
+                </div>
+                <div className={styles.cortexQueries} role="list">
+                  {cortexQueries.map((query) => (
+                    <button
+                      aria-pressed={activeCortexQuery === query.id}
+                      className={styles.cortexQuery}
+                      key={query.id}
+                      onClick={() => setActiveCortexQuery(query.id)}
+                      type="button"
+                    >
+                      {query.label}
+                    </button>
+                  ))}
+                </div>
+                <div aria-live="polite" className={styles.cortexAnswer}>
+                  <p>{currentCortexQuery.answer}</p>
+                  <div className={styles.cortexSources}>
+                    {currentCortexQuery.sources.map((source) => (
+                      <span key={source}>{source}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
               <div aria-label="Example Cortex relationship graph" className={styles.graphVisual}>
                 <span className={styles.graphNode}>Project</span>
                 <span className={styles.graphNode}>BOM</span>

@@ -1,5 +1,17 @@
 # Architecture Decisions
 
+## D-141 - Keep public Cortex preview read-only (2026-08-04)
+
+Decision: demonstrate Cortex on the marketing page with bounded sample
+questions, deterministic answer/source states, and no network or ERP mutation.
+Expose state through `aria-pressed` and `aria-live`; reserve real retrieval,
+citations, permissions, and approvals for the authenticated Cortex surface.
+
+Reason: the landing page must explain the AI brain without implying that an
+anonymous visitor can inspect tenant data or finalize a transaction. A local
+preview improves comprehension while preserving the Nest/PostgreSQL authority
+boundary and keeping marketing interaction independent from hosted DB state.
+
 ## D-140 - Reconcile the complete migration ledger before hosted apply (2026-08-04)
 
 Decision: treat the 55-row hosted Supabase ledger and 85-file source ledger as

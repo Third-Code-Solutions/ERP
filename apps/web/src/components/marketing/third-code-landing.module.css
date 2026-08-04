@@ -508,6 +508,99 @@
   min-height: 600px;
 }
 
+.cortexDemo {
+  display: grid;
+  gap: 12px;
+  margin-top: 30px;
+  padding: 16px;
+  border: 1px solid rgba(245, 240, 232, 0.12);
+  border-radius: 10px;
+  background: rgba(245, 240, 232, 0.035);
+}
+
+.cortexDemoHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(245, 240, 232, 0.72);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.cortexDemoHeader small {
+  margin-left: auto;
+  color: rgba(245, 240, 232, 0.38);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.cortexPulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--landing-copper-light);
+  box-shadow: 0 0 0 4px rgba(237, 189, 148, 0.1);
+}
+
+.cortexQueries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.cortexQuery {
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 1px solid rgba(245, 240, 232, 0.14);
+  border-radius: 999px;
+  color: rgba(245, 240, 232, 0.68);
+  background: rgba(245, 240, 232, 0.035);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.cortexQuery:hover,
+.cortexQuery[aria-pressed='true'] {
+  border-color: rgba(237, 189, 148, 0.54);
+  color: var(--landing-ivory);
+  background: rgba(208, 138, 87, 0.14);
+  transform: translateY(-1px);
+}
+
+.cortexAnswer {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.cortexAnswer p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--landing-ivory);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.cortexSources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cortexSources span {
+  padding: 5px 8px;
+  border-radius: 4px;
+  color: rgba(245, 240, 232, 0.48);
+  background: rgba(245, 240, 232, 0.05);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
 .operationsCard,
 .complianceCard {
   grid-column: span 5;
@@ -1506,6 +1599,15 @@
 
   .brainCard {
     min-height: 560px;
+  }
+
+  .cortexDemo {
+    padding: 14px;
+  }
+
+  .cortexQuery {
+    width: 100%;
+    min-height: 44px;
   }
 
   .bentoCard h3 {
