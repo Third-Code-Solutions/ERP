@@ -20,6 +20,15 @@
    enabling one tenant canary. Python remains advisory and cannot approve the
    supplier decision.
 
+Completed source/provider verification: `386fd2a` is on both branches;
+GitHub/Railway is `success` with Railway deployment
+`430e835a-c2bc-4dfb-8994-a5b7e5a0e1ce` `SUCCESS`, `/ready` and `/health` are
+healthy, the closed read probe is `503`, and Vercel has zero deployments after
+the push. Supabase is unchanged at 55 migrations and its latest branch-action
+log still fails the duplicate `PO-0002` preflight. The next action is the
+recoverable backup/owner-approved repair and ordered hosted replay, not another
+deployment attempt.
+
 ## Exact next action after M3.48 landing GEO structured data
 
 1. Preserve source/docs SHA `d8520f4` on `main` and

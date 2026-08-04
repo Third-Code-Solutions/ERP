@@ -30,6 +30,20 @@ provider setting changed. Source remains gated until the ordered hosted schema
 suffix, duplicate-PO repair, token threat-model, rollback, and spend gates
 clear.
 
+Post-push evidence for source `386fd2a1cf38e4f973e6cf5f9c10e80332c20d7c`:
+`main` and `agent-02/third-code-erp-landing` both point to the SHA. GitHub's
+exact-SHA `ERP - Third Code ERP API` check is `success`; Railway deployment
+`430e835a-c2bc-4dfb-8994-a5b7e5a0e1ce` is `SUCCESS` for `kurtgav`, and live
+`/ready` reports database/Redis `ok` while `/health` reports `ok`. The valid
+format public read probe returns `503` with the read gate closed. Vercel's
+read-only deployment query returns zero deployments after the push, so no paid
+frontend build ran. Supabase remains read-only at 55 migrations; the project
+is `ACTIVE_HEALTHY`, the branch API was transiently `CREATING_PROJECT`, and
+the latest branch-action log still fails
+`20260801090000_purchase_order_create_idempotency.sql` with `SQLSTATE P0001`
+for duplicate tenant `PO-0002` rows. No hosted SQL/data or provider setting
+was changed.
+
 ## M3.48 Landing GEO structured data (source complete, 2026-08-04)
 
 The public landing route now emits one linked Schema.org graph for the Third
