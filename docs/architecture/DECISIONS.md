@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-164 - Cortex source lookup is explicit and cost-bounded (2026-08-04)
+
+Decision: keep the global palette's Search records mode on its existing API
+path. Add Cortex graph lookup only inside the explicitly selected Ask Cortex
+mode, after two or more characters, with debounce, abort/stale-response
+guards, the existing server hit cap, tenant/role scope, and canonical-href
+filtering. Keep source navigation read-only and keep the final Ask Cortex row
+as the only draft-handoff action.
+
+Reason: operators need to find the evidence behind the AI brain, but every
+keystroke must not become an LLM/provider bill or an ERP authority path. A
+separate source result stack improves discoverability while preserving the
+existing low-cost search behavior and explicit user intent.
+
+Validation/release boundary: source `6c975261` passes focused/full Web tests,
+workspace gates, and the 80/80 build. GitHub/Railway is green; no Vercel
+deployment, Supabase SQL/data, Storage, or Railway setting changed.
+
 ## D-163 - Product clean-room scan excludes research provenance (2026-08-04)
 
 Decision: enforce forbidden legacy/vendor markers across product-facing web,

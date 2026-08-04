@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.54 - Cortex sources in the command palette (source complete, 2026-08-04)
+
+Added an explicit Ask Cortex mode to the existing global palette. It searches
+the existing bounded Cortex source contract only after mode selection and a
+two-character term, normalizes away unsafe/non-actionable nodes, and keeps
+canonical navigation separate from the explicit AI handoff. Default record
+search behavior and request volume are unchanged.
+
+Changed files: `apps/web/src/components/nav/command-palette.tsx`,
+`apps/web/src/lib/cortex/command-palette-search.ts` and test, plus
+`docs/research/components/command-palette-cortex-sources.spec.md`.
+
+Validation: focused tests 14/14; full Web 72 files/465 tests; workspace lint,
+typecheck, `git diff --check`, and 80/80-route production build pass. The
+parallel full-gate attempt was discarded because concurrent build/typecheck
+processes removed shared `.next` type artifacts; the sequential rerun passed.
+
+Source `6c975261122c635668a4b80795549cb06fb63843` was pushed once to `main`
+and `agent-02/third-code-erp-landing` as `kurtgav`. GitHub/Railway is green,
+live Railway readiness is healthy, Vercel has zero deployments since
+`1785840000000`, and Supabase remains unchanged at 55/87. No hosted mutation
+or paid frontend action occurred.
+
+Next gate: supported Supabase backup plus dependent-row/audit export and
+owner-approved mapping for the 12 duplicate Purchase Orders, followed by
+read-only planner and disposable PostgreSQL 17 replay. Keep Vercel closed.
+
 ## M3.53 - Clean-room runtime branding audit (source complete, 2026-08-04)
 
 Expanded `branding-clean-room.test.ts` to scan web source/public, API source,
