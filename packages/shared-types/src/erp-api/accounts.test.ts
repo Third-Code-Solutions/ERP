@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  accountDetailResultSchema,
   accountListQuerySchema,
   accountListResultSchema,
 } from './accounts'
@@ -58,5 +59,65 @@ describe('account ERP API contracts', () => {
         totalPages: 1,
       })
     ).toHaveProperty('rows[0].tenantId', TENANT_ID)
+  })
+
+  it('validates a tenant-owned account detail graph', () => {
+    const timestamp = '2026-08-04T00:00:00.000Z'
+    const parsed = accountDetailResultSchema.safeParse({
+      account: {
+        id: ACCOUNT_ID,
+        tenantId: TENANT_ID,
+        name: 'Acme Office',
+        industry: 'office',
+        billingAddress: null,
+        primaryEmail: null,
+        primaryPhone: null,
+        kycStatus: 'approved',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        createdBy: null,
+        opportunityCount: 1,
+        kycNotes: null,
+        kycDecidedAt: null,
+        kycDecidedBy: null,
+        cnpsScoreX10: null,
+      },
+      contacts: [],
+      kycArtifacts: [],
+      opportunities: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          tenantId: TENANT_ID,
+          accountId: ACCOUNT_ID,
+          projectId: null,
+          stage: 'lead',
+          tcvCents: 100,
+          gpCents: 20,
+          probability: 10,
+          weightedTcvCents: 10,
+          areaSqm: null,
+          opportunityType: null,
+          closingDate: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+      ],
+      projects: [],
+    })
+    expect(parsed.success).toBe(true)
+  })
+
+  it('rejects invalid detail ownership metadata', () => {
+    const parsed = accountDetailResultSchema.safeParse({
+      account: {
+        id: ACCOUNT_ID,
+        tenantId: 'not-a-uuid',
+      },
+      contacts: [],
+      kycArtifacts: [],
+      opportunities: [],
+      projects: [],
+    })
+    expect(parsed.success).toBe(false)
   })
 })

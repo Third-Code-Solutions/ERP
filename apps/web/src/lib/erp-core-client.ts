@@ -8,6 +8,7 @@ import {
   projectReadResultSchema,
   projectListResultSchema,
   accountListResultSchema,
+  accountDetailResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   projectCreationResultSchema,
@@ -51,6 +52,7 @@ import {
   type ProjectListResult,
   type AccountListQuery,
   type AccountListResult,
+  type AccountDetailResult,
   type CreateProjectCommand,
   type ProjectCreationResult,
   type RfqCreationResult,
@@ -960,6 +962,55 @@ export async function getAccountsThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Account list was not read.',
+    }
+  }
+}
+
+export async function getAccountThroughCoreApi(
+  accountId: string
+): Promise<CoreResult<AccountDetailResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/accounts/${encodeURIComponent(accountId)}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 404
+            ? 'Account not found.'
+            : 'Account detail was not completed.',
+      }
+    }
+
+    const parsed = accountDetailResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Account detail result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Account detail was not read.',
     }
   }
 }

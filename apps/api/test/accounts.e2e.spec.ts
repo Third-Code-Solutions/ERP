@@ -68,4 +68,40 @@ describe('Accounts API contract', () => {
       expect.objectContaining({ tenantId: TENANT_ID })
     )
   })
+
+  it('passes a UUID account detail read to the tenant-scoped service', async () => {
+    const accountId = '33333333-3333-4333-8333-333333333333'
+    const read = vi.fn().mockResolvedValue({
+      account: { id: accountId, tenantId: TENANT_ID },
+      contacts: [],
+      kycArtifacts: [],
+      opportunities: [],
+      projects: [],
+    })
+    const moduleRef = await Test.createTestingModule({
+      controllers: [AccountsController],
+      providers: [{ provide: AccountsService, useValue: { list: vi.fn(), read } }],
+    }).compile()
+    const app = moduleRef.createNestApplication()
+    app.use((req: Request, _res: Response, next: NextFunction) => {
+      ;(req as AuthenticatedRequest).principal = {
+        userId: '11111111-1111-4111-8111-111111111111',
+        tenantId: TENANT_ID,
+        role: 'admin',
+        email: 'admin@example.test',
+      }
+      next()
+    })
+    await app.init()
+    close = () => app.close()
+
+    await request(app.getHttpServer())
+      .get(`/v1/crm/accounts/${accountId}`)
+      .expect(200)
+
+    expect(read).toHaveBeenCalledWith(
+      accountId,
+      expect.objectContaining({ tenantId: TENANT_ID })
+    )
+  })
 })
