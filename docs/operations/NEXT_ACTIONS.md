@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.78 disposable replay gate
+
+1. Keep all ERP workflow API flags false and all tenant allowlists empty. The
+   disposable replay proves source correctness only; it is not protected
+   browser, hosted-data, rollback, or production-canary evidence.
+2. Preserve the source correction commit
+   `a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` and do not trigger a Railway
+   build for the test/docs-only follow-up. Keep Vercel Git disabled and do not
+   create previews or production builds.
+3. Keep Supabase project `aqqrtkmtcsfkbyyqxowv` read-only at 55/90. The
+   read-only verifier's three failures are expected: the 35-entry ordered
+   suffix, two source-only command ledgers, and six source-only indexes.
+4. Obtain a supported backup/export and dependent/audit export; restore an
+   isolated clone and compare catalog, row/data, RLS, tenant, audit, and
+   financial totals against the clean replay. Record owner-approved mappings,
+   rollback proof, and an explicit spend cap.
+5. Only after those gates pass may a named-tenant protected-browser canary for
+   Stock Movement post/reverse be reviewed. Do not apply the pending suffix or
+   enable its flags from local replay evidence alone.
+
 ## Exact next action after M3.77 Stock Movement post/reverse seam
 
 1. Keep `ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_VIA_API=false`,

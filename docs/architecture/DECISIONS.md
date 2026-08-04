@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-188 - Clean replay is a prerequisite to hosted migration (2026-08-05)
+
+Decision: treat the disposable PostgreSQL 17 + Redis lane as a hard release
+gate, not as a substitute for hosted reconciliation. A zero-state replay must
+apply every source migration, run the database/API integration suites with no
+skips, and prove schema-before/schema-after equality. Runtime fixtures must
+assert both sides of the Warehouse closeout contract: nonzero balances cannot
+be deactivated, while explicit reversal events remain valid for legacy
+inactive evidence.
+
+The gate passed locally at 90/90, 108 suites, 311 tests, and identical schema
+hashes. Supabase remains read-only at 55/90; clone restore, catalog/data/RLS
+comparison, owner mapping, rollback, browser canary, and spend approval are
+still separate decisions. This does not authorize SQL, provider changes, or a
+Vercel build.
+
 ## D-187 - Stock Movement post/reverse remains opt-in and idempotent (2026-08-05)
 
 Decision: expose post and reverse only through strict Nest command endpoints

@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-05 - M3.78 disposable replay and Warehouse fixture correction
+
+Ran the repo's WSL disposable lane from an empty database using PostgreSQL 17
+and Redis 7.4.9. All 90 migrations applied; the no-skips database suite and
+API integration lane passed with 108 suites and 311 tests. Schema-before and
+schema-after dumps matched at SHA-256
+`0EFDA48EFE75700E980145569ABC2BF73CB2C58DA81F7F6124A14D2C1511AFD9`.
+
+The first replay exposed one stale runtime expectation from the new M3.72
+Warehouse deactivation guard. Updated the test to use a savepoint for the
+expected rejection and to separately prove legacy inactive-Warehouse
+reversal. Focused Stock Movement tests pass 16/16; root typecheck, serial
+lint, and Nest/Web production builds pass. Source commit
+`a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` contains the source correction.
+
+Hosted Supabase planning and verification were read-only: 55/90 applied, 35
+pending, two source-only command ledgers and six indexes absent. No hosted
+SQL/data/Storage/provider setting, Railway deployment, or Vercel build was
+triggered. Next action is clone/catalog/data/RLS/tenant/audit/financial-total
+reconciliation with backup/export and spend-cap evidence.
+
 ## 2026-08-05 - M3.77 Stock Movement posting/reversal authority
 
 Added strict Nest post/reverse command endpoints with a fail-closed API and

@@ -4,6 +4,29 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.78 Disposable PostgreSQL 17 + Redis replay gate (2026-08-05)
+
+The repository's self-hosted WSL lane now replays all 90 source migrations
+from an empty disposable database and runs the no-skips database plus API
+integration suites. PostgreSQL 17 and Redis 7.4.9 were verified; 108 database
+suites and 311 tests passed. Schema dumps before and after the suite are
+identical at SHA-256
+`0EFDA48EFE75700E980145569ABC2BF73CB2C58DA81F7F6124A14D2C1511AFD9`, and
+the replay ledger is exactly 90/90. Redis emitted only its documented
+memory-overcommit warning; no test or integrity check failed.
+
+The runtime fixture was corrected to assert the new Warehouse invariant:
+nonzero balances reject deactivation, while legacy inactive Warehouse
+evidence can still be reversed through the explicit reversal allowlist. This
+is test evidence only; no hosted migration or data was changed. Source commit
+`a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` contains the test correction.
+
+Hosted Supabase remains read-only at 55/90. The read-only verifier still
+reports the expected 35-migration ledger gap, two source-only command ledgers,
+and six source-only indexes. The clean replay therefore proves source
+reproducibility but does not authorize hosted apply, tenant canary, or
+rollback completion. Vercel remains untouched for spend control.
+
 ## M3.77 Stock Movement posting/reversal authority (2026-08-05)
 
 Added a disabled-by-default Nest command boundary for Stock Movement posting
