@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 
-import { ValidationPipe } from '@nestjs/common'
+import { ConflictException, ValidationPipe } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import type { NextFunction, Request, Response } from 'express'
 import request from 'supertest'
@@ -87,5 +87,21 @@ describe('Inventory Warehouse update HTTP contract', () => {
       { name: 'Closed materials store', isActive: false },
       expect.objectContaining({ tenantId: TENANT_ID, userId: expect.any(String) })
     )
+  })
+
+  it('exposes nonzero-balance deactivation as a conflict', async () => {
+    const update = vi.fn().mockRejectedValue(
+      new ConflictException(
+        'Warehouse cannot be deactivated while its net stock balance is nonzero.'
+      )
+    )
+    const app = await appFor(update)
+
+    await request(app.getHttpServer())
+      .patch(`/v1/inventory/warehouses/${WAREHOUSE_ID}`)
+      .send({ name: 'Closed materials store', isActive: false })
+      .expect(409)
+
+    expect(update).toHaveBeenCalledOnce()
   })
 })
