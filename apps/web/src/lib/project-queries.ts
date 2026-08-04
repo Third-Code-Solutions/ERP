@@ -13,7 +13,9 @@ import { eq, desc, asc, and, or, ilike, sql, type SQL, count, inArray } from 'dr
 import type { Project, ProgressUpdate } from '@third-code-erp/database/schema'
 import {
   getProjectThroughCoreApi,
+  getProjectsThroughCoreApi,
   projectReadsUseCoreApi,
+  projectListsUseCoreApi,
 } from './erp-core-client'
 
 export type { Project }
@@ -240,6 +242,36 @@ export async function getProjectsFiltered(
   const order: ProjectOrder = filters.order ?? 'desc'
   const page = Math.max(1, filters.page ?? 1)
   const limit = Math.min(MAX_LIMIT, Math.max(1, filters.limit ?? DEFAULT_LIMIT))
+
+  if (projectListsUseCoreApi(tenantId)) {
+    const result = await getProjectsThroughCoreApi({
+      q: filters.q,
+      status: filters.status,
+      projectType: filters.type,
+      sort,
+      order,
+      page,
+      limit,
+    })
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Project list was not read')
+    }
+    if (
+      result.data.page !== page ||
+      result.data.limit !== limit ||
+      result.data.rows.some((row) => row.tenantId !== tenantId)
+    ) {
+      throw new Error('Project list returned an invalid tenant scope')
+    }
+    return {
+      rows: result.data.rows.map(projectReadResultToRow),
+      total: result.data.total,
+      page: result.data.page,
+      limit: result.data.limit,
+      totalPages: result.data.totalPages,
+    }
+  }
+
   const offset = (page - 1) * limit
 
   const conditions: SQL[] = [eq(projects.tenant_id, tenantId)]

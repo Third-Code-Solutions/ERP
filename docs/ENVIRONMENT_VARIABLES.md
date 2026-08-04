@@ -151,6 +151,18 @@ browser proof, and rollback path are recorded.
 | `ERP_PROJECT_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects/:id`; exact `true` only |
 | `ERP_PROJECT_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## Project collection read cutover (NestJS, disabled by default)
+
+The Projects page may opt into the bounded tenant-scoped Nest list contract for
+one controlled tenant. The default remains the existing server-side query;
+the flag must not be enabled until pagination, protected browser, exact
+deployment identity, and rollback evidence are recorded.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_PROJECT_LISTS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects`; exact `true` only |
+| `ERP_PROJECT_LISTS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
 ## Local Development
 
 The minimum to boot `pnpm dev`:

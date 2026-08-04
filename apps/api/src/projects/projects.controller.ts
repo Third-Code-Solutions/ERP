@@ -8,10 +8,13 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common'
 import type {
   CreateProjectCommand,
   ProjectCreationResult,
+  ProjectListQuery,
+  ProjectListResult,
   ProjectReadResult,
   ProjectUpdateResult,
   UpdateProjectCommand,
@@ -23,6 +26,7 @@ import {
 import { RequireCapabilities } from '../auth/capability.guard'
 import { CreateProjectPipe } from './create-project.pipe'
 import { ProjectsService } from './projects.service'
+import { ProjectListPipe } from './project-list.pipe'
 import { UpdateProjectPipe } from './update-project.pipe'
 
 @Controller('v1/projects')
@@ -31,6 +35,15 @@ export class ProjectsController {
     @Inject(ProjectsService)
     private readonly projects: ProjectsService
   ) {}
+
+  @Get()
+  @RequireCapabilities('project.read')
+  list(
+    @Query(new ProjectListPipe()) query: ProjectListQuery,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<ProjectListResult> {
+    return this.projects.list(query, principal)
+  }
 
   @Get(':projectId')
   @RequireCapabilities('project.read')

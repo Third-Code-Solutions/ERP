@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common'
 import type {
   CreateProjectCommand,
+  ProjectListQuery,
   UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
 import { projectCreateRequests } from '@third-code-erp/database/schema'
@@ -168,6 +169,29 @@ function readHarness(rows = [READ_PROJECT]) {
   return { service, select, where, limit }
 }
 
+function listHarness(rows = [READ_PROJECT], total = rows.length) {
+  const rowOffset = vi.fn().mockResolvedValue(rows)
+  const rowLimit = vi.fn().mockReturnValue({ offset: rowOffset })
+  const rowOrderBy = vi.fn().mockReturnValue({ limit: rowLimit })
+  const rowWhere = vi.fn().mockReturnValue({ orderBy: rowOrderBy })
+  const rowFrom = vi.fn().mockReturnValue({ where: rowWhere })
+  const countWhere = vi.fn().mockResolvedValue([{ count: total }])
+  const countFrom = vi.fn().mockReturnValue({ where: countWhere })
+  const select = vi
+    .fn()
+    .mockReturnValueOnce({ from: rowFrom })
+    .mockReturnValueOnce({ from: countFrom })
+  const database = {
+    client: { select },
+  } as unknown as DatabaseService
+  const service = new ProjectsService(
+    {} as import('@nestjs/config').ConfigService,
+    database,
+    {} as AuditService
+  )
+  return { service, select, rowWhere, rowLimit, rowOffset, countWhere }
+}
+
 describe('ProjectsService', () => {
   it('reads a project only inside the authenticated tenant scope', async () => {
     const probe = readHarness()
@@ -198,6 +222,64 @@ describe('ProjectsService', () => {
     await expect(
       probe.service.read(EXISTING.id, PRINCIPAL)
     ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('lists only tenant-scoped projects with bounded filters and pagination', async () => {
+    const probe = listHarness([READ_PROJECT], 21)
+    const query: ProjectListQuery = {
+      q: 'Old',
+      status: 'active',
+      projectType: 'mep',
+      sort: 'name',
+      order: 'asc',
+      page: 2,
+      limit: 20,
+    }
+
+    await expect(probe.service.list(query, PRINCIPAL)).resolves.toMatchObject({
+      total: 21,
+      page: 2,
+      limit: 20,
+      totalPages: 2,
+      rows: [
+        expect.objectContaining({
+          id: READ_PROJECT.id,
+          tenantId: PRINCIPAL.tenantId,
+          createdBy: PRINCIPAL.userId,
+        }),
+      ],
+    })
+    expect(probe.rowLimit).toHaveBeenCalledWith(20)
+    expect(probe.rowOffset).toHaveBeenCalledWith(20)
+    const querySql = new (await import('drizzle-orm/pg-core')).PgDialect().sqlToQuery(
+      probe.rowWhere.mock.calls[0]?.[0]
+    )
+    expect(querySql.sql).toContain('"projects"."tenant_id" = $1')
+    expect(querySql.params).toEqual([
+      PRINCIPAL.tenantId,
+      '%Old%',
+      '%Old%',
+      'active',
+      'mep',
+    ])
+  })
+
+  it('keeps empty project collections on one page', async () => {
+    const probe = listHarness([], 0)
+    await expect(
+      probe.service.list(
+        {
+          q: undefined,
+          status: undefined,
+          projectType: undefined,
+          sort: 'created_at',
+          order: 'desc',
+          page: 1,
+          limit: 20,
+        },
+        PRINCIPAL
+      )
+    ).resolves.toMatchObject({ total: 0, totalPages: 1, rows: [] })
   })
 
   it('requires a bounded Idempotency-Key before opening a transaction', async () => {

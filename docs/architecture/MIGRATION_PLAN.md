@@ -1,5 +1,18 @@
 # Migration Plan
 
+## M3.60 - Nest project collection read contract (source complete, 2026-08-04)
+
+Added `GET /v1/projects` with tenant-scoped query parsing, bounded search/
+status/type filters, allowlisted sort/order, and page/limit pagination. Next
+adoption is gated by `ERP_PROJECT_LISTS_VIA_API` plus a strict tenant UUID
+allowlist; direct DB behavior remains the default. Adapter validation rejects
+wrong-tenant rows and page/limit drift.
+
+Validation: API 62 files/318 tests, shared types 15/167, Web 75/484,
+API/Web typecheck, API build, Web 80/80 production build, root lint, and
+`git diff --check`. No hosted mutation or Vercel build occurred. Keep the
+flag false/empty until the deployment and protected canary gates pass.
+
 ## M3.59 - Railway Nest Redis module wiring (source fix, 2026-08-04)
 
 The first M3.58 API deployment exposed a runtime-only dependency error:

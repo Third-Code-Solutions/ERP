@@ -18,8 +18,10 @@ import {
   dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
   getProjectThroughCoreApi,
+  getProjectsThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
+  projectListsUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
   purchaseOrderBomGroupedWritesUseCoreApi,
@@ -405,6 +407,23 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PROJECT_READS_VIA_API_TENANT_IDS', '*')
     expect(projectReadsUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(projectReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Project lists on the legacy path unless the exact gate matches', () => {
+    vi.stubEnv('ERP_PROJECT_LISTS_VIA_API', 'true')
+    vi.stubEnv('ERP_PROJECT_LISTS_VIA_API_TENANT_IDS', RESULT.tenantId)
+    expect(projectListsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_PROJECT_LISTS_VIA_API', 'TRUE')
+    expect(projectListsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PROJECT_LISTS_VIA_API', 'true')
+    vi.stubEnv('ERP_PROJECT_LISTS_VIA_API_TENANT_IDS', '')
+    expect(projectListsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PROJECT_LISTS_VIA_API_TENANT_IDS', '*')
+    expect(projectListsUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(projectListsUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Project creation delegation fail-closed unless its exact gate matches', () => {
@@ -2018,6 +2037,51 @@ describe('ERP Core client', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       `https://erp-api.example.test/v1/projects/${PROJECT_ID}`,
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
+        }),
+      })
+    )
+  })
+
+  it('lists Projects through the Nest boundary and validates the result envelope', async () => {
+    const query = {
+      q: 'office',
+      status: 'active' as const,
+      projectType: 'fit_out' as const,
+      sort: 'name' as const,
+      order: 'asc' as const,
+      page: 2,
+      limit: 50,
+    }
+    const listResult = {
+      rows: [READ_PROJECT_RESULT],
+      total: 51,
+      page: 2,
+      limit: 50,
+      totalPages: 2,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(listResult), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getProjectsThroughCoreApi(query)).resolves.toEqual({
+      ok: true,
+      data: listResult,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/projects?q=office&status=active&projectType=fit_out&sort=name&order=asc&page=2&limit=50',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

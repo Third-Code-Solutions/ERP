@@ -175,6 +175,71 @@ describe('Projects API contract', () => {
   )
 
   it(
+    'lists Projects through the bounded tenant-scoped GET contract',
+    async () => {
+      const list = vi.fn().mockResolvedValue({
+        rows: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+      })
+      const moduleRef = await Test.createTestingModule({
+        controllers: [ProjectsController],
+        providers: [
+          {
+            provide: ProjectsService,
+            useValue: { list },
+          },
+        ],
+      }).compile()
+      const app = moduleRef.createNestApplication()
+      app.use(
+        (
+          req: Request,
+          _res: Response,
+          next: NextFunction
+        ) => {
+          ;(req as AuthenticatedRequest).principal = {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId:
+              '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          }
+          next()
+        }
+      )
+      await app.init()
+      close = () => app.close()
+
+      const response = await request(app.getHttpServer())
+        .get('/v1/projects?q=office&status=active&page=2&limit=50')
+        .expect(200)
+
+      expect(response.body).toMatchObject({
+        rows: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+      })
+      expect(list).toHaveBeenCalledWith(
+        {
+          q: 'office',
+          status: 'active',
+          sort: 'created_at',
+          order: 'desc',
+          page: 2,
+          limit: 50,
+        },
+        expect.objectContaining({ role: 'viewer' })
+      )
+    },
+    HTTP_TEST_TIMEOUT_MS
+  )
+
+  it(
     'preserves the Project update HTTP contract for existing UUID formats',
     async () => {
       const update = vi.fn().mockResolvedValue({
