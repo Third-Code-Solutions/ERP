@@ -1,0 +1,144 @@
+import 'reflect-metadata'
+
+import { ServiceUnavailableException } from '@nestjs/common'
+import type { ConfigService } from '@nestjs/config'
+import type { CreateInventoryWarehouseCommand } from '@third-code-erp/shared-types'
+import { describe, expect, it, vi } from 'vitest'
+import type { ErpPrincipal } from '../auth/current-principal.decorator'
+import type { AuditService } from '../audit/audit.service'
+import type { DatabaseService } from '../database/database.service'
+import { InventoryWarehouseCreationService } from './inventory-warehouse-creation.service'
+
+const PRINCIPAL: ErpPrincipal = {
+  userId: '11111111-1111-4111-8111-111111111111',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  role: 'procurement',
+  email: 'procurement@example.test',
+}
+
+const COMMAND: CreateInventoryWarehouseCommand = {
+  code: 'MAIN',
+  name: 'Main store',
+  projectId: '33333333-3333-4333-8333-333333333333',
+}
+
+function service(
+  enabled = false,
+  tenantIds: string[] = [],
+  transaction = vi.fn(),
+  audit = { stampActor: vi.fn(), writeSemantic: vi.fn() }
+) {
+  const config = {
+    get: vi.fn((key: string) =>
+      key === 'ERP_INVENTORY_WAREHOUSE_CREATE_WRITES_ENABLED'
+        ? enabled
+        : tenantIds
+    ),
+  } as unknown as ConfigService
+  const database = {
+    client: { transaction },
+  } as unknown as DatabaseService
+  return {
+    candidate: new InventoryWarehouseCreationService(
+      config,
+      database,
+      audit as unknown as AuditService
+    ),
+    transaction,
+    audit,
+  }
+}
+
+describe('InventoryWarehouseCreationService migration boundary', () => {
+  it('fails closed by default without touching the database', async () => {
+    const { candidate, transaction } = service()
+
+    await expect(candidate.create(COMMAND, PRINCIPAL)).rejects.toBeInstanceOf(
+      ServiceUnavailableException
+    )
+    expect(transaction).not.toHaveBeenCalled()
+  })
+
+  it('stays disabled when the tenant allowlist is empty', async () => {
+    await expect(
+      service(true).candidate.create(COMMAND, PRINCIPAL)
+    ).rejects.toThrow(
+      'Inventory Warehouse creation is not enabled for this tenant; no Warehouse was changed.'
+    )
+  })
+
+  it('locks membership, validates the tenant project, creates a Warehouse, and audits it', async () => {
+    const membership = {
+      tenantId: PRINCIPAL.tenantId,
+      role: PRINCIPAL.role,
+      email: PRINCIPAL.email,
+    }
+    const project = { id: COMMAND.projectId }
+    const created = {
+      id: '66666666-6666-4666-8666-666666666666',
+      code: COMMAND.code,
+      name: COMMAND.name,
+      projectId: COMMAND.projectId,
+      isActive: true,
+      createdAt: new Date('2026-08-05T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-05T00:00:00.000Z'),
+    }
+    const selectQuery = (rows: unknown[]) => {
+      const rowLock = vi.fn().mockResolvedValue(rows)
+      const limit = vi.fn().mockReturnValue({
+        for: rowLock,
+        then: (
+          resolve: (value: unknown[]) => unknown,
+          reject: (reason: unknown) => unknown
+        ) => Promise.resolve(rows).then(resolve, reject),
+      })
+      const where = vi.fn().mockReturnValue({ limit })
+      const from = vi.fn().mockReturnValue({ where })
+      return { from, where, limit, rowLock }
+    }
+    const membershipQuery = selectQuery([membership])
+    const projectQuery = selectQuery([project])
+    const existingQuery = selectQuery([])
+    const insertReturning = vi.fn().mockResolvedValue([created])
+    const onConflictDoNothing = vi.fn().mockReturnValue({ returning: insertReturning })
+    const values = vi.fn().mockReturnValue({ onConflictDoNothing })
+    const transactionClient = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce({ from: membershipQuery.from })
+        .mockReturnValueOnce({ from: projectQuery.from })
+        .mockReturnValueOnce({ from: existingQuery.from }),
+      insert: vi.fn().mockReturnValue({ values }),
+    }
+    const transaction = vi.fn(async (callback: (tx: typeof transactionClient) => unknown) =>
+      callback(transactionClient)
+    )
+    const { candidate, audit } = service(
+      true,
+      [PRINCIPAL.tenantId],
+      transaction
+    )
+
+    await expect(candidate.create(COMMAND, PRINCIPAL)).resolves.toEqual({
+      warehouseId: created.id,
+      tenantId: PRINCIPAL.tenantId,
+      code: 'MAIN',
+      name: 'Main store',
+      projectId: COMMAND.projectId,
+      isActive: true,
+      createdAt: '2026-08-05T00:00:00.000Z',
+      updatedAt: '2026-08-05T00:00:00.000Z',
+    })
+    expect(transactionClient.insert).toHaveBeenCalledOnce()
+    expect(audit.stampActor).toHaveBeenCalledOnce()
+    expect(audit.writeSemantic).toHaveBeenCalledWith(
+      transactionClient,
+      expect.objectContaining({
+        tenantId: PRINCIPAL.tenantId,
+        entityType: 'warehouse',
+        entityId: created.id,
+        action: 'create',
+      })
+    )
+  })
+})

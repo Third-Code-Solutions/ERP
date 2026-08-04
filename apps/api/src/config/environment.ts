@@ -474,6 +474,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Warehouse setup writes stay fail-closed until the Nest transaction and
+  // tenant canary prove parity with the compatibility Server Action.
+  ERP_INVENTORY_WAREHOUSE_CREATE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_INVENTORY_WAREHOUSE_CREATE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // CAD evidence commits stay fail-closed until the Nest transaction is
   // replayed against hosted schema and canary data.
   ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED: z
