@@ -5,10 +5,12 @@
 1. Keep all ERP workflow API flags false and all tenant allowlists empty. The
    disposable replay proves source correctness only; it is not protected
    browser, hosted-data, rollback, or production-canary evidence.
-2. Preserve the source correction commit
-   `a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` and do not trigger a Railway
-   build for the test/docs-only follow-up. Keep Vercel Git disabled and do not
-   create previews or production builds.
+2. Preserve source correction commit
+   `a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` and the single successful
+   Railway auto-deployment `a7371ef0-0b16-45c6-b4fd-323f33ddf634` for
+   `303f266`. Keep later docs-only follow-ups outside watched paths so they
+   remain `SKIPPED`; never manually redeploy. Keep Vercel Git disabled and do
+   not create previews or production builds.
 3. Keep Supabase project `aqqrtkmtcsfkbyyqxowv` read-only at 55/90. The
    read-only verifier's three failures are expected: the 35-entry ordered
    suffix, two source-only command ledgers, and six source-only indexes.

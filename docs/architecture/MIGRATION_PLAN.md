@@ -15,9 +15,12 @@ before/after SHA-256 was
 The only code change was a test correction for the M3.72 Warehouse guard:
 normal nonzero-balance deactivation is rejected, while a simulated legacy
 inactive Warehouse can use the explicit reversal event allowlist. Source
-commit `a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` is ready to push. No
-Supabase SQL, Storage, provider setting, Railway build, or Vercel build was
-triggered.
+commit `a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` is included in docs commit
+`303f2667044bb11537c16cc54f7280297c2d2913`. Because
+`packages/database/**` is a Railway watch path, the push caused exactly one
+automatic deployment `a7371ef0-0b16-45c6-b4fd-323f33ddf634`, which succeeded;
+live `/ready` and `/health` are 200. No manual redeploy, Supabase SQL,
+Storage/provider setting, or Vercel build was triggered.
 
 ## Next gate
 

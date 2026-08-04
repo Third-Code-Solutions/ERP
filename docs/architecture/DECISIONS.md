@@ -11,10 +11,12 @@ be deactivated, while explicit reversal events remain valid for legacy
 inactive evidence.
 
 The gate passed locally at 90/90, 108 suites, 311 tests, and identical schema
-hashes. Supabase remains read-only at 55/90; clone restore, catalog/data/RLS
-comparison, owner mapping, rollback, browser canary, and spend approval are
-still separate decisions. This does not authorize SQL, provider changes, or a
-Vercel build.
+hashes. The watched-path GitHub push caused one Railway auto-deployment
+`a7371ef0-0b16-45c6-b4fd-323f33ddf634` for `303f266`, which is healthy; no
+manual redeploy was made. Supabase remains read-only at 55/90; clone restore,
+catalog/data/RLS comparison, owner mapping, rollback, browser canary, and
+spend approval are still separate decisions. This does not authorize SQL,
+provider changes, or a Vercel build.
 
 ## D-187 - Stock Movement post/reverse remains opt-in and idempotent (2026-08-05)
 
