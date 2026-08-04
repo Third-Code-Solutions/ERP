@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.51 - Cortex operational brief (source-only, 2026-08-04)
+
+Added `getCortexOperationalBrief` and `GET /api/cortex/brief`. The query runs
+two bounded, tenant-filtered graph reads under the caller's role scope; the API
+serializes only registered entity references, safe titles/summaries, freshness,
+timestamps, and existing graph statistics. It has no migration, no write path,
+and no external AI/provider dependency.
+
+Validation is source-only: workspace lint and typecheck pass; the production
+build generates 80/80 routes including `/api/cortex/brief`. The Turbo-parallel
+test run had one API resource-contention timeout in the stock-receipt controller;
+package-isolated reruns pass API 58/300, Web 69/458, Database 41/166, and
+Shared Types 15/163. Database integration suites requiring `DATABASE_URL`
+remain skipped. Do not apply Supabase SQL or trigger Vercel for this slice.
+
+Next action: commit/push the source-only slice once,
+verify the exact GitHub/Railway result, and confirm Vercel still created zero
+deployments. Keep the hosted 55/87 migration boundary unchanged.
+
 ## M3.50 - cost-capped provider and hosted-ledger audit (read-only, 2026-08-04)
 
 Ran the repository database release planner and the Purchase Order duplicate

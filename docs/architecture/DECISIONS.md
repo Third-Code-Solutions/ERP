@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-161 - Cortex brief is bounded evidence, not authority (2026-08-04)
+
+Decision: expose a small `GET /api/cortex/brief` read model backed by current,
+tenant-scoped graph nodes and the caller's Cortex node-type scope. Cap the
+requested item count at 24, omit unregistered graph sources, and return private
+no-store headers. Keep the route free of mutations, LLM calls, Python
+finalization, and direct browser database writes.
+
+Reason: operators need a calm, searchable pulse across the ERP while the
+hosted migration ledger and provider spend gates remain closed. A bounded
+source-backed surface advances the AI-brain workflow without inventing business
+state or increasing billable usage.
+
+Validation/release boundary: focused route tests and typechecks pass; hosted
+Supabase, Railway settings, Storage, and Vercel were not mutated. This is not a
+production rollout until the ordinary release evidence is complete.
+
 ## D-160 - Cost-capped frontend promotion is closed by default (2026-08-04)
 
 Decision: keep Vercel Git deployment disabled and do not create preview or
