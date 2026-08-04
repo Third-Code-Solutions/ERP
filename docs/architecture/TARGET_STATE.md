@@ -13,6 +13,20 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.45 Cortex search target (2026-08-04)
+
+The Obsidian-like Cortex search must remain a read-only, tenant-authorized
+navigation surface that is usable from keyboard and pointer. Results must be
+actionable only when an authorized destination exists; loading, empty, and
+failure states must be visible and announced, and a changed term must never
+leave stale records openable. The source implementation is complete at
+`71c5cba`, with pure keyboard-navigation coverage and green source gates.
+
+Authenticated desktop/mobile browser proof remains open because the local
+Next Edge runtime could not resolve the configured Supabase host. Keep Vercel
+Git disconnected and spend-protected, apply no hosted SQL, and do not treat a
+local unauthenticated redirect as Cortex runtime proof.
+
 ## M3.44 admin data-quality target (2026-08-04)
 
 Administrators get a calm, tenant-scoped read path for release-blocking data
