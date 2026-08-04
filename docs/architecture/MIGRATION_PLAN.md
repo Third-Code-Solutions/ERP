@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.78 - Disposable PostgreSQL 17 + Redis replay (2026-08-05)
+
+Ran `scripts/ci/run-wsl1-database-lane.ps1 -Distribution
+ThirdCodeERP-Test` from a clean disposable database. All 90 source
+migrations applied in timestamp order; the read-only verifier and release
+planner reported an exact 90/90 ledger, PostgreSQL 17, complete protected
+catalog/RLS/grant/index checks, and no schema drift. Redis 7.4.9 was started
+for queue integration. The database suite ran with no environment skips:
+108 files and 311 tests passed, including the API integration lane. Schema
+before/after SHA-256 was
+`0EFDA48EFE75700E980145569ABC2BF73CB2C58DA81F7F6124A14D2C1511AFD9`.
+
+The only code change was a test correction for the M3.72 Warehouse guard:
+normal nonzero-balance deactivation is rejected, while a simulated legacy
+inactive Warehouse can use the explicit reversal event allowlist. Source
+commit `a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` is ready to push. No
+Supabase SQL, Storage, provider setting, Railway build, or Vercel build was
+triggered.
+
+## Next gate
+
+Keep all workflow flags and tenant lists false/empty. The hosted read-only
+planner remains 55/90 with 35 pending migrations; the verifier reports the
+expected missing source-only ledgers/indexes. Obtain a supported backup/export
+and owner-approved mapping, restore an isolated clone, compare catalog/data/
+RLS/tenant/audit/financial totals against this replay, and capture rollback
+and spend-cap evidence before any hosted action or protected browser canary.
+
 ## M3.77 - Stock Movement posting/reversal authority (2026-08-05)
 
 Implemented strict Nest command endpoints for Stock Movement post and

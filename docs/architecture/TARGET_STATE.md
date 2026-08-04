@@ -13,6 +13,21 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.78 Disposable replay evidence (2026-08-05)
+
+Promotion requires a clean, no-skips source replay before any hosted database
+action. The repository lane now proves all 90 migrations apply in order on
+PostgreSQL 17, Redis 7.4.9 is available for queue integration, all 108
+database suites/311 tests pass, and schema-before/schema-after hashes match.
+The test contract explicitly separates the normal zero-balance deactivation
+guard from the legacy inactive-Warehouse reversal allowlist.
+
+This closes the local replay gate only. Supabase is still an exact 55/90
+prefix with 35 pending migrations and the source-only command ledger/indexes
+absent; backup/export, clone catalog/data/RLS reconciliation, owner mapping,
+rollback proof, protected browser evidence, and a spend cap remain required.
+No migration flag or Vercel action may be enabled from this evidence alone.
+
 ## M3.77 Stock Movement posting/reversal command seam (2026-08-05)
 
 Posting and reversal now have an original NestJS command seam while the
