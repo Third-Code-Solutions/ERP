@@ -6,6 +6,7 @@ import {
   createStockReceiptCommandSchema,
   inventoryUomCreationResultSchema,
   inventoryWarehouseCreationResultSchema,
+  inventoryWarehouseCloseoutResultSchema,
   inventoryWarehouseUpdateResultSchema,
   updateInventoryWarehouseCommandSchema,
   inventoryItemConfigurationResultSchema,
@@ -110,6 +111,19 @@ const WAREHOUSE_UPDATE = {
   updatedAt: '2026-08-05T00:01:00.000Z',
 } as const
 
+const WAREHOUSE_CLOSEOUT = {
+  warehouseId: WAREHOUSE_CREATION.warehouseId,
+  tenantId: WAREHOUSE_CREATION.tenantId,
+  code: WAREHOUSE_CREATION.code,
+  name: WAREHOUSE_CREATION.name,
+  projectId: WAREHOUSE_CREATION.projectId,
+  isActive: true,
+  quantityMicros: '0',
+  valueCents: '0',
+  canDeactivate: true,
+  disposition: 'ready',
+} as const
+
 describe('Inventory Warehouse creation contract', () => {
   it('accepts optional project scope and rejects browser identity fields', () => {
     expect(
@@ -149,6 +163,20 @@ describe('Inventory Warehouse update contract', () => {
         name: 'Closed materials store',
         isActive: false,
         code: 'CLOSED',
+      })
+    ).toThrow()
+  })
+})
+
+describe('Inventory Warehouse closeout contract', () => {
+  it('keeps exact balances and an explicit deactivation disposition', () => {
+    expect(inventoryWarehouseCloseoutResultSchema.parse(WAREHOUSE_CLOSEOUT)).toEqual(
+      WAREHOUSE_CLOSEOUT
+    )
+    expect(() =>
+      inventoryWarehouseCloseoutResultSchema.parse({
+        ...WAREHOUSE_CLOSEOUT,
+        quantityMicros: 0,
       })
     ).toThrow()
   })
