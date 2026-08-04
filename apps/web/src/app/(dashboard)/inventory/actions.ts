@@ -14,7 +14,9 @@ import {
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
+  configureInventoryItemThroughCoreApi,
   createStockReceiptThroughCoreApi,
+  inventoryItemConfigurationWritesUseCoreApi,
   postStockReceiptThroughCoreApi,
   reverseStockReceiptThroughCoreApi,
   stockReceiptCreateWritesUseCoreApi,
@@ -76,6 +78,8 @@ function safeInventoryError(error: unknown): string {
     'Used UOM identity is immutable',
     'Used Warehouse identity is immutable',
     'Item stock identity is immutable after posting',
+    'Active UOM not found',
+    'Item not found',
   ]
   if (message.includes('ux_units_of_measure_tenant_code')) {
     return 'That UOM code already exists.'
@@ -183,6 +187,23 @@ export async function configureInventoryItem(
         uomId: formData.get('uomId'),
         tracked: formData.get('tracked') === 'on',
       })
+
+    if (inventoryItemConfigurationWritesUseCoreApi(profile.tenantId)) {
+      const result = await configureInventoryItemThroughCoreApi(
+        input.materialItemId,
+        { uomId: input.uomId, tracked: input.tracked }
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Inventory item configuration could not be committed through ERP Core.',
+        }
+      }
+      revalidateInventory()
+      return { ok: true, id: result.data.materialItemId }
+    }
 
     const [uom] = await db
       .select({ code: unitsOfMeasure.code })

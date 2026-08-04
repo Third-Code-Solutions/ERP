@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-177 - Inventory item policy writes are transactional and canary-gated (2026-08-05)
+
+Decision: expose item policy changes through Nest
+`PATCH /v1/inventory/items/:materialItemId/configuration`. Accept only the
+base UOM and tracked state; derive tenant and actor from the verified
+principal; recheck `inventory.manage` inside the transaction; lock the
+tenant-scoped active UOM and item; preserve database stock-identity guards;
+and write a semantic audit diff. Repeated same state is a no-op, making the
+command idempotent without a new request table. Next adopts only through the
+exact flag and tenant allowlist; direct server-action behavior remains the
+default.
+
+Boundary: the feature is source-validated but not canary-approved. No
+Supabase migration/data action, Vercel build, or provider setting is implied.
+Rollback is the disabled adapter flag and the prior API deployment.
+
 ## D-176 - Inventory summary reads are bounded and canary-gated (2026-08-05)
 
 Decision: expose inventory control-center reads through Nest

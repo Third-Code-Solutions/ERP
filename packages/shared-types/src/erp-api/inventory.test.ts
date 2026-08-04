@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  configureInventoryItemCommandSchema,
   createStockReceiptCommandSchema,
+  inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
   quantityToMicros,
   receiptLineTotal,
@@ -59,6 +61,36 @@ const INVENTORY_SUMMARY = {
   balancesTruncated: false,
   receiptCounts: { draftCount: 1, postedCount: 2 },
 } as const
+
+const ITEM_CONFIGURATION = {
+  materialItemId: '44444444-4444-4444-8444-444444444444',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  baseUomId: UUID,
+  inventoryTracked: true,
+  unit: 'EA',
+  updatedAt: '2026-08-05T00:00:00.000Z',
+} as const
+
+describe('Inventory item configuration contract', () => {
+  it('accepts a strict state-setting command and result', () => {
+    expect(
+      configureInventoryItemCommandSchema.parse({
+        uomId: UUID,
+        tracked: true,
+      })
+    ).toEqual({ uomId: UUID, tracked: true })
+    expect(inventoryItemConfigurationResultSchema.parse(ITEM_CONFIGURATION)).toEqual(
+      ITEM_CONFIGURATION
+    )
+    expect(() =>
+      configureInventoryItemCommandSchema.parse({
+        uomId: UUID,
+        tracked: true,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+    ).toThrow()
+  })
+})
 
 describe('Inventory summary contract', () => {
   it('accepts bounded tenant-scoped data with exact integer strings', () => {

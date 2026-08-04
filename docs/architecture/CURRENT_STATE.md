@@ -4,6 +4,30 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.67 Inventory item policy command boundary (2026-08-05)
+
+Added the smallest inventory setup write seam: Nest
+`PATCH /v1/inventory/items/:materialItemId/configuration` accepts only a base
+UOM and tracked flag. The transaction rechecks tenant membership and
+`inventory.manage`, locks the tenant-scoped active UOM and material item,
+preserves the database stock-identity trigger, and writes a semantic audit
+diff. Repeating the same state is a no-op, so the command is idempotent as a
+state setter without adding a new request ledger table.
+
+The Next server action delegates only when
+`ERP_INVENTORY_ITEM_CONFIG_VIA_API=true` and its exact tenant allowlist
+matches; the existing direct database path remains default. New API/client
+contracts, route/service/pipe tests, action/client tests, and fail-closed
+environment flags are in source. UI copy/layout and hosted schema are
+unchanged.
+
+Validation: shared 17 files/179 tests; API 71 files/341 tests; Web 79
+files/512 tests; focused command/client/action tests; shared/API/Web
+typecheck; serial root lint; Nest build; Web 80-route production build; and
+`git diff --check`. No Supabase SQL/data repair, Vercel build/deploy, or
+provider setting changed. Source release evidence is pending the exact
+reviewed SHA push and controlled Railway deployment.
+
 ## M3.66 Inventory summary authority seam and Supabase ledger refresh (2026-08-05)
 
 The database release planner was rerun against Supabase project

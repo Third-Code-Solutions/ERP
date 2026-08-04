@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.67 inventory item policy command
+
+1. Keep `ERP_INVENTORY_ITEM_CONFIG_VIA_API=false` and its tenant allowlist
+   empty. The source contract and tests are not protected tenant browser,
+   rollback, or hosted-schema proof.
+2. Push only the reviewed source/docs under `kurtgav`; if backend watch
+   patterns are hit, deploy one exact SHA to Railway and verify `/ready`,
+   `/health`, the route startup mapping, and unauthenticated 401. Docs-only
+   follow-ups must stay outside watch patterns to avoid paid rebuilds.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain supported
+   backup/export, dependent/audit export, owner-approved mapping, disposable
+   PostgreSQL 17 replay, and an explicit spend cap before hosted action.
+4. Do not trigger Vercel previews or production builds. Keep the Git-disabled
+   project untouched to cap billing.
+
 ## Exact next action after M3.66 inventory seam and ledger refresh
 
 1. Keep `ERP_INVENTORY_SUMMARY_READS_VIA_API=false` and its tenant allowlist
