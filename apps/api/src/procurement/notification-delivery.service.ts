@@ -35,6 +35,7 @@ import {
 } from '../database/database.service'
 import { AuditService } from '../audit/audit.service'
 import { NotificationEmailService } from './notification-email.service'
+import { VendorConfirmationLinkService } from './vendor-confirmation-link.service'
 import { NOTIFICATION_DELIVERY_ATTEMPTS } from './notification-delivery.constants'
 import {
   PURCHASE_ORDER_WORKFLOW_NOTIFICATION_EVENT,
@@ -76,6 +77,7 @@ interface ClaimedPurchaseOrderSupplierEmailDelivery {
   totalCents: number
   purchaseOrderId: string
   createdBy: string
+  confirmationUrl?: string
 }
 
 function workflowNotificationCopy(
@@ -121,7 +123,10 @@ export class NotificationDeliveryService {
     private readonly email: NotificationEmailService,
     @Optional()
     @Inject(AuditService)
-    private readonly audit?: AuditService
+    private readonly audit?: AuditService,
+    @Optional()
+    @Inject(VendorConfirmationLinkService)
+    private readonly vendorConfirmationLinks?: VendorConfirmationLinkService
   ) {}
 
   async deliver(
@@ -864,6 +869,13 @@ export class NotificationDeliveryService {
           }
         }
 
+        const confirmationUrl = await this.vendorConfirmationLinks?.buildUrl({
+          transaction,
+          tenantId: job.tenantId,
+          purchaseOrderId: record.aggregateId,
+          sessionId: payload.data.vendor_confirmation_session_id ?? null,
+        })
+
         const now = new Date()
         await transaction
           .update(purchaseOrderSupplierEmailDeliveries)
@@ -897,6 +909,7 @@ export class NotificationDeliveryService {
             totalCents: record.totalCents,
             purchaseOrderId: record.aggregateId,
             createdBy: record.createdBy,
+            confirmationUrl: confirmationUrl ?? undefined,
           } satisfies ClaimedPurchaseOrderSupplierEmailDelivery,
         }
       }

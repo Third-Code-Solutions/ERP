@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-04 - M3.30 gated supplier confirmation links (source slice)
+
+Added source-only supplier confirmation-link reconstruction to the existing
+email delivery worker. No Supabase SQL, provider setting, Vercel deployment,
+or hosted data changed.
+
+- Added a separate link-delivery and HTTPS-base-url configuration boundary.
+- Verified both the link tenant allowlist and public-write tenant allowlist
+  before querying a session.
+- Added tenant/PO scope, pending-state, and expiry checks inside the supplier
+  delivery claim transaction; the HMAC token is derived only in memory.
+- Added optional escaped HTML/text link rendering without changing the
+  existing email when the controls are closed.
+- Validation: API procurement 124/124; link/config/email focus 45/45; shared
+  types 159/159; database 162 passed and 137 skipped because `DATABASE_URL`
+  is unset; web 431/431; API/web typecheck and Nest build passed; root
+  production build generated 78/78 pages; all five release-plan suites,
+  workflow action references, and `git diff --check` passed.
+
 ## 2026-08-03 - M3.29 protected supplier-session minting
 
 Completed and validated the source implementation for deterministic supplier

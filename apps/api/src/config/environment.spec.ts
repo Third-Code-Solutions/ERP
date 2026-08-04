@@ -876,4 +876,45 @@ describe('ERP API environment', () => {
       })
     ).toThrow('ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_TTL_HOURS')
   })
+
+  it('keeps supplier confirmation link delivery closed and HTTPS-only', () => {
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED)
+        .ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_TENANT_IDS
+    ).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_ENABLED: 'true',
+        ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_TENANT_IDS:
+          '33333333-3333-4333-8333-333333333333',
+        ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL:
+          'https://third-code-erp-api.example.test',
+      })
+    ).toMatchObject({
+      ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_ENABLED: true,
+      ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_TENANT_IDS: [
+        '33333333-3333-4333-8333-333333333333',
+      ],
+      ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL:
+        'https://third-code-erp-api.example.test',
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_TENANT_IDS:
+          'not-a-tenant',
+      })
+    ).toThrow('ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_TENANT_IDS')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL: 'http://api.example.test',
+      })
+    ).toThrow('ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL')
+  })
 })

@@ -4,6 +4,23 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.30 source update (2026-08-04)
+
+Local source now reconstructs a supplier confirmation URL only inside the
+existing supplier-email delivery transaction. Link delivery requires its own
+tenant allowlist plus the public-confirmation write gate for the same tenant;
+the service verifies the session is tenant/PO-scoped, pending, and unexpired
+before deriving the HMAC token in memory. The raw URL token is passed only to
+the provider request and never enters PostgreSQL, audit metadata, or outbox
+JSON. Existing supplier email behavior is unchanged when the link controls are
+closed.
+
+`ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_ENABLED` and its tenant
+allowlist remain false/empty, the HTTPS API base URL is unset, and no hosted
+SQL, provider setting, Vercel deployment, or hosted data changed in this
+source slice. Source remains at 85 migrations versus 55 hosted Supabase
+migrations.
+
 ## M3.29 source update (2026-08-03)
 
 Local source adds a protected SCM-issuance session-minting seam. When its

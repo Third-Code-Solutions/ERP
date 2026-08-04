@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.30 source link-delivery slice
+
+1. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_ENABLED` and
+   `ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_TENANT_IDS` false/empty;
+   keep `ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL` unset. The link service also
+   requires the existing public-write gate and tenant allowlist, so no dead
+   supplier URL can be sent while the route is closed.
+2. Do not apply Supabase migrations or trigger Vercel. Reconcile the complete
+   30-migration hosted suffix, then run disposable pending/unexpired,
+   expired/revoked, replay, cross-tenant, provider retry, rollback, and
+   spend-bounded email proofs before enabling one tenant.
+3. Preserve the existing supplier outbox and email retry contract. The next
+   source milestone after provider evidence is a hosted canary and runtime
+   verification, not a UI rewrite.
+
 ## Exact next action after M3.29 Railway source deployment
 
 1. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_ENABLED` and
