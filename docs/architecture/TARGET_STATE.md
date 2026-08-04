@@ -18,6 +18,12 @@ migrations. The target remains behind source until a PostgreSQL 17 clone/replay,
 catalog/data/RLS diff, backup/restore proof, and zero-skipped release evidence
 clear the forward-only apply gate.
 
+Authenticated browser evidence (M3.35): local route tests and browser suites
+must prove session redirects before render, JSON authorization for API callers,
+private response headers, role filtering, tenant-scoped graph/citation data,
+and responsive behavior. Demo-tenant proof is useful runtime evidence but never
+substitutes for isolated two-tenant database/Redis replay before promotion.
+
 Browser authorization boundary (M3.34): every dashboard module, including
 Cortex, finance, and inventory, is session-gated before route rendering. API
 routes remain independently authorized and are never converted into HTML login

@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.35 authenticated Cortex browser proof
+
+1. Build/replay isolated PostgreSQL 17 + Redis fixtures with two tenants and
+   two roles; rerun Cortex graph/search/chat/conversation flows with one tenant
+   authenticated at a time.
+2. Assert cross-tenant denial, role-filtered citations, direct-identifier
+   redaction before model/embedding calls, audit-chain entries, idempotent
+   replay, and rollback. Keep all ERP mutation flags closed.
+3. Only after zero-skipped disposable evidence, migration catalog/RLS diff,
+   backup/restore, owner approval, and spend gates pass, plan hosted migration
+   reconciliation. Keep Vercel Git/deployments paused.
+
 ## Exact next action after M3.34 authenticated browser route boundary
 
 1. Verify one disposable authenticated tenant in a real browser: allowed

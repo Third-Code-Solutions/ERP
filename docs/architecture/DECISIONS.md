@@ -1,5 +1,17 @@
 # Architecture Decisions
 
+## D-144 - Treat authenticated demo-browser proof as non-production evidence (2026-08-04)
+
+Decision: retain browser E2E coverage for session redirects, API 401 JSON,
+private headers, role filtering, graph scope, citation navigation, and
+responsive behavior, but classify runs against configured demo Supabase tenant
+as evidence only. Promotion still requires isolated two-tenant PostgreSQL/Redis
+replay and explicit cross-tenant/citation/redaction/rollback proof.
+
+Reason: one-time auth link proves runtime wiring without proving clean-schema
+parity or tenant isolation. Separating evidence classes prevents successful
+demo click-through from authorizing pending hosted migration suffix.
+
 ## D-143 - Gate browser ERP modules by exact route segments (2026-08-04)
 
 Decision: centralize browser-rendered protected prefixes and require an exact

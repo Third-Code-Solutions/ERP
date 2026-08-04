@@ -45,6 +45,32 @@ test.describe('Cortex focused graph', () => {
     expect(serviceRoleKey).toBeTruthy()
     expect(baseUrl).toBeTruthy()
 
+    for (const protectedPath of ['/cortex', '/finance', '/inventory']) {
+      const protectedResponse = await page.request.get(
+        `${baseUrl}${protectedPath}`,
+        { maxRedirects: 0 }
+      )
+      expect(protectedResponse.status(), protectedPath).toBe(307)
+      expect(protectedResponse.headers()['location'], protectedPath).toBe(
+        '/auth/login'
+      )
+    }
+
+    const unauthenticatedSearch = await page.request.get(
+      `${baseUrl}/api/cortex/search?q=unauthenticated-boundary`
+    )
+    expect(unauthenticatedSearch.status()).toBe(401)
+    expect(unauthenticatedSearch.headers()['content-type']).toContain(
+      'application/json'
+    )
+    expect(unauthenticatedSearch.headers()['cache-control']).toContain(
+      'private'
+    )
+    expect(unauthenticatedSearch.headers()['cache-control']).toContain(
+      'no-store'
+    )
+    expect(unauthenticatedSearch.headers()['vary']).toContain('Cookie')
+
     const focusUrl = `${baseUrl}/cortex?refTable=${FOCUS_REF_TABLE}&refId=${FOCUS_REF_ID}`
     const linkResponse = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
       method: 'POST',
