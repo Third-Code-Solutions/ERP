@@ -1,6 +1,9 @@
 import 'reflect-metadata'
 
-import { ServiceUnavailableException } from '@nestjs/common'
+import {
+  ConflictException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import type { UpdateInventoryWarehouseCommand } from '@third-code-erp/shared-types'
 import { describe, expect, it, vi } from 'vitest'
@@ -103,6 +106,9 @@ describe('InventoryWarehouseUpdateService migration boundary', () => {
         .fn()
         .mockReturnValueOnce({ from: membershipQuery.from })
         .mockReturnValueOnce({ from: warehouseQuery.from }),
+      execute: vi.fn().mockResolvedValue([
+        { quantity_micros: '0', value_cents: '0' },
+      ]),
       update: vi.fn().mockReturnValue({ set: updateSet }),
     }
     const transaction = vi.fn(async (callback: (tx: typeof transactionClient) => unknown) =>
@@ -146,5 +152,65 @@ describe('InventoryWarehouseUpdateService migration boundary', () => {
         },
       })
     )
+  })
+
+  it('rejects deactivation while net stock quantity or value remains', async () => {
+    const membership = {
+      tenantId: PRINCIPAL.tenantId,
+      role: PRINCIPAL.role,
+      email: PRINCIPAL.email,
+    }
+    const existing = {
+      id: WAREHOUSE_ID,
+      code: 'MAIN',
+      name: 'Main store',
+      projectId: null,
+      isActive: true,
+      createdAt: new Date('2026-08-05T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-05T00:00:00.000Z'),
+    }
+    const selectQuery = (rows: unknown[]) => {
+      const rowLock = vi.fn().mockResolvedValue(rows)
+      const limit = vi.fn().mockReturnValue({
+        for: rowLock,
+        then: (
+          resolve: (value: unknown[]) => unknown,
+          reject: (reason: unknown) => unknown
+        ) => Promise.resolve(rows).then(resolve, reject),
+      })
+      const where = vi.fn().mockReturnValue({ limit })
+      const from = vi.fn().mockReturnValue({ where })
+      return { from }
+    }
+    const membershipQuery = selectQuery([membership])
+    const warehouseQuery = selectQuery([existing])
+    const transactionClient = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce({ from: membershipQuery.from })
+        .mockReturnValueOnce({ from: warehouseQuery.from }),
+      execute: vi.fn().mockResolvedValue([
+        { quantity_micros: '1000000', value_cents: '12500' },
+      ]),
+      update: vi.fn(),
+    }
+    const transaction = vi.fn(async (callback: (tx: typeof transactionClient) => unknown) =>
+      callback(transactionClient)
+    )
+    const { candidate, audit } = service(
+      true,
+      [PRINCIPAL.tenantId],
+      transaction
+    )
+
+    await expect(
+      candidate.update(WAREHOUSE_ID, COMMAND, PRINCIPAL)
+    ).rejects.toMatchObject({
+      constructor: ConflictException,
+      message:
+        'Warehouse cannot be deactivated while its net stock balance is nonzero.',
+    })
+    expect(transactionClient.update).not.toHaveBeenCalled()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
   })
 })

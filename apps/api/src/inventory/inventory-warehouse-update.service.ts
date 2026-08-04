@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -6,18 +7,27 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { users, warehouses } from '@third-code-erp/database/schema'
+import {
+  stockLedgerEntries,
+  users,
+  warehouses,
+} from '@third-code-erp/database/schema'
 import {
   inventoryWarehouseUpdateResultSchema,
   type InventoryWarehouseUpdateResult,
   type UpdateInventoryWarehouseCommand,
   updateInventoryWarehouseCommandSchema,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
 import { DatabaseService } from '../database/database.service'
+
+interface WarehouseBalanceRow extends Record<string, unknown> {
+  quantity_micros: string | number | bigint
+  value_cents: string | number | bigint
+}
 
 @Injectable()
 export class InventoryWarehouseUpdateService {
@@ -106,6 +116,27 @@ export class InventoryWarehouseUpdateService {
         existing.isActive === parsedCommand.isActive
       ) {
         return this.toResult(authorizedPrincipal.tenantId, existing)
+      }
+
+      if (existing.isActive && !parsedCommand.isActive) {
+        const [balance] = await transaction.execute<WarehouseBalanceRow>(sql`
+          select
+            coalesce(sum(${stockLedgerEntries.quantity_delta_micros}), 0)::text
+              as quantity_micros,
+            coalesce(sum(${stockLedgerEntries.value_delta_cents}), 0)::text
+              as value_cents
+          from ${stockLedgerEntries}
+          where ${stockLedgerEntries.tenant_id} = ${authorizedPrincipal.tenantId}::uuid
+            and ${stockLedgerEntries.warehouse_id} = ${warehouseId}::uuid
+        `)
+
+        const quantityMicros = String(balance?.quantity_micros ?? '0')
+        const valueCents = String(balance?.value_cents ?? '0')
+        if (quantityMicros !== '0' || valueCents !== '0') {
+          throw new ConflictException(
+            'Warehouse cannot be deactivated while its net stock balance is nonzero.'
+          )
+        }
       }
 
       const [updated] = await transaction
