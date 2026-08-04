@@ -22,10 +22,16 @@ the ordinary database test lane still reports its documented 137 skips when
 `DATABASE_URL` is absent. Redis emitted only the local memory-overcommit
 warning. The disposable database and Redis processes were stopped.
 
-Hosted Supabase remains read-only at 55 migrations; no SQL, data, Storage,
-Railway setting/deployment, or Vercel deployment changed. GitHub push and any
-hosted migration remain gated on ordered suffix reconciliation, backup /
-restore, catalog/data/RLS diff, owner approval, and spend-bounded release.
+Source commit `11c8168248edc02eed93aff9be0204c12559152b` is pushed to
+`main` and `agent-02/third-code-erp-landing` under `kurtgav`. Railway
+auto-deployed it as `52dca77c-5bec-442f-85cd-f1cd81bde478`; `/ready` and
+`/health` are 200 with PostgreSQL/Redis healthy. Hosted Supabase remains
+read-only at 55 migrations; no SQL, data, Storage, or Railway setting changed.
+Vercel Git remains disconnected: the project is `live:false`, its latest
+connector-listed deployment still points to the older `ca9ff6…` SHA, and no
+new Vercel build was triggered. Hosted migration and frontend promotion remain
+gated on ordered suffix reconciliation, backup/restore, catalog/data/RLS diff,
+owner approval, and spend-bounded release.
 
 ## M3.35 authenticated Cortex browser proof (2026-08-04)
 

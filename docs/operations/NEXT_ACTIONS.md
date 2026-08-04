@@ -2,9 +2,10 @@
 
 ## Exact next action after M3.36 supplier-issued outbox replay
 
-1. Push the reviewed source migration and test/documentation changes only
-   after `git diff --check`, provider identity, and final release review; do
-   not trigger Vercel or apply hosted SQL from this milestone.
+1. Source push is complete at commit
+   `11c8168248edc02eed93aff9be0204c12559152b` on both target branches;
+   Railway deployment `52dca77c-5bec-442f-85cd-f1cd81bde478` is healthy. Do
+   not trigger a Vercel build or apply hosted SQL from this milestone.
 2. Reconcile the now 86-file source ledger against the 55-row Supabase target
    in an approved PostgreSQL 17 clone: backup/restore, catalog/data/RLS diff,
    duplicate-record mapping, audit recovery, rollback, and zero-skipped

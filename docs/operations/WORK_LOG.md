@@ -21,9 +21,16 @@ No Supabase SQL/data/Storage, Railway setting/deployment, or Vercel deployment
 changed. Ordinary non-`DATABASE_URL` tests still show their documented 137
 database skips; Redis printed only its local memory-overcommit warning.
 
-Exact next action: complete the controlled source push/review, then keep
-hosted migration/deployment blocked pending backup/restore, catalog/data/RLS,
-duplicate/audit/rollback, owner, provider, and spend gates.
+Source commit `11c8168248edc02eed93aff9be0204c12559152b` was pushed to both
+target branches under `kurtgav`. Railway auto-deployed deployment
+`52dca77c-5bec-442f-85cd-f1cd81bde478`; live `/ready` and `/health` returned
+200 with database/Redis healthy. Vercel Git remains disconnected and no new
+build was created because its project is `live:false` and spend protection is
+active. Supabase stayed at 55 migrations with no SQL/data mutation.
+
+Exact next action: keep hosted database migration and frontend promotion
+blocked pending backup/restore, catalog/data/RLS, duplicate/audit/rollback,
+owner, provider, and spend gates.
 
 ## 2026-08-04 - M3.35 authenticated Cortex browser proof
 

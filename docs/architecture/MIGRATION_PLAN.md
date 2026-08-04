@@ -17,8 +17,11 @@ Evidence: PostgreSQL 17 + Redis applied 86/86 source migrations; schema and
 release planner checks passed; database tests passed 300/300 with zero skips;
 API database/Redis integration passed 15 files / 22 tests; root lint,
 typecheck, full tests, and production build passed. The local fixtures were
-stopped after the run. Hosted Supabase is still 55/86 and no hosted/provider
-mutation occurred.
+stopped after the run. Commit `11c8168248edc02eed93aff9be0204c12559152b` is
+pushed to both target branches under `kurtgav`, and Railway auto-deployed it as
+`52dca77c-5bec-442f-85cd-f1cd81bde478` with `/ready` and `/health` green.
+Hosted Supabase is still 55/86; no hosted database/provider setting changed,
+and no Vercel build was triggered.
 
 Next: retain the hosted-apply block. Reconcile the complete 31-file suffix
 against an approved backup/restore and catalog/data/RLS diff, then obtain
