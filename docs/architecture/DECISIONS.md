@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-171 - Project update audit is transactionally coupled (2026-08-04)
+
+Decision: every Nest project update writes a semantic before/after diff through
+`AuditService.writeSemantic` before the transaction commits, and validates the
+shared update result schema. Tenant and actor identity come from the verified
+Nest principal; no browser-supplied audit identity is accepted.
+
+Reason: project updates are official ERP mutations. A successful update without
+an append-only audit record violates the auditability boundary and would make a
+future canary weaker than the existing Next compatibility path.
+
+Boundary: source-only until the exact Railway deployment and protected tenant
+canary gates pass. No Supabase or Vercel action is part of this decision.
+
 ## D-170 - Project collection reads are bounded and canary-gated (2026-08-04)
 
 Decision: expose project collection reads through Nest `GET /v1/projects`

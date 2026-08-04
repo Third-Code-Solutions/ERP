@@ -450,6 +450,26 @@ describe('ProjectsService', () => {
       tenantId: PRINCIPAL.tenantId,
       name: COMMAND.name,
     })
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      probe.transactionClient,
+      expect.objectContaining({
+        tenantId: PRINCIPAL.tenantId,
+        actorId: PRINCIPAL.userId,
+        entityType: 'project',
+        entityId: EXISTING.id,
+        action: 'update',
+        diff: {
+          before: expect.objectContaining({
+            name: EXISTING.name,
+            status: EXISTING.status,
+          }),
+          after: expect.objectContaining({
+            name: COMMAND.name,
+            project_type: COMMAND.projectType,
+          }),
+        },
+      })
+    )
   })
 
   it('rejects a Project outside the caller tenant scope', async () => {

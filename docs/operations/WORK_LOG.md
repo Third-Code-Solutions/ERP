@@ -1,5 +1,28 @@
 # Work Log
 
+## 2026-08-04 - M3.61 Nest project update audit hardening
+
+Hardened the existing canary-gated project update authority. Nest now writes a
+semantic before/after Project diff through the append-only audit chain inside
+the same transaction as the tenant predicate and optimistic-concurrency update.
+The shared Project update result is parsed at runtime.
+
+Changed files:
+
+- `apps/api/src/projects/projects.service.ts`
+- `apps/api/src/projects/projects.service.spec.ts`
+- architecture and operations memory files
+
+Results: focused project service 12/12; isolated controller specs 3/3 and 8/8;
+full API 62/318; workspace lint/typecheck; Nest build; `git diff --check`.
+The first parallel full-suite attempt had two unrelated 5-second controller
+timeouts; both isolated specs and the sequential full suite passed. No hosted
+SQL/data, Storage, Railway setting, or Vercel build changed.
+
+Rollback: revert the source commit or keep the project-write flag disabled;
+no hosted state requires repair. Next: push once, verify Railway, and keep the
+protected project-write canary closed.
+
 ## 2026-08-04 - M3.60 Nest project collection read contract
 
 Added the missing collection-read handoff. Nest now serves `GET /v1/projects`

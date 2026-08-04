@@ -4,6 +4,24 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.61 Nest project update audit hardening (source complete, 2026-08-04)
+
+The existing canary-gated `PATCH /v1/projects/:projectId` path now records a
+semantic, tenant-scoped before/after audit entry inside the same PostgreSQL
+transaction as the optimistic-concurrency update. Its shared update result is
+also parsed at runtime before returning to the transport. The default Next
+direct-write path and all canary flags remain unchanged.
+
+Validation: focused project service 12/12; isolated previously timing-sensitive
+controller specs 3/3 and 8/8; full API 62/318; workspace lint/typecheck; Nest
+production build; `git diff --check`. No Supabase SQL/data, Storage, Railway
+setting/deployment, or Vercel build changed in the source milestone.
+
+Next action: push once, verify the exact Railway source deployment and live
+health, then keep `ERP_PROJECT_WRITES_VIA_API=false` and its tenant allowlist
+empty until the protected canary and supported Supabase duplicate-PO replay
+gates clear.
+
 ## M3.60 Nest project collection read contract (source + Railway verified, 2026-08-04)
 
 Added a bounded `GET /v1/projects` contract with explicit `project.read`
