@@ -11,7 +11,7 @@ are recorded as follow-up security/performance work only.
 
 Verified provider spend controls: `apps/web/vercel.json` keeps Git deployment
 disabled; Vercel returned zero deployments after the source/docs push. GitHub
-is `kurtgav`, both branches are at `bbd0e39`, and the exact-SHA Railway check is
+is `kurtgav`, both branches are at `82d79bb`, and the exact-SHA Railway check is
 green. This checkpoint is source/docs-only; no Vercel build or hosted DB
 replay occurred.
 

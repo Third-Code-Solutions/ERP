@@ -4,7 +4,7 @@
 
 Rechecked the configured providers before any deployment action. GitHub
 identity is `kurtgav`; `Third-Code-Solutions/ERP` grants push/admin access and
-both target branches point to `bbd0e39`. The exact-SHA Railway check is
+both target branches point to `82d79bb`. The exact-SHA Railway check is
 `success`; the preceding API release remains healthy. This checkpoint changed
 docs only, so no new API deployment was needed.
 
@@ -27,7 +27,8 @@ Spend boundary: `apps/web/vercel.json` has Git deployment disabled; Vercel is
 preview/production build, Supabase SQL/data change, Storage mutation, Railway
 setting change, or feature-flag enablement occurred.
 
-Rollback: source/docs revert to `bbd0e39`; no hosted state needs reversal.
+Rollback: docs can revert to the prior checkpoint `bbd0e39`; no hosted state
+needs reversal.
 Next action: supported backup plus dependent-row/audit export and owner-approved
 duplicate mapping, followed by disposable replay and ordered migration review.
 
