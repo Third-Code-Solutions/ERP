@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.42 Project Command Center
+
+1. Push source `a225340` plus the milestone documentation once to `main` and
+   `agent-02/third-code-erp-landing` as `kurtgav`; do not reconnect Vercel Git
+   or trigger a preview/build.
+2. Verify GitHub's exact-SHA status, Railway deployment identity, and live
+   `/ready`/`/health`. Record any provider failure separately from the local
+   green source gates.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` at the verified 55-row prefix. Obtain
+   the supported backup/catalog/data/RLS/Storage reconciliation path before
+   applying any SQL; do not hand-edit migration history or bypass ordered
+   migrations.
+4. Keep all mutation flags closed. After the provider/rollback/audit/
+   tenant-isolation/spend gates clear, implement one small Nest-owned
+   mutation canary and verify it end to end.
+
 # Exact next action after M3.41 read-only Today Command Center
 
 1. Push source checkpoint `ab905091ada2f7db927e6cf4c2de687ee2010194` plus

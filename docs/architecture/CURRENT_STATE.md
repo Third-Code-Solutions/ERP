@@ -4,6 +4,40 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.42 Project Command Center (source complete, 2026-08-04)
+
+Source checkpoint: `a225340` (`feat(web): add project command center`). The
+project overview now opens with an original, read-only command center for
+work, decisions, evidence, deliveries, and the latest progress report. Every
+signal query repeats the authenticated tenant and project predicates; the UI
+only navigates to existing authorized records and Cortex context. Progress
+dates cross the server/UI boundary as ISO strings, and the overdue cutoff is
+bound as an ISO value so the page cannot reproduce the server `Date` encoding
+failure found during browser verification.
+
+Changed files: `apps/web/src/lib/project-queries.ts`, the project detail page
+and responsive page CSS, `apps/web/src/components/projects/project-command-
+center.tsx` plus its CSS/test, `apps/web/src/components/projects/project-
+tabs.tsx`, and `docs/research/components/project-command-center.spec.md`.
+No migration, schema, RLS, Storage, Nest API, Railway variable, or Vercel
+setting changed.
+
+Validation: focused command-center/query tests 4/4; full workspace test
+suite green (shared 162/162, database 166 executed with 140 environment-skips,
+API 294/294, Web 63 files / 442 tests); `pnpm lint`, `pnpm typecheck`,
+`git diff --check`, and Next production build 78/78 routes passed. Clean
+browser MCP proof on the authenticated demo project rendered the command
+center at 390px and 1440px, showed four signal cards, reported zero horizontal
+overflow, and recorded zero console errors after cache-disabled reload. The
+first build retry collided with the local dev server and was discarded; the
+clean rerun passed.
+
+Hosted state remains unchanged: Supabase is still the read-only 55-row
+prefix with the existing connector `INVALID_ARGUMENT`/`MIGRATIONS_FAILED`
+blockers; Railway and Vercel were not mutated. Exact next action: push this
+source and the milestone documentation once, verify the exact Railway SHA and
+live readiness, and keep Supabase SQL and Vercel builds paused.
+
 ## M3.41 Today Command Center (source complete, 2026-08-04)
 
 Source checkpoint: `ab905091ada2f7db927e6cf4c2de687ee2010194`. Added a

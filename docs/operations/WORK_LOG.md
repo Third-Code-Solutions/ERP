@@ -1,5 +1,37 @@
 # Work Log
 
+## 2026-08-04 - M3.42 Project Command Center
+
+Implemented the next smallest original construction ERP slice after Today:
+the project detail page now leads with a read-only command center for work,
+evidence, decisions, punchlist, deliveries, progress, and next move. The
+query layer repeats tenant/project predicates and joins deliveries through
+same-tenant project purchase orders. No component or Python service approves
+or commits an ERP record. The tab strip and project overview grids now stay
+inside the viewport on mobile.
+
+Changed source: `apps/web/src/lib/project-queries.ts`,
+`apps/web/src/app/(dashboard)/projects/[id]/page.tsx`, its page CSS,
+`apps/web/src/components/projects/project-command-center.tsx`, its CSS/test,
+and `apps/web/src/components/projects/project-tabs.tsx`. Added the measured
+spec at `docs/research/components/project-command-center.spec.md`.
+Source commit: `a225340`.
+
+Validation: focused 4/4; full workspace suite green (Web 63 files / 442,
+API 294, shared 162, database 166 executed with environment skips); lint,
+typecheck, `git diff --check`, and production build 78/78 routes passed.
+Authenticated browser MCP proof passed at 390px and 1440px with four signal
+cards, command-center heading, zero horizontal overflow, and zero console
+errors. A local dev build initially exposed Date encoding and a stale HMR
+hydration mismatch; the ISO boundary fix, clean server restart, cache-disabled
+reload, and final HTTP 200 verification closed both issues.
+
+Release boundary: no Supabase SQL, hosted row, Storage object, Railway
+variable/deployment, or Vercel build/promotion changed. Supabase remains the
+55-row prefix; Vercel remains disconnected and spend-protected. Exact next
+action: push source plus docs once, verify exact GitHub/Railway identity and
+live readiness, then continue the supported Supabase reconciliation gate.
+
 ## 2026-08-04 - M3.41 read-only Today Command Center
 
 Implemented the smallest post-PRD product slice. The dashboard now presents

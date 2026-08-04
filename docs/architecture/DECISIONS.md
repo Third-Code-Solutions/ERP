@@ -1,5 +1,31 @@
 # Architecture Decisions
 
+## D-151 - Project overview signals stay read-only and tenant-repeated (2026-08-04)
+
+Decision: add the Project Command Center as a server-rendered read surface
+over existing construction records. Each signal query repeats both tenant
+and project ownership; delivery counts join only tenant/project-owned
+purchase orders. The component may link to Checklist, Documents, VOs,
+Progress, Deliveries, Audit, Comments, and an explicit Cortex project
+context, but it cannot approve, finalize, or mutate an ERP transaction.
+Progress dates cross the render boundary as ISO strings and dynamic SQL time
+cutoffs are bound as ISO strings. The project tab strip is wrapped in a
+width-constrained frame so narrow browsers scroll the strip rather than the
+document.
+
+Rationale: construction users need one calm next-move surface without adding
+another authority path or hiding tenant boundaries in React. Existing tables
+provide enough evidence for a valuable slice; a new schema or direct browser
+write would expand risk without measurable value.
+
+Validation and release boundary: source `a225340`; focused 4/4 and full
+workspace tests, lint, typecheck, diff check, production build, and
+authenticated 390px/1440px browser proof pass. A real local server exception
+caused by a Date SQL parameter was fixed and rechecked; final server logs show
+HTTP 200 and no runtime error. No hosted SQL, Storage, Railway variable, or
+Vercel deployment changed. Keep the hosted reconciliation and spend gates
+closed.
+
 ## D-150 - Keep Today read-only and policy-gated (2026-08-04)
 
 Decision: build the first BuildOps operating surface from existing authorized

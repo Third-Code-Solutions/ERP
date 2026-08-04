@@ -13,6 +13,23 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.42 Project Command Center target (2026-08-04)
+
+The project overview is the construction team's bounded operating surface:
+work queue, evidence, commercial decisions, punchlist, delivery watch, and
+progress all remain linked to source records. The read path repeats tenant and
+project ownership on every query, exposes no mutation authority, and hands
+Cortex an explicit project reference. Responsive containment must hold at
+390px and desktop, including the long project tab strip.
+
+The source slice is complete at `a225340`. It is a frontend/read-query change
+over the existing schema; no hosted migration is required. Before any hosted
+promotion, verify the exact source SHA, Railway readiness, and the existing
+Supabase catalog/reconciliation gate. Keep Vercel Git disconnected and all
+mutation flags closed. The next vertical slice is one Nest-owned mutation
+canary only after the provider, rollback, audit, tenant-isolation, and spend
+gates clear.
+
 ## M3.41 Today Command Center target (2026-08-04)
 
 Today is the first read-only operating surface after the BuildOps contract:
