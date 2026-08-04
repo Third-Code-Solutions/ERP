@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.70 - Inventory Warehouse update/deactivation command boundary (2026-08-05)
+
+Implemented `PATCH /v1/inventory/warehouses/:warehouseId` as a strict
+tenant-scoped Nest command. It accepts only name and active state; code and
+project scope remain outside the command because database guards preserve
+Warehouse identity after stock evidence. The transaction locks and rechecks
+membership/capability, locks the tenant Warehouse, applies an idempotent state
+update, and writes semantic before/after audit evidence. The Next adapter is
+exact-flag plus tenant-allowlist gated; direct Server Action behavior remains
+default. No migration was added.
+
+Validation: shared 17/182, API 77/355, Web 82/521, focused Warehouse
+create/update tests, typechecks, serial lint, Nest build, Web production
+build, and `git diff --check`. Commit
+`4737fec37f97360f8c3ffe6bc98f0bdc78a4cdf5` is pushed to both target refs.
+Railway deployment `382d281a-b022-4296-8b9d-ee84a07c80b1` is `SUCCESS` for
+that exact SHA using the settled `apps/api/Dockerfile` manifest; `/ready` and
+`/health` are 200 with database and Redis healthy, and unauthenticated
+Warehouse POST/PATCH both return 401. Rollback is the disabled adapter flag or
+prior successful API deployment; no hosted state requires repair. No Supabase
+or Vercel provider action was triggered.
+
 ## M3.69 - Inventory Warehouse creation command boundary (2026-08-05)
 
 Implemented `POST /v1/inventory/warehouses` as a strict tenant-scoped Nest

@@ -1,5 +1,32 @@
 # Work Log
 
+## 2026-08-05 - M3.70 inventory Warehouse update/deactivation command boundary
+
+Implemented one inventory setup vertical slice. Shared types define strict
+Warehouse state update input/result. Nest owns
+`PATCH /v1/inventory/warehouses/:warehouseId`, rechecks tenant membership and
+`inventory.manage` inside a transaction, locks the tenant row, changes only
+name/active state, preserves immutable code/project identity, and appends
+semantic before/after audit evidence. Next uses the adapter only behind a
+disabled exact flag and allowlist; direct server-side compatibility behavior
+remains available by default.
+
+Results: shared 17/182; API 77/355; Web 82/521; focused Warehouse
+create/update contract, transaction, HTTP, client, and action tests; all
+typechecks; serial root lint; Nest build; Web 80-route build; and
+`git diff --check`. No Supabase SQL/data or provider setting changed and no
+Vercel preview/production build occurred.
+
+Source commit `4737fec37f97360f8c3ffe6bc98f0bdc78a4cdf5` was pushed to both
+target GitHub refs under `kurtgav`. Railway deployment
+`382d281a-b022-4296-8b9d-ee84a07c80b1` completed `SUCCESS` for that exact SHA.
+Its settled manifest is the API Dockerfile with `/ready` healthcheck and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` returned 200 with
+database and Redis healthy; unauthenticated Warehouse POST/PATCH both
+returned 401. The Warehouse update canary and related flags remain
+false/empty. Vercel remains untouched to control spend; Supabase remains
+read-only at 55/87.
+
 ## 2026-08-05 - M3.69 inventory Warehouse creation command boundary
 
 Implemented one inventory setup vertical slice. Shared types define strict

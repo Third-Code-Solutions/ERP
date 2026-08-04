@@ -4,6 +4,33 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.70 Inventory Warehouse update/deactivation command boundary (2026-08-05)
+
+Added a strict `PATCH /v1/inventory/warehouses/:warehouseId` Nest command for
+tenant-owned Warehouse name and active-state changes. Code and project scope
+are intentionally excluded from the command because the existing database
+guards make Warehouse identity immutable after stock receipt or movement
+evidence. The transaction rechecks membership and `inventory.manage`, locks
+the tenant Warehouse, performs an idempotent state update, and writes a
+semantic before/after audit record. The Next Server Action and adapter use the
+same exact-flag plus tenant-allowlist gate; direct server-side compatibility
+behavior remains available by default. No schema migration or UI layout/copy
+change was made.
+
+Validation: shared 17 files/182 tests; API 77 files/355 tests; Web 82
+files/521 tests; focused Warehouse create/update contract, service,
+controller, client, and action tests; shared/API/Web typecheck; serial root
+lint; Nest build; Web 80-route production build; and `git diff --check`.
+Source commit `4737fec37f97360f8c3ffe6bc98f0bdc78a4cdf5` is pushed to both
+target refs under `kurtgav`. Railway deployment
+`382d281a-b022-4296-8b9d-ee84a07c80b1` is `SUCCESS` for that exact SHA with
+the settled `apps/api/Dockerfile` manifest, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` are 200 with
+PostgreSQL and Redis healthy; unauthenticated Warehouse POST and PATCH both
+return 401. Supabase remains read-only at 55/87; Vercel remains untouched for
+spend control. The Warehouse update canary and all new write flags remain
+disabled.
+
 ## M3.69 Inventory Warehouse creation command boundary (2026-08-05)
 
 Added a strict `POST /v1/inventory/warehouses` Nest command for tenant-owned
