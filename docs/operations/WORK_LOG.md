@@ -1,5 +1,32 @@
 # Work Log
 
+## 2026-08-05 - M3.73 inventory Stock Movement register read
+
+Implemented one read-only inventory vertical slice. Shared types define a
+strict Stock Movement query/result envelope with bounded pagination and exact
+posted-value strings. Nest owns the tenant-scoped register read and enforces
+`inventory.read`; the Next page now selects a disabled-by-default Core adapter
+or the existing server-side compatibility query. No UI layout/copy changed,
+no migration was added, and no hosted data or provider setting changed.
+
+Results: shared 17/184; API 81 files/366 tests in an isolated single-worker
+run; Web 84/527; database 41 files with 168 active tests and 140 skipped
+without explicit `DATABASE_URL`; root typecheck; serial TS-only lint; local
+Nest/Web production build; focused contract/service/controller/client tests;
+and `git diff --check`. A parallel aggregate invocation had three existing
+HTTP-contract setup timeouts under contention; the isolated API run passed.
+
+Source commit `9d3cf5ed179f24c0382ecd7b53b9b94f87812578` was pushed to both
+target GitHub refs under `kurtgav`. Railway deployment
+`4cbaefcf-82a4-4549-83f4-2bfa094fcebb` completed `SUCCESS` for that exact SHA
+with the API Dockerfile, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` returned 200 with
+database and Redis healthy; unauthenticated Stock Movement access returned
+401. Supabase remains read-only at 55/88 with 33 pending source migrations;
+the read-only planner found a linear prefix and executed no SQL. Vercel
+remains untouched to control spend; the new Core read flag/list remain
+false/empty.
+
 ## 2026-08-05 - M3.72 inventory Warehouse deactivation integrity boundary
 
 Closed the Warehouse deactivation correctness gap. Nest now aggregates the

@@ -13,6 +13,23 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.73 Inventory Stock Movement register read (2026-08-05)
+
+Stock Movement discovery is a read-only Nest authority with a strict shared
+envelope. It must derive tenant scope and actor from the verified principal,
+require `inventory.read`, bound filters/page size, and preserve money as exact
+integer strings. The Next page may adopt it only through
+`ERP_INVENTORY_STOCK_MOVEMENT_READS_VIA_API=true` plus a strict tenant UUID
+allowlist; the compatibility read remains the default until a protected
+tenant canary, rollback evidence, and hosted migration parity are approved.
+The route does not approve, post, reverse, or otherwise mutate ERP state.
+
+Source SHA `9d3cf5ed179f24c0382ecd7b53b9b94f87812578` is live on Railway as
+successful deployment `4cbaefcf-82a4-4549-83f4-2bfa094fcebb`; `/ready` and
+`/health` are 200 and the unauthenticated route is 401. Supabase is read-only
+at 55/88 with 33 source migrations pending; no hosted schema/data or Vercel
+deployment is implied.
+
 ## M3.72 Inventory Warehouse deactivation integrity boundary (2026-08-05)
 
 Warehouse state authority must reject deactivation while its tenant-scoped
