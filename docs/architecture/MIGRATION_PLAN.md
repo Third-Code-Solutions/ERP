@@ -7,10 +7,13 @@ The first M3.58 API deployment exposed a runtime-only dependency error:
 the existing Redis factory/lifecycle into a shared global `RedisModule`, export
 the token, and import it explicitly in `AppModule` and `ProviderQuotaModule`.
 
-Validation so far: Redis/quota focused tests 5/5, API typecheck, and Nest
-production build. Full API tests, one corrective push, exact Railway status,
-deployment logs, and live readiness remain release gates. No Vercel build or
-Supabase mutation is part of this fix.
+Validation: Redis/quota focused tests 5/5, full API 61 files/313 tests, root
+lint, API typecheck, Nest production build, and `git diff --check`. Commit
+`d7f62faf` is pushed to both target branches. Railway deployment
+`5f3e4a02-45c9-4142-a0d8-7629844076a7` is `SUCCESS`; startup logs show the
+shared modules initialized, GitHub's exact API check is `success`, and live
+`/ready` plus `/health` return 200. No Vercel build or Supabase mutation is
+part of this fix.
 
 ## M3.58 - Nest project detail read contract (source complete, 2026-08-04)
 

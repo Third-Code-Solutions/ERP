@@ -15,12 +15,16 @@ quota/health dependency resolvable at runtime.
 
 Changed files: `apps/api/src/observability/redis.module.ts`, its wiring test,
 `provider-quota.module.ts`, and `app.module.ts`. Focused Redis/quota tests pass
-5/5; API typecheck and Nest build pass. The failed Railway deployment remains
-the current hosted source boundary; no database, Railway setting, or Vercel
-build/deploy was changed by this fix yet.
+5/5; full API passes 61 files/313 tests; root lint, API typecheck, and Nest
+build pass. Corrective source `d7f62faf` is pushed to both target branches;
+Railway deployment `5f3e4a02` is `SUCCESS`, startup logs show both modules
+initialized, GitHub's exact API check is `success`, and live `/ready` plus
+`/health` return 200. No database, Railway setting, Supabase migration, or
+Vercel build/deploy changed.
 
-Next action: run the full API gate, push one corrective commit, inspect Railway
-build/deploy logs and exact-SHA status, then verify `/ready` and `/health`.
+Next action: keep the Nest read canary and provider quota flags false/empty;
+obtain the supported Supabase backup/export and duplicate-PO mapping before a
+disposable replay or any hosted migration/data action.
 
 ## M3.58 Nest project detail read contract (source-only, 2026-08-04)
 

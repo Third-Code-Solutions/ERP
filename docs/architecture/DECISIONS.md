@@ -14,7 +14,9 @@ avoids silently creating duplicate Redis connections.
 Boundary: Redis remains transport/accounting only. PostgreSQL transactions,
 constraints, and audit records remain ERP authority. The source fix requires
 exact Railway build/start/readiness evidence before production is called green;
-no Vercel or Supabase mutation is implied.
+that evidence is now green for `d7f62faf` without any Vercel or Supabase
+mutation. Keep all canary flags closed until the separate data and protected
+browser gates pass.
 
 ## D-168 - Project detail reads use a gated Nest contract (2026-08-04)
 
