@@ -6,7 +6,17 @@ import { describe, expect, it } from 'vitest'
 const directory = dirname(fileURLToPath(import.meta.url))
 const runtimeSourceRoot = resolve(directory, '..')
 const runtimePublicRoot = resolve(directory, '../../public')
-const runtimeRoots = [runtimeSourceRoot, runtimePublicRoot]
+// Keep this scan product-focused: research notes and migration provenance may
+// mention competitors, but shipped web/API/package text must not inherit their
+// branding or repository identifiers.
+const runtimeApiRoot = resolve(directory, '../../../api/src')
+const runtimePackagesRoot = resolve(directory, '../../../../packages')
+const runtimeRoots = [
+  runtimeSourceRoot,
+  runtimePublicRoot,
+  runtimeApiRoot,
+  runtimePackagesRoot,
+]
 const textExtensions = new Set([
   '.css',
   '.html',
@@ -33,18 +43,25 @@ function collectTextFiles(root: string): string[] {
 describe('Third Code ERP clean-room runtime branding', () => {
   it('contains no legacy vendor markers in runtime text', () => {
     const files = runtimeRoots.flatMap(collectTextFiles)
-    const source = files
-      .map((file) => readFileSync(file, 'utf8').toLowerCase())
-      .join('\n')
+    const sources = files.map((file) => ({
+      file,
+      text: readFileSync(file, 'utf8').toLowerCase(),
+    }))
     const forbiddenMarkers = [
       'erp' + 'next',
       'frap' + 'pe',
       'abi' + ' ops',
       'abi' + '_ops',
+      'abi' + '-ops',
+      'frap' + 'pe' + '/' + 'erp' + 'next',
+      'rework' + '.com',
     ]
 
     for (const marker of forbiddenMarkers) {
-      expect(source).not.toContain(marker)
+      const offenders = sources
+        .filter(({ text }) => text.includes(marker))
+        .map(({ file }) => file)
+      expect(offenders, `legacy marker: ${marker}`).toEqual([])
     }
 
     expect(files.length).toBeGreaterThan(0)
