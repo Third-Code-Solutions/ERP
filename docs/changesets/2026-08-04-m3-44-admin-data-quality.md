@@ -40,9 +40,16 @@ The Supabase target remains at the verified 55-migration prefix with its
 protected branch failing safely on the duplicate `PO-0002` preflight. Vercel
 remains disconnected/spend-protected.
 
+## Release verification
+
+Source `63bbf22` and evidence `eab1719` were pushed to `main` and
+`agent-02/third-code-erp-landing` as `kurtgav`. GitHub's Railway check is
+successful; the linked Railway service is online with `/ready` and `/health`
+returning 200. Supabase remains unchanged at 55/87 migrations and Vercel has
+no deployment for this SHA.
+
 ## Next action
 
-Push the source and evidence once, verify the exact GitHub/Railway identity and
-live readiness, then obtain a supported recoverable database backup and an
-owner-approved canonical duplicate repair before replaying the ordered SQL
-suffix. Do not auto-repair business records or hand-edit migration history.
+Obtain a supported recoverable database backup and an owner-approved canonical
+duplicate repair before replaying the ordered SQL suffix. Do not auto-repair
+business records or hand-edit migration history.

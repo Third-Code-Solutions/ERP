@@ -22,11 +22,15 @@ only links to authorized source records. Report caps, explicit omitted-row
 counts, and status buckets prevent a partial review from masquerading as a
 repair decision.
 
-The source slice is complete at `63bbf22`. It is deliberately schema-neutral;
+The source slice is complete at `63bbf22` and its evidence is pushed at
+`eab1719`. GitHub/Railway identity and live API readiness are verified. It is
+deliberately schema-neutral;
 the hosted uniqueness migration still waits for a supported backup, dependent
 row/audit export, owner-approved canonical decision, and ordered suffix replay.
 Keep migration flags closed, Vercel Git disconnected, and provider actions
-spend-bounded.
+spend-bounded. Vercel remains disconnected with no deployment for this SHA;
+the next gate is the supported database backup and owner-approved duplicate
+repair.
 
 ## M3.43 hosted-data target (2026-08-04)
 

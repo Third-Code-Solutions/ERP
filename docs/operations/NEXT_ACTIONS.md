@@ -2,20 +2,15 @@
 
 ## Exact next action after M3.44 admin data-quality review
 
-1. Push source `63bbf22` plus the milestone documentation once to `main` and
-   `agent-02/third-code-erp-landing` as `kurtgav`; do not reconnect Vercel Git
-   or trigger a preview/build.
-2. Verify GitHub's exact-SHA check, Railway deployment identity, and live
-   `/ready`/`/health`. Recheck that Supabase remains at the 55-row prefix and
-   that no hosted SQL or data changed.
-3. Obtain a supported recoverable Supabase backup/restore point and export the
+1. Obtain a supported recoverable Supabase backup/restore point and export the
    12-row duplicate `PO-0002` group with dependent lines, documents, and audit
    evidence. Get an owner-approved canonical decision before any repair.
-4. Execute one audited, reversible repair through the supported provider path,
+2. Execute one audited, reversible repair through the supported provider path,
    replay the ordered suffix from
    `20260801090000_purchase_order_create_idempotency.sql`, and verify the
    migration ledger, catalog, RLS/policies, Storage, and audit continuity.
-5. Keep all mutation flags closed and review a Nest-owned tenant canary only
+3. Keep all mutation flags closed, Vercel Git disconnected, and review a
+   Nest-owned tenant canary only
    after provider, rollback, audit, tenant-isolation, and spend gates clear.
 
 ## Exact next action after M3.43 Supabase reconciliation

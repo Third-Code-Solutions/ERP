@@ -15,10 +15,12 @@ a repair control would create an unreviewed authority path and risk issued
 document history. Group/detail caps and explicit omission counts keep bounded
 read performance honest.
 
-Validation/release boundary: source `63bbf22`; focused/full tests, lint,
-typecheck, production build, and authenticated 390px/1440px browser proof
-pass. No database, Storage, provider variable, or Vercel deployment changed.
-The next mutation remains the supported backup + owner-approved repair gate.
+Validation/release boundary: source `63bbf22`, evidence `eab1719` pushed to
+both target branches; focused/full tests, lint, typecheck, production build,
+and authenticated 390px/1440px browser proof pass. GitHub's Railway check is
+successful and live `/ready`/`/health` are 200. No database, Storage, provider
+variable, or Vercel deployment changed. The next mutation remains the
+supported backup + owner-approved repair gate.
 
 ## D-152 - Hosted migration reconciliation is a release gate (2026-08-04)
 
