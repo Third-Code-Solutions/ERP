@@ -21,10 +21,12 @@ import {
   getProjectsThroughCoreApi,
   getAccountThroughCoreApi,
   getAccountsThroughCoreApi,
+  getKycQueueThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
   projectListsUseCoreApi,
   accountReadsUseCoreApi,
+  accountKycQueueReadsUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
   purchaseOrderBomGroupedWritesUseCoreApi,
@@ -366,6 +368,21 @@ const ACCOUNT_DETAIL_RESULT = {
   opportunities: [],
   projects: [],
 }
+const ACCOUNT_KYC_QUEUE_RESULT = {
+  rows: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      name: 'Acme Office',
+      industry: 'office' as const,
+      createdAt: '2026-08-04T00:00:00.000Z',
+      artifactCount: 3,
+    },
+  ],
+  total: 201,
+  limit: 200 as const,
+  truncated: true,
+}
 
 describe('ERP Core client', () => {
   beforeEach(() => {
@@ -479,6 +496,23 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_ACCOUNT_READS_VIA_API_TENANT_IDS', '*')
     expect(accountReadsUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(accountReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps the KYC queue read on the legacy path unless its exact gate matches', () => {
+    vi.stubEnv('ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(accountKycQueueReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API', 'TRUE')
+    expect(accountKycQueueReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API_TENANT_IDS', '*')
+    expect(accountKycQueueReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(accountKycQueueReadsUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Project creation delegation fail-closed unless its exact gate matches', () => {
@@ -2205,6 +2239,35 @@ describe('ERP Core client', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       `https://erp-api.example.test/v1/crm/accounts/${accountId}`,
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
+        }),
+      })
+    )
+  })
+
+  it('reads the KYC queue through the Nest boundary', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(ACCOUNT_KYC_QUEUE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getKycQueueThroughCoreApi()).resolves.toEqual({
+      ok: true,
+      data: ACCOUNT_KYC_QUEUE_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/crm/accounts/kyc-queue',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

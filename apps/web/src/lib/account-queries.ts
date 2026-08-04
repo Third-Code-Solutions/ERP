@@ -8,9 +8,11 @@ import {
   projects,
 } from '@third-code-erp/database/schema'
 import {
+  accountKycQueueReadsUseCoreApi,
   accountReadsUseCoreApi,
   getAccountThroughCoreApi,
   getAccountsThroughCoreApi,
+  getKycQueueThroughCoreApi,
 } from './erp-core-client'
 import {
   asc,
@@ -69,6 +71,15 @@ export interface FilteredAccountsResult {
   page: number
   limit: number
   totalPages: number
+}
+
+export interface AccountKycQueueRow {
+  id: string
+  tenant_id: string
+  name: string
+  industry: AccountIndustry
+  created_at: Date
+  artifact_count: number
 }
 
 export interface AccountKycDetailRow {
@@ -312,6 +323,55 @@ export async function getAccountDetail(
   ])
 
   return { account, contactRows, kycRows, oppRows, projectRows }
+}
+
+export async function getKycQueue(
+  tenantId: string
+): Promise<AccountKycQueueRow[]> {
+  if (accountKycQueueReadsUseCoreApi(tenantId)) {
+    const result = await getKycQueueThroughCoreApi()
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'KYC queue was not read')
+    }
+    if (result.data.rows.some((row) => row.tenantId !== tenantId)) {
+      throw new Error('KYC queue returned an invalid tenant scope')
+    }
+    return result.data.rows.map((row) => ({
+      id: row.id,
+      tenant_id: row.tenantId,
+      name: row.name,
+      industry: row.industry,
+      created_at: new Date(row.createdAt),
+      artifact_count: row.artifactCount,
+    }))
+  }
+
+  const rows = await db
+    .select({
+      id: accounts.id,
+      tenant_id: accounts.tenant_id,
+      name: accounts.name,
+      industry: accounts.industry,
+      created_at: accounts.created_at,
+      artifact_count: sql<number>`count(${accountKycArtifacts.id})::int`,
+    })
+    .from(accounts)
+    .leftJoin(
+      accountKycArtifacts,
+      and(
+        eq(accountKycArtifacts.account_id, accounts.id),
+        eq(accountKycArtifacts.tenant_id, tenantId)
+      )
+    )
+    .where(and(eq(accounts.tenant_id, tenantId), eq(accounts.kyc_status, 'pending')))
+    .groupBy(accounts.id)
+    .orderBy(asc(accounts.created_at), asc(accounts.id))
+    .limit(200)
+
+  return rows.map((row) => ({
+    ...row,
+    artifact_count: Number(row.artifact_count),
+  }))
 }
 
 export function accountDetailResultToPageData(

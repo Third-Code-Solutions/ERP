@@ -104,4 +104,37 @@ describe('Accounts API contract', () => {
       expect.objectContaining({ tenantId: TENANT_ID })
     )
   })
+
+  it('routes the KYC queue literal before the account UUID detail route', async () => {
+    const kycQueue = vi.fn().mockResolvedValue({
+      rows: [],
+      total: 0,
+      limit: 200,
+      truncated: false,
+    })
+    const moduleRef = await Test.createTestingModule({
+      controllers: [AccountsController],
+      providers: [{ provide: AccountsService, useValue: { list: vi.fn(), kycQueue } }],
+    }).compile()
+    const app = moduleRef.createNestApplication()
+    app.use((req: Request, _res: Response, next: NextFunction) => {
+      ;(req as AuthenticatedRequest).principal = {
+        userId: '11111111-1111-4111-8111-111111111111',
+        tenantId: TENANT_ID,
+        role: 'finance',
+        email: 'finance@example.test',
+      }
+      next()
+    })
+    await app.init()
+    close = () => app.close()
+
+    await request(app.getHttpServer())
+      .get('/v1/crm/accounts/kyc-queue')
+      .expect(200)
+
+    expect(kycQueue).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: TENANT_ID, role: 'finance' })
+    )
+  })
 })

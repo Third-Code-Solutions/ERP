@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const coreMocks = vi.hoisted(() => ({
+  accountKycQueueReadsUseCoreApi: vi.fn(),
   accountReadsUseCoreApi: vi.fn(),
   getAccountThroughCoreApi: vi.fn(),
   getAccountsThroughCoreApi: vi.fn(),
+  getKycQueueThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/database', () => ({
@@ -11,7 +13,8 @@ vi.mock('@third-code-erp/database', () => ({
 }))
 vi.mock('./erp-core-client', () => coreMocks)
 
-import { getAccountDetail, getAccountsFiltered } from './account-queries'
+import { db } from '@third-code-erp/database'
+import { getAccountDetail, getAccountsFiltered, getKycQueue } from './account-queries'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const ACCOUNT_ID = '33333333-3333-4333-8333-333333333333'
@@ -233,5 +236,91 @@ describe('getAccountDetail', () => {
     await expect(getAccountDetail(TENANT_ID, ACCOUNT_ID)).rejects.toThrow(
       'invalid tenant scope'
     )
+  })
+})
+
+describe('getKycQueue', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('maps the tenant-gated Nest KYC queue contract', async () => {
+    coreMocks.accountKycQueueReadsUseCoreApi.mockReturnValue(true)
+    coreMocks.getKycQueueThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        rows: [
+          {
+            id: ACCOUNT_ID,
+            tenantId: TENANT_ID,
+            name: 'Acme Office',
+            industry: 'office',
+            createdAt: '2026-08-04T00:00:00.000Z',
+            artifactCount: 3,
+          },
+        ],
+        total: 1,
+        limit: 200,
+        truncated: false,
+      },
+    })
+
+    await expect(getKycQueue(TENANT_ID)).resolves.toEqual([
+      expect.objectContaining({
+        id: ACCOUNT_ID,
+        tenant_id: TENANT_ID,
+        artifact_count: 3,
+      }),
+    ])
+    expect(coreMocks.getKycQueueThroughCoreApi).toHaveBeenCalledWith()
+  })
+
+  it('fails closed when the KYC queue contains another tenant', async () => {
+    coreMocks.accountKycQueueReadsUseCoreApi.mockReturnValue(true)
+    coreMocks.getKycQueueThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        rows: [
+          {
+            id: ACCOUNT_ID,
+            tenantId: '99999999-9999-4999-8999-999999999999',
+            name: 'Wrong Tenant',
+            industry: 'office',
+            createdAt: '2026-08-04T00:00:00.000Z',
+            artifactCount: 0,
+          },
+        ],
+        total: 1,
+        limit: 200,
+        truncated: false,
+      },
+    })
+
+    await expect(getKycQueue(TENANT_ID)).rejects.toThrow('invalid tenant scope')
+  })
+
+  it('keeps the legacy KYC queue tenant-scoped and capped', async () => {
+    coreMocks.accountKycQueueReadsUseCoreApi.mockReturnValue(false)
+    const limit = vi.fn().mockResolvedValue([
+      {
+        id: ACCOUNT_ID,
+        tenant_id: TENANT_ID,
+        name: 'Acme Office',
+        industry: 'office',
+        created_at: new Date('2026-08-04T00:00:00.000Z'),
+        artifact_count: 2,
+      },
+    ])
+    const orderBy = vi.fn().mockReturnValue({ limit })
+    const groupBy = vi.fn().mockReturnValue({ orderBy })
+    const where = vi.fn().mockReturnValue({ groupBy })
+    const leftJoin = vi.fn().mockReturnValue({ where })
+    const from = vi.fn().mockReturnValue({ leftJoin })
+    vi.mocked(db.select).mockReturnValue({ from } as never)
+
+    await expect(getKycQueue(TENANT_ID)).resolves.toEqual([
+      expect.objectContaining({ id: ACCOUNT_ID, artifact_count: 2 }),
+    ])
+    expect(limit).toHaveBeenCalledWith(200)
+    expect(where).toHaveBeenCalled()
+    expect(leftJoin).toHaveBeenCalled()
   })
 })

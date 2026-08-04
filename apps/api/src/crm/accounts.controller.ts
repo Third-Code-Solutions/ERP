@@ -1,6 +1,7 @@
 import { Controller, Get, Inject, Param, ParseUUIDPipe, Query } from '@nestjs/common'
 import type {
   AccountDetailResult,
+  AccountKycQueueResult,
   AccountListQuery,
   AccountListResult,
 } from '@third-code-erp/shared-types'
@@ -25,6 +26,14 @@ export class AccountsController {
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<AccountListResult> {
     return this.accounts.list(query, principal)
+  }
+
+  @Get('kyc-queue')
+  @RequireCapabilities('account.kyc_review')
+  kycQueue(
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<AccountKycQueueResult> {
+    return this.accounts.kycQueue(principal)
   }
 
   @Get(':accountId')
