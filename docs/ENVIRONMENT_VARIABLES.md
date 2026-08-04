@@ -139,6 +139,18 @@ When enabled, failed Nest/Redis quota calls fail closed before external AI
 work. Edge limiter remains separate per-instance burst guard. This is not a
 global budget until every provider instance uses shared accounting.
 
+## Project detail read cutover (NestJS, disabled by default)
+
+The project detail page can opt into the tenant-scoped Nest read contract for
+one controlled tenant. The default remains the existing server-side read path;
+the flag must not be enabled until the API deployment identity, protected
+browser proof, and rollback path are recorded.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_PROJECT_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects/:id`; exact `true` only |
+| `ERP_PROJECT_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
 ## Local Development
 
 The minimum to boot `pnpm dev`:

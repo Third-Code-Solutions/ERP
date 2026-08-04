@@ -8,11 +8,18 @@ const mocks = vi.hoisted(() => ({
   limit: vi.fn(),
 }))
 
+const coreMocks = vi.hoisted(() => ({
+  getProjectThroughCoreApi: vi.fn(),
+  projectReadsUseCoreApi: vi.fn(),
+}))
+
 vi.mock('@third-code-erp/database', () => ({
   db: {
     select: mocks.select,
   },
 }))
+
+vi.mock('./erp-core-client', () => coreMocks)
 
 import { getProject } from './project-queries'
 
@@ -22,6 +29,7 @@ const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 describe('getProject', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    coreMocks.projectReadsUseCoreApi.mockReturnValue(false)
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })
     mocks.where.mockReturnValue({ limit: mocks.limit })
@@ -45,5 +53,64 @@ describe('getProject', () => {
     mocks.limit.mockResolvedValue([])
 
     await expect(getProject(TENANT_ID, PROJECT_ID)).resolves.toBeNull()
+  })
+
+  it('uses the tenant-gated Nest read contract when enabled', async () => {
+    coreMocks.projectReadsUseCoreApi.mockReturnValue(true)
+    coreMocks.getProjectThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        id: PROJECT_ID,
+        tenantId: TENANT_ID,
+        name: 'Core Project',
+        client: 'Core Client',
+        status: 'active',
+        projectType: 'mep',
+        totalSqm: 250,
+        location: 'Makati',
+        notes: null,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T01:00:00.000Z',
+        accountId: null,
+        createdBy: null,
+      },
+    })
+
+    await expect(getProject(TENANT_ID, PROJECT_ID)).resolves.toMatchObject({
+      id: PROJECT_ID,
+      tenant_id: TENANT_ID,
+      name: 'Core Project',
+      project_type: 'mep',
+      created_at: new Date('2026-08-04T00:00:00.000Z'),
+      updated_at: new Date('2026-08-04T01:00:00.000Z'),
+    })
+    expect(coreMocks.getProjectThroughCoreApi).toHaveBeenCalledWith(PROJECT_ID)
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the Nest read returns another tenant', async () => {
+    coreMocks.projectReadsUseCoreApi.mockReturnValue(true)
+    coreMocks.getProjectThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        id: PROJECT_ID,
+        tenantId: '99999999-9999-4999-8999-999999999999',
+        name: 'Wrong Tenant',
+        client: 'Hidden Client',
+        status: 'active',
+        projectType: 'mep',
+        totalSqm: null,
+        location: null,
+        notes: null,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T00:00:00.000Z',
+        accountId: null,
+        createdBy: null,
+      },
+    })
+
+    await expect(getProject(TENANT_ID, PROJECT_ID)).rejects.toThrow(
+      'invalid tenant scope'
+    )
   })
 })

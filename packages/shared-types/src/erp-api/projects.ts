@@ -30,6 +30,16 @@ export const projectCreationResultSchema = z.object({
 export type CreateProjectCommand = z.infer<typeof createProjectCommandSchema>
 export type ProjectCreationResult = z.infer<typeof projectCreationResultSchema>
 
+// Read results are deliberately separate from command results. The core API
+// may expose stable ownership metadata without making the browser depend on
+// the database package's snake_case row shape.
+export const projectReadResultSchema = projectCreationResultSchema.extend({
+  accountId: z.string().uuid().nullable(),
+  createdBy: z.string().uuid().nullable(),
+})
+
+export type ProjectReadResult = z.infer<typeof projectReadResultSchema>
+
 export const updateProjectCommandSchema = z
   .object({
     name: z.string().trim().min(1).max(255),

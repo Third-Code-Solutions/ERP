@@ -1,5 +1,23 @@
 # Next Actions
 
+## Exact next action after M3.58 Nest project detail read contract
+
+1. Keep `ERP_PROJECT_READS_VIA_API=false` and
+   `ERP_PROJECT_READS_VIA_API_TENANT_IDS` empty. Do not enable a tenant canary
+   from local build evidence alone.
+2. Keep Vercel Git deployment disabled; create no preview or production build.
+   The source push and local 80/80 build are not frontend release evidence.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain the
+   supported recoverable backup plus dependent-row/audit export and
+   owner-approved canonical mapping for the 12 duplicate Purchase Orders.
+4. Re-run the read-only planners and disposable PostgreSQL 17 replay. Only
+   after that gate, exact Railway identity/readiness, protected browser proof,
+   rollback evidence, and an explicit spend cap may one tenant read canary run.
+
+Completed M3.58 gates: focused API 26/26, shared types 4/4, Web core/project
+reads 77/77, full Web 75/479, shared types 15/164, API/Web typecheck/build,
+workspace lint, and `git diff --check`. No hosted mutation or Vercel build.
+
 ## Exact next action after M3.57 stale Supabase refresh-token recovery
 
 1. Keep Vercel Git deployment disabled and create no preview/production build;

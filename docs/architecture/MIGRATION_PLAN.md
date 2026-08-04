@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.58 - Nest project detail read contract (source complete, 2026-08-04)
+
+Added `GET /v1/projects/:projectId` with explicit `project.read` capability,
+verified-principal tenant scope, and a shared camelCase read schema. The
+project detail page has a disabled-by-default adapter controlled by
+`ERP_PROJECT_READS_VIA_API` plus a strict tenant UUID allowlist. Identity and
+tenant mismatches fail closed; the default direct query remains intact.
+
+Validation: focused API 26/26, shared types 4/4, Web core/project reads 77/77,
+full Web 75/479, shared types 15/164, API typecheck/build, Web typecheck/build,
+workspace lint, and `git diff --check`. Full API under concurrent load had one
+procurement controller timeout (311/312); isolated rerun passed 8/8.
+
+No hosted migration, data repair, provider setting, Railway setting, or Vercel
+build occurred. Keep the read flag false/empty until the supported Supabase
+backup/export, duplicate-PO owner mapping, disposable replay, and protected
+browser canary gates pass.
+
 ## M3.57 - Stale Supabase refresh-token recovery (source complete, 2026-08-04)
 
 The observed Vercel /middleware refresh_token_not_found error is now handled

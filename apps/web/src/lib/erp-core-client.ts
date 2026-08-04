@@ -5,6 +5,7 @@ import {
   rfqCreationResultSchema,
   rfqDispatchResultSchema,
   projectUpdateResultSchema,
+  projectReadResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   projectCreationResultSchema,
@@ -43,6 +44,7 @@ import {
   type CreatePurchaseOrderCommand,
   type CreatePurchaseOrderFromBomCommand,
   type ProjectUpdateResult,
+  type ProjectReadResult,
   type CreateProjectCommand,
   type ProjectCreationResult,
   type RfqCreationResult,
@@ -169,6 +171,14 @@ export function projectWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_PROJECT_WRITES_VIA_API,
     process.env.ERP_PROJECT_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function projectReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PROJECT_READS_VIA_API,
+    process.env.ERP_PROJECT_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -765,6 +775,55 @@ export async function updateProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project change was committed.',
+    }
+  }
+}
+
+export async function getProjectThroughCoreApi(
+  projectId: string
+): Promise<CoreResult<ProjectReadResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/projects/${encodeURIComponent(projectId)}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 404
+            ? 'Project not found.'
+            : 'Project read was not completed.',
+      }
+    }
+
+    const parsed = projectReadResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Project read result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Project data was not read.',
     }
   }
 }

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   Inject,
   Param,
@@ -11,6 +12,7 @@ import {
 import type {
   CreateProjectCommand,
   ProjectCreationResult,
+  ProjectReadResult,
   ProjectUpdateResult,
   UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
@@ -29,6 +31,15 @@ export class ProjectsController {
     @Inject(ProjectsService)
     private readonly projects: ProjectsService
   ) {}
+
+  @Get(':projectId')
+  @RequireCapabilities('project.read')
+  read(
+    @Param('projectId', new ParseUUIDPipe()) projectId: string,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<ProjectReadResult> {
+    return this.projects.read(projectId, principal)
+  }
 
   @Post()
   @RequireCapabilities('project.create')

@@ -1,5 +1,35 @@
 # Work Log
 
+## 2026-08-04 - M3.58 Nest project detail read contract
+
+Added the first bounded project read handoff to the Nest modular monolith.
+`GET /v1/projects/:id` requires the explicit `project.read` capability, derives
+tenant scope from the verified principal, repeats the tenant/project predicate,
+and returns a shared camelCase read model. The Next project detail page can opt
+into it only for an allowlisted tenant; identity mismatches and unavailable
+authority fail closed, while the default direct query remains unchanged.
+
+Changed files:
+
+- Nest project controller/service/capability map and focused/e2e tests
+- `packages/shared-types/src/erp-api/projects.ts` and tests
+- `apps/web/src/lib/erp-core-client.ts` and tests
+- `apps/web/src/lib/project-queries.ts` and tests
+- project detail page, environment examples, and environment documentation
+- architecture and operations memory files
+
+Results: focused API 26/26, shared types 4/4, Web core/project reads 77/77,
+full Web 75/479, shared types 15/164, API typecheck/build, Web typecheck/build,
+workspace lint, and `git diff --check`. The concurrent full API run had one
+existing procurement controller timeout (311/312); isolated rerun passed 8/8.
+No hosted SQL/data, Storage, provider setting, Railway setting, or Vercel
+build changed.
+
+Rollback: revert the source commit; keep `ERP_PROJECT_READS_VIA_API=false` and
+its tenant list empty. No hosted state requires repair.
+Next: supported Supabase backup/export, owner-approved duplicate-PO mapping,
+disposable PostgreSQL 17 replay, then a separately approved tenant read canary.
+
 ## 2026-08-04 - M3.57 Stale Supabase refresh-token recovery
 
 Read-only Vercel runtime errors identified refresh_token_not_found in

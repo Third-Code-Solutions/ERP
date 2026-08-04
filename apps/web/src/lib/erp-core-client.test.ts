@@ -17,7 +17,9 @@ import {
   createChangeRequestThroughCoreApi,
   dispatchApprovedBomRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
+  getProjectThroughCoreApi,
   projectWritesUseCoreApi,
+  projectReadsUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
   purchaseOrderBomGroupedWritesUseCoreApi,
@@ -319,6 +321,11 @@ const CREATED_PROJECT_RESULT = {
   createdAt: '2026-08-04T00:00:00.000Z',
   updatedAt: '2026-08-04T00:00:00.000Z',
 }
+const READ_PROJECT_RESULT = {
+  ...CREATED_PROJECT_RESULT,
+  accountId: null,
+  createdBy: '11111111-1111-4111-8111-111111111111',
+}
 
 describe('ERP Core client', () => {
   beforeEach(() => {
@@ -381,6 +388,23 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PROJECT_WRITES_VIA_API_TENANT_IDS', '*')
     expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(projectWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Project reads on the legacy path unless the exact gate matches', () => {
+    vi.stubEnv('ERP_PROJECT_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_PROJECT_READS_VIA_API_TENANT_IDS', RESULT.tenantId)
+    expect(projectReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_PROJECT_READS_VIA_API', 'TRUE')
+    expect(projectReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PROJECT_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_PROJECT_READS_VIA_API_TENANT_IDS', '')
+    expect(projectReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_PROJECT_READS_VIA_API_TENANT_IDS', '*')
+    expect(projectReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(projectReadsUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Project creation delegation fail-closed unless its exact gate matches', () => {
@@ -1972,6 +1996,36 @@ describe('ERP Core client', () => {
           totalSqm: null,
           location: null,
           notes: null,
+        }),
+      })
+    )
+  })
+
+  it('reads a Project through the Nest boundary and validates ownership metadata', async () => {
+    vi.stubEnv('ERP_PROJECT_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_PROJECT_READS_VIA_API_TENANT_IDS', RESULT.tenantId)
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(READ_PROJECT_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getProjectThroughCoreApi(PROJECT_ID)
+    ).resolves.toEqual({ ok: true, data: READ_PROJECT_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/projects/${PROJECT_ID}`,
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
         }),
       })
     )

@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-168 - Project detail reads use a gated Nest contract (2026-08-04)
+
+Decision: add a tenant- and role-authorized `GET /v1/projects/:id` to the Nest
+modular monolith and expose it to the Next project detail page only through
+`ERP_PROJECT_READS_VIA_API` plus a strict tenant UUID allowlist. Use a shared
+camelCase read schema; verify returned project and tenant identity in the Next
+adapter; fail closed when the enabled authority is unavailable or inconsistent.
+
+Reason: business reads should migrate incrementally toward the Nest authority
+without a big-bang rewrite or a hidden cross-tenant fallback. The existing
+direct server-side query remains the compatibility path while protected
+browser, deployment, rollback, and spend evidence are collected.
+
+Boundary: this is read-only; it grants no ERP write authority, does not change
+Supabase schema/data, and the default flag/allowlist remain disabled. Source
+gates pass focused/full tests, typechecks, builds, and lint; no hosted provider
+mutation occurred.
+
 ## D-167 - Recover stale Supabase sessions at the middleware boundary (2026-08-04)
 
 Decision: recognize only Supabase's refresh_token_not_found failure (or its
