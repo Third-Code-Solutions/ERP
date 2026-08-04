@@ -1,5 +1,35 @@
 # Migration Plan
 
+## M3.65 - Nest CRM opportunity detail read handoff (Railway verified, 2026-08-05)
+
+Added `GET /v1/crm/opportunities/:opportunityId` with a strict shared result
+envelope, verified-principal tenant scope, explicit `opportunity.read`,
+tenant-scoped account/project joins, and tenant-scoped progress aggregates for
+PPRF, inspections, designs, and change requests. The opportunity detail page
+can adopt the adapter only through `ERP_OPPORTUNITY_READS_VIA_API` and its exact
+tenant UUID allowlist; direct DB behavior remains the compatibility path and is
+tenant-hardened.
+
+Validation: shared 17 files/176 tests; API 67 files/332 tests in the serial
+bounded Vitest run; Web 77 files/504 tests; focused Web adapter/query 89/89;
+database 41 files with 166 passed and 140 expected integration/RLS/Cortex
+skips; workspace typecheck/lint; Nest build; Web 80/80 production build; and
+`git diff --check`. The initial concurrent API run timed out on two unrelated
+5-second tests; no source change was needed. Commit `3eb9e69e` is pushed to
+both target branches. Railway deployment
+`e51c6641-5b68-443a-ac16-81bf3912531d` is `SUCCESS` for that exact SHA using
+`apps/api/Dockerfile`; `/ready` and `/health` are 200, unauthenticated
+opportunity detail access is 401, and startup logs expose the route. GitHub
+exact branch refs match the SHA. Supabase stayed read-only at 55/87 and all
+inspected public tables have RLS enabled; Vercel stayed at zero deployments.
+
+Rollback: keep `ERP_OPPORTUNITY_READS_VIA_API=false` and its allowlist empty, or
+redeploy the prior successful Railway API source; no hosted state requires
+repair. Next: reconcile the hosted/source migration ledger only after a
+supported recoverable backup/export, dependency/audit export, disposable
+PostgreSQL 17 replay, owner-approved mapping, protected browser evidence, and
+an explicit spend cap.
+
 ## M3.64 - Nest CRM KYC queue read handoff (Railway verified, 2026-08-04)
 
 Added `GET /v1/crm/accounts/kyc-queue` with a strict shared result envelope,

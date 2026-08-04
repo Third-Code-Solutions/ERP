@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-175 - CRM opportunity detail reads are bounded and canary-gated (2026-08-05)
+
+Decision: expose opportunity detail graphs through Nest
+`GET /v1/crm/opportunities/:opportunityId` using strict shared schemas, a
+verified tenant principal, explicit `opportunity.read`, repeated tenant
+predicates on account/project joins and all progress subqueries, and bounded
+aggregates for PPRF, inspections, designs, and change requests. Adopt from
+Next only through an exact flag plus tenant UUID allowlist; reject identity
+drift instead of falling back silently.
+
+Reason: opportunity detail combines financial, project, design, inspection,
+and change-request state. Moving it incrementally toward the core authority
+reduces browser-side business logic without a big-bang rewrite, cross-tenant
+leakage, or unbounded graph reads.
+
+Boundary: direct server-side DB reads remain default. Source commit `3eb9e69e`
+is live on Railway with Docker, readiness, route, and 401 boundary evidence.
+No Supabase schema/data, Railway setting, or Vercel build changed; protected
+browser, rollback, migration-reconciliation, and spend gates remain open.
+
 ## D-174 - CRM KYC queue reads are bounded and canary-gated (2026-08-04)
 
 Decision: expose pending-KYC account queues through Nest

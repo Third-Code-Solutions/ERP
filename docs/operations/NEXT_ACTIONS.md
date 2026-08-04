@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.65 Nest CRM opportunity detail read handoff
+
+1. Keep `ERP_OPPORTUNITY_READS_VIA_API=false` and
+   `ERP_OPPORTUNITY_READS_VIA_API_TENANT_IDS` empty; source and Railway
+   readiness/401 evidence are not a protected tenant browser canary.
+2. Preserve the spend guard: keep Vercel Git deployment disabled and trigger
+   no preview or production build. The docs-only push must remain outside the
+   Railway API watch patterns.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain the
+   supported backup/export, dependent/audit export, owner-approved duplicate-PO
+   mapping, and disposable PostgreSQL 17 replay before reconciling the 32-entry
+   migration suffix or performing any hosted data action.
+4. Only after those gates, run protected browser proof, exact rollback proof,
+   and an explicit spend cap for a single-tenant opportunity-read canary.
+
 ## Exact next action after M3.64 Nest CRM KYC queue read handoff
 
 1. Keep `ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API=false` and

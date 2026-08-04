@@ -1,5 +1,50 @@
 # Work Log
 
+## 2026-08-05 - M3.65 Nest CRM opportunity detail read handoff
+
+Moved the CRM opportunity detail graph toward the Nest modular-monolith
+authority. The new route requires `opportunity.read`, derives tenant scope from
+the verified principal, scopes account/project joins and all progress
+aggregates, and returns strict opportunity/PPRF/inspection/design/change-request
+state. The detail page uses the adapter only behind a disabled exact flag and
+tenant allowlist; the direct server-side path remains default and is now
+tenant-scoped throughout. UI copy and layout were not changed.
+
+Changed files:
+
+- `packages/shared-types/src/erp-api/opportunities.ts` and tests/export
+- `apps/api/src/auth/{capability.guard.ts,guards.spec.ts}`
+- `apps/api/src/crm/{crm.module.ts,opportunities.controller.ts,opportunities.service.ts,opportunities.service.spec.ts}`
+- `apps/api/test/opportunities.e2e.spec.ts`
+- `apps/web/src/lib/{erp-core-client.ts,erp-core-client.test.ts,opportunity-queries.ts,opportunity-queries.test.ts}`
+- `apps/web/src/app/(dashboard)/crm/opportunities/[id]/page.tsx`
+- root and web environment examples
+
+Results: shared 17 files/176 tests; API 67 files/332 tests in the serial
+single-worker bounded run; Web 77 files/504 tests; focused Web 89/89;
+database 41 files with 166 passed and 140 expected integration/RLS/Cortex
+skips; workspace typecheck/lint; Nest build; Web 80/80 production build; and
+`git diff --check`. The initial concurrent API run hit two unrelated 5-second
+timeouts; the serial rerun passed all 332 tests. No Supabase SQL/data repair,
+hosted migration, Vercel build/deploy, or provider setting changed.
+
+Commit `3eb9e69e` was pushed to both target branches under `kurtgav`. Railway
+deployment `e51c6641-5b68-443a-ac16-81bf3912531d` is `SUCCESS` with the API
+Dockerfile and exact SHA; live `/ready` is 200 with PostgreSQL and Redis,
+`/health` is 200, unauthenticated opportunity detail access is 401, and boot
+logs map the route. Supabase `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY`,
+read-only at 55 hosted/87 source migrations; all inspected public tables have
+RLS enabled. Vercel remains Git-disabled with zero deployments. The first
+Railway metadata snapshot showed a stale RAILPACK/web manifest while building;
+no extra deploy was triggered, and the settled deployment metadata is the
+correct API Dockerfile manifest.
+
+Rollback: keep `ERP_OPPORTUNITY_READS_VIA_API=false` and its allowlist empty, or
+redeploy the prior successful API deployment. No hosted state requires repair.
+Next: supported Supabase recovery/ledger reconciliation and protected browser
+evidence under an explicit spend cap before any opportunity canary or hosted
+data mutation.
+
 ## 2026-08-04 - M3.64 Nest CRM KYC queue read handoff
 
 Moved the pending-KYC account queue toward the Nest modular-monolith authority.

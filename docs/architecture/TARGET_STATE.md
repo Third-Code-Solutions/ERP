@@ -13,6 +13,18 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.65 CRM opportunity detail graph boundary (2026-08-05)
+
+Opportunity detail reads move toward Nest authority through a strict,
+tenant-scoped `GET /v1/crm/opportunities/:opportunityId` envelope. The route
+requires a verified principal and explicit `opportunity.read`, repeats tenant
+predicates on account/project joins and progress subqueries, and returns
+bounded current-state aggregates for PPRF, inspections, designs, and change
+requests. Next adoption remains exact-flag plus tenant-allowlist gated and
+fails closed on identity drift; the hardened direct server-side read remains
+the compatibility path. No schema, hosted-data, or frontend-provider action is
+implied.
+
 ## M3.64 CRM KYC queue authority boundary (2026-08-04)
 
 Pending-KYC account queues move toward Nest authority through a strict,
