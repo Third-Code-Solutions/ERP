@@ -19,7 +19,11 @@ closed.
 allowlist remain false/empty, the HTTPS API base URL is unset, and no hosted
 SQL, provider setting, Vercel deployment, or hosted data changed in this
 source slice. Source remains at 85 migrations versus 55 hosted Supabase
-migrations.
+migrations. Railway auto-deployed source commit `fcc2434969679159d6e7f5fa0212d490e50cac1f`
+as `7d2a078d-605f-49e9-a299-12c9667a153b`; `/ready` returned 200 with
+database/Redis healthy, and a valid-format public confirmation probe returned
+503 because the public-write gate remains closed. No Vercel deployment for
+this commit exists.
 
 ## M3.29 source update (2026-08-03)
 
