@@ -6,10 +6,11 @@ successful build.
 
 ## M3.50 Cost-capped provider and migration audit (read-only, 2026-08-04)
 
-The source tree and both target branches are aligned at `82d79bb`. The GitHub
+The reviewed application source checkpoint remains `386fd2a`; subsequent
+docs-only audit commits are present on both target branches. The GitHub
 connector is authenticated as `kurtgav`; the exact-SHA Railway check is
-`success`. The preceding API source deployment remains the healthy Railway
-release; this docs-only checkpoint did not require another API build.
+`success`. The API source deployment remains the healthy Railway release;
+these docs-only checkpoints did not require another API build.
 
 The Supabase target `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY`, PostgreSQL 17,
 and remains unchanged at 55 applied migrations versus 87 source migrations.
