@@ -1,5 +1,37 @@
 # Work Log
 
+## 2026-08-04 - M3.62 Nest CRM account collection read handoff
+
+Added the bounded CRM account collection authority seam. Nest now exposes
+`GET /v1/crm/accounts` with verified tenant scope, explicit `account.read`,
+strict query parsing, filters, stable sort/pagination, and opportunity counts.
+The Accounts page can opt in through an exact flag and tenant allowlist; direct
+DB behavior remains the default and the adapter fails closed on identity drift.
+
+Changed files:
+
+- `packages/shared-types/src/erp-api/accounts.ts` and tests
+- `apps/api/src/crm/account-list.pipe.ts` and tests
+- `apps/api/src/crm/accounts.controller.ts`
+- `apps/api/src/crm/accounts.service.ts` and tests
+- `apps/api/test/accounts.e2e.spec.ts`
+- capability map and CRM module wiring
+- `apps/web/src/lib/erp-core-client.ts` and tests
+- `apps/web/src/lib/account-queries.ts` and tests
+- CRM Accounts page handoff and environment examples/docs
+- architecture and operations memory files
+
+Results: shared types 16 files/170 tests; API 65/323; Web 76/488; workspace
+lint/typecheck; Nest build; Web 80/80 production build; `git diff --check`.
+The initial parallel web build/typecheck was discarded because overlapping
+local Next dev/build processes shared `.next`; after stopping only the
+ERP-scoped processes, sequential gates passed. No hosted migration/data repair,
+Vercel build/deploy, or provider setting changed.
+
+Rollback: leave `ERP_ACCOUNT_READS_VIA_API=false` and its allowlist empty, or
+revert the source commit; no hosted state requires repair. Next: keep the
+account-read canary closed pending supported Supabase recovery evidence.
+
 ## 2026-08-04 - M3.61 Nest project update audit hardening
 
 Hardened the existing canary-gated project update authority. Nest now writes a

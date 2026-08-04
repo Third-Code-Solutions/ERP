@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-172 - CRM account collection reads are bounded and canary-gated (2026-08-04)
+
+Decision: expose CRM account collections through Nest `GET /v1/crm/accounts`
+using a shared schema, verified tenant principal, explicit `account.read`,
+bounded search/industry/KYC filters, allowlisted sorting, deterministic
+pagination, and opportunity counts. Adopt from Next only through an exact flag
+plus tenant UUID allowlist; reject mismatched tenant or pagination identity.
+
+Reason: Accounts is a high-volume ERP surface. Moving it incrementally toward
+the core authority reduces browser-side business logic without a big-bang
+rewrite, cross-tenant leakage, unbounded queries, or hidden authority fallback.
+
+Boundary: direct server-side DB reads remain default. Source gates pass full
+shared/API/Web tests, typechecks, builds, and lint. No Supabase schema/data,
+Railway setting, or Vercel build changed; protected browser, rollback, and
+supported data-recovery gates remain open.
+
 ## D-171 - Project update audit is transactionally coupled (2026-08-04)
 
 Decision: every Nest project update writes a semantic before/after diff through

@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.62 - Nest CRM account collection read handoff (source complete, 2026-08-04)
+
+Added `GET /v1/crm/accounts` with strict query normalization, tenant-scoped
+filters, explicit `account.read`, stable sorting, capped pagination, and
+opportunity counts. The Accounts page has a disabled-by-default adapter behind
+`ERP_ACCOUNT_READS_VIA_API` and an exact tenant UUID allowlist; direct DB reads
+remain the compatibility path. Wrong-tenant rows and page/limit drift fail
+closed.
+
+Validation: shared types 16/170; API 65/323; Web 76/488; workspace
+lint/typecheck; API build; Web 80/80 production build; `git diff --check`.
+No hosted migration/data repair, Vercel build, or provider setting changed.
+Keep the flag false/empty until supported Supabase backup/export,
+dependent/audit export, owner-approved duplicate-PO mapping, disposable
+PostgreSQL 17 replay, protected browser evidence, and rollback gates pass.
+
 ## M3.61 - Nest project update audit hardening (Railway verified, 2026-08-04)
 
 Added the missing semantic audit write to the existing tenant-scoped,
