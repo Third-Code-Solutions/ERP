@@ -1,9 +1,41 @@
 import { db } from '@third-code-erp/database'
-import { projects } from '@third-code-erp/database/schema'
-import { eq, desc, asc, and, or, ilike, sql, type SQL } from 'drizzle-orm'
-import type { Project } from '@third-code-erp/database/schema'
+import {
+  dailyTasks,
+  deliverySchedules,
+  documents,
+  projects,
+  purchaseOrders,
+  punchlistItems,
+  progressUpdates,
+  variationOrders,
+} from '@third-code-erp/database/schema'
+import { eq, desc, asc, and, or, ilike, sql, type SQL, count, inArray } from 'drizzle-orm'
+import type { Project, ProgressUpdate } from '@third-code-erp/database/schema'
 
 export type { Project }
+
+export interface ProjectCommandCenterData {
+  pendingTasks: number
+  overdueTasks: number
+  documents: number
+  pendingDecisions: number
+  openPunchlist: number
+  activeDeliveries: number
+  progressPercent: number | null
+  progressWeekEnding: string | null
+}
+
+function readOverallProgress(value: ProgressUpdate['percent_by_category']): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = (value as Record<string, unknown>).overall_pct
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return null
+  return Math.max(0, Math.min(100, raw))
+}
+
+function numeric(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
 
 export const PROJECT_STATUS_VALUES = ['lead', 'active', 'on_hold', 'completed', 'cancelled'] as const
 export type ProjectStatus = (typeof PROJECT_STATUS_VALUES)[number]
@@ -58,6 +90,104 @@ export async function getProject(tenantId: string, projectId: string) {
     .limit(1)
 
   return row ?? null
+}
+
+/**
+ * Read-only, project-scoped operating signals for Project Command Center.
+ * Every query repeats tenant and project ownership predicates; no mutation or
+ * Cortex access happens here.
+ */
+export async function getProjectCommandCenter(
+  tenantId: string,
+  projectId: string,
+  now = new Date(),
+): Promise<ProjectCommandCenterData> {
+  const [taskRow, documentRow, decisionRow, punchlistRow, deliveryRow, progressRow] =
+    await Promise.all([
+      db
+        .select({
+          pending: count(),
+          overdue: sql<number>`count(*) filter (where ${dailyTasks.due_date} < ${now.toISOString()})`,
+        })
+        .from(dailyTasks)
+        .where(
+          and(
+            eq(dailyTasks.tenant_id, tenantId),
+            eq(dailyTasks.project_id, projectId),
+            eq(dailyTasks.status, 'pending'),
+          ),
+        ),
+      db
+        .select({ total: count() })
+        .from(documents)
+        .where(and(eq(documents.tenant_id, tenantId), eq(documents.project_id, projectId))),
+      db
+        .select({ total: count() })
+        .from(variationOrders)
+        .where(
+          and(
+            eq(variationOrders.tenant_id, tenantId),
+            eq(variationOrders.project_id, projectId),
+            inArray(variationOrders.status, [
+              'draft',
+              'pending_commercial_pricing',
+              'pending_client_signature',
+            ]),
+          ),
+        ),
+      db
+        .select({ total: count() })
+        .from(punchlistItems)
+        .where(
+          and(
+            eq(punchlistItems.tenant_id, tenantId),
+            eq(punchlistItems.project_id, projectId),
+            inArray(punchlistItems.status, ['open', 'in_progress', 'for_inspection']),
+          ),
+        ),
+      db
+        .select({ total: count() })
+        .from(deliverySchedules)
+        .innerJoin(
+          purchaseOrders,
+          and(
+            eq(purchaseOrders.id, deliverySchedules.purchase_order_id),
+            eq(purchaseOrders.tenant_id, tenantId),
+            eq(purchaseOrders.project_id, projectId),
+          ),
+        )
+        .where(
+          and(
+            eq(deliverySchedules.tenant_id, tenantId),
+            inArray(deliverySchedules.status, [
+              'scheduled',
+              'site_preparing',
+              'site_ready',
+              'in_transit',
+              'received',
+              'inspecting',
+            ]),
+          ),
+        ),
+      db
+        .select({ percentByCategory: progressUpdates.percent_by_category, weekEnding: progressUpdates.week_ending })
+        .from(progressUpdates)
+        .where(and(eq(progressUpdates.tenant_id, tenantId), eq(progressUpdates.project_id, projectId)))
+        .orderBy(desc(progressUpdates.week_ending))
+        .limit(1),
+    ])
+
+  const latestProgress = progressRow[0]
+  return {
+    pendingTasks: numeric(taskRow[0]?.pending),
+    overdueTasks: numeric(taskRow[0]?.overdue),
+    documents: numeric(documentRow[0]?.total),
+    pendingDecisions: numeric(decisionRow[0]?.total),
+    openPunchlist: numeric(punchlistRow[0]?.total),
+    activeDeliveries: numeric(deliveryRow[0]?.total),
+    progressPercent: latestProgress ? readOverallProgress(latestProgress.percentByCategory) : null,
+    progressWeekEnding: latestProgress?.weekEnding?.toISOString() ?? null,
+  }
 }
 
 export async function getProjectsFiltered(
