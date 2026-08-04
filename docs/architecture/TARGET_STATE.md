@@ -28,6 +28,12 @@ line-item, and replay schema is reconciled and the disposable cross-tenant,
 expiry, revocation, replay, rollback, provider, and spend evidence is complete.
 The source milestone is therefore not a production capability claim.
 
+Source `386fd2a` is present on both target branches and the Railway API
+deployment succeeded with healthy `/ready` and `/health` responses. The public
+read probe remains `503` by design. Vercel produced no deployment, and
+Supabase remains at the 55-migration boundary with the duplicate-PO preflight
+failure; these provider facts do not promote the portal to Live.
+
 ## M3.48 landing GEO target (2026-08-04)
 
 The public surface has a single canonical, machine-readable product graph:

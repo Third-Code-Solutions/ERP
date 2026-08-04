@@ -18,6 +18,13 @@ Validation/release boundary: source tests and full workspace gates pass (API
 request is HTTP 200. No hosted SQL/data, Railway setting, Vercel deployment,
 or provider mutation is authorized by this decision.
 
+Post-push evidence: source `386fd2a` is on both target branches; GitHub's
+Railway check is `success`, Railway deployment
+`430e835a-c2bc-4dfb-8994-a5b7e5a0e1ce` is `SUCCESS`, and live readiness is
+healthy. Vercel reports zero deployments after the push. Supabase remains at
+55 migrations with the latest branch-action log blocked by duplicate `PO-0002`
+rows (`SQLSTATE P0001`); no hosted mutation occurred.
+
 ## D-157 - Landing GEO graph is public-copy-only (2026-08-04)
 
 Decision: emit one pure, linked Schema.org graph for the public landing page:

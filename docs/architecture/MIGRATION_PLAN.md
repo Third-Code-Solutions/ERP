@@ -16,6 +16,14 @@ this source milestone. The next hosted step is a recoverable backup and
 owner-approved duplicate `PO-0002` repair before any ordered suffix replay,
 then disposable supplier-link canaries with rollback and spend controls.
 
+Post-push evidence: `386fd2a` is on both target branches. GitHub's exact-SHA
+Railway check is `success`; Railway deployment
+`430e835a-c2bc-4dfb-8994-a5b7e5a0e1ce` is `SUCCESS`, and `/ready`/`/health`
+are healthy. A valid-format public read probe returns `503` while the gate is
+closed. Vercel created zero deployments after the push. Supabase remains
+unchanged at 55 migrations; its latest branch-action log repeats the duplicate
+`PO-0002` `P0001` failure. No DB release occurred.
+
 ## M3.48 - landing GEO structured data (source complete, 2026-08-04)
 
 Added a pure landing structured-data builder and linked `Organization`,

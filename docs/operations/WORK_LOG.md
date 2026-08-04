@@ -19,6 +19,16 @@ flags false/empty and do not call the source slice production until the
 duplicate-PO repair, hosted suffix, token, rollback, provider, and spend gates
 are complete.
 
+Release evidence: commit `386fd2a` is pushed to `main` and
+`agent-02/third-code-erp-landing` as `kurtgav`. GitHub's exact-SHA Railway
+check is `success`; Railway deployment
+`430e835a-c2bc-4dfb-8994-a5b7e5a0e1ce` is `SUCCESS`, `/ready` is database/Redis
+healthy, `/health` is `ok`, and a valid-format public read probe returns
+`503` by design. Vercel's read-only query found zero deployments after the
+push. Supabase is unchanged at 55 migrations; the latest branch-action log
+still reports the duplicate-PO `P0001` preflight. No hosted DB or paid
+frontend deployment was performed.
+
 ## 2026-08-04 - M3.48 landing GEO structured data
 
 Added a pure structured-data builder and focused tests. The landing route now
