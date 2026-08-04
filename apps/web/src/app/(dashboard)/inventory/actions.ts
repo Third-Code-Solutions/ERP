@@ -20,6 +20,8 @@ import {
   createStockReceiptThroughCoreApi,
   inventoryUomCreateWritesUseCoreApi,
   inventoryWarehouseCreateWritesUseCoreApi,
+  inventoryWarehouseUpdateWritesUseCoreApi,
+  updateInventoryWarehouseThroughCoreApi,
   inventoryItemConfigurationWritesUseCoreApi,
   postStockReceiptThroughCoreApi,
   reverseStockReceiptThroughCoreApi,
@@ -89,6 +91,8 @@ function safeInventoryError(error: unknown): string {
     'Warehouse code already exists',
     'Project not found',
     'Inventory Warehouse was not created',
+    'Warehouse not found',
+    'Inventory Warehouse was not updated',
   ]
   if (message.includes('ux_units_of_measure_tenant_code')) {
     return 'That UOM code already exists.'
@@ -206,6 +210,64 @@ export async function createWarehouse(
     })
     revalidateInventory()
     return { ok: true }
+  } catch (error) {
+    return { ok: false, error: safeInventoryError(error) }
+  }
+}
+
+export async function updateWarehouse(
+  warehouseId: string,
+  formData: FormData
+): Promise<InventoryActionResult> {
+  try {
+    const profile = await requireUserProfile()
+    requireCapability(profile, 'inventory.manage')
+    const parsedWarehouseId = uuidSchema.parse(warehouseId)
+    const input = z
+      .object({
+        name: z.string().trim().min(1).max(160),
+        isActive: z.boolean(),
+      })
+      .parse({
+        name: formData.get('name'),
+        isActive: formData.get('isActive') === 'on',
+      })
+
+    if (inventoryWarehouseUpdateWritesUseCoreApi(profile.tenantId)) {
+      const result = await updateInventoryWarehouseThroughCoreApi(
+        parsedWarehouseId,
+        input
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Inventory Warehouse could not be updated through ERP Core.',
+        }
+      }
+      revalidateInventory()
+      return { ok: true, id: result.data.warehouseId }
+    }
+
+    const [updated] = await db
+      .update(warehouses)
+      .set({
+        name: input.name,
+        is_active: input.isActive,
+        updated_at: new Date(),
+      })
+      .where(
+        and(
+          eq(warehouses.id, parsedWarehouseId),
+          eq(warehouses.tenant_id, profile.tenantId)
+        )
+      )
+      .returning({ id: warehouses.id })
+    if (!updated) throw new Error('Warehouse not found')
+
+    revalidateInventory()
+    return { ok: true, id: updated.id }
   } catch (error) {
     return { ok: false, error: safeInventoryError(error) }
   }
