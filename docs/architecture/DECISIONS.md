@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-176 - Inventory summary reads are bounded and canary-gated (2026-08-05)
+
+Decision: expose inventory control-center reads through Nest
+`GET /v1/inventory/summary` using a strict shared envelope, verified tenant
+principal, explicit `inventory.read`, repeated tenant predicates on every
+table/join, bounded balances, and decimal-safe bigint strings. Adopt from Next
+only through an exact flag plus tenant UUID allowlist; reject tenant identity
+drift or truncated results instead of silently falling back.
+
+Reason: inventory combines stock quantities, money values, warehouses, items,
+projects, and receipt state. A bounded read seam moves business logic toward
+the core authority without a big-bang rewrite, browser-side sensitive reads,
+cross-tenant leakage, or loss of exact numeric integrity.
+
+Boundary: direct server-side inventory reads remain default. The adapter
+rejects tenant drift, truncation, and unsafe display numbers. No Supabase
+schema, hosted migration, Vercel build, or provider setting is implied. The
+55/87 migration ledger remains read-only pending supported recovery and replay.
+
 ## D-175 - CRM opportunity detail reads are bounded and canary-gated (2026-08-05)
 
 Decision: expose opportunity detail graphs through Nest

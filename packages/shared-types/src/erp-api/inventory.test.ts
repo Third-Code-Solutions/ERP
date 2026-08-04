@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createStockReceiptCommandSchema,
+  inventorySummaryResultSchema,
   quantityToMicros,
   receiptLineTotal,
   stockReceiptPostCommandSchema,
@@ -10,6 +11,79 @@ import {
 } from './inventory'
 
 const UUID = '11111111-1111-4111-8111-111111111111'
+
+const INVENTORY_SUMMARY = {
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  uoms: [
+    {
+      id: UUID,
+      code: 'EA',
+      name: 'Each',
+      decimalPlaces: 0,
+      isActive: true,
+    },
+  ],
+  warehouses: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      code: 'MAIN',
+      name: 'Main store',
+      projectId: null,
+      isActive: true,
+    },
+  ],
+  items: [
+    {
+      id: '44444444-4444-4444-8444-444444444444',
+      code: 'CEMENT',
+      description: 'Cement',
+      baseUomId: UUID,
+      inventoryTracked: true,
+      isActive: true,
+    },
+  ],
+  projects: [{ id: '55555555-5555-4555-8555-555555555555', name: 'Site A' }],
+  balances: [
+    {
+      warehouseId: '33333333-3333-4333-8333-333333333333',
+      warehouseCode: 'MAIN',
+      warehouseName: 'Main store',
+      itemId: '44444444-4444-4444-8444-444444444444',
+      itemCode: 'CEMENT',
+      itemDescription: 'Cement',
+      uomCode: 'EA',
+      quantityMicros: '4250000',
+      valueCents: '10001',
+    },
+  ],
+  balancesTruncated: false,
+  receiptCounts: { draftCount: 1, postedCount: 2 },
+} as const
+
+describe('Inventory summary contract', () => {
+  it('accepts bounded tenant-scoped data with exact integer strings', () => {
+    expect(inventorySummaryResultSchema.parse(INVENTORY_SUMMARY)).toEqual(
+      INVENTORY_SUMMARY
+    )
+  })
+
+  it('rejects numeric money/quantity values and unknown fields', () => {
+    expect(() =>
+      inventorySummaryResultSchema.parse({
+        ...INVENTORY_SUMMARY,
+        balances: [
+          { ...INVENTORY_SUMMARY.balances[0], valueCents: 10001 },
+        ],
+      })
+    ).toThrow()
+    expect(() =>
+      inventorySummaryResultSchema.parse({
+        ...INVENTORY_SUMMARY,
+        unexpected: true,
+      })
+    ).toThrow()
+  })
+})
 
 describe('Stock Receipt command contract', () => {
   it('accepts bounded decimal quantities and trims text', () => {

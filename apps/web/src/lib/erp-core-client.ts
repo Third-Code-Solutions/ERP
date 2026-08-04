@@ -34,6 +34,7 @@ import {
   publicSigningResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
+  inventorySummaryResultSchema,
   stockReceiptCreationResultSchema,
   stockReceiptPostingResultSchema,
   stockReceiptReversalResultSchema,
@@ -99,6 +100,7 @@ import {
   type DocumentProcessingAccepted,
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
+  type InventorySummaryResult,
   type StockReceiptCreationResult,
   type StockReceiptPostCommand,
   type StockReceiptPostingResult,
@@ -223,6 +225,14 @@ export function opportunityReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_OPPORTUNITY_READS_VIA_API,
     process.env.ERP_OPPORTUNITY_READS_VIA_API_TENANT_IDS
+  )
+}
+
+export function inventorySummaryReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_SUMMARY_READS_VIA_API,
+    process.env.ERP_INVENTORY_SUMMARY_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1077,6 +1087,49 @@ export async function getAccountThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Account detail was not read.',
+    }
+  }
+}
+
+export async function getInventorySummaryThroughCoreApi(): Promise<
+  CoreResult<InventorySummaryResult>
+> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/inventory/summary`, {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'x-request-id': randomUUID(),
+      },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    })
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: 'Inventory summary was not completed.',
+      }
+    }
+
+    const parsed = inventorySummaryResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid inventory summary result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Inventory was not read.',
     }
   }
 }

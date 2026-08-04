@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common'
 import { AuditModule } from '../audit/audit.module'
 import { RequestObservabilityMiddleware } from '../observability/request-observability.middleware'
+import { InventorySummaryController } from './inventory-summary.controller'
+import { InventorySummaryService } from './inventory-summary.service'
 import { StockReceiptController } from './stock-receipt.controller'
 import { StockReceiptCreatePipe } from './stock-receipt-create.pipe'
 import { StockReceiptCreationService } from './stock-receipt-creation.service'
@@ -16,8 +18,9 @@ import { StockReceiptWorkflowService } from './stock-receipt-workflow.service'
 
 @Module({
   imports: [AuditModule],
-  controllers: [StockReceiptController],
+  controllers: [StockReceiptController, InventorySummaryController],
   providers: [
+    InventorySummaryService,
     StockReceiptCreationService,
     StockReceiptCreatePipe,
     StockReceiptWorkflowService,
@@ -29,6 +32,6 @@ export class InventoryModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestObservabilityMiddleware)
-      .forRoutes(StockReceiptController)
+      .forRoutes(StockReceiptController, InventorySummaryController)
   }
 }

@@ -26,6 +26,7 @@ export const ERP_CAPABILITIES = [
   'po.issue',
   'delivery.receive',
   'change_request.create',
+  'inventory.read',
   'inventory.manage',
   'inventory.post_receipt',
   'document.manage',
@@ -123,6 +124,15 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'procurement',
   ],
   'change_request.create': ['owner', 'admin', 'sales'],
+  'inventory.read': [
+    'owner',
+    'admin',
+    'finance',
+    'procurement',
+    'sd_pm_pe',
+    'pm',
+    'commercial',
+  ],
   'inventory.manage': ['owner', 'admin', 'procurement'],
   'inventory.post_receipt': ['owner', 'admin', 'finance'],
   'document.manage': [

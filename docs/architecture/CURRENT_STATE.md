@@ -1,8 +1,37 @@
 # Current State
 
-Verified from the repository and the configured Supabase target on 2026-08-04.
+Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
+
+## M3.66 Inventory summary authority seam and Supabase ledger refresh (2026-08-05)
+
+The database release planner was rerun against Supabase project
+`aqqrtkmtcsfkbyyqxowv`. PostgreSQL 17 reports 55 hosted migration rows versus
+87 ordered repository migrations: an exact prefix, 32 pending suffix versions,
+no unexpected or out-of-order versions, and no data-rewrite finding. The
+suffix contains 26 `DROP CONSTRAINT IF EXISTS` findings and six explicit
+transaction-control findings. No SQL, hosted migration, data, Storage object,
+provider setting, or Vercel build/deploy changed. The ledger remains blocked
+pending supported recovery/export and disposable replay evidence.
+
+Implemented `GET /v1/inventory/summary` in the Nest modular monolith with
+`inventory.read`, verified-principal tenant scope, repeated tenant predicates,
+bounded setup/balance collections, and exact bigint quantity/value strings. The
+Next inventory page now consumes a server-only adapter only when
+`ERP_INVENTORY_SUMMARY_READS_VIA_API=true` and its exact tenant allowlist
+matches; the direct database path remains default. The adapter rejects tenant
+drift, truncation, and unsafe display numbers. UI copy/layout were preserved.
+
+Validation: shared 17 files/178 tests; API 69 files/336 tests in the serial
+run; Web 78 files/509 tests; focused API 15/15 and Web 90/90; shared/API/Web
+typecheck; serial root lint; Nest build; Web 80/80 production build; and
+`git diff --check`. No Supabase SQL/data repair, hosted migration, Vercel
+build/deploy, or provider setting changed.
+
+Next action: keep the inventory canary disabled, preserve the Vercel spend
+guard, and obtain protected browser/rollback evidence before any tenant
+cutover. The 55/87 migration ledger remains read-only.
 
 ## M3.65 Nest CRM opportunity detail read handoff (source + Railway verified, 2026-08-05)
 

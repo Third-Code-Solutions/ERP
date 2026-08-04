@@ -13,6 +13,17 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.66 Inventory summary authority seam and read-only ledger (2026-08-05)
+
+The safe inventory slice is now implemented as a tenant-scoped Nest summary
+read. It returns strict shared types, exact bigint money/quantity strings,
+bounded collections, explicit `inventory.read`, repeated tenant predicates,
+and no browser write authority. Next adoption remains disabled behind an
+exact flag and tenant allowlist; the existing inventory page is the
+compatibility path. The hosted migration ledger remains read-only at 55/87
+until recovery/export, dependency audit, owner mapping, and disposable
+PostgreSQL 17 replay gates are complete.
+
 ## M3.65 CRM opportunity detail graph boundary (2026-08-05)
 
 Opportunity detail reads move toward Nest authority through a strict,

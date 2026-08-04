@@ -2,6 +2,83 @@ import { z } from 'zod'
 
 const inventoryQuantityPattern = /^\d+(?:\.\d{1,6})?$/
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/
+const integerStringPattern = /^-?\d+$/
+
+const inventorySummaryUomSchema = z
+  .object({
+    id: z.string().uuid(),
+    code: z.string().trim().min(1).max(32),
+    name: z.string().trim().min(1).max(120),
+    decimalPlaces: z.number().int().nonnegative().max(6),
+    isActive: z.boolean(),
+  })
+  .strict()
+
+const inventorySummaryWarehouseSchema = z
+  .object({
+    id: z.string().uuid(),
+    code: z.string().trim().min(1).max(40),
+    name: z.string().trim().min(1).max(160),
+    projectId: z.string().uuid().nullable(),
+    isActive: z.boolean(),
+  })
+  .strict()
+
+const inventorySummaryItemSchema = z
+  .object({
+    id: z.string().uuid(),
+    code: z.string().trim().min(1).max(64),
+    description: z.string(),
+    baseUomId: z.string().uuid(),
+    inventoryTracked: z.boolean(),
+    isActive: z.boolean(),
+  })
+  .strict()
+
+const inventorySummaryProjectSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string(),
+  })
+  .strict()
+
+const inventorySummaryBalanceSchema = z
+  .object({
+    warehouseId: z.string().uuid(),
+    warehouseCode: z.string().trim().min(1).max(40),
+    warehouseName: z.string().trim().min(1).max(160),
+    itemId: z.string().uuid(),
+    itemCode: z.string().trim().min(1).max(64),
+    itemDescription: z.string(),
+    uomCode: z.string().trim().min(1).max(32),
+    quantityMicros: z.string().regex(integerStringPattern),
+    valueCents: z.string().regex(integerStringPattern),
+  })
+  .strict()
+
+const inventorySummaryReceiptCountsSchema = z
+  .object({
+    draftCount: z.number().int().nonnegative(),
+    postedCount: z.number().int().nonnegative(),
+  })
+  .strict()
+
+export const inventorySummaryResultSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    uoms: z.array(inventorySummaryUomSchema).max(500),
+    warehouses: z.array(inventorySummaryWarehouseSchema).max(500),
+    items: z.array(inventorySummaryItemSchema).max(1_000),
+    projects: z.array(inventorySummaryProjectSchema).max(500),
+    balances: z.array(inventorySummaryBalanceSchema).max(500),
+    balancesTruncated: z.boolean(),
+    receiptCounts: inventorySummaryReceiptCountsSchema,
+  })
+  .strict()
+
+export type InventorySummaryResult = z.infer<
+  typeof inventorySummaryResultSchema
+>
 
 const isoDateSchema = z
   .string()
