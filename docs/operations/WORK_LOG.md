@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-04 - M3.43 Supabase reconciliation gate
+
+Performed the supported-provider read-only audit before attempting any hosted
+DB change. Supabase project health is `ACTIVE_HEALTHY`, but its protected main
+branch is `MIGRATIONS_FAILED` at the first pending source file
+`20260801090000_purchase_order_create_idempotency.sql`. Branch-action logs
+show the migration stopped safely because tenant
+`2b2b039c-b066-412b-af4c-564f2af6097e` contains 12 `PO-0002` purchase orders.
+
+Reconciled 87 source migrations versus 55 hosted migrations; 88 public tables
+all have RLS enabled, three internal tables have no policies, Storage has one
+private `documents` bucket with 37 objects, and advisors returned 14 security
+and 282 performance findings. Added the detailed evidence record at
+`docs/research/supabase-reconciliation-20260804.md`.
+
+Release boundary: no SQL, data, Storage, migration history, Railway variable,
+or Vercel build changed. Do not retry the suffix, reset the protected branch,
+or auto-repair duplicate business records. Exact next action: supported
+backup/restore, owner-approved canonical duplicate repair, then ordered suffix
+replay and full catalog/RLS/Storage verification.
+
 ## 2026-08-04 - M3.42 Project Command Center
 
 Implemented the next smallest original construction ERP slice after Today:

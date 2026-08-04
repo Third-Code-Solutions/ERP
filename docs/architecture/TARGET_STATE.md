@@ -13,6 +13,17 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.43 hosted-data target (2026-08-04)
+
+The hosted database must reach the source migration head through a supported,
+recoverable sequence. Before any Nest mutation canary, the release record must
+contain the backup/restore point, canonical decision for the 12 duplicate
+`PO-0002` rows, audited repair evidence, complete migration ledger, RLS and
+policy review, Storage inventory, and exact provider identity. A healthy
+service check alone is insufficient. No automation may delete or rename
+business records, hand-edit migration history, or bypass the failed ordered
+suffix.
+
 ## M3.42 Project Command Center target (2026-08-04)
 
 The project overview is the construction team's bounded operating surface:

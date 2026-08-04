@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-152 - Hosted migration reconciliation is a release gate (2026-08-04)
+
+Decision: treat the configured Supabase target as a data-repair and migration
+reconciliation gate, not as a place to retry blindly. The first pending source
+migration is deliberately stopped by its uniqueness preflight because one
+tenant has 12 duplicate `PO-0002` purchase orders. No record may be renamed,
+deleted, or made canonical by automation without a recoverable backup, linked
+row/audit review, and owner-approved policy. Migration history must remain
+provider-managed and ordered.
+
+Reason: applying the 32-file suffix on ambiguous demo records could create a
+partial schema, break issued-document references, or make a false production
+green signal. The read-only catalog still proves RLS is enabled on all 88
+public tables, Storage has one private bucket and 37 objects, and advisor
+findings require separate security/performance review.
+
+Validation/release boundary: branch-action logs, migration ledger, table/RLS
+catalog, Storage counts, duplicate query, and advisors were read only on
+2026-08-04. No hosted SQL, data, Storage, Railway variable, or Vercel setting
+changed. Keep mutation flags closed until the ordered gates pass.
+
 ## D-151 - Project overview signals stay read-only and tenant-repeated (2026-08-04)
 
 Decision: add the Project Command Center as a server-rendered read surface
