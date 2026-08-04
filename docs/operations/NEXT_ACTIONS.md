@@ -1,5 +1,21 @@
 # Next Actions
 
+# Exact next action after M3.39 durable project-create idempotency
+
+1. Keep `ERP_PROJECT_CREATE_WRITES_ENABLED=false`, its tenant allowlist empty,
+   `ERP_PROJECT_CREATE_WRITES_VIA_API=false`, and its frontend allowlist empty;
+   the legacy Server Action remains the active path. Do not trigger Vercel or
+   apply hosted SQL from clone evidence alone.
+2. Under approved owner/provider authority, take a recoverable Supabase
+   backup/restore point and diff the hosted 55-row prefix against all 87
+   source migrations: tables, columns, constraints, functions, triggers,
+   RLS/policies, data/duplicates, Storage inventory, and migration history.
+3. Re-run the disposable two-tenant PostgreSQL/Redis replay and audit-chain
+   recovery check against the exact release SHA, document rollback, and then
+   review one tenant canary. Enable only the smallest approved allowlist after
+   provider identity and spend gates pass; verify `/ready`, `/health`, API
+   replay/conflict, audit, and browser behavior immediately.
+
 ## Exact next action after M3.38 project-create authority seam
 
 1. Add a forward-only `project_create_requests` migration/table with tenant

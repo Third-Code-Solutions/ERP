@@ -5555,3 +5555,26 @@ hosted baseline, but not a promotion approval:
 - Branch `agent-02/third-code-erp-landing` is clean and remote at docs commit
   `05ffb00025fa42b9384257d9ebeead388c7a3b49`; the reviewed source commit is
   `e8d4a6c181358756879435a76e8bd5a9317cc751`.
+# M3.39 - Durable project-create idempotency (2026-08-04)
+
+- Scope: make the guarded Nest project-create seam safe under retries without
+  changing the default Next Server Action path.
+- Changed: `supabase/migrations/20260804090000_project_create_idempotency.sql`;
+  Drizzle enum/table/index/FK schema; Nest controller/service request-hash,
+  claim, lock, replay, conflict, completion, and audit path; API/database
+  tests; Next form hidden key and core-client header; changeset/docs.
+- Source commit: `b77227df402082d494538b92d706f7f092fa1fe5`.
+- Validation: focused API 13/13; database contract 3/3; web core adapter
+  72/72; disposable PostgreSQL 17 + Redis 87/87 migrations, database 306/306
+  with zero skips, API integration 15 files / 22 tests; serial workspace
+  shared 162/162, web 438/438, API 294/294 (ordinary database environment
+  skips); lint, typecheck, `git diff --check`, and build 78/78 pages.
+- Runtime notes: only the disposable Redis overcommit warning appeared.
+  Hosted Supabase stayed at its read-only 55-row prefix. No hosted SQL/data,
+  Storage, Railway variable, Vercel build, or promotion changed.
+- Unresolved: source is 87 migrations vs hosted 55; provider catalog/data/RLS/
+  Storage diff, backup/restore, duplicate/audit recovery, and spend-bounded
+  canary approval remain open. Both project-create flags are false/empty.
+- Exact next action: reconcile the hosted target against an approved clone and
+  backup, then prepare one reviewed canary only after owner/provider/spend
+  gates clear.

@@ -4,6 +4,27 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.39 - Durable project-create idempotency (source complete)
+
+Committed at `b77227df402082d494538b92d706f7f092fa1fe5`. Added the
+`project_create_requests` migration/schema with tenant/key uniqueness,
+canonical SHA-256 request hash, strict state/result checks, composite tenant
+foreign keys, forced RLS, and service-only grants. Nest now requires and
+validates `Idempotency-Key`, transactionally claims the request, replays a
+stored typed result, rejects same-key/different-payload reuse, completes the
+ledger with the project and audit evidence, and rolls back both rows on
+failure. The Next form and core adapter supply the key; default flags remain
+closed, preserving the legacy Server Action behavior.
+
+Evidence: disposable PostgreSQL 17 + Redis applied 87/87 migrations;
+database tests passed 306/306 with zero skips; API integration passed 15 files
+/ 22 tests; focused API 13/13, web adapter 72/72, shared 162/162, web 438/438,
+API 294/294; lint, typecheck, `git diff --check`, and production build 78/78
+pages passed. Hosted Supabase, Railway variables, Storage, and Vercel were
+not mutated. Exact next action: obtain approved backup/restore and full
+55/87 catalog/data/RLS/Storage diff, then review one canary while both flags
+remain closed until owner/provider/spend gates pass.
+
 ## M3.38 - Guarded project-create authority seam (source-only)
 
 Implemented in source checkpoint `7f3a9fc`: strict shared command/result

@@ -13,6 +13,24 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.39 durable project-create replay target (2026-08-04)
+
+The target authority contract now includes a tenant-scoped
+`project_create_requests` ledger. Its composite tenant foreign keys, unique
+tenant/key index, request hash, explicit `processing -> succeeded` state, and
+typed result checks make retries and conflicts deterministic. Nest claims and
+completes the row in the project transaction, locks replay reads, emits audit
+evidence, and never delegates approval or finalization to the browser or
+Python. The Next adapter remains a compatibility seam and is closed by
+default.
+
+The source clone is reproducible at 87 migrations with zero-skip database and
+API integration evidence. Production enablement still requires a hosted
+55/87 catalog/data/RLS/Storage diff, approved backup/restore, duplicate and
+audit recovery decisions, exact provider identity, and spend-bounded canary.
+Keep `ERP_PROJECT_CREATE_WRITES_ENABLED` and
+`ERP_PROJECT_CREATE_WRITES_VIA_API` false until those gates clear.
+
 ## M3.38 project creation authority target (2026-08-04)
 
 Project creation is being strangled from the Next Server Action into the Nest

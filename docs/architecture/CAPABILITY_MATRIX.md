@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-04
-Source checkpoint: `7f3a9fc` (M3.38 project-create authority seam)
+Source checkpoint: `b77227d` (M3.39 durable project-create idempotency)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 This matrix is the product scope baseline. It describes business outcomes and
@@ -21,10 +21,10 @@ authorization.
 - **Planned**: scope is defined; no production mutation exists.
 - **Gap**: a capability is intentionally outside the current source surface.
 
-M3.38 update: project creation is now **Adapter**. A typed Nest authority seam
-exists with capability and audit boundaries, while the legacy Next Server
-Action remains default until idempotency/replay evidence and a canary gate are
-complete.
+M3.39 update: project creation remains **Adapter**. The Nest authority seam
+now has durable tenant/key idempotency, replay, conflict, rollback, and audit
+contracts; the legacy Next Server Action remains default until hosted parity,
+provider, and canary gates are complete.
 
 ## Construction operating spine
 
