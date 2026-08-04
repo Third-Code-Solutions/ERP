@@ -17,6 +17,14 @@ next-action updates. This milestone is documentation-only: no hosted SQL,
 business data, Storage object, Railway variable, Vercel build, or domain
 promotion changed.
 
+Committed as `a66b43bd9c1694f19de69ad3f0a49808fc41b8fd` and pushed to both
+`main` and `agent-02/third-code-erp-landing` under `kurtgav`. The GitHub
+Railway check is successful; live API `/ready` and `/health` returned 200 with
+PostgreSQL and Redis healthy. Read-only Supabase verification returned 55
+applied migrations with head `20260729233017`, no project-create idempotency
+table, and the pre-existing `MIGRATIONS_FAILED` branch state. Vercel remains
+Git-disconnected and no build/promotion was created.
+
 Exact next action: obtain supported Supabase migration-reconciliation and
 recoverable backup/catalog/data/RLS evidence. Keep project-create flags closed,
 Vercel disconnected, and provider spend bounded; then implement one
