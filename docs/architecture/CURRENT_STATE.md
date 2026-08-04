@@ -34,6 +34,31 @@ Next action remains the supported duplicate-PO backup/export and owner-
 approved canonical mapping before any hosted migration or spend-approved
 frontend release.
 
+## M3.55 Provider-backed burst cost guard (source-only, 2026-08-04)
+
+Added route-specific edge burst policies without changing API payloads or
+provider configuration. General traffic keeps its existing 1,000/minute
+authenticated and 100/minute anonymous policy. Cortex chat, AI chat, and
+similar-item retrieval share a 20/minute authenticated provider bucket (10
+anonymous); Cortex embedding uses 6 authenticated (2 anonymous). The helper
+proves allow/block/window-reset behavior. Limits are per edge instance, not a
+global quota; Redis-backed accounting remains a backend migration item.
+
+Changed files: `apps/web/src/middleware.ts`,
+`apps/web/src/lib/request-rate-limit.ts`, and its test. Validation: focused
+rate-limit tests 5/5; full Web passes 72 files/468 tests; workspace lint,
+typecheck, `git diff --check`, and 80/80-route production build pass. No UI,
+DB schema, hosted data, API payload, or provider setting changed.
+
+Source `4d190dfdf01c753812f7d5924f8c269c8a9de8bd` is pushed to both target
+branches as `kurtgav`. Vercel Git deployment remains disabled; no deployment
+was triggered. Supabase remains `ACTIVE_HEALTHY` at 55 applied migrations and
+Railway remains readiness/health green.
+
+Next action remains supported duplicate-PO backup/export plus owner-approved
+mapping and disposable replay. Replace per-instance burst guard with shared
+Redis accounting only as a separately tested Nest/backend milestone.
+
 ## M3.53 Clean-room runtime branding audit (source-only, 2026-08-04)
 
 Widened the branding regression boundary from the Next web tree to the

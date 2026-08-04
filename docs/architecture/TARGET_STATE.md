@@ -13,6 +13,19 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.55 Provider spend guard target (2026-08-04)
+
+Provider-backed requests must have explicit, route-aware burst protection. The
+edge guard may fail closed for short bursts while preserving existing payload
+contracts and read-only deterministic fallbacks. It must report scope and
+limit through standard rate-limit headers without exposing secrets.
+
+This source slice is complete in `4d190dfd`. It is intentionally per-instance;
+the target architecture moves authoritative quotas and locks to shared Redis
+behind NestJS, with tenant/user dimensions, retry-safe accounting, metrics, and
+an operator-visible spend budget. Do not claim global enforcement from the
+current edge map.
+
 ## M3.54 Cortex command-palette source target (2026-08-04)
 
 The global palette should be a low-cost entry point to the permissioned Cortex
