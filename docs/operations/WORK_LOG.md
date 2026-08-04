@@ -19,11 +19,17 @@ embed; web lint and web typecheck passed. Local unauthenticated probes returned
 protected POST/read handlers. GET probes for POST-only routes returned the
 framework 405 and are not application handler responses.
 
-No Supabase SQL/migration/data/Storage change, Railway variable/deployment,
-Vercel deployment, or provider setting changed. Exact next action: run the
-full workspace validation, publish this source-only slice under `kurtgav`,
-then perform an authenticated disposable-tenant browser permission/citation
-audit before any live-data or provider promotion.
+Full validation passed: API 287 tests, shared types 159, web 434, database 162
+passed with 137 environment-skipped; root lint/typecheck passed; production
+build generated 78/78 pages; `git diff --check` passed. Commit `36a37e9` was
+pushed to `main` and `agent-02/third-code-erp-landing` under `kurtgav` and
+verified via the GitHub connector. Supabase remains at 55 migrations. Vercel's
+latest connector-listed artifact predates this commit, so no Vercel deployment
+was created. Railway `/ready` and `/health` remain green; no manual Railway
+deployment or provider setting changed.
+
+Exact next action: perform an authenticated disposable-tenant browser
+permission/citation audit before any live-data or provider promotion.
 
 ## 2026-08-04 - M3.32 landing Cortex preview and UI reconnaissance
 

@@ -15,11 +15,14 @@ its own router `Vary` values, but `Cookie` remains present.
 
 The change is transport-only: request shapes, stream framing, citations,
 tenant/RBAC checks, database queries, and mutation authority are unchanged.
-Focused Cortex route tests (31/31), web lint, web typecheck, and local
-unauthenticated runtime probes passed. No SQL, migration, hosted data,
-Railway setting/deployment, or Vercel deployment changed. The next gate is an
-authenticated browser permission/citation audit against disposable tenant
-fixtures.
+Focused Cortex route tests (31/31), full workspace tests (API 287, shared
+types 159, web 434, database 162 passed with 137 environment-skipped), root
+lint/typecheck, and the 78-page production build passed. Commit `36a37e9` is
+published on both target GitHub branches under `kurtgav` and verified through
+the GitHub connector. Railway `/ready` and `/health` remain green; no manual
+Railway deployment, Supabase mutation, or Vercel deployment was triggered.
+The next gate is an authenticated browser permission/citation audit against
+disposable tenant fixtures.
 
 ## M3.32 landing Cortex preview and live UI reconnaissance (2026-08-04)
 
