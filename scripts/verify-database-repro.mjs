@@ -95,7 +95,10 @@ const requiredTables = [
 // Server-only command ledgers are intentionally excluded from the
 // authenticated tenant policy set above. They still require forced RLS and
 // explicit service-role authority in every clean replay and hosted clone.
-const requiredServerOnlyTables = ['stock_movement_create_requests']
+const requiredServerOnlyTables = [
+  'stock_movement_create_requests',
+  'stock_movement_workflow_requests',
+]
 
 const requiredPolicies = [
   ['cortex_nodes', 'cortex_nodes_tenant_read'],
@@ -291,6 +294,9 @@ const requiredServerOnlyIndexes = [
   'ux_stock_movement_create_requests_tenant_id_id',
   'ux_stock_movement_create_requests_tenant_key',
   'idx_stock_movement_create_requests_tenant_state',
+  'ux_stock_movement_workflow_requests_tenant_id_id',
+  'ux_stock_movement_workflow_requests_tenant_key',
+  'idx_stock_movement_workflow_requests_tenant_state',
 ]
 
 const requiredExpandedNodeTypes = [
@@ -711,23 +717,23 @@ try {
   )
 
   await query(
-    'Stock Movement idempotency ledger is forced-RLS and server-only',
+    'server-only command ledgers are forced-RLS and service-role-only',
     `select c.relname,
             c.relrowsecurity,
             c.relforcerowsecurity,
             has_table_privilege(
               'anon',
-              'public.stock_movement_create_requests',
+              format('public.%I', c.relname),
               'select,insert,update,delete'
             ) as anon_privileges,
             has_table_privilege(
               'authenticated',
-              'public.stock_movement_create_requests',
+              format('public.%I', c.relname),
               'select,insert,update,delete'
             ) as authenticated_privileges,
             has_table_privilege(
               'service_role',
-              'public.stock_movement_create_requests',
+              format('public.%I', c.relname),
               'select,insert,update,delete'
             ) as service_role_privileges
        from pg_class c

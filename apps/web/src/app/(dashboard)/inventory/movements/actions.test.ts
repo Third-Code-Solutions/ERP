@@ -4,7 +4,10 @@ const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
   requireCapability: vi.fn(),
   inventoryStockMovementCreateWritesUseCoreApi: vi.fn(),
+  inventoryStockMovementWorkflowUseCoreApi: vi.fn(),
   createStockMovementThroughCoreApi: vi.fn(),
+  postStockMovementThroughCoreApi: vi.fn(),
+  reverseStockMovementThroughCoreApi: vi.fn(),
   transaction: vi.fn(),
   select: vi.fn(),
   insert: vi.fn(),
@@ -40,15 +43,23 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/erp-core-client', () => ({
   inventoryStockMovementCreateWritesUseCoreApi:
     mocks.inventoryStockMovementCreateWritesUseCoreApi,
+  inventoryStockMovementWorkflowUseCoreApi:
+    mocks.inventoryStockMovementWorkflowUseCoreApi,
   createStockMovementThroughCoreApi:
     mocks.createStockMovementThroughCoreApi,
+  postStockMovementThroughCoreApi: mocks.postStockMovementThroughCoreApi,
+  reverseStockMovementThroughCoreApi: mocks.reverseStockMovementThroughCoreApi,
 }))
 
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }))
 
-import { createStockMovement } from './actions'
+import {
+  createStockMovement,
+  postStockMovement,
+  reverseStockMovement,
+} from './actions'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const ACTOR_ID = '22222222-2222-4222-8222-222222222222'
@@ -85,6 +96,7 @@ describe('Stock Movement creation compatibility seam', () => {
     })
     mocks.requireCapability.mockReturnValue(undefined)
     mocks.inventoryStockMovementCreateWritesUseCoreApi.mockReturnValue(true)
+    mocks.inventoryStockMovementWorkflowUseCoreApi.mockReturnValue(false)
     mocks.createStockMovementThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
@@ -156,5 +168,56 @@ describe('Stock Movement creation compatibility seam', () => {
     })
     expect(mocks.transaction).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
+  })
+
+  it('routes Stock Movement posting through Nest with a stable retry key', async () => {
+    mocks.inventoryStockMovementWorkflowUseCoreApi.mockReturnValue(true)
+    mocks.postStockMovementThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        stockMovementId: MOVEMENT_ID,
+        tenantId: TENANT_ID,
+        status: 'posted',
+        movementNumber: 'SM-2026-000001',
+        journalEntryId: null,
+        journalEntryNumber: null,
+      },
+    })
+
+    await expect(
+      postStockMovement(MOVEMENT_ID, 'movement-post-1')
+    ).resolves.toEqual({
+      ok: true,
+      id: MOVEMENT_ID,
+      number: 'SM-2026-000001',
+    })
+    expect(mocks.postStockMovementThroughCoreApi).toHaveBeenCalledWith(
+      MOVEMENT_ID,
+      {},
+      'movement-post-1'
+    )
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('requires a retry key and never falls back when Stock Movement workflow is selected', async () => {
+    mocks.inventoryStockMovementWorkflowUseCoreApi.mockReturnValue(true)
+
+    await expect(postStockMovement(MOVEMENT_ID)).resolves.toEqual({
+      ok: false,
+      error: 'Retry token is required for the Stock Movement command.',
+    })
+    await expect(
+      reverseStockMovement({
+        movementId: MOVEMENT_ID,
+        reason: 'Correction',
+        reversalDate: '2026-08-05',
+      })
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Retry token is required for the Stock Movement command.',
+    })
+    expect(mocks.postStockMovementThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.reverseStockMovementThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.transaction).not.toHaveBeenCalled()
   })
 })

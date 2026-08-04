@@ -392,6 +392,16 @@ export const stockMovementCreateRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const stockMovementWorkflowActionEnum = pgEnum(
+  'stock_movement_workflow_action',
+  ['post', 'reverse']
+)
+
+export const stockMovementWorkflowRequestStateEnum = pgEnum(
+  'stock_movement_workflow_request_state',
+  ['processing', 'succeeded']
+)
+
 export const changeRequestCreateRequestStateEnum = pgEnum(
   'change_request_create_request_state',
   ['processing', 'succeeded']

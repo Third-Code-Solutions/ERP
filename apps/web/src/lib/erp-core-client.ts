@@ -43,6 +43,8 @@ import {
   inventoryStockMovementListResultSchema,
   inventoryStockMovementDetailResultSchema,
   stockMovementCreationResultSchema,
+  stockMovementPostingResultSchema,
+  stockMovementReversalResultSchema,
   stockReceiptCreationResultSchema,
   stockReceiptPostingResultSchema,
   stockReceiptReversalResultSchema,
@@ -113,6 +115,10 @@ import {
   type InventoryStockMovementDetailResult,
   type CreateStockMovementCommand,
   type StockMovementCreationResult,
+  type StockMovementPostCommand,
+  type StockMovementPostingResult,
+  type StockMovementReverseCommand,
+  type StockMovementReversalResult,
   type CreateInventoryUomCommand,
   type InventoryUomCreationResult,
   type CreateInventoryWarehouseCommand,
@@ -333,6 +339,16 @@ export function inventoryStockMovementCreateWritesUseCoreApi(
     tenantId,
     process.env.ERP_INVENTORY_STOCK_MOVEMENT_CREATE_VIA_API,
     process.env.ERP_INVENTORY_STOCK_MOVEMENT_CREATE_TENANT_IDS
+  )
+}
+
+export function inventoryStockMovementWorkflowUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_VIA_API,
+    process.env.ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_TENANT_IDS
   )
 }
 
@@ -1387,6 +1403,120 @@ export async function createStockMovementThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Stock Movement was committed.',
+    }
+  }
+}
+
+export async function postStockMovementThroughCoreApi(
+  movementId: string,
+  command: StockMovementPostCommand,
+  idempotencyKey: string
+): Promise<CoreResult<StockMovementPostingResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/stock-movements/${encodeURIComponent(
+        movementId
+      )}/post`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Stock Movement posting conflicts with its current state.'
+            : response.status === 404
+              ? 'Stock Movement was not found.'
+              : 'Stock Movement was not posted.'
+      return { ok: false, error: message, status: response.status }
+    }
+    const parsed = stockMovementPostingResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Stock Movement posting result.',
+        status: response.status,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No Stock Movement was posted.',
+    }
+  }
+}
+
+export async function reverseStockMovementThroughCoreApi(
+  movementId: string,
+  command: StockMovementReverseCommand,
+  idempotencyKey: string
+): Promise<CoreResult<StockMovementReversalResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/stock-movements/${encodeURIComponent(
+        movementId
+      )}/reverse`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Stock Movement reversal conflicts with its current state.'
+            : response.status === 404
+              ? 'Stock Movement was not found.'
+              : 'Stock Movement was not reversed.'
+      return { ok: false, error: message, status: response.status }
+    }
+    const parsed = stockMovementReversalResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Stock Movement reversal result.',
+        status: response.status,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No Stock Movement was reversed.',
     }
   }
 }

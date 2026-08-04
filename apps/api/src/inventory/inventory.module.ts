@@ -29,6 +29,12 @@ import { InventoryStockMovementDetailService } from './inventory-stock-movement-
 import { InventoryStockMovementCreationController } from './inventory-stock-movement-creation.controller'
 import { InventoryStockMovementCreatePipe } from './inventory-stock-movement-create.pipe'
 import { InventoryStockMovementCreationService } from './inventory-stock-movement-creation.service'
+import { InventoryStockMovementWorkflowController } from './inventory-stock-movement-workflow.controller'
+import {
+  InventoryStockMovementPostPipe,
+  InventoryStockMovementReversePipe,
+} from './inventory-stock-movement-workflow.pipe'
+import { InventoryStockMovementWorkflowService } from './inventory-stock-movement-workflow.service'
 import { StockReceiptController } from './stock-receipt.controller'
 import { StockReceiptCreatePipe } from './stock-receipt-create.pipe'
 import { StockReceiptCreationService } from './stock-receipt-creation.service'
@@ -51,6 +57,7 @@ import { StockReceiptWorkflowService } from './stock-receipt-workflow.service'
     InventoryStockMovementListController,
     InventoryStockMovementDetailController,
     InventoryStockMovementCreationController,
+    InventoryStockMovementWorkflowController,
   ],
   providers: [
     InventorySummaryService,
@@ -73,6 +80,9 @@ import { StockReceiptWorkflowService } from './stock-receipt-workflow.service'
     InventoryStockMovementDetailService,
     InventoryStockMovementCreationService,
     InventoryStockMovementCreatePipe,
+    InventoryStockMovementWorkflowService,
+    InventoryStockMovementPostPipe,
+    InventoryStockMovementReversePipe,
   ],
 })
 export class InventoryModule implements NestModule {
@@ -89,7 +99,8 @@ export class InventoryModule implements NestModule {
         InventoryWarehouseCloseoutController,
         InventoryStockMovementListController,
         InventoryStockMovementDetailController,
-        InventoryStockMovementCreationController
+        InventoryStockMovementCreationController,
+        InventoryStockMovementWorkflowController
       )
   }
 }
