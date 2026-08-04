@@ -4,6 +4,24 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.31 read-only Supabase reconciliation audit (2026-08-04)
+
+The authorized target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17
+(`server_version_num = 170006`) with 55 applied migration rows. Source has 85
+files; the hosted ledger is the exact prefix and lacks the ordered 30-file
+suffix through `20260803160000_vendor_confirmation_session_minting`. A
+read-only risk scan found no `DROP TABLE`, `DELETE`, `TRUNCATE`, or data update;
+24 constraint replacements and six explicit transaction blocks still require
+clone/replay review. A catalog probe found zero of 23 expected pending table
+objects. Supabase security/performance advisor findings remain unfixed.
+
+Status is `BLOCKED_FOR_HOSTED_APPLY`: no SQL, migration-history row, hosted
+data, Storage object, provider setting, Railway variable, or Vercel deployment
+changed. Backup/PITR, isolated clone replay, catalog/data/RLS diff,
+zero-skipped integration and recovery evidence, owner approvals, and a
+spend-bounded canary remain required. See
+[`DATABASE_RECONCILIATION_M3.31.md`](./DATABASE_RECONCILIATION_M3.31.md).
+
 ## M3.30 source update (2026-08-04)
 
 Local source now reconstructs a supplier confirmation URL only inside the
