@@ -36,6 +36,7 @@ import {
   documentProcessingStatusSchema,
   inventoryUomCreationResultSchema,
   inventoryWarehouseCreationResultSchema,
+  inventoryWarehouseCloseoutResultSchema,
   inventoryWarehouseUpdateResultSchema,
   inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
@@ -109,6 +110,7 @@ import {
   type InventoryUomCreationResult,
   type CreateInventoryWarehouseCommand,
   type InventoryWarehouseCreationResult,
+  type InventoryWarehouseCloseoutResult,
   type InventoryWarehouseUpdateResult,
   type UpdateInventoryWarehouseCommand,
   type ConfigureInventoryItemCommand,
@@ -283,6 +285,16 @@ export function inventoryWarehouseUpdateWritesUseCoreApi(
     tenantId,
     process.env.ERP_INVENTORY_WAREHOUSE_UPDATE_VIA_API,
     process.env.ERP_INVENTORY_WAREHOUSE_UPDATE_TENANT_IDS
+  )
+}
+
+export function inventoryWarehouseCloseoutReadsUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_WAREHOUSE_CLOSEOUT_READS_VIA_API,
+    process.env.ERP_INVENTORY_WAREHOUSE_CLOSEOUT_READS_TENANT_IDS
   )
 }
 
@@ -1391,6 +1403,61 @@ export async function updateInventoryWarehouseThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No inventory Warehouse was updated.',
+    }
+  }
+}
+
+export async function getInventoryWarehouseCloseoutThroughCoreApi(
+  warehouseId: string
+): Promise<CoreResult<InventoryWarehouseCloseoutResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/warehouses/${encodeURIComponent(
+        warehouseId
+      )}/closeout`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : response.status === 404
+              ? 'Warehouse not found.'
+              : 'Inventory Warehouse closeout was not read.',
+      }
+    }
+
+    const parsed = inventoryWarehouseCloseoutResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid inventory Warehouse closeout result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. Inventory Warehouse closeout was not read.',
     }
   }
 }

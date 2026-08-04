@@ -163,6 +163,25 @@ export type InventoryWarehouseUpdateResult = z.infer<
   typeof inventoryWarehouseUpdateResultSchema
 >
 
+export const inventoryWarehouseCloseoutResultSchema = z
+  .object({
+    warehouseId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    code: z.string().trim().min(1).max(40),
+    name: z.string().trim().min(1).max(160),
+    projectId: z.string().uuid().nullable(),
+    isActive: z.boolean(),
+    quantityMicros: z.string().regex(integerStringPattern),
+    valueCents: z.string().regex(integerStringPattern),
+    canDeactivate: z.boolean(),
+    disposition: z.enum(['ready', 'already_inactive', 'nonzero_balance']),
+  })
+  .strict()
+
+export type InventoryWarehouseCloseoutResult = z.infer<
+  typeof inventoryWarehouseCloseoutResultSchema
+>
+
 export const configureInventoryItemCommandSchema = z
   .object({
     uomId: z.string().uuid(),
