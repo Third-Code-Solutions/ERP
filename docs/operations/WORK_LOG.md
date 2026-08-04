@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-05 - M3.77 Stock Movement posting/reversal authority
+
+Added strict Nest post/reverse command endpoints with a fail-closed API and
+Next gate. The command derives tenant/actor from the verified principal,
+requires owner/admin/finance `inventory.post_movement`, locks membership and
+movement scope, claims a request-hash idempotency record, calls the existing
+database function, completes the forced-RLS service-only ledger, and audits
+the state transition transactionally. The Next actions keep the legacy SQL
+path by default and retain one stable browser retry key when the Core seam is
+explicitly selected. No visible UI/copy change.
+
+Source commit `7f19315b967f81e120fa64bebc95ed338c4ad2cb` pushed to `main` and
+`agent-02/third-code-erp-landing` under `kurtgav`. Railway deployment
+`5320235d-c242-4b3c-8b24-c8de9e1cd8cd` is `SUCCESS` for that SHA; `/ready` and
+`/health` are 200 with database/Redis healthy; unauthenticated post/reverse
+are 401. Shared 17/193, database 43/170 active plus 140 skips, changed API
+26, changed Web 100, typechecks, serial lint, and Nest/Web builds pass. Full
+parallel API aggregation has one existing bootstrap timeout; standalone
+changed/adjacent API coverage passes. Hosted read-only plan is 55/90 with 35
+pending; no SQL, Storage, provider setting, or Vercel action occurred.
+
 ## 2026-08-05 - M3.75 Stock Movement draft creation authority
 
 Moved Stock Movement draft creation into a disabled-by-default Nest command.

@@ -4,6 +4,36 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.77 Stock Movement posting/reversal authority (2026-08-05)
+
+Added a disabled-by-default Nest command boundary for Stock Movement posting
+and reversal: `POST /v1/inventory/stock-movements/:id/post` and
+`POST /v1/inventory/stock-movements/:id/reverse`. The API derives tenant and
+actor from the verified principal, requires the narrow
+`inventory.post_movement` capability (owner/admin/finance), locks membership
+and the tenant movement, claims a tenant-scoped request-hash idempotency key,
+calls the existing database posting/reversal functions inside one transaction,
+completes a forced-RLS service-only ledger, and writes semantic status-change
+audit evidence. Shared result contracts are strict and money/journal IDs stay
+exact. The Next Server Actions retain the legacy direct SQL path by default;
+the Core adapter and one-key-per-operation client retry behavior are selected
+only by exact opt-in flags. Visible layout and copy are unchanged.
+
+Validation: shared 17 files/193 tests; database 43 files/170 active tests and
+140 environment-skipped tests; changed API/inventory/auth coverage 26 tests;
+Web Core/action coverage 100 tests; root typecheck; serial TS-only lint; Nest
+and Web production builds; static migration verification; and read-only hosted
+release planning. The aggregate API suite still has one existing HTTP-contract
+bootstrap timeout under parallel resource contention, while the affected
+existing test passes standalone. Source commit
+`7f19315b967f81e120fa64bebc95ed338c4ad2cb` is pushed to both target refs under
+`kurtgav`. Railway deployment `5320235d-c242-4b3c-8b24-c8de9e1cd8cd` is
+`SUCCESS` for that exact SHA; live `/ready` and `/health` are 200 with
+PostgreSQL/Redis healthy, and both new unauthenticated workflow routes are
+401. Supabase remains read-only at 55/90 with 35 source migrations pending;
+the new workflow ledger/indexes are intentionally absent from hosted state.
+Vercel remains untouched for spend control.
+
 ## M3.75 Stock Movement draft creation authority (2026-08-05)
 
 Moved draft Stock Movement creation behind a Nest command at

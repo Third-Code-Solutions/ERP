@@ -13,6 +13,29 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.77 Stock Movement posting/reversal command seam (2026-08-05)
+
+Posting and reversal now have an original NestJS command seam while the
+existing database functions remain the transaction authority. The API must
+derive tenant/actor from the verified principal, require
+`inventory.post_movement`, serialize the tenant membership and movement rows,
+claim a request-hash idempotency key in a forced-RLS service-only ledger, call
+the existing database function, complete the result, and append semantic
+audit evidence in one transaction. The strict shared result envelope keeps
+movement/journal identifiers exact.
+
+Adoption requires both
+`ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_VIA_API=true` with a strict tenant UUID
+allowlist in Next and
+`ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_WRITES_ENABLED=true` with the matching
+API allowlist. Both remain false/empty, so the legacy Server Actions remain
+the compatibility path and no browser write is cut over. Source SHA
+`7f19315b967f81e120fa64bebc95ed338c4ad2cb` is live on Railway as successful
+deployment `5320235d-c242-4b3c-8b24-c8de9e1cd8cd`; `/ready` and `/health` are
+200 and unauthenticated post/reverse are 401. Supabase is read-only at 55/90
+with 35 migrations pending; no hosted schema/data or Vercel action is
+implied. Rollback is the disabled flags or prior API deployment.
+
 ## M3.75 Stock Movement draft creation authority (2026-08-05)
 
 Stock Movement draft creation is a transactional Nest command, not a browser

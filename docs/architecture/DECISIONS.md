@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-187 - Stock Movement post/reverse remains opt-in and idempotent (2026-08-05)
+
+Decision: expose post and reverse only through strict Nest command endpoints
+that derive tenant/actor from the verified principal, require the narrow
+`inventory.post_movement` role map, lock tenant membership and movement scope,
+claim a request-hash idempotency key, invoke the existing database function,
+complete the result, and audit the state transition in one transaction. The
+request ledger is forced-RLS and service-role-only; authenticated browser
+clients cannot write it. Shared result schemas reject malformed movement or
+journal identities.
+
+Next adopts the seam only when
+`ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_VIA_API=true` and the tenant UUID is in
+`ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_TENANT_IDS`; the API independently
+requires the matching `...WORKFLOW_WRITES_ENABLED=true` and allowlist. Both
+remain disabled/empty; direct Server Action SQL remains the compatibility
+path, and the client retains a stable retry key without fallback. Source SHA
+`7f19315b967f81e120fa64bebc95ed338c4ad2cb` is Railway deployment
+`5320235d-c242-4b3c-8b24-c8de9e1cd8cd` with readiness/health 200 and both
+unauthenticated command boundaries 401. Supabase remains read-only at 55/90;
+Vercel is untouched. Rollback is the disabled flags or prior API deployment.
+
 ## D-185 - Stock Movement draft creation is idempotent and canary-gated (2026-08-05)
 
 Decision: expose only draft creation through Nest
