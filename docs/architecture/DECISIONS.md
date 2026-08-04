@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-157 - Landing GEO graph is public-copy-only (2026-08-04)
+
+Decision: emit one pure, linked Schema.org graph for the public landing page:
+organization, website, page, software product, and FAQ. Root IDs at the
+canonical origin and declare en-PH/Philippines construction-business context.
+Do not emit `SearchAction` until a genuinely public search endpoint exists.
+
+Reason: search and AI answer systems need stable product relationships, but the
+ERP's search surface is authenticated and tenant/permission-scoped. A graph
+built from public copy improves discoverability without leaking private records
+or promising an unauthorised URL. Keeping it pure makes output deterministic
+and testable.
+
+Validation/release boundary: focused 5/5, Web 67/451, workspace lint/typecheck,
+diff check, and 79/79-route build pass; local production HTML is HTTP 200 with
+expected markers and no legacy-brand identifiers. No hosted DB/data, Railway,
+or Vercel mutation; Supabase and Vercel gates remain closed.
+
 ## D-156 - Proposal reads repeat tenant scope (2026-08-04)
 
 Decision: constrain the proposal overview and change-request log by both the

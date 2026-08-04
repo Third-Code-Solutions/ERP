@@ -1,5 +1,22 @@
 # Migration Plan
 
+## M3.48 - landing GEO structured data (source complete, 2026-08-04)
+
+Added a pure landing structured-data builder and linked `Organization`,
+`WebSite`, `WebPage`, `SoftwareApplication`, and `FAQPage` graph. Added en-PH
+metadata and website Open Graph identity without changing the validated visual
+surface. No migration is required.
+
+Validation: focused 5/5; Web 67 files/451 tests; workspace lint/typecheck,
+diff check, and 79/79-route production build pass. Local production HTML
+returned 200 with expected JSON-LD and no legacy-brand markers.
+
+Exact next action: commit and push source/docs once to both target branches,
+verify exact GitHub/Railway status and live readiness, and query Vercel without
+triggering a deployment. Keep Supabase unchanged at 55/87 until the supported
+backup, dependent-row/audit export, and owner-approved duplicate `PO-0002`
+repair are complete. Do not call this a DB or Vercel release.
+
 ## M3.47 - proposal read tenant scope (source complete, 2026-08-04)
 
 Source checkpoint: `9270919`. Hardened both proposal server-rendered pages with repeated tenant predicates
