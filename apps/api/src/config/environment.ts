@@ -442,6 +442,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Stock Movement draft creation stays fail-closed until the ordered
+  // idempotency migration, disposable transaction proof, and tenant canary.
+  ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Inventory item policy updates are naturally idempotent state setters;
   // keep the transactional Nest command fail-closed until a tenant canary.
   ERP_INVENTORY_ITEM_CONFIG_WRITES_ENABLED: z

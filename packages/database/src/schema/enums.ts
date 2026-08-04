@@ -387,6 +387,11 @@ export const stockReceiptCreateRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const stockMovementCreateRequestStateEnum = pgEnum(
+  'stock_movement_create_request_state',
+  ['processing', 'succeeded']
+)
+
 export const changeRequestCreateRequestStateEnum = pgEnum(
   'change_request_create_request_state',
   ['processing', 'succeeded']

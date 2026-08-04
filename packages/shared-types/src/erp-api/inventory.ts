@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 const inventoryQuantityPattern = /^\d+(?:\.\d{1,6})?$/
+const inventorySignedQuantityPattern = /^-?\d+(?:\.\d{1,6})?$/
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/
 const integerStringPattern = /^-?\d+$/
 
@@ -369,6 +370,51 @@ const isoDateSchema = z
     return day <= daysInMonth[month - 1]!
   }, 'Date must be a real calendar date')
 
+const stockMovementLineCommandSchema = z
+  .object({
+    materialItemId: z.string().uuid(),
+    quantity: z
+      .string()
+      .trim()
+      .min(1)
+      .max(32)
+      .regex(
+        inventorySignedQuantityPattern,
+        'Quantity requires up to six decimal places'
+      ),
+    costCodeId: z.string().uuid().nullable().optional(),
+    declaredUnitCostPhp: z.string().trim().max(32).nullable().optional(),
+  })
+  .strict()
+
+export const createStockMovementCommandSchema = z
+  .object({
+    movementType: z.enum(stockMovementTypeValues),
+    sourceWarehouseId: z.string().uuid(),
+    targetWarehouseId: z.string().uuid().nullable().optional(),
+    projectId: z.string().uuid().nullable().optional(),
+    movementDate: isoDateSchema,
+    reason: z.string().trim().min(3).max(2_000),
+    lines: z.array(stockMovementLineCommandSchema).min(1).max(200),
+  })
+  .strict()
+
+export const stockMovementCreationResultSchema = z
+  .object({
+    stockMovementId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('draft'),
+    lineCount: z.number().int().positive().max(200),
+  })
+  .strict()
+
+export type CreateStockMovementCommand = z.infer<
+  typeof createStockMovementCommandSchema
+>
+export type StockMovementCreationResult = z.infer<
+  typeof stockMovementCreationResultSchema
+>
+
 export const stockReceiptLineCommandSchema = z
   .object({
     poLineItemId: z.string().uuid(),
@@ -473,6 +519,17 @@ export function quantityToMicros(value: string): bigint {
     throw new Error('Quantity must be positive and within the supported range')
   }
   return micros
+}
+
+export function signedQuantityToMicros(value: string): bigint {
+  const normalized = value.trim()
+  if (!inventorySignedQuantityPattern.test(normalized)) {
+    throw new Error('Quantity requires up to six decimal places')
+  }
+  if (normalized.startsWith('-')) {
+    return -quantityToMicros(normalized.slice(1))
+  }
+  return quantityToMicros(normalized)
 }
 
 export function receiptLineTotal(
