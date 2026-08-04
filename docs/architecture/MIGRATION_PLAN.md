@@ -1,5 +1,19 @@
 # Migration Plan
 
+## M3.61 - Nest project update audit hardening (source complete, 2026-08-04)
+
+Added the missing semantic audit write to the existing tenant-scoped,
+optimistic-concurrency `PATCH /v1/projects/:projectId` transaction. The audit
+captures the controlled Project fields before and after the update; a failure
+rolls back the ERP update. The shared `projectUpdateResultSchema` now validates
+the returned result at runtime.
+
+Validation: focused project service 12/12; isolated controller specs 3/3 and
+8/8; full API 62/318; workspace lint/typecheck; Nest build; and
+`git diff --check`. No hosted mutation or Vercel build. Keep
+`ERP_PROJECT_WRITES_VIA_API=false` and its tenant allowlist empty until exact
+Railway and protected-canary evidence is recorded.
+
 ## M3.60 - Nest project collection read contract (Railway verified, 2026-08-04)
 
 Added `GET /v1/projects` with tenant-scoped query parsing, bounded search/

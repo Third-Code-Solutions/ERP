@@ -19,6 +19,7 @@ import {
   projectCreationResultSchema,
   projectListResultSchema,
   projectReadResultSchema,
+  projectUpdateResultSchema,
   type CreateProjectCommand,
   type ProjectListQuery,
   type ProjectListResult,
@@ -363,6 +364,33 @@ export class ProjectsService {
         .returning()
 
       if (!updated) throw new NotFoundException('Project not found')
+      await this.audit.writeSemantic(transaction, {
+        tenantId: principal.tenantId,
+        actorId: principal.userId,
+        entityType: 'project',
+        entityId: updated.id,
+        action: 'update',
+        diff: {
+          before: {
+            name: existing.name,
+            client: existing.client,
+            status: existing.status,
+            project_type: existing.project_type,
+            total_sqm: existing.total_sqm,
+            location: existing.location,
+            notes: existing.notes,
+          },
+          after: {
+            name: updated.name,
+            client: updated.client,
+            status: updated.status,
+            project_type: updated.project_type,
+            total_sqm: updated.total_sqm,
+            location: updated.location,
+            notes: updated.notes,
+          },
+        },
+      })
       return this.result(updated)
     })
   }
@@ -403,7 +431,7 @@ export class ProjectsService {
   }
 
   private result(project: Project): ProjectUpdateResult {
-    return {
+    return projectUpdateResultSchema.parse({
       id: project.id,
       tenantId: project.tenant_id,
       name: project.name,
@@ -414,6 +442,6 @@ export class ProjectsService {
       location: project.location,
       notes: project.notes,
       updatedAt: project.updated_at.toISOString(),
-    }
+    })
   }
 }

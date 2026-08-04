@@ -13,6 +13,15 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.61 Project update audit boundary (2026-08-04)
+
+Nest project updates must write their semantic before/after diff through the
+existing append-only audit chain inside the same transaction as the
+tenant-scoped optimistic-concurrency update. The response must pass the shared
+`projectUpdateResultSchema`. Next may adopt the authority only through the
+existing exact project-write flag and tenant allowlist; direct compatibility
+writes remain the default until protected canary evidence exists.
+
 ## M3.60 Project collection read boundary (2026-08-04)
 
 The Projects collection must be readable through a stable Nest contract before
