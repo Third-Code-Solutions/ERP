@@ -8,7 +8,7 @@ successful build.
 
 Rechecked the exact live provider identities after the M3.36 source release.
 GitHub `main` and `agent-02/third-code-erp-landing` both point to
-`ead237c028641af384283ec8498ef3c3cdbb92fe` under `kurtgav`.
+`318b7e0d9efdc115624d70a43384f086d10a73b2` under `kurtgav`.
 The Railway API remains healthy at `/ready` and `/health` (HTTP 200; database
 and Redis both report `ok`).
 

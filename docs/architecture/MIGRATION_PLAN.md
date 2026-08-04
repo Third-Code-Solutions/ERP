@@ -8,7 +8,7 @@ evidence is green.
 
 Re-verified the GitHub, Railway, Supabase, and Vercel identities after the
 M3.36 source release. Both target GitHub branches point to
-`ead237c028641af384283ec8498ef3c3cdbb92fe`; Railway `/ready` and `/health`
+`318b7e0d9efdc115624d70a43384f086d10a73b2`; Railway `/ready` and `/health`
 are HTTP 200 with database/Redis healthy. Vercel remains Git-disconnected and
 spend-protected. Its grouped runtime evidence ties digest `862076041` to the
 older `partial_delivered` enum failure on `dpl_2WnStFHAqLchG71rjWKjvyEBY3WK`,
