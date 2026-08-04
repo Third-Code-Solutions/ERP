@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
   }
 
   const quota = await consumeProviderQuota(
-    'provider-chat',
+    'provider-embedding',
     profile.tenantId
   )
   if (!quota.ok) {
