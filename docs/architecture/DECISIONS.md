@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-174 - CRM KYC queue reads are bounded and canary-gated (2026-08-04)
+
+Decision: expose pending-KYC account queues through Nest
+`GET /v1/crm/accounts/kyc-queue` using a strict shared envelope, verified
+tenant principal, explicit `account.kyc_review`, repeated tenant predicates on
+account and artifact joins, deterministic ordering, a 200-row cap, and a
+separate scoped total. Adopt from Next only through an exact flag plus tenant
+UUID allowlist; reject wrong-tenant rows instead of falling back silently.
+
+Reason: KYC queues combine sensitive account and document metadata. A bounded
+read seam moves authority incrementally without cross-tenant leakage,
+unbounded queries, or a second hidden source of truth.
+
+Boundary: direct server-side DB reads remain default. Source commit
+`5a5a35a3` is live on Railway with readiness and 401 boundary evidence. No
+Supabase schema/data, Railway setting, or Vercel build changed; protected
+browser, rollback, supported data-recovery, and spend gates remain open.
+
 ## D-173 - CRM account detail graphs are bounded and canary-gated (2026-08-04)
 
 Decision: expose CRM account details through Nest

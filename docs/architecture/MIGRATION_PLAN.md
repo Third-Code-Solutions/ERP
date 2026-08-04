@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.64 - Nest CRM KYC queue read handoff (Railway verified, 2026-08-04)
+
+Added `GET /v1/crm/accounts/kyc-queue` with a strict shared result envelope,
+`account.kyc_review` authorization, verified-principal tenant scope, a
+tenant-scoped artifact join, deterministic ordering, a hard 200-row cap, and
+a separate tenant-scoped pending-account total. The KYC queue page can adopt
+the adapter only through `ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API` and its exact
+tenant UUID allowlist; direct DB behavior remains the compatibility path.
+Wrong-tenant rows fail closed.
+
+Validation: shared 16/174; API 65/328 serial; Web 76/497; focused Web 89/89;
+database 41 files with 166 passed and 140 expected integration/RLS/Cortex
+skips; workspace typecheck/lint; API build; Web 80/80 production build; and
+`git diff --check`. Commit `5a5a35a3` is pushed to both target branches.
+Railway deployment `fbf64a41-e2df-4ec6-8fd5-e8e3060edf28` is `SUCCESS` for
+that exact SHA; `/ready` and `/health` are 200, unauthenticated KYC queue
+access is 401, and GitHub's exact API status is `success`. Supabase stayed
+read-only at 55/87 and Vercel had zero deployments/builds. No provider setting
+changed.
+
+Rollback: leave `ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API=false` and its allowlist
+empty, or redeploy the prior successful Railway source; no hosted state
+requires repair. Next: keep the KYC canary closed pending supported Supabase
+recovery, protected browser, and explicit spend gates.
+
 ## M3.63 - Nest CRM account detail read handoff (Railway verified, 2026-08-04)
 
 Added `GET /v1/crm/accounts/:accountId` with strict account detail, contact,
