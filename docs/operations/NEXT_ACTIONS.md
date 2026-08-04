@@ -38,6 +38,26 @@ Completed gates for `4d190dfd`: focused 5/5, Web 72/468, workspace
 lint/typecheck, 80/80 build, clean diff, and source push under `kurtgav`. No
 Vercel build or hosted DB/provider mutation occurred.
 
+## Exact next action after M3.56 shared Redis provider quota gateway
+
+1. Keep `ERP_PROVIDER_QUOTA_VIA_API=false` and
+   `ERP_PROVIDER_QUOTA_VIA_API_TENANT_IDS` empty. Do not activate a real tenant
+   until exact Railway source identity, Redis behavior, bearer authorization,
+   and replay evidence are recorded.
+2. Keep Vercel Git deployment disabled. Do not create preview/production builds;
+   local Web build is validation only and source push is not frontend release.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain supported
+   recoverable backup plus dependent-row/audit export and owner-approved
+   canonical mapping for the 12 duplicate Purchase Orders. Rerun planners and
+   disposable PostgreSQL 17 replay.
+4. After database gate, run a separately approved single-tenant quota canary:
+   verify 20/6 Redis decisions, 429 headers, auth scope, fail-closed outage,
+   and no provider call after block. Keep Redis free of business payloads.
+
+Completed M3.56 gates: API 60/308, Web 73/471, focused API quota 7/7, Web
+quota 3/3, workspace lint/typecheck, API build, Web 80/80 build, and clean
+diff. No Vercel build, hosted DB/provider setting, or quota canary occurred.
+
 ## Exact next action after M3.53 clean-room runtime branding audit
 
 1. Keep the verified source `0c911f8` on both target Git branches. Do not

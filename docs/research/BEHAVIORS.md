@@ -129,3 +129,180 @@ font is Satoshi; no video elements; three rendered instances of
   source chips; it never calls a route.
 - Hover/focus evidence: link color transition, explicit CTA/card transforms,
   and 2px copper focus outline with 4px offset.
+
+
+## 2026-08-04 shared-quota-turn live summary
+
+# Third Code ERP live landing behavior bible
+
+Reconnaissance date: 2026-08-04. Target: `https://thirdcode-erp.vercel.app/`.
+Evidence collected with Playwright at 1440x900 and 390x844, plus a scroll,
+control, link, image, and console sweep. This is read-only observation of the
+current live surface; it is not a release claim for the current source branch.
+
+## Global behavior
+
+- Page uses one `main` content region followed by a footer. Main observed height
+  is about 8,341px at 1440px before footer.
+- Fixed primary navigation is centered near the top: 18px from viewport top,
+  12px radius, dark translucent background, deep shadow, and no observed style
+  change after scrolling to 160px. It remains keyboard/link navigable.
+- Horizontal capability rail repeats `CRM`, `Estimating`, `BOM`, `Procurement`,
+  `Projects`, `Billing`, `Compliance`, `Warranty`, and `Cortex AI`; it is an
+  intentional marquee-style overflow surface, not a page scrollbar.
+- No horizontal overflow observed at 390px. Observed document scroll width was
+  375px against a 390px viewport in the live browser session.
+- Hero uses one H1: `Run every project with an AI brain that remembers.`
+  Desktop computed font is Satoshi, 72px/65.52px, weight 500, max-width
+  1152px; mobile computed font is about 41.73px/40.06px.
+- Image surface uses `/images/third-code-erp-hero.png` with the alt text
+  `Architectural plans, fit-out materials, and a connected operations graph in a construction workspace`.
+
+## Page topology
+
+1. Fixed navigation and hero: construction intelligence statement, H1,
+   explanatory copy, setup/workspace links, hero image.
+2. Capability marquee: CRM through Cortex AI.
+3. Platform / â€œOne operating recordâ€: three expandable operating ideas.
+4. Cortex section: â€œSearch is useful. Context is transformative.â€ with source-
+   first capability cards.
+5. Workflow section: four handoff cards from pipeline through warranty.
+6. Team-priority testimonial carousel: previous/next controls and `1 / 4`
+   position indicator.
+7. FAQ: five native disclosure questions.
+8. Final CTA: setup and workspace links.
+9. Footer: Platform, Access, and Trust navigation plus company credit.
+
+## Interaction model
+
+- Navigation: fixed click/keyboard links with anchor jumps and auth routes.
+- Platform and Cortex capability cards: click-driven disclosure controls. The
+  first capability is open on load; controls expose `aria-expanded` state.
+- Testimonial area: click-driven previous/next buttons with accessible labels
+  `Previous team priority` and `Next team priority`.
+- FAQ: native `details` disclosure model. Questions observed:
+  `What does Third Code ERP connect?`, `Is it only for construction companies?`,
+  `How does Cortex use company knowledge?`, `Can the AI post payments or commitments by itself?`,
+  and `Does it support Philippine construction controls?`.
+- Scroll: no scroll-snap or nav style transition observed in sampled 0px and
+  160px states. Sections use entrance/ambient motion but preserve document
+  order and readable content when motion is reduced.
+- Hover: interactive links/cards use visual affordances; no browser-only
+  hover proof was treated as sufficient for a future implementation change.
+
+## Responsive evidence
+
+### Desktop (1440px)
+
+- Nav width 1,380px, fixed top 18px, 10px/12px padding, dark translucent
+  surface, 12px radius.
+- H1 width about 560px within 1,152px max-width, 72px/65.52px Satoshi.
+- Main content width about 1,425px with 100% max-width.
+
+### Mobile (390px)
+
+- Nav width 355px, fixed, 8px/9px padding, same dark glass language.
+- H1 width about 327px, 41.73px/40.06px Satoshi.
+- Hero, cards, FAQ, CTA, and footer stack into one column; no horizontal
+  overflow observed.
+
+## Release boundary
+
+Live page currently reports title `Construction ERP with a permission-aware AI
+brain`. Authenticated dashboard behavior was not inferred from the public
+landing. Any UI change requires a new component spec, local browser proof at
+1440/768/390, clean-room scan, build, and spend-approved deployment evidence.
+
+## Preserved audit baseline (2026-08-01 to 2026-08-02)
+
+Earlier clean-room audit evidence remains authoritative and is retained here
+alongside the 2026-08-04 recheck:
+
+- Desktop capture: 1440x900 viewport, page scroll height approximately 8,720px.
+- Mobile capture: 390x844 viewport, page scroll height approximately 9,809px.
+- Tablet capture was not collected in the first pass; tablet remains an explicit
+  QA gate before any landing release.
+- Evidence files: docs/design-references/thirdcode-erp-live-desktop.png,
+  docs/design-references/thirdcode-erp-live-mobile.png,
+  docs/design-references/third-code-erp-production-desktop.png, and
+  docs/design-references/third-code-erp-production-mobile.png.
+- The 2026-08-02 production recheck confirmed the title
+  Construction ERP with a permission-aware AI brain, visible Third Code ERP /
+  Third Code Solutions Inc. branding, /auth/login, /auth/signup, #platform,
+  #cortex, #workflows, and #trust links, with no vendor branding observed.
+- The earlier default browser capture was approximately 9,311 CSS px tall at
+  1,775px width. Treat it as evidence, not a design change.
+
+## Historical source contract retained
+
+- Navigation is fixed at the viewport top with a constant glass background,
+  border, blur, and shadow. Mobile navigation collapses to direct workspace
+  and consultation actions with controls at least 44px high.
+- The hero image scales into place; copy remains readable and reduced-motion
+  mode removes parallax. Decorative inline heading media is hidden at 700px and
+  below to prevent mobile wrapping regressions.
+- The intended bento is a dense 12-column, two-row layout: AI Brain spans 7x2,
+  Operations 5x1, and Compliance 5x1. Runtime evidence wins if it diverges.
+- Capability selection expands one panel on hover/focus and click locks the
+  active panel for touch. Collapsed headings stay visible; no decorative
+  ordinal labels are used.
+- Workflow cards overlap/stack on desktop and use normal document flow on
+  tablet, mobile, and reduced-motion paths.
+- The testimonial/team-priority carousel is manual, has no timed autoplay, and
+  announces its current position for assistive technology.
+- FAQ uses native details/summary; footer links retain usable mobile
+  interaction height. Analytics is conditional and no unavailable insights
+  script is requested in self-hosted production output.
+- The prior live audit recorded 1440px and 390px renders with no horizontal
+  overflow, 24 occupied bento cells, working accordion/carousel/FAQ state,
+  zero console errors/warnings, and canonical, Open Graph, Organization,
+  SoftwareApplication, and FAQPage metadata. Detailed evidence remains in
+  docs/research/LIVE_LANDING_AUDIT_20260801.md.
+
+## 2026-08-04 measured live recheck
+
+Playwright captures covered 1440x1000, 768x900, and 390x844. Desktop document
+height was 8,823px; mobile was 10,688px. Console errors were 0. No horizontal
+overflow was observed. The live landing uses Satoshi, no video elements, and
+three rendered instances of /images/third-code-erp-hero.png.
+
+### Page-level models
+
+| Surface | Model | Observed behavior |
+| --- | --- | --- |
+| Navigation | fixed plus anchor/click | 68px glass nav at desktop (top 18px), 62px at mobile (top 10px); links hide at 1,180px. |
+| Hero media | load plus scroll-driven | GSAP begins near scale .88 and opacity .72, settles to scale 1, then fades toward .32 and scales to 1.04 while leaving the hero. |
+| Proof rail | time-driven | Duplicated labels move continuously; reduced motion disables animation and wraps items. |
+| Platform bento | static plus hover | Dense 12-column desktop grid with three interlocking cards. |
+| Cortex capability accordion | click, focus, and hover | One button remains aria-expanded=true; active body changes; mobile shows only the active body. |
+| Workflow cards | scroll-driven desktop | Four cards pin/stack with GSAP; mobile switches to ordinary vertical cards. |
+| Priority panel | click-driven carousel | Previous/next rotates four priorities; quote is aria-live=polite. |
+| FAQ | native disclosure | Five details rows can be open independently. |
+| Cortex preview | click-driven, read-only | Three sample questions replace answer/source chips; no fetch, mutation, approval, or DB write. |
+
+### Scroll and responsive samples
+
+- Navigation remains fixed with the observed glass background, 12px radius,
+  and 0 18px 56px shadow.
+- Hero media opacity samples were 1.0 at top, .7134 at 120px, .5339 at 620px,
+  .3626 at 1,100px, and .32 by 4,300px.
+- Workflow cards begin scaling near scrollY 4,300; by approximately 5,600 all
+  four show pinned transforms.
+- At 1440px the hero is two-column with visible nav links, dense bento, and
+  pinned workflow.
+- At 768px nav links are hidden, the hero is one-column, H1 is 48px/43.68px,
+  bento remains a grid, and workflow becomes a normal flex column.
+- At 390px nav is 355px wide and 62px high, brand subtitle/sign-in hide, hero
+  padding is 124px 20px 72px, H1 is 41.73px/40.0608px, inline hero image
+  hides, bento/workflow stack, and CTA padding is 76px 24px.
+
+### 2026-08-04 interaction sweep
+
+- All four capability buttons were visited; exactly one active state remained.
+- All five FAQ summaries were opened independently.
+- Three next priority states were visited: Commercial and estimating, Project
+  delivery, and Finance and compliance.
+- The local Cortex preview switched all three aria-pressed states and retained
+  source chips; it never called a route.
+- Hover/focus evidence included link color transitions, explicit CTA/card
+  transforms, and a 2px copper focus outline with 4px offset.

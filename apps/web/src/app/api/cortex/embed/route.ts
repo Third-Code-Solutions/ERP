@@ -8,6 +8,10 @@ import {
 import { embedBatch } from '@third-code-erp/ai'
 import { canonicalRole } from '@/lib/operations/nav-config'
 import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
+import {
+  consumeProviderQuota,
+  providerQuotaBlockedResponse,
+} from '@/lib/provider-quota'
 
 const BATCH_SIZE = 64
 
@@ -44,6 +48,14 @@ export async function POST(_req: NextRequest) {
       { embedded: 0, remaining: 0 },
       { headers: CORTEX_PRIVATE_HEADERS }
     )
+  }
+
+  const quota = await consumeProviderQuota(
+    'provider-embedding',
+    profile.tenantId
+  )
+  if (!quota.ok) {
+    return providerQuotaBlockedResponse(quota, CORTEX_PRIVATE_HEADERS)
   }
 
   try {

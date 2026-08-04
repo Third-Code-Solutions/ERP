@@ -59,6 +59,34 @@ Next action remains supported duplicate-PO backup/export plus owner-approved
 mapping and disposable replay. Replace per-instance burst guard with shared
 Redis accounting only as a separately tested Nest/backend milestone.
 
+## M3.56 Shared Redis provider quota gateway (source-only, 2026-08-04)
+
+Added an authenticated NestJS `POST /v1/provider-quotas/consume` seam. Nest
+derives tenant and user scope from the verified Supabase principal, applies
+fixed chat (20/minute) or embedding (6/minute) policy, and atomically accounts
+short bursts with a Redis Lua script. Redis keys hash tenant/user identity and
+carry no business payload. The new capability grants no ERP write authority.
+
+Next provider routes call the gateway only when the exact
+`ERP_PROVIDER_QUOTA_VIA_API=true` flag and tenant UUID allowlist match. A
+failed enabled gateway fails closed before external model/embedding work;
+default flag/allowlist remain disabled, preserving current API payloads and
+local edge protection for every other tenant.
+
+Changed files: Nest provider-quota module/controller/service/tests, capability
+map and AppModule; Next core client/provider-quota helper/tests; four provider
+route handlers; environment and migration documentation; and the live landing
+behavior/spec artifacts. Validation: API 60 files/308 tests, Web 73 files/471
+tests, focused quota tests 7/7 API and 3/3 Web, workspace lint/typecheck,
+`git diff --check`, API build, and Web 80/80-route production build pass.
+No Vercel build, hosted DB/schema/data, Storage, provider setting, or Next
+quota canary changed.
+
+Next action remains supported duplicate-PO backup/export, owner mapping, and
+disposable PostgreSQL 17 replay. Activate shared quota only through a separate
+approved tenant canary after Railway deployment identity and Redis behavior
+are verified.
+
 ## M3.53 Clean-room runtime branding audit (source-only, 2026-08-04)
 
 Widened the branding regression boundary from the Next web tree to the
