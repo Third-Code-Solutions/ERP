@@ -1,6 +1,6 @@
 # Migration Plan
 
-## M3.62 - Nest CRM account collection read handoff (source complete, 2026-08-04)
+## M3.62 - Nest CRM account collection read handoff (Railway verified, 2026-08-04)
 
 Added `GET /v1/crm/accounts` with strict query normalization, tenant-scoped
 filters, explicit `account.read`, stable sorting, capped pagination, and
@@ -11,8 +11,12 @@ closed.
 
 Validation: shared types 16/170; API 65/323; Web 76/488; workspace
 lint/typecheck; API build; Web 80/80 production build; `git diff --check`.
-No hosted migration/data repair, Vercel build, or provider setting changed.
-Keep the flag false/empty until supported Supabase backup/export,
+Commit `eae78a4e` is pushed to both target branches. Railway deployment
+`6ead24ac-47d0-4b16-bb6f-0732d4ef2c56` is `SUCCESS` for that exact SHA with
+`apps/api/Dockerfile`; `/ready` and `/health` are 200, unauthenticated account
+reads are 401, and GitHub's exact API status is `success`. No hosted migration/
+data repair, Vercel build, or provider setting changed. Keep the flag false/empty
+until supported Supabase backup/export,
 dependent/audit export, owner-approved duplicate-PO mapping, disposable
 PostgreSQL 17 replay, protected browser evidence, and rollback gates pass.
 

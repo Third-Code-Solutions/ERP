@@ -4,7 +4,7 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
-## M3.62 Nest CRM account collection read handoff (source complete, 2026-08-04)
+## M3.62 Nest CRM account collection read handoff (source + Railway verified, 2026-08-04)
 
 Added a bounded `GET /v1/crm/accounts` read contract with explicit
 `account.read` authorization, verified-principal tenant scope, search,
@@ -20,6 +20,14 @@ Accounts page handoff, environment examples/docs. Validation: shared types
 16/170; API 65/323; Web 76/488; workspace lint/typecheck; API build; Web
 80/80 production build; `git diff --check`. No hosted migration, Supabase
 mutation, Vercel build/deploy, or provider setting changed.
+
+Commit `eae78a4e` is pushed to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`6ead24ac-47d0-4b16-bb6f-0732d4ef2c56` for that exact SHA is `SUCCESS` using
+`apps/api/Dockerfile`; startup logs show `CrmModule` and
+`GET /v1/crm/accounts`, live `/ready` is 200 with PostgreSQL and Redis, live
+`/health` is 200, and unauthenticated account/project reads are 401. GitHub's
+exact API status is `success`.
 
 Next action: keep `ERP_ACCOUNT_READS_VIA_API=false` and its tenant allowlist
 empty. Obtain the supported Supabase backup/export, dependent/audit export,

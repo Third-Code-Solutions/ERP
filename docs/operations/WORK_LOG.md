@@ -28,6 +28,13 @@ local Next dev/build processes shared `.next`; after stopping only the
 ERP-scoped processes, sequential gates passed. No hosted migration/data repair,
 Vercel build/deploy, or provider setting changed.
 
+Commit `eae78a4e` was pushed to both target branches. Railway deployment
+`6ead24ac-47d0-4b16-bb6f-0732d4ef2c56` is `SUCCESS` for that SHA using the API
+Dockerfile; startup logs show the CRM account route, `/ready` and `/health`
+are 200, unauthenticated account/project reads are 401, and GitHub's exact API
+check is `success`. Supabase remains read-only at 55/87. Vercel has zero new
+deployments/builds.
+
 Rollback: leave `ERP_ACCOUNT_READS_VIA_API=false` and its allowlist empty, or
 revert the source commit; no hosted state requires repair. Next: keep the
 account-read canary closed pending supported Supabase recovery evidence.
