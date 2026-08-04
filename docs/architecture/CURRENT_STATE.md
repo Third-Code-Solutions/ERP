@@ -35,7 +35,9 @@ Railway deployment `6ba50aba-0f58-4f02-b7b4-655b3e71a70f` is `SUCCESS` for
 that exact SHA using `apps/api/Dockerfile`; live `/ready` and `/health` are
 200, unauthenticated `/v1/inventory/summary` is 401, and startup logs map the
 route. The docs-only follow-up is outside the API watch patterns and must not
-trigger a paid backend rebuild. Vercel and Supabase remain untouched.
+trigger a paid backend rebuild. Verified Railway deployment
+`a36389c9-a03d-4ee0-95fd-f15c6878f086` for the docs commit is `SKIPPED` with
+reason `No changes to watched files`; Vercel and Supabase remain untouched.
 
 Next action: keep the inventory canary disabled, preserve the Vercel spend
 guard, and obtain protected browser/rollback evidence before any tenant

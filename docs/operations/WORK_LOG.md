@@ -27,7 +27,9 @@ with the API Dockerfile. Live `/ready` and `/health` returned 200,
 unauthenticated `/v1/inventory/summary` returned 401, and startup logs mapped
 the route. The Vercel Git-disabled project received no build/deploy; Supabase
 received no SQL or provider mutation. The follow-up docs-only push is outside
-Railway watch patterns, so it must not create a paid backend rebuild.
+Railway watch patterns, so it must not create a paid backend rebuild. Railway
+confirmed deployment `a36389c9-a03d-4ee0-95fd-f15c6878f086` as `SKIPPED` with
+`No changes to watched files`; live readiness remained green.
 
 Next: keep the inventory canary disabled; obtain protected tenant browser and
 rollback evidence before any cutover. Keep the 55/87 Supabase ledger read-only
