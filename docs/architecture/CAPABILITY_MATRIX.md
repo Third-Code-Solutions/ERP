@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-04
-Source checkpoint: `318b7e0d9efdc115624d70a43384f086d10a73b2`
+Source checkpoint: `7f3a9fc` (M3.38 project-create authority seam)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 This matrix is the product scope baseline. It describes business outcomes and
@@ -20,6 +20,11 @@ authorization.
   NestJS authority seam exists for a future canary.
 - **Planned**: scope is defined; no production mutation exists.
 - **Gap**: a capability is intentionally outside the current source surface.
+
+M3.38 update: project creation is now **Adapter**. A typed Nest authority seam
+exists with capability and audit boundaries, while the legacy Next Server
+Action remains default until idempotency/replay evidence and a canary gate are
+complete.
 
 ## Construction operating spine
 

@@ -13,6 +13,21 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.38 project creation authority target (2026-08-04)
+
+Project creation is being strangled from the Next Server Action into the Nest
+modular monolith through a typed, tenant-scoped `POST /v1/projects` boundary.
+Nest owns capability authorization, transaction scope, actor/audit stamping,
+and the official row commit. The legacy path remains available only while the
+adapter flag is closed, preserving current behavior during migration.
+
+Before any tenant canary, add a durable `project_create_requests` idempotency
+record with request-hash and result replay semantics, then prove duplicate,
+retry, conflict, rollback, audit-chain, and two-tenant isolation behavior on
+PostgreSQL 17 + Redis. Keep both flags closed until that evidence and the
+hosted catalog/data/RLS/backup/provider/spend gates clear. Python remains
+advisory and cannot finalize this transaction.
+
 ## M3.36 replay evidence (2026-08-04)
 
 The source ledger is now 86 migrations. A disposable PostgreSQL 17 + Redis

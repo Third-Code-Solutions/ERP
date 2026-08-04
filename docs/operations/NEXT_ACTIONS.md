@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.38 project-create authority seam
+
+1. Add a forward-only `project_create_requests` migration/table with tenant
+   scope, idempotency key, canonical request hash, explicit state, result
+   reference, timestamps, and unique constraints. Keep both project-create
+   flags false while implementing it.
+2. Add Nest transaction tests and disposable PostgreSQL 17 + Redis replay for
+   first request, safe retry, same-key/different-payload conflict, rollback,
+   audit entry, and cross-tenant denial. Then exercise the Next adapter through
+   one authenticated tenant and one denied tenant.
+3. Only after zero-skip evidence, catalog/data/RLS diff, backup/restore,
+   provider identity, rollback, and spend approval: enable one canary tenant.
+   Do not apply SQL to the hosted 55/86 Supabase target or trigger Vercel now.
+
 ## Exact next action after M3.37 read-only provider incident audit
 
 1. Keep Vercel Git/deployments disconnected and spend-protected. Do not use a

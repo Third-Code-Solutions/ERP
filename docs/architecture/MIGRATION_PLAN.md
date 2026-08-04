@@ -4,6 +4,26 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.38 - Guarded project-create authority seam (source-only)
+
+Implemented in source checkpoint `7f3a9fc`: strict shared command/result
+schemas; Nest controller, Zod pipe, service transaction, audit context, and
+`project.create` capability; plus a typed Next adapter and exact tenant flags.
+The legacy Server Action is unchanged by default. If the adapter is selected,
+it does not fall back to direct writes; Nest returns a fail-closed 503 until
+its explicit server flag and tenant allowlist are enabled.
+
+Validation passed: shared 162/162, API serial 57 files / 291 tests, web
+438/438, lint, typecheck, and Next production build 78/78 pages. The parallel
+test run exposed two unrelated 5-second API contention timeouts; the serial
+Turbo run passed. No hosted provider mutation occurred.
+
+Exact next slice: add a tenant-scoped durable project-create idempotency
+ledger (request key, request hash, state, result), prove replay/conflict and
+rollback on the disposable two-tenant PostgreSQL/Redis lane, then run a
+reviewed canary with both flags still closed until owner/provider/spend gates
+are approved. Do not apply SQL to the 55/86 Supabase target or trigger Vercel.
+
 ## M3.37 - Read-only live-provider incident and catalog reconciliation
 
 Re-verified the GitHub, Railway, Supabase, and Vercel identities after the
