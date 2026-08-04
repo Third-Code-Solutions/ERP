@@ -33,6 +33,17 @@ allowlist. Both remain disabled/empty. Source SHA
 unauthenticated command boundary is 401. Supabase is read-only at 55/89 with
 34 migrations pending; no Vercel deployment is implied.
 
+## M3.76 Hosted catalog verifier hardening (2026-08-05)
+
+The release verifier treats server-only command ledgers as first-class
+catalog evidence. It now checks the Stock Movement idempotency table for
+forced RLS, no anon/authenticated privileges, service-role authority, and
+valid tenant/key/state indexes. The hosted read-only result remains non-ready
+while the ordered ledger is 55/89: baseline catalog/RLS/security checks pass,
+while the new table/indexes are absent until the pending suffix is safely
+replayed. A clean PostgreSQL 17 disposable replay remains required; provider
+and Vercel actions stay closed.
+
 ## M3.74 Stock Movement detail read authority (2026-08-05)
 
 Stock Movement detail is a read-only Nest authority. It must return one

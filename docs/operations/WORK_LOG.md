@@ -25,6 +25,20 @@ unauthenticated command returned 401. Supabase remains read-only at 55/89 with
 remains untouched to control billing; all create flags/tenant lists remain
 false/empty.
 
+## 2026-08-05 - M3.76 hosted catalog verifier hardening
+
+Added read-only verifier coverage for the Stock Movement idempotency ledger:
+forced RLS, no anon/authenticated privileges, service-role access, and three
+tenant/key/state indexes. Static source verification passes for 89 migrations.
+The configured Supabase run passes PostgreSQL 17 plus existing catalog/RLS/
+security checks and reports only the expected 55/89 ledger gap and missing
+source-only ledger/indexes. Docker has no reachable daemon; no replay, hosted
+SQL, Storage, or provider setting changed.
+
+Source commit `7c3f6c8e204f208cea43de2e1630c6f653005df8` was pushed to both
+target refs. `scripts/**` is outside Railway watch patterns, so no code
+build/deploy was triggered. Vercel remains untouched for billing control.
+
 ## 2026-08-05 - M3.74 Stock Movement detail read authority
 
 Moved the detail page’s three direct SQL reads into a bounded Nest read. The
