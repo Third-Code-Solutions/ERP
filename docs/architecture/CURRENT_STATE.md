@@ -4,6 +4,32 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.49 Supplier confirmation review portal (source-gated, 2026-08-04)
+
+Added the bounded supplier review surface for US-014. Nest now exposes a
+token-scoped `GET /v1/public/purchase-orders/:token/confirmation` read seam
+that joins only tenant-matched session, Purchase Order, vendor, project, and
+line-item rows. The response is a strict least-privilege model with integer
+centavo amounts, ordered lines, state, and expiry; it omits tenant/user IDs,
+token hashes, workflow data, and audit payloads. The existing Nest POST
+command remains the sole authority for recording a decision.
+
+The Next portal route renders an editorial order summary and an explicit
+Accept / Request changes / Decline form. Server actions call the Nest client
+and carry an idempotency key; the browser never writes ERP tables. Read and
+write controls remain closed by default, with an explicit read tenant
+allowlist. The route has noindex metadata and maps unavailable/invalid/
+expired/already-answered states to safe user copy.
+
+Validation: API 58 files/300 tests, Web 68 files/454 tests, shared types 15
+files/163 tests; workspace lint and typecheck pass; production build passes
+with 79/79 routes, including the new portal route. A local production request
+returned HTTP 200 with the closed-gate support state and did not require
+Supabase supplier tables. No hosted SQL/data, Storage, Vercel deployment, or
+provider setting changed. Source remains gated until the ordered hosted schema
+suffix, duplicate-PO repair, token threat-model, rollback, and spend gates
+clear.
+
 ## M3.48 Landing GEO structured data (source complete, 2026-08-04)
 
 The public landing route now emits one linked Schema.org graph for the Third

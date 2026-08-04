@@ -160,6 +160,8 @@ false and tenant list empty until the controlled release gate is clear.
 | `ERP_DOCUMENT_DELETE_WRITES_TENANT_IDS` | no | API server | Explicit deletion tenant allowlist; default empty |
 | `ERP_PUBLIC_SIGNING_WRITES_ENABLED` | no | API server | Nest token-authorized public signing gate; default false |
 | `ERP_PUBLIC_SIGNING_WRITES_TENANT_IDS` | no | API server | Explicit public-signing tenant allowlist; default empty |
+| `ERP_PUBLIC_VENDOR_CONFIRMATION_READ_ENABLED` | no | API server | Token-scoped supplier PO review read gate; default false |
+| `ERP_PUBLIC_VENDOR_CONFIRMATION_READ_TENANT_IDS` | no | API server | Explicit supplier-review tenant allowlist; default empty |
 | `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED` | no | API server | Nest token-authorized supplier confirmation gate; default false |
 | `ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_TENANT_IDS` | no | API server | Explicit supplier-confirmation tenant allowlist; default empty |
 | `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_ENABLED` | no | API server | Closed SCM-issuance session-minting seam; default false |

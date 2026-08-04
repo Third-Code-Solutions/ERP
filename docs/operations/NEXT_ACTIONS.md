@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.49 supplier confirmation review
+
+1. Commit and push the reviewed source/docs once to `main` and
+   `agent-02/third-code-erp-landing` as `kurtgav`; verify the exact SHA,
+   GitHub check, Railway deployment/readiness, and the unchanged Vercel query.
+2. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_READ_ENABLED` and its tenant list
+   false/empty, and keep the existing supplier write, session-minting, and
+   link-delivery controls closed. Do not apply the source migration suffix.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87 until a supported
+   recoverable backup, dependent-row/audit export, and owner-approved repair
+   for duplicate tenant `PO-0002` rows exist. Never reset history, rename or
+   delete rows, or auto-repair the duplicate group.
+4. Keep Vercel Git/deployments disconnected and spend-protected; do not create
+   a paid production or preview build. The source portal is not live until a
+   spend-approved frontend release path and authenticated browser proof exist.
+5. After the hosted gates clear, run disposable invalid/expired/revoked,
+   cross-tenant, replay/idempotency, and already-answered checks before
+   enabling one tenant canary. Python remains advisory and cannot approve the
+   supplier decision.
+
 ## Exact next action after M3.48 landing GEO structured data
 
 1. Preserve source/docs SHA `d8520f4` on `main` and

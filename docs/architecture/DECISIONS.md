@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-158 - Supplier review is a separate closed read seam (2026-08-04)
+
+Decision: expose the supplier Purchase Order review as a strict, token-scoped
+read model with its own feature flag and tenant allowlist. Keep the existing
+Nest POST command as the only authority for accepting, declining, or requesting
+changes; Next server actions may submit a command but never write ERP tables.
+
+Reason: a public review page needs enough order context to support a decision,
+but it must not widen the mutation or tenant boundary. Separating the read
+gate allows UI and contract validation without enabling supplier access before
+the hosted session/line-item schema, token threat model, replay, rollback, and
+provider evidence are ready.
+
+Validation/release boundary: source tests and full workspace gates pass (API
+58/300, Web 68/454, shared types 15/163, 79/79-route build); local closed-gate
+request is HTTP 200. No hosted SQL/data, Railway setting, Vercel deployment,
+or provider mutation is authorized by this decision.
+
 ## D-157 - Landing GEO graph is public-copy-only (2026-08-04)
 
 Decision: emit one pure, linked Schema.org graph for the public landing page:

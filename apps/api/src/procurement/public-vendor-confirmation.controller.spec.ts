@@ -1,7 +1,10 @@
 import 'reflect-metadata'
 
 import { BadRequestException } from '@nestjs/common'
-import type { VendorConfirmationResult } from '@third-code-erp/shared-types'
+import type {
+  VendorConfirmationResult,
+  VendorConfirmationView,
+} from '@third-code-erp/shared-types'
 import { describe, expect, it, vi } from 'vitest'
 import { PublicVendorConfirmationController } from './public-vendor-confirmation.controller'
 import { PublicVendorConfirmationPipe } from './public-vendor-confirmation.pipe'
@@ -14,6 +17,7 @@ const BODY = {
   responderEmail: 'ana@example.com',
 }
 const RESULT = {} as VendorConfirmationResult
+const VIEW = {} as VendorConfirmationView
 
 describe('public supplier confirmation controller contract', () => {
   it('rejects missing and oversized idempotency keys', () => {
@@ -38,6 +42,16 @@ describe('public supplier confirmation controller contract', () => {
       controller.confirm(TOKEN, BODY, 'vendor-confirm-1')
     ).resolves.toBe(RESULT)
     expect(confirm).toHaveBeenCalledWith(TOKEN, BODY, 'vendor-confirm-1')
+  })
+
+  it('forwards token-scoped review reads without accepting client authority', async () => {
+    const view = vi.fn().mockResolvedValue(VIEW)
+    const controller = new PublicVendorConfirmationController({
+      view,
+    } as unknown as PublicVendorConfirmationService)
+
+    await expect(controller.view(TOKEN)).resolves.toBe(VIEW)
+    expect(view).toHaveBeenCalledWith(TOKEN)
   })
 
   it('accepts the strict body and rejects unknown fields', () => {
