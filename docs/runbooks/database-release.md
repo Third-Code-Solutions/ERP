@@ -29,12 +29,12 @@ or repairs migration history.
 Verified 2026-08-05 against the authorized Supabase target:
 
 - PostgreSQL 17 (`server_version_num = 170006`).
-- 55 hosted versions are recorded as applied; the source ledger contains 87.
-- The hosted ledger is an exact prefix of source, with 32 ordered source
+- 55 hosted versions are recorded as applied; the source ledger contains 88.
+- The hosted ledger is an exact prefix of source, with 33 ordered source
   versions pending review. No unexpected or out-of-order versions exist.
 - The source suffix has no `DROP TABLE`, `DELETE FROM`, `TRUNCATE`, or data
-  update statements; it does contain 26 `DROP CONSTRAINT IF EXISTS` operations
-  and six explicit transaction blocks.
+  update statements; it contains 27 `drop-object` risk findings and six
+  explicit transaction-control findings in the planner output.
 - No hosted migration, history row, data, Storage object, or provider setting
   was changed during this audit. The release is blocked pending the isolated
   PostgreSQL 17 clone/replay, catalog/data/RLS diff, backup/restore evidence,

@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-183 - Stock Movement register reads are bounded and canary-gated (2026-08-05)
+
+Decision: expose only Stock Movement discovery through Nest
+`GET /v1/inventory/stock-movements`. The API derives tenant scope and actor
+from the verified principal, requires `inventory.read`, validates explicit
+movement/status filters, caps pages at 500, and returns posted value as an
+exact integer string. The browser cannot approve, post, reverse, or write a
+movement through this read.
+
+Next adopts the adapter only when
+`ERP_INVENTORY_STOCK_MOVEMENT_READS_VIA_API=true` and the tenant UUID appears
+in `ERP_INVENTORY_STOCK_MOVEMENT_READS_TENANT_IDS`; both remain disabled.
+The direct server-side compatibility read is retained. Source SHA
+`9d3cf5ed179f24c0382ecd7b53b9b94f87812578` is Railway deployment
+`4cbaefcf-82a4-4549-83f4-2bfa094fcebb` with healthy readiness and an
+unauthenticated 401 canary. No hosted migration/data or Vercel action is
+implied. Rollback is the disabled adapter flag or prior API deployment.
+
 ## D-182 - Warehouse deactivation requires zero balance (2026-08-05)
 
 Decision: an active Warehouse cannot be deactivated while its tenant-scoped

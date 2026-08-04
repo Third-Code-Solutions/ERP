@@ -4,6 +4,37 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.73 Inventory Stock Movement register read (2026-08-05)
+
+Added a strict shared contract and Nest read authority for
+`GET /v1/inventory/stock-movements`. The verified principal supplies tenant
+scope; `inventory.read` is required; filters are explicit; page size is capped
+at 500; line counts are bounded; and posted value remains an exact bigint
+string in the API envelope. The Next Stock Movement register now uses a
+disabled-by-default Core adapter with an exact tenant allowlist and preserves
+the existing tenant-scoped server-side read as its compatibility path. Visible
+layout and copy are unchanged.
+
+Validation: shared 17/184; API 81 files/366 tests in an isolated single-worker
+run; Web 84 files/527 tests; database 41 files with 168 active tests and 140
+environment-skipped tests; root typecheck; serial TS-only lint; local
+production build (Nest plus Web); focused contract/service/controller/client
+tests; and `git diff --check`. A concurrent aggregate test invocation had
+three setup timeouts in existing HTTP contract files under resource
+contention; the isolated API run passed all 366 tests and is the release
+evidence.
+
+Source commit `9d3cf5ed179f24c0382ecd7b53b9b94f87812578` is pushed to both
+target refs under `kurtgav`. Railway deployment
+`4cbaefcf-82a4-4549-83f4-2bfa094fcebb` is `SUCCESS` for that exact SHA with
+the settled `apps/api/Dockerfile` manifest, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` is 200 with PostgreSQL and Redis
+healthy, `/health` is 200, and the unauthenticated Stock Movement route is
+401. Supabase remains read-only at 55/88 with 33 source migrations pending;
+the read-only planner found a linear prefix and no SQL was executed. Vercel
+remains untouched for spend control. The Stock Movement read flag and tenant
+allowlist remain disabled/empty.
+
 ## M3.72 Inventory Warehouse deactivation integrity boundary (2026-08-05)
 
 The Nest Warehouse update command now rejects active-to-inactive transitions

@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.73 - Inventory Stock Movement register read (2026-08-05)
+
+Implemented a bounded, tenant-scoped Nest read at
+`GET /v1/inventory/stock-movements` with shared query/result schemas, explicit
+filters, exact posted-value strings, and `inventory.read` authorization. The
+Next Stock Movement register now has an exact-flag plus tenant-allowlist Core
+adapter while retaining the legacy server-side read by default. No migration
+was added and no UI layout/copy changed.
+
+Validation: shared 17/184; API 81/366 (isolated single-worker run); Web
+84/527; database 41 files, 168 active tests, and 140 environment-skipped
+tests; typecheck; serial lint; local production build; focused tests; and
+`git diff --check`. Source commit
+`9d3cf5ed179f24c0382ecd7b53b9b94f87812578` is pushed to both target refs.
+Railway deployment `4cbaefcf-82a4-4549-83f4-2bfa094fcebb` is `SUCCESS` for
+that exact SHA; live `/ready` and `/health` are 200 and unauthenticated route
+access is 401. No Vercel build/deploy or hosted Supabase write was triggered.
+
+Rollback: leave the Core flag false and tenant list empty, or revert to the
+prior successful API deployment. The compatibility read remains available;
+no hosted state requires repair.
+
 ## M3.72 - Inventory Warehouse deactivation integrity boundary (2026-08-05)
 
 Implemented a narrow correctness guard for
