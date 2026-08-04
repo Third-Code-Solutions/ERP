@@ -1954,13 +1954,16 @@ describe('ERP Core client', () => {
         totalSqm: null,
         location: null,
         notes: null,
-      })
+      }, 'project-create-1')
     ).resolves.toEqual({ ok: true, data: CREATED_PROJECT_RESULT })
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/projects',
       expect.objectContaining({
         method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'project-create-1',
+        }),
         body: JSON.stringify({
           name: 'New Project',
           client: 'New Client',

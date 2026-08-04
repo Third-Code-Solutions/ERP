@@ -29,6 +29,9 @@ const fieldStyle: React.CSSProperties = {
 export function NewProjectForm() {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [idempotencyKey] = useState(
+    () => globalThis.crypto?.randomUUID?.() ?? ''
+  )
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -45,6 +48,7 @@ export function NewProjectForm() {
 
   return (
     <form onSubmit={handleSubmit}>
+      <input type="hidden" name="idempotency_key" value={idempotencyKey} />
       <div style={fieldStyle}>
         <label htmlFor="name" style={labelStyle}>Project name *</label>
         <input id="name" name="name" type="text" required style={inputStyle} placeholder="Somnus Studios Phase 2" />

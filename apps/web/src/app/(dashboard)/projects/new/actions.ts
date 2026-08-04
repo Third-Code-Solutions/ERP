@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
@@ -18,6 +19,7 @@ const createProjectSchema = z.object({
   project_type: z.enum(['mep', 'fit_out', 'interior', 'mixed']).optional(),
   total_sqm: z.coerce.number().int().positive().optional(),
   notes: z.string().max(2000).optional(),
+  idempotency_key: z.string().min(1).max(256).optional(),
 })
 
 export async function createProject(formData: FormData) {
@@ -40,6 +42,7 @@ export async function createProject(formData: FormData) {
     project_type: formData.get('project_type') || undefined,
     total_sqm: formData.get('total_sqm') || undefined,
     notes: formData.get('notes') || undefined,
+    idempotency_key: formData.get('idempotency_key') || undefined,
   })
 
   if (projectCreateWritesUseCoreApi(profile.tenantId)) {
@@ -52,7 +55,7 @@ export async function createProject(formData: FormData) {
       totalSqm: input.total_sqm ?? null,
       location: input.location ?? null,
       notes: input.notes ?? null,
-    })
+    }, input.idempotency_key ?? randomUUID())
     if (!result.ok || !result.data) {
       throw new Error(result.error ?? 'Project was not created')
     }

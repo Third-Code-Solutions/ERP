@@ -8,6 +8,7 @@ import type {
   CreateProjectCommand,
   UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
+import { projectCreateRequests } from '@third-code-erp/database/schema'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -22,6 +23,7 @@ const PRINCIPAL: ErpPrincipal = {
 }
 
 const UPDATED_AT = new Date('2026-07-27T08:00:00.000Z')
+const IDEMPOTENCY_KEY = 'project-create-1'
 
 const EXISTING = {
   id: '33333333-3333-4333-8333-333333333333',
@@ -51,10 +53,21 @@ const COMMAND: UpdateProjectCommand = {
 }
 
 function harness(existingRows = [EXISTING], createEnabled = true) {
+  const requestRecord = {
+    id: '44444444-4444-4444-8444-444444444444',
+    requestHash: '',
+    state: 'processing' as 'processing' | 'succeeded',
+    result: null as unknown,
+  }
   const forUpdate = vi.fn().mockResolvedValue(existingRows)
   const limit = vi.fn().mockReturnValue({ for: forUpdate })
   const whereSelect = vi.fn().mockReturnValue({ limit })
-  const from = vi.fn().mockReturnValue({ where: whereSelect })
+  const requestForUpdate = vi.fn().mockResolvedValue([requestRecord])
+  const requestLimit = vi.fn().mockReturnValue({ for: requestForUpdate })
+  const requestWhere = vi.fn().mockReturnValue({ limit: requestLimit })
+  const from = vi.fn((table: unknown) => ({
+    where: table === projectCreateRequests ? requestWhere : whereSelect,
+  }))
   const select = vi.fn().mockReturnValue({ from })
 
   const returning = vi.fn().mockResolvedValue([
@@ -71,10 +84,29 @@ function harness(existingRows = [EXISTING], createEnabled = true) {
   ])
   const whereUpdate = vi.fn().mockReturnValue({ returning })
   const set = vi.fn().mockReturnValue({ where: whereUpdate })
-  const update = vi.fn().mockReturnValue({ set })
+  const completeReturning = vi.fn().mockResolvedValue([
+    { id: requestRecord.id },
+  ])
+  const completeWhere = vi.fn().mockReturnValue({ returning: completeReturning })
+  const completeSet = vi.fn().mockReturnValue({ where: completeWhere })
+  const update = vi.fn((table: unknown) => ({
+    set: table === projectCreateRequests ? completeSet : set,
+  }))
 
   const insertReturning = vi.fn().mockResolvedValue([EXISTING])
-  const values = vi.fn().mockReturnValue({ returning: insertReturning })
+  const requestConflict = vi.fn().mockResolvedValue(undefined)
+  const values = vi.fn((payload: Record<string, unknown>) => {
+    if (
+      !requestRecord.requestHash &&
+      typeof payload.request_hash === 'string'
+    ) {
+      requestRecord.requestHash = payload.request_hash
+    }
+    return {
+      returning: insertReturning,
+      onConflictDoNothing: requestConflict,
+    }
+  })
   const insert = vi.fn().mockReturnValue({ values })
 
   const transactionClient = { select, update, insert }
@@ -89,6 +121,7 @@ function harness(existingRows = [EXISTING], createEnabled = true) {
   } as unknown as DatabaseService
   const audit = {
     stampActor: vi.fn().mockResolvedValue(undefined),
+    writeSemantic: vi.fn().mockResolvedValue(undefined),
   } as unknown as AuditService
   const config = {
     get: vi.fn((key: string, fallback: unknown) =>
@@ -108,10 +141,30 @@ function harness(existingRows = [EXISTING], createEnabled = true) {
     audit,
     set,
     values,
+    insert,
+    requestRecord,
   }
 }
 
 describe('ProjectsService', () => {
+  it('requires a bounded Idempotency-Key before opening a transaction', async () => {
+    const probe = harness()
+    const command: CreateProjectCommand = {
+      name: 'New Project',
+      client: 'New Client',
+      status: 'lead',
+      projectType: null,
+      totalSqm: null,
+      location: null,
+      notes: null,
+    }
+
+    await expect(
+      probe.service.create(command, PRINCIPAL, undefined)
+    ).rejects.toMatchObject({ status: 400 })
+    expect(probe.transaction).not.toHaveBeenCalled()
+  })
+
   it('keeps project creation fail-closed until the tenant canary is enabled', async () => {
     const probe = harness([EXISTING], false)
     const command: CreateProjectCommand = {
@@ -124,9 +177,9 @@ describe('ProjectsService', () => {
       notes: null,
     }
 
-    await expect(probe.service.create(command, PRINCIPAL)).rejects.toMatchObject(
-      { status: 503 }
-    )
+    await expect(
+      probe.service.create(command, PRINCIPAL, IDEMPOTENCY_KEY)
+    ).rejects.toMatchObject({ status: 503 })
     expect(probe.transaction).not.toHaveBeenCalled()
   })
 
@@ -142,7 +195,11 @@ describe('ProjectsService', () => {
       notes: null,
     }
 
-    const result = await probe.service.create(command, PRINCIPAL)
+    const result = await probe.service.create(
+      command,
+      PRINCIPAL,
+      IDEMPOTENCY_KEY
+    )
 
     expect(probe.transaction).toHaveBeenCalledOnce()
     expect(probe.audit.stampActor).toHaveBeenCalledWith(
@@ -165,6 +222,71 @@ describe('ProjectsService', () => {
       tenantId: PRINCIPAL.tenantId,
       name: EXISTING.name,
     })
+    expect(probe.insert).toHaveBeenCalledWith(projectCreateRequests)
+    expect(probe.audit.writeSemantic).toHaveBeenCalledWith(
+      probe.transactionClient,
+      expect.objectContaining({
+        entityType: 'project',
+        entityId: EXISTING.id,
+        action: 'create',
+      })
+    )
+  })
+
+  it('replays a succeeded request without inserting a second Project', async () => {
+    const probe = harness()
+    const command: CreateProjectCommand = {
+      name: 'New Project',
+      client: 'New Client',
+      status: 'lead',
+      projectType: null,
+      totalSqm: null,
+      location: null,
+      notes: null,
+    }
+
+    const first = await probe.service.create(
+      command,
+      PRINCIPAL,
+      IDEMPOTENCY_KEY
+    )
+    probe.requestRecord.state = 'succeeded'
+    probe.requestRecord.result = first
+    const projectInsertCalls = probe.insert.mock.calls.filter(
+      ([table]) => table !== projectCreateRequests
+    ).length
+
+    await expect(
+      probe.service.create(command, PRINCIPAL, IDEMPOTENCY_KEY)
+    ).resolves.toEqual(first)
+
+    expect(
+      probe.insert.mock.calls.filter(
+        ([table]) => table !== projectCreateRequests
+      )
+    ).toHaveLength(projectInsertCalls)
+  })
+
+  it('rejects same-key requests with a different payload', async () => {
+    const probe = harness()
+    const command: CreateProjectCommand = {
+      name: 'New Project',
+      client: 'New Client',
+      status: 'lead',
+      projectType: null,
+      totalSqm: null,
+      location: null,
+      notes: null,
+    }
+    await probe.service.create(command, PRINCIPAL, IDEMPOTENCY_KEY)
+
+    await expect(
+      probe.service.create(
+        { ...command, name: 'Different Project' },
+        PRINCIPAL,
+        IDEMPOTENCY_KEY
+      )
+    ).rejects.toMatchObject({ status: 409 })
   })
 
   it('updates tenant-scoped Project evidence inside one transaction', async () => {
