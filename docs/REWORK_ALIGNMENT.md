@@ -12,7 +12,7 @@ Rework-recommended feature to our shipped surface.
 | Tracker (Project Award → Creation → Approval) | boms + bom_line_items + scope_items | /bom + /projects/[id]/bom | Equivalent (called BOM here) |
 | RFQ → 3 vendors → evaluation | rfqs + rfq_quotes | /procurement/rfqs | Live |
 | Head Commercial / Head Procurement approval | purchase_orders status flow | /purchase-orders/[id] | Live (PM→Commercial→SCM) |
-| Vendor Confirmation | `vendor_confirmation_sessions` + replay ledger + SCM mint association | `/v1/public/purchase-orders/:token/confirmation` | Local source authority; M3.30 gated email-link reconstruction |
+| Vendor Confirmation | `vendor_confirmation_sessions` + replay ledger + SCM mint association + `po_line_items` | `/portal/purchase-order/[token]/confirmation`; `/v1/public/purchase-orders/:token/confirmation` | Source-gated read/decision surface; hosted schema and tenant canary pending |
 | Delivery scheduling | delivery_schedules | /procurement/deliveries | Live (new) |
 | Site preparation | delivery_schedules.site_prepared_* | /procurement/deliveries/[id] | Live (new) |
 | Inspection + acceptance | delivery_inspections | /procurement/deliveries/[id] | Live (new) |

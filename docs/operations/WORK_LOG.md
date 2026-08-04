@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-04 - M3.49 supplier confirmation review portal
+
+Implemented the bounded US-014 supplier review slice. The Nest public
+controller now has a closed-by-default token-scoped GET model that repeats
+tenant predicates across session, Purchase Order, vendor, project, and line
+items. Shared Zod contracts omit tenant/user/token-hash fields and keep money
+as integer centavos. The Next portal renders order context and a responsive
+Accept / Request changes / Decline form; its server action calls the Nest
+command with an idempotency key and never writes directly to PostgreSQL.
+
+Validation: API 58 files/300 tests, Web 68 files/454 tests, shared types 15
+files/163 tests; workspace lint/typecheck pass; `git diff --check` pass; the
+production build passes with 79/79 routes. A local production request returned
+HTTP 200 with the closed-gate support state. No Supabase migration/data,
+Storage, Railway setting, or Vercel deployment changed. Keep the read/write
+flags false/empty and do not call the source slice production until the
+duplicate-PO repair, hosted suffix, token, rollback, provider, and spend gates
+are complete.
+
 ## 2026-08-04 - M3.48 landing GEO structured data
 
 Added a pure structured-data builder and focused tests. The landing route now

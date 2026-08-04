@@ -16,6 +16,8 @@ authorization.
   currently deployed schema.
 - **Local**: source and tests exist, but the ordered hosted migration/release
   gates are not clear.
+- **Source-gated**: a bounded source/UI seam exists, but explicit runtime
+  controls and hosted data gates keep it closed.
 - **Adapter**: the existing Next.js path still owns the behavior while a closed
   NestJS authority seam exists for a future canary.
 - **Planned**: scope is defined; no production mutation exists.
@@ -35,7 +37,7 @@ provider, and canary gates are complete.
 | Capture drawings, takeoffs, scope, BOM, and rate cards | BOM routes, CAD worker, evidence tables | Live | Python extracts evidence; official BOM remains server-owned |
 | Compare suppliers and dispatch RFQs | RFQ routes, quote workflow, BullMQ/outbox | Live | Nest adapter plus durable outbox |
 | Approve and issue Purchase Orders | PO creation and three-step workflow | Adapter | Nest route is closed by tenant flag; legacy path remains for unselected tenants |
-| Confirm a supplier response to an issued PO | M3.28 Nest public route, M3.29 protected SCM session minting, M3.30 gated email-link reconstruction | Local | Public token authority, session scope/expiry checks, server transaction, explicit decision state |
+| Confirm a supplier response to an issued PO | M3.28 Nest public route, M3.29 protected SCM session minting, M3.30 gated email-link reconstruction, M3.49 read/decision portal | Source-gated | Public token authority, least-privilege read model, session scope/expiry checks, server transaction, explicit decision state |
 | Schedule deliveries and prepare a site | Delivery routes and state machine | Local | Nest transition slices, tenant-scoped idempotency |
 | Inspect and accept/reject delivery | Inspection routes and evidence | Local | Nest transition slices, audit and guarded status changes |
 | Receive, transfer, consume, and count stock | Inventory control center and ledger schema | Local | PostgreSQL ledger constraints; Core posting/reversal slices |
@@ -59,7 +61,7 @@ provider, and canary gates are complete.
 | Service and customer success | Portal, issues, warranty, satisfaction, communications | Warranty portal and CNPS are live | Add supplier/customer response loops only after token threat model |
 | Reporting and planning | Role-specific Today views, scheduled reports, exports, forecasts | Dashboard, reports, and Cortex context exist | Measure decision latency and data freshness before adding breadth |
 
-## M3.28-M3.30 bounded scope: supplier confirmation
+## M3.28-M3.49 bounded scope: supplier confirmation
 
 The next implementation slice is intentionally narrow:
 
@@ -81,6 +83,10 @@ The next implementation slice is intentionally narrow:
    link delivery is independently gated, verifies a pending unexpired session,
    and requires its own disposable replay, expiry, revocation, cross-tenant,
    rollback, provider, and spend gates.
+7. Add a read-only, least-privilege supplier review page and form. The read
+   seam has its own closed-by-default flag and tenant allowlist; Nest remains
+   the only authority for recording the response and the page never receives
+   tenant, actor, or token-hash fields.
 
 Acceptance is source-level plus a closed Railway runtime seam until the
 ordered hosted migration suffix is reconciled. The two source migrations and

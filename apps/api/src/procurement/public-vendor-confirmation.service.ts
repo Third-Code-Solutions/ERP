@@ -11,16 +11,21 @@ import {
 import { ConfigService } from '@nestjs/config'
 import {
   purchaseOrders,
+  poLineItems,
+  projects,
+  vendors,
   vendorConfirmationRequests,
   vendorConfirmationSessions,
 } from '@third-code-erp/database/schema'
 import {
   vendorConfirmationCommandSchema,
   vendorConfirmationResultSchema,
+  vendorConfirmationViewSchema,
   type VendorConfirmationBody,
   type VendorConfirmationResult,
+  type VendorConfirmationView,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { AuditService } from '../audit/audit.service'
 import {
   DatabaseService,
@@ -102,6 +107,140 @@ export class PublicVendorConfirmationService {
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AuditService) private readonly audit: AuditService
   ) {}
+
+  /**
+   * Return the least-privilege order view for a gated supplier link. This is a
+   * read-only compatibility seam; the POST command remains the sole authority
+   * for recording a supplier decision.
+   */
+  async view(rawToken: string): Promise<VendorConfirmationView> {
+    const token = rawToken.trim()
+    if (!TOKEN_PATTERN.test(token)) {
+      throw new BadRequestException('Invalid supplier confirmation link.')
+    }
+
+    if (
+      !this.config.get<boolean>(
+        'ERP_PUBLIC_VENDOR_CONFIRMATION_READ_ENABLED',
+        false
+      )
+    ) {
+      throw new ServiceUnavailableException(
+        'Supplier confirmation review is not enabled.'
+      )
+    }
+    const tenantIds = this.config.get<string[]>(
+      'ERP_PUBLIC_VENDOR_CONFIRMATION_READ_TENANT_IDS',
+      []
+    )
+    if (tenantIds.length === 0) {
+      throw new ServiceUnavailableException(
+        'Supplier confirmation review is not enabled for this tenant.'
+      )
+    }
+
+    const tokenHash = hashVendorConfirmationToken(token)
+    const [row] = await this.database.client
+      .select({
+        sessionId: vendorConfirmationSessions.id,
+        sessionTenantId: vendorConfirmationSessions.tenant_id,
+        purchaseOrderId: vendorConfirmationSessions.purchase_order_id,
+        vendorId: vendorConfirmationSessions.vendor_id,
+        state: vendorConfirmationSessions.state,
+        revokedAt: vendorConfirmationSessions.revoked_at,
+        expiresAt: vendorConfirmationSessions.expires_at,
+        poNumber: purchaseOrders.po_number,
+        projectName: projects.name,
+        projectLocation: projects.location,
+        vendorName: vendors.name,
+        deliveryDate: purchaseOrders.delivery_date,
+        notes: purchaseOrders.notes,
+        subtotalCents: purchaseOrders.subtotal_cents,
+        vatCents: purchaseOrders.vat_cents,
+        withholdingTaxCents: purchaseOrders.withholding_tax_cents,
+        totalCents: purchaseOrders.total_cents,
+      })
+      .from(vendorConfirmationSessions)
+      .innerJoin(
+        purchaseOrders,
+        and(
+          eq(purchaseOrders.id, vendorConfirmationSessions.purchase_order_id),
+          eq(purchaseOrders.tenant_id, vendorConfirmationSessions.tenant_id)
+        )
+      )
+      .innerJoin(
+        vendors,
+        and(
+          eq(vendors.id, vendorConfirmationSessions.vendor_id),
+          eq(vendors.tenant_id, vendorConfirmationSessions.tenant_id)
+        )
+      )
+      .innerJoin(
+        projects,
+        and(
+          eq(projects.id, purchaseOrders.project_id),
+          eq(projects.tenant_id, vendorConfirmationSessions.tenant_id)
+        )
+      )
+      .where(eq(vendorConfirmationSessions.token_hash, tokenHash))
+      .limit(1)
+
+    if (!row) {
+      throw new NotFoundException('Invalid supplier confirmation link.')
+    }
+    if (!tenantIds.includes(row.sessionTenantId)) {
+      throw new ServiceUnavailableException(
+        'Supplier confirmation review is not enabled for this tenant.'
+      )
+    }
+
+    if (row.revokedAt) {
+      throw new ConflictException('Supplier confirmation link revoked.')
+    }
+    const expiresAt = new Date(row.expiresAt)
+    if (expiresAt.getTime() <= Date.now()) {
+      throw new ConflictException('Supplier confirmation link expired.')
+    }
+
+    const lines = await this.database.client
+      .select({
+        id: poLineItems.id,
+        description: poLineItems.description,
+        unit: poLineItems.unit,
+        quantity: poLineItems.quantity,
+        quantityMicros: poLineItems.quantity_micros,
+        unitCostCents: poLineItems.unit_cost_cents,
+        lineTotalCents: poLineItems.line_total_cents,
+      })
+      .from(poLineItems)
+      .where(
+        and(
+          eq(poLineItems.po_id, row.purchaseOrderId),
+          eq(poLineItems.tenant_id, row.sessionTenantId)
+        )
+      )
+      .orderBy(asc(poLineItems.sort_order), asc(poLineItems.id))
+
+    return vendorConfirmationViewSchema.parse({
+      sessionId: row.sessionId,
+      purchaseOrderId: row.purchaseOrderId,
+      poNumber: row.poNumber,
+      vendorName: row.vendorName,
+      projectName: row.projectName,
+      projectLocation: row.projectLocation,
+      deliveryDate: row.deliveryDate
+        ? new Date(row.deliveryDate).toISOString()
+        : null,
+      notes: row.notes,
+      subtotalCents: row.subtotalCents,
+      vatCents: row.vatCents,
+      withholdingTaxCents: row.withholdingTaxCents,
+      totalCents: row.totalCents,
+      state: row.state,
+      expiresAt: expiresAt.toISOString(),
+      lines,
+    })
+  }
 
   async confirm(
     rawToken: string,

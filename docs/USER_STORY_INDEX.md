@@ -10,6 +10,8 @@ Status legend:
 - Live — feature is functional end-to-end against production schema
 - Dev-stub — UI + actions exist but rely on placeholder data or
   partial flow
+- Source-gated — source contracts and UI exist, but hosted schema and release
+  controls keep the workflow disabled
 - Pending — not yet implemented
 
 Routes are rooted at `apps/web/src/app`. Server actions are colocated
@@ -58,7 +60,7 @@ with their route under `actions.ts` unless noted.
 | US-Pre-002 — Permit Tracker | `/(dashboard)/permits`, `/(dashboard)/projects/[id]/permits` | `projects/[id]/permits/actions.ts` | `permits`, `sla_logs` | Live |
 | US-Pre-003 — Purchase Order Generation | `/(dashboard)/procurement`, `/(dashboard)/purchase-orders` | `procurement/actions.ts` | `rfqs`, `purchase_orders`, `po_lines`, `vendors` | Live |
 | US-013 — RFQ Auto-Dispatch | `/(dashboard)/procurement` | `procurement/actions.ts` (`dispatchRfq`) | `rfqs`, `vendors`, `sla_logs` | Live |
-| US-014 — Supplier PO Confirmation | planned supplier response surface | M3.28 Core public command; M3.29 SCM session minting; M3.30 gated email link | confirmation session + replay ledger + workflow association + provider link handoff | Pending |
+| US-014 — Supplier PO Confirmation | `/portal/purchase-order/[token]/confirmation` | `portal/purchase-order/[token]/confirmation/actions.ts`; Nest `GET/POST /v1/public/purchase-orders/:token/confirmation` | `vendor_confirmation_sessions`, replay ledger, workflow association, `po_line_items` | Source-gated |
 
 ---
 

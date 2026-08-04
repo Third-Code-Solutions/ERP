@@ -13,6 +13,21 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.49 supplier confirmation review target (2026-08-04)
+
+Suppliers can review an issued Purchase Order through a token-scoped,
+least-privilege page that is readable on desktop and mobile and offers three
+explicit decisions. The page is a presentation surface only: the Nest
+controller owns tenant/session/expiry checks, idempotency, state transitions,
+transactions, and audit. Already answered, revoked, expired, invalid, and
+unavailable links are read-only or fail closed without leaking internal IDs or
+token material.
+
+The read flag and tenant allowlist stay false/empty until the hosted session,
+line-item, and replay schema is reconciled and the disposable cross-tenant,
+expiry, revocation, replay, rollback, provider, and spend evidence is complete.
+The source milestone is therefore not a production capability claim.
+
 ## M3.48 landing GEO target (2026-08-04)
 
 The public surface has a single canonical, machine-readable product graph:

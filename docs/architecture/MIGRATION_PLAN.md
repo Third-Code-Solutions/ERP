@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.49 - supplier confirmation review portal (source-gated, 2026-08-04)
+
+Added the source-only public review read model, strict shared contract, Nest
+GET seam, Next portal page, and server action for US-014. No migration is
+added: the read query depends on the existing supplier-session, Purchase
+Order, project/vendor, and line-item schema, and every join repeats tenant
+scope. The read flag and tenant allowlist default false/empty; the POST
+decision authority and existing supplier email behavior are unchanged.
+
+Validation: API 58/300, Web 68/454, shared types 15/163; workspace lint,
+typecheck, and 79/79-route build pass. Local closed-gate runtime proof is
+HTTP 200 with the support state. Do not apply Supabase SQL or call Vercel for
+this source milestone. The next hosted step is a recoverable backup and
+owner-approved duplicate `PO-0002` repair before any ordered suffix replay,
+then disposable supplier-link canaries with rollback and spend controls.
+
 ## M3.48 - landing GEO structured data (source complete, 2026-08-04)
 
 Added a pure landing structured-data builder and linked `Organization`,

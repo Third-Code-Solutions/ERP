@@ -6,6 +6,13 @@ const vendorConfirmationDecisionSchema = z.enum([
   'changes_requested',
 ])
 
+const vendorConfirmationStateSchema = z.enum([
+  'pending',
+  'accepted',
+  'declined',
+  'changes_requested',
+])
+
 /** The public response body never carries tenant, vendor, PO, or actor IDs. */
 export const vendorConfirmationBodySchema = z
   .object({
@@ -55,6 +62,44 @@ export const vendorConfirmationResultSchema = z
   })
   .strict()
 
+/**
+ * Least-privilege, token-scoped read model for the supplier portal. It omits
+ * tenant/user/workflow identifiers and never carries token material.
+ */
+export const vendorConfirmationViewSchema = z
+  .object({
+    sessionId: z.string().uuid(),
+    purchaseOrderId: z.string().uuid(),
+    poNumber: z.string().min(1).max(50),
+    vendorName: z.string().min(1).max(255),
+    projectName: z.string().min(1).max(255),
+    projectLocation: z.string().max(4_000).nullable(),
+    deliveryDate: z.string().datetime({ offset: true }).nullable(),
+    notes: z.string().max(10_000).nullable(),
+    subtotalCents: z.number().int().nonnegative(),
+    vatCents: z.number().int().nonnegative(),
+    withholdingTaxCents: z.number().int().nonnegative(),
+    totalCents: z.number().int().nonnegative(),
+    state: vendorConfirmationStateSchema,
+    expiresAt: z.string().datetime({ offset: true }),
+    lines: z
+      .array(
+        z
+          .object({
+            id: z.string().uuid(),
+            description: z.string().min(1).max(4_000),
+            unit: z.string().max(20).nullable(),
+            quantity: z.number().int().nonnegative(),
+            quantityMicros: z.number().int().nonnegative(),
+            unitCostCents: z.number().int().nonnegative(),
+            lineTotalCents: z.number().int().nonnegative(),
+          })
+          .strict()
+      )
+      .max(500),
+  })
+  .strict()
+
 export type VendorConfirmationDecision = z.infer<
   typeof vendorConfirmationDecisionSchema
 >
@@ -66,4 +111,7 @@ export type VendorConfirmationCommand = z.infer<
 >
 export type VendorConfirmationResult = z.infer<
   typeof vendorConfirmationResultSchema
+>
+export type VendorConfirmationView = z.infer<
+  typeof vendorConfirmationViewSchema
 >

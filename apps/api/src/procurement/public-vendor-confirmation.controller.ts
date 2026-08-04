@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
   HttpStatus,
@@ -11,6 +12,7 @@ import {
 import type {
   VendorConfirmationBody,
   VendorConfirmationResult,
+  VendorConfirmationView,
 } from '@third-code-erp/shared-types'
 import { Public } from '../auth/supabase-jwt.guard'
 import { PublicVendorConfirmationPipe } from './public-vendor-confirmation.pipe'
@@ -20,6 +22,11 @@ import { PublicVendorConfirmationService } from './public-vendor-confirmation.se
 @Controller('v1/public/purchase-orders')
 export class PublicVendorConfirmationController {
   constructor(private readonly confirmations: PublicVendorConfirmationService) {}
+
+  @Get(':token/confirmation')
+  view(@Param('token') token: string): Promise<VendorConfirmationView> {
+    return this.confirmations.view(token)
+  }
 
   @Post(':token/confirmation')
   @HttpCode(HttpStatus.OK)

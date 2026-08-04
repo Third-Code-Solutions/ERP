@@ -3,6 +3,7 @@ import {
   vendorConfirmationBodySchema,
   vendorConfirmationCommandSchema,
   vendorConfirmationResultSchema,
+  vendorConfirmationViewSchema,
 } from './vendor-confirmation'
 
 const TOKEN = 'b'.repeat(64)
@@ -68,5 +69,39 @@ describe('supplier confirmation contracts', () => {
       respondedAt: '2026-08-03T00:00:00.000Z',
     })
     expect(result.decision).toBe('accepted')
+  })
+
+  it('accepts least-privilege token-scoped review data', () => {
+    const parsed = vendorConfirmationViewSchema.parse({
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      purchaseOrderId: '22222222-2222-4222-8222-222222222222',
+      poNumber: 'PO-0042',
+      vendorName: 'Harbor Supply',
+      projectName: 'Harbor Point',
+      projectLocation: 'Makati',
+      deliveryDate: '2026-09-01T00:00:00.000Z',
+      notes: null,
+      subtotalCents: 100_000,
+      vatCents: 12_000,
+      withholdingTaxCents: 2_000,
+      totalCents: 110_000,
+      state: 'pending',
+      expiresAt: '2026-10-01T00:00:00.000Z',
+      lines: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          description: 'Ready-mix concrete',
+          unit: 'm3',
+          quantity: 10,
+          quantityMicros: 10_000_000,
+          unitCostCents: 10_000,
+          lineTotalCents: 100_000,
+        },
+      ],
+    })
+
+    expect(parsed.lines).toHaveLength(1)
+    expect(parsed).not.toHaveProperty('tenantId')
+    expect(parsed).not.toHaveProperty('tokenHash')
   })
 })
