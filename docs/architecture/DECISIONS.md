@@ -14,6 +14,11 @@ foreign-key assumptions or cross-tenant fixture data.
 Validation/release boundary: focused proposal actions 2/2, Web 66/450,
 workspace lint/typecheck, diff check, and production build pass. No hosted
 schema/data, Railway setting, or Vercel deployment changed.
+Post-push evidence: `5a5e525` is on both target branches, GitHub's Railway
+check is successful, Railway skipped the unchanged-API commit, and live
+readiness is 200. Vercel has no new deployment. Supabase is still not a green
+release target: 55 migrations, `CREATING_PROJECT` branch status, and the
+duplicate-PO `P0001` failure in the latest branch-action log.
 
 ## D-155 - Command palette owns one accessible result relationship (2026-08-04)
 

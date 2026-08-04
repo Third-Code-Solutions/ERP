@@ -23,6 +23,11 @@ authority remain responsible for official writes and state transitions.
 Source validation is green: focused 2/2, Web 66/450, workspace lint/typecheck,
 diff check, and 79/79-route build. No hosted migration is needed. Keep Vercel
 Git disconnected and spend-protected, and keep Supabase mutation flags closed.
+Post-push source/docs `5a5e525` are on both branches. GitHub/Railway status is
+successful with a safe Railway skip and live readiness 200; Vercel has no new
+deployment. Supabase remains non-ready for ordered replay: 55 migrations,
+branch API `CREATING_PROJECT`, and latest logs still show the duplicate-PO
+`P0001` preflight failure.
 
 ## M3.46 universal command palette target (2026-08-04)
 
