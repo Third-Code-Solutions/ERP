@@ -11,10 +11,14 @@ with the direct server action preserved by default. No migration was added.
 
 Validation: shared 17/179, API 71/341, Web 79/512, focused command/client/
 action tests, typechecks, serial lint, Nest build, Web production build, and
-`git diff --check`. Release remains conditional on pushing the reviewed SHA,
-confirming Railway watch patterns, and verifying live readiness/route auth.
-Rollback is the disabled adapter flag; no hosted state requires repair. No
-Supabase or Vercel provider action was triggered.
+`git diff --check`. Commit `8a0c059826aabf3b0711277c68f1b182db46aa25` is
+pushed to both target refs. Railway deployment
+`19b808c7-f07c-40f3-a268-df35aaf86071` is `SUCCESS` for that exact SHA using
+the effective `apps/api/Dockerfile` manifest; live `/ready` and `/health`
+are 200 with database and Redis healthy, unauthenticated inventory summary
+access is 401, and startup logs map the command route. Rollback is the
+disabled adapter flag or the prior successful API deployment; no hosted state
+requires repair. No Supabase or Vercel provider action was triggered.
 
 ## M3.66 - Inventory summary authority seam and read-only ledger refresh (2026-08-05)
 

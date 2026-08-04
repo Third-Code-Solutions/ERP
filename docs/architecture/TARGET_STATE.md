@@ -35,8 +35,11 @@ tenant membership and `inventory.manage` are rechecked in Nest, active UOM and
 material item rows are locked within one transaction, stock identity remains
 database-guarded, and semantic audit records the change. The command is an
 idempotent state setter and remains fail-closed behind an exact flag and tenant
-allowlist. The Next direct server action is the compatibility path. No hosted
-schema/data or Vercel deployment is implied.
+allowlist. The Next direct server action is the compatibility path. Source SHA
+`8a0c059826aabf3b0711277c68f1b182db46aa25` is live on Railway as successful
+deployment `19b808c7-f07c-40f3-a268-df35aaf86071`; `/ready` and `/health` are
+200, unauthenticated inventory summary is 401, and startup logs map the
+command route. No hosted schema/data or Vercel deployment is implied.
 
 ## M3.65 CRM opportunity detail graph boundary (2026-08-05)
 

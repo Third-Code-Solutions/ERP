@@ -3,12 +3,13 @@
 ## Exact next action after M3.67 inventory item policy command
 
 1. Keep `ERP_INVENTORY_ITEM_CONFIG_VIA_API=false` and its tenant allowlist
-   empty. The source contract and tests are not protected tenant browser,
-   rollback, or hosted-schema proof.
-2. Push only the reviewed source/docs under `kurtgav`; if backend watch
-   patterns are hit, deploy one exact SHA to Railway and verify `/ready`,
-   `/health`, the route startup mapping, and unauthenticated 401. Docs-only
-   follow-ups must stay outside watch patterns to avoid paid rebuilds.
+   empty. The source contract and tests plus Railway readiness/401 evidence
+   are not protected tenant browser, rollback, or hosted-schema proof.
+2. Preserve the verified release identity: source SHA
+   `8a0c059826aabf3b0711277c68f1b182db46aa25`, Railway deployment
+   `19b808c7-f07c-40f3-a268-df35aaf86071`, and live `/ready`/`/health` 200.
+   Push only the reviewed docs follow-up; it must stay outside API watch
+   patterns and must not trigger another paid rebuild.
 3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain supported
    backup/export, dependent/audit export, owner-approved mapping, disposable
    PostgreSQL 17 replay, and an explicit spend cap before hosted action.
