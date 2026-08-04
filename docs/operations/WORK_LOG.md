@@ -22,6 +22,18 @@ zero-skipped integration/recovery tests, owner approvals, and spend-bounded
 canary proof. Exact next action is recorded in
 `docs/architecture/DATABASE_RECONCILIATION_M3.31.md`.
 
+Changed files: `docs/architecture/CURRENT_STATE.md`,
+`docs/architecture/DATABASE_RECONCILIATION_M3.31.md`,
+`docs/architecture/DECISIONS.md`, `docs/architecture/MIGRATION_PLAN.md`,
+`docs/architecture/TARGET_STATE.md`, `docs/operations/NEXT_ACTIONS.md`,
+`docs/operations/WORK_LOG.md`, and `docs/runbooks/database-release.md`.
+Validation: database-release planner tests 7/7; `pnpm lint`; `pnpm build`
+(Next.js 78/78 pages and Nest build); staged `git diff --check`; hosted
+planner `review_required` with no SQL executed. Commit `878e372` was pushed
+to both target branches under `kurtgav`; Railway stayed on healthy deployment
+`7d2a078d-605f-49e9-a299-12c9667a153b`; Vercel created no deployment for this
+docs-only commit.
+
 ## 2026-08-04 - M3.30 gated supplier confirmation links (source slice)
 
 Added source-only supplier confirmation-link reconstruction to the existing
