@@ -4,6 +4,29 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.50 Cost-capped provider and migration audit (read-only, 2026-08-04)
+
+The source tree and both target branches are aligned at `bbd0e39`. The GitHub
+connector is authenticated as `kurtgav`; the exact-SHA Railway check is
+`success`. The preceding API source deployment remains the healthy Railway
+release; this docs-only checkpoint did not require another API build.
+
+The Supabase target `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY`, PostgreSQL 17,
+and remains unchanged at 55 applied migrations versus 87 source migrations.
+The read-only database planner confirms a linear 55-migration prefix with 32
+pending migrations. The separate duplicate planner found one tenant-scoped
+Purchase Order group with 12 records. It prints only opaque references and
+requires owner review; no row, migration history, or schema object changed.
+The ordered replay gate therefore remains closed. Supabase security advisors
+also report 14 notices (11 WARN) and performance advisors report 282 notices
+(1 WARN); these are follow-up hardening work, not permission to apply an
+out-of-order migration.
+
+Vercel project `thirdcode-erp` remains `live:false`, Git deployment is disabled
+in `apps/web/vercel.json`, and the post-push deployment query returned zero
+new artifacts. No preview, production build, or paid frontend action ran. No
+Supabase SQL/data, Storage object, Railway setting, or provider flag changed.
+
 ## M3.49 Supplier confirmation review portal (source-gated, 2026-08-04)
 
 Added the bounded supplier review surface for US-014. Nest now exposes a

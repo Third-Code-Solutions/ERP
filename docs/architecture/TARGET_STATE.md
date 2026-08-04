@@ -13,6 +13,20 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.50 cost and migration safety target (2026-08-04)
+
+Every release must be spend-bounded as well as technically green. Vercel Git
+deployment stays disabled and no preview is created by default; a frontend
+promotion requires one explicitly approved build with a known rollback. A
+source push alone is not frontend production evidence.
+
+The database target must reach the ordered source head only after a supported
+recoverable backup, dependent-row/audit export, and owner-approved decision for
+the 12 duplicate Purchase Order records. Read-only planners are mandatory
+before any apply. They must report a linear ledger, PostgreSQL 17, no
+duplicate blocker, and a reviewed migration risk set. No manual SQL, migration
+history edits, or out-of-order suffix apply is an acceptable shortcut.
+
 ## M3.49 supplier confirmation review target (2026-08-04)
 
 Suppliers can review an issued Purchase Order through a token-scoped,
