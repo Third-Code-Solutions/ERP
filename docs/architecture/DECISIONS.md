@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-140 - Reconcile the complete migration ledger before hosted apply (2026-08-04)
+
+Decision: treat the 55-row hosted Supabase ledger and 85-file source ledger as
+an exact-prefix drift, not as permission to apply the final source file or
+rewrite migration history. Restore the target into an isolated PostgreSQL 17
+clone, replay the complete source ledger, compare catalog/data/RLS state, and
+author one forward-only reconciliation migration for any remaining drift.
+
+Reason: the 30-file suffix includes constraint replacement and transaction
+boundaries that cannot be proven safe from source inspection alone. Backup,
+Storage, duplicate-record, audit-recovery, rollback, integration, owner,
+provider, and spend evidence must exist before a production mutation. This
+keeps PostgreSQL authoritative, preserves tenant isolation, and prevents an
+irreversible hosted deploy from masking an unknown target state.
+
 ## D-139 - Reconstruct supplier links only at gated email send time (2026-08-04)
 
 Decision: let the existing supplier-email worker derive a confirmation URL in

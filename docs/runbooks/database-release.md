@@ -26,17 +26,26 @@ or repairs migration history.
 
 ## Current release state
 
-Verified 2026-07-28 against the authorized Supabase target:
+Verified 2026-08-04 against the authorized Supabase target:
 
-- PostgreSQL 17.
-- 44 of 44 repository versions recorded as applied.
-- No missing or unexpected migration version.
-- Protected-catalog verifier passes for 30 table groups.
-- Captured business row, money, audit, and Storage baselines were unchanged.
+- PostgreSQL 17 (`server_version_num = 170006`).
+- 55 hosted versions are recorded as applied; the source ledger contains 85.
+- The hosted ledger is an exact prefix of source, with 30 ordered source
+  versions pending review.
+- The source suffix has no `DROP TABLE`, `DELETE FROM`, `TRUNCATE`, or data
+  update statements; it does contain 24 `DROP CONSTRAINT IF EXISTS` operations
+  and six explicit transaction blocks.
+- No hosted migration, history row, data, Storage object, or provider setting
+  was changed during this audit. The release is blocked pending the isolated
+  PostgreSQL 17 clone/replay, catalog/data/RLS diff, backup/restore evidence,
+  and zero-skipped integration/recovery gates.
 
-The earlier non-linear 20/43 state is retained in the operations work log.
-Every future target must independently pass this runbook; current status is
-not transferable to another project or environment.
+The earlier 44/44 baseline from 2026-07-28 is historical evidence only; it is
+not the current state of this target. Every future target must independently
+pass this runbook; current status is not transferable to another project or
+environment. See
+[`DATABASE_RECONCILIATION_M3.31.md`](../architecture/DATABASE_RECONCILIATION_M3.31.md)
+for the exact suffix, manifest, catalog checks, and blockers.
 
 ## Required people and evidence
 

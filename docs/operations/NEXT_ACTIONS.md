@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.31 Supabase reconciliation audit
+
+1. Keep all supplier-confirmation controls false/empty; do not apply the 30
+   pending migrations, edit `supabase_migrations.schema_migrations`, trigger
+   Vercel, or change hosted provider settings.
+2. Obtain approved PITR/backup, logical-dump, and Storage inventory evidence;
+   restore Supabase into an isolated PostgreSQL 17 clone; replay all 85 source
+   migrations; and diff schema, constraints, functions, RLS, and business data.
+3. Run zero-skipped database/Nest integration tests, duplicate-PO mapping,
+   audit recovery, idempotency/replay, rollback, provider identity, and
+   spend-bounded canary gates. Only then author/apply a reviewed forward-only
+   reconciliation migration and verify Railway/Vercel release identity.
+
+See [`DATABASE_RECONCILIATION_M3.31.md`](../architecture/DATABASE_RECONCILIATION_M3.31.md)
+for the exact 30-file suffix, manifest, and read-only evidence.
+
 ## Exact next action after M3.30 source link-delivery slice
 
 1. Keep `ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_ENABLED` and

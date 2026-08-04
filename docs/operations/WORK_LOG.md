@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-04 - M3.31 Supabase reconciliation audit (read-only)
+
+Audited source and hosted migration ledgers for the authorized Supabase
+project. Source contains 85 migration files; hosted history contains 55 rows
+through `20260729233017_notification_outbox_foundation`, an exact prefix with
+30 pending source files through `20260803160000_vendor_confirmation_session_minting`.
+PostgreSQL is `server_version_num = 170006`. The ordered suffix manifest is
+`9fb0a2f55000bdddc7bb6c3b3dcea9f6243a8b49873609b7490323259eb4a260`.
+
+The read-only scan found no `DROP TABLE`, `DELETE FROM`, `TRUNCATE`, or data
+update; it found 24 `DROP CONSTRAINT IF EXISTS` operations and six explicit
+transaction blocks. A catalog query covering 23 expected pending tables
+returned zero rows. Supabase advisors reported 14 security and 282
+performance findings; no fixes were applied.
+
+No Supabase SQL/history/data/Storage, Railway variable, provider setting, or
+Vercel deployment changed. Status is `BLOCKED_FOR_HOSTED_APPLY` pending backup
+and Storage evidence, isolated clone replay, catalog/data/RLS diff,
+zero-skipped integration/recovery tests, owner approvals, and spend-bounded
+canary proof. Exact next action is recorded in
+`docs/architecture/DATABASE_RECONCILIATION_M3.31.md`.
+
 ## 2026-08-04 - M3.30 gated supplier confirmation links (source slice)
 
 Added source-only supplier confirmation-link reconstruction to the existing

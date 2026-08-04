@@ -4,6 +4,20 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.31 - Read-only Supabase reconciliation audit (source complete)
+
+Audited the authorized Supabase target against the complete source migration
+ledger. Source has 85 files and the hosted ledger has an exact 55-file prefix;
+30 ordered files are pending. The suffix risk scan and hosted catalog checks
+are recorded in [`DATABASE_RECONCILIATION_M3.31.md`](./DATABASE_RECONCILIATION_M3.31.md).
+
+This milestone performs no hosted mutation. Keep all supplier-confirmation
+flags false/empty and do not apply the suffix or repair
+`supabase_migrations.schema_migrations` until the target is restored into an
+isolated PostgreSQL 17 clone, all source files replay cleanly, catalog/data/RLS
+drift is reconciled, and backup, integration, recovery, owner, provider, and
+spend gates are evidenced.
+
 ## M3.30 - Gated supplier confirmation link delivery (source complete)
 
 The existing supplier-email delivery worker can now reconstruct a confirmation
