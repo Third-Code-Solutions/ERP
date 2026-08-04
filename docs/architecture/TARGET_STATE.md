@@ -13,6 +13,22 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.40 governing product target (2026-08-04)
+
+The target product contract is now centralized in
+[`docs/BuildOps_PRD_v1.md`](../BuildOps_PRD_v1.md). New work must express a
+user outcome, actor, state machine, invariant, evidence source, and rollback
+before implementation. The primary experience surfaces are Today,
+Project Command Center, and Ask/Create/Find; they are navigation contracts,
+not permission bypasses. NestJS remains the official mutation authority,
+PostgreSQL the source of truth, Redis/BullMQ coordination-only, Python
+advisory-only, and tenant/RLS/audit/idempotency rules apply to every slice.
+
+This milestone changes no runtime state. It prevents a big-bang rewrite and
+sets the next bounded sequence: repair supported hosted migration
+reconciliation, then add an authorized read-only Today/Command Center slice,
+then move one high-value mutation under the already guarded Nest seam.
+
 ## M3.39 durable project-create replay target (2026-08-04)
 
 The target authority contract now includes a tenant-scoped

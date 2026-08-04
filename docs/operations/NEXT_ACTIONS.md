@@ -1,5 +1,20 @@
 # Next Actions
 
+# Exact next action after M3.40 governing BuildOps product contract
+
+1. Commit and push the PRD/architecture-memory update under the intended
+   `kurtgav` GitHub identity. Verify the exact source SHA and Railway health;
+   do not trigger Vercel or change its spend-protection boundary.
+2. Obtain an approved, recoverable Supabase backup/restore point and complete
+   the 55/87 catalog, data/duplicate, constraints/functions/triggers,
+   RLS/policy, Storage, and migration-history diff. Resolve the connector's
+   `INVALID_ARGUMENT` and `MIGRATIONS_FAILED` state through the supported
+   provider path; never hand-insert migration history or bypass ordered SQL.
+3. After that gate, add the smallest read-only Today/Project Command Center
+   slice from existing authorized reads. Prove tenant/RBAC scope, citations,
+   browser responsiveness, cache privacy, and zero mutation. Keep both
+   project-create flags false until a later, reviewed Nest canary.
+
 # Exact next action after M3.39 durable project-create idempotency
 
 1. Keep `ERP_PROJECT_CREATE_WRITES_ENABLED=false`, its tenant allowlist empty,

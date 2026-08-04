@@ -4,6 +4,24 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.40 governing BuildOps product contract (2026-08-04)
+
+Added [`docs/BuildOps_PRD_v1.md`](../BuildOps_PRD_v1.md) as the active,
+Third-Code-authored product contract. It records the construction-first
+outcome, multi-business expansion boundary, clean-room provenance rules,
+Today/Project Command Center/Ask information architecture, authority split,
+state and integrity invariants, landing/accessibility/SEO requirements, and
+the release definition of done. This is a documentation-only milestone; no
+runtime code, database schema, hosted data, Storage object, Railway variable,
+or Vercel deployment changed.
+
+The executable baseline remains M3.39: source has 87 migrations, the
+disposable PostgreSQL 17 + Redis lane is green, Railway readiness is green,
+Supabase is the exact 55-row prefix, and Vercel remains disconnected and
+spend-protected. The next implementation gate is the supported Supabase
+reconciliation path; the first product slice after that gate is a read-only
+Today/Project Command Center surface backed by existing authorized reads.
+
 ## M3.39 durable project-create idempotency (2026-08-04)
 
 Source checkpoint: `b77227df402082d494538b92d706f7f092fa1fe5`. Added the

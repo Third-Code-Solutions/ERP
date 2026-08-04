@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-04 - M3.40 governing BuildOps product contract
+
+Audited the active source and provider boundaries before editing. Confirmed
+the TypeScript Next.js/NestJS modular monolith, PostgreSQL/Redis boundaries,
+existing Python advisory services, tenant/RLS/auth/audit foundations, current
+87-migration source versus the hosted 55-row Supabase prefix, Railway
+readiness, and Vercel spend protection. A runtime-source scan under `apps`,
+`packages`, and `supabase` found no ERPNext, Frappe, or ABI Ops marker.
+
+Rechecked the public landing at 1440, 768, and 390px: no horizontal overflow,
+the Satoshi editorial hero and responsive controls are intact, and accordion,
+carousel, FAQ, and Cortex preview interactions remain usable. Added
+`docs/BuildOps_PRD_v1.md` and recorded D-149 plus current/target/migration/
+next-action updates. This milestone is documentation-only: no hosted SQL,
+business data, Storage object, Railway variable, Vercel build, or domain
+promotion changed.
+
+Exact next action: obtain supported Supabase migration-reconciliation and
+recoverable backup/catalog/data/RLS evidence. Keep project-create flags closed,
+Vercel disconnected, and provider spend bounded; then implement one
+authorized read-only Today/Project Command Center slice.
+
 ## 2026-08-04 - M3.38 guarded project-create Nest authority seam
 
 Read the current architecture, migration gates, capability matrix, and clean-

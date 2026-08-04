@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-149 - Govern incremental delivery with the BuildOps PRD (2026-08-04)
+
+Decision: adopt `docs/BuildOps_PRD_v1.md` as the active Third-Code-authored
+product contract. It consolidates product outcomes, actors, information
+architecture, clean-room boundaries, authority/integrity rules, capability
+scope, UX/SEO requirements, and the release definition of done. Each future
+vertical slice must reference the contract and record its state, evidence,
+rollback, and unresolved decision.
+
+Reason: the product goal spans construction depth, multi-business ERP breadth,
+AI assistance, and a live migration. A single governing contract keeps the
+implementation incremental, prevents ERPNext/Frappe/Rework imitation, and
+keeps polished UX from outrunning tenant-safe transaction authority.
+
+Validation: documentation-only M3.40 audit; runtime source scan under
+`apps`, `packages`, and `supabase` found no vendor marker; existing landing
+browser evidence and M3.39 disposable/provider gates remain unchanged. No
+hosted database, Storage, Railway variable, or Vercel deployment changed.
+
 ## D-148 - Project creation requires tenant-scoped idempotency (2026-08-04)
 
 Decision: every Nest project-create command must carry a bounded
