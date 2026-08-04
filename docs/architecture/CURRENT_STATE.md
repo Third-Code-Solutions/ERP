@@ -4,6 +4,27 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.51 Cortex operational brief (source-only, 2026-08-04)
+
+Added a bounded read path for the Cortex AI Brain: the database package now
+builds a tenant- and role-scoped operational brief from current graph nodes,
+freshness counts, and existing graph statistics. The Next API exposes
+`GET /api/cortex/brief` with a 1-24 item limit, private response headers, safe
+entity-registry filtering, and deep links. It performs no ERP mutation, schema
+write, LLM call, Python call, or provider spend.
+
+The brief is an evidence surface, not an approval surface. Canonical ERP rows
+remain authoritative, unknown graph types are omitted before serialization,
+and tenant/role scope is supplied by the authenticated session. No Supabase
+migration or hosted data changed, and Vercel remains closed by default.
+
+Source validation: workspace lint and typecheck pass; production build passes
+with 80/80 routes, including `/api/cortex/brief`. The Turbo-parallel test run
+had one known API resource-contention timeout in the stock-receipt controller;
+the API rerun passed 58 files/300 tests, Web passed 69 files/458 tests,
+Database passed 41 files/166 tests, and Shared Types passed 15 files/163 tests.
+Database integration suites that require `DATABASE_URL` remain skipped.
+
 ## M3.50 Cost-capped provider and migration audit (read-only, 2026-08-04)
 
 The reviewed application source checkpoint remains `386fd2a`; subsequent

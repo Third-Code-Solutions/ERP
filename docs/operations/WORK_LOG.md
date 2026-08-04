@@ -1,5 +1,38 @@
 # Work Log
 
+## 2026-08-04 - M3.51 Cortex operational brief
+
+Implemented a source-only Cortex operating pulse. `packages/database` now
+exports `getCortexOperationalBrief`, which runs bounded tenant/role-scoped
+reads over current graph nodes and returns freshness counts plus existing graph
+statistics. `apps/web` adds `GET /api/cortex/brief`; it accepts only a bounded
+limit, applies the authenticated role scope, filters through the entity registry,
+and emits private no-store headers with safe deep links. No canonical ERP write,
+LLM/provider call, Python approval, migration, hosted DB change, or Vercel
+deployment occurred.
+
+Changed files:
+
+- `packages/database/src/cortex/brief.ts`
+- `packages/database/src/index.ts`
+- `apps/web/src/app/api/cortex/brief/route.ts`
+- `apps/web/src/app/api/cortex/brief/route.test.ts`
+- architecture and operations memory files (M3.51 entries)
+
+Focused results: database typecheck passed; web typecheck passed; all Cortex API
+tests passed (8 files / 35 tests); database suite passed (41 files / 166 tests,
+140 integration tests skipped because `DATABASE_URL` is unset). The workspace
+lint/typecheck passed and the production build passed with 80/80 routes. The
+Turbo-parallel test run had one API resource-contention timeout in the
+stock-receipt controller; package-isolated reruns passed API 58/300, Web 69/458,
+Database 41/166, and Shared Types 15/163. One initial database attempt used
+unsupported Vitest `--runInBand`; it was rerun with the repository script and
+passed.
+
+Spend boundary: Vercel remains Git-disabled and no preview/production build was
+started. Supabase remains read-only at the known migration boundary. Next gate
+is one source push and exact provider verification.
+
 ## 2026-08-04 - M3.50 cost-capped provider and migration audit
 
 Rechecked the configured providers before any deployment action. GitHub

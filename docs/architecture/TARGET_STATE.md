@@ -13,6 +13,19 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.51 Cortex operational brief target (2026-08-04)
+
+Cortex should give every authorized operator a small, source-backed pulse of
+what the knowledge graph knows now: recent records, freshness, provenance
+coverage, graph counts, and links back to the canonical ERP surface. The
+brief is always tenant- and role-scoped, bounded to a small server-enforced
+limit, and read-only. AI may explain the evidence later, but it cannot approve
+or finalize ERP transactions.
+
+The source contract is now present without a database migration. Hosted rollout
+still requires the same ordered migration, duplicate-record, rollback, and
+spend gates; source availability is not a production deployment claim.
+
 ## M3.50 cost and migration safety target (2026-08-04)
 
 Every release must be spend-bounded as well as technically green. Vercel Git
