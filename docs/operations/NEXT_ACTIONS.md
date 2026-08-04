@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.59 Railway Nest Redis module wiring
+
+1. Run the full API suite plus lint/typecheck/build and `git diff --check`.
+2. Commit and push one corrective source change as `kurtgav`; do not trigger a
+   Vercel build or reconnect Vercel Git.
+3. Read Railway deployment/build logs, exact GitHub deployment status, and
+   live `/ready` plus `/health`; call production green only if all agree on
+   the corrective SHA.
+4. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87 and keep all Next
+   cutover flags false/empty. The duplicate `PO-0002` group still requires the
+   supported backup/export, dependent/audit export, owner mapping, and
+   disposable PostgreSQL 17 replay.
+
 ## Exact next action after M3.58 Nest project detail read contract
 
 1. Keep `ERP_PROJECT_READS_VIA_API=false` and

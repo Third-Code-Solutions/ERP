@@ -1,5 +1,17 @@
 # Migration Plan
 
+## M3.59 - Railway Nest Redis module wiring (source fix, 2026-08-04)
+
+The first M3.58 API deployment exposed a runtime-only dependency error:
+`ProviderQuotaService` could not resolve `THIRD_CODE_ERP_REDIS_CLIENT`. Move
+the existing Redis factory/lifecycle into a shared global `RedisModule`, export
+the token, and import it explicitly in `AppModule` and `ProviderQuotaModule`.
+
+Validation so far: Redis/quota focused tests 5/5, API typecheck, and Nest
+production build. Full API tests, one corrective push, exact Railway status,
+deployment logs, and live readiness remain release gates. No Vercel build or
+Supabase mutation is part of this fix.
+
 ## M3.58 - Nest project detail read contract (source complete, 2026-08-04)
 
 Added `GET /v1/projects/:projectId` with explicit `project.read` capability,

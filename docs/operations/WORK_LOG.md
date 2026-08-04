@@ -1,5 +1,31 @@
 # Work Log
 
+## 2026-08-04 - M3.59 Railway Nest Redis module wiring
+
+The M3.58 Railway deployment built the API image but failed `/ready`. Railway
+deploy logs identified the exact startup error: `ProviderQuotaService` could
+not resolve `THIRD_CODE_ERP_REDIS_CLIENT` because the token was declared only
+in `AppModule`. Moved the unchanged Redis factory and lifecycle into a shared
+global `RedisModule`, exported the token, and imported it explicitly in the
+root and quota modules.
+
+Changed files:
+
+- `apps/api/src/observability/redis.module.ts`
+- `apps/api/src/observability/redis.module.spec.ts`
+- `apps/api/src/observability/provider-quota.module.ts`
+- `apps/api/src/app.module.ts`
+- architecture and operations memory files
+
+Results so far: focused Redis/quota 5/5, API typecheck, and Nest build pass;
+`git diff --check` pass. No database, Storage, Supabase migration, Railway
+setting, or Vercel build/deploy changed. The corrective push and hosted
+readiness gate are still pending.
+
+Rollback: revert the corrective source commit; no hosted state requires repair.
+Next: full API gate, push once, inspect Railway deployment logs/status, then
+verify exact SHA plus `/ready` and `/health` before any frontend action.
+
 ## 2026-08-04 - M3.58 Nest project detail read contract
 
 Added the first bounded project read handoff to the Nest modular monolith.
