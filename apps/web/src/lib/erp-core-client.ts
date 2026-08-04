@@ -36,6 +36,7 @@ import {
   documentProcessingStatusSchema,
   inventoryUomCreationResultSchema,
   inventoryWarehouseCreationResultSchema,
+  inventoryWarehouseUpdateResultSchema,
   inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
   stockReceiptCreationResultSchema,
@@ -108,6 +109,8 @@ import {
   type InventoryUomCreationResult,
   type CreateInventoryWarehouseCommand,
   type InventoryWarehouseCreationResult,
+  type InventoryWarehouseUpdateResult,
+  type UpdateInventoryWarehouseCommand,
   type ConfigureInventoryItemCommand,
   type InventoryItemConfigurationResult,
   type StockReceiptCreationResult,
@@ -270,6 +273,16 @@ export function inventoryWarehouseCreateWritesUseCoreApi(
     tenantId,
     process.env.ERP_INVENTORY_WAREHOUSE_CREATE_VIA_API,
     process.env.ERP_INVENTORY_WAREHOUSE_CREATE_TENANT_IDS
+  )
+}
+
+export function inventoryWarehouseUpdateWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_WAREHOUSE_UPDATE_VIA_API,
+    process.env.ERP_INVENTORY_WAREHOUSE_UPDATE_TENANT_IDS
   )
 }
 
@@ -1323,6 +1336,61 @@ export async function createInventoryWarehouseThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No inventory Warehouse was created.',
+    }
+  }
+}
+
+export async function updateInventoryWarehouseThroughCoreApi(
+  warehouseId: string,
+  command: UpdateInventoryWarehouseCommand
+): Promise<CoreResult<InventoryWarehouseUpdateResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/warehouses/${encodeURIComponent(
+        warehouseId
+      )}`,
+      {
+        method: 'PATCH',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 404
+            ? 'Warehouse not found.'
+            : 'Inventory Warehouse was not updated.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = inventoryWarehouseUpdateResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid inventory Warehouse update result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No inventory Warehouse was updated.',
     }
   }
 }

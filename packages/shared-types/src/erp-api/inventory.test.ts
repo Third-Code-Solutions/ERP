@@ -6,6 +6,8 @@ import {
   createStockReceiptCommandSchema,
   inventoryUomCreationResultSchema,
   inventoryWarehouseCreationResultSchema,
+  inventoryWarehouseUpdateResultSchema,
+  updateInventoryWarehouseCommandSchema,
   inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
   quantityToMicros,
@@ -97,6 +99,17 @@ const WAREHOUSE_CREATION = {
   updatedAt: '2026-08-05T00:00:00.000Z',
 } as const
 
+const WAREHOUSE_UPDATE = {
+  warehouseId: WAREHOUSE_CREATION.warehouseId,
+  tenantId: WAREHOUSE_CREATION.tenantId,
+  code: WAREHOUSE_CREATION.code,
+  name: 'Closed materials store',
+  projectId: WAREHOUSE_CREATION.projectId,
+  isActive: false,
+  createdAt: WAREHOUSE_CREATION.createdAt,
+  updatedAt: '2026-08-05T00:01:00.000Z',
+} as const
+
 describe('Inventory Warehouse creation contract', () => {
   it('accepts optional project scope and rejects browser identity fields', () => {
     expect(
@@ -115,6 +128,27 @@ describe('Inventory Warehouse creation contract', () => {
         name: 'Main store',
         projectId: null,
         tenantId: WAREHOUSE_CREATION.tenantId,
+      })
+    ).toThrow()
+  })
+})
+
+describe('Inventory Warehouse update contract', () => {
+  it('accepts explicit name/state and rejects immutable identity fields', () => {
+    expect(
+      updateInventoryWarehouseCommandSchema.parse({
+        name: ' Closed materials store ',
+        isActive: false,
+      })
+    ).toEqual({ name: 'Closed materials store', isActive: false })
+    expect(inventoryWarehouseUpdateResultSchema.parse(WAREHOUSE_UPDATE)).toEqual(
+      WAREHOUSE_UPDATE
+    )
+    expect(() =>
+      updateInventoryWarehouseCommandSchema.parse({
+        name: 'Closed materials store',
+        isActive: false,
+        code: 'CLOSED',
       })
     ).toThrow()
   })
