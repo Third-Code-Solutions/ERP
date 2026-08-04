@@ -4,9 +4,10 @@
 
 Rechecked the configured providers before any deployment action. GitHub
 identity is `kurtgav`; `Third-Code-Solutions/ERP` grants push/admin access and
-both target branches point to `82d79bb`. The exact-SHA Railway check is
-`success`; the preceding API release remains healthy. This checkpoint changed
-docs only, so no new API deployment was needed.
+both target branches carry the reviewed source plus the docs-only audit
+checkpoints. The exact-SHA Railway check is `success`; the API release remains
+healthy. This checkpoint changed docs only, so no new API deployment was
+needed.
 
 Ran:
 

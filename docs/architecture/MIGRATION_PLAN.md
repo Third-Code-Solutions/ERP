@@ -11,9 +11,9 @@ are recorded as follow-up security/performance work only.
 
 Verified provider spend controls: `apps/web/vercel.json` keeps Git deployment
 disabled; Vercel returned zero deployments after the source/docs push. GitHub
-is `kurtgav`, both branches are at `82d79bb`, and the exact-SHA Railway check is
-green. This checkpoint is source/docs-only; no Vercel build or hosted DB
-replay occurred.
+is `kurtgav`, both target branches carry the reviewed source plus the
+docs-only audit checkpoints, and the exact-SHA Railway check is green. This
+checkpoint is source/docs-only; no Vercel build or hosted DB replay occurred.
 
 Next migration action: obtain a supported backup and dependent-row/audit
 export, then get an owner-approved canonical mapping for the duplicate group.
