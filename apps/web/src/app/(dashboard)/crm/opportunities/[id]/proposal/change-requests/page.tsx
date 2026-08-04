@@ -27,7 +27,13 @@ export default async function ChangeRequestsPage({ params }: PageProps) {
       account_name: accounts.name,
     })
     .from(opportunities)
-    .leftJoin(accounts, eq(opportunities.account_id, accounts.id))
+    .leftJoin(
+      accounts,
+      and(
+        eq(opportunities.account_id, accounts.id),
+        eq(accounts.tenant_id, profile.tenantId),
+      ),
+    )
     .where(and(eq(opportunities.id, id), eq(opportunities.tenant_id, profile.tenantId)))
     .limit(1)
   if (!opp) notFound()
@@ -45,13 +51,29 @@ export default async function ChangeRequestsPage({ params }: PageProps) {
         affected_design_name: designFiles.name,
       })
       .from(changeRequests)
-      .leftJoin(designFiles, eq(designFiles.id, changeRequests.affected_design_file_id))
-      .where(eq(changeRequests.opportunity_id, id))
+      .leftJoin(
+        designFiles,
+        and(
+          eq(designFiles.id, changeRequests.affected_design_file_id),
+          eq(designFiles.tenant_id, profile.tenantId),
+        ),
+      )
+      .where(
+        and(
+          eq(changeRequests.opportunity_id, id),
+          eq(changeRequests.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(desc(changeRequests.created_at)),
     db
       .select({ id: designFiles.id, name: designFiles.name, file_type: designFiles.file_type })
       .from(designFiles)
-      .where(eq(designFiles.opportunity_id, id))
+      .where(
+        and(
+          eq(designFiles.opportunity_id, id),
+          eq(designFiles.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(desc(designFiles.created_at)),
   ])
 
