@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.71 - Inventory Warehouse closeout/readiness read (2026-08-05)
+
+Implemented `GET /v1/inventory/warehouses/:warehouseId/closeout` as a strict,
+tenant-scoped Nest read. It locks membership and the Warehouse for share,
+rechecks `inventory.manage`, aggregates exact ledger quantity/value strings,
+and returns a deterministic readiness disposition without writing. Added a
+disabled-by-default Next adapter and tenant allowlist gate; no UI path was
+changed and no migration was added.
+
+Validation: shared 17/183, API 79/360, Web 83/523, focused closeout tests,
+typechecks, serial lint, Nest build, Web production build, and
+`git diff --check`. Commit `425c66a757ffa66cd4dfefca2079ebfd61fb3bbf` is
+pushed to both target refs. Railway deployment
+`1ee3706a-5ef3-4004-9708-ac3efcad5483` is `SUCCESS` for that exact SHA using
+the settled `apps/api/Dockerfile` manifest; `/ready` and `/health` are 200
+with database and Redis healthy, and unauthenticated closeout access is 401.
+Rollback is leaving the adapter flag disabled or reverting to the prior
+successful API deployment; no hosted state requires repair. No Supabase or
+Vercel provider action was triggered.
+
 ## M3.70 - Inventory Warehouse update/deactivation command boundary (2026-08-05)
 
 Implemented `PATCH /v1/inventory/warehouses/:warehouseId` as a strict

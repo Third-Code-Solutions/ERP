@@ -4,6 +4,31 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.71 Inventory Warehouse closeout/readiness read (2026-08-05)
+
+Added a strict `GET /v1/inventory/warehouses/:warehouseId/closeout` Nest read
+that reports tenant-scoped net quantity/value from the stock ledger and an
+explicit `ready`, `already_inactive`, or `nonzero_balance` disposition. The
+transaction rechecks membership and `inventory.manage`, locks the tenant
+membership and Warehouse rows for share, applies repeated tenant and
+Warehouse predicates to the ledger aggregate, and never mutates ERP state.
+The web adapter and exact tenant gate exist but remain disabled by default.
+No schema migration, hosted data write, or UI layout/copy change was made.
+
+Validation: shared 17 files/183 tests; API 79 files/360 tests; Web 83
+files/523 tests; focused closeout contract, service, controller, and client
+tests; shared/API/Web typecheck; serial root lint; Nest build; Web 80-route
+production build; and `git diff --check`. Source commit
+`425c66a757ffa66cd4dfefca2079ebfd61fb3bbf` is pushed to both target refs
+under `kurtgav`. Railway deployment
+`1ee3706a-5ef3-4004-9708-ac3efcad5483` is `SUCCESS` for that exact SHA with
+the settled `apps/api/Dockerfile` manifest, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` are 200 with
+PostgreSQL and Redis healthy; unauthenticated closeout GET returns 401.
+Supabase remains read-only at 55/87; Vercel remains untouched for spend
+control. The closeout read gate and all Warehouse write/canary flags remain
+disabled.
+
 ## M3.70 Inventory Warehouse update/deactivation command boundary (2026-08-05)
 
 Added a strict `PATCH /v1/inventory/warehouses/:warehouseId` Nest command for

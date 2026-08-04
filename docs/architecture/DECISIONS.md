@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-181 - Inventory Warehouse closeout is read-only and canary-gated (2026-08-05)
+
+Decision: expose Warehouse closeout readiness through
+`GET /v1/inventory/warehouses/:warehouseId/closeout`. Return exact signed
+quantity/value strings and `ready`, `already_inactive`, or
+`nonzero_balance`; derive tenant and actor from the verified principal;
+recheck `inventory.manage` inside one transaction; lock membership and
+Warehouse rows; and aggregate ledger entries with repeated tenant and
+Warehouse predicates. Do not approve or mutate deactivation in this read.
+Next adopts only through an exact flag and tenant allowlist, both disabled;
+the current Server Action and UI remain unchanged.
+
+Boundary: source and basic Railway API release are verified, but no protected
+tenant canary is approved. Source SHA
+`425c66a757ffa66cd4dfefca2079ebfd61fb3bbf` is deployment
+`1ee3706a-5ef3-4004-9708-ac3efcad5483` with readiness/health 200 and an
+unauthenticated 401 route boundary. No Supabase migration/data action,
+Vercel build, or provider setting is implied. Rollback is the disabled
+adapter flag and prior API deployment.
+
 ## D-180 - Inventory Warehouse state updates are tenant-scoped and canary-gated (2026-08-05)
 
 Decision: expose Warehouse state changes through

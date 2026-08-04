@@ -1,5 +1,31 @@
 # Work Log
 
+## 2026-08-05 - M3.71 inventory Warehouse closeout/readiness read
+
+Implemented one read-only inventory safety slice. Shared types define the
+strict Warehouse closeout result with exact signed quantity/value strings and
+an explicit disposition. Nest owns
+`GET /v1/inventory/warehouses/:warehouseId/closeout`, rechecks tenant
+membership and `inventory.manage` inside a transaction, locks the tenant
+rows, and aggregates only the tenant Warehouse ledger balance. No ERP row is
+mutated and no UI layout/copy changed. The web adapter and exact tenant gate
+are present but disabled by default.
+
+Results: shared 17/183; API 79/360; Web 83/523; focused closeout contract,
+transaction, HTTP, and client tests; all typechecks; serial root lint; Nest
+build; Web 80-route build; and `git diff --check`. No Supabase SQL/data or
+provider setting changed and no Vercel preview/production build occurred.
+
+Source commit `425c66a757ffa66cd4dfefca2079ebfd61fb3bbf` was pushed to both
+target GitHub refs under `kurtgav`. Railway deployment
+`1ee3706a-5ef3-4004-9708-ac3efcad5483` completed `SUCCESS` for that exact
+SHA; its settled manifest is the API Dockerfile with `/ready` healthcheck and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` returned 200 with
+database and Redis healthy; unauthenticated closeout GET returned 401. The
+closeout read gate and all Warehouse write/canary flags remain false/empty.
+Vercel remains untouched to control spend; Supabase remains read-only at
+55/87.
+
 ## 2026-08-05 - M3.70 inventory Warehouse update/deactivation command boundary
 
 Implemented one inventory setup vertical slice. Shared types define strict
