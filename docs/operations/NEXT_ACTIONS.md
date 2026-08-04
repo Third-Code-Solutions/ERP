@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.68 inventory UOM creation command
+
+1. Keep `ERP_INVENTORY_UOM_CREATE_VIA_API=false` and its tenant allowlist
+   empty. Source, tests, and basic Railway readiness/401 evidence are not
+   protected tenant browser, rollback, or hosted-schema proof.
+2. Preserve verified release identity: source SHA
+   `ae6d7992ebdfcb0439f181ecdcd72b9cb8673c2b`, Railway deployment
+   `5ffd0087-7951-4111-92b6-72293cadef14`, and live `/ready`/`/health` 200.
+   Docs-only follow-ups must stay outside API watch patterns; do not trigger a
+   second paid backend rebuild for documentation.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain supported
+   backup/export, dependent/audit export, owner-approved mapping, disposable
+   PostgreSQL 17 replay, and explicit spend cap before hosted action.
+4. Do not trigger Vercel previews or production builds. Keep Git-disabled
+   project untouched to cap billing.
+
 ## Exact next action after M3.67 inventory item policy command
 
 1. Keep `ERP_INVENTORY_ITEM_CONFIG_VIA_API=false` and its tenant allowlist
