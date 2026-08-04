@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   isEmbeddingProviderConfigured: vi.fn(),
   serializeEmbedding: vi.fn(),
   writeAuditLog: vi.fn(),
+  consumeProviderQuota: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -26,6 +27,11 @@ vi.mock('@third-code-erp/ai', () => ({
 
 vi.mock('@/lib/audit', () => ({
   writeAuditLog: mocks.writeAuditLog,
+}))
+
+vi.mock('@/lib/provider-quota', () => ({
+  consumeProviderQuota: mocks.consumeProviderQuota,
+  providerQuotaBlockedResponse: vi.fn(),
 }))
 
 import { POST } from './route'
@@ -61,6 +67,7 @@ describe('BOM similar-item retrieval boundary', () => {
     mocks.getUserProfile.mockResolvedValue(profile())
     mocks.embedText.mockResolvedValue([0.1, 0.2])
     mocks.serializeEmbedding.mockReturnValue('[0.1,0.2]')
+    mocks.consumeProviderQuota.mockResolvedValue({ ok: true, skipped: true })
     mocks.execute.mockResolvedValue([
       {
         chunk_text: 'Copper pipe | Unit: m | Unit cost: 125.50 PHP | Markup: 30%',
@@ -149,6 +156,10 @@ describe('BOM similar-item retrieval boundary', () => {
       },
     ])
     expect(mocks.embedText).toHaveBeenCalledWith('Copper pipe')
+    expect(mocks.consumeProviderQuota).toHaveBeenCalledWith(
+      'provider-embedding',
+      TENANT_ID
+    )
     expect(mocks.execute).toHaveBeenCalledTimes(1)
     expect(mocks.writeAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
