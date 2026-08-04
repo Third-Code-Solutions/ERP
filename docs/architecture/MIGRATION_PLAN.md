@@ -4,6 +4,27 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.36 - Supplier-issued outbox contract replay (evidence complete)
+
+The first full disposable replay found that `scm_issue` emitted
+`vendor_confirmation_session_id` while the database constraint still allowed
+only the required supplier payload keys. Added the forward-only migration
+`20260803170000_purchase_order_supplier_session_payload.sql`; it preserves
+strict key allowlisting and validates the optional value as absent, JSON null,
+or a UUID. No prior migration was changed.
+
+Evidence: PostgreSQL 17 + Redis applied 86/86 source migrations; schema and
+release planner checks passed; database tests passed 300/300 with zero skips;
+API database/Redis integration passed 15 files / 22 tests; root lint,
+typecheck, full tests, and production build passed. The local fixtures were
+stopped after the run. Hosted Supabase is still 55/86 and no hosted/provider
+mutation occurred.
+
+Next: retain the hosted-apply block. Reconcile the complete 31-file suffix
+against an approved backup/restore and catalog/data/RLS diff, then obtain
+owner/provider/spend approval before any forward-only hosted migration or
+controlled deploy.
+
 ## M3.35 - Authenticated Cortex browser proof (evidence complete)
 
 Added persistent E2E assertions for exact browser/API boundary: protected

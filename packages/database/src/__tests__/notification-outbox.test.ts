@@ -39,6 +39,13 @@ const supplierIssuanceMigrationSql = readFileSync(
   ),
   'utf8'
 ).toLowerCase()
+const supplierSessionPayloadMigrationSql = readFileSync(
+  resolve(
+    __dirname,
+    '../../../../supabase/migrations/20260803170000_purchase_order_supplier_session_payload.sql'
+  ),
+  'utf8'
+).toLowerCase()
 
 describe('notification outbox foundation', () => {
   it('creates durable tenant-scoped intent and delivery state', () => {
@@ -129,6 +136,21 @@ describe('notification outbox foundation', () => {
     )
     expect(supplierIssuanceMigrationSql).toContain(
       'alter table public.purchase_order_supplier_email_deliveries enable row level security'
+    )
+  })
+
+  it('keeps the optional confirmation session inside the strict supplier payload', () => {
+    expect(supplierSessionPayloadMigrationSql).toContain(
+      'vendor_confirmation_session_id'
+    )
+    expect(supplierSessionPayloadMigrationSql).toContain(
+      "jsonb_typeof(payload->'vendor_confirmation_session_id') = 'null'"
+    )
+    expect(supplierSessionPayloadMigrationSql).toContain(
+      "payload->>'vendor_confirmation_session_id' ~*"
+    )
+    expect(supplierSessionPayloadMigrationSql).toContain(
+      "payload - array[\n        'schemaversion',\n        'purchase_order_id',\n        'vendor_confirmation_session_id'\n      ] = '{}'::jsonb"
     )
   })
 

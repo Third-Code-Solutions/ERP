@@ -1,8 +1,31 @@
 # Current State
 
-Verified from the repository and the configured Supabase target on 2026-07-30.
+Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
+
+## M3.36 supplier issuance outbox contract replay (2026-08-04)
+
+The first disposable PostgreSQL 17 + Redis replay exposed a real source defect:
+SCM issuance emitted the optional `vendor_confirmation_session_id`, while the
+supplier-issued outbox check allowed only the required schema and Purchase
+Order keys. Added the forward-only
+`20260803170000_purchase_order_supplier_session_payload.sql` migration. It
+keeps the payload exact, permits the optional field only when absent, JSON null,
+or a UUID, and rejects unknown keys. No applied migration was edited.
+
+The corrected replay applied all 86 source migrations, verified the migration
+ledger and protected schema, ran database tests 300/300 with zero skips, and
+ran API database/Redis integration 15 files / 22 tests with zero failures.
+Root `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` also pass;
+the ordinary database test lane still reports its documented 137 skips when
+`DATABASE_URL` is absent. Redis emitted only the local memory-overcommit
+warning. The disposable database and Redis processes were stopped.
+
+Hosted Supabase remains read-only at 55 migrations; no SQL, data, Storage,
+Railway setting/deployment, or Vercel deployment changed. GitHub push and any
+hosted migration remain gated on ordered suffix reconciliation, backup /
+restore, catalog/data/RLS diff, owner approval, and spend-bounded release.
 
 ## M3.35 authenticated Cortex browser proof (2026-08-04)
 

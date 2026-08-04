@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.36 supplier-issued outbox replay
+
+1. Push the reviewed source migration and test/documentation changes only
+   after `git diff --check`, provider identity, and final release review; do
+   not trigger Vercel or apply hosted SQL from this milestone.
+2. Reconcile the now 86-file source ledger against the 55-row Supabase target
+   in an approved PostgreSQL 17 clone: backup/restore, catalog/data/RLS diff,
+   duplicate-record mapping, audit recovery, rollback, and zero-skipped
+   integration evidence remain required.
+3. Keep all supplier-confirmation flags false/empty, Vercel Git/deployments
+   paused, and Railway variables unchanged until owner/provider identity and a
+   spend-bounded canary are explicitly approved.
+
 ## Exact next action after M3.35 authenticated Cortex browser proof
 
 1. Build/replay isolated PostgreSQL 17 + Redis fixtures with two tenants and

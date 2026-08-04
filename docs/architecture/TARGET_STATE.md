@@ -13,7 +13,17 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
-Database audit recheck 2026-08-04: hosted Supabase is at 55 of 85 source
+## M3.36 replay evidence (2026-08-04)
+
+The source ledger is now 86 migrations. A disposable PostgreSQL 17 + Redis
+replay applied all 86, proved the schema/release planner current, executed
+300/300 database tests with no skips, and passed 15 API integration files / 22
+tests. The run found and fixed the strict supplier-issued outbox contract for
+the optional confirmation-session UUID with a forward-only migration. This is
+clone evidence only: the configured Supabase target remains at 55 applied
+migrations and has not been mutated.
+
+Database audit recheck 2026-08-04: hosted Supabase is at 55 of 86 source
 migrations. The target remains behind source until a PostgreSQL 17 clone/replay,
 catalog/data/RLS diff, backup/restore proof, and zero-skipped release evidence
 clear the forward-only apply gate.
