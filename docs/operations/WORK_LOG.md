@@ -1,5 +1,45 @@
 # Work Log
 
+## 2026-08-04 - M3.52 Cortex operational brief presentation
+
+Implemented the visual Cortex operating pulse over the M3.51 read contract.
+The page now calls the bounded server brief once, normalizes it through the
+entity registry, and renders a responsive source-link panel with freshness,
+snapshot time, permission scope, provenance, and graph connection counts.
+Rows use bounded GSAP fade/scale entrance and respect reduced motion. Empty,
+unknown-source, and title/summary normalization cases are covered. The panel
+does not write, call an LLM, invoke Python, or authorize ERP transactions.
+
+Changed files:
+
+- `apps/web/src/app/(dashboard)/cortex/page.tsx`
+- `apps/web/src/components/cortex/cortex-brief-panel.tsx`
+- `apps/web/src/components/cortex/cortex-brief-panel.module.css`
+- `apps/web/src/components/cortex/cortex-brief-panel.test.tsx`
+- `apps/web/src/lib/cortex/brief-presentation.ts`
+- `apps/web/src/lib/cortex/brief-presentation.test.ts`
+- `docs/research/components/cortex-operational-brief.spec.md`
+- architecture and operations memory files (M3.52 entries)
+
+Results: focused Cortex tests 9/9; Web 71 files/463 tests; workspace lint and
+typecheck pass; `git diff --check` pass; production build 80/80 routes pass.
+Local Playwright checks at 1440/768/390 show the public landing title/H1,
+zero horizontal overflow, and zero console errors. `/cortex` redirected to
+`/auth/login` without a session, so no real tenant credential was used.
+
+Cost/data controls: source and docs were pushed once to both target branches
+as `kurtgav`. GitHub's exact check is `success`; Railway `/ready` and `/health`
+are healthy. Vercel remains Git-disabled and its read-only inventory reports
+zero new deployments. Supabase `aqqrtkmtcsfkbyyqxowv` remains
+`ACTIVE_HEALTHY` at 55 applied migrations. No hosted DB, Storage, Vercel, or
+Railway setting mutation occurred.
+
+Rollback: revert source `1e5aa4d` (or deploy only the retained prior approved
+frontend release after explicit spend approval); no hosted state needs repair.
+Next action: recoverable backup plus dependent-row/audit export and
+owner-approved canonical mapping for the duplicate Purchase Order group,
+followed by disposable replay. Keep Vercel and Supabase closed.
+
 ## 2026-08-04 - M3.51 Cortex operational brief
 
 Implemented a source-only Cortex operating pulse. `packages/database` now

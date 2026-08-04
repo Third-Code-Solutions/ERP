@@ -4,6 +4,40 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.52 Cortex operational brief presentation (source-only, 2026-08-04)
+
+Added the authenticated Cortex presentation layer over the existing bounded
+brief. The server page now performs one tenant/role-scoped brief read and
+passes a registry-filtered view model into a responsive, read-only evidence
+panel. It shows recent source records, freshness, provenance, connections, and
+canonical links; it cannot mutate ERP state, call an LLM, or approve a
+transaction. GSAP entrance motion is bounded and skipped for reduced-motion
+users.
+
+Changed files: `apps/web/src/app/(dashboard)/cortex/page.tsx`,
+`apps/web/src/components/cortex/cortex-brief-panel.tsx`, its CSS module and
+test, `apps/web/src/lib/cortex/brief-presentation.ts` and test, and the
+component specification at `docs/research/components/cortex-operational-brief.spec.md`.
+
+Source validation: focused Cortex tests pass 9/9; the full Web suite passes
+71 files/463 tests; workspace lint and typecheck pass; production build passes
+with 80/80 routes. Local production browser checks pass at 1440, 768, and 390
+CSS pixels with no horizontal overflow or console errors on the public landing.
+The protected `/cortex` route redirects to `/auth/login` without a session;
+authenticated data rendering remains intentionally untested without using a
+real tenant credential.
+
+Spend and data boundary: no Supabase SQL/data, Storage, Railway setting, or
+Vercel deployment changed. Vercel Git deployment remains disabled and the
+post-push inventory returned zero new deployments. Supabase remains healthy at
+55 applied migrations; the ordered suffix and duplicate-PO gate are unchanged.
+
+Post-push evidence for source `1e5aa4dd5df0ec4d9ba85c300a3bf5ff1c05d2f5`:
+both target branches point to the source, GitHub's `ERP - Third Code ERP API`
+check is `success`, and live Railway `/ready` reports database/Redis `ok` while
+`/health` reports `ok`. This is source availability evidence, not a Vercel
+frontend production release.
+
 ## M3.51 Cortex operational brief (source-only, 2026-08-04)
 
 Added a bounded read path for the Cortex AI Brain: the database package now

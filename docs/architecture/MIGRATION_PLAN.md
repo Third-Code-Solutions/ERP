@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.52 - Cortex operational brief presentation (source complete, 2026-08-04)
+
+Wired the existing bounded `getCortexOperationalBrief` read into the
+authenticated Cortex page and added a registry-backed presentation model plus
+responsive `CortexBriefPanel`. The panel is source-link only, uses a six-item
+render bound over the server's eight-item read, and has no browser write,
+provider, AI, Python, or migration dependency. Added focused model and static
+render tests and a component interaction specification.
+
+Validation: focused Cortex tests 9/9, full Web 71 files/463 tests, workspace
+lint/typecheck, `git diff --check`, and 80/80-route production build pass.
+Local browser proof covers the public landing at 1440/768/390 with zero
+overflow and console errors; `/cortex` fails closed to `/auth/login` without a
+session. Do not use a real tenant credential merely to extend visual proof.
+
+Source `1e5aa4d` was pushed once to `main` and
+`agent-02/third-code-erp-landing` as `kurtgav`. GitHub's exact-SHA Railway
+check is `success`; live Railway readiness and health are 200. Vercel's
+deployment inventory returned zero new artifacts, and Supabase stayed at 55
+applied migrations with no hosted SQL/data change. The next action remains the
+owner-approved duplicate-PO backup/export and ordered replay gate.
+
 ## M3.51 - Cortex operational brief (source-only, 2026-08-04)
 
 Added `getCortexOperationalBrief` and `GET /api/cortex/brief`. The query runs
