@@ -4,6 +4,25 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.48 Landing GEO structured data (source complete, 2026-08-04)
+
+The public landing route now emits one linked Schema.org graph for the Third
+Code Solutions organization, website, landing page, software product, and
+published FAQ content. `WebSite`/`WebPage`/`SoftwareApplication` IDs are rooted
+at the canonical origin; the graph is en-PH, names the Philippines service
+area, and carries product features for construction and project-driven
+businesses. `SearchAction` is intentionally absent because search is
+authenticated and has no public query endpoint.
+
+Changed source: `apps/web/src/app/page.tsx`,
+`apps/web/src/lib/landing-structured-data.ts`, and its test. Focused tests pass
+5/5; Web passes 67 files/451 tests; workspace lint/typecheck, diff check, and
+the 79/79-route production build pass. A local production request returned
+HTTP 200 with expected brand/`WebSite`/`FAQPage` markers and no ABI Ops,
+ERPNext, or Frappe identifiers. No hosted SQL/data, Storage, Railway setting,
+or Vercel deployment changed. Supabase remains `MIGRATIONS_FAILED` at the
+duplicate-PO preflight and Vercel remains disconnected/spend-protected.
+
 ## M3.47 Proposal read tenant scope (source complete, 2026-08-04)
 
 Source checkpoint: `9270919` (`fix(web): enforce proposal tenant-scoped reads`).

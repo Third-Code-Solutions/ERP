@@ -13,6 +13,20 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.48 landing GEO target (2026-08-04)
+
+The public surface has a single canonical, machine-readable product graph:
+organization -> website -> landing page -> Third Code ERP software, with FAQ
+answers attached to the page. Keep the graph derived only from public copy and
+stable IDs; never expose tenant records, authenticated search URLs, or inferred
+capabilities. Preserve the existing visual landing design while validating the
+HTML output and legacy-brand absence in production-server checks.
+
+Source validation is green: focused 5/5, Web 67/451, workspace lint/typecheck,
+diff check, and 79/79-route build. This does not authorize a hosted DB replay or
+a paid Vercel deployment. Supabase duplicate-PO and Vercel spend gates remain
+closed.
+
 ## M3.47 proposal read target (2026-08-04)
 
 Every proposal read must repeat both the opportunity identity and the caller's

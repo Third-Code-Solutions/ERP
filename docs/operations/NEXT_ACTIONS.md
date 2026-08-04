@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.48 landing GEO structured data
+
+1. Commit and push the reviewed source/docs once to `main` and
+   `agent-02/third-code-erp-landing`; verify the exact GitHub SHA/status,
+   Railway skip/deploy identity, and live `/ready`/`/health`.
+2. Query Vercel read-only; do not reconnect Git or trigger a paid build.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` unchanged at 55/87 until a supported
+   recoverable backup, dependent-row/audit export, and owner-approved repair
+   for duplicate tenant `PO-0002` exist. Do not reset, edit history, rename,
+   delete, or replay the failed suffix.
+4. Authenticated landing/product browser proof remains a provider-runtime gate
+   if local Supabase DNS cannot resolve; local production HTML evidence does
+   not replace it.
+
 ## Exact next action after M3.47 proposal read tenant scope
 
 1. Push the reviewed source/docs once to `main` and

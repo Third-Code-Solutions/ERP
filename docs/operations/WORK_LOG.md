@@ -1,5 +1,23 @@
 # Work Log
 
+## 2026-08-04 - M3.48 landing GEO structured data
+
+Added a pure structured-data builder and focused tests. The landing route now
+links the public organization, website, page, product, and FAQ graph, with
+en-PH metadata, Philippines service area, feature evidence, and stable IDs. No
+visual component or authenticated ERP data path changed.
+
+Validation: focused 5/5; Web 67 files/451 tests; workspace lint/typecheck,
+`git diff --check`, and the 79/79-route production build pass. Local production
+HTML returned 200 and included Third Code ERP/`WebSite`/`FAQPage` markers with
+no ABI Ops, ERPNext, or Frappe identifiers.
+
+Release boundary: source/docs only. No Supabase SQL/data/Storage, Railway
+setting/deployment, or Vercel build/promotion. Supabase remains blocked by the
+duplicate `PO-0002` migration preflight; Vercel remains disconnected and
+spend-protected. Exact next action: push once, verify source/provider status,
+and keep the DB/Vercel gates closed.
+
 ## 2026-08-04 - M3.47 proposal read tenant scope
 
 Closed a query-level tenant-isolation gap in the proposal overview and client
