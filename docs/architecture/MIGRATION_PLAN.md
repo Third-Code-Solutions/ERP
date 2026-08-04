@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.63 - Nest CRM account detail read handoff (Railway verified, 2026-08-04)
+
+Added `GET /v1/crm/accounts/:accountId` with strict account detail, contact,
+KYC artifact/document, opportunity, and project schemas. Nest derives tenant
+scope from the verified principal, repeats tenant predicates for every child
+read, caps child collections at 200, and computes opportunity totals with a
+separate scoped count. The account detail page uses the adapter only when
+`ERP_ACCOUNT_READS_VIA_API` and the exact tenant allowlist opt in; direct DB
+reads remain the compatibility path. Wrong-tenant nested rows fail closed.
+
+Validation: shared types 16/172; API 65/326 in the serial bounded run; Web
+76/492; workspace typecheck/lint; API build; Web 80/80 production build; and
+`git diff --check`. Commit `c4fb282f` is pushed to both target branches.
+Railway deployment `abedf9fd-1785-4b8f-b4f7-00436466b708` is `SUCCESS` for
+that exact SHA with `apps/api/Dockerfile`; `/ready` and `/health` are 200,
+unauthenticated account collection/detail boundaries are 401, and GitHub's
+exact API status is `success`. Supabase stayed read-only at 55/87 and Vercel
+had zero new deployments/builds. No provider setting changed.
+
+Rollback: leave `ERP_ACCOUNT_READS_VIA_API=false` and its allowlist empty, or
+redeploy the prior successful Railway source; no hosted state requires repair.
+Next: keep the detail canary closed pending supported Supabase recovery,
+protected browser, and explicit spend gates.
+
 ## M3.62 - Nest CRM account collection read handoff (Railway verified, 2026-08-04)
 
 Added `GET /v1/crm/accounts` with strict query normalization, tenant-scoped

@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-173 - CRM account detail graphs are bounded and canary-gated (2026-08-04)
+
+Decision: expose CRM account details through Nest
+`GET /v1/crm/accounts/:accountId` using strict shared schemas, verified
+tenant principal, explicit `account.read`, repeated tenant predicates on the
+account and every child relation, capped child collections, and a separate
+scoped opportunity count. Adopt from Next only through the existing exact flag
+and tenant UUID allowlist; reject nested identity drift instead of falling back
+silently.
+
+Reason: detail pages aggregate multiple ERP relations and are a high-risk
+cross-tenant read surface. A bounded graph moves authority incrementally toward
+Nest without a big-bang rewrite, unbounded queries, document leakage, or hidden
+fallback to a second authority.
+
+Boundary: direct server-side DB reads remain default. Source commit `c4fb282f`
+is live on Railway with readiness, route, and 401 boundary evidence. No
+Supabase schema/data, Railway setting, or Vercel build changed; protected
+browser, rollback, and supported data-recovery gates remain open.
+
 ## D-172 - CRM account collection reads are bounded and canary-gated (2026-08-04)
 
 Decision: expose CRM account collections through Nest `GET /v1/crm/accounts`
