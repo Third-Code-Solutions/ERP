@@ -25,3 +25,8 @@ data repair, Vercel build/deployment, or provider setting change is included.
 Promotion requires the supported Supabase backup/export, dependent/audit
 export, owner-approved duplicate-PO mapping, disposable PostgreSQL 17 replay,
 protected browser evidence, and rollback proof.
+
+Source `eae78a4e` is pushed to both target branches. Railway deployment
+`6ead24ac-47d0-4b16-bb6f-0732d4ef2c56` is `SUCCESS` with API startup/readiness
+and unauthorized-boundary evidence. Vercel Git/build remains disabled and the
+read-only deployment inventory is zero for the spend-audit window.
