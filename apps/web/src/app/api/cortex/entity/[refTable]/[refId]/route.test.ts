@@ -23,6 +23,13 @@ import { GET } from './route'
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const REF_ID = '22222222-2222-4222-8222-222222222222'
 
+function expectPrivate(response: Response) {
+  expect(response.headers.get('cache-control')).toBe(
+    'private, no-store, max-age=0'
+  )
+  expect(response.headers.get('vary')).toBe('Cookie')
+}
+
 function request(refTable: string, refId = REF_ID) {
   return GET(
     new NextRequest(`http://localhost/api/cortex/entity/${refTable}/${refId}`),
@@ -56,6 +63,7 @@ describe('Cortex entity lookup registry boundary', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(body.summary).toBe('Journal entry context')
     expect(mocks.getCortexNodeByRef).toHaveBeenCalledWith(
       TENANT_ID,
@@ -83,6 +91,7 @@ describe('Cortex entity lookup registry boundary', () => {
     const response = await request('unregistered_records')
 
     expect(response.status).toBe(400)
+    expectPrivate(response)
     expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
     expect(mocks.getCortexContextPack).not.toHaveBeenCalled()
   })
@@ -96,6 +105,7 @@ describe('Cortex entity lookup registry boundary', () => {
     const response = await request('journal_entries')
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     await expect(response.json()).resolves.toEqual({
       found: false,
       summary: '',
@@ -112,6 +122,7 @@ describe('Cortex entity lookup registry boundary', () => {
     const response = await request('journal_entries')
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     expect(mocks.getCortexContextPack).not.toHaveBeenCalled()
   })
 })

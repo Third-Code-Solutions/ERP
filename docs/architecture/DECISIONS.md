@@ -1,5 +1,18 @@
 # Architecture Decisions
 
+## D-142 - Make authenticated Cortex responses private and non-cacheable (2026-08-04)
+
+Decision: apply `Cache-Control: private, no-store, max-age=0` and `Vary: Cookie`
+to every authenticated Cortex route response, including authorization,
+validation, and server-error paths. Keep streaming bodies, citation headers,
+request contracts, and Nest/PostgreSQL authority unchanged.
+
+Reason: Cortex responses can contain tenant-scoped records and citations.
+Route-specific cache behavior (notably graph's private fifteen-second cache)
+creates an avoidable shared-cache/privacy risk. A single immutable transport
+contract is easier to test and audit while preserving the existing permission
+model and avoiding a schema or business-logic rewrite.
+
 ## D-141 - Keep public Cortex preview read-only (2026-08-04)
 
 Decision: demonstrate Cortex on the marketing page with bounded sample

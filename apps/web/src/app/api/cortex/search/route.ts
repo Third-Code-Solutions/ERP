@@ -7,15 +7,11 @@ import {
   cortexHref,
 } from '@/lib/cortex/entity-registry'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
+import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
 
 const querySchema = z.object({
   q: z.string().trim().min(2).max(100),
 })
-
-const SEARCH_HEADERS = {
-  'Cache-Control': 'private, no-store, max-age=0',
-  Vary: 'Cookie',
-} as const
 
 export interface CortexSearchHit {
   id: string
@@ -31,7 +27,10 @@ export interface CortexSearchHit {
 }
 
 function response(body: unknown, status = 200) {
-  return NextResponse.json(body, { status, headers: SEARCH_HEADERS })
+  return NextResponse.json(body, {
+    status,
+    headers: CORTEX_PRIVATE_HEADERS,
+  })
 }
 
 /** Keep retrieval terms bounded and literal. Wildcard characters never reach SQL. */

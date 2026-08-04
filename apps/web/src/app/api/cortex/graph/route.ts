@@ -11,6 +11,7 @@ import {
   isCortexRefTable,
 } from '@/lib/cortex/entity-registry'
 import { cortexCanSeeType, cortexNodeTypeScope } from '@/lib/cortex/rbac'
+import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
 
 const focusSchema = z
   .object({
@@ -33,7 +34,10 @@ const focusSchema = z
 export async function GET(req: NextRequest) {
   const profile = await getUserProfile()
   if (!profile) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: CORTEX_PRIVATE_HEADERS }
+    )
   }
 
   const parsed = focusSchema.safeParse({
@@ -41,7 +45,10 @@ export async function GET(req: NextRequest) {
     refId: req.nextUrl.searchParams.get('refId') ?? undefined,
   })
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid graph focus' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'Invalid graph focus' },
+      { status: 400, headers: CORTEX_PRIVATE_HEADERS }
+    )
   }
 
   const scope = cortexNodeTypeScope(profile.role)
@@ -59,7 +66,7 @@ export async function GET(req: NextRequest) {
     ) {
       return NextResponse.json(
         { error: 'Focused record not found' },
-        { status: 404 }
+        { status: 404, headers: CORTEX_PRIVATE_HEADERS }
       )
     }
 
@@ -72,17 +79,13 @@ export async function GET(req: NextRequest) {
     if (!graph) {
       return NextResponse.json(
         { error: 'Focused record not found' },
-        { status: 404 }
+        { status: 404, headers: CORTEX_PRIVATE_HEADERS }
       )
     }
-    return NextResponse.json(graph, {
-      headers: { 'Cache-Control': 'private, max-age=15' },
-    })
+    return NextResponse.json(graph, { headers: CORTEX_PRIVATE_HEADERS })
   }
 
   // RBAC: only the node types this role may see (admin/owner = unrestricted).
   const graph = await getCortexGraph(profile.tenantId, 1500, scope)
-  return NextResponse.json(graph, {
-    headers: { 'Cache-Control': 'private, max-age=15' },
-  })
+  return NextResponse.json(graph, { headers: CORTEX_PRIVATE_HEADERS })
 }

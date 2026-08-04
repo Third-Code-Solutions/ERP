@@ -4,6 +4,23 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.33 Cortex authenticated transport privacy (2026-08-04)
+
+All authenticated Cortex API handlers now share one response boundary:
+`Cache-Control: private, no-store, max-age=0` and `Vary: Cookie`. The contract
+covers successful reads, authorization failures, validation failures, and
+server errors for chat, search, graph, entity, conversations, and embedding
+routes. The prior graph `max-age=15` behavior is removed. Next.js may append
+its own router `Vary` values, but `Cookie` remains present.
+
+The change is transport-only: request shapes, stream framing, citations,
+tenant/RBAC checks, database queries, and mutation authority are unchanged.
+Focused Cortex route tests (31/31), web lint, web typecheck, and local
+unauthenticated runtime probes passed. No SQL, migration, hosted data,
+Railway setting/deployment, or Vercel deployment changed. The next gate is an
+authenticated browser permission/citation audit against disposable tenant
+fixtures.
+
 ## M3.32 landing Cortex preview and live UI reconnaissance (2026-08-04)
 
 The public landing now includes a read-only Cortex preview inside the existing

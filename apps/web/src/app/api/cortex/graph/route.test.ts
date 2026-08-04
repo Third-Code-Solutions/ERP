@@ -24,6 +24,13 @@ const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const REF_ID = '22222222-2222-4222-8222-222222222222'
 const NODE_ID = '33333333-3333-4333-8333-333333333333'
 
+function expectPrivate(response: Response) {
+  expect(response.headers.get('cache-control')).toBe(
+    'private, no-store, max-age=0'
+  )
+  expect(response.headers.get('vary')).toBe('Cookie')
+}
+
 function request(query = '') {
   return GET(new NextRequest(`http://localhost/api/cortex/graph${query}`))
 }
@@ -53,6 +60,7 @@ describe('Cortex focused graph authorization', () => {
     const response = await request()
 
     expect(response.status).toBe(401)
+    expectPrivate(response)
     expect(mocks.getCortexGraph).not.toHaveBeenCalled()
     expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
   })
@@ -61,6 +69,7 @@ describe('Cortex focused graph authorization', () => {
     const response = await request()
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(mocks.getCortexGraph).toHaveBeenCalledWith(
       TENANT_ID,
       1500,
@@ -77,6 +86,8 @@ describe('Cortex focused graph authorization', () => {
 
     expect(partial.status).toBe(400)
     expect(malformed.status).toBe(400)
+    expectPrivate(partial)
+    expectPrivate(malformed)
     expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
   })
 
@@ -86,6 +97,7 @@ describe('Cortex focused graph authorization', () => {
     )
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(mocks.getCortexNodeByRef).toHaveBeenCalledWith(
       TENANT_ID,
       'journal_entries',
@@ -111,6 +123,7 @@ describe('Cortex focused graph authorization', () => {
     )
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     await expect(response.json()).resolves.toEqual({
       error: 'Focused record not found',
     })
@@ -128,6 +141,7 @@ describe('Cortex focused graph authorization', () => {
     )
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     expect(mocks.getCortexFocusedGraph).not.toHaveBeenCalled()
   })
 })

@@ -18,6 +18,12 @@ migrations. The target remains behind source until a PostgreSQL 17 clone/replay,
 catalog/data/RLS diff, backup/restore proof, and zero-skipped release evidence
 clear the forward-only apply gate.
 
+Authenticated Cortex transport boundary (M3.33): tenant-scoped responses are
+private and non-cacheable at the Next.js edge/browser boundary, and vary on the
+session cookie. This prevents shared-cache reuse of tenant data while leaving
+NestJS authorization and PostgreSQL authority unchanged. Streaming chat keeps
+the same body and citation protocol; only response headers are standardized.
+
 ## Capability baseline
 
 The product scope is maintained in

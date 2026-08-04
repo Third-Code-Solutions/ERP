@@ -26,6 +26,7 @@ import {
   encodeCortexCitationHeader,
 } from '@/lib/cortex/citation-header'
 import { roleLabel } from '@/lib/operations/nav-config'
+import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -59,11 +60,19 @@ const chatRequestSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   const profile = await getUserProfile()
-  if (!profile) return new Response('Unauthorized', { status: 401 })
+  if (!profile) {
+    return new Response('Unauthorized', {
+      status: 401,
+      headers: CORTEX_PRIVATE_HEADERS,
+    })
+  }
 
   const parsed = chatRequestSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) {
-    return new Response('Invalid chat request', { status: 400 })
+    return new Response('Invalid chat request', {
+      status: 400,
+      headers: CORTEX_PRIVATE_HEADERS,
+    })
   }
   const {
     messages,
@@ -89,7 +98,10 @@ export async function POST(req: NextRequest) {
       conversationId
     )
     if (!conversation) {
-      return new Response('Conversation not found', { status: 404 })
+      return new Response('Conversation not found', {
+        status: 404,
+        headers: CORTEX_PRIVATE_HEADERS,
+      })
     }
 
     const storedContext =
@@ -105,13 +117,19 @@ export async function POST(req: NextRequest) {
         incomingContext.refTable !== storedContext.refTable ||
         incomingContext.refId !== storedContext.refId)
     ) {
-      return new Response('Conversation context mismatch', { status: 409 })
+      return new Response('Conversation context mismatch', {
+        status: 409,
+        headers: CORTEX_PRIVATE_HEADERS,
+      })
     }
     if (
       Boolean(conversation.context_ref_table) !==
       Boolean(conversation.context_ref_id)
     ) {
-      return new Response('Conversation not found', { status: 404 })
+      return new Response('Conversation not found', {
+        status: 404,
+        headers: CORTEX_PRIVATE_HEADERS,
+      })
     }
     if (storedContext) {
       authorizedContext = await authorizeCortexRecordContext(
@@ -120,7 +138,10 @@ export async function POST(req: NextRequest) {
         storedContext
       )
       if (!authorizedContext) {
-        return new Response('Conversation not found', { status: 404 })
+        return new Response('Conversation not found', {
+          status: 404,
+          headers: CORTEX_PRIVATE_HEADERS,
+        })
       }
     }
   } else if (incomingContext) {
@@ -130,7 +151,10 @@ export async function POST(req: NextRequest) {
       incomingContext
     )
     if (!authorizedContext) {
-      return new Response('Focused record not found', { status: 404 })
+      return new Response('Focused record not found', {
+        status: 404,
+        headers: CORTEX_PRIVATE_HEADERS,
+      })
     }
   }
 
@@ -369,7 +393,10 @@ ${records || '(no records visible)'}`
     },
   })
 
-  const headers: Record<string, string> = { 'Content-Type': 'text/plain; charset=utf-8' }
+  const headers: Record<string, string> = {
+    ...CORTEX_PRIVATE_HEADERS,
+    'Content-Type': 'text/plain; charset=utf-8',
+  }
   if (convId) headers['X-Conversation-Id'] = convId
   const citationHeader = encodeCortexCitationHeader(grounded.citations)
   if (citationHeader) headers[CORTEX_CITATIONS_HEADER] = citationHeader

@@ -67,6 +67,13 @@ const CONVERSATION_ID = '11111111-1111-4111-8111-111111111111'
 const NODE_ID = '22222222-2222-4222-8222-222222222222'
 const REF_ID = '33333333-3333-4333-8333-333333333333'
 
+function expectPrivate(response: Response) {
+  expect(response.headers.get('cache-control')).toBe(
+    'private, no-store, max-age=0'
+  )
+  expect(response.headers.get('vary')).toBe('Cookie')
+}
+
 describe('Cortex chat conversation ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -114,6 +121,7 @@ describe('Cortex chat conversation ownership', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     await expect(response.text()).resolves.toBe('Conversation not found')
     expect(mocks.getCortexConversation).toHaveBeenCalledWith(
       'tenant-a',
@@ -149,6 +157,7 @@ describe('Cortex chat conversation ownership', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(mocks.authorizeCortexRecordContext).toHaveBeenCalledWith(
       'tenant-a',
       'admin',
@@ -184,6 +193,7 @@ describe('Cortex chat conversation ownership', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(409)
+    expectPrivate(response)
     await expect(response.text()).resolves.toBe(
       'Conversation context mismatch'
     )
@@ -234,6 +244,7 @@ describe('Cortex chat conversation ownership', () => {
     await expect(response.text()).resolves.toBe(
       'Metro MEP Retrofit is active.'
     )
+    expectPrivate(response)
     expect(mocks.authorizeCortexRecordContext).toHaveBeenCalledWith(
       'tenant-a',
       'admin',
@@ -264,6 +275,7 @@ describe('Cortex chat conversation ownership', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     await expect(response.text()).resolves.toBe('Conversation not found')
     expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
     expect(mocks.searchCortexNodes).not.toHaveBeenCalled()
@@ -293,6 +305,7 @@ describe('Cortex chat conversation ownership', () => {
     const response = await POST(request)
 
     await expect(response.text()).resolves.toBe('Grounded answer')
+    expectPrivate(response)
     expect(response.headers.get('Content-Type')).toBe(
       'text/plain; charset=utf-8'
     )
@@ -333,6 +346,7 @@ describe('Cortex chat conversation ownership', () => {
 
     const response = await POST(request)
     await expect(response.text()).resolves.toBe('Safe model response')
+    expectPrivate(response)
 
     const [modelRequest] = mocks.openaiCreate.mock.calls[0] ?? []
     expect(JSON.stringify(modelRequest)).not.toContain(email)

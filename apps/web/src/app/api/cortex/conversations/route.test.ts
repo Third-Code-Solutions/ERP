@@ -26,6 +26,13 @@ const USER_ID = '22222222-2222-4222-8222-222222222222'
 const REF_ID = '33333333-3333-4333-8333-333333333333'
 const CREATED_AT = new Date('2026-07-29T00:00:00.000Z')
 
+function expectPrivate(response: Response) {
+  expect(response.headers.get('cache-control')).toBe(
+    'private, no-store, max-age=0'
+  )
+  expect(response.headers.get('vary')).toBe('Cookie')
+}
+
 describe('Cortex conversation history context authorization', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -78,6 +85,7 @@ describe('Cortex conversation history context authorization', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(body.conversations).toHaveLength(2)
     expect(body.conversations[0].context).toBeNull()
     expect(body.conversations[1].context).toMatchObject({
@@ -97,6 +105,7 @@ describe('Cortex conversation history context authorization', () => {
     )
 
     expect(response.status).toBe(401)
+    expectPrivate(response)
     expect(mocks.listCortexConversations).not.toHaveBeenCalled()
   })
 })
