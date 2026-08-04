@@ -17,7 +17,9 @@ trigger Vercel or apply hosted SQL for this presentation-only slice.
 Exact next action: rerun authenticated desktop/mobile Cortex proof from a
 runtime with working Supabase DNS, then continue the supported backup and
 owner-approved duplicate Purchase Order repair before ordered migration
-replay.
+replay. Source/evidence are pushed at `e6fe073` to both target branches;
+GitHub's Railway check is successful, Railway readiness is 200, Supabase stays
+at 55/87 migrations, and Vercel reports no deployment for this SHA.
 
 ## M3.44 - read-only admin data-quality review (2026-08-04)
 

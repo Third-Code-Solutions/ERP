@@ -22,9 +22,15 @@ production build pass. Unauthenticated browser verification redirects
 rendering was attempted but the local Next Edge runtime could not resolve the
 configured Supabase host (`ETIMEDOUT`/`ENOTFOUND`); no authenticated browser
 pass is claimed. No database, Storage, Railway setting, or Vercel deployment
-changed. Exact next action: repeat authenticated desktop/mobile proof from a
-runtime with working Supabase DNS, then return to the supported backup and
-owner-approved duplicate Purchase Order repair gate.
+changed. Source and evidence are pushed to both `main` and
+`agent-02/third-code-erp-landing` as `kurtgav` at `e6fe073`. GitHub reports the
+Railway API check as `success`; the linked Railway service remains online with
+`/ready` and `/health` 200. Supabase remains unchanged at 55/87 migrations and
+its protected branch still fails at the duplicate Purchase Order preflight.
+Vercel reports zero deployments after this push; its Git/deployment spend gate
+remains closed. Exact next action: repeat authenticated desktop/mobile proof
+from a runtime with working Supabase DNS, then return to the supported backup
+and owner-approved duplicate Purchase Order repair gate.
 
 ## M3.44 Admin data-quality review (source complete, 2026-08-04)
 
