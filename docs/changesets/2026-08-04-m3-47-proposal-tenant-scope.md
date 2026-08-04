@@ -13,5 +13,6 @@ No hosted SQL/data, Storage, Railway, or Vercel mutation occurred.
 Post-push: `5a5e525` is on both target branches. GitHub's Railway check is
 successful; Railway skipped the unchanged-API commit and live readiness is
 200. Vercel reported zero new deployments. Supabase remains at 55 migrations;
-its branch API reports `CREATING_PROJECT` while the latest migration log still
-fails the duplicate-PO preflight with `P0001`. No DB release is claimed.
+its branch API reports `MIGRATIONS_FAILED` while the last successful migration
+log read fails the duplicate-PO preflight with `P0001`. A later logs request
+returned `INVALID_ARGUMENT`; no DB release is claimed.

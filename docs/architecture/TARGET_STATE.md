@@ -26,8 +26,9 @@ Git disconnected and spend-protected, and keep Supabase mutation flags closed.
 Post-push source/docs `5a5e525` are on both branches. GitHub/Railway status is
 successful with a safe Railway skip and live readiness 200; Vercel has no new
 deployment. Supabase remains non-ready for ordered replay: 55 migrations,
-branch API `CREATING_PROJECT`, and latest logs still show the duplicate-PO
-`P0001` preflight failure.
+branch API `MIGRATIONS_FAILED`, and the last successful logs read shows the
+duplicate-PO `P0001` preflight failure. A later logs request returned
+`INVALID_ARGUMENT`; it is not treated as success.
 
 ## M3.46 universal command palette target (2026-08-04)
 

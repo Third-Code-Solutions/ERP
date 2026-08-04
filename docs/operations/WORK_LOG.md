@@ -17,8 +17,9 @@ Post-push evidence: source/docs `5a5e525` are on both target branches as
 frontend/docs-only commit because no API watch files changed; `/ready` and
 `/health` remain 200. Vercel's read-only deployment query returned zero new
 deployments. Supabase remains at 55 migrations; branch status is currently
-`CREATING_PROJECT`, and latest logs still fail the duplicate-PO preflight with
-`P0001`. No hosted SQL/data was applied.
+`MIGRATIONS_FAILED`; the last successful logs read fails the duplicate-PO
+preflight with `P0001`. A later logs request returned `INVALID_ARGUMENT`, so
+no newer outcome is inferred. No hosted SQL/data was applied.
 
 ## 2026-08-04 - M3.46 command palette accessibility and race safety
 
