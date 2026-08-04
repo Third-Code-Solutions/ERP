@@ -13,6 +13,20 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.71 Inventory Warehouse closeout/readiness read (2026-08-05)
+
+Warehouse deactivation decisions now have a narrow Nest read authority. The
+strict result reports exact bigint quantity/value strings, tenant identity,
+active state, and an explicit disposition. Nest derives tenant and actor from
+the verified principal, rechecks `inventory.manage`, locks the tenant rows,
+and aggregates only that Warehouse's ledger entries. It is read-only; no
+approval or state mutation is delegated to the browser. The Next adapter is
+behind an exact flag and tenant allowlist, both disabled. Source SHA
+`425c66a757ffa66cd4dfefca2079ebfd61fb3bbf` is live on Railway as successful
+deployment `1ee3706a-5ef3-4004-9708-ac3efcad5483`; readiness and health are
+200 and the unauthenticated closeout route is 401. No hosted schema/data or
+Vercel deployment is implied.
+
 ## M3.70 Inventory Warehouse update/deactivation command boundary (2026-08-05)
 
 Inventory setup now has a narrow Warehouse state authority in Nest. The
