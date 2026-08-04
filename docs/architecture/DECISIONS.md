@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-182 - Warehouse deactivation requires zero balance (2026-08-05)
+
+Decision: an active Warehouse cannot be deactivated while its tenant-scoped
+stock ledger has nonzero net quantity or value. Nest checks the aggregate after
+locking the tenant Warehouse and returns a conflict before update/audit. The
+database contract repeats the invariant and serializes ledger inserts with a
+compatible Warehouse share lock; only `receipt_reversal` and
+`movement_reversal` events may write to an inactive Warehouse. This protects
+inventory integrity without blocking legitimate reversal workflows.
+
+Boundary: source and basic Railway release are verified at SHA
+`f391f49d0aa002101649afa79dfc75872120df72`, deployment
+`48cc2b18-1c5d-45eb-b59d-b54571fe673c`; readiness/health are 200 and
+unauthenticated protected routes are 401. The migration is forward-only and
+source-only pending hosted ledger reconciliation at 55/88 (33 pending).
+Warehouse/API adoption flags remain false/empty. No Supabase migration/data
+action, Vercel build, or provider setting is implied. Rollback is the disabled
+canary/compatibility path or prior successful API deployment.
+
 ## D-181 - Inventory Warehouse closeout is read-only and canary-gated (2026-08-05)
 
 Decision: expose Warehouse closeout readiness through

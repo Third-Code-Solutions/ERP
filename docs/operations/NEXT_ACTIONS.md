@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.72 inventory Warehouse deactivation integrity
+
+1. Keep `ERP_INVENTORY_WAREHOUSE_UPDATE_VIA_API=false`,
+   `ERP_INVENTORY_WAREHOUSE_UPDATE_TENANT_IDS` empty,
+   `ERP_INVENTORY_WAREHOUSE_UPDATE_WRITES_ENABLED=false`,
+   `ERP_INVENTORY_WAREHOUSE_UPDATE_WRITES_TENANT_IDS` empty, and all closeout
+   read/write flags false/empty. No protected tenant canary is approved.
+2. Preserve release identity: source SHA
+   `f391f49d0aa002101649afa79dfc75872120df72`, Railway deployment
+   `48cc2b18-1c5d-45eb-b59d-b54571fe673c`, and live `/ready`/`/health` 200.
+   Push this docs-only follow-up; it must stay outside API watch patterns and
+   must not trigger another paid backend rebuild.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/88 (33 pending source
+   migrations). Before any hosted apply: obtain supported backup/export,
+   dependent/audit export, owner-approved mapping, disposable PostgreSQL 17
+   replay, and explicit spend cap. Do not apply the new deactivation guard yet.
+4. Do not trigger Vercel previews or production builds. Keep the Git-disabled
+   project untouched to cap billing.
+5. Next source-only candidate: reconcile the ordered hosted ledger and run the
+   disposable migration replay; only then review a named-tenant canary for the
+   deactivation conflict and reversal workflow.
+
 ## Exact next action after M3.71 inventory Warehouse closeout/readiness read
 
 1. Keep `ERP_INVENTORY_WAREHOUSE_CLOSEOUT_READS_VIA_API=false` and

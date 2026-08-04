@@ -4,6 +4,32 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.72 Inventory Warehouse deactivation integrity boundary (2026-08-05)
+
+The Nest Warehouse update command now rejects active-to-inactive transitions
+when the tenant-scoped stock ledger has a nonzero net quantity or value. The
+conflict is raised before the update or semantic audit, preserving the existing
+compatibility path while making the API boundary explicit. A forward-only
+Supabase migration adds the matching database trigger and serializes ledger
+writes against Warehouse state; reversal events remain allowed after closeout.
+The migration is source-only and has not been applied to the hosted project.
+No UI layout/copy change was made.
+
+Validation: shared 17/183; API 79 files/362 tests; Web 83 files/523 tests;
+database 41 files with 168 active tests and 140 skipped without an explicit
+`DATABASE_URL`; focused update/controller/migration-contract tests; all
+typechecks; serial root lint; Nest build; Web 80-route production build; and
+`git diff --check`. Source commit
+`f391f49d0aa002101649afa79dfc75872120df72` is pushed to both target refs
+under `kurtgav`. Railway deployment
+`48cc2b18-1c5d-45eb-b59d-b54571fe673c` is `SUCCESS` for that exact SHA with
+the settled `apps/api/Dockerfile` manifest, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` are 200 with
+PostgreSQL and Redis healthy; unauthenticated update and closeout requests are
+401. Supabase remains read-only at 55/88 with 33 source migrations pending;
+Vercel remains untouched for spend control. Warehouse update/read gates and
+all write flags remain disabled.
+
 ## M3.71 Inventory Warehouse closeout/readiness read (2026-08-05)
 
 Added a strict `GET /v1/inventory/warehouses/:warehouseId/closeout` Nest read

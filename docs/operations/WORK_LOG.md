@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-08-05 - M3.72 inventory Warehouse deactivation integrity boundary
+
+Closed the Warehouse deactivation correctness gap. Nest now aggregates the
+tenant Warehouse ledger inside the update transaction and returns a conflict
+when net quantity or value is nonzero; no state update or semantic audit is
+written on that path. Added a source-only forward migration with the same
+database guard, compatible Warehouse/ledger lock serialization, and a reversal
+allowlist for inactive Warehouses. No UI layout/copy changed.
+
+Results: shared 17/183; API 79 files/362 tests; Web 83 files/523 tests;
+database 41 files with 168 active tests and 140 skipped without explicit
+`DATABASE_URL`; focused service/controller/migration-contract tests; all
+typechecks; serial root lint; Nest build; Web 80-route production build; and
+`git diff --check`.
+
+Source commit `f391f49d0aa002101649afa79dfc75872120df72` was pushed to both
+target GitHub refs under `kurtgav`. Railway deployment
+`48cc2b18-1c5d-45eb-b59d-b54571fe673c` completed `SUCCESS` for that exact
+SHA with the API Dockerfile, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` returned 200 with
+database and Redis healthy; unauthenticated Warehouse update and closeout
+requests returned 401. Supabase remains read-only at 55/88 with 33 pending
+source migrations; the new migration was not applied. Vercel remains untouched
+to control spend; all Warehouse canary/write flags remain false/empty.
+
 ## 2026-08-05 - M3.71 inventory Warehouse closeout/readiness read
 
 Implemented one read-only inventory safety slice. Shared types define the
