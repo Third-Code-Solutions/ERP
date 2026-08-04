@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-163 - Product clean-room scan excludes research provenance (2026-08-04)
+
+Decision: enforce forbidden legacy/vendor markers across product-facing web,
+API, and package text roots, while allowing explicit competitor/repository
+references in research and immutable migration provenance. Report exact files
+when a product marker appears.
+
+Reason: the product must ship as Third Code ERP without copied branding or
+repository identifiers, but removing provenance from migration history or
+clean-room notes would make the release auditable and could break the ordered
+database ledger.
+
+Validation/release boundary: source `0c911f8` passes focused/full Web tests,
+workspace gates, and 80/80 build; live landing is clean at three widths. No
+Supabase, Railway setting, Storage, or Vercel deployment mutation occurred.
+
 ## D-162 - Cortex presentation remains a bounded evidence surface (2026-08-04)
 
 Decision: render the server-provided operational brief as a small responsive
