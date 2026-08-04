@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-162 - Cortex presentation remains a bounded evidence surface (2026-08-04)
+
+Decision: render the server-provided operational brief as a small responsive
+panel on the authenticated Cortex page. Use the entity registry as the final
+allow-list, keep links canonical and read-only, cap the visible list at six,
+and use GSAP only for a bounded entrance animation with reduced-motion escape.
+
+Reason: operators need an immediately searchable pulse without a second
+browser fetch, a new provider bill, or a path that could be mistaken for ERP
+authority. The server brief already repeats tenant and role scope; the client
+receives presentation data only.
+
+Validation/release boundary: focused/full Web tests, workspace gates, and the
+80/80-route build pass. Source `1e5aa4d` is pushed to both target branches;
+Railway is healthy, Vercel created no deployment, and Supabase was not
+mutated. No authenticated tenant credential was used for browser QA.
+
 ## D-161 - Cortex brief is bounded evidence, not authority (2026-08-04)
 
 Decision: expose a small `GET /api/cortex/brief` read model backed by current,

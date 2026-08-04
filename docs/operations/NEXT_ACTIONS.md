@@ -1,5 +1,26 @@
 # Next Actions
 
+## Exact next action after M3.52 Cortex operational brief presentation
+
+1. Keep Vercel Git deployment disabled. Do not create preview or production
+   builds; source pushes are not frontend release evidence and the user's
+   on-demand billing concern remains active.
+2. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Do not apply the
+   suffix, repair/rename/delete duplicate Purchase Orders, edit migration
+   history, or run direct DDL.
+3. Obtain the supported recoverable backup plus dependent-row/audit export and
+   owner-approved canonical mapping for the 12-record duplicate group. Rerun
+   the read-only planners and a disposable PostgreSQL 17 replay.
+4. Require rollback, audit-chain, provider identity, protected-flow, and
+   spend evidence before any hosted apply or frontend promotion. The Cortex
+   panel remains read-only and cannot approve or finalize ERP transactions.
+
+Completed source/provider gates for `1e5aa4d`: focused/full Web tests,
+workspace lint/typecheck, 80/80 build, and bounded local browser checks pass;
+GitHub/Railway is `success` with live readiness healthy; Vercel created zero
+deployments; Supabase is unchanged. Authenticated Cortex browser proof is
+deferred because no real tenant credential was used.
+
 ## Exact next action after M3.51 Cortex operational brief
 
 1. Keep Vercel Git deployment disabled and create no preview or production

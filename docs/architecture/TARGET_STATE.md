@@ -13,6 +13,21 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.52 Cortex operational brief presentation target (2026-08-04)
+
+The Cortex page should give an authorized operator a calm, dense, source-first
+knowledge pulse: recent records with freshness and canonical links, a visible
+permission scope, and provenance/connection counts. The UI is responsive at
+desktop, tablet, and mobile widths, keyboard navigable, and reduced-motion
+safe. Registry filtering stays in the server-side presentation model so an
+unknown graph source cannot become a browser link.
+
+The source panel is complete in `1e5aa4d`; it remains a read-only capability.
+No hosted migration, AI call, Python finalization, or frontend provider action
+is implied. Keep Vercel Git deployment disabled and require an explicit,
+spend-approved frontend release with exact-SHA/browser evidence before any
+public UI claim.
+
 ## M3.51 Cortex operational brief target (2026-08-04)
 
 Cortex should give every authorized operator a small, source-backed pulse of
