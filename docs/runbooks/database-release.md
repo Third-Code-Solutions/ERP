@@ -39,6 +39,11 @@ Verified 2026-08-05 against the authorized Supabase target:
   was changed during this audit. The release is blocked pending the isolated
   PostgreSQL 17 clone/replay, catalog/data/RLS diff, backup/restore evidence,
   and zero-skipped integration/recovery gates.
+- The read-only reproducibility verifier also checks the source-only
+  `stock_movement_create_requests` ledger for forced RLS, service-only
+  privileges, and its three indexes. Against the current target, baseline
+  catalog/RLS/security checks pass; expected failures are the 34 missing
+  migration versions plus that pending ledger and indexes.
 
 The earlier 44/44 baseline from 2026-07-28 is historical evidence only; it is
 not the current state of this target. Every future target must independently

@@ -29,6 +29,25 @@ Rollback: leave both Stock Movement create flags false and tenant lists empty,
 or revert to the prior successful Railway API deployment. The legacy direct
 Server Action remains available; no hosted state requires repair.
 
+## M3.76 - Hosted catalog verifier hardening (2026-08-05)
+
+Extended the read-only reproducibility verifier with the Stock Movement
+idempotency ledger's forced-RLS/server-only contract and three required
+indexes. `node scripts/verify-database-repro.mjs --files-only` passes for all
+89 source migrations; the hosted run passes PostgreSQL 17 and all prior
+catalog/RLS/security checks, then fails only on the expected 55/89 ledger gap
+and source-only table/indexes.
+
+Validation: Node syntax check, static verifier, database release-plan tests
+7/7, and `git diff --check`. Source commit
+`7c3f6c8e204f208cea43de2e1630c6f653005df8` is pushed to both target refs. No
+Railway code deployment was triggered because `scripts/**` is outside the
+service watch set; no Vercel build/deploy or hosted Supabase SQL ran.
+
+Open gate: Docker has no reachable local daemon, so clean PostgreSQL 17
+replay, clone catalog/data/RLS diff, and zero-skip database evidence remain
+unproven. Do not apply the hosted suffix or enable Stock Movement writes.
+
 ## M3.74 - Stock Movement detail read authority (2026-08-05)
 
 Implemented `GET /v1/inventory/stock-movements/:movementId` as a strict

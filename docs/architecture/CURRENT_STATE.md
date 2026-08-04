@@ -32,6 +32,21 @@ Supabase remains read-only at 55/89 with 34 source migrations pending;
 SQL/data/Storage/provider setting changed. Vercel remains untouched for spend
 control.
 
+## M3.76 Hosted catalog verifier hardening (2026-08-05)
+
+Extended `scripts/verify-database-repro.mjs` to verify the new server-only
+`stock_movement_create_requests` ledger, forced RLS, absent anon/authenticated
+privileges, service-role authority, and all three idempotency indexes. Static
+source verification passes for all 89 migrations. The Supabase read-only run
+proves PostgreSQL 17 and all prior protected catalog, RLS-policy, index,
+trigger, and grant checks; only the expected 55/89 ledger gap plus the
+source-only ledger/indexes fail. Docker has no reachable local daemon, so no
+disposable replay or hosted SQL was attempted.
+
+Source commit `7c3f6c8e204f208cea43de2e1630c6f653005df8` is pushed to both
+target refs. The scripts-only change is outside Railway watch patterns;
+Vercel remains untouched.
+
 ## M3.74 Stock Movement detail read authority (2026-08-05)
 
 Moved the Stock Movement detail page’s header, line, and immutable ledger

@@ -25,6 +25,24 @@
    canary against the legacy action with protected browser evidence before
    enabling either flag.
 
+## Exact next action after M3.76 hosted catalog verifier hardening
+
+1. Keep the four Stock Movement create flags/tenant lists false/empty. The
+   hosted verifier now proves the baseline catalog/security boundary but
+   intentionally fails the 55/89 ledger and missing source-only idempotency
+   catalog; this is not hosted-apply or canary approval.
+2. Start Docker or use an approved disposable PostgreSQL 17 environment, then
+   replay all 89 migrations from zero with Redis and run the full database
+   suite without skips. Capture hashes, catalog/RLS/grant results,
+   row/tenant/audit/financial totals, and restore evidence outside Git.
+3. Restore an approved Supabase backup into an isolated clone and compare the
+   actual catalog/data/RLS/Storage metadata against the clean replay. Obtain
+   owner-approved mapping for drifted records and an explicit spend cap before
+   any hosted action.
+4. Do not apply the pending suffix, repair history, trigger Vercel, or
+   manually redeploy Railway. The verified API release remains
+   `3b920185fdc438dfc5dd5972f738ea9e0a1d7e30`.
+
 ## Exact next action after M3.74 Stock Movement detail read
 
 1. Keep `ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API=false` and

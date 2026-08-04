@@ -20,6 +20,19 @@ unauthenticated 401 boundary. The idempotency migration is source-only;
 Supabase remains read-only and Vercel untouched. Rollback is the disabled
 adapter/command flags or prior API deployment.
 
+## D-186 - Server-only idempotency ledgers are catalog evidence (2026-08-05)
+
+Decision: command ledgers are verified separately from authenticated RLS
+policy tables. The reproducibility verifier checks
+`stock_movement_create_requests` for forced RLS, no anon/authenticated table
+privileges, service-role authority, and valid tenant/key/state indexes. A
+hosted read-only failure for this source-only table is expected while the
+ordered ledger remains 55/89; it is not permission to apply SQL.
+
+Source SHA `7c3f6c8e204f208cea43de2e1630c6f653005df8` is pushed to both refs.
+Docker replay, backup/restore, and catalog/data/RLS equivalence remain open;
+Vercel and hosted Supabase remain untouched.
+
 ## D-184 - Stock Movement detail reads are exact and independently canary-gated (2026-08-05)
 
 Decision: expose Stock Movement detail discovery through Nest only. The route
