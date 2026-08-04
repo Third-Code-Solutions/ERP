@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
-Status date: 2026-08-03  
-Source checkpoint: `e81087e7fb74997fe36a10acea400dbc99dad687`
+Status date: 2026-08-04
+Source checkpoint: `ead237c028641af384283ec8498ef3c3cdbb92fe`
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 This matrix is the product scope baseline. It describes business outcomes and
@@ -85,8 +85,8 @@ unchanged.
 
 ## Release boundary
 
-Current hosted Supabase is at 55 applied migrations while source contains 85.
-The 30-migration suffix must be planned and applied in order as one reviewed
+Current hosted Supabase is at 55 applied migrations while source contains 86.
+The 31-migration suffix must be planned and applied in order as one reviewed
 release. Duplicate Purchase Order data, the owner-approved audit-recovery
 tenant, disposable database/Redis evidence, rollback, exact provider identity,
 and spend controls remain independent gates. Vercel Git stays disconnected to

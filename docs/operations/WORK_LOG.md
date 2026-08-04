@@ -1,5 +1,37 @@
 # Work Log
 
+## 2026-08-04 - M3.37 live-provider incident and catalog reconciliation audit
+
+Read-only checks verified the source and provider boundary after M3.36. Both
+GitHub target branches point to `ead237c028641af384283ec8498ef3c3cdbb92fe`
+under `kurtgav`; Railway `/ready` and `/health` returned HTTP 200 with
+database/Redis healthy. Vercel remains Git-disconnected and `live:false`.
+
+Vercel runtime evidence grouped the reported digest `862076041` with the
+historical `partial_delivered` enum error on deployment
+`dpl_2WnStFHAqLchG71rjWKjvyEBY3WK` (SHA `2112728`). The current Supabase enum
+contains `partial_delivered`, and the public unauthenticated dashboard probe
+returns `307 /auth/login`; no current error was inferred from the historical
+cluster. No build, promotion, Git reconnection, or billing-affecting Vercel
+operation was performed.
+
+The Supabase planner and catalog probes still show a linear 55/86 migration
+prefix and 88 hosted public tables versus 111 in the fresh 86-migration clone;
+23 pending source-suffix table objects are absent. All 88 hosted public tables
+have RLS enabled. Security/performance advisor findings remain tracked and
+unfixed. No Supabase SQL, migration-history row, Storage object, business
+data, or provider setting changed.
+
+Exact next action: approved backup/clone, full catalog/data/RLS diff, zero-skip
+replay plus Cortex two-tenant authorization evidence, rollback/recovery, and
+spend-bounded release gates before any hosted SQL or Vercel promotion.
+
+The disposable lane was rerun after the audit and passed all 86 migrations,
+schema hash `DDBBB7421C09146F9F34B816679135F6D33EBCB19BF10996C5F187B87606C91D`,
+database 300/300 with zero skips, and API integration 15 files / 22 tests.
+Only the expected local Redis overcommit warning appeared; the disposable
+Redis process was stopped.
+
 ## 2026-08-04 - M3.36 supplier-issued outbox replay and correction
 
 Ran the disposable PostgreSQL 17 + Redis lane after the M3.35 browser proof.

@@ -1,5 +1,18 @@
 # Architecture Decisions
 
+## D-146 - Diagnose live Vercel incidents before a spend-bounded promotion (2026-08-04)
+
+Decision: treat the live Vercel project as read-only after a billing-limit
+incident. Use connector runtime/build evidence and a direct unauthenticated
+probe to identify the deployed SHA and failure provenance before any new
+build, promotion, or Git reconnection. Keep the source release and Railway
+API independently verifiable.
+
+Reason: the reported digest maps to an older Purchase Order enum failure, while
+the current hosted enum already contains the missing value. A blind rebuild
+could spend more without proving the current failure and could publish a
+source/schema combination whose hosted migration ledger is still 55/86.
+
 ## D-145 - Fix supplier-issued payload drift with a forward-only constraint migration (2026-08-04)
 
 Decision: preserve the strict supplier-issued outbox contract and add

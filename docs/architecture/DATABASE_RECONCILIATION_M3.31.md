@@ -3,6 +3,23 @@
 Verified 2026-08-04 against the authorized Supabase project
 `aqqrtkmtcsfkbyyqxowv` (`https://aqqrtkmtcsfkbyyqxowv.supabase.co`).
 
+## M3.37 update (read-only)
+
+After M3.36, source contains 86 migrations and the hosted target remains at
+the exact 55-row prefix. The new source head is
+`20260803170000_purchase_order_supplier_session_payload`; the 31-file suffix
+still has not been applied. A fresh PostgreSQL 17 replay produces 111 public
+tables; the target catalog currently exposes 88, leaving the 23 expected
+suffix-created table objects absent. The target enum check confirms
+`purchase_order_status` already includes `partial_delivered`.
+
+Vercel runtime evidence for the reported digest points to an older deployment
+and is not evidence for a current failure. No hosted SQL, data, Storage,
+provider setting, or deployment changed in this update. The original M3.31
+audit below remains the historical baseline; the hosted-apply block is still
+active until backup/clone, catalog/data/RLS, recovery, zero-skip, owner,
+provider, and spend gates clear.
+
 ## Status
 
 `BLOCKED_FOR_HOSTED_APPLY`. This is a source and catalog audit only. No SQL,
