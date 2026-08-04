@@ -22,12 +22,14 @@ import {
   getAccountThroughCoreApi,
   getAccountsThroughCoreApi,
   getKycQueueThroughCoreApi,
+  getInventorySummaryThroughCoreApi,
   getOpportunityThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
   projectListsUseCoreApi,
   accountReadsUseCoreApi,
   accountKycQueueReadsUseCoreApi,
+  inventorySummaryReadsUseCoreApi,
   opportunityReadsUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
@@ -413,6 +415,53 @@ const OPPORTUNITY_DETAIL_RESULT = {
     openChangeRequestCount: 2,
   },
 }
+const INVENTORY_SUMMARY_RESULT = {
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  uoms: [
+    {
+      id: '11111111-1111-4111-8111-111111111111',
+      code: 'EA',
+      name: 'Each',
+      decimalPlaces: 0,
+      isActive: true,
+    },
+  ],
+  warehouses: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      code: 'MAIN',
+      name: 'Main store',
+      projectId: null,
+      isActive: true,
+    },
+  ],
+  items: [
+    {
+      id: '44444444-4444-4444-8444-444444444444',
+      code: 'CEMENT',
+      description: 'Cement',
+      baseUomId: '11111111-1111-4111-8111-111111111111',
+      inventoryTracked: true,
+      isActive: true,
+    },
+  ],
+  projects: [{ id: '55555555-5555-4555-8555-555555555555', name: 'Site A' }],
+  balances: [
+    {
+      warehouseId: '33333333-3333-4333-8333-333333333333',
+      warehouseCode: 'MAIN',
+      warehouseName: 'Main store',
+      itemId: '44444444-4444-4444-8444-444444444444',
+      itemCode: 'CEMENT',
+      itemDescription: 'Cement',
+      uomCode: 'EA',
+      quantityMicros: '4250000',
+      valueCents: '10001',
+    },
+  ],
+  balancesTruncated: false,
+  receiptCounts: { draftCount: 1, postedCount: 2 },
+} as const
 
 describe('ERP Core client', () => {
   beforeEach(() => {
@@ -563,6 +612,26 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_OPPORTUNITY_READS_VIA_API_TENANT_IDS', '*')
     expect(opportunityReadsUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(opportunityReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Inventory summary reads on the legacy path unless the exact gate matches', () => {
+    vi.stubEnv('ERP_INVENTORY_SUMMARY_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_INVENTORY_SUMMARY_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(inventorySummaryReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_INVENTORY_SUMMARY_READS_VIA_API', 'TRUE')
+    expect(inventorySummaryReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_INVENTORY_SUMMARY_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_INVENTORY_SUMMARY_READS_VIA_API_TENANT_IDS', 'bad')
+    expect(inventorySummaryReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_INVENTORY_SUMMARY_READS_VIA_API_TENANT_IDS', '*')
+    expect(inventorySummaryReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(inventorySummaryReadsUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Project creation delegation fail-closed unless its exact gate matches', () => {
@@ -2318,6 +2387,35 @@ describe('ERP Core client', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/crm/accounts/kyc-queue',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
+        }),
+      })
+    )
+  })
+
+  it('reads the Inventory summary through the Nest boundary', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(INVENTORY_SUMMARY_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getInventorySummaryThroughCoreApi()).resolves.toEqual({
+      ok: true,
+      data: INVENTORY_SUMMARY_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/inventory/summary',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-05 - M3.66 inventory summary authority seam and ledger refresh
+
+Reran the Supabase release planner without executing SQL. The authorized
+project is PostgreSQL 17 with 55 hosted migration rows versus 87 repository
+rows: exact prefix, 32 pending suffix versions, no unexpected or out-of-order
+versions, 26 `DROP CONSTRAINT IF EXISTS` findings, six transaction-control
+findings, and no data-rewrite finding. Updated the release runbook and
+reconciliation header while preserving historical sections.
+
+Implemented the bounded tenant-scoped Nest inventory summary read, explicit
+`inventory.read`, strict shared envelope, exact bigint strings, repeated SQL
+tenant predicates, API e2e/authorization tests, and a server-only Next adapter
+with fail-closed tenant/truncation/number checks. The inventory page keeps its
+existing UI and direct database compatibility path by default. No hosted
+database, Storage, Vercel, or provider setting changed.
+
+Results: shared 17/178; API 69/336 serial; Web 78/509; focused API 15/15 and
+Web 90/90; typecheck; serial root lint; Nest build; Web 80/80 production build;
+and `git diff --check`.
+
+Next: push only reviewed source and memory docs. Keep Vercel untouched to
+control billing; Railway deployment is conditional on green tests/build and
+watched backend changes, followed by live readiness and 401 checks.
+
 ## 2026-08-05 - M3.65 Nest CRM opportunity detail read handoff
 
 Moved the CRM opportunity detail graph toward the Nest modular-monolith

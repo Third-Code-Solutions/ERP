@@ -1,5 +1,22 @@
 # Migration Plan
 
+## M3.66 - Inventory summary authority seam and read-only ledger refresh (2026-08-05)
+
+Read-only planning confirms Supabase has 55 applied migrations while the
+repository has 87, with a linear 32-version pending suffix, no unexpected or
+out-of-order versions, and no data-rewrite statement. The suffix was not
+applied or repaired. Implemented the smallest safe Nest
+`GET /v1/inventory/summary` contract with strict tenant-scoped reads,
+`inventory.read`, bounded results, exact numeric strings, and an exact
+flag/tenant allowlist for the Next adapter. Preserved the direct inventory
+page path by default; no schema migration added.
+
+Validation: focused shared/API/Web tests, serial full suites (shared 17/178,
+API 69/336, Web 78/509), typecheck, serial root lint, Nest build, Web
+production build (80 routes), and `git diff --check`. Rollback is the disabled
+adapter flag plus the prior Railway API deployment; no hosted state requires
+repair. No Vercel or Supabase provider action was triggered.
+
 ## M3.65 - Nest CRM opportunity detail read handoff (Railway verified, 2026-08-05)
 
 Added `GET /v1/crm/opportunities/:opportunityId` with a strict shared result

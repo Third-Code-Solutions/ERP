@@ -3,6 +3,20 @@
 Verified 2026-08-04 against the authorized Supabase project
 `aqqrtkmtcsfkbyyqxowv` (`https://aqqrtkmtcsfkbyyqxowv.supabase.co`).
 
+## M3.65 read-only planner refresh (2026-08-05)
+
+The repository planner was rerun against the same target using
+`node --env-file=apps/web/.env.local scripts/plan-database-release.mjs --json`.
+It reports PostgreSQL 17, 55 applied migrations, source head
+`20260804090000_project_create_idempotency`, and a `review_required` linear
+prefix with 32 pending versions, no unexpected versions, and no versions
+applied after the first gap. The pending suffix scan reports 26
+`DROP CONSTRAINT IF EXISTS` findings and six transaction-control findings; no
+`DROP TABLE`, `DELETE FROM`, `TRUNCATE`, or data-rewrite finding. Planner is
+read-only; no SQL, migration history, data, Storage object, flag, or provider
+setting changed. These values supersede older 85/86-file and 30/31-file
+historical sections below; those sections remain preserved as audit history.
+
 ## M3.39 update (read-only after provider preflight)
 
 Source now contains 87 ordered migrations with head

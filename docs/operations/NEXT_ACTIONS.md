@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.66 inventory seam and ledger refresh
+
+1. Keep `ERP_INVENTORY_SUMMARY_READS_VIA_API=false` and its tenant allowlist
+   empty; source tests/builds are not protected tenant browser or rollback
+   evidence.
+2. Push the reviewed source/docs under `kurtgav`; deploy Railway only after
+   the exact source SHA and backend watch patterns are confirmed. Verify live
+   `/ready`, `/health`, and unauthenticated `/v1/inventory/summary` = 401.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain supported
+   backup/export, dependent/audit export, owner-approved mapping, disposable
+   PostgreSQL 17 replay, and an explicit spend cap before any hosted action.
+4. Do not trigger Vercel previews or production builds. Keep the Git-disabled
+   project untouched to cap billing; no frontend provider release is needed
+   for this disabled adapter.
+
 ## Exact next action after M3.65 Nest CRM opportunity detail read handoff
 
 1. Keep `ERP_OPPORTUNITY_READS_VIA_API=false` and

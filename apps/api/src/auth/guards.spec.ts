@@ -23,6 +23,9 @@ class GuardFixtureController {
   @RequireCapabilities('opportunity.read')
   opportunityRead(): void {}
 
+  @RequireCapabilities('inventory.read')
+  inventoryRead(): void {}
+
   @RequireCapabilities('project.update')
   update(): void {}
 
@@ -244,6 +247,34 @@ describe('CapabilityGuard', () => {
         })
       )
     ).toBe(true)
+  })
+
+  it('allows inventory reads only for operationally authorized roles', () => {
+    expect(
+      guard.canActivate(
+        contextFor('inventoryRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'procurement',
+            email: 'procurement@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+
+    expect(() =>
+      guard.canActivate(
+        contextFor('inventoryRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
   })
 
   it('rejects protected routes without an explicit policy', () => {
