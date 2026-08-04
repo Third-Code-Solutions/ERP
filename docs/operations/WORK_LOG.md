@@ -33,6 +33,10 @@ predates this commit, so no new deployment was created. Supabase remains at 55
 hosted migrations with head `20260729233017_notification_outbox_foundation`;
 no SQL or hosted data changed. Exact next action: audit authenticated Cortex
 permission/citation behavior before wiring any live data or marketing CTA.
+Unresolved release risk: Vercel CLI is not authorized in this workspace and the
+connected deployment listing has no artifact for `8c95537`; the public HTML
+therefore does not yet contain the new Cortex preview. Do not retry deployment
+until the `pavi-2e9809a4` Vercel team authorizes one controlled prebuilt release.
 
 ## 2026-08-04 - M3.31 Supabase reconciliation audit (read-only)
 

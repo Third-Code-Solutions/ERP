@@ -7,7 +7,10 @@
 2. Preserve Vercel spend protection. Verify exact GitHub commit and local
    desktop/mobile browser evidence before any controlled promotion; Railway
    should remain unchanged because this slice is frontend-only.
-3. Next product slice: audit authenticated Cortex command/search surfaces and
+3. Resolve the Vercel team authorization blocker, then perform one controlled
+   prebuilt promotion only after the preview artifact is browser-verified; do
+   not use blind retry or re-enable automatic Git deployments.
+4. Next product slice: audit authenticated Cortex command/search surfaces and
    define a permission/citation contract before wiring any new landing CTA to
    live retrieval.
 
