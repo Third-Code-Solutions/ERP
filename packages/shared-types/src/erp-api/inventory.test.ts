@@ -11,6 +11,8 @@ import {
   updateInventoryWarehouseCommandSchema,
   inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
+  inventoryStockMovementListQuerySchema,
+  inventoryStockMovementListResultSchema,
   quantityToMicros,
   receiptLineTotal,
   stockReceiptPostCommandSchema,
@@ -246,6 +248,54 @@ describe('Inventory summary contract', () => {
       inventorySummaryResultSchema.parse({
         ...INVENTORY_SUMMARY,
         unexpected: true,
+      })
+    ).toThrow()
+  })
+})
+
+describe('Stock Movement register contract', () => {
+  it('keeps tenant scope, bounded pagination, and exact value strings', () => {
+    expect(
+      inventoryStockMovementListQuerySchema.parse({
+        movementType: 'transfer',
+        status: 'posted',
+        page: '2',
+        limit: '50',
+      })
+    ).toEqual({
+      movementType: 'transfer',
+      status: 'posted',
+      page: 2,
+      limit: 50,
+    })
+
+    const result = {
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      rows: [
+        {
+          id: '88888888-8888-4888-8888-888888888888',
+          internalNumber: 'SM-2026-000001',
+          movementType: 'transfer' as const,
+          status: 'posted' as const,
+          movementDate: '2026-08-05',
+          reason: 'Move accepted materials',
+          sourceWarehouseCode: 'MAIN',
+          targetWarehouseCode: 'SITE-A',
+          projectName: 'Site A',
+          lineCount: 2,
+          totalValueCents: '125000',
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 500,
+      totalPages: 1,
+    }
+    expect(inventoryStockMovementListResultSchema.parse(result)).toEqual(result)
+    expect(() =>
+      inventoryStockMovementListResultSchema.parse({
+        ...result,
+        rows: [{ ...result.rows[0], totalValueCents: 125000 }],
       })
     ).toThrow()
   })

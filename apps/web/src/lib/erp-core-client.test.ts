@@ -23,6 +23,7 @@ import {
   getAccountsThroughCoreApi,
   getKycQueueThroughCoreApi,
   getInventorySummaryThroughCoreApi,
+  getInventoryStockMovementsThroughCoreApi,
   getOpportunityThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
@@ -30,6 +31,7 @@ import {
   accountReadsUseCoreApi,
   accountKycQueueReadsUseCoreApi,
   inventorySummaryReadsUseCoreApi,
+  inventoryStockMovementReadsUseCoreApi,
   opportunityReadsUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
@@ -462,6 +464,28 @@ const INVENTORY_SUMMARY_RESULT = {
   balancesTruncated: false,
   receiptCounts: { draftCount: 1, postedCount: 2 },
 } as const
+const INVENTORY_STOCK_MOVEMENT_RESULT = {
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  rows: [
+    {
+      id: '88888888-8888-4888-8888-888888888888',
+      internalNumber: 'SM-2026-000001',
+      movementType: 'transfer' as const,
+      status: 'posted' as const,
+      movementDate: '2026-08-05',
+      reason: 'Move accepted materials',
+      sourceWarehouseCode: 'MAIN',
+      targetWarehouseCode: 'SITE-A',
+      projectName: 'Site A',
+      lineCount: 2,
+      totalValueCents: '125000',
+    },
+  ],
+  total: 1,
+  page: 1,
+  limit: 500,
+  totalPages: 1,
+} as const
 
 describe('ERP Core client', () => {
   beforeEach(() => {
@@ -632,6 +656,23 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_INVENTORY_SUMMARY_READS_VIA_API_TENANT_IDS', '*')
     expect(inventorySummaryReadsUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(inventorySummaryReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Stock Movement register reads fail-closed unless the exact gate matches', () => {
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_INVENTORY_STOCK_MOVEMENT_READS_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(inventoryStockMovementReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_READS_VIA_API', 'TRUE')
+    expect(inventoryStockMovementReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_READS_TENANT_IDS', 'bad')
+    expect(inventoryStockMovementReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(inventoryStockMovementReadsUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Project creation delegation fail-closed unless its exact gate matches', () => {
@@ -2424,6 +2465,39 @@ describe('ERP Core client', () => {
           'x-request-id': expect.stringMatching(
             /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
           ),
+        }),
+      })
+    )
+  })
+
+  it('reads the Stock Movement register through the Nest boundary', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(INVENTORY_STOCK_MOVEMENT_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getInventoryStockMovementsThroughCoreApi({
+        movementType: 'transfer',
+        status: 'posted',
+        page: 1,
+        limit: 500,
+      })
+    ).resolves.toEqual({
+      ok: true,
+      data: INVENTORY_STOCK_MOVEMENT_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/inventory/stock-movements?movementType=transfer&status=posted&page=1&limit=500',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
         }),
       })
     )
