@@ -1,5 +1,30 @@
 # Next Actions
 
+## Exact next action after M3.77 Stock Movement post/reverse seam
+
+1. Keep `ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_VIA_API=false`,
+   `ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_TENANT_IDS` empty,
+   `ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_WRITES_ENABLED=false`, and
+   `ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_WRITES_TENANT_IDS` empty. The live
+   401 boundary and local transaction tests are not protected-tenant browser,
+   rollback, or hosted-schema proof.
+2. Preserve release identity: source SHA
+   `7f19315b967f81e120fa64bebc95ed338c4ad2cb`, Railway deployment
+   `5320235d-c242-4b3c-8b24-c8de9e1cd8cd`, and live `/ready`/`/health` 200.
+   Keep the next docs/verifier follow-up outside Railway API watch patterns;
+   do not manually redeploy or trigger a second paid backend build.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/90 (35 pending
+   migrations). The hosted verifier currently reports the expected ledger
+   gap plus missing source-only server ledgers/indexes. Before any hosted
+   apply: obtain supported backup/export, dependent/audit export,
+   owner-approved mapping, disposable PostgreSQL 17 replay with Redis,
+   catalog/data/RLS diff, rollback proof, and an explicit spend cap.
+4. Do not trigger Vercel previews or production builds. Keep the Git-disabled
+   project untouched to cap billing.
+5. Next source-only candidate: run the disposable PostgreSQL 17 replay and
+   reconcile catalog/data/RLS/tenant/audit/financial totals; only then review a
+   named-tenant protected browser canary for post/reverse parity.
+
 ## Exact next action after M3.75 Stock Movement draft creation
 
 1. Keep `ERP_INVENTORY_STOCK_MOVEMENT_CREATE_VIA_API=false`,

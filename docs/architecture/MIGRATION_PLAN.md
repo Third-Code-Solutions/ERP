@@ -1,5 +1,35 @@
 # Migration Plan
 
+## M3.77 - Stock Movement posting/reversal authority (2026-08-05)
+
+Implemented strict Nest command endpoints for Stock Movement post and
+reverse. The transaction locks verified membership and movement scope, claims
+and replays a tenant/key/request-hash ledger, invokes the existing database
+functions, completes the exact result, and audits the state transition. The
+new migration is source-only; forced RLS and service-role-only grants are
+verified by contract and added to the read-only verifier. Next selects the
+adapter only behind an exact flag/tenant allowlist and never falls back to
+direct SQL after selection; one browser retry key is retained per operation.
+
+Results: shared 17/193; database 43/170 active with 140 skipped without
+`DATABASE_URL`; changed API 26 tests; changed Web 100 tests; root typecheck;
+serial lint; Nest/Web production builds; static verification; read-only plan
+55/90 with 35 pending; live Railway `/ready`/`/health` 200; and unauthenticated
+post/reverse 401. The aggregate API run had one unrelated existing HTTP
+bootstrap timeout under parallel contention; the affected test passes in
+isolation. Source commit `7f19315b967f81e120fa64bebc95ed338c4ad2cb` was pushed
+to both target refs; Railway deployment
+`5320235d-c242-4b3c-8b24-c8de9e1cd8cd` is `SUCCESS`. No Supabase SQL/data,
+Storage, provider setting, or Vercel deployment changed.
+
+## Next gate
+
+Keep all workflow flags false/empty. The hosted catalog still lacks the
+source-only ledger and six indexes. Before any hosted apply or canary, obtain
+a supported backup/export, owner-approved mapping, a disposable PostgreSQL 17
+replay with Redis, catalog/data/RLS comparison, protected browser evidence,
+rollback proof, and an explicit spend cap.
+
 ## M3.75 - Stock Movement draft creation authority (2026-08-05)
 
 Implemented `POST /v1/inventory/stock-movements` as a fail-closed Nest command
