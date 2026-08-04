@@ -16,10 +16,12 @@ lint, and Nest/Web production builds pass. Source commit
 `a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` contains the source correction.
 
 Hosted Supabase planning and verification were read-only: 55/90 applied, 35
-pending, two source-only command ledgers and six indexes absent. No hosted
-SQL/data/Storage/provider setting, Railway deployment, or Vercel build was
-triggered. Next action is clone/catalog/data/RLS/tenant/audit/financial-total
-reconciliation with backup/export and spend-cap evidence.
+pending, two source-only command ledgers and six indexes absent. The push
+caused exactly one watched-path Railway auto-deployment
+`a7371ef0-0b16-45c6-b4fd-323f33ddf634` for `303f266`; it succeeded and live
+readiness/health are 200. No manual redeploy or Vercel build occurred. Next
+action is clone/catalog/data/RLS/tenant/audit/financial-total reconciliation
+with backup/export and spend-cap evidence.
 
 ## 2026-08-05 - M3.77 Stock Movement posting/reversal authority
 

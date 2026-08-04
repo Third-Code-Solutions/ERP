@@ -20,6 +20,11 @@ nonzero balances reject deactivation, while legacy inactive Warehouse
 evidence can still be reversed through the explicit reversal allowlist. This
 is test evidence only; no hosted migration or data was changed. Source commit
 `a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` contains the test correction.
+The GitHub push at docs commit `303f2667044bb11537c16cc54f7280297c2d2913`
+caused exactly one Railway auto-deployment because `packages/database/**` is
+watched: `a7371ef0-0b16-45c6-b4fd-323f33ddf634` is `SUCCESS` for that exact
+SHA. Live `/ready` and `/health` are 200 with PostgreSQL/Redis healthy; no
+manual redeploy occurred.
 
 Hosted Supabase remains read-only at 55/90. The read-only verifier still
 reports the expected 35-migration ledger gap, two source-only command ledgers,

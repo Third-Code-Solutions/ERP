@@ -22,7 +22,11 @@ database suites/311 tests pass, and schema-before/schema-after hashes match.
 The test contract explicitly separates the normal zero-balance deactivation
 guard from the legacy inactive-Warehouse reversal allowlist.
 
-This closes the local replay gate only. Supabase is still an exact 55/90
+This closes the local replay gate only. The source correction was released by
+one watched-path Railway auto-deployment
+`a7371ef0-0b16-45c6-b4fd-323f33ddf634` for docs commit
+`303f2667044bb11537c16cc54f7280297c2d2913`; its live readiness and health
+checks are 200. Supabase is still an exact 55/90
 prefix with 35 pending migrations and the source-only command ledger/indexes
 absent; backup/export, clone catalog/data/RLS reconciliation, owner mapping,
 rollback proof, protected browser evidence, and a spend cap remain required.
