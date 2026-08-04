@@ -4,6 +4,20 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.33 - Authenticated Cortex transport privacy (source complete)
+
+Standardized the private response contract across Cortex chat, search, graph,
+entity, conversation, and embedding handlers. Every handler response now uses
+`Cache-Control: private, no-store, max-age=0` and `Vary: Cookie`; graph no
+longer permits a private fifteen-second cache. Request/response bodies,
+streaming, citations, tenant filters, and authorization behavior are unchanged.
+
+Validation is complete for 31 focused route tests, web lint, web typecheck, and
+local unauthenticated POST/header probes. This milestone has no database or
+provider mutation. The next step is authenticated browser permission/citation
+verification with disposable tenant fixtures, followed by a separately
+approved, spend-bounded promotion.
+
 ## M3.32 - Landing Cortex preview and evidence-led UI slice (source complete)
 
 Added a local, read-only Cortex query preview to the existing platform bento.

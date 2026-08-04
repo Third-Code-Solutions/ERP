@@ -8,6 +8,7 @@ import {
 } from '@third-code-erp/database'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
+import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
 
 const storedCitationSchema = z.object({
   nodeId: z.string().uuid(),
@@ -30,10 +31,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const profile = await getUserProfile()
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!profile) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: CORTEX_PRIVATE_HEADERS }
+    )
+  }
 
   const parsed = z.string().uuid().safeParse((await params).id)
-  if (!parsed.success) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid id' },
+      { status: 400, headers: CORTEX_PRIVATE_HEADERS }
+    )
+  }
 
   const conversation = await getCortexConversation(
     profile.tenantId,
@@ -41,11 +52,17 @@ export async function GET(
     parsed.data
   )
   if (!conversation) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(
+      { error: 'Not found' },
+      { status: 404, headers: CORTEX_PRIVATE_HEADERS }
+    )
   }
   const { context_ref_table, context_ref_id } = conversation
   if (Boolean(context_ref_table) !== Boolean(context_ref_id)) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(
+      { error: 'Not found' },
+      { status: 404, headers: CORTEX_PRIVATE_HEADERS }
+    )
   }
   const context =
     context_ref_table && context_ref_id
@@ -59,11 +76,19 @@ export async function GET(
         )
       : null
   if (context_ref_table && !context) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(
+      { error: 'Not found' },
+      { status: 404, headers: CORTEX_PRIVATE_HEADERS }
+    )
   }
 
   const messages = await getCortexConversationMessages(profile.tenantId, profile.user.id, parsed.data)
-  if (!messages) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!messages) {
+    return NextResponse.json(
+      { error: 'Not found' },
+      { status: 404, headers: CORTEX_PRIVATE_HEADERS }
+    )
+  }
 
   const nodeIds = [
     ...new Set(messages.flatMap((message) => storedCitationIds(message.citations))),
@@ -84,5 +109,8 @@ export async function GET(
     }),
   }))
 
-  return NextResponse.json({ context, messages: safeMessages })
+  return NextResponse.json(
+    { context, messages: safeMessages },
+    { headers: CORTEX_PRIVATE_HEADERS }
+  )
 }

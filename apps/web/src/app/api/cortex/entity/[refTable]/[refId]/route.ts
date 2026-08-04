@@ -12,6 +12,7 @@ import {
 } from '@/lib/cortex/href'
 import { cortexCanSeeType, cortexNodeTypeScope } from '@/lib/cortex/rbac'
 import { cortexEntityResponse } from '@/lib/cortex/entity-response'
+import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
 
 /**
  * GET /api/cortex/entity/:refTable/:refId
@@ -36,14 +37,17 @@ export async function GET(
 ) {
   const profile = await getUserProfile()
   if (!profile) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: CORTEX_PRIVATE_HEADERS }
+    )
   }
 
   const parsed = paramsSchema.safeParse(await params)
   if (!parsed.success) {
     return NextResponse.json(
       { error: 'Invalid entity reference', detail: parsed.error.flatten() },
-      { status: 400 }
+      { status: 400, headers: CORTEX_PRIVATE_HEADERS }
     )
   }
 
@@ -61,7 +65,10 @@ export async function GET(
       !definition.refTables.includes(refTable) ||
       !cortexCanSeeType(profile.role, node.node_type)
     ) {
-      return NextResponse.json({ found: false, summary: '', citations: [] }, { status: 404 })
+      return NextResponse.json(
+        { found: false, summary: '', citations: [] },
+        { status: 404, headers: CORTEX_PRIVATE_HEADERS }
+      )
     }
     // RBAC: neighbors/citations in the pack are also scoped to the role, so an
     // in-scope record never leaks a forbidden-type connection.
@@ -77,8 +84,14 @@ export async function GET(
       }
     )
     const answer = cortexEntityResponse(pack, describeContextPack)
-    return NextResponse.json(answer, { status: answer.found ? 200 : 404 })
+    return NextResponse.json(answer, {
+      status: answer.found ? 200 : 404,
+      headers: CORTEX_PRIVATE_HEADERS,
+    })
   } catch {
-    return NextResponse.json({ error: 'Cortex lookup failed' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Cortex lookup failed' },
+      { status: 500, headers: CORTEX_PRIVATE_HEADERS }
+    )
   }
 }

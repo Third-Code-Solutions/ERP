@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getUserProfile } from '@third-code-erp/auth'
 import { listCortexConversations } from '@third-code-erp/database'
 import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
+import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
 
 /**
  * GET /api/cortex/conversations — the signed-in user's Cortex conversation
@@ -9,7 +10,12 @@ import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
  */
 export async function GET(_req: NextRequest) {
   const profile = await getUserProfile()
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!profile) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: CORTEX_PRIVATE_HEADERS }
+    )
+  }
 
   const stored = await listCortexConversations(
     profile.tenantId,
@@ -42,5 +48,8 @@ export async function GET(_req: NextRequest) {
     )
   ).filter((conversation) => conversation !== null)
 
-  return NextResponse.json({ conversations })
+  return NextResponse.json(
+    { conversations },
+    { headers: CORTEX_PRIVATE_HEADERS }
+  )
 }

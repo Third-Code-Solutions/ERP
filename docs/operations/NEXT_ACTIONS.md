@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.33 Cortex transport hardening
+
+1. Run the full workspace lint, typecheck, production build, and test suites;
+   keep the reviewed private-response files as the only staged scope.
+2. Push the exact verified commit to `main` and
+   `agent-02/third-code-erp-landing` under the `kurtgav` GitHub credential;
+   verify the SHA and keep Railway/Vercel/Supabase state unchanged.
+3. With disposable authenticated tenant fixtures, verify Cortex allowed,
+   denied, cross-tenant, redacted, and citation-bearing browser flows. Confirm
+   the `private, no-store`/`Vary: Cookie` contract in the browser network log.
+4. Keep Supabase at the 55-row hosted ledger until the M3.31 clone/replay,
+   catalog/data/RLS, backup/recovery, owner, provider, and spend gates clear.
+   Keep Vercel Git/deployments paused until team authorization and one
+   spend-bounded prebuilt promotion are explicitly approved.
+
 ## Exact next action after M3.32 landing Cortex preview
 
 1. Keep Cortex preview sample-only and read-only; do not connect it to tenant

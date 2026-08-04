@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-08-04 - M3.33 authenticated Cortex transport privacy
+
+Audited the authenticated Cortex route family and found inconsistent response
+cache directives: search was already `private, no-store`, graph allowed a
+private 15-second cache, and entity/conversation/embed responses had no
+explicit privacy contract. Added the shared
+`apps/web/src/lib/cortex/response.ts` header constant and applied it to all
+route success/error paths without changing request bodies, stream framing,
+citations, tenant filters, or mutation authority.
+
+Changed route/test files under `apps/web/src/app/api/cortex/`, the shared
+response helper, and
+`docs/research/components/cortex-private-response.spec.md`. Focused route
+tests passed 31/31 across chat, search, graph, entity, conversations, and
+embed; web lint and web typecheck passed. Local unauthenticated probes returned
+401 with `private, no-store, max-age=0` and `Vary` containing `Cookie` for all
+protected POST/read handlers. GET probes for POST-only routes returned the
+framework 405 and are not application handler responses.
+
+No Supabase SQL/migration/data/Storage change, Railway variable/deployment,
+Vercel deployment, or provider setting changed. Exact next action: run the
+full workspace validation, publish this source-only slice under `kurtgav`,
+then perform an authenticated disposable-tenant browser permission/citation
+audit before any live-data or provider promotion.
+
 ## 2026-08-04 - M3.32 landing Cortex preview and UI reconnaissance
 
 Reverse-engineered the live landing at `https://thirdcode-erp.vercel.app/`
