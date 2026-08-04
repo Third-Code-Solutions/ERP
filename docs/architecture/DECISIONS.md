@@ -17,6 +17,11 @@ Validation/release boundary: focused 5/5, Web 67/451, workspace lint/typecheck,
 diff check, and 79/79-route build pass; local production HTML is HTTP 200 with
 expected markers and no legacy-brand identifiers. No hosted DB/data, Railway,
 or Vercel mutation; Supabase and Vercel gates remain closed.
+Post-push source evidence: `ce1ae6e` is on both target branches, GitHub's
+Railway check is `success`, Railway skipped the unchanged-API commit, and
+live readiness is 200. Vercel produced no deployment and the public URL is
+still the prior release, so no live GEO claim is made. Supabase remains
+blocked at the duplicate Purchase Order `P0001` preflight.
 
 ## D-156 - Proposal reads repeat tenant scope (2026-08-04)
 

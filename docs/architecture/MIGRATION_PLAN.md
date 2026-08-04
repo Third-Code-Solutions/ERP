@@ -16,6 +16,12 @@ verify exact GitHub/Railway status and live readiness, and query Vercel without
 triggering a deployment. Keep Supabase unchanged at 55/87 until the supported
 backup, dependent-row/audit export, and owner-approved duplicate `PO-0002`
 repair are complete. Do not call this a DB or Vercel release.
+Post-push: `ce1ae6e` is present on both target branches. GitHub is successful;
+Railway deployment `c0103db6-da9a-415c-9fe3-4ca96f5a56f2` is `SKIPPED` for
+the unchanged API watch set and `/ready`/`/health` remain 200. Vercel created
+zero deployments after the push; its public URL still serves the prior
+release. Supabase's default branch is `MIGRATIONS_FAILED` at 55 applied
+migrations with the duplicate-PO `P0001` preflight; no DB release occurred.
 
 ## M3.47 - proposal read tenant scope (source complete, 2026-08-04)
 

@@ -22,6 +22,18 @@ HTTP 200 with expected brand/`WebSite`/`FAQPage` markers and no ABI Ops,
 ERPNext, or Frappe identifiers. No hosted SQL/data, Storage, Railway setting,
 or Vercel deployment changed. Supabase remains `MIGRATIONS_FAILED` at the
 duplicate-PO preflight and Vercel remains disconnected/spend-protected.
+Post-push evidence for source `ce1ae6ecfdd79cc07322ed88a6459bde4f541448`:
+both target branches contain the SHA; GitHub's exact-SHA Railway check is
+`success`, and Railway deployment `c0103db6-da9a-415c-9fe3-4ca96f5a56f2` is
+`SKIPPED` because no watched API files changed. The existing API remains
+Online with `/ready` and `/health` 200. Vercel's read-only project is
+`live:false`; the post-push deployment query returned zero, and the public
+site is HTTP 200 from an older deployment that has `FAQPage` but not the new
+`WebSite` graph. No frontend production rollout is claimed. Supabase remains
+at 55 applied migrations with `MIGRATIONS_FAILED`; the latest branch-action
+log repeats `20260801090000_purchase_order_create_idempotency.sql` failing
+with `SQLSTATE P0001` on duplicate tenant `PO-0002` rows. No hosted SQL/data
+was applied.
 
 ## M3.47 Proposal read tenant scope (source complete, 2026-08-04)
 
