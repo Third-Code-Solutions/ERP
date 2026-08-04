@@ -4,6 +4,46 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.65 Nest CRM opportunity detail read handoff (source + Railway verified, 2026-08-05)
+
+Added a bounded `GET /v1/crm/opportunities/:opportunityId` contract for the
+opportunity detail graph. Nest requires the explicit `opportunity.read`
+capability, derives tenant scope from the verified principal, repeats tenant
+predicates on account/project joins and every progress aggregate, and returns
+strict opportunity plus progress data (latest PPRF, latest inspection, design
+counts, and open change-request count). The opportunity detail page can adopt
+the adapter only when `ERP_OPPORTUNITY_READS_VIA_API=true` and its exact tenant
+UUID allowlist matches; the existing direct server-side path remains the
+default and is now tenant-scoped at every join/child query. UI copy and layout
+were preserved.
+
+Changed files: shared opportunity schemas/tests and export; Nest CRM
+capability, controller, service, service tests, and e2e contract; Next core
+client, opportunity adapter/tests, opportunity query tests, detail page handoff,
+and environment examples. Validation: shared 17 files/176 tests; API 67
+files/332 tests in the serial bounded run (the initial concurrent run had two
+unrelated 5-second timeouts); Web 77 files/504 tests; focused Web adapter/query
+89/89; database 41 files with 166 passed and 140 expected integration/RLS/Cortex
+skips; workspace typecheck/lint; API build; Web 80/80 production build; and
+`git diff --check`. No Supabase SQL/data repair, hosted migration, Vercel
+build/deploy, or provider setting changed.
+
+Commit `3eb9e69e` is pushed to `main` and
+`agent-02/third-code-erp-landing` under `kurtgav`. Railway deployment
+`e51c6641-5b68-443a-ac16-81bf3912531d` for that exact SHA is `SUCCESS` with
+`apps/api/Dockerfile`, `/ready`, and `node apps/api/dist/main.js`; live
+`/ready` is 200 with PostgreSQL and Redis, `/health` is 200, and unauthenticated
+opportunity detail access is 401. Startup logs map the new route. Supabase
+`aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY`, read-only at 55 hosted versus 87
+source migrations; all inspected public tables have RLS enabled. Vercel remains
+Git-disabled with zero deployments in the spend-audit window.
+
+Next action: keep `ERP_OPPORTUNITY_READS_VIA_API=false` and its tenant allowlist
+empty. Reconcile the 32-migration hosted/source ledger only through a supported
+backup/export, dependency and audit export, owner-approved mapping, disposable
+PostgreSQL 17 replay, and an explicit spend cap before any hosted data action or
+protected opportunity canary.
+
 ## M3.64 Nest CRM KYC queue read handoff (source + Railway verified, 2026-08-04)
 
 Added a bounded `GET /v1/crm/accounts/kyc-queue` contract for pending KYC
