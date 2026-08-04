@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-156 - Proposal reads repeat tenant scope (2026-08-04)
+
+Decision: constrain the proposal overview and change-request log by both the
+requested opportunity and `profile.tenantId` on every related table. Account
+and nullable design-file joins carry the tenant predicate too.
+
+Reason: UUID possession and an already-authorized parent lookup are not a
+sufficient defense-in-depth boundary in a multi-tenant ERP. Repeating tenant
+scope makes the query intent auditable and protects against future changes to
+foreign-key assumptions or cross-tenant fixture data.
+
+Validation/release boundary: focused proposal actions 2/2, Web 66/450,
+workspace lint/typecheck, diff check, and production build pass. No hosted
+schema/data, Railway setting, or Vercel deployment changed.
+
 ## D-155 - Command palette owns one accessible result relationship (2026-08-04)
 
 Decision: make the input the single `combobox`, keep Search and Ask Cortex

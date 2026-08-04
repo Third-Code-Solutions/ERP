@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.47 proposal read tenant scope
+
+1. Push the reviewed source/docs once to `main` and
+   `agent-02/third-code-erp-landing`; verify the exact GitHub status, Railway
+   skip/deploy identity, and live `/ready`/`/health`. Do not trigger Vercel.
+2. Keep Supabase `aqqrtkmtcsfkbyyqxowv` unchanged at 55/87 until supported
+   backup, dependent-row/audit export, and owner-approved duplicate `PO-0002`
+   repair are available. Keep Vercel Git/deployments disconnected and
+   spend-protected.
+3. Authenticated proposal desktop/mobile proof remains open if local Supabase
+   DNS cannot resolve; do not infer it from unauthenticated redirects.
+
 ## Exact next action after M3.46 command palette accessibility
 
 1. Push the reviewed source/docs once to `main` and
