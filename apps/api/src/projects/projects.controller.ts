@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Headers,
   Inject,
   Param,
   ParseUUIDPipe,
@@ -33,9 +34,10 @@ export class ProjectsController {
   @RequireCapabilities('project.create')
   create(
     @Body(CreateProjectPipe) command: CreateProjectCommand,
-    @CurrentPrincipal() principal: ErpPrincipal
+    @CurrentPrincipal() principal: ErpPrincipal,
+    @Headers('Idempotency-Key') idempotencyKey: string | undefined
   ): Promise<ProjectCreationResult> {
-    return this.projects.create(command, principal)
+    return this.projects.create(command, principal, idempotencyKey)
   }
 
   @Patch(':projectId')

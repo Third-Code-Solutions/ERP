@@ -83,6 +83,7 @@ describe('Projects API contract', () => {
 
       const response = await request(app.getHttpServer())
         .post('/v1/projects')
+        .set('Idempotency-Key', 'project-create-1')
         .send({ name: 'New Project', client: 'New Client' })
         .expect(201)
 
@@ -102,7 +103,8 @@ describe('Projects API contract', () => {
         },
         expect.objectContaining({
           tenantId: '22222222-2222-4222-8222-222222222222',
-        })
+        }),
+        'project-create-1'
       )
     },
     HTTP_TEST_TIMEOUT_MS

@@ -649,7 +649,8 @@ export async function updateProjectThroughCoreApi(
 }
 
 export async function createProjectThroughCoreApi(
-  command: CreateProjectCommand
+  command: CreateProjectCommand,
+  idempotencyKey: string
 ): Promise<CoreResult<ProjectCreationResult>> {
   const access = await getCoreApiAccess()
   if (!access.ok) return access
@@ -660,6 +661,7 @@ export async function createProjectThroughCoreApi(
       headers: {
         authorization: `Bearer ${access.accessToken}`,
         'content-type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
         'x-request-id': randomUUID(),
       },
       body: JSON.stringify(command),

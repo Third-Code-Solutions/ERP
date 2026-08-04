@@ -1,11 +1,13 @@
 import 'reflect-metadata'
 
 import { randomUUID } from 'node:crypto'
+import { ConfigService } from '@nestjs/config'
 import { APP_GUARD, Reflector } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
 import {
   auditLog,
   db,
+  projectCreateRequests,
   projects,
   tenants,
   users,
@@ -13,7 +15,7 @@ import {
 } from '@third-code-erp/database'
 import { and, desc, eq } from 'drizzle-orm'
 import request from 'supertest'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AuditService } from '../src/audit/audit.service'
 import { CapabilityGuard } from '../src/auth/capability.guard'
 import { SupabaseIdentityService } from '../src/auth/supabase-identity.service'
@@ -174,6 +176,20 @@ suite('Projects API database integration', () => {
             useValue: database,
           },
           {
+            provide: ConfigService,
+            useValue: {
+              get: vi.fn((key: string, fallback: unknown) => {
+                if (key === 'ERP_PROJECT_CREATE_WRITES_ENABLED') {
+                  return true
+                }
+                if (key === 'ERP_PROJECT_CREATE_WRITES_TENANT_IDS') {
+                  return [tenantA, tenantB]
+                }
+                return fallback
+              }),
+            },
+          },
+          {
             provide: APP_GUARD,
             useExisting: SupabaseJwtGuard,
           },
@@ -198,6 +214,75 @@ suite('Projects API database integration', () => {
       }
 
       try {
+        const createCommand = {
+          name: 'Created A',
+          client: 'Client A',
+          status: 'lead',
+          projectType: 'fit_out',
+          totalSqm: 140,
+          location: 'Makati',
+          notes: 'Idempotent integration command',
+        }
+
+        await request(app.getHttpServer())
+          .post('/v1/projects')
+          .send(createCommand)
+          .expect(401)
+
+        await request(app.getHttpServer())
+          .post('/v1/projects')
+          .set('Authorization', 'Bearer viewer-a-token')
+          .set('Idempotency-Key', 'project-create-integration')
+          .send(createCommand)
+          .expect(403)
+
+        const created = await request(app.getHttpServer())
+          .post('/v1/projects')
+          .set('Authorization', 'Bearer admin-a-token')
+          .set('Idempotency-Key', 'project-create-integration')
+          .send(createCommand)
+          .expect(201)
+
+        const replay = await request(app.getHttpServer())
+          .post('/v1/projects')
+          .set('Authorization', 'Bearer admin-a-token')
+          .set('Idempotency-Key', 'project-create-integration')
+          .send(createCommand)
+          .expect(201)
+
+        expect(replay.body).toEqual(created.body)
+
+        await request(app.getHttpServer())
+          .post('/v1/projects')
+          .set('Authorization', 'Bearer admin-a-token')
+          .set('Idempotency-Key', 'project-create-integration')
+          .send({ ...createCommand, name: 'Different A' })
+          .expect(409)
+
+        const createdB = await request(app.getHttpServer())
+          .post('/v1/projects')
+          .set('Authorization', 'Bearer admin-b-token')
+          .set('Idempotency-Key', 'project-create-integration')
+          .send(createCommand)
+          .expect(201)
+
+        expect(created.body).toMatchObject({
+          tenantId: tenantA,
+          name: createCommand.name,
+        })
+        expect(createdB.body).toMatchObject({ tenantId: tenantB })
+        expect(createdB.body.id).not.toBe(created.body.id)
+
+        const requestRows = await transaction
+          .select()
+          .from(projectCreateRequests)
+          .where(eq(projectCreateRequests.idempotency_key, 'project-create-integration'))
+        expect(requestRows).toHaveLength(2)
+        expect(requestRows.map((row) => row.state)).toEqual([
+          'succeeded',
+          'succeeded',
+        ])
+
         await request(app.getHttpServer())
           .patch(`/v1/projects/${projectA}`)
           .send(command)
