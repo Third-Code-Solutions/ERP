@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-167 - Recover stale Supabase sessions at the middleware boundary (2026-08-04)
+
+Decision: recognize only Supabase's refresh_token_not_found failure (or its
+equivalent exact message), delete chunked sb-*-auth-token cookies, continue as
+anonymous, and reuse the existing protected-route redirect. Rethrow unrelated
+errors.
+
+Reason: Vercel's read-only runtime error inventory showed stale refresh tokens
+failing in /middleware; clearing only the revoked auth material prevents
+repeat 500s without making any protected ERP route public or adding provider
+work.
+
+Validation/release boundary: middleware/helper recovery tests 5/5, full Web
+75/476, typecheck, and 80/80 build pass. No Vercel deployment, Supabase
+mutation, Storage change, or provider setting changed.
+
 ## D-164 - Cortex source lookup is explicit and cost-bounded (2026-08-04)
 
 Decision: keep the global palette's Search records mode on its existing API

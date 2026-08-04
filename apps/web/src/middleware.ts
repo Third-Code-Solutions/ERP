@@ -8,6 +8,10 @@ import {
   requestRateLimitPolicy,
 } from '@/lib/request-rate-limit'
 import { isProtectedRoute } from '@/lib/protected-route'
+import {
+  isInvalidRefreshTokenError,
+  isSupabaseAuthCookieName,
+} from '@/lib/supabase-session-recovery'
 
 // ---------------------------------------------------------------------------
 // Rate limiting — in-memory sliding window per IP (Edge-compatible)
@@ -67,6 +71,27 @@ function buildCSP(nonce: string): string {
   ].join('; ')
 }
 
+function buildSupabaseResponse(
+  requestHeaders: Headers
+): NextResponse {
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  })
+}
+
+function redirectToLogin(
+  request: NextRequest,
+  staleAuthCookieNames: readonly string[]
+): NextResponse {
+  const redirect = NextResponse.redirect(
+    new URL('/auth/login', request.url)
+  )
+  for (const name of staleAuthCookieNames) {
+    redirect.cookies.delete(name)
+  }
+  return redirect
+}
+
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -100,9 +125,8 @@ export async function middleware(request: NextRequest) {
   // we return is rebuilt whenever Supabase writes refreshed auth cookies, so
   // we route every NextResponse.next() through this factory to guarantee the
   // modified request headers (including the nonce) survive each rebuild.
-  let supabaseResponse = NextResponse.next({
-    request: { headers: requestHeaders },
-  })
+  let supabaseResponse = buildSupabaseResponse(requestHeaders)
+  let staleAuthCookieNames: string[] = []
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -116,9 +140,7 @@ export async function middleware(request: NextRequest) {
           for (const { name, value } of cookiesToSet) {
             request.cookies.set(name, value)
           }
-          supabaseResponse = NextResponse.next({
-            request: { headers: requestHeaders },
-          })
+          supabaseResponse = buildSupabaseResponse(requestHeaders)
           for (const { name, value, options } of cookiesToSet) {
             supabaseResponse.cookies.set(name, value, options)
           }
@@ -127,9 +149,30 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] =
+    null
+  try {
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  } catch (error) {
+    // A revoked/expired refresh token must not turn every request into a
+    // server exception. Remove only Supabase auth cookies, then continue as
+    // anonymous so protected routes still redirect through the normal gate.
+    if (!isInvalidRefreshTokenError(error)) throw error
+
+    staleAuthCookieNames = request.cookies
+      .getAll()
+      .map(({ name }) => name)
+      .filter(isSupabaseAuthCookieName)
+    for (const name of staleAuthCookieNames) {
+      request.cookies.delete(name)
+    }
+    requestHeaders.set('cookie', request.cookies.toString())
+    supabaseResponse = buildSupabaseResponse(requestHeaders)
+    for (const name of staleAuthCookieNames) {
+      supabaseResponse.cookies.delete(name)
+    }
+  }
 
   // Rate limiting
   const rateLimitPolicy = requestRateLimitPolicy(pathname, !!user)
@@ -152,11 +195,11 @@ export async function middleware(request: NextRequest) {
   }
 
   if (!user && pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+    return redirectToLogin(request, staleAuthCookieNames)
   }
 
   if (!user && isProtectedRoute(pathname)) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+    return redirectToLogin(request, staleAuthCookieNames)
   }
 
   // Security headers on every rendered response

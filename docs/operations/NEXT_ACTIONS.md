@@ -1,5 +1,22 @@
 # Next Actions
 
+## Exact next action after M3.57 stale Supabase refresh-token recovery
+
+1. Keep Vercel Git deployment disabled and create no preview/production build;
+   the source fix is not frontend release evidence.
+2. Keep Supabase aqqrtkmtcsfkbyyqxowv read-only at 55/87. Obtain the
+   supported recoverable backup plus dependent-row/audit export and
+   owner-approved canonical mapping for the 12 duplicate Purchase Orders.
+3. Rerun the read-only planners and disposable PostgreSQL 17 replay before
+   applying any ordered migration suffix or enabling a canary.
+4. On the next spend-approved frontend release, verify stale-cookie recovery,
+   protected redirects, auth behavior, console output, and exact deployment
+   identity.
+
+Completed M3.57 gates: Web 75/476, focused recovery 5/5, typecheck,
+git diff --check, and 80/80 build. No Vercel build or hosted mutation
+occurred.
+
 ## Exact next action after M3.54 Cortex sources in the command palette
 
 1. Keep Vercel Git deployment disabled. Do not create a preview or production

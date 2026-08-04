@@ -1,5 +1,28 @@
 # Work Log
 
+## 2026-08-04 - M3.57 Stale Supabase refresh-token recovery
+
+Read-only Vercel runtime errors identified refresh_token_not_found in
+/middleware. Added a narrow recovery boundary: clear chunked Supabase auth
+cookies, continue as anonymous, and preserve the existing protected-route
+login redirect. Unknown errors still surface.
+
+Changed files:
+
+- apps/web/src/middleware.ts
+- apps/web/src/lib/supabase-session-recovery.ts
+- apps/web/src/middleware.test.ts
+- apps/web/src/lib/supabase-session-recovery.test.ts
+- architecture and operations memory files
+
+Results: Web 75/476; focused recovery 5/5; Web typecheck; git diff --check;
+and 80/80 production routes. No UI design/copy, Vercel build, Supabase
+SQL/data, Storage, provider setting, or Railway setting changed.
+
+Rollback: revert the M3.57 source commit; no hosted state needs repair.
+Next: supported duplicate-PO backup/export and owner mapping; keep Vercel
+spend protection closed.
+
 ## 2026-08-04 - M3.54 Cortex sources in the command palette
 
 Added a low-cost, explicit Ask Cortex source path to the existing command

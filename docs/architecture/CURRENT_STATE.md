@@ -4,6 +4,25 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.57 Stale Supabase refresh-token recovery (source-only, 2026-08-04)
+
+Vercel read-only runtime errors showed two /middleware failures with
+refresh_token_not_found. The Next middleware now recognizes only that
+recoverable Supabase auth error, removes chunked sb-*-auth-token cookies,
+continues the request as anonymous, and preserves the normal protected-route
+redirect. Unrelated provider/runtime errors still throw; no protected route is
+made public.
+
+Changed files: apps/web/src/middleware.ts,
+apps/web/src/lib/supabase-session-recovery.ts and tests, plus middleware
+regression tests. Validation: Web 75 files/476 tests, focused recovery 5/5,
+Web typecheck, git diff --check, and 80/80-route production build pass. No
+Vercel build, Supabase SQL/data, Storage, provider setting, or Railway setting
+changed.
+
+Next action remains supported duplicate-PO backup/export, owner mapping, and
+disposable PostgreSQL 17 replay. Keep Vercel spend protection closed.
+
 ## M3.54 Cortex sources in the command palette (source-only, 2026-08-04)
 
 The authenticated command palette now has an explicit Ask Cortex mode that
