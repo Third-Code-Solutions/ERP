@@ -1,5 +1,33 @@
 # Work Log
 
+## 2026-08-04 - M3.32 landing Cortex preview and UI reconnaissance
+
+Reverse-engineered the live landing at `https://thirdcode-erp.vercel.app/`
+with Playwright at 1440px, 768px, and 390px. Captured desktop/mobile reference
+screenshots, measured fonts/colors/layout/scroll states, swept capability,
+workflow, carousel, FAQ, hover, and responsive behavior, and wrote
+`docs/research/BEHAVIORS.md`, `PAGE_TOPOLOGY.md`, and seven component specs.
+
+Added a read-only Cortex preview to
+`apps/web/src/components/marketing/third-code-landing.tsx` with three bounded
+sample questions, `aria-pressed` state, answer/source chips, and no network or
+database write. Added scoped styles and a source-contract test.
+
+Validation: focused landing tests 4/4; full web tests 432/432; root lint passed;
+root production build passed with Next.js 78/78 pages and Nest build; full
+workspace tests passed (API 287/287, shared types 159/159, database 162 passed
+and 137 skipped without `DATABASE_URL`); local browser QA had zero console
+errors and no horizontal overflow at 390px. One existing Next LCP priority
+warning remains. No Supabase/Railway/Vercel hosted state changed.
+
+Changed files: `apps/web/src/components/marketing/third-code-landing.tsx`,
+`apps/web/src/components/marketing/third-code-landing.module.css`,
+`apps/web/src/components/marketing/third-code-landing.test.ts`, the seven
+`docs/research/components/*.spec.md` files, `docs/research/BEHAVIORS.md`,
+`docs/research/PAGE_TOPOLOGY.md`, and four local design-reference screenshots.
+Exact next action: commit and push source under `kurtgav`, verify Railway/Vercel
+deployment boundaries, then audit authenticated Cortex before wiring live data.
+
 ## 2026-08-04 - M3.31 Supabase reconciliation audit (read-only)
 
 Audited source and hosted migration ledgers for the authorized Supabase

@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.32 landing Cortex preview
+
+1. Keep Cortex preview sample-only and read-only; do not connect it to tenant
+   data, enable anonymous retrieval, or add ERP mutation handlers.
+2. Preserve Vercel spend protection. Verify exact GitHub commit and local
+   desktop/mobile browser evidence before any controlled promotion; Railway
+   should remain unchanged because this slice is frontend-only.
+3. Next product slice: audit authenticated Cortex command/search surfaces and
+   define a permission/citation contract before wiring any new landing CTA to
+   live retrieval.
+
+See `docs/research/BEHAVIORS.md`, `PAGE_TOPOLOGY.md`, and
+`docs/research/components/` for measured live UI evidence.
+
 ## Exact next action after M3.31 Supabase reconciliation audit
 
 1. Keep all supplier-confirmation controls false/empty; do not apply the 30

@@ -4,6 +4,22 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.32 landing Cortex preview and live UI reconnaissance (2026-08-04)
+
+The public landing now includes a read-only Cortex preview inside the existing
+platform bento. Three sample questions switch answer text and source chips via
+local React state only; no browser fetch, API route, ERP approval, or database
+write was added. The slice preserves existing Satoshi typography, editorial
+split hero, dense bento math, GSAP media/stack behavior, auth links, and SEO
+metadata.
+
+Playwright reconnaissance captured 1440px and 390px references plus exact
+responsive and interaction evidence in `docs/research/`. Local QA verified
+the preview states, zero horizontal overflow, and zero browser console errors.
+The Next.js development server reports one existing LCP priority warning for
+the above-fold hero image. No Supabase SQL, hosted data, provider setting,
+Railway variable, Railway deployment, or Vercel deployment changed.
+
 ## M3.31 read-only Supabase reconciliation audit (2026-08-04)
 
 The authorized target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17

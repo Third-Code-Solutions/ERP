@@ -56,3 +56,30 @@ The original repository topology remains the baseline for regression review:
 All sections remain in normal document flow; JavaScript adds motion and
 progressive disclosure only. This source contract is retained even where the
 latest live capture uses updated section IDs and copy.
+
+## 2026-08-04 measured topology recheck
+
+Playwright reconfirmed the public route at 1440x1000, 768x900, and 390x844.
+The production page height measured 8,823px at desktop and 10,688px at 390px;
+the route retained the same section order and no horizontal overflow.
+
+### Measured section bounds (1440px)
+
+| Section | Top | Height |
+| --- | ---: | ---: |
+| Hero | 0 | 1,000 |
+| Platform | 1,064 | 1,448 |
+| Capability | 2,512 | 1,197 |
+| Workflow | 3,709 | 2,240 |
+| Priority | 5,949 | 712 |
+| FAQ | 6,661 | 969 |
+| CTA | 7,861 | 584 |
+| Footer | 8,444 | 379 |
+
+### New read-only surface
+
+- Cortex preview is nested in the existing Cortex brain card; it is owned by
+  local component state and renders one of three sample answers.
+- Query controls expose `aria-pressed`; answer text uses `aria-live="polite"`.
+- Source chips are descriptive sample provenance only. No API route, approval,
+  database write, or ERP transaction is reachable from the public preview.

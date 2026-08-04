@@ -4,6 +4,19 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.32 - Landing Cortex preview and evidence-led UI slice (source complete)
+
+Added a local, read-only Cortex query preview to the existing platform bento.
+Question buttons expose `aria-pressed` state; answer and source chips update in
+an `aria-live="polite"` region. No backend, database, auth, approval, or
+provider contract changed. Captured live desktop/mobile screenshots and wrote
+the behavior bible, topology, and component specifications under
+`docs/research/`.
+
+Keep this demo clearly read-only. The next release step is controlled browser
+verification against the exact commit, not an automatic Vercel deploy; Vercel
+spend protection remains active and Railway watches the API surface only.
+
 ## M3.31 - Read-only Supabase reconciliation audit (source complete)
 
 Audited the authorized Supabase target against the complete source migration

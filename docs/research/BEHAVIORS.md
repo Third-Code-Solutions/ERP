@@ -80,3 +80,52 @@ The existing repository contract remains part of the audit record:
   zero console errors/warnings, and canonical/Open Graph/
   Organization/SoftwareApplication/FAQPage metadata. The detailed evidence is
   retained in `docs/research/LIVE_LANDING_AUDIT_20260801.md`.
+
+## 2026-08-04 measured live recheck
+
+Target: `https://thirdcode-erp.vercel.app/`. Playwright captures: 1440x1000,
+768x900, 390x844. Desktop document height 8,823px; mobile 10,688px. Console
+errors: 0. No horizontal overflow beyond the browser scrollbar. Live landing
+font is Satoshi; no video elements; three rendered instances of
+`/images/third-code-erp-hero.png`.
+
+### Page-level models
+
+| Surface | Model | Observed behavior |
+| --- | --- | --- |
+| Navigation | fixed + anchor/click | 68px glass nav at desktop (`top: 18px`); 62px at mobile (`top: 10px`). Links hide at 1,180px. |
+| Hero media | load + scroll-driven | GSAP starts near `scale(.88)`, `opacity(.72)`, then settles to `scale(1)`. Scroll fades toward `.32` and scales to `1.04`. |
+| Proof rail | time-driven | Duplicated labels move continuously; reduced motion disables animation and wraps items. |
+| Platform bento | static + hover | Dense 12-column desktop grid; three interlocking cards. |
+| Cortex capability accordion | click + focus + hover | One button remains `aria-expanded="true"`; active body changes. Mobile shows body only for active item. |
+| Workflow cards | scroll-driven desktop | Four cards pin/stack with GSAP; mobile switches to ordinary vertical cards. |
+| Priority panel | click-driven carousel | Previous/next rotates four priorities; quote is `aria-live="polite"`. |
+| FAQ | native disclosure | Five `<details>` rows can be open independently. |
+| Cortex preview | click-driven, read-only | Three sample questions replace answer/source chips. No fetch, mutation, approval, or DB write. |
+
+### Scroll and responsive samples
+
+- Navigation remains fixed with `background: rgba(7, 19, 31, 0.78)`, 12px
+  radius, and `0 18px 56px rgba(0, 0, 0, 0.2)` shadow.
+- Hero media opacity samples: `1.0` at top, `.7134` at 120px, `.5339` at
+  620px, `.3626` at 1,100px, `.32` by 4,300px.
+- Workflow first cards begin scaling near `scrollY≈4,300`; by `≈5,600` all
+  four show pinned transforms.
+- 1440px: two-column editorial hero, visible nav links, dense bento, pinned
+  workflow.
+- 768px: nav links hidden; one-column hero; 48px/43.68px H1; bento remains
+  grid; workflow becomes normal flex column.
+- 390px: nav 355px wide and 62px high; brand subtitle/sign-in hide; hero
+  padding `124px 20px 72px`; H1 41.73px/40.0608px; inline hero image hides;
+  bento/workflow stack; CTA padding `76px 24px`.
+
+### 2026-08-04 interaction sweep
+
+- Visited all four capability buttons; exactly one active state each time.
+- Opened all five FAQ summaries independently.
+- Visited three next priority states: Commercial and estimating, Project
+  delivery, Finance and compliance.
+- Local Cortex preview switches all three `aria-pressed` states and retains
+  source chips; it never calls a route.
+- Hover/focus evidence: link color transition, explicit CTA/card transforms,
+  and 2px copper focus outline with 4px offset.

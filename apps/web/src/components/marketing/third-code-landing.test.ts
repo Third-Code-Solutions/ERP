@@ -50,4 +50,13 @@ describe('Third Code ERP public landing contract', () => {
     expect(landingSource).toContain('Human-approved actions')
     expect(landingContent).toContain('human approval')
   })
+
+  it('keeps Cortex preview read-only and source-oriented', () => {
+    expect(landingSource).toContain('aria-label="Cortex query preview"')
+    expect(landingSource).toContain('aria-pressed={activeCortexQuery === query.id}')
+    expect(landingSource).toContain('Read-only')
+    expect(landingSource).toContain('currentCortexQuery.sources.map')
+    expect(landingStyles).toContain('.cortexDemo {')
+    expect(landingStyles).toContain('.cortexQuery[aria-pressed=\'true\']')
+  })
 })
