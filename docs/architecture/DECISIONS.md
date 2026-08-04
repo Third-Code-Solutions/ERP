@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-170 - Project collection reads are bounded and canary-gated (2026-08-04)
+
+Decision: expose project collection reads through Nest `GET /v1/projects`
+using a shared schema, verified tenant principal, explicit `project.read`,
+bounded query filters, allowlisted sorting, and deterministic pagination.
+Adopt from Next only through an exact flag plus tenant UUID allowlist; fail
+closed if returned tenant/page/limit identity differs.
+
+Reason: list reads are a high-volume ERP surface and must move toward the core
+authority without a big-bang rewrite, cross-tenant leakage, unbounded search,
+or hidden fallback to a second authority.
+
+Boundary: source-only milestone. Direct server-side DB reads remain default;
+no Supabase schema/data, Storage, Railway setting, or Vercel build changed.
+
 ## D-169 - Redis is a shared exported Nest module (2026-08-04)
 
 Decision: move the existing Redis client factory and shutdown lifecycle out of

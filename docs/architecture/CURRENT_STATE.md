@@ -4,6 +4,26 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.60 Nest project collection read contract (source complete, 2026-08-04)
+
+Added a bounded `GET /v1/projects` contract with explicit `project.read`
+authorization, verified-principal tenant scope, search/status/type filters,
+stable sorting, and capped page/limit pagination. The Projects page can use
+it only when `ERP_PROJECT_LISTS_VIA_API=true` and its tenant is allowlisted;
+the default direct query remains unchanged. The Next adapter rejects wrong
+tenant rows or page/limit drift instead of falling back silently.
+
+Changed files: shared project list schemas/tests, Nest list pipe/controller/
+service/tests, Next core client/project query adapter/tests, environment
+examples/documentation. Validation: API 62 files/318 tests, shared types
+15/167, Web 75/484, API/Web typecheck, API build, Web 80/80 production build,
+root lint, and `git diff --check`. No Supabase SQL/data, Storage, Railway
+setting/deployment, or Vercel build changed.
+
+Next action: keep `ERP_PROJECT_LISTS_VIA_API=false` and its tenant allowlist
+empty. Push once, then verify the Railway source identity/readiness; defer a
+protected tenant canary until the supported Supabase duplicate-PO replay gate.
+
 ## M3.59 Railway Nest Redis module wiring (source fix, 2026-08-04)
 
 The first M3.58 Railway deployment built successfully but failed its `/ready`

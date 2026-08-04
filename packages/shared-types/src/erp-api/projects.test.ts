@@ -2,10 +2,56 @@ import { describe, expect, it } from 'vitest'
 import {
   createProjectCommandSchema,
   projectCreationResultSchema,
+  projectListQuerySchema,
+  projectListResultSchema,
   projectReadResultSchema,
 } from './projects'
 
 describe('project core API contract', () => {
+  it('normalizes bounded project list query defaults', () => {
+    expect(projectListQuerySchema.parse({})).toEqual({
+      sort: 'created_at',
+      order: 'desc',
+      page: 1,
+      limit: 20,
+    })
+    expect(
+      projectListQuerySchema.parse({
+        q: '  hotel ',
+        status: 'active',
+        projectType: 'fit_out',
+        sort: 'name',
+        order: 'asc',
+        page: '2',
+        limit: '50',
+      })
+    ).toMatchObject({
+      q: 'hotel',
+      status: 'active',
+      projectType: 'fit_out',
+      sort: 'name',
+      order: 'asc',
+      page: 2,
+      limit: 50,
+    })
+  })
+
+  it('rejects unbounded or unknown project list query fields', () => {
+    expect(() => projectListQuerySchema.parse({ limit: '101' })).toThrow()
+    expect(() => projectListQuerySchema.parse({ cursor: 'secret' })).toThrow()
+  })
+
+  it('validates the tenant-scoped paginated result envelope', () => {
+    const result = projectListResultSchema.parse({
+      rows: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+      totalPages: 1,
+    })
+    expect(result.totalPages).toBe(1)
+  })
+
   it('normalizes omitted create fields to safe defaults', () => {
     expect(
       createProjectCommandSchema.parse({

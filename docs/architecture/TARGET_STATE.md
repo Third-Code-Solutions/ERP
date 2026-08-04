@@ -13,6 +13,19 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.60 Project collection read boundary (2026-08-04)
+
+The Projects collection must be readable through a stable Nest contract before
+the browser can migrate off direct database queries. The contract requires a
+verified principal, `project.read`, repeated tenant predicates, bounded
+filters, allowlisted sort columns, deterministic pagination, and a shared
+result envelope. The Next canary must validate tenant and pagination identity
+and fail closed on mismatch or unavailable authority.
+
+The source slice is complete with the flag disabled. No frontend build or
+hosted data action is implied; canary activation still requires protected
+browser, rollback, exact deployment, and spend evidence.
+
 ## M3.59 Nest Redis dependency boundary (2026-08-04)
 
 Redis transport must be owned by one global Nest module that exports the shared

@@ -1,5 +1,34 @@
 # Work Log
 
+## 2026-08-04 - M3.60 Nest project collection read contract
+
+Added the missing collection-read handoff. Nest now serves `GET /v1/projects`
+with explicit `project.read`, verified tenant scope, search/status/type
+filters, allowlisted sort/order, and capped page/limit pagination. The Next
+Projects page can opt in only for an allowlisted tenant; the legacy direct
+query remains the default, and the adapter rejects wrong-tenant rows or
+pagination drift.
+
+Changed files:
+
+- `packages/shared-types/src/erp-api/projects.ts` and tests
+- `apps/api/src/projects/project-list.pipe.ts` and tests
+- `apps/api/src/projects/projects.controller.ts`
+- `apps/api/src/projects/projects.service.ts` and tests
+- `apps/api/test/projects.e2e.spec.ts`
+- `apps/web/src/lib/erp-core-client.ts` and tests
+- `apps/web/src/lib/project-queries.ts` and tests
+- environment examples/docs and architecture memory files
+
+Results: API 62 files/318 tests; shared types 15/167; Web 75/484; API/Web
+typecheck; API build; Web 80/80 production build; root lint; `git diff --check`.
+No hosted SQL/data, Storage, Railway setting/deployment, or Vercel build
+changed.
+
+Rollback: leave `ERP_PROJECT_LISTS_VIA_API=false` and allowlist empty or revert
+the source commit; no hosted state requires repair. Next: push once, verify
+Railway identity/readiness, and keep the protected tenant canary closed.
+
 ## 2026-08-04 - M3.59 Railway Nest Redis module wiring
 
 The M3.58 Railway deployment built the API image but failed `/ready`. Railway

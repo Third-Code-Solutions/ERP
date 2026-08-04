@@ -40,6 +40,36 @@ export const projectReadResultSchema = projectCreationResultSchema.extend({
 
 export type ProjectReadResult = z.infer<typeof projectReadResultSchema>
 
+export const projectListSortValues = [
+  'created_at',
+  'name',
+  'status',
+] as const
+
+export const projectListQuerySchema = z
+  .object({
+    q: z.string().trim().max(255).optional(),
+    status: z.enum(projectStatusValues).optional(),
+    projectType: z.enum(projectTypeValues).optional(),
+    sort: z.enum(projectListSortValues).default('created_at'),
+    order: z.enum(['asc', 'desc']).default('desc'),
+    page: z.coerce.number().int().min(1).max(100_000).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .strict()
+
+export type ProjectListQuery = z.infer<typeof projectListQuerySchema>
+
+export const projectListResultSchema = z.object({
+  rows: z.array(projectReadResultSchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().min(1),
+  limit: z.number().int().min(1).max(100),
+  totalPages: z.number().int().min(1),
+})
+
+export type ProjectListResult = z.infer<typeof projectListResultSchema>
+
 export const updateProjectCommandSchema = z
   .object({
     name: z.string().trim().min(1).max(255),

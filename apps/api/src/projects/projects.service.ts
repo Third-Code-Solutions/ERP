@@ -17,14 +17,17 @@ import {
 import {
   createProjectCommandSchema,
   projectCreationResultSchema,
+  projectListResultSchema,
   projectReadResultSchema,
   type CreateProjectCommand,
+  type ProjectListQuery,
+  type ProjectListResult,
   type ProjectCreationResult,
   type ProjectReadResult,
   type ProjectUpdateResult,
   type UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
 import {
@@ -103,6 +106,61 @@ export class ProjectsService {
 
     if (!project) throw new NotFoundException('Project not found')
     return this.readResult(project)
+  }
+
+  async list(
+    query: ProjectListQuery,
+    principal: ErpPrincipal
+  ): Promise<ProjectListResult> {
+    const conditions = [eq(projects.tenant_id, principal.tenantId)]
+
+    if (query.q) {
+      const term = `%${query.q}%`
+      const search = or(
+        ilike(projects.name, term),
+        ilike(projects.client, term)
+      )
+      if (search) conditions.push(search)
+    }
+    if (query.status) conditions.push(eq(projects.status, query.status))
+    if (query.projectType) {
+      conditions.push(eq(projects.project_type, query.projectType))
+    }
+
+    const whereClause =
+      conditions.length === 1 ? conditions[0] : and(...conditions)
+    const sortColumn =
+      query.sort === 'name'
+        ? projects.name
+        : query.sort === 'status'
+          ? projects.status
+          : projects.created_at
+    const orderClause = query.order === 'asc' ? asc(sortColumn) : desc(sortColumn)
+    const offset = (query.page - 1) * query.limit
+
+    const [rows, countRows] = await Promise.all([
+      this.database.client
+        .select()
+        .from(projects)
+        .where(whereClause)
+        .orderBy(orderClause)
+        .limit(query.limit)
+        .offset(offset),
+      this.database.client
+        .select({ count: sql<number>`count(*)::int` })
+        .from(projects)
+        .where(whereClause),
+    ])
+
+    const total = Number(countRows[0]?.count ?? 0)
+    const totalPages = total === 0 ? 1 : Math.ceil(total / query.limit)
+    return projectListResultSchema.parse({
+      rows: rows.map((project) => this.readResult(project)),
+      total,
+      page: query.page,
+      limit: query.limit,
+      totalPages,
+    })
   }
 
   async create(
