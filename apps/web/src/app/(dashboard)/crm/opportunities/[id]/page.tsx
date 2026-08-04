@@ -1,18 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { and, eq, desc } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import {
-  opportunities,
-  accounts,
-  projects,
-  pprfSubmissions,
-  siteInspections,
-  designFiles,
-  changeRequests,
-} from '@third-code-erp/database/schema'
 import { formatCentsCompact } from '@third-code-erp/shared-types'
+import { getOpportunityDetail } from '@/lib/opportunity-queries'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -32,62 +22,19 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireUserProfile()
 
-  const [opp] = await db
-    .select({
-      id: opportunities.id,
-      stage: opportunities.stage,
-      tcv_cents: opportunities.tcv_cents,
-      gp_cents: opportunities.gp_cents,
-      probability: opportunities.probability,
-      weighted_tcv_cents: opportunities.weighted_tcv_cents,
-      area_sqm: opportunities.area_sqm,
-      opportunity_type: opportunities.opportunity_type,
-      closing_date: opportunities.closing_date,
-      account_id: opportunities.account_id,
-      project_id: opportunities.project_id,
-      account_name: accounts.name,
-      project_name: projects.name,
-    })
-    .from(opportunities)
-    .leftJoin(accounts, eq(opportunities.account_id, accounts.id))
-    .leftJoin(projects, eq(opportunities.project_id, projects.id))
-    .where(and(eq(opportunities.id, id), eq(opportunities.tenant_id, profile.tenantId)))
-    .limit(1)
+  const detail = await getOpportunityDetail(profile.tenantId, id)
+  if (!detail) notFound()
 
-  if (!opp) notFound()
+  const {
+    opp,
+    latestPprfVersion,
+    latestInspection,
+    designCount,
+    approvedDesignCount,
+    openCrCount,
+  } = detail
 
   const isWon = opp.stage === 'closed_won'
-
-  // Surface a few summary stats so the landing is meaningful even on
-  // brand-new opps: PPRF count, inspection status, design count, CR count.
-  const [pprfRows, inspectionRows, designRows, crRows] = await Promise.all([
-    db
-      .select({ version: pprfSubmissions.version })
-      .from(pprfSubmissions)
-      .where(eq(pprfSubmissions.opportunity_id, id))
-      .orderBy(desc(pprfSubmissions.version))
-      .limit(1),
-    db
-      .select({ id: siteInspections.id, status: siteInspections.status })
-      .from(siteInspections)
-      .where(eq(siteInspections.opportunity_id, id))
-      .orderBy(desc(siteInspections.created_at))
-      .limit(1),
-    db
-      .select({ id: designFiles.id, is_client_approved: designFiles.is_client_approved })
-      .from(designFiles)
-      .where(eq(designFiles.opportunity_id, id)),
-    db
-      .select({ id: changeRequests.id, resolved_at: changeRequests.resolved_at })
-      .from(changeRequests)
-      .where(eq(changeRequests.opportunity_id, id)),
-  ])
-
-  const latestPprfVersion = pprfRows[0]?.version ?? null
-  const latestInspection = inspectionRows[0] ?? null
-  const designCount = designRows.length
-  const approvedDesignCount = designRows.filter((d) => d.is_client_approved).length
-  const openCrCount = crRows.filter((c) => !c.resolved_at).length
 
   return (
     <div>
