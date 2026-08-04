@@ -41,6 +41,12 @@ const EXISTING = {
   updated_at: UPDATED_AT,
 }
 
+const READ_PROJECT = {
+  ...EXISTING,
+  account_id: '55555555-5555-4555-8555-555555555555',
+  created_by: PRINCIPAL.userId,
+}
+
 const COMMAND: UpdateProjectCommand = {
   name: 'Updated Project',
   client: 'Updated Client',
@@ -146,7 +152,54 @@ function harness(existingRows = [EXISTING], createEnabled = true) {
   }
 }
 
+function readHarness(rows = [READ_PROJECT]) {
+  const limit = vi.fn().mockResolvedValue(rows)
+  const where = vi.fn().mockReturnValue({ limit })
+  const from = vi.fn().mockReturnValue({ where })
+  const select = vi.fn().mockReturnValue({ from })
+  const database = {
+    client: { select },
+  } as unknown as DatabaseService
+  const service = new ProjectsService(
+    {} as import('@nestjs/config').ConfigService,
+    database,
+    {} as AuditService
+  )
+  return { service, select, where, limit }
+}
+
 describe('ProjectsService', () => {
+  it('reads a project only inside the authenticated tenant scope', async () => {
+    const probe = readHarness()
+
+    await expect(
+      probe.service.read(EXISTING.id, PRINCIPAL)
+    ).resolves.toEqual({
+      id: READ_PROJECT.id,
+      tenantId: PRINCIPAL.tenantId,
+      name: READ_PROJECT.name,
+      client: READ_PROJECT.client,
+      status: READ_PROJECT.status,
+      projectType: READ_PROJECT.project_type,
+      totalSqm: READ_PROJECT.total_sqm,
+      location: READ_PROJECT.location,
+      notes: READ_PROJECT.notes,
+      createdAt: READ_PROJECT.created_at.toISOString(),
+      updatedAt: READ_PROJECT.updated_at.toISOString(),
+      accountId: READ_PROJECT.account_id,
+      createdBy: READ_PROJECT.created_by,
+    })
+    expect(probe.limit).toHaveBeenCalledWith(1)
+  })
+
+  it('does not disclose a project outside the authenticated tenant', async () => {
+    const probe = readHarness([])
+
+    await expect(
+      probe.service.read(EXISTING.id, PRINCIPAL)
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
   it('requires a bounded Idempotency-Key before opening a transaction', async () => {
     const probe = harness()
     const command: CreateProjectCommand = {

@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { boms, invoices, opportunities, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
+import { boms, invoices, opportunities, purchaseOrders, users } from '@third-code-erp/database/schema'
 import { and, desc, eq, inArray, sum } from 'drizzle-orm'
 import { OpportunityPanel } from '@/components/opportunities/opportunity-panel'
 import { ProjectChat } from '@/components/ai/project-chat'
@@ -11,7 +11,7 @@ import { CortexEntityPanel } from '@/components/cortex/cortex-entity-panel'
 import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 import { EditProjectForm } from '@/components/projects/edit-project-form'
 import { ProjectCommandCenter } from '@/components/projects/project-command-center'
-import { getProjectCommandCenter } from '@/lib/project-queries'
+import { getProject, getProjectCommandCenter } from '@/lib/project-queries'
 import styles from './project-page.module.css'
 import {
   IconLayers,
@@ -58,10 +58,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
   if (!userRow?.tenant_id) return notFound()
 
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.tenant_id, userRow.tenant_id)))
+  const project = await getProject(userRow.tenant_id, id)
 
   if (!project) return notFound()
 

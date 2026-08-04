@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createProjectCommandSchema,
   projectCreationResultSchema,
+  projectReadResultSchema,
 } from './projects'
 
 describe('project core API contract', () => {
@@ -45,6 +46,26 @@ describe('project core API contract', () => {
       notes: null,
       createdAt: '2026-08-04T00:00:00.000Z',
       updatedAt: '2026-08-04T00:00:00.000Z',
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('keeps project read ownership metadata explicit', () => {
+    const result = projectReadResultSchema.safeParse({
+      id: '33333333-3333-4333-8333-333333333333',
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      name: 'Site Alpha',
+      client: 'Acme',
+      status: 'active',
+      projectType: 'mep',
+      totalSqm: 250,
+      location: 'Makati',
+      notes: null,
+      createdAt: '2026-08-04T00:00:00.000Z',
+      updatedAt: '2026-08-04T00:00:00.000Z',
+      accountId: null,
+      createdBy: '11111111-1111-4111-8111-111111111111',
     })
 
     expect(result.success).toBe(true)

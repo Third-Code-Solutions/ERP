@@ -4,6 +4,29 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.58 Nest project detail read contract (source-only, 2026-08-04)
+
+Added a tenant- and role-authorized `GET /v1/projects/:id` contract to the Nest
+modular monolith. The response is a shared, camelCase read model with explicit
+tenant, account, creator, and timestamp fields. The project detail page can use
+the contract only when `ERP_PROJECT_READS_VIA_API=true` and its tenant UUID is
+allowlisted; the default path remains the existing server-side tenant-scoped
+read. The adapter rejects a mismatched project or tenant instead of falling
+back across the authority boundary.
+
+Changed files: Nest project controller/service/capability map and tests,
+shared project read schema, Next core client/project query adapter/detail page,
+environment examples, and environment documentation. Validation: focused API
+26/26, shared types 4/4, Web core/project reads 77/77, full Web 75/479,
+shared types 15/164, API typecheck/build, Web typecheck/build, workspace lint,
+and `git diff --check`. A concurrent full API run had one existing procurement
+controller timeout (311/312); isolated rerun passed 8/8. No hosted SQL/data,
+Storage, provider setting, Railway setting, or Vercel build changed.
+
+Next action: keep the read flag false/empty. Obtain the supported Supabase
+backup/export and owner-approved duplicate-PO mapping, then run the disposable
+PostgreSQL 17 replay before any hosted migration or tenant canary.
+
 ## M3.57 Stale Supabase refresh-token recovery (source-only, 2026-08-04)
 
 Vercel read-only runtime errors showed two /middleware failures with

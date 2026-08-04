@@ -13,6 +13,17 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.58 Project detail read target (2026-08-04)
+
+Project detail reads may move from the Next compatibility query to Nest only
+through an exact flag plus tenant UUID allowlist. Nest must derive the caller
+from the verified Supabase principal, require the explicit `project.read`
+capability, repeat `project_id` and `tenant_id` predicates, and serialize a
+stable shared read model. The Next adapter must reject mismatched identity or
+tenant data and must not silently fall back to a different authority when the
+canary is enabled. Default behavior remains unchanged until protected browser,
+deployment identity, rollback, and spend evidence are recorded.
+
 ## M3.57 Auth-session recovery target (2026-08-04)
 
 Stale or revoked Supabase refresh tokens must be recoverable at the middleware

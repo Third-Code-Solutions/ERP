@@ -111,6 +111,70 @@ describe('Projects API contract', () => {
   )
 
   it(
+    'reads a Project through the tenant-scoped GET contract',
+    async () => {
+      const read = vi.fn().mockResolvedValue({
+        id: PROJECT_ID,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        name: 'Read Project',
+        client: 'Read Client',
+        status: 'active',
+        projectType: 'mep',
+        totalSqm: 125,
+        location: 'Makati',
+        notes: null,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T00:00:00.000Z',
+        accountId: null,
+        createdBy: '11111111-1111-4111-8111-111111111111',
+      })
+      const moduleRef = await Test.createTestingModule({
+        controllers: [ProjectsController],
+        providers: [
+          {
+            provide: ProjectsService,
+            useValue: { read },
+          },
+        ],
+      }).compile()
+      const app = moduleRef.createNestApplication()
+      app.use(
+        (
+          req: Request,
+          _res: Response,
+          next: NextFunction
+        ) => {
+          ;(req as AuthenticatedRequest).principal = {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId:
+              '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          }
+          next()
+        }
+      )
+      await app.init()
+      close = () => app.close()
+
+      const response = await request(app.getHttpServer())
+        .get(`/v1/projects/${PROJECT_ID}`)
+        .expect(200)
+
+      expect(response.body).toMatchObject({
+        id: PROJECT_ID,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        name: 'Read Project',
+      })
+      expect(read).toHaveBeenCalledWith(
+        PROJECT_ID,
+        expect.objectContaining({ role: 'viewer' })
+      )
+    },
+    HTTP_TEST_TIMEOUT_MS
+  )
+
+  it(
     'preserves the Project update HTTP contract for existing UUID formats',
     async () => {
       const update = vi.fn().mockResolvedValue({

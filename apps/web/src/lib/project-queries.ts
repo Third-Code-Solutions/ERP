@@ -11,6 +11,10 @@ import {
 } from '@third-code-erp/database/schema'
 import { eq, desc, asc, and, or, ilike, sql, type SQL, count, inArray } from 'drizzle-orm'
 import type { Project, ProgressUpdate } from '@third-code-erp/database/schema'
+import {
+  getProjectThroughCoreApi,
+  projectReadsUseCoreApi,
+} from './erp-core-client'
 
 export type { Project }
 
@@ -78,6 +82,24 @@ export async function getProjects(tenantId: string) {
 }
 
 export async function getProject(tenantId: string, projectId: string) {
+  if (projectReadsUseCoreApi(tenantId)) {
+    const result = await getProjectThroughCoreApi(projectId)
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Project data was not read')
+    }
+    if (
+      result.data.id !== projectId ||
+      result.data.tenantId !== tenantId
+    ) {
+      throw new Error('Project read returned an invalid tenant scope')
+    }
+    return projectReadResultToRow(result.data)
+  }
+
+  return getProjectDirect(tenantId, projectId)
+}
+
+async function getProjectDirect(tenantId: string, projectId: string) {
   const [row] = await db
     .select()
     .from(projects)
@@ -90,6 +112,26 @@ export async function getProject(tenantId: string, projectId: string) {
     .limit(1)
 
   return row ?? null
+}
+
+export function projectReadResultToRow(
+  result: import('@third-code-erp/shared-types').ProjectReadResult
+): Project {
+  return {
+    id: result.id,
+    tenant_id: result.tenantId,
+    account_id: result.accountId,
+    name: result.name,
+    client: result.client,
+    location: result.location,
+    project_type: result.projectType,
+    status: result.status,
+    total_sqm: result.totalSqm,
+    notes: result.notes,
+    created_by: result.createdBy,
+    created_at: new Date(result.createdAt),
+    updated_at: new Date(result.updatedAt),
+  }
 }
 
 /**

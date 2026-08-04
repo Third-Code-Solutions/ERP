@@ -17,8 +17,10 @@ import {
 import {
   createProjectCommandSchema,
   projectCreationResultSchema,
+  projectReadResultSchema,
   type CreateProjectCommand,
   type ProjectCreationResult,
+  type ProjectReadResult,
   type ProjectUpdateResult,
   type UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
@@ -83,6 +85,25 @@ export class ProjectsService {
     @Inject(AuditService)
     private readonly audit: AuditService
   ) {}
+
+  async read(
+    projectId: string,
+    principal: ErpPrincipal
+  ): Promise<ProjectReadResult> {
+    const [project] = await this.database.client
+      .select()
+      .from(projects)
+      .where(
+        and(
+          eq(projects.id, projectId),
+          eq(projects.tenant_id, principal.tenantId)
+        )
+      )
+      .limit(1)
+
+    if (!project) throw new NotFoundException('Project not found')
+    return this.readResult(project)
+  }
 
   async create(
     command: CreateProjectCommand,
@@ -302,6 +323,25 @@ export class ProjectsService {
       createdAt: project.created_at.toISOString(),
       updatedAt: project.updated_at.toISOString(),
     }
+  }
+
+  private readResult(project: Project): ProjectReadResult {
+    const result = {
+      id: project.id,
+      tenantId: project.tenant_id,
+      name: project.name,
+      client: project.client,
+      status: project.status,
+      projectType: project.project_type,
+      totalSqm: project.total_sqm,
+      location: project.location,
+      notes: project.notes,
+      createdAt: project.created_at.toISOString(),
+      updatedAt: project.updated_at.toISOString(),
+      accountId: project.account_id,
+      createdBy: project.created_by,
+    }
+    return projectReadResultSchema.parse(result)
   }
 
   private result(project: Project): ProjectUpdateResult {
