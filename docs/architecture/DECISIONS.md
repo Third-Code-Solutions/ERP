@@ -12,8 +12,10 @@ Reason: list reads are a high-volume ERP surface and must move toward the core
 authority without a big-bang rewrite, cross-tenant leakage, unbounded search,
 or hidden fallback to a second authority.
 
-Boundary: source-only milestone. Direct server-side DB reads remain default;
-no Supabase schema/data, Storage, Railway setting, or Vercel build changed.
+Boundary: direct server-side DB reads remain default. Source commit
+`78ad5f63` is live on Railway with `/ready`, `/health`, and 401 boundary
+evidence; no Supabase schema/data, Storage, Railway setting, or Vercel build
+changed.
 
 ## D-169 - Redis is a shared exported Nest module (2026-08-04)
 

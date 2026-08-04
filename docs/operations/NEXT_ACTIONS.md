@@ -1,15 +1,13 @@
 # Next Actions
 
-## Exact next action after M3.60 Nest project collection read contract
+## Exact next action after M3.60 Nest project collection read contract (Railway verified)
 
 1. Keep `ERP_PROJECT_LISTS_VIA_API=false` and
-   `ERP_PROJECT_LISTS_VIA_API_TENANT_IDS` empty; source tests are not a tenant
-   canary or browser release.
-2. Commit and push this source/docs slice once as `kurtgav`; do not trigger a
-   Vercel build or reconnect Vercel Git.
-3. Verify the exact Railway deployment/source SHA, `/ready`, `/health`, and
-   unauthenticated `GET /v1/projects` 401 boundary.
-4. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain the
+   `ERP_PROJECT_LISTS_VIA_API_TENANT_IDS` empty; this is not a tenant canary or
+   browser release.
+2. Preserve the spend guard: do not trigger a Vercel build or reconnect Vercel
+   Git. Current Vercel audit window has zero deployments.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain the
    supported backup/export, dependent/audit export, owner mapping for the
    duplicate `PO-0002` group, and disposable PostgreSQL 17 replay before any
    hosted migration or protected read canary.

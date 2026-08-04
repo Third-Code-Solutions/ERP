@@ -22,9 +22,10 @@ filters, allowlisted sort columns, deterministic pagination, and a shared
 result envelope. The Next canary must validate tenant and pagination identity
 and fail closed on mismatch or unavailable authority.
 
-The source slice is complete with the flag disabled. No frontend build or
-hosted data action is implied; canary activation still requires protected
-browser, rollback, exact deployment, and spend evidence.
+The source slice is complete and its API source SHA is live on Railway with
+readiness and authorization-boundary evidence. The flag remains disabled. No
+frontend build or hosted data action is implied; canary activation still
+requires protected browser, rollback, exact deployment, and spend evidence.
 
 ## M3.59 Nest Redis dependency boundary (2026-08-04)
 
