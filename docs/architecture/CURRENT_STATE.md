@@ -19,8 +19,12 @@ Both project-create flags remain false/empty by default:
 allowlist, and `ERP_PROJECT_CREATE_WRITES_VIA_API=false` plus its frontend
 allowlist. A durable idempotency ledger/replay contract, two-tenant database
 and Redis evidence, rollback/recovery proof, and provider approval are still
-required before a canary. No hosted SQL, migration ledger row, Railway
-variable, Vercel build, or domain promotion changed.
+required before a canary. Supabase hosted SQL, migration history, Storage,
+business data, and Railway variables were unchanged. The GitHub-connected
+Railway main-branch check automatically deployed the API as
+`36530493-b9a9-4c1e-9c7a-dd0671a198ed` and reported success; live `/ready` and
+`/health` remained HTTP 200. No Vercel build, promotion, or domain change was
+performed.
 
 Evidence: shared 162/162; API serial 57 files / 291 tests; web 438/438;
 lint/typecheck passed; production build generated 78/78 pages. A parallel
