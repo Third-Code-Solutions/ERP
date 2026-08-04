@@ -15,7 +15,9 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   configureInventoryItemThroughCoreApi,
+  createInventoryUomThroughCoreApi,
   createStockReceiptThroughCoreApi,
+  inventoryUomCreateWritesUseCoreApi,
   inventoryItemConfigurationWritesUseCoreApi,
   postStockReceiptThroughCoreApi,
   reverseStockReceiptThroughCoreApi,
@@ -80,6 +82,8 @@ function safeInventoryError(error: unknown): string {
     'Item stock identity is immutable after posting',
     'Active UOM not found',
     'Item not found',
+    'UOM code already exists',
+    'Inventory UOM was not created',
   ]
   if (message.includes('ux_units_of_measure_tenant_code')) {
     return 'That UOM code already exists.'
@@ -123,6 +127,20 @@ export async function createUnitOfMeasure(
         name: formData.get('name'),
         decimalPlaces: formData.get('decimalPlaces') ?? 0,
       })
+
+    if (inventoryUomCreateWritesUseCoreApi(profile.tenantId)) {
+      const result = await createInventoryUomThroughCoreApi(input)
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Inventory UOM could not be created through ERP Core.',
+        }
+      }
+      revalidateInventory()
+      return { ok: true, id: result.data.uomId }
+    }
 
     await db.insert(unitsOfMeasure).values({
       tenant_id: profile.tenantId,

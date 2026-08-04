@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   configureInventoryItemCommandSchema,
+  createInventoryUomCommandSchema,
   createStockReceiptCommandSchema,
+  inventoryUomCreationResultSchema,
   inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
   quantityToMicros,
@@ -70,6 +72,40 @@ const ITEM_CONFIGURATION = {
   unit: 'EA',
   updatedAt: '2026-08-05T00:00:00.000Z',
 } as const
+
+const UOM_CREATION = {
+  uomId: '66666666-6666-4666-8666-666666666666',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  code: 'EA',
+  name: 'Each',
+  decimalPlaces: 0,
+  isActive: true,
+  createdAt: '2026-08-05T00:00:00.000Z',
+  updatedAt: '2026-08-05T00:00:00.000Z',
+} as const
+
+describe('Inventory UOM creation contract', () => {
+  it('accepts strict setup data and rejects browser identity fields', () => {
+    expect(
+      createInventoryUomCommandSchema.parse({
+        code: ' EA ',
+        name: ' Each ',
+        decimalPlaces: 0,
+      })
+    ).toEqual({ code: 'EA', name: 'Each', decimalPlaces: 0 })
+    expect(inventoryUomCreationResultSchema.parse(UOM_CREATION)).toEqual(
+      UOM_CREATION
+    )
+    expect(() =>
+      createInventoryUomCommandSchema.parse({
+        code: 'EA',
+        name: 'Each',
+        decimalPlaces: 0,
+        tenantId: UOM_CREATION.tenantId,
+      })
+    ).toThrow()
+  })
+})
 
 describe('Inventory item configuration contract', () => {
   it('accepts a strict state-setting command and result', () => {

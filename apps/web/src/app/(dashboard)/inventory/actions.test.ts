@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   inventoryItemConfigurationWritesUseCoreApi: vi.fn(),
   configureInventoryItemThroughCoreApi: vi.fn(),
+  inventoryUomCreateWritesUseCoreApi: vi.fn(),
+  createInventoryUomThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -61,6 +63,8 @@ vi.mock('@/lib/erp-core-client', () => ({
     mocks.inventoryItemConfigurationWritesUseCoreApi,
   configureInventoryItemThroughCoreApi:
     mocks.configureInventoryItemThroughCoreApi,
+  inventoryUomCreateWritesUseCoreApi: mocks.inventoryUomCreateWritesUseCoreApi,
+  createInventoryUomThroughCoreApi: mocks.createInventoryUomThroughCoreApi,
 }))
 
 vi.mock('next/cache', () => ({
@@ -69,6 +73,7 @@ vi.mock('next/cache', () => ({
 
 import {
   configureInventoryItem,
+  createUnitOfMeasure,
   createStockReceipt,
   postStockReceipt,
   reverseStockReceipt,
@@ -285,6 +290,51 @@ describe('Inventory item configuration migration switch', () => {
       ITEM_ID,
       { uomId: UOM_ID, tracked: true }
     )
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/inventory')
+  })
+})
+
+describe('Inventory UOM creation migration switch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.requireUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      role: 'procurement',
+      user: { id: ACTOR_ID },
+    })
+    mocks.requireCapability.mockReturnValue(undefined)
+    mocks.inventoryUomCreateWritesUseCoreApi.mockReturnValue(true)
+    mocks.createInventoryUomThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        uomId: UOM_ID,
+        tenantId: TENANT_ID,
+        code: 'EA',
+        name: 'Each',
+        decimalPlaces: 0,
+        isActive: true,
+        createdAt: '2026-08-05T00:00:00.000Z',
+        updatedAt: '2026-08-05T00:00:00.000Z',
+      },
+    })
+  })
+
+  it('routes enabled tenants through Nest without a direct database write', async () => {
+    const data = new FormData()
+    data.set('code', ' EA ')
+    data.set('name', ' Each ')
+    data.set('decimalPlaces', '0')
+
+    await expect(createUnitOfMeasure(data)).resolves.toEqual({
+      ok: true,
+      id: UOM_ID,
+    })
+    expect(mocks.createInventoryUomThroughCoreApi).toHaveBeenCalledWith({
+      code: 'EA',
+      name: 'Each',
+      decimalPlaces: 0,
+    })
     expect(mocks.transaction).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/inventory')
   })

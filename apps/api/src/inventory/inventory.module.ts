@@ -10,6 +10,9 @@ import { InventorySummaryService } from './inventory-summary.service'
 import { InventoryItemConfigurationController } from './inventory-item-configuration.controller'
 import { InventoryItemConfigurationPipe } from './inventory-item-configuration.pipe'
 import { InventoryItemConfigurationService } from './inventory-item-configuration.service'
+import { InventoryUomController } from './inventory-uom.controller'
+import { InventoryUomCreatePipe } from './inventory-uom-create.pipe'
+import { InventoryUomCreationService } from './inventory-uom-creation.service'
 import { StockReceiptController } from './stock-receipt.controller'
 import { StockReceiptCreatePipe } from './stock-receipt-create.pipe'
 import { StockReceiptCreationService } from './stock-receipt-creation.service'
@@ -25,11 +28,14 @@ import { StockReceiptWorkflowService } from './stock-receipt-workflow.service'
     StockReceiptController,
     InventorySummaryController,
     InventoryItemConfigurationController,
+    InventoryUomController,
   ],
   providers: [
     InventorySummaryService,
     InventoryItemConfigurationService,
     InventoryItemConfigurationPipe,
+    InventoryUomCreationService,
+    InventoryUomCreatePipe,
     StockReceiptCreationService,
     StockReceiptCreatePipe,
     StockReceiptWorkflowService,
@@ -44,7 +50,8 @@ export class InventoryModule implements NestModule {
       .forRoutes(
         StockReceiptController,
         InventorySummaryController,
-        InventoryItemConfigurationController
+        InventoryItemConfigurationController,
+        InventoryUomController
       )
   }
 }

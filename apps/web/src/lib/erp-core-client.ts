@@ -34,6 +34,7 @@ import {
   publicSigningResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
+  inventoryUomCreationResultSchema,
   inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
   stockReceiptCreationResultSchema,
@@ -102,6 +103,8 @@ import {
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
   type InventorySummaryResult,
+  type CreateInventoryUomCommand,
+  type InventoryUomCreationResult,
   type ConfigureInventoryItemCommand,
   type InventoryItemConfigurationResult,
   type StockReceiptCreationResult,
@@ -246,6 +249,14 @@ export function inventoryItemConfigurationWritesUseCoreApi(
     tenantId,
     process.env.ERP_INVENTORY_ITEM_CONFIG_VIA_API,
     process.env.ERP_INVENTORY_ITEM_CONFIG_TENANT_IDS
+  )
+}
+
+export function inventoryUomCreateWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_UOM_CREATE_VIA_API,
+    process.env.ERP_INVENTORY_UOM_CREATE_TENANT_IDS
   )
 }
 
@@ -1200,6 +1211,54 @@ export async function configureInventoryItemThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No inventory item configuration was committed.',
+    }
+  }
+}
+
+export async function createInventoryUomThroughCoreApi(
+  command: CreateInventoryUomCommand
+): Promise<CoreResult<InventoryUomCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/inventory/uoms`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'content-type': 'application/json',
+        'x-request-id': randomUUID(),
+      },
+      body: JSON.stringify(command),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    })
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'That UOM code already exists.'
+            : 'Inventory UOM was not created.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = inventoryUomCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid inventory UOM result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No inventory UOM was created.',
     }
   }
 }
