@@ -16,7 +16,10 @@ its explicit server flag and tenant allowlist are enabled.
 Validation passed: shared 162/162, API serial 57 files / 291 tests, web
 438/438, lint, typecheck, and Next production build 78/78 pages. The parallel
 test run exposed two unrelated 5-second API contention timeouts; the serial
-Turbo run passed. No hosted provider mutation occurred.
+Turbo run passed. Supabase hosted SQL, migration history, Storage, and data
+were not mutated. The connected Railway main-branch check automatically
+deployed this source at `36530493-b9a9-4c1e-9c7a-dd0671a198ed` and reported
+success; no Railway variable changed. No Vercel build or promotion occurred.
 
 Exact next slice: add a tenant-scoped durable project-create idempotency
 ledger (request key, request hash, state, result), prove replay/conflict and

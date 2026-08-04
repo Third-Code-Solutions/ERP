@@ -13,8 +13,10 @@ allowlist are enabled.
 Reason: this is the smallest behavior-preserving vertical slice that moves
 authority into the modular monolith without a big-bang rewrite. Idempotency,
 replay/conflict handling, and two-tenant evidence are not yet present, so
-production enablement would be unsafe. Both flags remain false and no hosted
-provider was mutated.
+production enablement would be unsafe. Both flags remain false. Supabase and
+Vercel were not mutated; the GitHub-connected Railway main push performed the
+normal API deployment check (`36530493-b9a9-4c1e-9c7a-dd0671a198ed`, success)
+without changing variables.
 
 ## D-146 - Diagnose live Vercel incidents before a spend-bounded promotion (2026-08-04)
 

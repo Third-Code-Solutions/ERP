@@ -13,8 +13,10 @@ closed rather than falling back.
 Validation: shared 162/162; API serial 57 files / 291 tests; web 438/438;
 lint/typecheck; production build 78/78 pages; `git diff --check` clean. A
 parallel test invocation had two unrelated API 5-second contention timeouts;
-the serial Turbo invocation passed. No Supabase SQL/data/Storage, Railway
-variable, Vercel build, Git reconnection, or domain promotion was performed.
+the serial Turbo invocation passed. Supabase SQL/data/Storage and Railway
+variables were unchanged. The GitHub-connected Railway main push completed
+deployment `36530493-b9a9-4c1e-9c7a-dd0671a198ed` successfully; no Vercel build,
+Git reconnection, or domain promotion was performed.
 
 Exact next action: add durable tenant-scoped project-create idempotency and
 replay/conflict tests before any canary or hosted migration.

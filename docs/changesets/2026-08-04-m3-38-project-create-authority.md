@@ -27,8 +27,10 @@ monolith without changing the default live behavior.
 
 ## Release boundary
 
-No Supabase hosted SQL, migration ledger row, Storage object, Railway variable,
-Vercel build, Git reconnection, or domain promotion was performed. Next gate:
+No Supabase hosted SQL, migration ledger row, Storage object, or Railway
+variable changed. The connected Railway main push automatically completed API
+deployment `36530493-b9a9-4c1e-9c7a-dd0671a198ed` successfully. No Vercel build,
+Git reconnection, or domain promotion was performed. Next gate:
 durable tenant-scoped idempotency/replay, two-tenant PostgreSQL/Redis evidence,
 rollback/recovery, catalog/data/RLS/backup proof, and owner/provider/spend
 approval before a canary.
