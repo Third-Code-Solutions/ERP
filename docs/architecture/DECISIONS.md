@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-185 - Stock Movement draft creation is idempotent and canary-gated (2026-08-05)
+
+Decision: expose only draft creation through Nest
+`POST /v1/inventory/stock-movements`. Derive tenant and actor from the
+verified principal; recheck `inventory.manage` under a membership lock;
+validate the existing database Warehouse/Project/Item/Cost Code invariants;
+use exact integer conversions; claim a tenant/key/request-hash idempotency
+record; create the draft and lines in one transaction; and write semantic
+audit evidence. Posting, reversal, and deletion remain database workflows.
+
+Next may select the adapter only when
+`ERP_INVENTORY_STOCK_MOVEMENT_CREATE_VIA_API=true` and the tenant UUID is in
+`ERP_INVENTORY_STOCK_MOVEMENT_CREATE_TENANT_IDS`; the API additionally
+requires the write flag and matching allowlist. All remain disabled/empty.
+Source SHA `3b920185fdc438dfc5dd5972f738ea9e0a1d7e30` is Railway deployment
+`e231fe1f-bd37-4e68-bef9-a2d26e0c1061` with healthy readiness and an
+unauthenticated 401 boundary. The idempotency migration is source-only;
+Supabase remains read-only and Vercel untouched. Rollback is the disabled
+adapter/command flags or prior API deployment.
+
 ## D-184 - Stock Movement detail reads are exact and independently canary-gated (2026-08-05)
 
 Decision: expose Stock Movement detail discovery through Nest only. The route

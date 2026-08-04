@@ -29,8 +29,8 @@ or repairs migration history.
 Verified 2026-08-05 against the authorized Supabase target:
 
 - PostgreSQL 17 (`server_version_num = 170006`).
-- 55 hosted versions are recorded as applied; the source ledger contains 88.
-- The hosted ledger is an exact prefix of source, with 33 ordered source
+- 55 hosted versions are recorded as applied; the source ledger contains 89.
+- The hosted ledger is an exact prefix of source, with 34 ordered source
   versions pending review. No unexpected or out-of-order versions exist.
 - The source suffix has no `DROP TABLE`, `DELETE FROM`, `TRUNCATE`, or data
   update statements; it contains 27 `drop-object` risk findings and six

@@ -1,5 +1,34 @@
 # Migration Plan
 
+## M3.75 - Stock Movement draft creation authority (2026-08-05)
+
+Implemented `POST /v1/inventory/stock-movements` as a fail-closed Nest command
+for draft creation. It uses a tenant-scoped idempotency ledger, one database
+transaction for membership lock, invariant checks, draft/line inserts, result
+completion, and semantic audit. Shared types preserve exact quantities/money;
+the Next form keeps one retry key and the Core adapter has no direct-write
+fallback when selected. Posting/reversal/delete remain unchanged.
+
+Validation: shared 17/192; API 85/378 (isolated single-worker run); Web
+86/537; database 42 files, 169 active tests, and 140 environment-skipped
+tests; typecheck; serial lint; local Nest/Web production builds; focused
+tests; `git diff --check`; and a read-only database release plan. Source
+commit `3b920185fdc438dfc5dd5972f738ea9e0a1d7e30` is pushed to both target
+refs. Railway deployment `e231fe1f-bd37-4e68-bef9-a2d26e0c1061` is `SUCCESS`
+for that exact SHA; live `/ready` and `/health` are 200 and unauthenticated
+command access is 401. No Vercel build/deploy or hosted Supabase write was
+triggered.
+
+Migration state: hosted Supabase remains an exact prefix at 55/89, with 34
+ordered source migrations pending and status `review_required`. The new
+`20260805110000_stock_movement_create_idempotency.sql` is source-only. The
+planner found 27 `drop-object` and six transaction-control risk findings in
+the pending suffix; no SQL executed.
+
+Rollback: leave both Stock Movement create flags false and tenant lists empty,
+or revert to the prior successful Railway API deployment. The legacy direct
+Server Action remains available; no hosted state requires repair.
+
 ## M3.74 - Stock Movement detail read authority (2026-08-05)
 
 Implemented `GET /v1/inventory/stock-movements/:movementId` as a strict
