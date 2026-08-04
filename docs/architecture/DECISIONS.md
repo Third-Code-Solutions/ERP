@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-145 - Fix supplier-issued payload drift with a forward-only constraint migration (2026-08-04)
+
+Decision: preserve the strict supplier-issued outbox contract and add
+`20260803170000_purchase_order_supplier_session_payload.sql` after the
+session-minting migration. Allow only the required keys plus the optional
+`vendor_confirmation_session_id`, whose JSON value must be absent, null, or a
+UUID. Do not edit the earlier migration or weaken the check.
+
+Reason: the disposable replay caught a production-relevant mismatch between
+the Nest payload schema and PostgreSQL constraint. A forward-only replacement
+is replay-safe for fresh clones and existing targets, keeps unknown data out of
+durable notification intent, and makes the failure visible before hosted
+mutation.
+
 ## D-144 - Treat authenticated demo-browser proof as non-production evidence (2026-08-04)
 
 Decision: retain browser E2E coverage for session redirects, API 401 JSON,

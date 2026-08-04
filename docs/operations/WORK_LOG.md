@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-08-04 - M3.36 supplier-issued outbox replay and correction
+
+Ran the disposable PostgreSQL 17 + Redis lane after the M3.35 browser proof.
+The first attempt applied the source migrations but failed the Purchase Order
+workflow integration because `notification_outbox` rejected the optional
+`vendor_confirmation_session_id` emitted by `scm_issue`. This was a source
+contract defect, not a hosted/provider failure.
+
+Added `supabase/migrations/20260803170000_purchase_order_supplier_session_payload.sql`
+as a forward-only constraint replacement and extended
+`packages/database/src/__tests__/notification-outbox.test.ts` to lock the
+allowlist and UUID/null contract. Focused tests passed database 8/8 and shared
+procurement 21/21. Corrected replay passed 86/86 migrations, schema hash
+`DDBBB7421C09146F9F34B816679135F6D33EBCB19BF10996C5F187B87606C91D`, database
+300/300 without skips, and API integration 15 files / 22 tests. Root lint,
+typecheck, full tests, and production build passed. The local lane was stopped.
+
+No Supabase SQL/data/Storage, Railway setting/deployment, or Vercel deployment
+changed. Ordinary non-`DATABASE_URL` tests still show their documented 137
+database skips; Redis printed only its local memory-overcommit warning.
+
+Exact next action: complete the controlled source push/review, then keep
+hosted migration/deployment blocked pending backup/restore, catalog/data/RLS,
+duplicate/audit/rollback, owner, provider, and spend gates.
+
 ## 2026-08-04 - M3.35 authenticated Cortex browser proof
 
 Restarted stale local Next.js cache after `/auth/login` exposed
