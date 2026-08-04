@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.74 - Stock Movement detail read authority (2026-08-05)
+
+Implemented `GET /v1/inventory/stock-movements/:movementId` as a strict
+tenant-scoped Nest read for the movement header, bounded lines, and immutable
+ledger evidence. Timestamps are normalized to UTC ISO strings; quantities and
+money remain exact strings. The Next detail page uses an independently gated
+Core adapter and retains its legacy read by default; posting, reversal, and
+delete actions were not moved. No migration was added.
+
+Validation: shared 17/185; API 83/370 (isolated single-worker run); Web
+85/532; database 41 files, 168 active tests, and 140 environment-skipped
+tests; typecheck; serial lint; local production build; focused tests; and
+`git diff --check`. Source commit
+`a693e15fafc4b4b5d2df4f3fd6bef6f72015d702` is pushed to both target refs.
+Railway deployment `a62a237e-2a82-4a40-88ca-2354011d3c9d` is `SUCCESS` for
+that exact SHA; live `/ready` and `/health` are 200 and unauthenticated detail
+access is 401. No Vercel build/deploy or hosted Supabase write was triggered.
+
+Rollback: leave the detail Core flag false and tenant list empty, or revert to
+the prior successful API deployment. The existing compatibility read/actions
+remain available; no hosted state requires repair.
+
 ## M3.73 - Inventory Stock Movement register read (2026-08-05)
 
 Implemented a bounded, tenant-scoped Nest read at

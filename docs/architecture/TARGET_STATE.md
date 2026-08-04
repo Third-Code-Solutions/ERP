@@ -13,6 +13,24 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.74 Stock Movement detail read authority (2026-08-05)
+
+Stock Movement detail is a read-only Nest authority. It must return one
+tenant-scoped movement header plus bounded line and ledger evidence, require
+`inventory.read`, normalize timestamps to an explicit UTC ISO contract, and
+keep quantities/money exact across the API boundary. Next adoption is
+independent from the register gate:
+`ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API=true` plus a strict tenant
+UUID allowlist. The compatibility query remains the default until protected
+browser canary, rollback, and hosted migration parity are approved. Existing
+post/reverse/delete actions remain outside this read seam.
+
+Source SHA `a693e15fafc4b4b5d2df4f3fd6bef6f72015d702` is live on Railway as
+successful deployment `a62a237e-2a82-4a40-88ca-2354011d3c9d`; `/ready` and
+`/health` are 200 and unauthenticated detail access is 401. Supabase is
+read-only at 55/88 with 33 source migrations pending; no Vercel deployment is
+implied.
+
 ## M3.73 Inventory Stock Movement register read (2026-08-05)
 
 Stock Movement discovery is a read-only Nest authority with a strict shared

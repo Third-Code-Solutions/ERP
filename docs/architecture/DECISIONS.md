@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-184 - Stock Movement detail reads are exact and independently canary-gated (2026-08-05)
+
+Decision: expose Stock Movement detail discovery through Nest only. The route
+derives tenant scope from the verified principal, requires `inventory.read`,
+repeats tenant predicates on header/line/ledger joins, bounds evidence, and
+returns UTC ISO timestamps plus exact integer strings for micro-units and cent
+values. It cannot post, reverse, delete, or approve a movement.
+
+Next adopts it only when
+`ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API=true` and the tenant UUID
+is in `ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_TENANT_IDS`; both remain
+disabled. Source SHA `a693e15fafc4b4b5d2df4f3fd6bef6f72015d702` is Railway
+deployment `a62a237e-2a82-4a40-88ca-2354011d3c9d` with healthy readiness and
+unauthenticated 401 evidence. No hosted migration/data or Vercel action is
+implied. Rollback is the disabled adapter flag or prior API deployment.
+
 ## D-183 - Stock Movement register reads are bounded and canary-gated (2026-08-05)
 
 Decision: expose only Stock Movement discovery through Nest

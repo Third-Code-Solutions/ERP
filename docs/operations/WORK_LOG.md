@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-05 - M3.74 Stock Movement detail read authority
+
+Moved the detail page’s three direct SQL reads into a bounded Nest read. The
+shared contract keeps timestamps explicit and quantities/money exact; Nest
+enforces tenant scope and `inventory.read`; Next uses an independently gated
+Core adapter with the existing read as default. Existing write actions and
+visible UI layout/copy are unchanged. No migration, hosted data, or provider
+setting changed.
+
+Results: shared 17/185; API 83 files/370 tests in an isolated single-worker
+run; Web 85/532; database 41 files with 168 active tests and 140 skipped
+without explicit `DATABASE_URL`; root typecheck; serial TS-only lint; local
+Nest/Web production build; focused detail tests; and `git diff --check`.
+
+Source commit `a693e15fafc4b4b5d2df4f3fd6bef6f72015d702` was pushed to both
+target GitHub refs under `kurtgav`. Railway deployment
+`a62a237e-2a82-4a40-88ca-2354011d3c9d` completed `SUCCESS` for that exact SHA
+with the API Dockerfile, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` returned 200 with
+database and Redis healthy; unauthenticated detail/list access returned 401.
+Supabase remains read-only at 55/88 with 33 pending source migrations. Vercel
+remains untouched to control spend; the detail Core read flag/list remain
+false/empty.
+
 ## 2026-08-05 - M3.73 inventory Stock Movement register read
 
 Implemented one read-only inventory vertical slice. Shared types define a
