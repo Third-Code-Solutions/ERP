@@ -25,6 +25,14 @@ the API rerun passed 58 files/300 tests, Web passed 69 files/458 tests,
 Database passed 41 files/166 tests, and Shared Types passed 15 files/163 tests.
 Database integration suites that require `DATABASE_URL` remain skipped.
 
+Post-push evidence for source `cfffa7a756609c49fa84b293ec71611c892182dd`:
+`main` and `agent-02/third-code-erp-landing` both point to the SHA and the
+GitHub `ERP - Third Code ERP API` check is `success`. The live Railway API
+reports `/ready` HTTP 200 with database/Redis `ok` and `/health` HTTP 200 with
+`ok`. Vercel remains `live:false`; its read-only deployment query returned
+zero new artifacts after the push. Supabase project status is
+`ACTIVE_HEALTHY`, with the same 55 applied migrations and no hosted mutation.
+
 ## M3.50 Cost-capped provider and migration audit (read-only, 2026-08-04)
 
 The reviewed application source checkpoint remains `386fd2a`; subsequent

@@ -15,9 +15,15 @@ package-isolated reruns pass API 58/300, Web 69/458, Database 41/166, and
 Shared Types 15/163. Database integration suites requiring `DATABASE_URL`
 remain skipped. Do not apply Supabase SQL or trigger Vercel for this slice.
 
-Next action: commit/push the source-only slice once,
-verify the exact GitHub/Railway result, and confirm Vercel still created zero
-deployments. Keep the hosted 55/87 migration boundary unchanged.
+The source-only slice was pushed once; keep the hosted 55/87 migration boundary
+unchanged.
+
+Completed provider check: source `cfffa7a756609c49fa84b293ec71611c892182dd`
+is on both target branches; GitHub's exact-SHA Railway check is `success`;
+live `/ready` and `/health` are healthy; Vercel returned zero deployments; and
+Supabase remains `ACTIVE_HEALTHY` at 55 applied migrations. The next action is
+the existing owner-approved duplicate-PO backup/export and ordered replay gate,
+not another deployment.
 
 ## M3.50 - cost-capped provider and hosted-ledger audit (read-only, 2026-08-04)
 

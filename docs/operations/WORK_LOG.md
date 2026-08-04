@@ -30,8 +30,15 @@ unsupported Vitest `--runInBand`; it was rerun with the repository script and
 passed.
 
 Spend boundary: Vercel remains Git-disabled and no preview/production build was
-started. Supabase remains read-only at the known migration boundary. Next gate
-is one source push and exact provider verification.
+started. Supabase remains read-only at the known migration boundary. The next
+gate is the existing migration backup/export and owner-review sequence.
+
+Provider result: `cfffa7a756609c49fa84b293ec71611c892182dd` is present on both
+target branches. GitHub's exact `ERP - Third Code ERP API` check is `success`;
+Railway `/ready` returned 200 with database/Redis `ok` and `/health` returned 200
+with `ok`. Vercel's read-only inventory returned zero new deployments and
+Supabase stayed at 55 applied migrations. No hosted DB, Storage, Vercel, or
+Railway setting mutation occurred.
 
 ## 2026-08-04 - M3.50 cost-capped provider and migration audit
 

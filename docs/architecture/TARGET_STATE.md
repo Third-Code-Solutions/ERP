@@ -26,6 +26,10 @@ The source contract is now present without a database migration. Hosted rollout
 still requires the same ordered migration, duplicate-record, rollback, and
 spend gates; source availability is not a production deployment claim.
 
+Source `cfffa7a` is present on both target branches; the exact GitHub/Railway
+check is successful and live Railway readiness is healthy. Vercel created no
+deployment after the push, and Supabase remains at the 55-migration boundary.
+
 ## M3.50 cost and migration safety target (2026-08-04)
 
 Every release must be spend-bounded as well as technically green. Vercel Git
