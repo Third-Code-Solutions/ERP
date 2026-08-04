@@ -13,6 +13,18 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.57 Auth-session recovery target (2026-08-04)
+
+Stale or revoked Supabase refresh tokens must be recoverable at the middleware
+boundary without turning public requests into 500s or weakening authorization.
+Recognized refresh-token failures clear only Supabase auth-cookie chunks,
+continue as anonymous, and let the existing protected-route redirect enforce
+access. Unknown auth/provider failures remain visible for diagnosis.
+
+The source slice adds this boundary without database writes or new provider
+calls. Future release evidence must repeat the stale-cookie redirect test on
+the exact deployed frontend while preserving the spend gate.
+
 ## M3.55 Provider spend guard target (2026-08-04)
 
 Provider-backed requests must have explicit, route-aware burst protection. The
