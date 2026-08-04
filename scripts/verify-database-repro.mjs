@@ -92,6 +92,11 @@ const requiredTables = [
   'notification_deliveries',
 ]
 
+// Server-only command ledgers are intentionally excluded from the
+// authenticated tenant policy set above. They still require forced RLS and
+// explicit service-role authority in every clean replay and hosted clone.
+const requiredServerOnlyTables = ['stock_movement_create_requests']
+
 const requiredPolicies = [
   ['cortex_nodes', 'cortex_nodes_tenant_read'],
   ['cortex_edges', 'cortex_edges_tenant_read'],
@@ -280,6 +285,12 @@ const requiredIndexes = [
   'ux_stock_ledger_entries_tenant_id_id',
   'ux_stock_ledger_movement_line_event_warehouse',
   'ux_stock_ledger_movement_reversal',
+]
+
+const requiredServerOnlyIndexes = [
+  'ux_stock_movement_create_requests_tenant_id_id',
+  'ux_stock_movement_create_requests_tenant_key',
+  'idx_stock_movement_create_requests_tenant_state',
 ]
 
 const requiredExpandedNodeTypes = [
@@ -700,6 +711,47 @@ try {
   )
 
   await query(
+    'Stock Movement idempotency ledger is forced-RLS and server-only',
+    `select c.relname,
+            c.relrowsecurity,
+            c.relforcerowsecurity,
+            has_table_privilege(
+              'anon',
+              'public.stock_movement_create_requests',
+              'select,insert,update,delete'
+            ) as anon_privileges,
+            has_table_privilege(
+              'authenticated',
+              'public.stock_movement_create_requests',
+              'select,insert,update,delete'
+            ) as authenticated_privileges,
+            has_table_privilege(
+              'service_role',
+              'public.stock_movement_create_requests',
+              'select,insert,update,delete'
+            ) as service_role_privileges
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relkind in ('r', 'p')
+        and c.relname in (${requiredServerOnlyTables.map((name) => `'${name}'`).join(', ')})`,
+    (rows) =>
+      rows.length === requiredServerOnlyTables.length
+      && rows.every(
+        (row) =>
+          row.relrowsecurity === true
+          && row.relforcerowsecurity === true
+          && row.anon_privileges === false
+          && row.authenticated_privileges === false
+          && row.service_role_privileges === true
+      ),
+    (rows) =>
+      rows.length === 0
+        ? `missing=[${requiredServerOnlyTables.join(',')}]`
+        : JSON.stringify(rows)
+  )
+
+  await query(
     'required final RLS policy set is authenticated and tenant-scoped',
     `select tablename,
             policyname,
@@ -839,6 +891,27 @@ try {
     (rows) => {
       const byName = new Map(rows.map((row) => [row.relname, row.indisvalid]))
       return requiredIndexes
+        .filter((name) => byName.get(name) !== true)
+        .map((name) => `${name}:${byName.has(name) ? 'INVALID' : 'MISSING'}`)
+        .join(', ')
+    }
+  )
+
+  await query(
+    'Stock Movement idempotency indexes exist and are valid',
+    `select c.relname, i.indisvalid
+       from pg_class c
+       join pg_index i on i.indexrelid = c.oid
+       join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname in (${requiredServerOnlyIndexes.map((name) => `'${name}'`).join(', ')})`,
+    (rows) => {
+      const byName = new Map(rows.map((row) => [row.relname, row.indisvalid]))
+      return requiredServerOnlyIndexes.every((name) => byName.get(name) === true)
+    },
+    (rows) => {
+      const byName = new Map(rows.map((row) => [row.relname, row.indisvalid]))
+      return requiredServerOnlyIndexes
         .filter((name) => byName.get(name) !== true)
         .map((name) => `${name}:${byName.has(name) ? 'INVALID' : 'MISSING'}`)
         .join(', ')
@@ -2145,5 +2218,5 @@ if (failures > 0) {
 }
 
 console.log(
-  `PASS database reproducibility verification (${migrationFiles.length} migrations, ${requiredTables.length} protected tables)`
+  `PASS database reproducibility verification (${migrationFiles.length} migrations, ${requiredTables.length} protected tables, ${requiredServerOnlyTables.length} server-only ledgers)`
 )
