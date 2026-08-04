@@ -13,6 +13,17 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.64 CRM KYC queue authority boundary (2026-08-04)
+
+Pending-KYC account queues move toward Nest authority through a strict,
+tenant-scoped `GET /v1/crm/accounts/kyc-queue` envelope. The route requires
+`account.kyc_review`, repeats the tenant predicate on account and artifact
+joins, caps results at 200, orders deterministically, and returns a separate
+scoped total. Next adoption remains exact-flag plus tenant-allowlist gated and
+fails closed on tenant identity drift; direct server-side reads remain the
+compatibility path. No schema, hosted-data, or frontend-provider action is
+implied.
+
 ## M3.63 CRM account detail graph boundary (2026-08-04)
 
 Account detail reads move toward Nest authority through a strict, bounded

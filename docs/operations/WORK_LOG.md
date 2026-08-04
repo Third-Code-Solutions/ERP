@@ -1,5 +1,42 @@
 # Work Log
 
+## 2026-08-04 - M3.64 Nest CRM KYC queue read handoff
+
+Moved the pending-KYC account queue toward the Nest modular-monolith authority.
+The new route requires `account.kyc_review`, derives tenant scope from the
+verified principal, scopes the KYC artifact join, caps and orders rows
+deterministically, and returns a separate pending total. The KYC queue page
+uses the adapter only behind a disabled exact flag and tenant allowlist;
+direct server-side behavior remains unchanged by default.
+
+Changed files:
+
+- `packages/shared-types/src/erp-api/accounts.ts` and tests
+- `apps/api/src/auth/capability.guard.ts`
+- `apps/api/src/crm/accounts.controller.ts`, `accounts.service.ts`, service
+  tests, and `test/accounts.e2e.spec.ts`
+- `apps/web/src/lib/erp-core-client.ts` and tests
+- `apps/web/src/lib/account-queries.ts` and tests
+- `apps/web/src/app/(dashboard)/crm/kyc-queue/page.tsx`
+- root and web environment examples
+
+Results: shared 16/174; API 65/328 serial; Web 76/497; focused Web 89/89;
+database 41 files with 166 passed and 140 expected integration/RLS/Cortex
+skips; workspace typecheck/lint; Nest build; Web 80/80 production build; and
+`git diff --check`. No hosted migration/data repair, Supabase mutation, Vercel
+build/deploy, or provider setting changed.
+
+Commit `5a5a35a3` was pushed to both target branches. Railway deployment
+`fbf64a41-e2df-4ec6-8fd5-e8e3060edf28` is `SUCCESS`; its exact source SHA,
+startup route map, live `/ready` and `/health`, and unauthenticated 401 KYC
+boundary were verified. GitHub's exact API check is `success`. Supabase is
+read-only at 55/87; Vercel has zero deployments in the spend-audit window.
+
+Rollback: keep `ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API=false` and its allowlist
+empty, or redeploy the prior successful API source. No hosted state requires
+repair. Next: supported Supabase recovery evidence, protected browser proof,
+and an explicit spend cap before any KYC canary.
+
 ## 2026-08-04 - M3.63 Nest CRM account detail read handoff
 
 Moved the CRM account detail read boundary toward the Nest modular monolith.

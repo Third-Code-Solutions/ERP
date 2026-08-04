@@ -4,6 +4,42 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.64 Nest CRM KYC queue read handoff (source + Railway verified, 2026-08-04)
+
+Added a bounded `GET /v1/crm/accounts/kyc-queue` contract for pending KYC
+accounts. Nest requires the explicit `account.kyc_review` capability, derives
+tenant scope from the verified principal, repeats the tenant predicate on the
+account and artifact join, caps rows at 200, returns a deterministic order,
+and reports a separate tenant-scoped total. The KYC queue page now reads
+through a strict adapter only when `ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API=true`
+and its exact tenant UUID allowlist matches; direct server-side behavior
+remains the default. Wrong-tenant API rows fail closed.
+
+Changed files: shared KYC queue schemas/tests; Nest CRM capability,
+controller, service, service tests, and e2e contract; Next core client,
+account query adapter/tests, KYC queue page, and environment examples.
+Validation: shared 16/174; API 65/328 (serial bounded Vitest run); Web 76/497;
+focused Web adapter/query 89/89; database 41 files with 166 passed and 140
+expected integration/RLS/Cortex skips; workspace typecheck/lint; API build;
+Web 80/80 production build; `git diff --check`. No hosted migration/data
+repair, Supabase mutation, Vercel build/deploy, or provider setting changed.
+
+Commit `5a5a35a3` is pushed to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`fbf64a41-e2df-4ec6-8fd5-e8e3060edf28` for that exact SHA is `SUCCESS` using
+`apps/api/Dockerfile`; live `/ready` is 200 with PostgreSQL and Redis,
+`/health` is 200, and unauthenticated KYC queue access is 401. GitHub's
+exact API status is `success`. Supabase `aqqrtkmtcsfkbyyqxowv` remains
+`ACTIVE_HEALTHY`, read-only at 55 hosted migrations versus 87 source
+migrations. Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` remains at zero
+deployments in the spend-audit window.
+
+Next action: keep `ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API=false` and its tenant
+allowlist empty. Obtain the supported Supabase backup/export,
+dependent/audit export, owner-approved duplicate-PO mapping, disposable
+PostgreSQL 17 replay, protected browser evidence, and explicit spend cap
+before any protected KYC canary or hosted data action.
+
 ## M3.63 Nest CRM account detail read handoff (source + Railway verified, 2026-08-04)
 
 Added a bounded `GET /v1/crm/accounts/:accountId` detail graph with explicit
