@@ -1,5 +1,6 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common'
+import { Controller, Get, Inject, Param, ParseUUIDPipe, Query } from '@nestjs/common'
 import type {
+  AccountDetailResult,
   AccountListQuery,
   AccountListResult,
 } from '@third-code-erp/shared-types'
@@ -24,5 +25,14 @@ export class AccountsController {
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<AccountListResult> {
     return this.accounts.list(query, principal)
+  }
+
+  @Get(':accountId')
+  @RequireCapabilities('account.read')
+  read(
+    @Param('accountId', new ParseUUIDPipe()) accountId: string,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<AccountDetailResult> {
+    return this.accounts.read(accountId, principal)
   }
 }

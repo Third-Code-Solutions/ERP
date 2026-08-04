@@ -19,6 +19,7 @@ import {
   logRfqQuoteThroughCoreApi,
   getProjectThroughCoreApi,
   getProjectsThroughCoreApi,
+  getAccountThroughCoreApi,
   getAccountsThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
@@ -351,6 +352,19 @@ const ACCOUNT_LIST_RESULT = {
   page: 1,
   limit: 20,
   totalPages: 1,
+}
+const ACCOUNT_DETAIL_RESULT = {
+  account: {
+    ...ACCOUNT_LIST_RESULT.rows[0],
+    kycNotes: null,
+    kycDecidedAt: null,
+    kycDecidedBy: null,
+    cnpsScoreX10: null,
+  },
+  contacts: [],
+  kycArtifacts: [],
+  opportunities: [],
+  projects: [],
 }
 
 describe('ERP Core client', () => {
@@ -2172,6 +2186,47 @@ describe('ERP Core client', () => {
         }),
       })
     )
+  })
+
+  it('reads an Account detail graph through the Nest boundary', async () => {
+    const accountId = '33333333-3333-4333-8333-333333333333'
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(ACCOUNT_DETAIL_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getAccountThroughCoreApi(accountId)).resolves.toEqual({
+      ok: true,
+      data: ACCOUNT_DETAIL_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/crm/accounts/${accountId}`,
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
+        }),
+      })
+    )
+  })
+
+  it('maps an Account detail 404 to a not-found result', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('{}', { status: 404 }))
+    )
+
+    await expect(
+      getAccountThroughCoreApi('33333333-3333-4333-8333-333333333333')
+    ).resolves.toEqual({ ok: false, error: 'Account not found.' })
   })
 
   it('keeps RFQ quote writes on the legacy path unless its exact flag and tenant match', () => {
