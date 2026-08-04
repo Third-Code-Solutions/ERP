@@ -25,8 +25,14 @@ Changed files: `apps/web/src/components/marketing/third-code-landing.tsx`,
 `apps/web/src/components/marketing/third-code-landing.test.ts`, the seven
 `docs/research/components/*.spec.md` files, `docs/research/BEHAVIORS.md`,
 `docs/research/PAGE_TOPOLOGY.md`, and four local design-reference screenshots.
-Exact next action: commit and push source under `kurtgav`, verify Railway/Vercel
-deployment boundaries, then audit authenticated Cortex before wiring live data.
+Commit/push evidence: `8484a6c5307c29d511fefb3b578eb1fec0d5bf8d` is verified on
+GitHub `main` and `agent-02/third-code-erp-landing` under `kurtgav`. Railway
+remains deployment `7d2a078d-605f-49e9-a299-12c9667a153b`; `/ready` reports
+database and Redis ok and `/health` reports ok. Vercel's latest deployment
+predates this commit, so no new deployment was created. Supabase remains at 55
+hosted migrations with head `20260729233017_notification_outbox_foundation`;
+no SQL or hosted data changed. Exact next action: audit authenticated Cortex
+permission/citation behavior before wiring any live data or marketing CTA.
 
 ## 2026-08-04 - M3.31 Supabase reconciliation audit (read-only)
 
