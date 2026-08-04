@@ -2,33 +2,30 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-import { requestRateLimitKey } from '@/lib/request-rate-limit'
+import {
+  consumeRequestRateLimit,
+  requestRateLimitKey,
+  requestRateLimitPolicy,
+} from '@/lib/request-rate-limit'
 import { isProtectedRoute } from '@/lib/protected-route'
 
 // ---------------------------------------------------------------------------
 // Rate limiting — in-memory sliding window per IP (Edge-compatible)
 // For production, replace with Upstash Redis or Vercel KV.
 // ---------------------------------------------------------------------------
-const RATE_LIMIT_WINDOW_MS = 60_000 // 1 minute
-const RATE_LIMIT_UNAUTH   = 100     // requests per window, unauthenticated
-const RATE_LIMIT_AUTH     = 1_000   // requests per window, authenticated
-
 // Edge-compatible map (resets on cold start; acceptable for MVP rate limiting)
-const requestCounts = new Map<string, { count: number; windowStart: number }>()
+const requestCounts = new Map<
+  string,
+  { count: number; windowStart: number }
+>()
 
-function isRateLimited(key: string, authenticated: boolean): boolean {
-  const limit = authenticated ? RATE_LIMIT_AUTH : RATE_LIMIT_UNAUTH
-  const now = Date.now()
-  const entry = requestCounts.get(key)
-
-  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    requestCounts.set(key, { count: 1, windowStart: now })
-    return false
-  }
-
-  entry.count += 1
-  if (entry.count > limit) return true
-  return false
+function isRateLimited(
+  key: string,
+  policy: ReturnType<typeof requestRateLimitPolicy>
+): boolean {
+  const result = consumeRequestRateLimit(requestCounts.get(key), policy)
+  requestCounts.set(key, result.entry)
+  return result.limited
 }
 
 // ---------------------------------------------------------------------------
@@ -135,12 +132,15 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Rate limiting
-  if (isRateLimited(requestRateLimitKey(ip, user?.id), !!user)) {
+  const rateLimitPolicy = requestRateLimitPolicy(pathname, !!user)
+  const rateLimitKey = `${requestRateLimitKey(ip, user?.id)}:${rateLimitPolicy.bucket}`
+  if (isRateLimited(rateLimitKey, rateLimitPolicy)) {
     return new NextResponse('Too Many Requests', {
       status: 429,
       headers: {
         'Retry-After': '60',
-        'X-RateLimit-Limit': String(user ? RATE_LIMIT_AUTH : RATE_LIMIT_UNAUTH),
+        'X-RateLimit-Limit': String(rateLimitPolicy.limit),
+        'X-RateLimit-Scope': rateLimitPolicy.bucket,
         'Content-Type': 'text/plain',
       },
     })
