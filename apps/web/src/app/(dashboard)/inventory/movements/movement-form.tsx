@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createStockMovement } from './actions'
 
@@ -74,6 +74,7 @@ export function StockMovementForm({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const retryKeyRef = useRef<string | null>(null)
   const [movementType, setMovementType] =
     useState<MovementType>('transfer')
   const [sourceWarehouseId, setSourceWarehouseId] = useState('')
@@ -162,6 +163,8 @@ export function StockMovementForm({
         if (!valid) return
         setError(null)
         startTransition(async () => {
+          const idempotencyKey =
+            retryKeyRef.current ?? (retryKeyRef.current = crypto.randomUUID())
           const result = await createStockMovement({
             movementType,
             sourceWarehouseId,
@@ -170,11 +173,13 @@ export function StockMovementForm({
             movementDate,
             reason,
             lines: selectedLines,
+            idempotencyKey,
           })
           if (!result.ok || !result.id) {
             setError(result.error ?? 'Could not create Stock Movement.')
             return
           }
+          retryKeyRef.current = null
           router.push(`/inventory/movements/${result.id}`)
         })
       }}

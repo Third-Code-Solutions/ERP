@@ -14,7 +14,10 @@ import {
   inventoryStockMovementListQuerySchema,
   inventoryStockMovementListResultSchema,
   inventoryStockMovementDetailResultSchema,
+  createStockMovementCommandSchema,
+  stockMovementCreationResultSchema,
   quantityToMicros,
+  signedQuantityToMicros,
   receiptLineTotal,
   stockReceiptPostCommandSchema,
   stockReceiptPostingResultSchema,
@@ -473,5 +476,74 @@ describe('Stock Receipt command contract', () => {
         reversalJournalEntryNumber: 'JE-2026-000002',
       }).status
     ).toBe('reversed')
+  })
+})
+
+describe('Stock Movement draft command contract', () => {
+  const command = {
+    movementType: 'adjustment' as const,
+    sourceWarehouseId: UUID,
+    targetWarehouseId: null,
+    projectId: null,
+    movementDate: '2026-08-05',
+    reason: '  Physical count correction  ',
+    lines: [
+      {
+        materialItemId: '33333333-3333-4333-8333-333333333333',
+        quantity: ' -1.250000 ',
+        costCodeId: null,
+        declaredUnitCostPhp: null,
+      },
+    ],
+  }
+
+  it('normalizes nullable fields and trims command text', () => {
+    expect(createStockMovementCommandSchema.parse(command)).toEqual({
+      ...command,
+      reason: 'Physical count correction',
+      lines: [{ ...command.lines[0], quantity: '-1.250000' }],
+    })
+  })
+
+  it('keeps idempotency/result contracts tenant-scoped and strict', () => {
+    expect(
+      stockMovementCreationResultSchema.parse({
+        stockMovementId: '44444444-4444-4444-8444-444444444444',
+        tenantId: '55555555-5555-4555-8555-555555555555',
+        status: 'draft',
+        lineCount: 1,
+      })
+    ).toEqual({
+      stockMovementId: '44444444-4444-4444-8444-444444444444',
+      tenantId: '55555555-5555-4555-8555-555555555555',
+      status: 'draft',
+      lineCount: 1,
+    })
+    expect(() =>
+      createStockMovementCommandSchema.parse({ ...command, tenantId: UUID })
+    ).toThrow()
+  })
+
+  it.each(['1.0000001', '1.2.3', '--1'])(
+    'rejects invalid signed quantity %s',
+    (value) => {
+      expect(() => signedQuantityToMicros(value)).toThrow()
+      expect(() =>
+        createStockMovementCommandSchema.parse({
+          ...command,
+          lines: [{ ...command.lines[0], quantity: value }],
+        })
+      ).toThrow()
+    }
+  )
+
+  it('rejects zero signed quantities in exact conversion', () => {
+    expect(() => signedQuantityToMicros('0')).toThrow()
+    expect(() => signedQuantityToMicros('-0')).toThrow()
+  })
+
+  it('converts signed quantities exactly without floating point math', () => {
+    expect(signedQuantityToMicros('4.25')).toBe(4_250_000n)
+    expect(signedQuantityToMicros('-0.000001')).toBe(-1n)
   })
 })

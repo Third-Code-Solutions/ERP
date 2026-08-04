@@ -6,6 +6,7 @@ import {
   createPurchaseOrdersGroupedFromBomThroughCoreApi,
   createPurchaseOrderThroughCoreApi,
   createStockReceiptThroughCoreApi,
+  createStockMovementThroughCoreApi,
   postStockReceiptThroughCoreApi,
   reverseStockReceiptThroughCoreApi,
   recordDeliveryReceiptThroughCoreApi,
@@ -34,6 +35,7 @@ import {
   inventorySummaryReadsUseCoreApi,
   inventoryStockMovementReadsUseCoreApi,
   inventoryStockMovementDetailReadsUseCoreApi,
+  inventoryStockMovementCreateWritesUseCoreApi,
   opportunityReadsUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
@@ -140,6 +142,12 @@ const PURCHASE_ORDER_WORKFLOW_RESULT = {
 }
 const STOCK_RECEIPT_RESULT = {
   stockReceiptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  status: 'draft' as const,
+  lineCount: 1,
+}
+const STOCK_MOVEMENT_RESULT = {
+  stockMovementId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   tenantId: '22222222-2222-4222-8222-222222222222',
   status: 'draft' as const,
   lineCount: 1,
@@ -868,6 +876,29 @@ describe('ERP Core client', () => {
     expect(stockReceiptCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
   })
 
+  it('keeps Stock Movement draft creation delegation independently fail-closed', () => {
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_CREATE_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_INVENTORY_STOCK_MOVEMENT_CREATE_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(inventoryStockMovementCreateWritesUseCoreApi(RESULT.tenantId)).toBe(
+      true
+    )
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_CREATE_VIA_API', 'TRUE')
+    expect(inventoryStockMovementCreateWritesUseCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_CREATE_VIA_API', 'true')
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_CREATE_TENANT_IDS', '*')
+    expect(inventoryStockMovementCreateWritesUseCoreApi(RESULT.tenantId)).toBe(
+      true
+    )
+    expect(inventoryStockMovementCreateWritesUseCoreApi('not-a-uuid')).toBe(
+      false
+    )
+  })
+
   it('keeps Stock Receipt post and reverse delegation independently fail-closed', () => {
     vi.stubEnv('ERP_INVENTORY_RECEIPT_POST_VIA_API', 'true')
     vi.stubEnv('ERP_INVENTORY_RECEIPT_POST_TENANT_IDS', RESULT.tenantId)
@@ -1230,6 +1261,48 @@ describe('ERP Core client', () => {
         cache: 'no-store',
         headers: expect.objectContaining({
           'Idempotency-Key': 'stock-receipt-1',
+        }),
+      })
+    )
+  })
+
+  it('sends an idempotent Stock Movement command and validates result', async () => {
+    const command = {
+      movementType: 'transfer' as const,
+      sourceWarehouseId: '33333333-3333-4333-8333-333333333333',
+      targetWarehouseId: '44444444-4444-4444-8444-444444444444',
+      projectId: null,
+      movementDate: '2026-08-05',
+      reason: 'Move accepted materials',
+      lines: [
+        {
+          materialItemId: '55555555-5555-4555-8555-555555555555',
+          quantity: '1.25',
+          costCodeId: null,
+          declaredUnitCostPhp: null,
+        },
+      ],
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(STOCK_MOVEMENT_RESULT), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createStockMovementThroughCoreApi(command, 'stock-movement-1')
+    ).resolves.toEqual({ ok: true, data: STOCK_MOVEMENT_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/inventory/stock-movements',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'stock-movement-1',
         }),
       })
     )

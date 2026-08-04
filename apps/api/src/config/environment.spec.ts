@@ -562,6 +562,36 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_INVENTORY_RECEIPT_POST_WRITES_TENANT_IDS')
   })
 
+  it('keeps Stock Movement draft creation fail-closed', () => {
+    const parsed = validateEnvironment(REQUIRED)
+    expect(parsed.ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_ENABLED).toBe(
+      false
+    )
+    expect(
+      parsed.ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_TENANT_IDS
+    ).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_ENABLED: 'true',
+        ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_TENANT_IDS:
+          '33333333-3333-4333-8333-333333333333',
+      })
+    ).toMatchObject({
+      ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_ENABLED: true,
+      ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_TENANT_IDS: [
+        '33333333-3333-4333-8333-333333333333',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_TENANT_IDS')
+  })
+
   it('keeps Delivery receipt writes fail-closed and tenant-scoped', () => {
     const parsed = validateEnvironment(REQUIRED)
     expect(parsed.ERP_DELIVERY_RECEIPT_WRITES_ENABLED).toBe(false)

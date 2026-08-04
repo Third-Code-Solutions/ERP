@@ -26,6 +26,9 @@ import { InventoryStockMovementListPipe } from './inventory-stock-movement-list.
 import { InventoryStockMovementListService } from './inventory-stock-movement-list.service'
 import { InventoryStockMovementDetailController } from './inventory-stock-movement-detail.controller'
 import { InventoryStockMovementDetailService } from './inventory-stock-movement-detail.service'
+import { InventoryStockMovementCreationController } from './inventory-stock-movement-creation.controller'
+import { InventoryStockMovementCreatePipe } from './inventory-stock-movement-create.pipe'
+import { InventoryStockMovementCreationService } from './inventory-stock-movement-creation.service'
 import { StockReceiptController } from './stock-receipt.controller'
 import { StockReceiptCreatePipe } from './stock-receipt-create.pipe'
 import { StockReceiptCreationService } from './stock-receipt-creation.service'
@@ -47,6 +50,7 @@ import { StockReceiptWorkflowService } from './stock-receipt-workflow.service'
     InventoryWarehouseCloseoutController,
     InventoryStockMovementListController,
     InventoryStockMovementDetailController,
+    InventoryStockMovementCreationController,
   ],
   providers: [
     InventorySummaryService,
@@ -67,6 +71,8 @@ import { StockReceiptWorkflowService } from './stock-receipt-workflow.service'
     InventoryStockMovementListService,
     InventoryStockMovementListPipe,
     InventoryStockMovementDetailService,
+    InventoryStockMovementCreationService,
+    InventoryStockMovementCreatePipe,
   ],
 })
 export class InventoryModule implements NestModule {
@@ -82,7 +88,8 @@ export class InventoryModule implements NestModule {
         InventoryWarehouseUpdateController,
         InventoryWarehouseCloseoutController,
         InventoryStockMovementListController,
-        InventoryStockMovementDetailController
+        InventoryStockMovementDetailController,
+        InventoryStockMovementCreationController
       )
   }
 }

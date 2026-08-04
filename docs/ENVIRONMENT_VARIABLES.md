@@ -190,6 +190,17 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 Everything else can be omitted; the corresponding feature will either
 no-op or log a stdout warning at first invocation.
 
+## Inventory Stock Movement draft command (disabled by default)
+
+The Nest command owns validation, idempotency, tenant authorization, the
+transaction, and audit. Keep both API-side gates false/empty until the hosted
+migration ledger and disposable PostgreSQL proof are complete.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_ENABLED` | no | API server | Nest Stock Movement draft-create gate; default false |
+| `ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_TENANT_IDS` | no | API server | Explicit Stock Movement draft-create tenant allowlist; default empty |
+
 ## Nest API document-processing bridge (disabled by default)
 
 The incremental signed worker path is server-only. Keep every processing flag
@@ -235,6 +246,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_PUBLIC_SIGNING_VIA_API` | no | Next server | Selects the Nest public-signing authority; default false |
 | `ERP_PUBLIC_SIGNING_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for public signing; default empty |
 | `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` | no | Next server | Selects the Stock Receipt Next-to-Nest handoff; default false |
+| `ERP_INVENTORY_STOCK_MOVEMENT_CREATE_VIA_API` | no | Next server | Selects the Stock Movement draft-create Next-to-Nest handoff; default false |
+| `ERP_INVENTORY_STOCK_MOVEMENT_CREATE_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Movement draft creation; default empty |
 | `ERP_INVENTORY_STOCK_MOVEMENT_READS_VIA_API` | no | Next server | Selects the tenant-scoped Stock Movement register read through Nest; default false |
 | `ERP_INVENTORY_STOCK_MOVEMENT_READS_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Movement register reads; default empty |
 | `ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API` | no | Next server | Selects the tenant-scoped Stock Movement detail read through Nest; default false |

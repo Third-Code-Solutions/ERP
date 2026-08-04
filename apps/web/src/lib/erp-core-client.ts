@@ -42,6 +42,7 @@ import {
   inventorySummaryResultSchema,
   inventoryStockMovementListResultSchema,
   inventoryStockMovementDetailResultSchema,
+  stockMovementCreationResultSchema,
   stockReceiptCreationResultSchema,
   stockReceiptPostingResultSchema,
   stockReceiptReversalResultSchema,
@@ -110,6 +111,8 @@ import {
   type InventorySummaryResult,
   type InventoryStockMovementListResult,
   type InventoryStockMovementDetailResult,
+  type CreateStockMovementCommand,
+  type StockMovementCreationResult,
   type CreateInventoryUomCommand,
   type InventoryUomCreationResult,
   type CreateInventoryWarehouseCommand,
@@ -320,6 +323,16 @@ export function inventoryStockMovementDetailReadsUseCoreApi(
     tenantId,
     process.env.ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API,
     process.env.ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_TENANT_IDS
+  )
+}
+
+export function inventoryStockMovementCreateWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_STOCK_MOVEMENT_CREATE_VIA_API,
+    process.env.ERP_INVENTORY_STOCK_MOVEMENT_CREATE_TENANT_IDS
   )
 }
 
@@ -1322,6 +1335,58 @@ export async function getInventoryStockMovementDetailThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. Stock Movement detail was not read.',
+    }
+  }
+}
+
+export async function createStockMovementThroughCoreApi(
+  command: CreateStockMovementCommand,
+  idempotencyKey: string
+): Promise<CoreResult<StockMovementCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/stock-movements`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Stock Movement conflicts with existing inventory evidence.'
+            : 'Stock Movement was not committed.'
+      return { ok: false, error: message }
+    }
+    const parsed = stockMovementCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Stock Movement result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No Stock Movement was committed.',
     }
   }
 }

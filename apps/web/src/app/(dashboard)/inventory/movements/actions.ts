@@ -14,6 +14,10 @@ import {
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
+  createStockMovementThroughCoreApi,
+  inventoryStockMovementCreateWritesUseCoreApi,
+} from '@/lib/erp-core-client'
+import {
   quantityToMicros,
   signedQuantityToMicros,
 } from '../quantity'
@@ -32,6 +36,7 @@ const movementTypeSchema = z.enum([
   'consumption',
   'adjustment',
 ])
+const idempotencyKeySchema = z.string().trim().min(1).max(200)
 
 const createMovementSchema = z.object({
   movementType: movementTypeSchema,
@@ -130,7 +135,7 @@ function declaredUnitCostCents(value: string | undefined): number | null {
 }
 
 export async function createStockMovement(
-  input: z.input<typeof createMovementSchema>
+  input: z.input<typeof createMovementSchema> & { idempotencyKey?: string }
 ): Promise<MovementActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -142,6 +147,45 @@ export async function createStockMovement(
         ok: false,
         error: 'Each Item may appear once per Stock Movement.',
       }
+    }
+
+    if (inventoryStockMovementCreateWritesUseCoreApi(profile.tenantId)) {
+      const idempotencyKey = idempotencyKeySchema.safeParse(
+        input.idempotencyKey
+      )
+      if (!idempotencyKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Stock Movement command.',
+        }
+      }
+      const result = await createStockMovementThroughCoreApi(
+        {
+          movementType: parsed.movementType,
+          sourceWarehouseId: parsed.sourceWarehouseId,
+          targetWarehouseId: parsed.targetWarehouseId || null,
+          projectId: parsed.projectId || null,
+          movementDate: parsed.movementDate,
+          reason: parsed.reason,
+          lines: parsed.lines.map((line) => ({
+            materialItemId: line.materialItemId,
+            quantity: line.quantity,
+            costCodeId: line.costCodeId || null,
+            declaredUnitCostPhp: line.declaredUnitCostPhp || null,
+          })),
+        },
+        idempotencyKey.data
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Stock Movement could not be created through ERP Core.',
+        }
+      }
+      refreshMovement(result.data.stockMovementId)
+      return { ok: true, id: result.data.stockMovementId }
     }
 
     const items = await db
