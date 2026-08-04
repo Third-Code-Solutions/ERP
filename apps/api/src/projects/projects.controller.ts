@@ -5,8 +5,11 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
 } from '@nestjs/common'
 import type {
+  CreateProjectCommand,
+  ProjectCreationResult,
   ProjectUpdateResult,
   UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
@@ -15,6 +18,7 @@ import {
   type ErpPrincipal,
 } from '../auth/current-principal.decorator'
 import { RequireCapabilities } from '../auth/capability.guard'
+import { CreateProjectPipe } from './create-project.pipe'
 import { ProjectsService } from './projects.service'
 import { UpdateProjectPipe } from './update-project.pipe'
 
@@ -24,6 +28,15 @@ export class ProjectsController {
     @Inject(ProjectsService)
     private readonly projects: ProjectsService
   ) {}
+
+  @Post()
+  @RequireCapabilities('project.create')
+  create(
+    @Body(CreateProjectPipe) command: CreateProjectCommand,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<ProjectCreationResult> {
+    return this.projects.create(command, principal)
+  }
 
   @Patch(':projectId')
   @RequireCapabilities('project.update')
