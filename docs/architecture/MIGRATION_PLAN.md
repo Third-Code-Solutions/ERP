@@ -15,10 +15,13 @@ executed with 140 environment-gated skips, lint/typecheck, diff check, and
 79/79-route build all pass. Authenticated browser proof passed at 1440px and
 390px with no overflow, no repair controls, and no new console errors.
 
-Source checkpoint: `63bbf22`. Exact next action: push once and verify the
-source SHA on GitHub/Railway. Do not apply the 32-file Supabase suffix, repair
-duplicate business rows automatically, hand-edit migration history, reconnect
-Vercel Git, or trigger a preview/build.
+Source checkpoint: `63bbf22`; evidence checkpoint `eab1719` is pushed to both
+target branches. GitHub's Railway check is successful, and Railway
+`/ready`/`/health` are 200 for the linked production service. Supabase remains
+at the 55-row prefix and Vercel has no deployment for this SHA. Exact next
+action: supported backup, dependent-row/audit export, owner-approved repair,
+then ordered suffix replay. Do not auto-repair business rows, hand-edit
+migration history, reconnect Vercel Git, or trigger a preview/build.
 
 ## M3.43 — supported Supabase reconciliation before mutation (2026-08-04)
 

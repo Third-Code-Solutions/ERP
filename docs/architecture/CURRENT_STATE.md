@@ -23,8 +23,15 @@ Validation: focused 2/2; Web 64 files/444 tests; full workspace API 294,
 shared-types 162, and database 166 executed with 140 environment-gated skips;
 lint, typecheck, diff check, and 79/79-route production build passed. Authenticated
 browser proof at 1440px and 390px showed no horizontal overflow, no repair
-controls, and no new console errors. Exact next action: push once, verify
-GitHub/Railway against `63bbf22`, and retain the Supabase/Vercel release gates.
+controls, and no new console errors. Source and evidence are now pushed to
+both `main` and `agent-02/third-code-erp-landing` as `kurtgav`; the evidence
+checkpoint is `eab1719`. GitHub reports the Railway API check as `success`.
+Railway project `a21fd382-80b2-4218-8025-11f420a062e3`, production service
+`c45b3d01-036a-4663-a524-0713d782fce3`, and live `/ready`/`/health` are online.
+Supabase remains unchanged at 55/87 migrations with the same duplicate
+preflight failure; Vercel has no deployment for this SHA. Exact next action:
+supported backup, owner-approved duplicate repair, then ordered migration
+replay.
 
 ## M3.43 Supabase reconciliation gate (read-only, 2026-08-04)
 

@@ -21,12 +21,19 @@ browser MCP proof at 1440px and 390px rendered one duplicate group and 12
 records, showed no repair controls, had no horizontal overflow, and produced
 no new console errors. Local Next dev server was stopped after proof.
 
-Release boundary: no Supabase SQL, hosted row, Storage object, migration
-history, Railway setting/deployment action, or Vercel build/promotion changed.
-Supabase remains the verified 55-row prefix with its safe duplicate preflight
-failure; Vercel remains disconnected and spend-protected. Exact next action:
-push source plus docs once, verify GitHub/Railway identity and readiness, then
-obtain the supported backup and owner-approved duplicate repair.
+Release boundary before provider verification: no Supabase SQL, hosted row,
+Storage object, migration history, Railway setting/deployment action, or Vercel
+build/promotion changed. Supabase remains the verified 55-row prefix with its
+safe duplicate preflight failure; Vercel remains disconnected and
+spend-protected.
+
+Post-push evidence: source `63bbf22` and docs `eab1719` were pushed to both
+target branches as `kurtgav`. GitHub's exact-commit Railway check is
+`success`; Railway project/service are online and `/ready` plus `/health`
+return 200. The latest Vercel deployment remains the older SHA `ca9ff6d` and
+no deployment was triggered for this milestone. Exact next action: supported
+backup, dependent-row/audit export, owner-approved duplicate repair, and only
+then ordered migration replay.
 
 ## 2026-08-04 - M3.43 Supabase reconciliation gate
 
