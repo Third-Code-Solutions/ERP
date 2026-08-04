@@ -27,6 +27,10 @@ import {
 } from '@/lib/cortex/citation-header'
 import { roleLabel } from '@/lib/operations/nav-config'
 import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
+import {
+  consumeProviderQuota,
+  providerQuotaBlockedResponse,
+} from '@/lib/provider-quota'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -155,6 +159,18 @@ export async function POST(req: NextRequest) {
         status: 404,
         headers: CORTEX_PRIVATE_HEADERS,
       })
+    }
+  }
+
+  // Shared Redis quota is optional per tenant. When enabled, fail closed
+  // before any external model/embedding work if NestJS cannot account it.
+  if (process.env.OPENAI_API_KEY) {
+    const quota = await consumeProviderQuota(
+      'provider-chat',
+      profile.tenantId
+    )
+    if (!quota.ok) {
+      return providerQuotaBlockedResponse(quota, CORTEX_PRIVATE_HEADERS)
     }
   }
 

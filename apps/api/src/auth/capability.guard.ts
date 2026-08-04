@@ -30,6 +30,7 @@ export const ERP_CAPABILITIES = [
   'finance.post',
   'finance.issue_invoice',
   'finance.manage_cash',
+  'provider.quota.consume',
 ] as const
 export type ErpCapability = (typeof ERP_CAPABILITIES)[number]
 
@@ -109,6 +110,23 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
   'finance.post': ['owner', 'admin', 'finance'],
   'finance.issue_invoice': ['owner', 'admin', 'finance'],
   'finance.manage_cash': ['owner', 'admin', 'finance'],
+  // Every authenticated ERP role may consume a bounded provider budget. The
+  // quota key remains tenant/user scoped; this capability grants no ERP write.
+  'provider.quota.consume': [
+    'owner',
+    'estimator',
+    'pm',
+    'admin',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+    'viewer',
+  ],
 }
 
 export function roleHasCapability(

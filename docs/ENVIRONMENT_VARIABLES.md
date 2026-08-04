@@ -123,6 +123,22 @@ Optional — when unset, notifications log to stdout instead of sending.
 
 ---
 
+## Shared provider quota (NestJS + Redis, disabled by default)
+
+Provider quota endpoint is authenticated by Supabase bearer token and derives
+tenant/user scope from Nest principal. It accepts fixed bucket names only; it
+cannot write ERP records or change provider limits. Keep selector disabled
+until Redis, auth, replay, and spend gates pass for one disposable tenant.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_PROVIDER_QUOTA_VIA_API` | no | Next server | Selects shared NestJS Redis accounting; exact `true` only |
+| `ERP_PROVIDER_QUOTA_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
+When enabled, failed Nest/Redis quota calls fail closed before external AI
+work. Edge limiter remains separate per-instance burst guard. This is not a
+global budget until every provider instance uses shared accounting.
+
 ## Local Development
 
 The minimum to boot `pnpm dev`:

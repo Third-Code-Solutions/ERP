@@ -26,6 +26,21 @@ behind NestJS, with tenant/user dimensions, retry-safe accounting, metrics, and
 an operator-visible spend budget. Do not claim global enforcement from the
 current edge map.
 
+## M3.56 Shared Redis provider quota target (2026-08-04)
+
+Provider-backed Next routes should hand off only a bounded bucket identity to an
+authenticated NestJS quota seam. Nest must derive tenant/user scope from its
+verified principal, keep provider policy server-owned, and use an atomic Redis
+operation with expiry. A blocked decision must carry standard retry/limit/scope
+headers; a Redis/API failure must fail closed before external provider work.
+
+Source `M3.56` implements this seam behind an exact per-tenant canary flag. The
+flag is false/empty by default, so source publication does not activate it.
+Redis remains accounting/lock transport, never ERP transaction authority;
+PostgreSQL transactions and audit records remain authoritative for business
+state. Later milestones add operator budgets, metrics, and idempotent spend
+ledger reconciliation without putting secrets or business content in Redis.
+
 ## M3.54 Cortex command-palette source target (2026-08-04)
 
 The global palette should be a low-cost entry point to the permissioned Cortex

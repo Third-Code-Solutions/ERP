@@ -45,6 +45,35 @@ This is burst protection only: cold starts and multiple edge instances can
 reset the map. Next backend milestone: shared Redis quota/lock accounting in
 NestJS, with tenant/user dimensions and audit/metrics, after disposable tests.
 
+## M3.56 - Shared Redis provider quota gateway (source complete, 2026-08-04)
+
+Added `ProviderQuotaModule` to the Nest modular monolith. Its authenticated
+`POST /v1/provider-quotas/consume` endpoint accepts only fixed bucket names;
+`SupabaseJwtGuard` and `CapabilityGuard` derive/authorize the principal. A Lua
+script increments tenant/user hashed keys with expiry, stops unbounded count
+growth after the limit, and returns a bounded TTL. No ERP record or provider
+payload is stored in Redis.
+
+Integrated Next Cortex chat/embed, project AI chat, and BOM similar-item
+retrieval behind an exact `ERP_PROVIDER_QUOTA_VIA_API` plus UUID allowlist
+canary. Disabled by default. Enabled failures return 503/429 before provider
+work; success leaves existing route bodies and response contracts unchanged.
+
+Validation: API 60 files/308 tests; Web 73 files/471 tests; focused API 7/7 and
+Web 3/3 provider-quota tests plus route suites; workspace lint/typecheck; API
+Nest build; `git diff --check`; and Web 80/80-route production build pass. No
+Vercel deployment or hosted Supabase mutation occurred.
+
+Landing reconnaissance added `docs/research/BEHAVIORS.md` and
+`docs/research/components/third-code-landing.spec.md` from live 1440/390
+Playwright evidence. This is a specification artifact, not a claim that a new
+frontend release was deployed.
+
+Next gate: supported Supabase backup plus dependent-row/audit export and
+owner-approved mapping for the 12 duplicate Purchase Orders, then read-only
+planner and disposable PostgreSQL 17 replay. Keep quota canary disabled until
+Railway exact-SHA and Redis/auth replay evidence exists.
+
 ## M3.53 - Clean-room runtime branding audit (source complete, 2026-08-04)
 
 Expanded `branding-clean-room.test.ts` to scan web source/public, API source,

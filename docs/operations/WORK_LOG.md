@@ -59,6 +59,37 @@ branches as `kurtgav`. Rollback: revert source commit; no hosted state needs
 repair. Next: supported duplicate-PO backup/export and owner mapping; later,
 shared Redis quota in NestJS.
 
+## 2026-08-04 - M3.56 Shared Redis provider quota gateway
+
+Moved provider burst accounting seam into existing NestJS modular monolith.
+Authenticated `/v1/provider-quotas/consume` derives tenant/user from verified
+Supabase membership, authorizes `provider.quota.consume`, and runs atomic Redis
+Lua counters for fixed chat/embedding buckets. Redis keys hash identity and
+expire; no ERP content or transaction authority enters Redis. Next provider
+routes call this seam only for an exact disabled-by-default tenant canary and
+fail closed if accounting is unavailable.
+
+Changed files:
+
+- `apps/api/src/observability/provider-quota.*`
+- `apps/api/src/auth/capability.guard.ts`
+- `apps/api/src/app.module.ts`
+- `apps/web/src/lib/erp-core-client.ts`
+- `apps/web/src/lib/provider-quota.*`
+- Cortex/AI provider route handlers
+- `.env.example`, environment docs, architecture/operations docs
+- landing behavior/spec artifacts
+
+Results: API 60/308; Web 73/471; focused quota tests API 7/7 and Web 3/3;
+workspace lint/typecheck; API build; `git diff --check`; Web 80/80 production
+routes. Known intentional Web stderr remains the existing simulated
+`provider down` retrieval test. No UI code, provider config, Vercel build,
+Supabase SQL/data, or Storage mutation occurred.
+
+Rollback: revert M3.56 source commit; default flags mean no hosted canary state
+needs repair. Next: supported duplicate-PO backup/export and owner mapping;
+activate quota only after Railway exact-SHA/Redis/auth replay evidence.
+
 ## 2026-08-04 - M3.53 Clean-room runtime branding audit
 
 Audited production-facing source, metadata, assets, and the live public

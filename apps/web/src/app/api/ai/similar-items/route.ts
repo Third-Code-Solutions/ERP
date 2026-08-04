@@ -10,6 +10,10 @@ import {
 } from '@third-code-erp/ai'
 import { writeAuditLog } from '@/lib/audit'
 import { canSearchEntity } from '@/app/api/search/search-policy'
+import {
+  consumeProviderQuota,
+  providerQuotaBlockedResponse,
+} from '@/lib/provider-quota'
 
 export const runtime = 'nodejs'
 export const maxDuration = 10
@@ -106,6 +110,14 @@ export async function POST(req: NextRequest) {
       failure: 'provider_not_configured',
     })
     return response({ items: [], reason: 'AI not configured' })
+  }
+
+  const quota = await consumeProviderQuota(
+    'provider-chat',
+    profile.tenantId
+  )
+  if (!quota.ok) {
+    return providerQuotaBlockedResponse(quota, RESPONSE_HEADERS)
   }
 
   let items: SimilarItem[] = []

@@ -5,6 +5,10 @@ import { boms, bomLineItems, invoices, projects, purchaseOrders, users } from '@
 import { and, eq, desc } from 'drizzle-orm'
 import { getOpenAI } from '@third-code-erp/ai'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  consumeProviderQuota,
+  providerQuotaBlockedResponse,
+} from '@/lib/provider-quota'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -18,6 +22,14 @@ export async function POST(req: NextRequest) {
 
   if (!process.env.OPENAI_API_KEY) {
     return new Response(JSON.stringify({ error: 'AI not configured' }), { status: 503, headers: { 'Content-Type': 'application/json' } })
+  }
+
+  const quota = await consumeProviderQuota(
+    'provider-chat',
+    userRow.tenant_id
+  )
+  if (!quota.ok) {
+    return providerQuotaBlockedResponse(quota)
   }
 
   const { messages, projectId } = (await req.json()) as {

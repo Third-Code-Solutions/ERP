@@ -36,6 +36,24 @@ Redis accounting, tenant budgets, and operator controls remain future NestJS
 work. Source `4d190dfd` passes focused/full tests, workspace gates, and the
 80/80 build; no hosted/provider mutation occurred.
 
+## D-166 - Shared provider quota is Nest-authorized and canary-gated (2026-08-04)
+
+Decision: add authenticated `POST /v1/provider-quotas/consume` to the Nest
+modular monolith. Accept only `provider-chat` and `provider-embedding`; derive
+tenant/user scope from the verified Supabase principal; enforce fixed server
+limits with atomic Redis Lua accounting and expiry. Keep Next adoption behind
+`ERP_PROVIDER_QUOTA_VIA_API` plus an explicit tenant UUID allowlist.
+
+Reason: per-instance edge maps cannot protect spend across Vercel instances.
+Central accounting reduces duplicate provider bursts while preserving route
+payloads and keeping AI advisory behavior separate from ERP authority.
+
+Boundary: Redis stores only hashed identity/counter state and is not business
+authority. Missing/unhealthy shared quota fails closed only for enabled canary
+tenants; default flag/allowlist are off. Source gates pass API 60/308, Web
+73/471, lint/typecheck, API build, and Web 80/80 build. No Vercel or Supabase
+mutation occurred.
+
 ## D-163 - Product clean-room scan excludes research provenance (2026-08-04)
 
 Decision: enforce forbidden legacy/vendor markers across product-facing web,

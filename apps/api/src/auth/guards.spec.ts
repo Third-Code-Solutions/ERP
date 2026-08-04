@@ -23,6 +23,9 @@ class GuardFixtureController {
   @RequireCapabilities('rfq.dispatch')
   dispatch(): void {}
 
+  @RequireCapabilities('provider.quota.consume')
+  quota(): void {}
+
   @Public()
   open(): void {}
 
@@ -190,6 +193,21 @@ describe('CapabilityGuard', () => {
         })
       )
     ).toThrow(ForbiddenException)
+  })
+
+  it('allows every authenticated ERP role to consume bounded provider quota', () => {
+    expect(
+      guard.canActivate(
+        contextFor('quota', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toBe(true)
   })
 
   it('rejects protected routes without an explicit policy', () => {

@@ -104,6 +104,7 @@ import {
   type DeliveryCancelResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
+import { z } from 'zod'
 
 interface CoreResult<T> {
   ok: boolean
@@ -111,10 +112,32 @@ interface CoreResult<T> {
   error?: string
 }
 
+export type ProviderQuotaBucket =
+  | 'provider-chat'
+  | 'provider-embedding'
+
+export interface ProviderQuotaDecision {
+  allowed: boolean
+  bucket: ProviderQuotaBucket
+  count: number
+  limit: number
+  retryAfterSeconds: number
+  scope: 'tenant-user'
+}
+
+const providerQuotaDecisionSchema = z.object({
+  allowed: z.boolean(),
+  bucket: z.enum(['provider-chat', 'provider-embedding']),
+  count: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+  retryAfterSeconds: z.number().int().nonnegative(),
+  scope: z.literal('tenant-user'),
+})
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-function tenantEnabledForCoreApi(
+export function tenantEnabledForCoreApi(
   tenantId: string,
   enabled: string | undefined,
   tenantIds: string | undefined
@@ -459,7 +482,7 @@ function getCoreApiBaseUrl(): string | null {
   return baseUrl || null
 }
 
-async function getCoreApiAccess(): Promise<
+export async function getCoreApiAccess(): Promise<
   | { ok: true; baseUrl: string; accessToken: string }
   | { ok: false; error: string }
 > {
@@ -483,6 +506,104 @@ async function getCoreApiAccess(): Promise<
     ok: true,
     baseUrl,
     accessToken: session.access_token,
+  }
+}
+
+export function providerQuotaUsesCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PROVIDER_QUOTA_VIA_API,
+    process.env.ERP_PROVIDER_QUOTA_VIA_API_TENANT_IDS
+  )
+}
+
+export type ProviderQuotaAttempt =
+  | { ok: true; skipped: boolean; data?: ProviderQuotaDecision }
+  | {
+      ok: false
+      status: 429 | 503
+      error: string
+      retryAfterSeconds?: number
+      limit?: number
+      scope?: string
+    }
+
+/**
+ * Consume shared provider budget through authenticated NestJS API. Feature
+ * flag stays tenant-scoped and fail-closed: if enabled but API unavailable,
+ * caller must not spend external provider credits.
+ */
+export async function consumeProviderQuotaViaCoreApi(
+  bucket: ProviderQuotaBucket,
+  tenantId: string
+): Promise<ProviderQuotaAttempt> {
+  if (!providerQuotaUsesCoreApi(tenantId)) {
+    return { ok: true, skipped: true }
+  }
+
+  const access = await getCoreApiAccess()
+  if (!access.ok) {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Provider quota service is not configured.',
+    }
+  }
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/provider-quotas/consume`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify({ bucket }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    const parsed = providerQuotaDecisionSchema.safeParse(rawBody)
+    if (parsed.success) {
+      if (parsed.data.allowed) {
+        return { ok: true, skipped: false, data: parsed.data }
+      }
+      return {
+        ok: false,
+        status: 429,
+        error: 'Provider request limit reached. Try again shortly.',
+        retryAfterSeconds: parsed.data.retryAfterSeconds,
+        limit: parsed.data.limit,
+        scope: parsed.data.scope,
+      }
+    }
+
+    return {
+      ok: false,
+      status: response.status === 429 ? 429 : 503,
+      error:
+        response.status === 429
+          ? 'Provider request limit reached. Try again shortly.'
+          : 'Provider quota service is unavailable.',
+      retryAfterSeconds:
+        response.status === 429
+          ? Number(response.headers.get('retry-after') ?? 60)
+          : undefined,
+      limit:
+        response.status === 429
+          ? Number(response.headers.get('x-ratelimit-limit') ?? 0) || undefined
+          : undefined,
+      scope: response.headers.get('x-ratelimit-scope') ?? undefined,
+    }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Provider quota service is unavailable.',
+    }
   }
 }
 
