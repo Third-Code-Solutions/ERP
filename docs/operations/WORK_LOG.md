@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-05 - M3.67 inventory item policy command boundary
+
+Defined and implemented one vertical write slice. Shared types now expose a
+strict UOM/tracked command and result. Nest owns the guarded route and
+transaction, rechecks tenant membership/capability, locks UOM/item rows,
+preserves the stock-identity trigger, and writes a semantic audit diff. Same
+state is idempotent. Next delegates only behind a disabled exact flag and
+tenant allowlist; direct behavior remains default.
+
+Results: shared 17/179; API 71/341; Web 79/512; focused command/client/action
+tests; all typechecks; serial root lint; Nest build; Web 80-route build; and
+`git diff --check`. No Supabase SQL/data/provider mutation and no Vercel
+preview/production build. Reviewed source push and controlled Railway live
+verification are the next release gate.
+
 ## 2026-08-05 - M3.66 inventory summary authority seam and ledger refresh
 
 Reran the Supabase release planner without executing SQL. The authorized

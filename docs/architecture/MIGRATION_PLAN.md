@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.67 - Inventory item policy command boundary (2026-08-05)
+
+Implemented a strict, tenant-scoped Nest command for setting a material item’s
+base UOM and perpetual-stock flag. Membership and `inventory.manage` are
+rechecked inside the transaction; the UOM and item are locked with repeated
+tenant predicates; semantic audit captures before/after state; repeated same
+state is a no-op. The Next adapter is exact-flag plus tenant-allowlist gated,
+with the direct server action preserved by default. No migration was added.
+
+Validation: shared 17/179, API 71/341, Web 79/512, focused command/client/
+action tests, typechecks, serial lint, Nest build, Web production build, and
+`git diff --check`. Release remains conditional on pushing the reviewed SHA,
+confirming Railway watch patterns, and verifying live readiness/route auth.
+Rollback is the disabled adapter flag; no hosted state requires repair. No
+Supabase or Vercel provider action was triggered.
+
 ## M3.66 - Inventory summary authority seam and read-only ledger refresh (2026-08-05)
 
 Read-only planning confirms Supabase has 55 applied migrations while the

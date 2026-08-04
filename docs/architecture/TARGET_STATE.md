@@ -28,6 +28,16 @@ read-only at 55/87 until recovery/export, dependency audit, owner mapping,
 and disposable PostgreSQL 17 replay gates are complete. Vercel remains
 deployment-disabled for this slice.
 
+## M3.67 Inventory item policy command boundary (2026-08-05)
+
+The target authority now includes a narrow, transactional item-policy command:
+tenant membership and `inventory.manage` are rechecked in Nest, active UOM and
+material item rows are locked within one transaction, stock identity remains
+database-guarded, and semantic audit records the change. The command is an
+idempotent state setter and remains fail-closed behind an exact flag and tenant
+allowlist. The Next direct server action is the compatibility path. No hosted
+schema/data or Vercel deployment is implied.
+
 ## M3.65 CRM opportunity detail graph boundary (2026-08-05)
 
 Opportunity detail reads move toward Nest authority through a strict,

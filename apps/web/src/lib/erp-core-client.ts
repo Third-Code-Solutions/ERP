@@ -34,6 +34,7 @@ import {
   publicSigningResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
+  inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
   stockReceiptCreationResultSchema,
   stockReceiptPostingResultSchema,
@@ -101,6 +102,8 @@ import {
   type DocumentProcessingRequest,
   type DocumentProcessingStatus,
   type InventorySummaryResult,
+  type ConfigureInventoryItemCommand,
+  type InventoryItemConfigurationResult,
   type StockReceiptCreationResult,
   type StockReceiptPostCommand,
   type StockReceiptPostingResult,
@@ -233,6 +236,16 @@ export function inventorySummaryReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_INVENTORY_SUMMARY_READS_VIA_API,
     process.env.ERP_INVENTORY_SUMMARY_READS_VIA_API_TENANT_IDS
+  )
+}
+
+export function inventoryItemConfigurationWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_ITEM_CONFIG_VIA_API,
+    process.env.ERP_INVENTORY_ITEM_CONFIG_TENANT_IDS
   )
 }
 
@@ -1130,6 +1143,63 @@ export async function getInventorySummaryThroughCoreApi(): Promise<
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Inventory was not read.',
+    }
+  }
+}
+
+export async function configureInventoryItemThroughCoreApi(
+  materialItemId: string,
+  command: ConfigureInventoryItemCommand
+): Promise<CoreResult<InventoryItemConfigurationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/items/${encodeURIComponent(
+        materialItemId
+      )}/configuration`,
+      {
+        method: 'PATCH',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Inventory item configuration conflicts with posted stock evidence.'
+            : response.status === 404
+              ? 'Inventory item was not found.'
+              : 'Inventory item configuration was not committed.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = inventoryItemConfigurationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid inventory item configuration result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No inventory item configuration was committed.',
     }
   }
 }

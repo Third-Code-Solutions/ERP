@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   revalidatePath: vi.fn(),
   transaction: vi.fn(),
+  inventoryItemConfigurationWritesUseCoreApi: vi.fn(),
+  configureInventoryItemThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -55,13 +57,22 @@ vi.mock('@/lib/erp-core-client', () => ({
   stockReceiptReverseWritesUseCoreApi:
     mocks.stockReceiptReverseWritesUseCoreApi,
   reverseStockReceiptThroughCoreApi: mocks.reverseStockReceiptThroughCoreApi,
+  inventoryItemConfigurationWritesUseCoreApi:
+    mocks.inventoryItemConfigurationWritesUseCoreApi,
+  configureInventoryItemThroughCoreApi:
+    mocks.configureInventoryItemThroughCoreApi,
 }))
 
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }))
 
-import { createStockReceipt, postStockReceipt, reverseStockReceipt } from './actions'
+import {
+  configureInventoryItem,
+  createStockReceipt,
+  postStockReceipt,
+  reverseStockReceipt,
+} from './actions'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const ACTOR_ID = '22222222-2222-4222-8222-222222222222'
@@ -69,6 +80,8 @@ const WAREHOUSE_ID = '33333333-3333-4333-8333-333333333333'
 const PO_ID = '44444444-4444-4444-8444-444444444444'
 const PO_LINE_ID = '55555555-5555-4555-8555-555555555555'
 const RECEIPT_ID = '66666666-6666-4666-8666-666666666666'
+const ITEM_ID = '77777777-7777-4777-8777-777777777777'
+const UOM_ID = '88888888-8888-4888-8888-888888888888'
 
 const input = {
   purchaseOrderId: PO_ID,
@@ -232,5 +245,47 @@ describe('Stock Receipt creation compatibility seam', () => {
       'receipt-reverse-1'
     )
     expect(mocks.execute).not.toHaveBeenCalled()
+  })
+})
+
+describe('Inventory item configuration migration switch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.requireUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      role: 'procurement',
+      user: { id: ACTOR_ID },
+    })
+    mocks.requireCapability.mockReturnValue(undefined)
+    mocks.inventoryItemConfigurationWritesUseCoreApi.mockReturnValue(true)
+    mocks.configureInventoryItemThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        materialItemId: ITEM_ID,
+        tenantId: TENANT_ID,
+        baseUomId: UOM_ID,
+        inventoryTracked: true,
+        unit: 'EA',
+        updatedAt: '2026-08-05T00:00:00.000Z',
+      },
+    })
+  })
+
+  it('routes enabled tenants through Nest without a direct database write', async () => {
+    const data = new FormData()
+    data.set('materialItemId', ITEM_ID)
+    data.set('uomId', UOM_ID)
+    data.set('tracked', 'on')
+
+    await expect(configureInventoryItem(data)).resolves.toEqual({
+      ok: true,
+      id: ITEM_ID,
+    })
+    expect(mocks.configureInventoryItemThroughCoreApi).toHaveBeenCalledWith(
+      ITEM_ID,
+      { uomId: UOM_ID, tracked: true }
+    )
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/inventory')
   })
 })

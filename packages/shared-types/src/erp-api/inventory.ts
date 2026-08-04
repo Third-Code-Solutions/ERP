@@ -80,6 +80,31 @@ export type InventorySummaryResult = z.infer<
   typeof inventorySummaryResultSchema
 >
 
+export const configureInventoryItemCommandSchema = z
+  .object({
+    uomId: z.string().uuid(),
+    tracked: z.boolean(),
+  })
+  .strict()
+
+export const inventoryItemConfigurationResultSchema = z
+  .object({
+    materialItemId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    baseUomId: z.string().uuid(),
+    inventoryTracked: z.boolean(),
+    unit: z.string().trim().min(1).max(32),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+
+export type ConfigureInventoryItemCommand = z.infer<
+  typeof configureInventoryItemCommandSchema
+>
+export type InventoryItemConfigurationResult = z.infer<
+  typeof inventoryItemConfigurationResultSchema
+>
+
 const isoDateSchema = z
   .string()
   .regex(isoDatePattern, 'Date requires YYYY-MM-DD')
