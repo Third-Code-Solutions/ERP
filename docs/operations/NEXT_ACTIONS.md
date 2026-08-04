@@ -2,9 +2,10 @@
 
 # Exact next action after M3.40 governing BuildOps product contract
 
-1. Commit and push the PRD/architecture-memory update under the intended
-   `kurtgav` GitHub identity. Verify the exact source SHA and Railway health;
-   do not trigger Vercel or change its spend-protection boundary.
+1. Source checkpoint `a66b43bd9c1694f19de69ad3f0a49808fc41b8fd` is pushed to
+   both target branches under `kurtgav`; Railway's GitHub check and live
+   readiness are green. Do not trigger Vercel or change its spend-protection
+   boundary.
 2. Obtain an approved, recoverable Supabase backup/restore point and complete
    the 55/87 catalog, data/duplicate, constraints/functions/triggers,
    RLS/policy, Storage, and migration-history diff. Resolve the connector's

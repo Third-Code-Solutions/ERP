@@ -15,6 +15,13 @@ the release definition of done. This is a documentation-only milestone; no
 runtime code, database schema, hosted data, Storage object, Railway variable,
 or Vercel deployment changed.
 
+The documentation checkpoint is `a66b43bd9c1694f19de69ad3f0a49808fc41b8fd`,
+pushed to both target branches under `kurtgav`. GitHub reports the Railway
+API check successful; live `/ready` and `/health` remain HTTP 200. The
+Supabase read-only recheck confirms 55 applied migrations with head
+`20260729233017`, no `project_create_requests` table, and the existing
+`MIGRATIONS_FAILED` branch status. Vercel remains unchanged.
+
 The executable baseline remains M3.39: source has 87 migrations, the
 disposable PostgreSQL 17 + Redis lane is green, Railway readiness is green,
 Supabase is the exact 55-row prefix, and Vercel remains disconnected and

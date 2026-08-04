@@ -17,7 +17,12 @@ database, Storage, Railway, or Vercel state changed.
 Validation for this documentation slice: clean-room runtime scan under
 `apps`, `packages`, and `supabase` has no ERPNext/Frappe/ABI Ops marker;
 existing landing evidence remains green at 1440/768/390px; source baseline
-and provider identities were rechecked. Exact next action: resolve the
+and provider identities were rechecked. Checkpoint
+`a66b43bd9c1694f19de69ad3f0a49808fc41b8fd` is pushed to both target branches
+under `kurtgav`; Railway's GitHub check and live `/ready`/`/health` are green.
+Supabase remains read-only at 55 applied migrations with head
+`20260729233017`, no `project_create_requests` table, and the existing
+`MIGRATIONS_FAILED` branch status. Exact next action: resolve the
 Supabase connector `INVALID_ARGUMENT` and reported `MIGRATIONS_FAILED` state
 through a supported, recoverable path. After that gate, implement the smallest
 read-only Today/Project Command Center slice without opening mutation flags.
