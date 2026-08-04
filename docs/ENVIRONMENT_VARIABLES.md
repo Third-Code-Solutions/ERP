@@ -166,6 +166,9 @@ false and tenant list empty until the controlled release gate is clear.
 | `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_TENANT_IDS` | no | API server | Explicit session-minting tenant allowlist; default empty |
 | `ERP_PUBLIC_VENDOR_CONFIRMATION_TOKEN_SECRET` | no* | API server | Server-only HMAC secret for deterministic token derivation; required when minting is enabled |
 | `ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_TTL_HOURS` | no | API server | Pending session lifetime, 1-2160 hours; default 720 |
+| `ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_ENABLED` | no | API server | Gated supplier confirmation-link email delivery; default false and requires public-write gate |
+| `ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_TENANT_IDS` | no | API server | Explicit link-delivery tenant allowlist; default empty |
+| `ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL` | no | API server | HTTPS Nest API origin used for supplier confirmation links |
 
 The Next.js upload compatibility selector is separate from the API-side gates:
 

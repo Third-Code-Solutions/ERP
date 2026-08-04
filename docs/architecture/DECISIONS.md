@@ -1,5 +1,18 @@
 # Architecture Decisions
 
+## D-139 - Reconstruct supplier links only at gated email send time (2026-08-04)
+
+Decision: let the existing supplier-email worker derive a confirmation URL in
+memory only when the link-delivery flag and public-write flag both authorize
+the same tenant. Verify the session belongs to that tenant and Purchase Order,
+is pending, and has not expired; use the server-only HMAC secret and an HTTPS
+API origin. Persist neither the URL nor the raw token.
+
+Reason: the outbox remains a redacted durable intent, provider retries remain
+idempotent, and a misconfigured or closed public route cannot result in a dead
+supplier link. The source seam is independently disabled until hosted schema,
+provider, rollback, and spend evidence clears.
+
 ## D-138 - Mint supplier sessions without persisting raw tokens (2026-08-03)
 
 Decision: at authorized `scm_issue`, optionally create one tenant-scoped

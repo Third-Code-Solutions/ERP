@@ -27,6 +27,7 @@ export interface SendPurchaseOrderSupplierEmail {
   supplierName: string
   totalCents: number
   purchaseOrderId: string
+  confirmationUrl?: string
 }
 
 function escapeHtml(value: string): string {
@@ -214,7 +215,10 @@ export class NotificationEmailService {
     ).toString()
     const totalLabel = `PHP ${formatCents(input.totalCents)}`
     const subject = `[Third Code ERP] Purchase order ${input.poNumber}`
-    const text = `Hello ${input.supplierName}, Purchase order ${input.poNumber} for ${input.projectName} is issued. Total: ${totalLabel}. ${purchaseOrderUrl}`
+    const confirmationCopy = input.confirmationUrl
+      ? ` Review and confirm this order: ${input.confirmationUrl}`
+      : ''
+    const text = `Hello ${input.supplierName}, Purchase order ${input.poNumber} for ${input.projectName} is issued. Total: ${totalLabel}. ${purchaseOrderUrl}${confirmationCopy}`
     const html = [
       '<div style="font-family:Inter,Arial,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5;max-width:600px">',
       `<h2 style="color:#0F2D4A">Purchase order ${escapeHtml(input.poNumber)} issued</h2>`,
@@ -222,6 +226,11 @@ export class NotificationEmailService {
       `<p>Purchase order <strong>${escapeHtml(input.poNumber)}</strong> for <strong>${escapeHtml(input.projectName)}</strong> is ready for fulfillment.</p>`,
       `<p>Total: <strong>${escapeHtml(totalLabel)}</strong></p>`,
       `<p><a href="${escapeHtml(purchaseOrderUrl)}">Open Purchase Order</a></p>`,
+      ...(input.confirmationUrl
+        ? [
+            `<p><a href="${escapeHtml(input.confirmationUrl)}">Review and confirm this order</a></p>`,
+          ]
+        : []),
       '<hr style="border:none;border-top:1px solid #e5e5e5;margin:20px 0"/>',
       '<p style="color:#737373;font-size:12px">Third Code ERP - Third Code Solutions Inc.</p>',
       '</div>',

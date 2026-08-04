@@ -38,6 +38,9 @@ const SUPPLIER_INPUT = {
   purchaseOrderId: '33333333-3333-4333-8333-333333333333',
 }
 
+const CONFIRMATION_URL =
+  'https://third-code-erp-api.example.test/v1/public/purchase-orders/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/confirmation'
+
 function service(
   values: Record<string, string | undefined>
 ): NotificationEmailService {
@@ -190,8 +193,35 @@ describe('NotificationEmailService', () => {
     expect(body.to).toEqual([SUPPLIER_INPUT.recipientEmail])
     expect(body.html).toContain('Concrete &lt;Co&gt;')
     expect(body.html).toContain('PHP 1,234.05')
-    expect(body.text).toContain(
-      'https://thirdcode-erp.example.test/purchase-orders/33333333-3333-4333-8333-333333333333'
+    expect(body.text).toBe(
+      'Hello Concrete <Co>, Purchase order PO-0042 for HQ <Fit-out> is issued. Total: PHP 1,234.05. https://thirdcode-erp.example.test/purchase-orders/33333333-3333-4333-8333-333333333333'
     )
+  })
+
+  it('adds a supplier confirmation link only when the gated sender provides one', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 'supplier-email-provider-id' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const email = service({
+      RESEND_API_KEY: 're_test_key_long_enough',
+      EMAIL_FROM: 'Third Code ERP <erp@example.test>',
+      ERP_WEB_BASE_URL: 'https://thirdcode-erp.example.test',
+    })
+
+    await email.sendPurchaseOrderSupplier({
+      ...SUPPLIER_INPUT,
+      confirmationUrl: CONFIRMATION_URL,
+    })
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(request.body)) as {
+      html: string
+      text: string
+    }
+    expect(body.html).toContain(CONFIRMATION_URL)
+    expect(body.text).toContain(CONFIRMATION_URL)
   })
 })

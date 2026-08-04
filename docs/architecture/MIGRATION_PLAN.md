@@ -4,6 +4,21 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.30 - Gated supplier confirmation link delivery (source complete)
+
+The existing supplier-email delivery worker can now reconstruct a confirmation
+URL at send time from the redacted session UUID. It performs a tenant/PO,
+pending-state, and expiry check in the same claim transaction, then derives
+the HMAC token in memory. Link delivery requires both the explicit link
+allowlist and the public-write allowlist for the tenant, plus an HTTPS API
+base URL and the server-only token secret. No migration is added and no
+existing email is changed while the controls are closed.
+
+Keep all M3.30 controls false/empty and the base URL unset until the ordered
+hosted suffix, disposable email replay/expiry/revocation proof, provider
+identity, rollback, owner-input, and spend gates clear. This source slice
+does not authorize Supabase or Vercel mutation.
+
 ## M3.29 - Protected supplier session minting (closed Railway runtime seam)
 
 Local source extends the M3.28 supplier-confirmation authority at the

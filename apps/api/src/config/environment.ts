@@ -11,6 +11,15 @@ const optionalHttpUrl = z
   }, 'must use http or https')
   .optional()
 
+const optionalHttpsUrl = z
+  .string()
+  .url()
+  .refine(
+    (value) => new URL(value).protocol === 'https:',
+    'must use https'
+  )
+  .optional()
+
 const environmentSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
@@ -563,6 +572,23 @@ const environmentSchema = z.object({
     .min(1)
     .max(2_160)
     .default(720),
+  // Link delivery is independently gated and also requires the public-write
+  // gate for the same tenant so suppliers never receive a dead URL.
+  ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL: optionalHttpsUrl,
   DXF_PARSER_URL: optionalHttpUrl,
   PARSER_SHARED_SECRET: z.string().min(20).optional(),
 })

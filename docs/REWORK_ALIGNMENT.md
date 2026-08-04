@@ -12,7 +12,7 @@ Rework-recommended feature to our shipped surface.
 | Tracker (Project Award → Creation → Approval) | boms + bom_line_items + scope_items | /bom + /projects/[id]/bom | Equivalent (called BOM here) |
 | RFQ → 3 vendors → evaluation | rfqs + rfq_quotes | /procurement/rfqs | Live |
 | Head Commercial / Head Procurement approval | purchase_orders status flow | /purchase-orders/[id] | Live (PM→Commercial→SCM) |
-| Vendor Confirmation | `vendor_confirmation_sessions` + replay ledger + SCM mint association | `/v1/public/purchase-orders/:token/confirmation` | Local source authority; public link delivery pending |
+| Vendor Confirmation | `vendor_confirmation_sessions` + replay ledger + SCM mint association | `/v1/public/purchase-orders/:token/confirmation` | Local source authority; M3.30 gated email-link reconstruction |
 | Delivery scheduling | delivery_schedules | /procurement/deliveries | Live (new) |
 | Site preparation | delivery_schedules.site_prepared_* | /procurement/deliveries/[id] | Live (new) |
 | Inspection + acceptance | delivery_inspections | /procurement/deliveries/[id] | Live (new) |
@@ -47,6 +47,6 @@ draft → submitted → certificate_pending → certified → handed_over_financ
 - /portal/project/[token]/{overview, progress, documents, photos, billing}
 
 ## What's intentionally not built
-- Vendor confirmation public link delivery (M3.29 session minting is source-only and closed)
+- Vendor confirmation hosted link delivery and provider canary (M3.30 source reconstruction is closed and source-only)
 - Mobile native app for on-site daily updates (REFACTOR.md Phase 5)
 - Real-time customer Realtime sync (clients see snapshot, not live cursor)

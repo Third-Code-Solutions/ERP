@@ -35,6 +35,7 @@ import { PublicVendorConfirmationController } from './public-vendor-confirmation
 import { PublicVendorConfirmationPipe } from './public-vendor-confirmation.pipe'
 import { PublicVendorConfirmationService } from './public-vendor-confirmation.service'
 import { VendorConfirmationSessionMintingService } from './vendor-confirmation-session-minting.service'
+import { VendorConfirmationLinkService } from './vendor-confirmation-link.service'
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { VendorConfirmationSessionMintingService } from './vendor-confirmation-s
     PublicVendorConfirmationPipe,
     PublicVendorConfirmationService,
     VendorConfirmationSessionMintingService,
+    VendorConfirmationLinkService,
   ],
 })
 export class ProcurementModule implements NestModule {
