@@ -1,5 +1,28 @@
 # Architecture Decisions
 
+## D-148 - Project creation requires tenant-scoped idempotency (2026-08-04)
+
+Decision: every Nest project-create command must carry a bounded
+`Idempotency-Key`. Hash the normalized shared command with SHA-256 and claim a
+tenant/key row in `project_create_requests` inside the same PostgreSQL
+transaction as the official project insert. A completed row replays its
+validated result; a different hash conflicts; an incomplete transaction
+rolls back the ledger and project together. Composite tenant foreign keys,
+forced RLS, service-only grants, and semantic audit evidence are part of the
+contract. The Next adapter generates a stable key but remains disabled by
+default; Python cannot approve or finalize the transaction.
+
+Reason: retries, browser refreshes, queue re-delivery, and provider timeouts
+must not create duplicate ERP records or allow cross-tenant replay. A durable
+database record is stronger than an in-memory or browser-only token.
+
+Validation: source migration clone 87/87; database 306/306 zero-skip lane;
+API integration 15 files / 22 tests; focused API 13/13; web adapter 72/72;
+lint, typecheck, full serial tests, and production build pass. No hosted
+Supabase SQL/data/Storage, Railway variables, or Vercel build changed. Keep
+both feature flags closed pending hosted reconciliation and a spend-bounded
+canary.
+
 ## D-147 - Project creation uses a closed Nest authority seam (2026-08-04)
 
 Decision: introduce `POST /v1/projects` as the future official creation

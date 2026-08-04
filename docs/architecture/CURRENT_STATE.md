@@ -4,6 +4,34 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.39 durable project-create idempotency (2026-08-04)
+
+Source checkpoint: `b77227df402082d494538b92d706f7f092fa1fe5`. Added the
+forward-only `20260804090000_project_create_idempotency.sql` migration and
+matching Drizzle schema for a tenant-scoped, server-only replay ledger. The
+Nest `POST /v1/projects` boundary now requires a bounded `Idempotency-Key`,
+hashes the normalized command, claims the request inside the same PostgreSQL
+transaction as project creation, replays a stored success, and rejects the
+same key with a different payload. Completion stores the typed result and
+semantic audit evidence; failed transactions roll back both the project and
+ledger row. The Next form/adapter now carries a stable key.
+
+Both project-create flags remain false/empty, so the legacy Server Action is
+still the production path. Hosted Supabase SQL/data/Storage and Railway
+variables were unchanged; no Vercel build or promotion was performed. The
+disposable PostgreSQL 17 + Redis lane applied 87/87 migrations, executed
+database tests 306/306 with zero skips, and passed API integration 15 files /
+22 tests. Focused API tests passed 13/13, web core-client tests 72/72, the
+workspace serial test suite passed shared 162/162, database 166/166 executed
+with ordinary environment skips, web 438/438, and API 294/294; lint,
+typecheck, `git diff --check`, and the 78-page production build passed. Redis
+emitted only its local memory-overcommit warning.
+
+The hosted target remains a read-only 55-row migration prefix while source is
+87 migrations; no hosted apply is inferred from clone evidence. The next
+gate is a reviewed backup/catalog/data/RLS reconciliation and one closed,
+spend-bounded canary with both flags still off until approval.
+
 ## M3.38 guarded project-create Nest authority seam (2026-08-04)
 
 Source checkpoint: `7f3a9fc feat(projects): add guarded Nest creation seam`.
