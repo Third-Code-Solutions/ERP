@@ -4,6 +4,23 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.42 - Project Command Center (source complete)
+
+Added a read-only project operating surface on top of existing tenant-scoped
+tables: pending/overdue tasks, project evidence, pending variation decisions,
+open punchlist, active deliveries joined through project-owned purchase
+orders, and the latest progress percentage. The overview remains a server
+read path; buttons are navigation to existing routes/Cortex context, not
+browser writes. Project tabs are contained on mobile and the data boundary
+uses ISO date strings.
+
+Source checkpoint: `a225340`. Focused tests 4/4, workspace tests green,
+lint/typecheck, diff check, and production build 78/78 routes passed. Browser
+MCP proof passed at 390px and 1440px with no overflow and no console errors.
+No database/provider mutation occurred. Exact next action: push once, verify
+Railway/GitHub/live readiness against the exact SHA, and retain the Supabase
+55-row and Vercel spend gates.
+
 ## M3.41 - Read-only Today Command Center (source complete)
 
 Source checkpoint: `ab905091ada2f7db927e6cf4c2de687ee2010194`. Added
