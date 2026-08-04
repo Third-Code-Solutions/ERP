@@ -4,6 +4,24 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.40 - Governing BuildOps product contract (documentation complete)
+
+Added `docs/BuildOps_PRD_v1.md` from the existing product/refactor, clean-room,
+architecture, and release records. It defines the construction-first product
+outcome, shared multi-business foundations, Today/Project Command Center/
+Ask surfaces, Nest/PostgreSQL authority, Python advisory boundary, exact
+money, tenant/RLS, audit, idempotency, workflow, accessibility, SEO/GEO,
+testing, rollback, and provider-spend definition of done. No runtime, hosted
+database, Storage, Railway, or Vercel state changed.
+
+Validation for this documentation slice: clean-room runtime scan under
+`apps`, `packages`, and `supabase` has no ERPNext/Frappe/ABI Ops marker;
+existing landing evidence remains green at 1440/768/390px; source baseline
+and provider identities were rechecked. Exact next action: resolve the
+Supabase connector `INVALID_ARGUMENT` and reported `MIGRATIONS_FAILED` state
+through a supported, recoverable path. After that gate, implement the smallest
+read-only Today/Project Command Center slice without opening mutation flags.
+
 ## M3.39 - Durable project-create idempotency (source complete)
 
 Committed at `b77227df402082d494538b92d706f7f092fa1fe5`. Added the
