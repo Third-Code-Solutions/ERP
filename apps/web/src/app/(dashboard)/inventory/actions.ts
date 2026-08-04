@@ -16,8 +16,10 @@ import { z } from 'zod'
 import {
   configureInventoryItemThroughCoreApi,
   createInventoryUomThroughCoreApi,
+  createInventoryWarehouseThroughCoreApi,
   createStockReceiptThroughCoreApi,
   inventoryUomCreateWritesUseCoreApi,
+  inventoryWarehouseCreateWritesUseCoreApi,
   inventoryItemConfigurationWritesUseCoreApi,
   postStockReceiptThroughCoreApi,
   reverseStockReceiptThroughCoreApi,
@@ -84,6 +86,9 @@ function safeInventoryError(error: unknown): string {
     'Item not found',
     'UOM code already exists',
     'Inventory UOM was not created',
+    'Warehouse code already exists',
+    'Project not found',
+    'Inventory Warehouse was not created',
   ]
   if (message.includes('ux_units_of_measure_tenant_code')) {
     return 'That UOM code already exists.'
@@ -173,6 +178,24 @@ export async function createWarehouse(
         name: formData.get('name'),
         projectId: formData.get('projectId') ?? '',
       })
+
+    if (inventoryWarehouseCreateWritesUseCoreApi(profile.tenantId)) {
+      const result = await createInventoryWarehouseThroughCoreApi({
+        code: input.code,
+        name: input.name,
+        projectId: input.projectId || null,
+      })
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Inventory Warehouse could not be created through ERP Core.',
+        }
+      }
+      revalidateInventory()
+      return { ok: true, id: result.data.warehouseId }
+    }
 
     await db.insert(warehouses).values({
       tenant_id: profile.tenantId,

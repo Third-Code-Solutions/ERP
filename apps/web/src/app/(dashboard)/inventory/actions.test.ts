@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   configureInventoryItemThroughCoreApi: vi.fn(),
   inventoryUomCreateWritesUseCoreApi: vi.fn(),
   createInventoryUomThroughCoreApi: vi.fn(),
+  inventoryWarehouseCreateWritesUseCoreApi: vi.fn(),
+  createInventoryWarehouseThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -65,6 +67,10 @@ vi.mock('@/lib/erp-core-client', () => ({
     mocks.configureInventoryItemThroughCoreApi,
   inventoryUomCreateWritesUseCoreApi: mocks.inventoryUomCreateWritesUseCoreApi,
   createInventoryUomThroughCoreApi: mocks.createInventoryUomThroughCoreApi,
+  inventoryWarehouseCreateWritesUseCoreApi:
+    mocks.inventoryWarehouseCreateWritesUseCoreApi,
+  createInventoryWarehouseThroughCoreApi:
+    mocks.createInventoryWarehouseThroughCoreApi,
 }))
 
 vi.mock('next/cache', () => ({
@@ -74,6 +80,7 @@ vi.mock('next/cache', () => ({
 import {
   configureInventoryItem,
   createUnitOfMeasure,
+  createWarehouse,
   createStockReceipt,
   postStockReceipt,
   reverseStockReceipt,
@@ -334,6 +341,51 @@ describe('Inventory UOM creation migration switch', () => {
       code: 'EA',
       name: 'Each',
       decimalPlaces: 0,
+    })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/inventory')
+  })
+})
+
+describe('Inventory Warehouse creation migration switch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.requireUserProfile.mockResolvedValue({
+      tenantId: TENANT_ID,
+      role: 'procurement',
+      user: { id: ACTOR_ID },
+    })
+    mocks.requireCapability.mockReturnValue(undefined)
+    mocks.inventoryWarehouseCreateWritesUseCoreApi.mockReturnValue(true)
+    mocks.createInventoryWarehouseThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        warehouseId: WAREHOUSE_ID,
+        tenantId: TENANT_ID,
+        code: 'MAIN',
+        name: 'Main store',
+        projectId: PO_ID,
+        isActive: true,
+        createdAt: '2026-08-05T00:00:00.000Z',
+        updatedAt: '2026-08-05T00:00:00.000Z',
+      },
+    })
+  })
+
+  it('routes enabled tenants through Nest without a direct database write', async () => {
+    const data = new FormData()
+    data.set('code', ' MAIN ')
+    data.set('name', ' Main store ')
+    data.set('projectId', PO_ID)
+
+    await expect(createWarehouse(data)).resolves.toEqual({
+      ok: true,
+      id: WAREHOUSE_ID,
+    })
+    expect(mocks.createInventoryWarehouseThroughCoreApi).toHaveBeenCalledWith({
+      code: 'MAIN',
+      name: 'Main store',
+      projectId: PO_ID,
     })
     expect(mocks.transaction).not.toHaveBeenCalled()
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/inventory')

@@ -13,6 +13,9 @@ import { InventoryItemConfigurationService } from './inventory-item-configuratio
 import { InventoryUomController } from './inventory-uom.controller'
 import { InventoryUomCreatePipe } from './inventory-uom-create.pipe'
 import { InventoryUomCreationService } from './inventory-uom-creation.service'
+import { InventoryWarehouseController } from './inventory-warehouse.controller'
+import { InventoryWarehouseCreatePipe } from './inventory-warehouse-create.pipe'
+import { InventoryWarehouseCreationService } from './inventory-warehouse-creation.service'
 import { StockReceiptController } from './stock-receipt.controller'
 import { StockReceiptCreatePipe } from './stock-receipt-create.pipe'
 import { StockReceiptCreationService } from './stock-receipt-creation.service'
@@ -29,6 +32,7 @@ import { StockReceiptWorkflowService } from './stock-receipt-workflow.service'
     InventorySummaryController,
     InventoryItemConfigurationController,
     InventoryUomController,
+    InventoryWarehouseController,
   ],
   providers: [
     InventorySummaryService,
@@ -36,6 +40,8 @@ import { StockReceiptWorkflowService } from './stock-receipt-workflow.service'
     InventoryItemConfigurationPipe,
     InventoryUomCreationService,
     InventoryUomCreatePipe,
+    InventoryWarehouseCreationService,
+    InventoryWarehouseCreatePipe,
     StockReceiptCreationService,
     StockReceiptCreatePipe,
     StockReceiptWorkflowService,
@@ -51,7 +57,8 @@ export class InventoryModule implements NestModule {
         StockReceiptController,
         InventorySummaryController,
         InventoryItemConfigurationController,
-        InventoryUomController
+        InventoryUomController,
+        InventoryWarehouseController
       )
   }
 }

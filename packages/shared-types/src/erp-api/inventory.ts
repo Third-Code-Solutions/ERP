@@ -108,6 +108,34 @@ export type InventoryUomCreationResult = z.infer<
   typeof inventoryUomCreationResultSchema
 >
 
+export const createInventoryWarehouseCommandSchema = z
+  .object({
+    code: z.string().trim().min(1).max(40),
+    name: z.string().trim().min(1).max(160),
+    projectId: z.string().uuid().nullable(),
+  })
+  .strict()
+
+export const inventoryWarehouseCreationResultSchema = z
+  .object({
+    warehouseId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    code: z.string().trim().min(1).max(40),
+    name: z.string().trim().min(1).max(160),
+    projectId: z.string().uuid().nullable(),
+    isActive: z.boolean(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+
+export type CreateInventoryWarehouseCommand = z.infer<
+  typeof createInventoryWarehouseCommandSchema
+>
+export type InventoryWarehouseCreationResult = z.infer<
+  typeof inventoryWarehouseCreationResultSchema
+>
+
 export const configureInventoryItemCommandSchema = z
   .object({
     uomId: z.string().uuid(),

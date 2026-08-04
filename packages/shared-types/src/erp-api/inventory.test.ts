@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   configureInventoryItemCommandSchema,
   createInventoryUomCommandSchema,
+  createInventoryWarehouseCommandSchema,
   createStockReceiptCommandSchema,
   inventoryUomCreationResultSchema,
+  inventoryWarehouseCreationResultSchema,
   inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
   quantityToMicros,
@@ -83,6 +85,40 @@ const UOM_CREATION = {
   createdAt: '2026-08-05T00:00:00.000Z',
   updatedAt: '2026-08-05T00:00:00.000Z',
 } as const
+
+const WAREHOUSE_CREATION = {
+  warehouseId: '77777777-7777-4777-8777-777777777777',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  code: 'MAIN',
+  name: 'Main store',
+  projectId: null,
+  isActive: true,
+  createdAt: '2026-08-05T00:00:00.000Z',
+  updatedAt: '2026-08-05T00:00:00.000Z',
+} as const
+
+describe('Inventory Warehouse creation contract', () => {
+  it('accepts optional project scope and rejects browser identity fields', () => {
+    expect(
+      createInventoryWarehouseCommandSchema.parse({
+        code: ' MAIN ',
+        name: ' Main store ',
+        projectId: null,
+      })
+    ).toEqual({ code: 'MAIN', name: 'Main store', projectId: null })
+    expect(
+      inventoryWarehouseCreationResultSchema.parse(WAREHOUSE_CREATION)
+    ).toEqual(WAREHOUSE_CREATION)
+    expect(() =>
+      createInventoryWarehouseCommandSchema.parse({
+        code: 'MAIN',
+        name: 'Main store',
+        projectId: null,
+        tenantId: WAREHOUSE_CREATION.tenantId,
+      })
+    ).toThrow()
+  })
+})
 
 describe('Inventory UOM creation contract', () => {
   it('accepts strict setup data and rejects browser identity fields', () => {
