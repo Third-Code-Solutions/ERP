@@ -1,6 +1,6 @@
 import { db } from '@third-code-erp/database'
 import { boms, costEntries, dailyTasks, invoices, opportunities, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
-import { eq, and, inArray, lt, gt, gte, lte, sum, count, sql, desc } from 'drizzle-orm'
+import { eq, and, inArray, lt, gt, gte, lte, sum, count, sql, asc, desc } from 'drizzle-orm'
 import { computeProjectCostSnapshot } from '@third-code-erp/shared-types/cost'
 import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 import { manilaBoundaries } from '@/lib/operations/cadence-engine'
@@ -18,6 +18,29 @@ export interface MyWorkSummary {
   dueToday: number
   overdue: number
   upcoming: number
+}
+
+export interface TodayTask {
+  id: string
+  title: string
+  projectId: string
+  projectName: string
+  dueDate: Date
+  dueState: 'overdue' | 'today' | 'upcoming'
+}
+
+export interface TodayProject {
+  id: string
+  name: string
+  client: string
+  status: string
+  updatedAt: Date
+}
+
+export interface TodayCommandCenterData {
+  summary: MyWorkSummary
+  tasks: TodayTask[]
+  projects: TodayProject[]
 }
 
 export async function getMyWorkSummary(
@@ -65,6 +88,87 @@ export async function getMyWorkSummary(
     dueToday: Number(todayRows[0]?.value ?? 0),
     overdue: Number(overdueRows[0]?.value ?? 0),
     upcoming: Number(upcomingRows[0]?.value ?? 0),
+  }
+}
+
+/**
+ * Read-only, tenant-scoped work context for the authenticated dashboard.
+ *
+ * Task rows stay assignee-scoped. Project rows are returned only when the
+ * caller's route policy allows `/projects`; this prevents dashboard context
+ * from becoming a role bypass for viewers. No mutation or Cortex call occurs
+ * here. Cortex links are resolved later through its own authorization boundary.
+ */
+export async function getTodayCommandCenter(
+  tenantId: string,
+  userId: string,
+  now = new Date(),
+  includeProjects = false
+): Promise<TodayCommandCenterData> {
+  const todayEnd = manilaBoundaries.endOfDay(now)
+  const weekEnd = new Date(todayEnd.getTime() + 7 * 86_400_000)
+
+  const [summary, taskRows, projectRows] = await Promise.all([
+    getMyWorkSummary(tenantId, userId, now),
+    db
+      .select({
+        id: dailyTasks.id,
+        title: dailyTasks.title,
+        projectId: dailyTasks.project_id,
+        projectName: projects.name,
+        dueDate: dailyTasks.due_date,
+      })
+      .from(dailyTasks)
+      .innerJoin(
+        projects,
+        and(
+          eq(projects.id, dailyTasks.project_id),
+          eq(projects.tenant_id, tenantId)
+        )
+      )
+      .where(
+        and(
+          eq(dailyTasks.tenant_id, tenantId),
+          eq(dailyTasks.assignee_id, userId),
+          eq(dailyTasks.status, 'pending'),
+          lte(dailyTasks.due_date, weekEnd)
+        )
+      )
+      .orderBy(asc(dailyTasks.due_date))
+      .limit(8),
+    includeProjects
+      ? db
+          .select({
+            id: projects.id,
+            name: projects.name,
+            client: projects.client,
+            status: projects.status,
+            updatedAt: projects.updated_at,
+          })
+          .from(projects)
+          .where(
+            and(
+              eq(projects.tenant_id, tenantId),
+              inArray(projects.status, ['lead', 'active', 'on_hold'])
+            )
+          )
+          .orderBy(desc(projects.updated_at))
+          .limit(6)
+      : Promise.resolve([]),
+  ])
+
+  return {
+    summary,
+    tasks: taskRows.map((task) => ({
+      ...task,
+      dueState:
+        task.dueDate < now
+          ? 'overdue'
+          : task.dueDate <= todayEnd
+            ? 'today'
+            : 'upcoming',
+    })),
+    projects: projectRows,
   }
 }
 

@@ -7,7 +7,7 @@ import {
   getAlerts,
   getConversionRates,
   getMonthlyForecast,
-  getMyWorkSummary,
+  getTodayCommandCenter,
 } from '@/lib/dashboard-queries'
 import { KpiCards } from '@/components/dashboard/kpi-cards'
 import { RepScorecardTable } from '@/components/dashboard/rep-scorecard'
@@ -18,9 +18,9 @@ import { ConversionRateTable } from '@/components/dashboard/conversion-rate-tabl
 import { ForecastChart } from '@/components/dashboard/forecast-chart'
 import { ExportCsvButton } from '@/components/dashboard/export-csv-button'
 import { CloseDateFilter } from '@/components/dashboard/close-date-filter'
-import { RoleWorkDashboard } from '@/components/dashboard/role-work-dashboard'
+import { TodayCommandCenter } from '@/components/dashboard/today-command-center'
 import { loadDashboardForRole } from '@/lib/dashboard-access'
-import { roleLabel } from '@/lib/operations/nav-config'
+import { canViewPath, roleLabel } from '@/lib/operations/nav-config'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -62,7 +62,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const dashboard = await loadDashboardForRole(profile.role, {
     executive: async () => {
-      const [kpis, stages, reps, alerts, conversionRates, forecast] =
+      const [kpis, stages, reps, alerts, conversionRates, forecast, today] =
         await Promise.all([
           getDashboardKpis(profile.tenantId),
           getStageDistribution(profile.tenantId),
@@ -70,12 +70,23 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           getAlerts(profile.tenantId),
           getConversionRates(profile.tenantId),
           getMonthlyForecast(profile.tenantId, 6),
+          getTodayCommandCenter(
+            profile.tenantId,
+            profile.user.id,
+            renderedAt,
+            canViewPath(profile.role, '/projects')
+          ),
         ])
 
-      return { kpis, stages, reps, alerts, conversionRates, forecast }
+      return { kpis, stages, reps, alerts, conversionRates, forecast, today }
     },
     myWork: () =>
-      getMyWorkSummary(profile.tenantId, profile.user.id, renderedAt),
+      getTodayCommandCenter(
+        profile.tenantId,
+        profile.user.id,
+        renderedAt,
+        canViewPath(profile.role, '/projects')
+      ),
   })
 
   const fmt = new Intl.DateTimeFormat('en-PH', {
@@ -109,12 +120,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </p>
         </div>
 
-        <RoleWorkDashboard role={profile.role} summary={dashboard.data} />
+        <TodayCommandCenter role={profile.role} data={dashboard.data} />
       </>
     )
   }
 
-  const { kpis, stages, reps, alerts, conversionRates, forecast } =
+  const { kpis, stages, reps, alerts, conversionRates, forecast, today } =
     dashboard.data
 
   return (
@@ -144,6 +155,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </div>
         </div>
       </div>
+
+      <TodayCommandCenter role={profile.role} data={today} />
 
       <KpiCards kpis={kpis} />
 
