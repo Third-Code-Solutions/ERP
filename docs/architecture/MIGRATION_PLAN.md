@@ -4,6 +4,20 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.34 - Authenticated browser route boundary (source complete)
+
+Centralized dashboard session-gating in `lib/protected-route.ts`, added missing
+`/cortex`, `/finance`, and `/inventory` browser prefixes, and changed matching
+to exact path segments. API routes remain handler-authorized; `/api/cortex/*`
+does not redirect to HTML. This closes a route-level auth inconsistency without
+changing tenant queries, role policy, request bodies, or hosted state.
+
+Evidence: local Playwright `/cortex` navigation redirects to `/auth/login`;
+web tests 436/436, root lint/typecheck, and the 78-page production build pass.
+No Supabase, Railway, Vercel, Storage, or business data mutation occurred.
+Next step is authenticated disposable-tenant browser verification of allowed,
+denied, cross-tenant, redacted, and citation-bearing Cortex flows.
+
 ## M3.33 - Authenticated Cortex transport privacy (source complete)
 
 Standardized the private response contract across Cortex chat, search, graph,

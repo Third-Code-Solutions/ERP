@@ -4,6 +4,24 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.34 authenticated browser route boundary (2026-08-04)
+
+Moved dashboard route matching into the shared
+`apps/web/src/lib/protected-route.ts` contract and added `/cortex`, `/finance`,
+and `/inventory` to the session-required browser surface. Matching now accepts
+only an exact route segment (`/cortex` or `/cortex/...`), avoiding accidental
+matches such as `/cortexology`. `/api/cortex/*` remains outside middleware
+redirects so its handlers return 401/403 JSON/text responses and preserve
+tenant/RBAC authorization.
+
+Before this slice, unauthenticated local navigation to `/cortex` rendered the
+workspace-provisioning screen. After the change, Playwright observed a redirect
+to `/auth/login` with the Third Code ERP sign-in form. Web tests pass 436/436;
+root lint/typecheck and the 78-page production build pass. No database,
+provider setting, Railway deployment, Vercel deployment, or hosted data
+changed. Authenticated disposable-tenant permission/citation browser proof is
+still open.
+
 ## M3.33 Cortex authenticated transport privacy (2026-08-04)
 
 All authenticated Cortex API handlers now share one response boundary:

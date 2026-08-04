@@ -1,5 +1,28 @@
 # Work Log
 
+## 2026-08-04 - M3.34 authenticated browser route boundary
+
+Audited local unauthenticated Cortex navigation and found middleware omitted
+`/cortex`; finance and inventory were also absent from the protected-prefix
+list. Before the change, `/cortex` rendered `Workspace not set up`; after the
+change, Playwright observed `/auth/login` with the Third Code ERP sign-in form.
+
+Added `apps/web/src/lib/protected-route.ts` with a shared, segment-safe prefix
+contract and `protected-route.test.ts`; middleware now imports the contract.
+The `/api/cortex/*` family remains outside browser redirects so API handlers
+retain 401/403 behavior and private response headers. Added the route-boundary
+spec at `docs/research/components/cortex-auth-route.spec.md`.
+
+Validation: focused route test 2/2; full web tests 436/436; root lint and
+typecheck passed; production build generated 78/78 pages; `git diff --check`
+passed. Browser redirect verified locally. Existing local dev asset MIME/404
+console noise remained on the stale process but did not affect redirect or
+sign-in snapshot. No Supabase SQL/data/Storage, Railway setting/deployment,
+Vercel deployment, or provider mutation changed.
+
+Exact next action: authenticated disposable-tenant browser proof for allowed,
+denied, cross-tenant, redacted, citation, and private-header Cortex flows.
+
 ## 2026-08-04 - M3.33 authenticated Cortex transport privacy
 
 Audited the authenticated Cortex route family and found inconsistent response

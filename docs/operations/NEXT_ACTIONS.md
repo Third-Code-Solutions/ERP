@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.34 authenticated browser route boundary
+
+1. Verify one disposable authenticated tenant in a real browser: allowed
+   Cortex/finance/inventory routes render; missing session redirects to login;
+   API calls return 401 JSON/text, not login HTML.
+2. Run denied-role, cross-tenant, redaction, citation-navigation, and private
+   response-header checks through the authenticated Cortex UI. Keep all ERP
+   mutation controls closed during this audit.
+3. Keep Supabase at 55 hosted migrations until clone/replay, catalog/data/RLS,
+   backup/recovery, owner, provider, and spend gates clear. Keep Vercel Git and
+   deployments paused until one authorized, spend-bounded promotion exists.
+
 ## Exact next action after M3.33 Cortex transport hardening
 
 1. Commit `36a37e9` is the verified source checkpoint on `main` and

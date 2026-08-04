@@ -18,6 +18,12 @@ migrations. The target remains behind source until a PostgreSQL 17 clone/replay,
 catalog/data/RLS diff, backup/restore proof, and zero-skipped release evidence
 clear the forward-only apply gate.
 
+Browser authorization boundary (M3.34): every dashboard module, including
+Cortex, finance, and inventory, is session-gated before route rendering. API
+routes remain independently authorized and are never converted into HTML login
+redirects. Prefix matching is segment-safe to prevent similarly named public
+paths from inheriting access policy accidentally.
+
 Authenticated Cortex transport boundary (M3.33): tenant-scoped responses are
 private and non-cacheable at the Next.js edge/browser boundary, and vary on the
 session cookie. This prevents shared-cache reuse of tenant data while leaving
