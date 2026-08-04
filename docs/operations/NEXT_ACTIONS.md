@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.50 cost-capped provider and migration audit
+
+1. Keep Vercel Git deployment disabled and create no preview or production
+   build. Source pushes do not authorize a paid frontend action. Use the
+   existing retained deployment only as rollback until explicit spend approval.
+2. Keep all supplier read/write/session/link flags closed. Do not apply the
+   Supabase suffix, call `supabase_apply_migration`, reset the branch, edit
+   migration history, or run direct DDL.
+3. Obtain a supported recoverable backup plus dependent-row/audit export for
+   the duplicate Purchase Order group. Get an owner-approved canonical mapping
+   for the 12 records, then rerun both read-only planners.
+4. Require a clean PostgreSQL 17 disposable replay, schema/catalog diff,
+   migration risk review, rollback plan, and exact provider identity before
+   any hosted apply. Python remains advisory and cannot finalize ERP writes.
+5. After the DB gate clears, perform one bounded Railway/API or Vercel
+   production action at a time, verify exact SHA, readiness, protected flows,
+   logs, browser/data evidence, and spend impact. Stop on any failed gate.
+
+The prior M3.49 action list is retained below as historical evidence.
+
 ## Exact next action after M3.49 supplier confirmation review
 
 1. Commit and push the reviewed source/docs once to `main` and

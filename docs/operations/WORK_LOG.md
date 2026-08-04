@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-04 - M3.50 cost-capped provider and migration audit
+
+Rechecked the configured providers before any deployment action. GitHub
+identity is `kurtgav`; `Third-Code-Solutions/ERP` grants push/admin access and
+both target branches point to `bbd0e39`. The exact-SHA Railway check is
+`success`; the preceding API release remains healthy. This checkpoint changed
+docs only, so no new API deployment was needed.
+
+Ran:
+
+- `node --env-file=apps/web/.env.local scripts/plan-database-release.mjs --json`
+- `node --env-file=apps/web/.env.local scripts/plan-purchase-order-duplicates.mjs --json --require-clear`
+- Supabase project, migration, branch, and advisor read checks
+- Vercel project/deployment inventory read check
+
+Results: Supabase `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY` on PostgreSQL 17
+with 55 applied / 87 source migrations. The ledger is a linear prefix with 32
+pending files. The duplicate planner returned `review_required`: one
+tenant-scoped group, 12 Purchase Order records, opaque output only, exit code
+2 by design. Supabase advisors returned 14 security notices (11 WARN) and 282
+performance notices (1 WARN); no advisory fix was applied in this checkpoint.
+
+Spend boundary: `apps/web/vercel.json` has Git deployment disabled; Vercel is
+`live:false` and reported zero new deployments after the push. No Vercel
+preview/production build, Supabase SQL/data change, Storage mutation, Railway
+setting change, or feature-flag enablement occurred.
+
+Rollback: source/docs revert to `bbd0e39`; no hosted state needs reversal.
+Next action: supported backup plus dependent-row/audit export and owner-approved
+duplicate mapping, followed by disposable replay and ordered migration review.
+
 ## 2026-08-04 - M3.49 supplier confirmation review portal
 
 Implemented the bounded US-014 supplier review slice. The Nest public

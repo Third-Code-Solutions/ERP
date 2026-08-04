@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.50 - cost-capped provider and hosted-ledger audit (read-only, 2026-08-04)
+
+Ran the repository database release planner and the Purchase Order duplicate
+planner against the configured Supabase target using repeatable-read/read-only
+transactions. Result: PostgreSQL 17, 55/87 migrations, linear prefix, 32
+pending files, one duplicate tenant group containing 12 records. No SQL was
+executed and no migration-history row was written. Supabase advisor snapshots
+are recorded as follow-up security/performance work only.
+
+Verified provider spend controls: `apps/web/vercel.json` keeps Git deployment
+disabled; Vercel returned zero deployments after the source/docs push. GitHub
+is `kurtgav`, both branches are at `bbd0e39`, and the exact-SHA Railway check is
+green. This checkpoint is source/docs-only; no Vercel build or hosted DB
+replay occurred.
+
+Next migration action: obtain a supported backup and dependent-row/audit
+export, then get an owner-approved canonical mapping for the duplicate group.
+Re-run both planners and disposable PostgreSQL 17 replay before applying the
+ordered suffix. Rollback remains a reviewed forward migration, never a reset.
+
 ## M3.49 - supplier confirmation review portal (source-gated, 2026-08-04)
 
 Added the source-only public review read model, strict shared contract, Nest

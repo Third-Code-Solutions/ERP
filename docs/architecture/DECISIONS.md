@@ -1,5 +1,37 @@
 # Architecture Decisions
 
+## D-160 - Cost-capped frontend promotion is closed by default (2026-08-04)
+
+Decision: keep Vercel Git deployment disabled and do not create preview or
+production builds during migration work. Source publication to GitHub is not
+frontend rollout evidence. A later frontend release requires explicit spend
+approval, one green exact-SHA build, runtime/browser proof, and a retained
+rollback deployment.
+
+Reason: the project has exhausted included Vercel credit and incurred
+on-demand build charges. Avoiding duplicate or speculative builds is an
+operational safety requirement, not an optional optimization.
+
+Evidence: `apps/web/vercel.json` has `git.deploymentEnabled: false`; the
+read-only Vercel inventory returned zero new deployments after `bbd0e39`. No
+Vercel mutation occurred.
+
+## D-159 - Hosted migration remains blocked by duplicate demo records (2026-08-04)
+
+Decision: do not apply the 32-migration suffix while the target contains one
+tenant-scoped Purchase Order number group with 12 records. Keep the duplicate
+planner read-only and require a supported recoverable backup, dependent-row /
+audit export, and owner-approved canonical mapping before any repair or
+replay. Never reset migration history or silently rename/delete records.
+
+Reason: the first pending migration intentionally refuses to create a global
+tenant Purchase Order uniqueness index when duplicates exist. Bypassing that
+guard would make idempotent commands and audit evidence unreliable.
+
+Evidence: Supabase target is PostgreSQL 17, 55/87 migrations, linear prefix;
+the read-only planner exits `review_required` with one group and 12 records.
+No hosted SQL, data, or migration-history mutation occurred.
+
 ## D-158 - Supplier review is a separate closed read seam (2026-08-04)
 
 Decision: expose the supplier Purchase Order review as a strict, token-scoped
