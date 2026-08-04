@@ -13,6 +13,21 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.44 admin data-quality target (2026-08-04)
+
+Administrators get a calm, tenant-scoped read path for release-blocking data
+quality findings. The Next.js page must remain presentation-only: Nest/API
+authority and the database own all official ERP mutations, while this surface
+only links to authorized source records. Report caps, explicit omitted-row
+counts, and status buckets prevent a partial review from masquerading as a
+repair decision.
+
+The source slice is complete at `63bbf22`. It is deliberately schema-neutral;
+the hosted uniqueness migration still waits for a supported backup, dependent
+row/audit export, owner-approved canonical decision, and ordered suffix replay.
+Keep migration flags closed, Vercel Git disconnected, and provider actions
+spend-bounded.
+
 ## M3.43 hosted-data target (2026-08-04)
 
 The hosted database must reach the source migration head through a supported,

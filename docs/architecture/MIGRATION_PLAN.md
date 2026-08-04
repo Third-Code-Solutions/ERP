@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.44 - read-only admin data-quality review (2026-08-04)
+
+Status: source complete; hosted database intentionally unchanged.
+
+Added `/admin/data-quality` as the smallest safe vertical slice for the known
+Purchase Order uniqueness blocker. `requireUserProfile()` plus
+`admin.system_config` gates the route; every query is tenant-scoped; no browser
+write or repair action exists. Group and detail reads are capped and the pure
+report helper is covered by 2/2 focused tests.
+
+Validation: Web 64 files/444 tests, API 294, shared-types 162, database 166
+executed with 140 environment-gated skips, lint/typecheck, diff check, and
+79/79-route build all pass. Authenticated browser proof passed at 1440px and
+390px with no overflow, no repair controls, and no new console errors.
+
+Source checkpoint: `63bbf22`. Exact next action: push once and verify the
+source SHA on GitHub/Railway. Do not apply the 32-file Supabase suffix, repair
+duplicate business rows automatically, hand-edit migration history, reconnect
+Vercel Git, or trigger a preview/build.
+
 ## M3.43 — supported Supabase reconciliation before mutation (2026-08-04)
 
 Status: read-only audit complete; hosted SQL intentionally paused.
