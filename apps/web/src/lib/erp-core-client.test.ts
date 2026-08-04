@@ -24,6 +24,7 @@ import {
   getKycQueueThroughCoreApi,
   getInventorySummaryThroughCoreApi,
   getInventoryStockMovementsThroughCoreApi,
+  getInventoryStockMovementDetailThroughCoreApi,
   getOpportunityThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
@@ -32,6 +33,7 @@ import {
   accountKycQueueReadsUseCoreApi,
   inventorySummaryReadsUseCoreApi,
   inventoryStockMovementReadsUseCoreApi,
+  inventoryStockMovementDetailReadsUseCoreApi,
   opportunityReadsUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
@@ -486,6 +488,56 @@ const INVENTORY_STOCK_MOVEMENT_RESULT = {
   limit: 500,
   totalPages: 1,
 } as const
+const INVENTORY_STOCK_MOVEMENT_DETAIL_RESULT = {
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  movement: {
+    id: '88888888-8888-4888-8888-888888888888',
+    internalNumber: 'SM-2026-000001',
+    movementType: 'transfer' as const,
+    status: 'posted' as const,
+    movementDate: '2026-08-05',
+    currency: 'PHP',
+    reason: 'Move accepted materials',
+    sourceWarehouseCode: 'MAIN',
+    sourceWarehouseName: 'Main store',
+    targetWarehouseCode: 'SITE-A',
+    targetWarehouseName: 'Site A',
+    projectName: 'Site A project',
+    postingJournalEntryId: '11111111-1111-4111-8111-111111111111',
+    postingJournalNumber: 'JE-0001',
+    reversalJournalEntryId: null,
+    reversalJournalNumber: null,
+    postedAt: '2026-08-05T00:00:00.000Z',
+    reversedAt: null,
+    reversalReason: null,
+  },
+  lines: [
+    {
+      id: '99999999-9999-4999-8999-999999999999',
+      lineNumber: 1,
+      itemCode: 'CEMENT',
+      description: 'Cement',
+      uomCode: 'BAG',
+      costCode: 'MAT-001',
+      quantityMicros: '4250000',
+      declaredUnitCostCents: '12500',
+      postedUnitCostCents: '12500',
+      postedValueCents: '53125',
+    },
+  ],
+  ledger: [
+    {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      eventType: 'transfer_out',
+      occurredOn: '2026-08-05',
+      itemCode: 'CEMENT',
+      warehouseCode: 'MAIN',
+      quantityDeltaMicros: '-4250000',
+      valueDeltaCents: '-53125',
+      reversesStockLedgerEntryId: null,
+    },
+  ],
+} as const
 
 describe('ERP Core client', () => {
   beforeEach(() => {
@@ -673,6 +725,31 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_READS_TENANT_IDS', 'bad')
     expect(inventoryStockMovementReadsUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(inventoryStockMovementReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Stock Movement detail reads independently fail-closed', () => {
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(inventoryStockMovementDetailReadsUseCoreApi(RESULT.tenantId)).toBe(
+      true
+    )
+
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API', 'TRUE')
+    expect(inventoryStockMovementDetailReadsUseCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_TENANT_IDS', 'bad')
+    expect(inventoryStockMovementDetailReadsUseCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+    expect(inventoryStockMovementDetailReadsUseCoreApi('not-a-uuid')).toBe(
+      false
+    )
   })
 
   it('keeps Project creation delegation fail-closed unless its exact gate matches', () => {
@@ -2493,6 +2570,35 @@ describe('ERP Core client', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/inventory/stock-movements?movementType=transfer&status=posted&page=1&limit=500',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('reads Stock Movement detail through the Nest boundary', async () => {
+    const movementId = INVENTORY_STOCK_MOVEMENT_DETAIL_RESULT.movement.id
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(INVENTORY_STOCK_MOVEMENT_DETAIL_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getInventoryStockMovementDetailThroughCoreApi(movementId)
+    ).resolves.toEqual({
+      ok: true,
+      data: INVENTORY_STOCK_MOVEMENT_DETAIL_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/inventory/stock-movements/${movementId}`,
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

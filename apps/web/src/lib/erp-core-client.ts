@@ -41,6 +41,7 @@ import {
   inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
   inventoryStockMovementListResultSchema,
+  inventoryStockMovementDetailResultSchema,
   stockReceiptCreationResultSchema,
   stockReceiptPostingResultSchema,
   stockReceiptReversalResultSchema,
@@ -108,6 +109,7 @@ import {
   type DocumentProcessingStatus,
   type InventorySummaryResult,
   type InventoryStockMovementListResult,
+  type InventoryStockMovementDetailResult,
   type CreateInventoryUomCommand,
   type InventoryUomCreationResult,
   type CreateInventoryWarehouseCommand,
@@ -142,6 +144,7 @@ interface CoreResult<T> {
   ok: boolean
   data?: T
   error?: string
+  status?: number
 }
 
 export type ProviderQuotaBucket =
@@ -307,6 +310,16 @@ export function inventoryStockMovementReadsUseCoreApi(
     tenantId,
     process.env.ERP_INVENTORY_STOCK_MOVEMENT_READS_VIA_API,
     process.env.ERP_INVENTORY_STOCK_MOVEMENT_READS_TENANT_IDS
+  )
+}
+
+export function inventoryStockMovementDetailReadsUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API,
+    process.env.ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_TENANT_IDS
   )
 }
 
@@ -1256,6 +1269,59 @@ export async function getInventoryStockMovementsThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. Stock Movement register was not read.',
+    }
+  }
+}
+
+export async function getInventoryStockMovementDetailThroughCoreApi(
+  movementId: string
+): Promise<CoreResult<InventoryStockMovementDetailResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/stock-movements/${encodeURIComponent(
+        movementId
+      )}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          response.status === 404
+            ? 'Stock Movement was not found.'
+            : 'Inventory Stock Movement detail was not read.',
+      }
+    }
+    const parsed = inventoryStockMovementDetailResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          'ERP Core API returned an invalid Stock Movement detail result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. Stock Movement detail was not read.',
     }
   }
 }
