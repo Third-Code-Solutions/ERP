@@ -80,6 +80,34 @@ export type InventorySummaryResult = z.infer<
   typeof inventorySummaryResultSchema
 >
 
+export const createInventoryUomCommandSchema = z
+  .object({
+    code: z.string().trim().min(1).max(32),
+    name: z.string().trim().min(1).max(120),
+    decimalPlaces: z.number().int().nonnegative().max(6),
+  })
+  .strict()
+
+export const inventoryUomCreationResultSchema = z
+  .object({
+    uomId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    code: z.string().trim().min(1).max(32),
+    name: z.string().trim().min(1).max(120),
+    decimalPlaces: z.number().int().nonnegative().max(6),
+    isActive: z.boolean(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+
+export type CreateInventoryUomCommand = z.infer<
+  typeof createInventoryUomCommandSchema
+>
+export type InventoryUomCreationResult = z.infer<
+  typeof inventoryUomCreationResultSchema
+>
+
 export const configureInventoryItemCommandSchema = z
   .object({
     uomId: z.string().uuid(),
