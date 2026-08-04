@@ -182,6 +182,66 @@ export type InventoryWarehouseCloseoutResult = z.infer<
   typeof inventoryWarehouseCloseoutResultSchema
 >
 
+export const stockMovementTypeValues = [
+  'transfer',
+  'consumption',
+  'adjustment',
+] as const
+
+export const stockMovementStatusValues = [
+  'draft',
+  'posted',
+  'reversed',
+] as const
+
+const inventoryStockMovementRowSchema = z
+  .object({
+    id: z.string().uuid(),
+    internalNumber: z.string().trim().max(40).nullable(),
+    movementType: z.enum(stockMovementTypeValues),
+    status: z.enum(stockMovementStatusValues),
+    movementDate: z.string().regex(isoDatePattern),
+    reason: z.string().trim().min(3).max(2_000),
+    sourceWarehouseCode: z.string().trim().min(1).max(40),
+    targetWarehouseCode: z.string().trim().min(1).max(40).nullable(),
+    projectName: z.string().nullable(),
+    lineCount: z.number().int().nonnegative().max(250),
+    totalValueCents: z.string().regex(integerStringPattern),
+  })
+  .strict()
+
+export const inventoryStockMovementListQuerySchema = z
+  .object({
+    movementType: z.enum(stockMovementTypeValues).optional(),
+    status: z.enum(stockMovementStatusValues).optional(),
+    page: z.coerce.number().int().min(1).max(100_000).default(1),
+    limit: z.coerce.number().int().min(1).max(500).default(500),
+  })
+  .strict()
+
+export const inventoryStockMovementListResultSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    rows: z.array(inventoryStockMovementRowSchema).max(500),
+    total: z.number().int().nonnegative(),
+    page: z.number().int().min(1),
+    limit: z.number().int().min(1).max(500),
+    totalPages: z.number().int().min(1),
+  })
+  .strict()
+
+export type StockMovementType = (typeof stockMovementTypeValues)[number]
+export type StockMovementStatus = (typeof stockMovementStatusValues)[number]
+export type InventoryStockMovementRow = z.infer<
+  typeof inventoryStockMovementRowSchema
+>
+export type InventoryStockMovementListQuery = z.infer<
+  typeof inventoryStockMovementListQuerySchema
+>
+export type InventoryStockMovementListResult = z.infer<
+  typeof inventoryStockMovementListResultSchema
+>
+
 export const configureInventoryItemCommandSchema = z
   .object({
     uomId: z.string().uuid(),
