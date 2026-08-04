@@ -3,6 +3,24 @@
 Verified 2026-08-04 against the authorized Supabase project
 `aqqrtkmtcsfkbyyqxowv` (`https://aqqrtkmtcsfkbyyqxowv.supabase.co`).
 
+## M3.39 update (read-only after provider preflight)
+
+Source now contains 87 ordered migrations with head
+`20260804090000_project_create_idempotency`; hosted Supabase remains the exact
+55-row prefix at `20260729233017_notification_outbox_foundation`. The
+disposable PostgreSQL 17 + Redis replay passed all 87 migrations, database
+306/306 with zero skips, and API integration 15 files / 22 tests.
+
+The connected Supabase apply tool rejected the first real source migration
+with `INVALID_ARGUMENT`. The project also reports a pre-existing branch named
+`main` in `MIGRATIONS_FAILED` state. Two temporary no-op connector probes were
+created and removed to validate the error boundary; a follow-up SQL check
+confirmed no probe table and zero `x_*` history rows, with the hosted ledger
+back at 55. No source suffix DDL, business data, Storage object, or net
+migration-history change was applied. Hand-inserting history or bypassing the
+ordered suffix remains prohibited until the supported provider path, backup,
+catalog/data/RLS diff, and owner/release gates are available.
+
 ## M3.37 update (read-only)
 
 After M3.36, source contains 86 migrations and the hosted target remains at

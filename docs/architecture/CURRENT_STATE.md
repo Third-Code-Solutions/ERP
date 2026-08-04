@@ -17,8 +17,10 @@ semantic audit evidence; failed transactions roll back both the project and
 ledger row. The Next form/adapter now carries a stable key.
 
 Both project-create flags remain false/empty, so the legacy Server Action is
-still the production path. Hosted Supabase SQL/data/Storage and Railway
-variables were unchanged; no Vercel build or promotion was performed. The
+still the production path. There was no net hosted schema, business-data,
+Storage, or migration-history change; two temporary no-op provider probes were
+created and removed, then verified absent. Railway variables were unchanged;
+no Vercel build or promotion was performed. The
 disposable PostgreSQL 17 + Redis lane applied 87/87 migrations, executed
 database tests 306/306 with zero skips, and passed API integration 15 files /
 22 tests. Focused API tests passed 13/13, web core-client tests 72/72, the
@@ -28,9 +30,11 @@ typecheck, `git diff --check`, and the 78-page production build passed. Redis
 emitted only its local memory-overcommit warning.
 
 The hosted target remains a read-only 55-row migration prefix while source is
-87 migrations; no hosted apply is inferred from clone evidence. The next
-gate is a reviewed backup/catalog/data/RLS reconciliation and one closed,
-spend-bounded canary with both flags still off until approval.
+87 migrations. The Supabase apply connector rejected the first real source
+migration with `INVALID_ARGUMENT`, and the project reports a pre-existing
+`MIGRATIONS_FAILED` branch state. No hand-written history repair or blind DDL
+bypass was attempted. The next gate is a reviewed backup/catalog/data/RLS
+reconciliation and a supported ordered-apply path, with both flags still off.
 
 ## M3.38 guarded project-create Nest authority seam (2026-08-04)
 
