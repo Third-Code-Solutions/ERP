@@ -13,6 +13,7 @@ import {
   inventorySummaryResultSchema,
   inventoryStockMovementListQuerySchema,
   inventoryStockMovementListResultSchema,
+  inventoryStockMovementDetailResultSchema,
   quantityToMicros,
   receiptLineTotal,
   stockReceiptPostCommandSchema,
@@ -296,6 +297,71 @@ describe('Stock Movement register contract', () => {
       inventoryStockMovementListResultSchema.parse({
         ...result,
         rows: [{ ...result.rows[0], totalValueCents: 125000 }],
+      })
+    ).toThrow()
+  })
+
+  it('keeps detail quantities, money, and timestamps exact', () => {
+    const result = {
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      movement: {
+        id: '88888888-8888-4888-8888-888888888888',
+        internalNumber: 'SM-2026-000001',
+        movementType: 'transfer' as const,
+        status: 'posted' as const,
+        movementDate: '2026-08-05',
+        currency: 'PHP',
+        reason: 'Move accepted materials',
+        sourceWarehouseCode: 'MAIN',
+        sourceWarehouseName: 'Main store',
+        targetWarehouseCode: 'SITE-A',
+        targetWarehouseName: 'Site A',
+        projectName: 'Site A project',
+        postingJournalEntryId: UUID,
+        postingJournalNumber: 'JE-0001',
+        reversalJournalEntryId: null,
+        reversalJournalNumber: null,
+        postedAt: '2026-08-05T00:00:00.000Z',
+        reversedAt: null,
+        reversalReason: null,
+      },
+      lines: [
+        {
+          id: '99999999-9999-4999-8999-999999999999',
+          lineNumber: 1,
+          itemCode: 'CEMENT',
+          description: 'Cement',
+          uomCode: 'BAG',
+          costCode: 'MAT-001',
+          quantityMicros: '4250000',
+          declaredUnitCostCents: '12500',
+          postedUnitCostCents: '12500',
+          postedValueCents: '53125',
+        },
+      ],
+      ledger: [
+        {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          eventType: 'transfer_out',
+          occurredOn: '2026-08-05',
+          itemCode: 'CEMENT',
+          warehouseCode: 'MAIN',
+          quantityDeltaMicros: '-4250000',
+          valueDeltaCents: '-53125',
+          reversesStockLedgerEntryId: null,
+        },
+      ],
+    }
+
+    expect(inventoryStockMovementDetailResultSchema.parse(result)).toEqual(
+      result
+    )
+    expect(() =>
+      inventoryStockMovementDetailResultSchema.parse({
+        ...result,
+        lines: [
+          { ...result.lines[0], postedValueCents: 53125 },
+        ],
       })
     ).toThrow()
   })

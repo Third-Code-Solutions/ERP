@@ -237,6 +237,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` | no | Next server | Selects the Stock Receipt Next-to-Nest handoff; default false |
 | `ERP_INVENTORY_STOCK_MOVEMENT_READS_VIA_API` | no | Next server | Selects the tenant-scoped Stock Movement register read through Nest; default false |
 | `ERP_INVENTORY_STOCK_MOVEMENT_READS_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Movement register reads; default empty |
+| `ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API` | no | Next server | Selects the tenant-scoped Stock Movement detail read through Nest; default false |
+| `ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Movement detail reads; default empty |
 | `ERP_INVENTORY_RECEIPT_CREATE_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Receipt creation; default empty |
 | `ERP_INVENTORY_RECEIPT_POST_VIA_API` | no | Next server | Selects the Stock Receipt post Next-to-Nest handoff; default false |
 | `ERP_INVENTORY_RECEIPT_POST_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Receipt posting; default empty |

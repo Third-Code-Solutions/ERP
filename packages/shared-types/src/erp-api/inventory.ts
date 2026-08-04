@@ -242,6 +242,80 @@ export type InventoryStockMovementListResult = z.infer<
   typeof inventoryStockMovementListResultSchema
 >
 
+const inventoryStockMovementDetailLineSchema = z
+  .object({
+    id: z.string().uuid(),
+    lineNumber: z.number().int().min(1).max(200),
+    itemCode: z.string().trim().min(1).max(64),
+    description: z.string().trim().min(1).max(2_000),
+    uomCode: z.string().trim().min(1).max(32),
+    costCode: z.string().trim().min(1).max(40).nullable(),
+    quantityMicros: z.string().regex(integerStringPattern),
+    declaredUnitCostCents: z.string().regex(integerStringPattern).nullable(),
+    postedUnitCostCents: z.string().regex(integerStringPattern).nullable(),
+    postedValueCents: z.string().regex(integerStringPattern).nullable(),
+  })
+  .strict()
+
+const inventoryStockMovementLedgerEntrySchema = z
+  .object({
+    id: z.string().uuid(),
+    eventType: z.string().trim().min(1).max(40),
+    occurredOn: z.string().regex(isoDatePattern),
+    itemCode: z.string().trim().min(1).max(64),
+    warehouseCode: z.string().trim().min(1).max(40),
+    quantityDeltaMicros: z.string().regex(integerStringPattern),
+    valueDeltaCents: z.string().regex(integerStringPattern),
+    reversesStockLedgerEntryId: z.string().uuid().nullable(),
+  })
+  .strict()
+
+const inventoryStockMovementDetailHeaderSchema = z
+  .object({
+    id: z.string().uuid(),
+    internalNumber: z.string().trim().max(40).nullable(),
+    movementType: z.enum(stockMovementTypeValues),
+    status: z.enum(stockMovementStatusValues),
+    movementDate: z.string().regex(isoDatePattern),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    reason: z.string().trim().min(3).max(2_000),
+    sourceWarehouseCode: z.string().trim().min(1).max(40),
+    sourceWarehouseName: z.string().trim().min(1).max(160),
+    targetWarehouseCode: z.string().trim().min(1).max(40).nullable(),
+    targetWarehouseName: z.string().trim().min(1).max(160).nullable(),
+    projectName: z.string().trim().min(1).max(200).nullable(),
+    postingJournalEntryId: z.string().uuid().nullable(),
+    postingJournalNumber: z.string().trim().max(40).nullable(),
+    reversalJournalEntryId: z.string().uuid().nullable(),
+    reversalJournalNumber: z.string().trim().max(40).nullable(),
+    postedAt: z.string().datetime({ offset: true }).nullable(),
+    reversedAt: z.string().datetime({ offset: true }).nullable(),
+    reversalReason: z.string().trim().min(3).max(1_000).nullable(),
+  })
+  .strict()
+
+export const inventoryStockMovementDetailResultSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    movement: inventoryStockMovementDetailHeaderSchema,
+    lines: z.array(inventoryStockMovementDetailLineSchema).max(200),
+    ledger: z.array(inventoryStockMovementLedgerEntrySchema).max(1_000),
+  })
+  .strict()
+
+export type InventoryStockMovementDetailLine = z.infer<
+  typeof inventoryStockMovementDetailLineSchema
+>
+export type InventoryStockMovementLedgerEntry = z.infer<
+  typeof inventoryStockMovementLedgerEntrySchema
+>
+export type InventoryStockMovementDetailHeader = z.infer<
+  typeof inventoryStockMovementDetailHeaderSchema
+>
+export type InventoryStockMovementDetailResult = z.infer<
+  typeof inventoryStockMovementDetailResultSchema
+>
+
 export const configureInventoryItemCommandSchema = z
   .object({
     uomId: z.string().uuid(),
