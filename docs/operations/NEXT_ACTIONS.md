@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.37 read-only provider incident audit
+
+1. Keep Vercel Git/deployments disconnected and spend-protected. Do not use a
+   blind rebuild or promotion. If a frontend release is later approved, use
+   one prebuilt artifact from a verified source SHA and verify the live domain,
+   session redirect, dashboard render, and runtime logs immediately.
+2. Preserve Supabase at the exact 55/86 prefix. Obtain approved PITR/logical
+   backup and clone authority; replay all 86 source migrations in PostgreSQL
+   17; diff the 111-table clone against the 88-table target, including data,
+   constraints, functions, RLS, Storage inventory, and migration history.
+3. Run the zero-skipped PostgreSQL/Redis lane, Cortex two-tenant authorization
+   replay, duplicate/rollback/audit recovery checks, and provider/spend gates.
+   Only then prepare a reviewed forward-only hosted reconciliation and a
+   single canary promotion.
+
 ## Exact next action after M3.36 supplier-issued outbox replay
 
 1. Source push is complete at commit

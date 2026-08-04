@@ -4,6 +4,30 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.37 - Read-only live-provider incident and catalog reconciliation
+
+Re-verified the GitHub, Railway, Supabase, and Vercel identities after the
+M3.36 source release. Both target GitHub branches point to
+`ead237c028641af384283ec8498ef3c3cdbb92fe`; Railway `/ready` and `/health`
+are HTTP 200 with database/Redis healthy. Vercel remains Git-disconnected and
+spend-protected. Its grouped runtime evidence ties digest `862076041` to the
+older `partial_delivered` enum failure on `dpl_2WnStFHAqLchG71rjWKjvyEBY3WK`,
+while the current hosted enum already contains that value. An unauthenticated
+live request returns the expected `/auth/login` redirect.
+
+The Supabase release planner is still a linear 55/86 prefix and the hosted
+catalog lacks the 23 table objects introduced by the source suffix. This
+milestone is read-only: no SQL, migration ledger row, Storage object, Railway
+variable, Vercel build, or domain promotion changed. The next gate remains an
+approved backup/clone, full catalog/data/RLS diff, zero-skipped replay,
+rollback/recovery evidence, owner/provider identity, and spend-bounded canary.
+
+The disposable replay was rerun as part of this milestone: PostgreSQL 17 and
+Redis passed 86/86 migrations, database 300/300 with zero skips, and API
+integration 15 files / 22 tests. The schema hash stayed
+`DDBBB7421C09146F9F34B816679135F6D33EBCB19BF10996C5F187B87606C91D`; only the
+local Redis overcommit warning was emitted.
+
 ## M3.36 - Supplier-issued outbox contract replay (evidence complete)
 
 The first full disposable replay found that `scm_issue` emitted

@@ -4,6 +4,40 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.37 read-only live-provider incident and catalog reconciliation (2026-08-04)
+
+Rechecked the exact live provider identities after the M3.36 source release.
+GitHub `main` and `agent-02/third-code-erp-landing` both point to
+`ead237c028641af384283ec8498ef3c3cdbb92fe` under `kurtgav`.
+The Railway API remains healthy at `/ready` and `/health` (HTTP 200; database
+and Redis both report `ok`).
+
+Vercel project `thirdcode-erp` is still Git-disconnected and `live:false`.
+Its production domain is serving an older artifact; the connector's grouped
+runtime evidence attributes the reported digest `862076041` to the historical
+`purchase_order_status = "partial_delivered"` enum failure on deployment
+`dpl_2WnStFHAqLchG71rjWKjvyEBY3WK` (source SHA `2112728`). The current hosted
+enum already contains `partial_delivered`, and an unauthenticated live probe
+returns the expected `307 /auth/login`. No new Vercel build or promotion was
+performed because the owner requested spend protection after the on-demand
+limit was reached.
+
+The read-only Supabase planner still reports a linear 55/86 ledger prefix:
+hosted head `20260729233017`, source head
+`20260803170000_purchase_order_supplier_session_payload`. The hosted catalog
+has 88 public tables, 303 policies, and every public table has RLS enabled;
+the fresh 86-migration clone has 111 tables, so the 23 expected source-suffix
+table objects are absent from the target. Security/performance advisor
+findings remain open. No hosted SQL, migration-history row, Storage object,
+business data, or provider setting changed.
+
+The fresh disposable PostgreSQL 17 + Redis replay was rerun after this audit:
+all 86 migrations applied, the schema hash remained
+`DDBBB7421C09146F9F34B816679135F6D33EBCB19BF10996C5F187B87606C91D`, database
+tests passed 300/300 with zero skips, and API integration passed 15 files /
+22 tests. The only runtime notice was Redis's local
+`vm.overcommit_memory` warning; the disposable Redis process was stopped.
+
 ## M3.36 supplier issuance outbox contract replay (2026-08-04)
 
 The first disposable PostgreSQL 17 + Redis replay exposed a real source defect:
