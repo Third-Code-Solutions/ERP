@@ -6,7 +6,7 @@ successful build.
 
 ## M3.50 Cost-capped provider and migration audit (read-only, 2026-08-04)
 
-The source tree and both target branches are aligned at `bbd0e39`. The GitHub
+The source tree and both target branches are aligned at `82d79bb`. The GitHub
 connector is authenticated as `kurtgav`; the exact-SHA Railway check is
 `success`. The preceding API source deployment remains the healthy Railway
 release; this docs-only checkpoint did not require another API build.
