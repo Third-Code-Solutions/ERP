@@ -4,6 +4,36 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.54 Cortex sources in the command palette (source-only, 2026-08-04)
+
+The authenticated command palette now has an explicit Ask Cortex mode that
+searches the existing tenant- and role-scoped Cortex graph after two or more
+characters. Actionable source rows open canonical ERP links; the separate Ask
+Cortex row only stages a draft handoff after an explicit click or Enter. The
+default Search records mode keeps its existing request path and cost profile.
+
+Changed files: `apps/web/src/components/nav/command-palette.tsx`,
+`apps/web/src/lib/cortex/command-palette-search.ts`, its test, and the
+interaction contract at
+`docs/research/components/command-palette-cortex-sources.spec.md`.
+
+Validation: focused Cortex/palette tests pass 14/14; full Web passes 72
+files/465 tests; workspace lint/typecheck and the 80/80-route production build
+pass. Source search is debounced, abortable, registry-safe, read-only, and
+provider-free. Authenticated browser proof remains deferred without a real
+tenant credential; the unauthenticated boundary still fails closed.
+
+Source `6c975261122c635668a4b80795549cb06fb63843` is pushed to both target
+branches as `kurtgav`. GitHub's exact `ERP - Third Code ERP API` check is
+`success`; Railway `/ready` and `/health` are healthy. Vercel Git deployment
+remains disabled and the read-only inventory has zero deployments since
+`1785840000000`; Supabase remains `ACTIVE_HEALTHY` at 55 applied migrations.
+No Vercel build, hosted SQL/data, Storage, or Railway setting changed.
+
+Next action remains the supported duplicate-PO backup/export and owner-
+approved canonical mapping before any hosted migration or spend-approved
+frontend release.
+
 ## M3.53 Clean-room runtime branding audit (source-only, 2026-08-04)
 
 Widened the branding regression boundary from the Next web tree to the

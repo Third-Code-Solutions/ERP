@@ -1,5 +1,39 @@
 # Work Log
 
+## 2026-08-04 - M3.54 Cortex sources in the command palette
+
+Added a low-cost, explicit Ask Cortex source path to the existing command
+palette. The source contract is the existing tenant/role-scoped
+`GET /api/cortex/search`; only actionable canonical links render. Source rows
+open ERP records; the separate Ask Cortex row stages a draft only after an
+explicit action. No browser database write, LLM/provider call, Python work,
+queue, storage, migration, or transaction authority was introduced.
+
+Changed files:
+
+- `apps/web/src/components/nav/command-palette.tsx`
+- `apps/web/src/lib/cortex/command-palette-search.ts`
+- `apps/web/src/lib/cortex/command-palette-search.test.ts`
+- `docs/research/components/command-palette-cortex-sources.spec.md`
+- architecture and operations memory files (M3.54 entries)
+
+Results: focused tests 14/14; full Web 72/465; workspace lint/typecheck;
+`git diff --check`; and sequential 80/80-route production build pass. A first
+parallel gate attempt was invalidated by a shared `.next` artifact race, not a
+source failure. Authenticated palette visual proof remains deferred without a
+real tenant credential; public/auth boundary checks remain read-only.
+
+Cost/provider boundary: source `6c975261122c635668a4b80795549cb06fb63843`
+was pushed once to both target branches as `kurtgav`. GitHub's exact Railway
+check is `success`; live Railway `/ready` and `/health` are healthy. Vercel
+Git deployment is disabled and there are zero deployments since
+`1785840000000`; Supabase `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY` with 55
+applied migrations. No hosted mutation or frontend deploy occurred.
+
+Rollback: revert `6c975261` to remove the palette source surface; no hosted
+state needs repair. Next action is the existing duplicate-PO backup/export,
+owner mapping, and disposable migration replay gate.
+
 ## 2026-08-04 - M3.53 Clean-room runtime branding audit
 
 Audited production-facing source, metadata, assets, and the live public

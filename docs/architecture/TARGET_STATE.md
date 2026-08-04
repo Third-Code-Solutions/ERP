@@ -13,6 +13,21 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.54 Cortex command-palette source target (2026-08-04)
+
+The global palette should be a low-cost entry point to the permissioned Cortex
+brain without turning search into an AI or transaction surface. Search records
+remains the default path. Only an explicit Ask Cortex mode may query the
+bounded graph, and only registry-approved nodes with canonical links may be
+opened. The final Ask Cortex action must remain a user-confirmed draft handoff;
+sending and ERP authority stay inside the protected Cortex flow.
+
+The source slice is complete in `6c975261`. Keep the request debounce,
+abort/stale-response guards, 20-hit server cap, tenant/role scope, and no-
+provider boundary. A future authenticated visual proof may use a disposable
+tenant only after credential handling, spend approval, and release gates are
+explicitly satisfied.
+
 ## M3.53 Clean-room runtime branding target (2026-08-04)
 
 All product-facing runtime text and metadata should be independently branded

@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.54 Cortex sources in the command palette
+
+1. Keep Vercel Git deployment disabled. Do not create a preview or production
+   build for this source-only slice; the read-only inventory is zero since
+   `1785840000000`, and the user's on-demand billing risk remains active.
+2. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Do not apply the
+   suffix, edit migration history, repair/rename/delete duplicate Purchase
+   Orders, or run direct DDL.
+3. Obtain the supported recoverable backup plus dependent-row/audit export and
+   owner-approved canonical mapping for the 12-record duplicate group. Rerun
+   the read-only planners and a disposable PostgreSQL 17 replay.
+4. Require rollback, audit-chain, provider identity, protected-flow, and spend
+   evidence before any hosted apply or frontend promotion. The palette source
+   rows remain read-only and cannot approve or finalize ERP transactions.
+
+Completed source/provider gates for `6c975261`: focused 14/14, Web 72/465,
+workspace lint/typecheck, 80/80 build, GitHub/Railway `success`, live Railway
+readiness healthy, and zero Vercel deployments since the recorded timestamp.
+No hosted mutation occurred.
+
 ## Exact next action after M3.53 clean-room runtime branding audit
 
 1. Keep the verified source `0c911f8` on both target Git branches. Do not
