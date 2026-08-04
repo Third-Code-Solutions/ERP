@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.62 Nest CRM account collection read handoff
+
+1. Keep `ERP_ACCOUNT_READS_VIA_API=false` and
+   `ERP_ACCOUNT_READS_VIA_API_TENANT_IDS` empty; source tests/builds are not a
+   tenant browser canary.
+2. Preserve the spend guard: keep Vercel Git deployment disabled and trigger no
+   preview or production build. This slice has no frontend provider release.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain the
+   supported backup/export, dependent/audit export, owner mapping for the
+   duplicate `PO-0002` group, and disposable PostgreSQL 17 replay before any
+   protected account-read canary or hosted data action.
+
 ## Exact next action after M3.61 Nest project update audit hardening
 
 1. Keep `ERP_PROJECT_WRITES_VIA_API=false` and

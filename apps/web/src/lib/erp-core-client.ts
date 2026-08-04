@@ -7,6 +7,7 @@ import {
   projectUpdateResultSchema,
   projectReadResultSchema,
   projectListResultSchema,
+  accountListResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   projectCreationResultSchema,
@@ -48,6 +49,8 @@ import {
   type ProjectReadResult,
   type ProjectListQuery,
   type ProjectListResult,
+  type AccountListQuery,
+  type AccountListResult,
   type CreateProjectCommand,
   type ProjectCreationResult,
   type RfqCreationResult,
@@ -190,6 +193,14 @@ export function projectListsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_PROJECT_LISTS_VIA_API,
     process.env.ERP_PROJECT_LISTS_VIA_API_TENANT_IDS
+  )
+}
+
+export function accountReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_ACCOUNT_READS_VIA_API,
+    process.env.ERP_ACCOUNT_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -892,6 +903,63 @@ export async function getProjectsThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Project list was not read.',
+    }
+  }
+}
+
+export async function getAccountsThroughCoreApi(
+  query: AccountListQuery
+): Promise<CoreResult<AccountListResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams()
+    if (query.q) params.set('q', query.q)
+    if (query.industry) params.set('industry', query.industry)
+    if (query.kycStatus) params.set('kycStatus', query.kycStatus)
+    params.set('sort', query.sort)
+    params.set('order', query.order)
+    params.set('page', String(query.page))
+    params.set('limit', String(query.limit))
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/accounts?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Account list filters are invalid.'
+            : 'Account list was not completed.',
+      }
+    }
+
+    const parsed = accountListResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Account list result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Account list was not read.',
     }
   }
 }

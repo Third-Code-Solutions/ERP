@@ -4,6 +4,28 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.62 Nest CRM account collection read handoff (source complete, 2026-08-04)
+
+Added a bounded `GET /v1/crm/accounts` read contract with explicit
+`account.read` authorization, verified-principal tenant scope, search,
+industry/KYC filters, allowlisted sort/order, deterministic pagination, and
+opportunity counts. The Accounts page can adopt it only when
+`ERP_ACCOUNT_READS_VIA_API=true` and the tenant UUID is allowlisted; the
+existing direct server-side query remains the default. The Next adapter rejects
+wrong-tenant rows and pagination drift instead of silently falling back.
+
+Changed files: shared account list schemas/tests, Nest CRM pipe/controller/
+service/tests, capability map, Next core client/account query adapter/tests,
+Accounts page handoff, environment examples/docs. Validation: shared types
+16/170; API 65/323; Web 76/488; workspace lint/typecheck; API build; Web
+80/80 production build; `git diff --check`. No hosted migration, Supabase
+mutation, Vercel build/deploy, or provider setting changed.
+
+Next action: keep `ERP_ACCOUNT_READS_VIA_API=false` and its tenant allowlist
+empty. Obtain the supported Supabase backup/export, dependent/audit export,
+owner-approved duplicate-PO mapping, and disposable PostgreSQL 17 replay
+before any protected account-read canary or hosted data action.
+
 ## M3.61 Nest project update audit hardening (source + Railway verified, 2026-08-04)
 
 The existing canary-gated `PATCH /v1/projects/:projectId` path now records a

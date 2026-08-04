@@ -13,6 +13,16 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.62 CRM account collection read boundary (2026-08-04)
+
+CRM account collections move toward Nest authority through a shared, strict
+read envelope. The Nest contract requires a verified principal, explicit
+`account.read`, repeated `tenant_id` scope, bounded query filters, allowlisted
+sort columns, deterministic page/limit pagination, and opportunity counts.
+Next adoption remains exact-flag plus tenant-allowlist gated and fails closed
+on tenant or pagination identity drift; the compatibility DB query remains the
+default. No database schema/data action or frontend deployment is implied.
+
 ## M3.61 Project update audit boundary (2026-08-04)
 
 Nest project updates must write their semantic before/after diff through the

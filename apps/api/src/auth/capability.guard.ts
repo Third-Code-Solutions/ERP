@@ -14,6 +14,7 @@ import {
 import { PUBLIC_ROUTE } from './supabase-jwt.guard'
 
 export const ERP_CAPABILITIES = [
+  'account.read',
   'project.read',
   'project.create',
   'project.update',
@@ -36,6 +37,21 @@ export const ERP_CAPABILITIES = [
 export type ErpCapability = (typeof ERP_CAPABILITIES)[number]
 
 const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
+  'account.read': [
+    'owner',
+    'estimator',
+    'pm',
+    'admin',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+    'viewer',
+  ],
   'project.read': [
     'owner',
     'estimator',

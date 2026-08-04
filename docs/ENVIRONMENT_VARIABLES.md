@@ -163,6 +163,18 @@ deployment identity, and rollback evidence are recorded.
 | `ERP_PROJECT_LISTS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects`; exact `true` only |
 | `ERP_PROJECT_LISTS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## CRM account collection read cutover (NestJS, disabled by default)
+
+The Accounts page may opt into the bounded, tenant-scoped Nest account list
+contract for one controlled tenant. The default remains the existing
+server-side query; keep the flag disabled until protected browser, exact
+deployment, pagination, and rollback evidence are recorded.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_ACCOUNT_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/crm/accounts`; exact `true` only |
+| `ERP_ACCOUNT_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
 ## Local Development
 
 The minimum to boot `pnpm dev`:

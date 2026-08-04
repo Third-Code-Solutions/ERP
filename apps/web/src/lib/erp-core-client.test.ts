@@ -19,9 +19,11 @@ import {
   logRfqQuoteThroughCoreApi,
   getProjectThroughCoreApi,
   getProjectsThroughCoreApi,
+  getAccountsThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
   projectListsUseCoreApi,
+  accountReadsUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
   purchaseOrderBomGroupedWritesUseCoreApi,
@@ -328,6 +330,28 @@ const READ_PROJECT_RESULT = {
   accountId: null,
   createdBy: '11111111-1111-4111-8111-111111111111',
 }
+const ACCOUNT_LIST_RESULT = {
+  rows: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      name: 'Acme Office',
+      industry: 'office' as const,
+      billingAddress: null,
+      primaryEmail: 'hello@example.test',
+      primaryPhone: null,
+      kycStatus: 'approved' as const,
+      createdAt: '2026-08-04T00:00:00.000Z',
+      updatedAt: '2026-08-04T01:00:00.000Z',
+      createdBy: null,
+      opportunityCount: 2,
+    },
+  ],
+  total: 1,
+  page: 1,
+  limit: 20,
+  totalPages: 1,
+}
 
 describe('ERP Core client', () => {
   beforeEach(() => {
@@ -424,6 +448,23 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PROJECT_LISTS_VIA_API_TENANT_IDS', '*')
     expect(projectListsUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(projectListsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Account reads on the legacy path unless the exact gate matches', () => {
+    vi.stubEnv('ERP_ACCOUNT_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_ACCOUNT_READS_VIA_API_TENANT_IDS', RESULT.tenantId)
+    expect(accountReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_ACCOUNT_READS_VIA_API', 'TRUE')
+    expect(accountReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_ACCOUNT_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_ACCOUNT_READS_VIA_API_TENANT_IDS', '')
+    expect(accountReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_ACCOUNT_READS_VIA_API_TENANT_IDS', '*')
+    expect(accountReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(accountReadsUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Project creation delegation fail-closed unless its exact gate matches', () => {
@@ -2082,6 +2123,44 @@ describe('ERP Core client', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/projects?q=office&status=active&projectType=fit_out&sort=name&order=asc&page=2&limit=50',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
+        }),
+      })
+    )
+  })
+
+  it('lists Accounts through the Nest boundary and validates the result envelope', async () => {
+    const query = {
+      q: 'office',
+      industry: 'office' as const,
+      kycStatus: 'approved' as const,
+      sort: 'name' as const,
+      order: 'asc' as const,
+      page: 1,
+      limit: 20,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(ACCOUNT_LIST_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getAccountsThroughCoreApi(query)).resolves.toEqual({
+      ok: true,
+      data: ACCOUNT_LIST_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/crm/accounts?q=office&industry=office&kycStatus=approved&sort=name&order=asc&page=1&limit=20',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',
