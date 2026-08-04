@@ -10,7 +10,11 @@
    backup/restore point and diff the hosted 55-row prefix against all 87
    source migrations: tables, columns, constraints, functions, triggers,
    RLS/policies, data/duplicates, Storage inventory, and migration history.
-3. Re-run the disposable two-tenant PostgreSQL/Redis replay and audit-chain
+3. Resolve the Supabase connector's `INVALID_ARGUMENT` for the real migration
+   SQL and the reported `MIGRATIONS_FAILED` branch state through the supported
+   provider path. Do not hand-insert migration history or bypass the ordered
+   suffix with raw DDL.
+4. Re-run the disposable two-tenant PostgreSQL/Redis replay and audit-chain
    recovery check against the exact release SHA, document rollback, and then
    review one tenant canary. Enable only the smallest approved allowlist after
    provider identity and spend gates pass; verify `/ready`, `/health`, API

@@ -5570,11 +5570,17 @@ hosted baseline, but not a promotion approval:
   shared 162/162, web 438/438, API 294/294 (ordinary database environment
   skips); lint, typecheck, `git diff --check`, and build 78/78 pages.
 - Runtime notes: only the disposable Redis overcommit warning appeared.
-  Hosted Supabase stayed at its read-only 55-row prefix. No hosted SQL/data,
-  Storage, Railway variable, Vercel build, or promotion changed.
+  Hosted Supabase stayed at its read-only 55-row prefix. The connector
+  rejected the first real source migration with `INVALID_ARGUMENT`; two
+  temporary no-op probe migration rows/table were created only to validate
+  connector behavior, then removed and rechecked (55 rows, zero probe rows,
+  no probe table). No net hosted SQL/data/schema, Storage, Railway variable,
+  Vercel build, or promotion changed.
 - Unresolved: source is 87 migrations vs hosted 55; provider catalog/data/RLS/
-  Storage diff, backup/restore, duplicate/audit recovery, and spend-bounded
-  canary approval remain open. Both project-create flags are false/empty.
+  Storage diff, backup/restore, supported ordered-apply path, duplicate/audit
+  recovery, and spend-bounded canary approval remain open. Supabase also
+  reports a pre-existing `MIGRATIONS_FAILED` branch state. Both project-create
+  flags are false/empty.
 - Exact next action: reconcile the hosted target against an approved clone and
   backup, then prepare one reviewed canary only after owner/provider/spend
   gates clear.
