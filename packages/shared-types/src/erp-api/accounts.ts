@@ -54,6 +54,32 @@ export const accountListResultSchema = z.object({
 
 export type AccountListResult = z.infer<typeof accountListResultSchema>
 
+export const accountKycQueueRowSchema = z
+  .object({
+    id: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    name: z.string(),
+    industry: z.enum(accountIndustryValues),
+    createdAt: z.string().datetime({ offset: true }),
+    artifactCount: z.number().int().nonnegative(),
+  })
+  .strict()
+
+export type AccountKycQueueRow = z.infer<typeof accountKycQueueRowSchema>
+
+export const accountKycQueueResultSchema = z
+  .object({
+    rows: z.array(accountKycQueueRowSchema),
+    total: z.number().int().nonnegative(),
+    limit: z.literal(200),
+    truncated: z.boolean(),
+  })
+  .strict()
+
+export type AccountKycQueueResult = z.infer<
+  typeof accountKycQueueResultSchema
+>
+
 export const accountDetailAccountSchema = accountReadResultSchema.extend({
   kycNotes: z.string().nullable(),
   kycDecidedAt: z.string().datetime({ offset: true }).nullable(),

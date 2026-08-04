@@ -112,6 +112,54 @@ describe('AccountsService', () => {
     ).resolves.toMatchObject({ total: 0, totalPages: 1, rows: [] })
   })
 
+  it('returns a bounded pending KYC queue with tenant-scoped artifact counts', async () => {
+    const queueRow = {
+      id: '88888888-8888-4888-8888-888888888888',
+      tenantId: PRINCIPAL.tenantId,
+      name: 'Pending Office',
+      industry: 'office' as const,
+      createdAt: new Date('2026-01-03T00:00:00.000Z'),
+      artifactCount: 3,
+    }
+    const rowLimit = vi.fn().mockResolvedValue([queueRow])
+    const rowOrderBy = vi.fn().mockReturnValue({ limit: rowLimit })
+    const rowGroupBy = vi.fn().mockReturnValue({ orderBy: rowOrderBy })
+    const rowWhere = vi.fn().mockReturnValue({ groupBy: rowGroupBy })
+    const rowJoin = vi.fn().mockReturnValue({ where: rowWhere })
+    const rowFrom = vi.fn().mockReturnValue({ leftJoin: rowJoin })
+    const countWhere = vi.fn().mockResolvedValue([{ count: 201 }])
+    const countFrom = vi.fn().mockReturnValue({ where: countWhere })
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: rowFrom })
+      .mockReturnValueOnce({ from: countFrom })
+    const database = { client: { select } } as unknown as DatabaseService
+
+    const result = await new AccountsService(database).kycQueue(PRINCIPAL)
+
+    expect(result).toEqual({
+      rows: [
+        expect.objectContaining({
+          id: queueRow.id,
+          tenantId: PRINCIPAL.tenantId,
+          artifactCount: 3,
+        }),
+      ],
+      total: 201,
+      limit: 200,
+      truncated: true,
+    })
+    expect(rowLimit).toHaveBeenCalledWith(200)
+    for (const predicate of [rowWhere, countWhere]) {
+      const querySql = new PgDialect().sqlToQuery(predicate.mock.calls[0]?.[0])
+      expect(querySql.sql).toContain('tenant_id')
+      expect(querySql.params).toContain(PRINCIPAL.tenantId)
+    }
+    const joinSql = new PgDialect().sqlToQuery(rowJoin.mock.calls[0]?.[1])
+    expect(joinSql.sql).toContain('tenant_id')
+    expect(joinSql.params).toContain(PRINCIPAL.tenantId)
+  })
+
   it('reads the account detail graph with repeated tenant predicates', async () => {
     const contact = {
       id: '44444444-4444-4444-8444-444444444444',

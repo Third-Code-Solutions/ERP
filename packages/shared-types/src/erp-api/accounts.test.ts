@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  accountKycQueueResultSchema,
   accountDetailResultSchema,
   accountListQuerySchema,
   accountListResultSchema,
@@ -59,6 +60,37 @@ describe('account ERP API contracts', () => {
         totalPages: 1,
       })
     ).toHaveProperty('rows[0].tenantId', TENANT_ID)
+  })
+
+  it('validates a bounded tenant-scoped KYC queue envelope', () => {
+    const parsed = accountKycQueueResultSchema.parse({
+      rows: [
+        {
+          id: ACCOUNT_ID,
+          tenantId: TENANT_ID,
+          name: 'Acme Office',
+          industry: 'office',
+          createdAt: '2026-08-04T00:00:00.000Z',
+          artifactCount: 3,
+        },
+      ],
+      total: 201,
+      limit: 200,
+      truncated: true,
+    })
+    expect(parsed.rows[0]?.tenantId).toBe(TENANT_ID)
+    expect(parsed.truncated).toBe(true)
+  })
+
+  it('rejects a KYC queue envelope with an invalid cap', () => {
+    expect(() =>
+      accountKycQueueResultSchema.parse({
+        rows: [],
+        total: 0,
+        limit: 100,
+        truncated: false,
+      })
+    ).toThrow()
   })
 
   it('validates a tenant-owned account detail graph', () => {

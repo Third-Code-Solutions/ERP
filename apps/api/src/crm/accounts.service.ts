@@ -10,9 +10,11 @@ import {
 } from '@third-code-erp/database/schema'
 import {
   accountDetailResultSchema,
+  accountKycQueueResultSchema,
   accountListResultSchema,
   type AccountListQuery,
   type AccountListResult,
+  type AccountKycQueueResult,
   type AccountReadResult,
   type AccountDetailResult,
 } from '@third-code-erp/shared-types'
@@ -87,6 +89,56 @@ export class AccountsService {
       page: query.page,
       limit: query.limit,
       totalPages,
+    })
+  }
+
+  async kycQueue(principal: ErpPrincipal): Promise<AccountKycQueueResult> {
+    const pendingWhere = and(
+      eq(accounts.tenant_id, principal.tenantId),
+      eq(accounts.kyc_status, 'pending')
+    )
+
+    const [rows, countRows] = await Promise.all([
+      this.database.client
+        .select({
+          id: accounts.id,
+          tenantId: accounts.tenant_id,
+          name: accounts.name,
+          industry: accounts.industry,
+          createdAt: accounts.created_at,
+          artifactCount: sql<number>`count(${accountKycArtifacts.id})::int`,
+        })
+        .from(accounts)
+        .leftJoin(
+          accountKycArtifacts,
+          and(
+            eq(accountKycArtifacts.account_id, accounts.id),
+            eq(accountKycArtifacts.tenant_id, principal.tenantId)
+          )
+        )
+        .where(pendingWhere)
+        .groupBy(accounts.id)
+        .orderBy(asc(accounts.created_at), asc(accounts.id))
+        .limit(200),
+      this.database.client
+        .select({ count: sql<number>`count(*)::int` })
+        .from(accounts)
+        .where(pendingWhere),
+    ])
+
+    const total = Number(countRows[0]?.count ?? 0)
+    return accountKycQueueResultSchema.parse({
+      rows: rows.map((row) => ({
+        id: row.id,
+        tenantId: row.tenantId,
+        name: row.name,
+        industry: row.industry,
+        createdAt: row.createdAt.toISOString(),
+        artifactCount: Number(row.artifactCount),
+      })),
+      total,
+      limit: 200,
+      truncated: total > 200,
     })
   }
 

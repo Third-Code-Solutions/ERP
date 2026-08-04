@@ -8,6 +8,7 @@ import {
   projectReadResultSchema,
   projectListResultSchema,
   accountListResultSchema,
+  accountKycQueueResultSchema,
   accountDetailResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
@@ -52,6 +53,7 @@ import {
   type ProjectListResult,
   type AccountListQuery,
   type AccountListResult,
+  type AccountKycQueueResult,
   type AccountDetailResult,
   type CreateProjectCommand,
   type ProjectCreationResult,
@@ -203,6 +205,14 @@ export function accountReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_ACCOUNT_READS_VIA_API,
     process.env.ERP_ACCOUNT_READS_VIA_API_TENANT_IDS
+  )
+}
+
+export function accountKycQueueReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API,
+    process.env.ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -962,6 +972,52 @@ export async function getAccountsThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Account list was not read.',
+    }
+  }
+}
+
+export async function getKycQueueThroughCoreApi(): Promise<
+  CoreResult<AccountKycQueueResult>
+> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/accounts/kyc-queue`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: 'KYC queue was not completed.',
+      }
+    }
+
+    const parsed = accountKycQueueResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid KYC queue result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. KYC queue was not read.',
     }
   }
 }

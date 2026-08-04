@@ -1,9 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { and, eq, desc, sql } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { accounts, accountKycArtifacts } from '@third-code-erp/database/schema'
+import { getKycQueue } from '@/lib/account-queries'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'KYC Queue' }
@@ -14,20 +12,7 @@ export default async function KycQueuePage() {
     redirect('/crm/accounts?error=forbidden')
   }
 
-  const rows = await db
-    .select({
-      id: accounts.id,
-      name: accounts.name,
-      industry: accounts.industry,
-      created_at: accounts.created_at,
-      artifact_count: sql<number>`COUNT(${accountKycArtifacts.id})::int`,
-    })
-    .from(accounts)
-    .leftJoin(accountKycArtifacts, eq(accountKycArtifacts.account_id, accounts.id))
-    .where(and(eq(accounts.tenant_id, profile.tenantId), eq(accounts.kyc_status, 'pending')))
-    .groupBy(accounts.id)
-    .orderBy(accounts.created_at)
-    .limit(200)
+  const rows = await getKycQueue(profile.tenantId)
 
   return (
     <div>
