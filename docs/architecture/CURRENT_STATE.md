@@ -16,6 +16,13 @@ the 79/79-route production build pass. Authenticated browser proof remains a
 provider-runtime gate when local Supabase DNS is unavailable. No hosted SQL,
 data, Storage, Railway setting, or Vercel build changed; the Supabase 55/87
 migration gate and Vercel spend gate remain closed.
+The source/docs checkpoint `0a085b7` is pushed to both target branches as
+`kurtgav`; GitHub's exact-SHA Railway check is `success`. Railway correctly
+skipped this frontend/docs-only commit because no watched API files changed;
+the existing service remains Online with live `/ready` and `/health` 200. The
+Vercel deployment query returns zero deployments after the push, so no paid
+build was triggered. Supabase remains unchanged at 55/87 with the protected
+duplicate-PO failure.
 
 ## M3.45 Cortex search accessibility (source complete, 2026-08-04)
 

@@ -16,6 +16,13 @@ Vercel or apply Supabase SQL for this source-only slice.
 Exact next action: push both target branches once, verify
 the exact GitHub/Railway SHA and live readiness, then record the unchanged
 Supabase/Vercel provider state.
+Post-push evidence: source/docs `0a085b7` is on `main` and
+`agent-02/third-code-erp-landing`; GitHub's exact-SHA Railway status is
+`success`. Railway recorded `SKIPPED` for this docs/frontend-only commit
+because no API watch pattern changed, while the existing service remains
+Online and `/ready`/`/health` are 200. Supabase is still 55/87 with
+`MIGRATIONS_FAILED` at the Purchase Order uniqueness preflight. Vercel's
+read-only query shows zero deployments after the push; no paid build ran.
 
 ## M3.45 - Cortex search accessibility (source complete, 2026-08-04)
 
