@@ -13,6 +13,24 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.72 Inventory Warehouse deactivation integrity boundary (2026-08-05)
+
+Warehouse state authority must reject deactivation while its tenant-scoped
+ledger balance is nonzero. Nest performs the balance check inside the same
+transaction after locking the tenant Warehouse and emits no update or audit on
+conflict. The forward-only database contract repeats that invariant at the
+database boundary and uses a compatible Warehouse share lock on ledger writes;
+only explicit receipt/movement reversal events can write to an inactive
+Warehouse. This migration remains source-only until the hosted migration ledger
+is reconciled and replayed safely. The exact flags stay disabled, and the Next
+Server Action remains the compatibility path.
+
+Source SHA `f391f49d0aa002101649afa79dfc75872120df72` is live on Railway as
+successful deployment `48cc2b18-1c5d-45eb-b59d-b54571fe673c`; `/ready` and
+`/health` are 200 and unauthenticated protected routes return 401. Supabase is
+read-only at 55/88 (33 source migrations pending); no Vercel deployment or
+hosted schema/data action is implied.
+
 ## M3.71 Inventory Warehouse closeout/readiness read (2026-08-05)
 
 Warehouse deactivation decisions now have a narrow Nest read authority. The

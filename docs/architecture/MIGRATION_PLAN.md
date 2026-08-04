@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.72 - Inventory Warehouse deactivation integrity boundary (2026-08-05)
+
+Implemented a narrow correctness guard for
+`PATCH /v1/inventory/warehouses/:warehouseId`: Nest rejects active-to-inactive
+transitions when tenant-scoped stock ledger quantity or value is nonzero, with
+HTTP 409 and no update/audit side effect. Added the matching forward-only
+database trigger contract, including compatible row-lock serialization for
+ledger writes and an explicit reversal allowlist for inactive Warehouses. The
+SQL is source-only; it was not applied to Supabase because hosted migration
+parity is still 55/88 with 33 pending migrations.
+
+Validation: shared 17/183; API 79/362; Web 83/523; database 41 files,
+168 active tests, and 140 environment-skipped tests; focused guard/controller
+and migration-contract tests; typechecks; serial lint; Nest build; Web
+production build; and `git diff --check`. Source commit
+`f391f49d0aa002101649afa79dfc75872120df72` is pushed to both target refs.
+Railway deployment `48cc2b18-1c5d-45eb-b59d-b54571fe673c` is `SUCCESS`; live
+`/ready` and `/health` are 200 with database and Redis healthy, and protected
+unauthenticated routes return 401. No Vercel build/deploy or hosted Supabase
+write was triggered.
+
+Rollback: keep the Nest compatibility/canary flags false and tenant lists
+empty, or roll back to the prior successful Railway deployment. Because the
+new SQL has not been applied, no hosted state repair is required. Before any
+database apply, reconcile the ordered migration ledger, obtain backup/export,
+dependent/audit export and owner mapping, replay on disposable PostgreSQL 17,
+and set an explicit spend cap.
+
 ## M3.71 - Inventory Warehouse closeout/readiness read (2026-08-05)
 
 Implemented `GET /v1/inventory/warehouses/:warehouseId/closeout` as a strict,
