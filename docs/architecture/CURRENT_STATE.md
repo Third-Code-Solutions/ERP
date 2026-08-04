@@ -4,6 +4,25 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.43 Supabase reconciliation gate (read-only, 2026-08-04)
+
+The configured Supabase target was rechecked without mutation. Hosted state is
+healthy at the service level but remains a 55-migration prefix against 87
+source migrations. Its protected `main` branch is `MIGRATIONS_FAILED`; branch
+logs identify `20260801090000_purchase_order_create_idempotency.sql` as the
+first pending failure because one tenant has 12 duplicate `PO-0002` records.
+All 88 public tables have RLS enabled, while `financial_sequences`,
+`notification_outbox`, and `notification_deliveries` have no policies. The
+private `documents` bucket has 37 objects. Advisors report security and
+performance review items; no production fix was guessed or applied.
+
+Added the evidence record at
+[`docs/research/supabase-reconciliation-20260804.md`](../research/supabase-reconciliation-20260804.md).
+Exact next action: obtain a supported recoverable backup, approve a canonical
+duplicate-data repair, then resume the ordered migration suffix. Keep all
+mutation flags closed, Vercel disconnected, and no raw migration-history
+bypass.
+
 ## M3.42 Project Command Center (source complete, 2026-08-04)
 
 Source checkpoint: `a225340` (`feat(web): add project command center`). The

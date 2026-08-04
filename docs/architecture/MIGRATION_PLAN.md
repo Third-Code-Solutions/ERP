@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.43 — supported Supabase reconciliation before mutation (2026-08-04)
+
+Status: read-only audit complete; hosted SQL intentionally paused.
+
+Evidence: the repository contains 87 ordered migrations while the configured
+Supabase target has 55. The protected branch is `MIGRATIONS_FAILED` at the
+first pending file, `20260801090000_purchase_order_create_idempotency.sql`,
+because tenant-scoped `PO-0002` is duplicated 12 times. The public catalog has
+88 RLS-enabled tables, three policyless internal tables, one private Storage
+bucket with 37 objects, and advisor findings recorded in
+[`docs/research/supabase-reconciliation-20260804.md`](../research/supabase-reconciliation-20260804.md).
+
+Required order: supported recoverable backup; dependent-row and audit export;
+owner-approved canonical duplicate repair; one audited repair migration;
+ordered suffix replay; catalog/data/RLS/Storage verification; only then a
+tenant-scoped Nest mutation canary. Do not reset the protected branch, insert
+fake migration history, or apply raw DDL to work around the provider error.
+
 Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.

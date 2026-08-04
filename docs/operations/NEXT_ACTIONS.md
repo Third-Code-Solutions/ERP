@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.43 Supabase reconciliation
+
+1. Obtain a supported recoverable Supabase backup/restore point and export the
+   12-row duplicate `PO-0002` group with dependent lines, documents, and audit
+   evidence; do not mutate it yet.
+2. Get an owner-approved canonical-number/data-repair decision. Execute only
+   one audited, reversible repair through the supported provider path.
+3. Resume the ordered source suffix from
+   `20260801090000_purchase_order_create_idempotency.sql`; stop at the first
+   new failure and verify the migration ledger, catalog, RLS/policies, Storage,
+   and audit continuity.
+4. Keep all mutation flags false, Vercel Git disconnected, and no raw SQL or
+   hand-edited migration history. Review one Nest-owned tenant canary only
+   after the provider and rollback gates clear.
+
 ## Exact next action after M3.42 Project Command Center
 
 1. Push source `a225340` plus the milestone documentation once to `main` and
