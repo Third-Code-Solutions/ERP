@@ -4,6 +4,42 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.63 Nest CRM account detail read handoff (source + Railway verified, 2026-08-04)
+
+Added a bounded `GET /v1/crm/accounts/:accountId` detail graph with explicit
+`account.read` authorization, verified-principal tenant scope, and repeated
+tenant predicates across contacts, KYC artifacts/documents, opportunities, and
+projects. Child collections are capped at 200 rows; opportunity totals use a
+separate tenant-scoped count. The account detail page can adopt the contract
+only through the existing `ERP_ACCOUNT_READS_VIA_API=true` flag plus its exact
+tenant UUID allowlist; direct server-side queries remain the default. The Next
+adapter validates every nested tenant/account identity and fails closed.
+
+Changed files: shared account detail schemas/tests; Nest CRM controller,
+service, service tests, and e2e contract; Next core client, account query
+adapter/tests, and account detail page handoff. Validation: shared types
+16/172; API 65/326 (serial bounded Vitest run); Web 76/492; workspace
+typecheck/lint; API build; Web 80/80 production build; `git diff --check`.
+The first concurrent full-suite run hit one unrelated 5-second RFQ controller
+timeout; serial API rerun passed all 326 tests. No hosted migration/data
+repair, Supabase mutation, Vercel build/deploy, or provider setting changed.
+
+Commit `c4fb282f` is pushed to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`abedf9fd-1785-4b8f-b4f7-00436466b708` for that exact SHA is `SUCCESS` using
+`apps/api/Dockerfile`; deployment logs show the detail route, live `/ready` is
+200 with PostgreSQL and Redis, `/health` is 200, and unauthenticated
+collection/detail reads are 401. GitHub's exact API status is `success`.
+Supabase `aqqrtkmtcsfkbyyqxowv` remains `ACTIVE_HEALTHY` at 55 hosted
+migrations versus 87 source migrations. Vercel project
+`prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` has zero deployments in the spend-audit
+window.
+
+Next action: keep `ERP_ACCOUNT_READS_VIA_API=false` and its tenant allowlist
+empty. Obtain the supported Supabase backup/export, dependent/audit export,
+owner-approved duplicate-PO mapping, and disposable PostgreSQL 17 replay
+before any protected account-read canary or hosted data action.
+
 ## M3.62 Nest CRM account collection read handoff (source + Railway verified, 2026-08-04)
 
 Added a bounded `GET /v1/crm/accounts` read contract with explicit

@@ -13,6 +13,17 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.63 CRM account detail graph boundary (2026-08-04)
+
+Account detail reads move toward Nest authority through a strict, bounded
+graph envelope. The contract requires a verified principal, explicit
+`account.read`, repeated account and tenant predicates on every child query,
+document joins scoped to the same tenant, capped child collections, and a
+separate tenant-scoped opportunity count. Next adoption remains exact-flag plus
+tenant-allowlist gated; every nested identity is validated and mismatches fail
+closed. The existing direct server-side query remains the default. This is a
+read-only seam: no schema, data, or hosted provider action is implied.
+
 ## M3.62 CRM account collection read boundary (2026-08-04)
 
 CRM account collections move toward Nest authority through a shared, strict

@@ -1,5 +1,41 @@
 # Work Log
 
+## 2026-08-04 - M3.63 Nest CRM account detail read handoff
+
+Moved the CRM account detail read boundary toward the Nest modular monolith.
+The new route returns the account plus tenant-scoped contacts, KYC artifacts
+with tenant-scoped document metadata, opportunities, projects, and an accurate
+opportunity count. All child reads repeat tenant predicates and are capped;
+the existing Next direct query remains the default behind the disabled canary.
+
+Changed files:
+
+- `packages/shared-types/src/erp-api/accounts.ts` and tests
+- `apps/api/src/crm/accounts.controller.ts`, `accounts.service.ts`, service tests
+  and `test/accounts.e2e.spec.ts`
+- `apps/web/src/lib/erp-core-client.ts` and tests
+- `apps/web/src/lib/account-queries.ts` and tests
+- CRM account detail page handoff
+
+Results: shared types 16 files/172 tests; API 65 files/326 tests in a serial
+bounded run; Web 76 files/492 tests; workspace typecheck/lint; Nest build; Web
+80/80 production build; `git diff --check`. The first concurrent full-suite
+attempt had one unrelated 5-second RFQ controller timeout; the serial API
+rerun passed 326/326. No hosted migration/data repair, Vercel build/deploy, or
+provider setting changed.
+
+Commit `c4fb282f` was pushed to both target branches. Railway deployment
+`abedf9fd-1785-4b8f-b4f7-00436466b708` is `SUCCESS`; Docker build logs show
+`apps/api/Dockerfile`, startup logs show the detail route, live `/ready` and
+`/health` are 200, unauthenticated collection/detail reads are 401, and
+GitHub's exact API check is `success`. Supabase is read-only at 55/87; Vercel
+has zero deployments in the spend-audit window.
+
+Rollback: keep `ERP_ACCOUNT_READS_VIA_API=false` and the tenant allowlist empty,
+or redeploy the prior successful API source. No hosted state requires repair.
+Next: supported Supabase recovery evidence, protected browser proof, and an
+explicit spend cap before any account-read canary.
+
 ## 2026-08-04 - M3.62 Nest CRM account collection read handoff
 
 Added the bounded CRM account collection authority seam. Nest now exposes
