@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-154 - Cortex search selection is pure, actionable, and read-only (2026-08-04)
+
+Decision: keep keyboard navigation in a pure helper and let the Cortex graph
+component open only results with an authorized `href`. Arrow navigation wraps
+and skips unavailable records; Enter uses the active result or the first
+actionable result; Escape closes the list while preserving the query. The UI
+must announce loading, empty, and failure states and expose explicit ARIA
+relationships.
+
+Reason: Cortex is the ERP's calm knowledge/navigation layer, not a second
+transaction authority. A pure selection function is deterministic and easy to
+test, while skipping null destinations avoids presenting dead or unauthorized
+links as usable. Clearing stale results prevents a changed query from opening
+an old record.
+
+Validation/release boundary: source `71c5cba`; focused 3/3, Web 447/447,
+workspace lint/typecheck, diff check, and production build pass. Unauthenticated
+redirect proof is clean; authenticated browser proof remains blocked by local
+Supabase DNS resolution. No hosted data, schema, Railway setting, or Vercel
+deployment changed.
+
 ## D-153 - Data-quality review is read-only and tenant-repeated (2026-08-04)
 
 Decision: add `/admin/data-quality` as a server-rendered review surface for

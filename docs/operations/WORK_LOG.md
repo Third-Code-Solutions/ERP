@@ -1,5 +1,35 @@
 # Work Log
 
+## 2026-08-04 - M3.45 Cortex search accessibility
+
+Implemented the next bounded Cortex/Obsidian UX slice. The graph search now
+supports arrow-key selection with wrapping, skips unavailable destinations,
+opens the active or first actionable result on Enter, and closes the result
+list with Escape. Loading, empty, and retrieval-error states are explicit;
+ARIA controls expose the listbox and active result; new terms clear stale
+results before the debounce request.
+
+Changed source: `apps/web/src/components/cortex/cortex-graph-view.tsx`,
+`apps/web/src/lib/cortex/search-navigation.ts`, its tests, and the Cortex
+search rule in `apps/web/src/app/globals.css`. Added the measured spec and
+changeset under `docs/research/components/` and `docs/changesets/`.
+Source commit: `71c5cba`.
+
+Validation: focused 3/3; Web 65 files/447 tests; workspace lint, typecheck,
+`git diff --check`, and Next production build 79/79 routes passed. Browser
+verification confirmed the unauthenticated `/cortex` redirect to `/auth/login`
+with zero console errors. Authenticated Cortex replay reached the route but
+failed closed because the local Next Edge runtime could not resolve the
+configured Supabase host (`ETIMEDOUT`/`ENOTFOUND`); this is recorded as an
+open provider-runtime gate, not a pass.
+
+Release boundary: no Supabase SQL, hosted row, Storage object, migration
+history, Railway variable/deployment setting, or Vercel build/promotion
+changed. Vercel remains disconnected and spend-protected. Exact next action:
+repeat authenticated desktop/mobile proof from a runtime with working
+Supabase DNS, then continue the supported backup and owner-approved duplicate
+Purchase Order repair gate.
+
 ## 2026-08-04 - M3.44 admin data-quality review
 
 Implemented the next smallest original ERP slice after the hosted

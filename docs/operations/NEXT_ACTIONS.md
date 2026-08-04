@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.45 Cortex search accessibility
+
+1. Re-run authenticated Cortex desktop/mobile browser proof from a runtime
+   that can resolve `aqqrtkmtcsfkbyyqxowv.supabase.co`; verify graph/search
+   network responses, keyboard selection, ARIA state, zero console errors, and
+   zero horizontal overflow. Do not treat the unauthenticated redirect as a
+   Cortex pass.
+2. Keep Vercel Git/deployments disconnected and spend-protected; do not trigger
+   a preview/build for this frontend-only slice. Railway remains the linked
+   API service and should only auto-deploy source changes that affect it.
+3. Preserve the Supabase 55/87 migration boundary. Obtain a supported,
+   recoverable backup, export dependent rows/audit evidence, and get an
+   owner-approved canonical decision for the 12 duplicate `PO-0002` rows
+   before any ordered suffix replay. Never auto-repair records or hand-edit
+   migration history.
+
 ## Exact next action after M3.44 admin data-quality review
 
 1. Obtain a supported recoverable Supabase backup/restore point and export the

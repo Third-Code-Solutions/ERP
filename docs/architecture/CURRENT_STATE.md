@@ -4,6 +4,28 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.45 Cortex search accessibility (source complete, 2026-08-04)
+
+Source checkpoint: `71c5cba` (`feat(web): harden cortex search navigation`).
+The Cortex graph search now supports keyboard-first selection: arrow keys wrap
+through actionable results, unavailable destinations are skipped, and Enter
+opens the highlighted result or the first actionable result. Loading, empty,
+and failed retrieval states are explicit and announced; stale results clear at
+the start of a new debounce cycle. ARIA relationships expose the result list,
+active descendant, and selected option state.
+
+Changed files are the Cortex graph client, pure navigation helper/tests, and
+shared Cortex search styling. Focused helper tests pass 3/3; the Web suite is
+65 files/447 tests; workspace lint, typecheck, diff check, and 79/79-route
+production build pass. Unauthenticated browser verification redirects
+`/cortex` to `/auth/login` with no console errors. Authenticated Cortex
+rendering was attempted but the local Next Edge runtime could not resolve the
+configured Supabase host (`ETIMEDOUT`/`ENOTFOUND`); no authenticated browser
+pass is claimed. No database, Storage, Railway setting, or Vercel deployment
+changed. Exact next action: repeat authenticated desktop/mobile proof from a
+runtime with working Supabase DNS, then return to the supported backup and
+owner-approved duplicate Purchase Order repair gate.
+
 ## M3.44 Admin data-quality review (source complete, 2026-08-04)
 
 Source checkpoint: `63bbf22` (`feat(web): add admin data quality review`). The

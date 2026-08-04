@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.45 - Cortex search accessibility (source complete, 2026-08-04)
+
+Source checkpoint: `71c5cba`. Added pure, tested result selection and
+keyboard-first Cortex navigation without adding a mutation or database seam.
+The graph search now exposes stable ARIA relationships and explicit loading,
+empty, and error states; new terms clear stale results before the debounce
+window.
+
+Validation: focused 3/3; Web 65 files/447 tests; workspace lint/typecheck,
+diff check, and 79/79-route production build pass. Unauthenticated browser
+redirect proof is clean. Authenticated Cortex proof is still open because the
+local Next Edge runtime could not resolve the configured Supabase host. Do not
+trigger Vercel or apply hosted SQL for this presentation-only slice.
+
+Exact next action: rerun authenticated desktop/mobile Cortex proof from a
+runtime with working Supabase DNS, then continue the supported backup and
+owner-approved duplicate Purchase Order repair before ordered migration
+replay.
+
 ## M3.44 - read-only admin data-quality review (2026-08-04)
 
 Status: source complete; hosted database intentionally unchanged.
