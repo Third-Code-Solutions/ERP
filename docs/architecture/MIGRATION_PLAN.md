@@ -4,6 +4,20 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.35 - Authenticated Cortex browser proof (evidence complete)
+
+Added persistent E2E assertions for exact browser/API boundary: protected
+dashboard paths redirect to `/auth/login` without session, while
+`/api/cortex/search` returns 401 JSON with private/no-store and Cookie-varying
+headers. Fresh local runtime passed authenticated Cortex graph, focused-record,
+conversation deep-link, responsive, and viewer-role suites (1/1 each). Demo
+Supabase session was generated for test and revoked; no business-table write
+occurred.
+
+This evidence is not isolated disposable-database proof. Next action remains a
+two-tenant PostgreSQL/Redis replay covering cross-tenant denial, citations,
+redaction, audit, and rollback before any hosted migration or promotion.
+
 ## M3.34 - Authenticated browser route boundary (source complete)
 
 Centralized dashboard session-gating in `lib/protected-route.ts`, added missing

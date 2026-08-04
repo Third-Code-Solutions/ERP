@@ -29,3 +29,22 @@ Before this slice, local browser navigation to `/cortex` reached the
 now asserts the shared prefix contract. Full browser verification with a
 real authenticated disposable tenant remains required for allowed, denied,
 cross-tenant, and citation-bearing Cortex flows.
+
+## M3.35 runtime evidence
+
+- Fresh local runtime: `/cortex`, `/finance`, and `/inventory` return `307`
+  with `Location: /auth/login` without a session.
+- Fresh local runtime: `/api/cortex/search` returns `401` JSON with
+  `Cache-Control: private, no-store, max-age=0` and `Vary: Cookie`; it does not
+  return login HTML.
+- `cortex-focused-local.spec.ts`: 1/1 authenticated run passed graph scope,
+  focused-record navigation, conversation search/deep links, and desktop /
+  tablet / mobile overflow checks.
+- `dashboard-role-local.spec.ts`: 1/1 authenticated viewer run passed; hidden
+  executive pipeline/finance data and tenant-scoped search headers verified.
+- Auth session was generated and revoked through Supabase admin/auth APIs;
+  business data remained read-only.
+
+Runs used configured demo data, not isolated two-tenant disposable database.
+Cross-tenant denial, citations, redaction, and audit-replay proof remain
+promotion gates.

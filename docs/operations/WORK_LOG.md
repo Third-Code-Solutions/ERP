@@ -1,5 +1,25 @@
 # Work Log
 
+## 2026-08-04 - M3.35 authenticated Cortex browser proof
+
+Restarted stale local Next.js cache after `/auth/login` exposed
+`Cannot find module './3255.js'` from `.next`; verified exact repo process and
+rebuilt generated cache. Fresh local runtime returned 307 login redirects for
+`/cortex`, `/finance`, and `/inventory`; unauthenticated `/api/cortex/search`
+returned 401 JSON with `private, no-store, max-age=0` and `Vary: Cookie`.
+
+Extended `apps/web/e2e/cortex-focused-local.spec.ts` with persistent boundary
+assertions. Authenticated graph/deep-link/browser proof passed 1/1; viewer-role
+dashboard proof passed 1/1. Evidence covered authorized graph scope, focused
+record navigation, conversation search/deep links, role-hidden executive data,
+tenant search privacy, and zero overflow at desktop/tablet/mobile sizes.
+One-time demo auth session was revoked after each run; no business-table write,
+Supabase migration, Railway setting, or Vercel deployment occurred.
+
+Limitation: configured Supabase target is demo data, not isolated disposable
+PostgreSQL/Redis. Two-tenant cross-tenant, citation, redaction, audit-replay,
+and rollback evidence remains open before hosted release.
+
 ## 2026-08-04 - M3.34 authenticated browser route boundary
 
 Audited local unauthenticated Cortex navigation and found middleware omitted

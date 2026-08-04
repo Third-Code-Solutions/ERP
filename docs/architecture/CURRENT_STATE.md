@@ -4,6 +4,23 @@ Verified from the repository and the configured Supabase target on 2026-07-30.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.35 authenticated Cortex browser proof (2026-08-04)
+
+Fresh local Next.js runtime proved browser/API boundary against configured demo
+Supabase tenant: `/cortex`, `/finance`, and `/inventory` return `307
+/auth/login` without session; `/api/cortex/search` returns `401` JSON with
+`private, no-store, max-age=0` and `Vary: Cookie` instead of login HTML. The
+authenticated Cortex graph/deep-link suite passed 1/1 after creating and
+revoking one-time demo auth session; it verified authorized graph scope,
+focused-record navigation, conversation search/deep links, and zero overflow
+at 1440px, 768px, and 390px. Viewer-role browser QA passed 1/1 and kept
+executive pipeline/finance data hidden while preserving tenant search privacy.
+
+This is authenticated demo-tenant evidence, not isolated disposable
+PostgreSQL/Supabase clone. No business-table write or provider deployment
+occurred; isolated two-tenant cross-tenant/citation replay remains release
+gate. Test now permanently covers unauthenticated route/API contract.
+
 ## M3.34 authenticated browser route boundary (2026-08-04)
 
 Moved dashboard route matching into the shared
