@@ -1,6 +1,6 @@
 # Migration Plan
 
-## M3.61 - Nest project update audit hardening (source complete, 2026-08-04)
+## M3.61 - Nest project update audit hardening (Railway verified, 2026-08-04)
 
 Added the missing semantic audit write to the existing tenant-scoped,
 optimistic-concurrency `PATCH /v1/projects/:projectId` transaction. The audit
@@ -10,9 +10,13 @@ the returned result at runtime.
 
 Validation: focused project service 12/12; isolated controller specs 3/3 and
 8/8; full API 62/318; workspace lint/typecheck; Nest build; and
-`git diff --check`. No hosted mutation or Vercel build. Keep
-`ERP_PROJECT_WRITES_VIA_API=false` and its tenant allowlist empty until exact
-Railway and protected-canary evidence is recorded.
+`git diff --check`. Commit `7332902e` is pushed to both target branches.
+Railway deployment `21832e50-5f29-4471-979d-28bf90afbb48` is `SUCCESS` for that
+SHA; `/ready` and `/health` are 200, unauthenticated project read/update
+boundaries are 401, and GitHub's exact API status is `success`. Supabase stayed
+read-only at 55/87 and Vercel had zero new deployments/builds. Keep
+`ERP_PROJECT_WRITES_VIA_API=false` and its tenant allowlist empty until the
+protected canary and supported data-recovery gates pass.
 
 ## M3.60 - Nest project collection read contract (Railway verified, 2026-08-04)
 

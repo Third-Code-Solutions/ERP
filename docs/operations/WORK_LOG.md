@@ -16,12 +16,16 @@ Changed files:
 Results: focused project service 12/12; isolated controller specs 3/3 and 8/8;
 full API 62/318; workspace lint/typecheck; Nest build; `git diff --check`.
 The first parallel full-suite attempt had two unrelated 5-second controller
-timeouts; both isolated specs and the sequential full suite passed. No hosted
-SQL/data, Storage, Railway setting, or Vercel build changed.
+timeouts; both isolated specs and the sequential full suite passed. Commit
+`7332902e` was pushed to both target branches. Railway deployment
+`21832e50-5f29-4471-979d-28bf90afbb48` is `SUCCESS`; startup logs show the API
+initialized, live `/ready` and `/health` are 200, unauthenticated project
+read/update boundaries are 401, and GitHub's exact API status is `success`.
+Supabase remained read-only at 55/87. Vercel has zero new deployments/builds.
 
 Rollback: revert the source commit or keep the project-write flag disabled;
-no hosted state requires repair. Next: push once, verify Railway, and keep the
-protected project-write canary closed.
+no hosted state requires repair. Next: keep the protected project-write
+canary closed pending the supported data-recovery gate.
 
 ## 2026-08-04 - M3.60 Nest project collection read contract
 
