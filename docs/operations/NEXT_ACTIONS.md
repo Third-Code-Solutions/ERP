@@ -5,11 +5,9 @@
 1. Keep `ERP_PROJECT_WRITES_VIA_API=false` and
    `ERP_PROJECT_WRITES_VIA_API_TENANT_IDS` empty; source tests are not a tenant
    write canary.
-2. Commit and push this source/docs slice once as `kurtgav`; do not trigger a
-   Vercel build or reconnect Vercel Git.
-3. Verify the exact Railway deployment/source SHA, `/ready`, `/health`, and
-   unauthenticated project boundaries. Record the GitHub API status.
-4. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain the
+2. Preserve the spend guard: do not trigger a Vercel build or reconnect Vercel
+   Git. Current audit window has zero deployments.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain the
    supported backup/export, dependent/audit export, owner mapping for the
    duplicate `PO-0002` group, and disposable PostgreSQL 17 replay before any
    protected write canary or hosted migration/data action.

@@ -4,7 +4,7 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
-## M3.61 Nest project update audit hardening (source complete, 2026-08-04)
+## M3.61 Nest project update audit hardening (source + Railway verified, 2026-08-04)
 
 The existing canary-gated `PATCH /v1/projects/:projectId` path now records a
 semantic, tenant-scoped before/after audit entry inside the same PostgreSQL
@@ -14,11 +14,15 @@ direct-write path and all canary flags remain unchanged.
 
 Validation: focused project service 12/12; isolated previously timing-sensitive
 controller specs 3/3 and 8/8; full API 62/318; workspace lint/typecheck; Nest
-production build; `git diff --check`. No Supabase SQL/data, Storage, Railway
-setting/deployment, or Vercel build changed in the source milestone.
+production build; `git diff --check`. Commit `7332902e` is pushed to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`21832e50-5f29-4471-979d-28bf90afbb48` for that exact SHA is `SUCCESS`; startup
+logs show the API initialized, `/ready` and `/health` are 200, and unauthenticated
+GET project read/update boundaries are 401. GitHub's exact API status is
+`success`. Supabase remains read-only at 55/87; Vercel has zero deployments in
+the spend-audit window and no build was triggered.
 
-Next action: push once, verify the exact Railway source deployment and live
-health, then keep `ERP_PROJECT_WRITES_VIA_API=false` and its tenant allowlist
+Next action: keep `ERP_PROJECT_WRITES_VIA_API=false` and its tenant allowlist
 empty until the protected canary and supported Supabase duplicate-PO replay
 gates clear.
 
