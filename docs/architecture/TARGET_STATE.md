@@ -13,6 +13,21 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.41 Today Command Center target (2026-08-04)
+
+Today is the first read-only operating surface after the BuildOps contract:
+tenant-scoped task context, policy-gated project context, and explicit Cortex
+navigation. It must remain a navigation and decision surface, not a hidden
+mutation path. Task reads stay assignee-scoped; project reads reuse the
+existing route authorization; Cortex retains its own record authorization.
+Responsive proof covers 390px and desktop without horizontal overflow.
+
+The source slice is complete at `ab905091ada2f7db927e6cf4c2de687ee2010194`.
+The next target is provider verification of that exact SHA, followed by the
+supported Supabase reconciliation and one small Nest-owned mutation canary.
+No dashboard flag, Python worker, or browser write may bypass the authority
+contract while those gates are open.
+
 ## M3.40 governing product target (2026-08-04)
 
 The target product contract is now centralized in

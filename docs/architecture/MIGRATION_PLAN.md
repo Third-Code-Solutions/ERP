@@ -4,6 +4,27 @@ Strategy: strangler migration by complete vertical transaction slices. Keep
 the current application usable and keep each new route disabled until its
 evidence is green.
 
+## M3.41 - Read-only Today Command Center (source complete)
+
+Source checkpoint: `ab905091ada2f7db927e6cf4c2de687ee2010194`. Added
+`getTodayCommandCenter` on top of existing tenant/assignee-scoped queries and
+a responsive Today/Project Command Center component. Executive dashboards
+also receive the surface; non-executive roles receive only their authorized
+work and the private project empty state. Project/Cortex links remain
+navigation handoffs and do not commit ERP state.
+
+Changed files are the dashboard query, page, Today component/CSS/test, and
+viewer role E2E assertions. Focused 2/2 and full Web 440/440 tests, lint,
+typecheck, diff check, and 78-route production build passed. Authenticated
+browser MCP proof passed at mobile and desktop; CLI Playwright remains
+blocked by the missing local Chromium executable. No database or provider
+mutation occurred.
+
+Exact next action: push the reviewed source/docs history once, verify GitHub
+and Railway against the exact SHA, and recheck live `/ready`/`/health`.
+Keep Supabase at its 55-row hosted prefix, all mutation flags closed, and
+Vercel Git disconnected/spend-protected; do not trigger a Vercel build.
+
 ## M3.40 - Governing BuildOps product contract (documentation complete)
 
 Added `docs/BuildOps_PRD_v1.md` from the existing product/refactor, clean-room,

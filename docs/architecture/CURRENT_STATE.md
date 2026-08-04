@@ -4,6 +4,37 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.41 Today Command Center (source complete, 2026-08-04)
+
+Source checkpoint: `ab905091ada2f7db927e6cf4c2de687ee2010194`. Added a
+read-only Today/Project Command Center to the existing dashboard. The query
+layer is tenant-scoped, assignee-scoped for tasks, and only loads project
+context when the existing `/projects` route policy permits it. The UI gives
+users one due/attention/next queue, authorized project links, and an explicit
+Cortex handoff without moving mutation authority into React or Python.
+
+Changed files: `apps/web/src/lib/dashboard-queries.ts`,
+`apps/web/src/components/dashboard/today-command-center.tsx`, its CSS module
+and tests, `apps/web/src/app/(dashboard)/dashboard/page.tsx`, and the viewer
+role E2E contract. No migration, schema, RLS, Storage, API, Railway variable,
+or Vercel setting changed; all project-create flags remain closed.
+
+Validation: focused Today tests 2/2; full Web suite 62 files / 440 tests;
+lint, typecheck, `git diff --check`, and Next production build 78/78 routes
+passed. Authenticated browser evidence on the fresh local build proved viewer
+desktop and mobile rendering, zero horizontal overflow (375/375 at 390px and
+1440/1440 at desktop), executive surfaces absent, Cortex handoff, and zero
+console errors. Playwright CLI E2E remains skipped because the configured
+Chromium executable is not installed; browser MCP supplied the manual role /
+viewport evidence.
+
+Hosted state remains unchanged: Supabase is the read-only 55-row prefix with
+the existing connector `INVALID_ARGUMENT`/`MIGRATIONS_FAILED` blockers;
+Railway readiness remains the prior verified signal; Vercel Git stays
+disconnected and spend-protected. Exact next action: push this source plus
+the milestone documentation once, then verify the exact Railway release and
+live readiness without applying hosted SQL or creating a Vercel build.
+
 ## M3.40 governing BuildOps product contract (2026-08-04)
 
 Added [`docs/BuildOps_PRD_v1.md`](../BuildOps_PRD_v1.md) as the active,

@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-08-04 - M3.41 read-only Today Command Center
+
+Implemented the smallest post-PRD product slice. The dashboard now presents
+Today, a due/attention/next summary, an assignee-scoped work queue, and a
+policy-gated Project Command Center with explicit Cortex context links. The
+query layer joins only same-tenant projects and keeps viewer roles on the
+private project state; no React component performs a critical write.
+
+Changed source: `apps/web/src/lib/dashboard-queries.ts`,
+`apps/web/src/components/dashboard/today-command-center.tsx`, its CSS module
+and test, `apps/web/src/app/(dashboard)/dashboard/page.tsx`, and
+`apps/web/e2e/dashboard-role-local.spec.ts`. Source commit:
+`ab905091ada2f7db927e6cf4c2de687ee2010194`.
+
+Validation: focused Today 2/2; Web 62 files / 440 tests; lint, typecheck,
+production build 78 routes, and `git diff --check` passed. Browser MCP role
+proof passed for viewer at 390px and 1440px with no horizontal overflow,
+executive content hidden, Cortex handoff working, and zero console errors.
+Playwright CLI E2E was not executable because the configured Chromium binary
+is missing. No Supabase SQL, hosted row, Storage object, Railway variable, or
+Vercel build/promotion changed.
+
+Exact next action: push source plus docs once, verify the exact Railway
+release and live readiness, then retain the Supabase/Vercel release gates.
+
 ## 2026-08-04 - M3.40 governing BuildOps product contract
 
 Audited the active source and provider boundaries before editing. Confirmed

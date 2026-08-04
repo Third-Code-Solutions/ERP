@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-150 - Keep Today read-only and policy-gated (2026-08-04)
+
+Decision: build the first BuildOps operating surface from existing authorized
+reads. `getTodayCommandCenter` binds task rows to the authenticated tenant and
+assignee, and only returns project rows when the existing `/projects` route
+policy permits them. The Today component owns presentation and navigation;
+Nest/PostgreSQL remain the only future mutation authority, and Cortex links
+must pass their own record authorization.
+
+Reason: users need a calmer entry point before more transaction seams move,
+but a dashboard must not become a tenant or role bypass. This vertical slice
+delivers visible value while preserving the incremental migration boundary.
+
+Validation and release boundary: source
+`ab905091ada2f7db927e6cf4c2de687ee2010194`; Web 440/440, lint, typecheck,
+build, diff check, and authenticated mobile/desktop browser evidence pass.
+CLI E2E is skipped only for the missing local Chromium executable. No hosted
+SQL, Storage, Railway variable, or Vercel build changed; keep Vercel
+disconnected and all mutation flags closed.
+
 ## D-149 - Govern incremental delivery with the BuildOps PRD (2026-08-04)
 
 Decision: adopt `docs/BuildOps_PRD_v1.md` as the active Third-Code-authored

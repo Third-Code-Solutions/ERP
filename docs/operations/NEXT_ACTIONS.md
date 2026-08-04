@@ -1,5 +1,20 @@
 # Next Actions
 
+# Exact next action after M3.41 read-only Today Command Center
+
+1. Push source checkpoint `ab905091ada2f7db927e6cf4c2de687ee2010194` plus
+   this milestone documentation once to `main` and
+   `agent-02/third-code-erp-landing` under `kurtgav`; do not reconnect Vercel
+   Git or create a preview/build.
+2. Verify GitHub's exact-SHA check, Railway deployment identity, and live
+   `/ready`/`/health`; record any provider failure without treating local
+   compilation as production proof.
+3. Keep Supabase at the verified 55-row prefix. Resolve its supported
+   migration-reconciliation/backup/catalog/data/RLS/Storage path before any
+   SQL, and keep every mutation flag false/empty.
+4. After that gate, add one small Nest-owned mutation canary with replay,
+   audit, tenant isolation, rollback, and spend-bounded provider evidence.
+
 # Exact next action after M3.40 governing BuildOps product contract
 
 1. Source checkpoint `a66b43bd9c1694f19de69ad3f0a49808fc41b8fd` is pushed to
