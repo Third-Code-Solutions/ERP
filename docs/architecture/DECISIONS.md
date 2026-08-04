@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-179 - Inventory Warehouse creation is tenant-scoped and canary-gated (2026-08-05)
+
+Decision: expose Warehouse setup through `POST /v1/inventory/warehouses`.
+Accept only code, name, and nullable project scope; derive tenant and actor
+from the verified principal; recheck `inventory.manage` inside the
+transaction; verify the project is owned by that tenant; enforce the
+tenant/code unique constraint; and write a semantic audit record. Next adopts
+only through an exact flag and tenant allowlist; direct Server Action behavior
+remains default.
+
+Boundary: source and basic Railway API release are verified, but no protected
+tenant canary is approved. Source SHA
+`7b0ccf1d9dda19a61d8f2c26ead42b562b6f2534` is deployment
+`fbbda042-9b51-4c21-a518-a6e4c2fb2752`; readiness/health are 200 and the
+unauthenticated route boundary is 401. No Supabase migration/data action,
+Vercel build, or provider setting is implied. Rollback is the disabled adapter
+flag and prior API deployment.
+
 ## D-178 - Inventory UOM creation is tenant-scoped and canary-gated (2026-08-05)
 
 Decision: expose UOM setup through `POST /v1/inventory/uoms`. Accept only
