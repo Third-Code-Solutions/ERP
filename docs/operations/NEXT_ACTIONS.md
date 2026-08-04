@@ -11,10 +11,10 @@
    spend-protected.
 3. Authenticated proposal desktop/mobile proof remains open if local Supabase
 DNS cannot resolve; do not infer it from unauthenticated redirects.
-4. Treat Supabase `CREATING_PROJECT` plus the repeated `P0001` log as
-   non-ready, not success. Do not reset the branch, edit migration history,
-   rename/delete PO rows, or replay the suffix without backup and owner
-   approval.
+4. Treat Supabase `MIGRATIONS_FAILED` plus the repeated `P0001` log as
+   non-ready, not success. A logs API `INVALID_ARGUMENT` is also not proof of
+   recovery. Do not reset the branch, edit migration history, rename/delete PO
+   rows, or replay the suffix without backup and owner approval.
 
 ## Exact next action after M3.46 command palette accessibility
 

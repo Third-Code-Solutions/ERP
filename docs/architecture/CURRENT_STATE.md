@@ -20,8 +20,10 @@ GitHub's exact-SHA Railway check is `success`. Railway recorded `SKIPPED` for
 the commit because no watched API files changed; live `/ready` and `/health`
 remain 200. Vercel reports zero deployments after the push. Supabase remains
 `ACTIVE_HEALTHY` at 55 migrations; its branch API currently reports
-`CREATING_PROJECT`, while the latest branch-action log still fails the first
-pending migration with `P0001` because duplicate tenant `PO-0002` rows exist.
+`MIGRATIONS_FAILED`; the last successful branch-action log read still fails the
+first pending migration with `P0001` because duplicate tenant `PO-0002` rows
+exist. A subsequent logs read returned `INVALID_ARGUMENT`, so no newer log
+state is inferred.
 
 ## M3.46 Command palette accessibility (source complete, 2026-08-04)
 

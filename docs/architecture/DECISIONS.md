@@ -17,8 +17,9 @@ schema/data, Railway setting, or Vercel deployment changed.
 Post-push evidence: `5a5e525` is on both target branches, GitHub's Railway
 check is successful, Railway skipped the unchanged-API commit, and live
 readiness is 200. Vercel has no new deployment. Supabase is still not a green
-release target: 55 migrations, `CREATING_PROJECT` branch status, and the
-duplicate-PO `P0001` failure in the latest branch-action log.
+release target: 55 migrations, `MIGRATIONS_FAILED` branch status, and the
+duplicate-PO `P0001` failure in the last successful branch-action log read. A
+later logs request returned `INVALID_ARGUMENT` and does not clear the gate.
 
 ## D-155 - Command palette owns one accessible result relationship (2026-08-04)
 

@@ -16,9 +16,10 @@ a DB release. Post-push evidence: `5a5e525` is on both target branches;
 GitHub's exact-SHA Railway check is `success`, Railway skipped the
 frontend/docs-only commit, and live `/ready`/`/health` are 200. Vercel reports
 zero deployments after the push. Supabase remains at 55 migrations; the
-branch API says `CREATING_PROJECT` but its latest branch-action log still fails
-`20260801090000_purchase_order_create_idempotency.sql` with `P0001` for the
-duplicate tenant `PO-0002` group.
+branch API says `MIGRATIONS_FAILED`; the last successful branch-action log read
+fails `20260801090000_purchase_order_create_idempotency.sql` with `P0001` for
+the duplicate tenant `PO-0002` group. A subsequent logs request returned
+`INVALID_ARGUMENT`, so no newer outcome is claimed.
 
 ## M3.46 - command palette accessibility and race safety (source complete, 2026-08-04)
 
