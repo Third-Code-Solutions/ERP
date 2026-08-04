@@ -2,14 +2,14 @@
 
 ## Exact next action after M3.51 Cortex operational brief
 
-1. Push the reviewed source/docs once to `main` and
-   `agent-02/third-code-erp-landing` as `kurtgav`; verify exact SHA and the
-   GitHub/Railway check plus API readiness.
-2. Keep Vercel Git deployment disabled and create no preview or production
+1. Keep Vercel Git deployment disabled and create no preview or production
    build. Confirm the deployment inventory remains unchanged after the push.
-3. Keep Supabase read-only at 55/87. Do not apply the suffix, repair duplicate
+2. Keep Supabase read-only at 55/87. Do not apply the suffix, repair duplicate
    Purchase Orders, edit migration history, or run direct DDL without the
    supported backup/export and owner-approved mapping gates.
+3. Obtain the supported backup plus dependent-row/audit export and owner-
+   approved canonical mapping for the duplicate group; rerun the read-only
+   planners and disposable replay.
 4. Only after those gates clear, schedule a separate, spend-approved browser
    and frontend release check. The Cortex brief remains read-only and cannot
    approve or finalize ERP transactions.
@@ -19,6 +19,13 @@ Turbo-parallel tests had one API resource-contention timeout, while isolated
 package reruns passed API 58/300, Web 69/458, Database 41/166, and Shared Types
 15/163. The 140 database integration tests requiring `DATABASE_URL` remain
 skipped.
+
+Provider gates completed for `cfffa7a756609c49fa84b293ec71611c892182dd`: both
+branches match, GitHub/Railway is `success`, live API readiness is healthy,
+Vercel created zero deployments, and Supabase remains unchanged at 55/87.
+Next action returns to the migration gate: obtain the supported backup and
+dependent-row/audit export plus owner-approved duplicate mapping; keep Vercel
+and hosted SQL closed until disposable replay and rollback evidence pass.
 
 ## Exact next action after M3.50 cost-capped provider and migration audit
 
