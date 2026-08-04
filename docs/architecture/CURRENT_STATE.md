@@ -4,6 +4,18 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.47 Proposal read tenant scope (source complete, 2026-08-04)
+
+Source checkpoint: `9270919` (`fix(web): enforce proposal tenant-scoped reads`).
+The proposal overview and client change-request log now repeat the authenticated
+tenant predicate on account, PPRF, inspection, design, and change-request
+reads; the optional design join is tenant-constrained too. US-009 is corrected
+to Live with its actual tables. Focused proposal actions pass 2/2; Web passes
+66 files/450 tests; workspace lint/typecheck, diff check, and the 79/79-route
+production build pass. No hosted SQL/data, Storage, Railway setting, or Vercel
+deployment changed. Authenticated browser proof remains provider-runtime
+gated when local Supabase DNS cannot resolve.
+
 ## M3.46 Command palette accessibility (source complete, 2026-08-04)
 
 The universal Search/Ask Cortex palette now has a pure wrapped-navigation

@@ -13,6 +13,17 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.47 proposal read target (2026-08-04)
+
+Every proposal read must repeat both the opportunity identity and the caller's
+tenant identity. Related rows and nullable joins cannot trust a UUID alone.
+This is a query-level defense-in-depth rule; server actions, RLS, and Nest
+authority remain responsible for official writes and state transitions.
+
+Source validation is green: focused 2/2, Web 66/450, workspace lint/typecheck,
+diff check, and 79/79-route build. No hosted migration is needed. Keep Vercel
+Git disconnected and spend-protected, and keep Supabase mutation flags closed.
+
 ## M3.46 universal command palette target (2026-08-04)
 
 Search and Ask Cortex share one calm, keyboard-first entry point. The input

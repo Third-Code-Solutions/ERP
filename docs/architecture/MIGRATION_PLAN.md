@@ -1,5 +1,19 @@
 # Migration Plan
 
+## M3.47 - proposal read tenant scope (source complete, 2026-08-04)
+
+Source checkpoint: `9270919`. Hardened both proposal server-rendered pages with repeated tenant predicates
+for the opportunity/account join and every related PPRF, inspection, design,
+and change-request read. The nullable design join is tenant-constrained. The
+canonical story index now records US-009 as Live.
+
+Validation: focused proposal actions 2/2; Web 66 files/450 tests; workspace
+lint/typecheck, diff check, and 79/79-route production build pass. No migration
+is required; no hosted SQL or provider action is authorized for this slice.
+
+Exact next action: push source/docs once, verify exact GitHub/Railway status and
+live readiness, and preserve the Supabase/Vercel release gates.
+
 ## M3.46 - command palette accessibility and race safety (source complete, 2026-08-04)
 
 Added a pure navigation helper and a presentation-only command-palette

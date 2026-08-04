@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-04 - M3.47 proposal read tenant scope
+
+Closed a query-level tenant-isolation gap in the proposal overview and client
+change-request log. Account joins and PPRF, inspection, design, and
+change-request reads now repeat the authenticated tenant predicate; nullable
+design joins do too. Corrected US-009's stale Dev-stub inventory entry.
+
+Validation: focused proposal actions 2/2; Web 66 files/450 tests; workspace
+lint/typecheck, `git diff --check`, and the 79/79-route production build pass.
+No hosted SQL/data, Storage, Railway setting/deployment, or Vercel build was
+changed. Exact next action: push once, verify providers, and retain the
+Supabase/Vercel release gates.
+
 ## 2026-08-04 - M3.46 command palette accessibility and race safety
 
 Implemented a bounded universal-search slice. The Search/Ask Cortex input now
