@@ -17,14 +17,19 @@ Changed files:
 - `apps/api/src/app.module.ts`
 - architecture and operations memory files
 
-Results so far: focused Redis/quota 5/5, API typecheck, and Nest build pass;
-`git diff --check` pass. No database, Storage, Supabase migration, Railway
-setting, or Vercel build/deploy changed. The corrective push and hosted
-readiness gate are still pending.
+Results: focused Redis/quota 5/5; full API 61 files/313 tests; root lint, API
+typecheck, Nest build, and `git diff --check` pass. Commit `d7f62faf` pushed to
+`main` and `agent-02/third-code-erp-landing` as `kurtgav`. Railway deployment
+`5f3e4a02-45c9-4142-a0d8-7629844076a7` is `SUCCESS`; startup logs show
+`RedisModule` and `ProviderQuotaModule` initialized; GitHub's exact API check
+is `success`; live `/ready` and `/health` are 200; unauthenticated project
+read is 401. No database, Storage, Supabase migration, Railway setting, or
+Vercel build/deploy changed.
 
-Rollback: revert the corrective source commit; no hosted state requires repair.
-Next: full API gate, push once, inspect Railway deployment logs/status, then
-verify exact SHA plus `/ready` and `/health` before any frontend action.
+Rollback: redeploy the prior successful Railway deployment or revert the
+corrective source commit; no database state requires repair. Next: keep the
+frontend spend gate and all canaries closed while the supported Supabase
+backup/export, owner mapping, and disposable PostgreSQL 17 replay proceed.
 
 ## 2026-08-04 - M3.58 Nest project detail read contract
 
