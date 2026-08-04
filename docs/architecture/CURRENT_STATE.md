@@ -4,6 +4,29 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.53 Clean-room runtime branding audit (source-only, 2026-08-04)
+
+Widened the branding regression boundary from the Next web tree to the
+product-facing web source/public assets, Nest source, and package text assets.
+The test rejects ERPNext, Frappe, ABI Ops variants, `frappe/erpnext`, and
+`rework.com` markers while reporting exact offending files. Research notes and
+immutable migration provenance remain classified separately and are not
+shipped UI or metadata.
+
+Validation: focused clean-room/landing tests pass 6/6; full Web suite passes
+71 files/463 tests; workspace lint/typecheck and 80/80-route production build
+pass. Live landing inspection at 1440/768/390 found the Third Code title/H1,
+canonical URL, one JSON-LD graph, no forbidden marker in HTML/text, no
+horizontal overflow, and no console errors. Vercel was read-only; no new
+deployment or hosted data change occurred.
+
+Source `0c911f8` is pushed to both target branches. GitHub's exact
+`ERP - Third Code ERP API` check is `success`; live Railway `/ready` reports
+database/Redis `ok` and `/health` reports `ok`. Vercel's post-push inventory
+returned zero deployments, and Supabase remains `ACTIVE_HEALTHY` at 55 applied
+migrations. The next action remains the supported duplicate-PO backup/export
+and owner-approved mapping, not a frontend deploy.
+
 ## M3.52 Cortex operational brief presentation (source-only, 2026-08-04)
 
 Added the authenticated Cortex presentation layer over the existing bounded

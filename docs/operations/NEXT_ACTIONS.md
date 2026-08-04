@@ -1,5 +1,24 @@
 # Next Actions
 
+## Exact next action after M3.53 clean-room runtime branding audit
+
+1. Keep the verified source `0c911f8` on both target Git branches. Do not
+   create a Vercel preview or production build; deployment inventory is already
+   unchanged and the spend gate remains closed.
+2. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Do not rename
+   migration files, edit history, apply the suffix, or repair/delete duplicate
+   Purchase Orders without owner approval.
+3. Retain the clean-room scan in the Web suite and repeat the live marker,
+   metadata, responsive, and console sweep before any spend-approved frontend
+   release.
+4. Obtain the supported recoverable backup plus dependent-row/audit export and
+   owner-approved canonical mapping for the duplicate group; rerun planners
+   and disposable PostgreSQL 17 replay before the ordered suffix.
+
+Source/provider gates for `0c911f8` pass: focused clean-room/landing 6/6, Web
+71/463, workspace lint/typecheck, 80/80 build, GitHub/Railway `success`, live
+readiness healthy, and zero Vercel deployments. No hosted mutation occurred.
+
 ## Exact next action after M3.52 Cortex operational brief presentation
 
 1. Keep Vercel Git deployment disabled. Do not create preview or production

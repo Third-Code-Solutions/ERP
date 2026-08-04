@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.53 - Clean-room runtime branding audit (source complete, 2026-08-04)
+
+Expanded `branding-clean-room.test.ts` to scan web source/public, API source,
+and package text assets. Added forbidden marker variants and per-file failure
+reporting, plus `docs/research/CLEAN_ROOM_REBRAND_AUDIT_20260804.md` with the
+classification and live landing evidence. No product copy, route, schema,
+migration, or provider setting changed.
+
+Validation: focused clean-room/landing tests 6/6; Web 71 files/463 tests;
+workspace lint/typecheck; `git diff --check`; and 80/80-route production
+build pass. Live landing marker/metadata/responsive checks pass at 1440/768/390
+with zero console errors. Do not trigger Vercel or mutate Supabase for this
+source-only guard.
+
+Source `0c911f8` is pushed once to `main` and
+`agent-02/third-code-erp-landing`. GitHub's exact Railway check is `success`,
+live Railway readiness/health are 200, Vercel created zero deployments, and
+Supabase remains unchanged at 55 applied migrations. Keep the duplicate-PO
+migration gate closed.
+
 ## M3.52 - Cortex operational brief presentation (source complete, 2026-08-04)
 
 Wired the existing bounded `getCortexOperationalBrief` read into the

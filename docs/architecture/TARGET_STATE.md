@@ -13,6 +13,19 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.53 Clean-room runtime branding target (2026-08-04)
+
+All product-facing runtime text and metadata should be independently branded
+as Third Code ERP. The regression boundary covers web, API, and package source
+without conflating research/provenance documentation with shipped product
+surface. Live release checks must repeat marker, metadata, responsive, and
+console validation; no frontend build is implied while Vercel spend remains
+closed.
+
+Source `0c911f8` adds the expanded guard and evidence record. It does not
+rename migration files or erase research references, because doing so would
+damage database history and clean-room traceability.
+
 ## M3.52 Cortex operational brief presentation target (2026-08-04)
 
 The Cortex page should give an authorized operator a calm, dense, source-first

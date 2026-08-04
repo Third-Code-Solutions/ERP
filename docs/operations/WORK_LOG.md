@@ -1,5 +1,32 @@
 # Work Log
 
+## 2026-08-04 - M3.53 Clean-room runtime branding audit
+
+Audited production-facing source, metadata, assets, and the live public
+landing. No forbidden ERPNext, Frappe, ABI Ops, or Rework.com marker appears
+in the web/API/package product roots. Internal `Rework-alignment` comments and
+the immutable migration filename remain classified provenance, not user-facing
+branding.
+
+Changed files:
+
+- `apps/web/src/lib/branding-clean-room.test.ts`
+- `docs/research/CLEAN_ROOM_REBRAND_AUDIT_20260804.md`
+- architecture and operations memory files (M3.53 entries)
+
+The regression now scans `apps/web/src`, `apps/web/public`, `apps/api/src`, and
+`packages` text files, rejects seven marker variants, and identifies exact
+offenders. Focused clean-room/landing tests pass 6/6; full Web passes 71/463;
+workspace lint/typecheck and 80/80 build pass. Live Playwright at 1440/768/390
+reports the expected title/H1/canonical/JSON-LD, zero forbidden markers,
+zero overflow, and zero console errors.
+
+Cost/provider boundary: source `0c911f8` was pushed once to both target
+branches. GitHub/Railway is `success` with live `/ready` and `/health` healthy;
+Vercel was read-only with zero new deployments. Supabase, Storage, Railway
+settings, and hosted data were not changed; migrations remain at 55 applied.
+Next action is the existing backup/export/owner-mapping migration gate.
+
 ## 2026-08-04 - M3.52 Cortex operational brief presentation
 
 Implemented the visual Cortex operating pulse over the M3.51 read contract.
