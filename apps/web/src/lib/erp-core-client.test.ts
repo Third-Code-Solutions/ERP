@@ -22,11 +22,13 @@ import {
   getAccountThroughCoreApi,
   getAccountsThroughCoreApi,
   getKycQueueThroughCoreApi,
+  getOpportunityThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
   projectListsUseCoreApi,
   accountReadsUseCoreApi,
   accountKycQueueReadsUseCoreApi,
+  opportunityReadsUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
   purchaseOrderBomGroupedWritesUseCoreApi,
@@ -383,6 +385,34 @@ const ACCOUNT_KYC_QUEUE_RESULT = {
   limit: 200 as const,
   truncated: true,
 }
+const OPPORTUNITY_DETAIL_RESULT = {
+  opportunity: {
+    id: '44444444-4444-4444-8444-444444444444',
+    tenantId: '22222222-2222-4222-8222-222222222222',
+    stage: 'lead' as const,
+    tcvCents: 100_000,
+    gpCents: 20_000,
+    probability: 10,
+    weightedTcvCents: 10_000,
+    areaSqm: 100,
+    opportunityType: 'fit-out',
+    closingDate: '2026-08-10T00:00:00.000Z',
+    accountId: '33333333-3333-4333-8333-333333333333',
+    projectId: null,
+    accountName: 'Acme Office',
+    projectName: null,
+  },
+  progress: {
+    latestPprfVersion: 2,
+    latestInspection: {
+      id: '55555555-5555-4555-8555-555555555555',
+      status: 'submitted' as const,
+    },
+    designCount: 3,
+    approvedDesignCount: 1,
+    openChangeRequestCount: 2,
+  },
+}
 
 describe('ERP Core client', () => {
   beforeEach(() => {
@@ -513,6 +543,26 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API_TENANT_IDS', '*')
     expect(accountKycQueueReadsUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(accountKycQueueReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Opportunity reads on the legacy path unless the exact gate matches', () => {
+    vi.stubEnv('ERP_OPPORTUNITY_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_OPPORTUNITY_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(opportunityReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_OPPORTUNITY_READS_VIA_API', 'TRUE')
+    expect(opportunityReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_OPPORTUNITY_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_OPPORTUNITY_READS_VIA_API_TENANT_IDS', '*,bad')
+    expect(opportunityReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_OPPORTUNITY_READS_VIA_API_TENANT_IDS', '*')
+    expect(opportunityReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(opportunityReadsUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Project creation delegation fail-closed unless its exact gate matches', () => {
@@ -2279,6 +2329,47 @@ describe('ERP Core client', () => {
         }),
       })
     )
+  })
+
+  it('reads an Opportunity detail through the Nest boundary', async () => {
+    const opportunityId = OPPORTUNITY_DETAIL_RESULT.opportunity.id
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(OPPORTUNITY_DETAIL_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getOpportunityThroughCoreApi(opportunityId)).resolves.toEqual({
+      ok: true,
+      data: OPPORTUNITY_DETAIL_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/crm/opportunities/${opportunityId}`,
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'x-request-id': expect.stringMatching(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          ),
+        }),
+      })
+    )
+  })
+
+  it('maps an Opportunity detail 404 to a not-found result', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('{}', { status: 404 }))
+    )
+
+    await expect(
+      getOpportunityThroughCoreApi(OPPORTUNITY_DETAIL_RESULT.opportunity.id)
+    ).resolves.toEqual({ ok: false, error: 'Opportunity not found.' })
   })
 
   it('maps an Account detail 404 to a not-found result', async () => {

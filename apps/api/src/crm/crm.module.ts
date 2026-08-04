@@ -5,16 +5,30 @@ import { ChangeRequestsController } from './change-requests.controller'
 import { ChangeRequestCreationService } from './change-request-creation.service'
 import { AccountsController } from './accounts.controller'
 import { AccountsService } from './accounts.service'
+import { OpportunitiesController } from './opportunities.controller'
+import { OpportunitiesService } from './opportunities.service'
 
 @Module({
   imports: [AuditModule],
-  controllers: [ChangeRequestsController, AccountsController],
-  providers: [ChangeRequestCreationService, AccountsService],
+  controllers: [
+    ChangeRequestsController,
+    AccountsController,
+    OpportunitiesController,
+  ],
+  providers: [
+    ChangeRequestCreationService,
+    AccountsService,
+    OpportunitiesService,
+  ],
 })
 export class CrmModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestObservabilityMiddleware)
-      .forRoutes(ChangeRequestsController, AccountsController)
+      .forRoutes(
+        ChangeRequestsController,
+        AccountsController,
+        OpportunitiesController
+      )
   }
 }

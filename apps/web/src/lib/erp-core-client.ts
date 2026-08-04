@@ -10,6 +10,7 @@ import {
   accountListResultSchema,
   accountKycQueueResultSchema,
   accountDetailResultSchema,
+  opportunityDetailResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   projectCreationResultSchema,
@@ -55,6 +56,7 @@ import {
   type AccountListResult,
   type AccountKycQueueResult,
   type AccountDetailResult,
+  type OpportunityDetailResult,
   type CreateProjectCommand,
   type ProjectCreationResult,
   type RfqCreationResult,
@@ -213,6 +215,14 @@ export function accountKycQueueReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API,
     process.env.ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API_TENANT_IDS
+  )
+}
+
+export function opportunityReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_OPPORTUNITY_READS_VIA_API,
+    process.env.ERP_OPPORTUNITY_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1067,6 +1077,57 @@ export async function getAccountThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Account detail was not read.',
+    }
+  }
+}
+
+export async function getOpportunityThroughCoreApi(
+  opportunityId: string
+): Promise<CoreResult<OpportunityDetailResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/opportunities/${encodeURIComponent(
+        opportunityId
+      )}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 404
+            ? 'Opportunity not found.'
+            : 'Opportunity detail was not completed.',
+      }
+    }
+
+    const parsed = opportunityDetailResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Opportunity detail result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Opportunity detail was not read.',
     }
   }
 }
