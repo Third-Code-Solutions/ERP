@@ -22,12 +22,16 @@ Changed files:
 
 Results: API 62 files/318 tests; shared types 15/167; Web 75/484; API/Web
 typecheck; API build; Web 80/80 production build; root lint; `git diff --check`.
-No hosted SQL/data, Storage, Railway setting/deployment, or Vercel build
-changed.
+Commit `78ad5f63` was pushed to both target branches. Railway deployment
+`0e553e93-cb82-448f-8290-06956e89767d` is `SUCCESS`; startup logs show the
+list route, live `/ready` and `/health` are 200, unauthenticated
+`GET /v1/projects` is 401, and GitHub's exact API status is `success`.
+Supabase remained read-only at 55/87. Vercel has zero new deployments/builds.
 
-Rollback: leave `ERP_PROJECT_LISTS_VIA_API=false` and allowlist empty or revert
-the source commit; no hosted state requires repair. Next: push once, verify
-Railway identity/readiness, and keep the protected tenant canary closed.
+Rollback: leave `ERP_PROJECT_LISTS_VIA_API=false` and allowlist empty or
+redeploy the prior successful Railway source; no hosted state requires repair.
+Next: supported Supabase backup/export, dependent/audit export,
+owner-approved duplicate-PO mapping, and disposable PostgreSQL 17 replay.
 
 ## 2026-08-04 - M3.59 Railway Nest Redis module wiring
 

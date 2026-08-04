@@ -1,6 +1,6 @@
 # Migration Plan
 
-## M3.60 - Nest project collection read contract (source complete, 2026-08-04)
+## M3.60 - Nest project collection read contract (Railway verified, 2026-08-04)
 
 Added `GET /v1/projects` with tenant-scoped query parsing, bounded search/
 status/type filters, allowlisted sort/order, and page/limit pagination. Next
@@ -10,8 +10,12 @@ wrong-tenant rows and page/limit drift.
 
 Validation: API 62 files/318 tests, shared types 15/167, Web 75/484,
 API/Web typecheck, API build, Web 80/80 production build, root lint, and
-`git diff --check`. No hosted mutation or Vercel build occurred. Keep the
-flag false/empty until the deployment and protected canary gates pass.
+`git diff --check`. Commit `78ad5f63` is pushed to both target branches.
+Railway deployment `0e553e93-cb82-448f-8290-06956e89767d` is `SUCCESS` for that
+SHA; `/ready` and `/health` are 200, the unauthenticated list boundary is 401,
+and GitHub's exact API status is `success`. Supabase remained read-only at
+55/87 and Vercel had zero new deployments/builds. Keep the flag false/empty
+until protected canary and supported data-recovery gates pass.
 
 ## M3.59 - Railway Nest Redis module wiring (source fix, 2026-08-04)
 

@@ -4,7 +4,7 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
-## M3.60 Nest project collection read contract (source complete, 2026-08-04)
+## M3.60 Nest project collection read contract (source + Railway verified, 2026-08-04)
 
 Added a bounded `GET /v1/projects` contract with explicit `project.read`
 authorization, verified-principal tenant scope, search/status/type filters,
@@ -17,12 +17,18 @@ Changed files: shared project list schemas/tests, Nest list pipe/controller/
 service/tests, Next core client/project query adapter/tests, environment
 examples/documentation. Validation: API 62 files/318 tests, shared types
 15/167, Web 75/484, API/Web typecheck, API build, Web 80/80 production build,
-root lint, and `git diff --check`. No Supabase SQL/data, Storage, Railway
-setting/deployment, or Vercel build changed.
+root lint, and `git diff --check`. Commit `78ad5f63` is pushed to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`0e553e93-cb82-448f-8290-06956e89767d` for that exact SHA is `SUCCESS`; startup
+logs show the list route, `/ready` and `/health` are 200, and unauthenticated
+`GET /v1/projects` is 401. GitHub's exact API status is `success`. Supabase is
+read-only at 55 applied migrations (source 87); Vercel has zero deployments
+since the spend-audit timestamp and no build was triggered.
 
 Next action: keep `ERP_PROJECT_LISTS_VIA_API=false` and its tenant allowlist
-empty. Push once, then verify the Railway source identity/readiness; defer a
-protected tenant canary until the supported Supabase duplicate-PO replay gate.
+empty. Obtain the supported Supabase backup/export, dependent/audit export,
+owner-approved duplicate-PO mapping, and disposable PostgreSQL 17 replay
+before any protected tenant canary or hosted migration/data action.
 
 ## M3.59 Railway Nest Redis module wiring (source fix, 2026-08-04)
 
