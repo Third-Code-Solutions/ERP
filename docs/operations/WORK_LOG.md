@@ -18,6 +18,13 @@ or hosted data changed.
   is unset; web 431/431; API/web typecheck and Nest build passed; root
   production build generated 78/78 pages; all five release-plan suites,
   workflow action references, and `git diff --check` passed.
+- Published commit `fcc2434969679159d6e7f5fa0212d490e50cac1f` to GitHub
+  `main` and `agent-02/third-code-erp-landing` with the `kurtgav` credential.
+  Railway deployment `7d2a078d-605f-49e9-a299-12c9667a153b` reached `SUCCESS`;
+  `/ready` returned 200 with database/Redis healthy, `/health` returned 200,
+  and a valid-format public confirmation probe returned 503 as the closed
+  gate requires. Supabase remained read-only at 55 migrations with no new
+  confirmation tables; Vercel produced no deployment for this commit.
 
 ## 2026-08-03 - M3.29 protected supplier-session minting
 
