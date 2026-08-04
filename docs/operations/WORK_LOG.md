@@ -15,8 +15,9 @@ no ABI Ops, ERPNext, or Frappe identifiers.
 Release boundary: source/docs only. No Supabase SQL/data/Storage, Railway
 setting/deployment, or Vercel build/promotion. Supabase remains blocked by the
 duplicate `PO-0002` migration preflight; Vercel remains disconnected and
-spend-protected. Exact next action: push once, verify source/provider status,
-and keep the DB/Vercel gates closed.
+spend-protected. Exact next action: preserve the verified source/provider
+state, then obtain the supported Supabase backup and owner-approved duplicate
+`PO-0002` repair before any DB replay or paid frontend deployment.
 Post-push evidence: `ce1ae6e` is on `main` and
 `agent-02/third-code-erp-landing` as `kurtgav`; GitHub's exact-SHA Railway
 check is `success`, Railway recorded the commit as `SKIPPED` with reason

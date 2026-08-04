@@ -2,10 +2,10 @@
 
 ## Exact next action after M3.48 landing GEO structured data
 
-1. Commit and push the reviewed source/docs once to `main` and
-   `agent-02/third-code-erp-landing`; verify the exact GitHub SHA/status,
-   Railway skip/deploy identity, and live `/ready`/`/health`.
-2. Query Vercel read-only; do not reconnect Git or trigger a paid build.
+1. Preserve source/docs SHA `d8520f4` on `main` and
+   `agent-02/third-code-erp-landing`; no additional push is needed for this
+   milestone.
+2. Keep Vercel read-only; do not reconnect Git or trigger a paid build.
 3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` unchanged at 55/87 until a supported
    recoverable backup, dependent-row/audit export, and owner-approved repair
    for duplicate tenant `PO-0002` exist. Do not reset, edit history, rename,
