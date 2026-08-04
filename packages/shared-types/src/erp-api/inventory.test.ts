@@ -16,6 +16,10 @@ import {
   inventoryStockMovementDetailResultSchema,
   createStockMovementCommandSchema,
   stockMovementCreationResultSchema,
+  stockMovementPostCommandSchema,
+  stockMovementPostingResultSchema,
+  stockMovementReverseCommandSchema,
+  stockMovementReversalResultSchema,
   quantityToMicros,
   signedQuantityToMicros,
   receiptLineTotal,
@@ -545,5 +549,42 @@ describe('Stock Movement draft command contract', () => {
   it('converts signed quantities exactly without floating point math', () => {
     expect(signedQuantityToMicros('4.25')).toBe(4_250_000n)
     expect(signedQuantityToMicros('-0.000001')).toBe(-1n)
+  })
+
+  it('keeps post/reverse workflow commands and results strict', () => {
+    expect(stockMovementPostCommandSchema.parse({})).toEqual({})
+    expect(() => stockMovementPostCommandSchema.parse({ tenantId: UUID })).toThrow()
+    expect(
+      stockMovementReverseCommandSchema.parse({
+        reason: 'Count sheet corrected',
+        reversalDate: '2026-08-05',
+      })
+    ).toEqual({ reason: 'Count sheet corrected', reversalDate: '2026-08-05' })
+    expect(() =>
+      stockMovementReverseCommandSchema.parse({
+        reason: 'no',
+        reversalDate: '2026-02-30',
+      })
+    ).toThrow()
+
+    expect(
+      stockMovementPostingResultSchema.parse({
+        stockMovementId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        status: 'posted',
+        movementNumber: 'SM-2026-000001',
+        journalEntryId: null,
+        journalEntryNumber: null,
+      }).status
+    ).toBe('posted')
+    expect(
+      stockMovementReversalResultSchema.parse({
+        stockMovementId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        status: 'reversed',
+        reversalJournalEntryId: '44444444-4444-4444-8444-444444444444',
+        reversalJournalEntryNumber: 'JE-2026-000002',
+      }).status
+    ).toBe('reversed')
   })
 })

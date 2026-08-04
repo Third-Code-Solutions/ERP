@@ -29,6 +29,7 @@ export const ERP_CAPABILITIES = [
   'inventory.read',
   'inventory.manage',
   'inventory.post_receipt',
+  'inventory.post_movement',
   'document.manage',
   'document.process',
   'document.processing.read',
@@ -135,6 +136,7 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
   ],
   'inventory.manage': ['owner', 'admin', 'procurement'],
   'inventory.post_receipt': ['owner', 'admin', 'finance'],
+  'inventory.post_movement': ['owner', 'admin', 'finance'],
   'document.manage': [
     'owner',
     'admin',

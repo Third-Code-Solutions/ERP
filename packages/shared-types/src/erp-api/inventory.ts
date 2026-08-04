@@ -408,11 +408,56 @@ export const stockMovementCreationResultSchema = z
   })
   .strict()
 
+export const stockMovementPostCommandSchema = z.object({}).strict()
+
+export const stockMovementReverseCommandSchema = z
+  .object({
+    reason: z.string().trim().min(3).max(1_000),
+    reversalDate: isoDateSchema,
+  })
+  .strict()
+
+export const stockMovementPostingResultSchema = z
+  .object({
+    stockMovementId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('posted'),
+    movementNumber: z.string().regex(/^SM-\d{4}-\d{6}$/),
+    journalEntryId: z.string().uuid().nullable(),
+    journalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/).nullable(),
+  })
+  .strict()
+
+export const stockMovementReversalResultSchema = z
+  .object({
+    stockMovementId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('reversed'),
+    reversalJournalEntryId: z.string().uuid().nullable(),
+    reversalJournalEntryNumber: z
+      .string()
+      .regex(/^JE-\d{4}-\d{6}$/)
+      .nullable(),
+  })
+  .strict()
+
 export type CreateStockMovementCommand = z.infer<
   typeof createStockMovementCommandSchema
 >
 export type StockMovementCreationResult = z.infer<
   typeof stockMovementCreationResultSchema
+>
+export type StockMovementPostCommand = z.infer<
+  typeof stockMovementPostCommandSchema
+>
+export type StockMovementReverseCommand = z.infer<
+  typeof stockMovementReverseCommandSchema
+>
+export type StockMovementPostingResult = z.infer<
+  typeof stockMovementPostingResultSchema
+>
+export type StockMovementReversalResult = z.infer<
+  typeof stockMovementReversalResultSchema
 >
 
 export const stockReceiptLineCommandSchema = z

@@ -7,6 +7,8 @@ import {
   createPurchaseOrderThroughCoreApi,
   createStockReceiptThroughCoreApi,
   createStockMovementThroughCoreApi,
+  postStockMovementThroughCoreApi,
+  reverseStockMovementThroughCoreApi,
   postStockReceiptThroughCoreApi,
   reverseStockReceiptThroughCoreApi,
   recordDeliveryReceiptThroughCoreApi,
@@ -36,6 +38,7 @@ import {
   inventoryStockMovementReadsUseCoreApi,
   inventoryStockMovementDetailReadsUseCoreApi,
   inventoryStockMovementCreateWritesUseCoreApi,
+  inventoryStockMovementWorkflowUseCoreApi,
   opportunityReadsUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
@@ -166,6 +169,21 @@ const STOCK_RECEIPT_REVERSE_RESULT = {
   status: 'reversed' as const,
   reversalJournalEntryId: '88888888-8888-4888-8888-888888888888',
   reversalJournalEntryNumber: 'JE-2026-000002',
+}
+const STOCK_MOVEMENT_POST_RESULT = {
+  stockMovementId: STOCK_MOVEMENT_RESULT.stockMovementId,
+  tenantId: STOCK_MOVEMENT_RESULT.tenantId,
+  status: 'posted' as const,
+  movementNumber: 'SM-2026-000001',
+  journalEntryId: null,
+  journalEntryNumber: null,
+}
+const STOCK_MOVEMENT_REVERSE_RESULT = {
+  stockMovementId: STOCK_MOVEMENT_RESULT.stockMovementId,
+  tenantId: STOCK_MOVEMENT_RESULT.tenantId,
+  status: 'reversed' as const,
+  reversalJournalEntryId: null,
+  reversalJournalEntryNumber: null,
 }
 const DELIVERY_RECEIPT_RESULT = {
   deliveryScheduleId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -899,6 +917,23 @@ describe('ERP Core client', () => {
     )
   })
 
+  it('keeps Stock Movement posting and reversal delegation independently fail-closed', () => {
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(inventoryStockMovementWorkflowUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_VIA_API', 'TRUE')
+    expect(inventoryStockMovementWorkflowUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_VIA_API', 'true')
+    vi.stubEnv('ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_TENANT_IDS', '*')
+    expect(inventoryStockMovementWorkflowUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(inventoryStockMovementWorkflowUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('keeps Stock Receipt post and reverse delegation independently fail-closed', () => {
     vi.stubEnv('ERP_INVENTORY_RECEIPT_POST_VIA_API', 'true')
     vi.stubEnv('ERP_INVENTORY_RECEIPT_POST_TENANT_IDS', RESULT.tenantId)
@@ -1388,6 +1423,68 @@ describe('ERP Core client', () => {
         method: 'POST',
         headers: expect.objectContaining({
           'Idempotency-Key': 'stock-receipt-reverse-1',
+        }),
+      })
+    )
+  })
+
+  it('sends and validates idempotent Stock Movement post and reverse commands', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(STOCK_MOVEMENT_POST_RESULT), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(STOCK_MOVEMENT_REVERSE_RESULT), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      postStockMovementThroughCoreApi(
+        STOCK_MOVEMENT_RESULT.stockMovementId,
+        {},
+        'stock-movement-post-1'
+      )
+    ).resolves.toEqual({ ok: true, data: STOCK_MOVEMENT_POST_RESULT, status: 200 })
+    await expect(
+      reverseStockMovementThroughCoreApi(
+        STOCK_MOVEMENT_RESULT.stockMovementId,
+        { reason: 'Supplier correction', reversalDate: '2026-08-05' },
+        'stock-movement-reverse-1'
+      )
+    ).resolves.toEqual({
+      ok: true,
+      data: STOCK_MOVEMENT_REVERSE_RESULT,
+      status: 200,
+    })
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `https://erp-api.example.test/v1/inventory/stock-movements/${STOCK_MOVEMENT_RESULT.stockMovementId}/post`,
+      expect.objectContaining({
+        method: 'POST',
+        body: '{}',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'stock-movement-post-1',
+        }),
+      })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `https://erp-api.example.test/v1/inventory/stock-movements/${STOCK_MOVEMENT_RESULT.stockMovementId}/reverse`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          reason: 'Supplier correction',
+          reversalDate: '2026-08-05',
+        }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'stock-movement-reverse-1',
         }),
       })
     )

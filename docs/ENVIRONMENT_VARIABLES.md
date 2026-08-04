@@ -200,6 +200,8 @@ migration ledger and disposable PostgreSQL proof are complete.
 |---|---|---|---|
 | `ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_ENABLED` | no | API server | Nest Stock Movement draft-create gate; default false |
 | `ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_TENANT_IDS` | no | API server | Explicit Stock Movement draft-create tenant allowlist; default empty |
+| `ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_WRITES_ENABLED` | no | API server | Nest Stock Movement post/reverse workflow gate; default false |
+| `ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_WRITES_TENANT_IDS` | no | API server | Explicit Stock Movement post/reverse tenant allowlist; default empty |
 
 ## Nest API document-processing bridge (disabled by default)
 
@@ -248,6 +250,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 | `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` | no | Next server | Selects the Stock Receipt Next-to-Nest handoff; default false |
 | `ERP_INVENTORY_STOCK_MOVEMENT_CREATE_VIA_API` | no | Next server | Selects the Stock Movement draft-create Next-to-Nest handoff; default false |
 | `ERP_INVENTORY_STOCK_MOVEMENT_CREATE_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Movement draft creation; default empty |
+| `ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_VIA_API` | no | Next server | Selects the Stock Movement post/reverse Next-to-Nest handoff; default false |
+| `ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Movement post/reverse; default empty |
 | `ERP_INVENTORY_STOCK_MOVEMENT_READS_VIA_API` | no | Next server | Selects the tenant-scoped Stock Movement register read through Nest; default false |
 | `ERP_INVENTORY_STOCK_MOVEMENT_READS_TENANT_IDS` | no | Next server | Strict UUID allowlist for Stock Movement register reads; default empty |
 | `ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API` | no | Next server | Selects the tenant-scoped Stock Movement detail read through Nest; default false |
