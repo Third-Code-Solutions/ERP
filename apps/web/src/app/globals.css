@@ -2168,6 +2168,7 @@ a { color: inherit; }
 .cortex-search-result:last-child { border-bottom: 0; }
 .cortex-search-result:hover:not(:disabled),
 .cortex-search-result:focus-visible:not(:disabled) { background: var(--color-neutral-50); outline: none; }
+.cortex-search-result[aria-selected="true"] { background: #eef2ff; }
 .cortex-search-result:disabled { cursor: not-allowed; opacity: 0.6; }
 .cortex-search-result__title { overflow: hidden; font-size: 0.75rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .cortex-search-result__meta { color: var(--color-navy-600); font-size: 0.625rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
