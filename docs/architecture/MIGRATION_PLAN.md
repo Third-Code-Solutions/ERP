@@ -11,11 +11,10 @@ Validation: focused 5/5; Web 67 files/451 tests; workspace lint/typecheck,
 diff check, and 79/79-route production build pass. Local production HTML
 returned 200 with expected JSON-LD and no legacy-brand markers.
 
-Exact next action: commit and push source/docs once to both target branches,
-verify exact GitHub/Railway status and live readiness, and query Vercel without
-triggering a deployment. Keep Supabase unchanged at 55/87 until the supported
-backup, dependent-row/audit export, and owner-approved duplicate `PO-0002`
-repair are complete. Do not call this a DB or Vercel release.
+Exact next action after the verified push: keep Supabase unchanged at 55/87
+until the supported backup, dependent-row/audit export, and owner-approved
+duplicate `PO-0002` repair are complete. Keep Vercel disconnected and
+spend-protected; do not call this a DB or Vercel release.
 Post-push: `ce1ae6e` is present on both target branches. GitHub is successful;
 Railway deployment `c0103db6-da9a-415c-9fe3-4ca96f5a56f2` is `SKIPPED` for
 the unchanged API watch set and `/ready`/`/health` remain 200. Vercel created
