@@ -4,6 +4,31 @@ Verified from the repository and the configured Supabase target on 2026-08-04.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.38 guarded project-create Nest authority seam (2026-08-04)
+
+Source checkpoint: `7f3a9fc feat(projects): add guarded Nest creation seam`.
+Added a strict shared `POST /v1/projects` contract, Nest boundary validation,
+tenant/role capability `project.create`, transactional creation with actor
+stamping and audit context, and a typed Next core-client adapter. The existing
+Next Server Action remains the default path when the adapter flag is false, so
+current API behavior is preserved. The core path has no fallback once selected
+and fails closed until its server-side tenant gate is explicitly enabled.
+
+Both project-create flags remain false/empty by default:
+`ERP_PROJECT_CREATE_WRITES_ENABLED=false` plus an explicit tenant UUID
+allowlist, and `ERP_PROJECT_CREATE_WRITES_VIA_API=false` plus its frontend
+allowlist. A durable idempotency ledger/replay contract, two-tenant database
+and Redis evidence, rollback/recovery proof, and provider approval are still
+required before a canary. No hosted SQL, migration ledger row, Railway
+variable, Vercel build, or domain promotion changed.
+
+Evidence: shared 162/162; API serial 57 files / 291 tests; web 438/438;
+lint/typecheck passed; production build generated 78/78 pages. A parallel
+`pnpm test` run had two unrelated 5-second API resource-contention timeouts;
+the deterministic serial Turbo run passed. Ordinary database tests still show
+the documented environment skips; the M3.37 disposable lane remains the
+zero-skip 86/86 migration, database 300/300, API integration 15/22 evidence.
+
 ## M3.37 read-only live-provider incident and catalog reconciliation (2026-08-04)
 
 Rechecked the exact live provider identities after the M3.36 source release.

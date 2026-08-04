@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-147 - Project creation uses a closed Nest authority seam (2026-08-04)
+
+Decision: introduce `POST /v1/projects` as the future official creation
+boundary, with strict shared schemas, `project.create` capability checks,
+tenant-scoped transaction context, actor stamping, and audit context. Keep the
+Next Server Action as the default path behind an independent adapter flag.
+When selected, the adapter must not fall back to a direct browser/server-action
+write; the Nest service fails closed unless its server flag and explicit tenant
+allowlist are enabled.
+
+Reason: this is the smallest behavior-preserving vertical slice that moves
+authority into the modular monolith without a big-bang rewrite. Idempotency,
+replay/conflict handling, and two-tenant evidence are not yet present, so
+production enablement would be unsafe. Both flags remain false and no hosted
+provider was mutated.
+
 ## D-146 - Diagnose live Vercel incidents before a spend-bounded promotion (2026-08-04)
 
 Decision: treat the live Vercel project as read-only after a billing-limit

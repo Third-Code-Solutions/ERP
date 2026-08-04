@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-04 - M3.38 guarded project-create Nest authority seam
+
+Read the current architecture, migration gates, capability matrix, and clean-
+room runtime scan before editing. Implemented source checkpoint `7f3a9fc`:
+strict shared project-create command/result schemas; Nest validation,
+capability guard, controller, transaction, tenant scope, actor/audit context;
+typed frontend adapter; and independent server/frontend tenant flags. The
+existing direct Server Action remains the default; selected core calls fail
+closed rather than falling back.
+
+Validation: shared 162/162; API serial 57 files / 291 tests; web 438/438;
+lint/typecheck; production build 78/78 pages; `git diff --check` clean. A
+parallel test invocation had two unrelated API 5-second contention timeouts;
+the serial Turbo invocation passed. No Supabase SQL/data/Storage, Railway
+variable, Vercel build, Git reconnection, or domain promotion was performed.
+
+Exact next action: add durable tenant-scoped project-create idempotency and
+replay/conflict tests before any canary or hosted migration.
+
 ## 2026-08-04 - M3.37 live-provider incident and catalog reconciliation audit
 
 Read-only checks verified the source and provider boundary after M3.36. Both
