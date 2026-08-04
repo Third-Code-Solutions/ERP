@@ -1,5 +1,26 @@
 # Next Actions
 
+## Exact next action after M3.74 Stock Movement detail read
+
+1. Keep `ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_VIA_API=false` and
+   `ERP_INVENTORY_STOCK_MOVEMENT_DETAIL_READS_TENANT_IDS` empty. The 401
+   route evidence and local tests are not protected-tenant browser,
+   rollback, or hosted-schema proof.
+2. Preserve verified release identity: source SHA
+   `a693e15fafc4b4b5d2df4f3fd6bef6f72015d702`, Railway deployment
+   `a62a237e-2a82-4a40-88ca-2354011d3c9d`, and live `/ready`/`/health` 200.
+   Push this documentation follow-up only; it is outside Railway API watch
+   patterns and must not trigger another paid backend rebuild.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/88 (33 pending source
+   migrations). Before any hosted apply: obtain supported backup/export,
+   dependent/audit export, owner-approved mapping, disposable PostgreSQL 17
+   replay, and an explicit spend cap. Do not apply the pending suffix yet.
+4. Do not trigger Vercel previews or production builds. Keep the Git-disabled
+   project untouched to cap billing.
+5. Next source-only candidate: reconcile the ordered hosted ledger and run
+   the disposable migration replay; only then review a named-tenant detail
+   canary against the legacy read and protected browser evidence.
+
 ## Exact next action after M3.73 inventory Stock Movement register read
 
 1. Keep `ERP_INVENTORY_STOCK_MOVEMENT_READS_VIA_API=false` and

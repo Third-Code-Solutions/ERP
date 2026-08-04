@@ -4,6 +4,31 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.74 Stock Movement detail read authority (2026-08-05)
+
+Moved the Stock Movement detail page’s header, line, and immutable ledger
+reads into Nest at `GET /v1/inventory/stock-movements/:movementId`. The route
+requires `inventory.read`, repeats tenant predicates on every join, bounds
+lines/ledger evidence, normalizes timestamps to UTC ISO strings, and preserves
+all micro-unit quantities and cent values as exact strings. The Next detail
+page now uses an independently gated Core adapter while preserving the legacy
+tenant-scoped read and existing posting/reversal actions. Visible layout/copy
+is unchanged; no schema migration or hosted data write was made.
+
+Validation: shared 17/185; API 83 files/370 tests in an isolated single-worker
+run; Web 85 files/532 tests; database 41 files with 168 active tests and 140
+environment-skipped tests; root typecheck; serial TS-only lint; local Nest/Web
+production build; focused detail contract/service/controller/client tests; and
+`git diff --check`. Source commit
+`a693e15fafc4b4b5d2df4f3fd6bef6f72015d702` is pushed to both target refs under
+`kurtgav`. Railway deployment `a62a237e-2a82-4a40-88ca-2354011d3c9d` is
+`SUCCESS` for that exact SHA with the settled API Dockerfile, `/ready`
+healthcheck, and `node apps/api/dist/main.js`. Live `/ready` and `/health` are
+200 with PostgreSQL/Redis healthy; unauthenticated detail/list routes are 401.
+Supabase remains read-only at 55/88 with 33 source migrations pending; Vercel
+remains untouched for spend control. The detail read flag and tenant allowlist
+remain disabled/empty.
+
 ## M3.73 Inventory Stock Movement register read (2026-08-05)
 
 Added a strict shared contract and Nest read authority for
