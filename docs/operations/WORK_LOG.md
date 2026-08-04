@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-05 - M3.69 inventory Warehouse creation command boundary
+
+Implemented one inventory setup vertical slice. Shared types define strict
+Warehouse creation input/result with nullable project scope. Nest owns
+`POST /v1/inventory/warehouses`, rechecks tenant membership and
+`inventory.manage` inside a transaction, verifies same-tenant project scope,
+enforces tenant/code uniqueness, creates the row, and appends semantic audit
+evidence. Next uses the adapter only behind a disabled exact flag and
+allowlist; direct Server Action behavior remains unchanged by default.
+
+Results: shared 17/181; API 75/351; Web 81/518; focused Warehouse contract,
+transaction, HTTP, client, and action tests; all typechecks; serial root lint;
+Nest build; Web 80-route build; and `git diff --check`. No Supabase SQL/data
+or provider setting changed and no Vercel preview/production build occurred.
+
+Source commit `7b0ccf1d9dda19a61d8f2c26ead42b562b6f2534` was pushed to both
+target GitHub refs under `kurtgav`. Railway deployment
+`fbbda042-9b51-4c21-a518-a6e4c2fb2752` completed `SUCCESS` for that exact SHA.
+Its settled manifest is the API Dockerfile with `/ready` healthcheck and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` returned 200 with
+database and Redis healthy; unauthenticated Warehouse creation returned 401.
+The Warehouse canary and related flags remain false/empty. Vercel remains
+untouched to control spend; Supabase remains read-only at 55/87.
+
 ## 2026-08-05 - M3.68 inventory UOM creation command boundary
 
 Implemented one inventory setup vertical slice. Shared types define strict

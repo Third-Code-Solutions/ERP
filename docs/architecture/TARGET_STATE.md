@@ -13,6 +13,19 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.69 Inventory Warehouse creation command boundary (2026-08-05)
+
+Inventory setup now includes a narrow Warehouse creation authority in Nest.
+The command accepts only code, name, and nullable project scope; derives tenant
+and actor from the verified principal; rechecks `inventory.manage` inside one
+transaction; verifies project tenant ownership; enforces tenant-scoped
+uniqueness; and audits the create. Next adoption stays behind an exact flag
+plus tenant allowlist, with direct Server Action behavior as compatibility
+path. Source SHA `7b0ccf1d9dda19a61d8f2c26ead42b562b6f2534` is live on Railway as
+successful deployment `fbbda042-9b51-4c21-a518-a6e4c2fb2752`; readiness and
+health are 200 and the unauthenticated Warehouse route returns 401. No hosted
+schema/data or Vercel deployment is implied.
+
 ## M3.68 Inventory UOM creation command boundary (2026-08-05)
 
 Inventory setup now has a narrow UOM creation authority in Nest. The command

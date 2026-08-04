@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.69 inventory Warehouse creation command
+
+1. Keep `ERP_INVENTORY_WAREHOUSE_CREATE_VIA_API=false`,
+   `ERP_INVENTORY_WAREHOUSE_CREATE_TENANT_IDS` empty,
+   `ERP_INVENTORY_WAREHOUSE_CREATE_WRITES_ENABLED=false`, and
+   `ERP_INVENTORY_WAREHOUSE_CREATE_WRITES_TENANT_IDS` empty. Source and basic
+   Railway readiness/401 evidence are not protected tenant browser,
+   rollback, or hosted-schema proof.
+2. Preserve verified release identity: source SHA
+   `7b0ccf1d9dda19a61d8f2c26ead42b562b6f2534`, Railway deployment
+   `fbbda042-9b51-4c21-a518-a6e4c2fb2752`, and live `/ready`/`/health` 200.
+   Docs-only follow-ups must stay outside API watch patterns; do not trigger a
+   second paid backend rebuild.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/87. Obtain supported
+   backup/export, dependent/audit export, owner-approved mapping, disposable
+   PostgreSQL 17 replay, and explicit spend cap before hosted action.
+4. Do not trigger Vercel previews or production builds. Keep the Git-disabled
+   project untouched to cap billing.
+5. Next source-only candidate: define Warehouse update/deactivation authority
+   and its compatibility adapter only after the same tenant, audit, rollback,
+   and canary gates are reviewed.
+
 ## Exact next action after M3.68 inventory UOM creation command
 
 1. Keep `ERP_INVENTORY_UOM_CREATE_VIA_API=false` and its tenant allowlist

@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.69 - Inventory Warehouse creation command boundary (2026-08-05)
+
+Implemented `POST /v1/inventory/warehouses` as a strict tenant-scoped Nest
+command. The transaction locks and rechecks membership/capability, validates
+an optional same-tenant project, checks the tenant Warehouse code, uses a
+database uniqueness conflict guard, creates the Warehouse, and writes
+semantic audit evidence. The Next adapter is exact-flag plus tenant-allowlist
+gated; direct Server Action behavior remains default. No migration was added.
+
+Validation: shared 17/181, API 75/351, Web 81/518, focused Warehouse tests,
+typechecks, serial lint, Nest build, Web production build, and
+`git diff --check`. Commit `7b0ccf1d9dda19a61d8f2c26ead42b562b6f2534` is
+pushed to both target refs. Railway deployment
+`fbbda042-9b51-4c21-a518-a6e4c2fb2752` is `SUCCESS` for that exact SHA using
+the settled `apps/api/Dockerfile` manifest; `/ready` and `/health` are 200
+with database and Redis healthy, and unauthenticated Warehouse creation is
+401. Rollback is the disabled adapter flag or prior successful API deployment;
+no hosted state requires repair. No Supabase or Vercel provider action was
+triggered.
+
 ## M3.68 - Inventory UOM creation command boundary (2026-08-05)
 
 Implemented `POST /v1/inventory/uoms` as a strict tenant-scoped Nest command.

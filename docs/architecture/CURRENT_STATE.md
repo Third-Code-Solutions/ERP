@@ -4,6 +4,30 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.69 Inventory Warehouse creation command boundary (2026-08-05)
+
+Added a strict `POST /v1/inventory/warehouses` Nest command for tenant-owned
+Warehouse setup. The transaction rechecks membership and `inventory.manage`,
+locks the actor membership, verifies an optional project belongs to the same
+tenant, enforces tenant/code uniqueness, inserts only validated fields, and
+writes a semantic audit record. The Next inventory Server Action delegates
+only when `ERP_INVENTORY_WAREHOUSE_CREATE_VIA_API=true` and its exact tenant
+allowlist matches; direct database insertion remains the default compatibility
+path. No schema migration or UI layout/copy change was made.
+
+Validation: shared 17 files/181 tests; API 75 files/351 tests; Web 81
+files/518 tests; focused Warehouse contract/service/controller/client/action
+tests; shared/API/Web typecheck; serial root lint; Nest build; Web 80-route
+production build; and `git diff --check`. Source commit
+`7b0ccf1d9dda19a61d8f2c26ead42b562b6f2534` is pushed to both target refs under
+`kurtgav`. Railway deployment `fbbda042-9b51-4c21-a518-a6e4c2fb2752` is
+`SUCCESS` for that exact SHA with the settled `apps/api/Dockerfile` manifest,
+`/ready` healthcheck, and `node apps/api/dist/main.js`. Live `/ready` and
+`/health` are 200 with PostgreSQL and Redis healthy; unauthenticated `POST
+/v1/inventory/warehouses` returns 401. Supabase remains read-only at 55/87;
+Vercel remains untouched for spend control. The Warehouse canary and all new
+write flags remain disabled.
+
 ## M3.68 Inventory UOM creation command boundary (2026-08-05)
 
 Added a strict `POST /v1/inventory/uoms` Nest command for tenant-owned Unit of
