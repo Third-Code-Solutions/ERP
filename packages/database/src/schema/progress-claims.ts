@@ -5,9 +5,9 @@ import { invoices } from './invoices'
 import { documents } from './documents'
 import { users } from './users'
 
-// REFACTOR.md M5 + Rework alignment — Progress Milestone Claim flow:
-// Create Claim → Submit Claim → Collect certificate → Handover to Finance →
-// Issue invoice → Waiting payment. Bridges weekly progress to invoices.
+// Progress Milestone Claim flow: create, submit, certify, hand over to
+// Finance, issue invoice, and track payment. Bridges weekly progress to
+// invoices.
 
 export const progressClaimStatusEnum = pgEnum('progress_claim_status', [
   'draft',

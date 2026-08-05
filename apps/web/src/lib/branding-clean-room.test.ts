@@ -54,7 +54,9 @@ describe('Third Code ERP clean-room runtime branding', () => {
       'abi' + '_ops',
       'abi' + '-ops',
       'frap' + 'pe' + '/' + 'erp' + 'next',
-      'rework' + '.com',
+      're' + 'work' + '.com',
+      're' + 'work',
+      'build' + 'ops',
     ]
 
     for (const marker of forbiddenMarkers) {
