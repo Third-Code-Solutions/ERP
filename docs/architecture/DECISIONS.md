@@ -9,8 +9,8 @@ errors so integrity failures are not hidden. Do not surface raw database text,
 PO numbers, tenant IDs, or other business values. This guard does not authorize
 the pending hosted migration or a tenant canary.
 
-Evidence: focused PO service 11/11; full API 90/402; typecheck, serial lint,
-production build, and diff check. Source SHA
+Evidence: focused PO service 11/11; full API 90/402; root `pnpm test`;
+typecheck, serial lint, production build, and diff check. Source SHA
 `354401d434f3556d39bed2600748822b755c6c69` is Railway deployment
 `b6149479-1856-4ba5-baac-3e8df22bd262` (`SUCCESS`); live readiness/health are
 200 and unauthenticated PO creation is 401. Supabase was not written; its
