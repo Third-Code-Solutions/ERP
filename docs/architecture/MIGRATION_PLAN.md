@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.84 - Audit summary count polish (2026-08-06)
+
+Changed only the project Audit summary copy: it now uses the authoritative
+filtered total and removes the duplicate total/page line. No query, state
+machine, tenant predicate, API authority, migration, or provider setting
+changed.
+
+Validation: focused audit helper 3/3; Web 87 files/545 tests; root typecheck;
+serial lint; production build 80/80 routes; and diff check. Source SHA
+`5b1cc83ae387deeb83ca98c2ae96782d471dc46c` is ready to push. No Railway,
+Supabase, or Vercel mutation occurred.
+
+## Next gate
+
+Push the reviewed source/docs only. Keep Vercel Git/build disabled, Supabase
+read-only at 55/90, and all Core audit flags false/empty. Protected role,
+cross-tenant, redaction, clone reconciliation, rollback, and spend-cap
+evidence remain required before a canary.
+
 ## M3.83 - Clean-room runtime branding hardening (2026-08-05)
 
 Removed legacy comparison labels from runtime source comments and changed the

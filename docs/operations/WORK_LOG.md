@@ -1,5 +1,17 @@
 # Work Log
 
+## 2026-08-06 - M3.84 audit summary count polish
+
+Changed one project Audit presentation detail: the header now uses the
+authoritative filtered total and the duplicate total/page line is gone. No
+query, authority, tenant, database, or provider behavior changed.
+
+Evidence: focused helper 3/3; Web 87 files/545 tests; root typecheck; serial
+lint; production build 80/80 routes; diff check. Source commit `5b1cc83`
+ready to push. Supabase remains read-only; Vercel build/deploy remains closed
+for billing control; Railway was not triggered because API watch paths were
+untouched.
+
 ## 2026-08-05 - M3.83 clean-room runtime branding hardening
 
 Removed legacy comparison labels from shipped source comments and changed the

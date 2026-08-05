@@ -4,6 +4,18 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.84 Audit summary count polish (2026-08-06)
+
+The project Audit header now reports the authoritative filtered total rather
+than the current page length. The duplicate total/page helper line was removed,
+so empty, filtered, and paginated states have one consistent count surface.
+No authority, query, tenant predicate, migration, or provider setting changed.
+
+Validation: focused audit helper 3/3; full Web 87 files/545 tests; root
+typecheck; serial lint; production build 80/80 routes; and `git diff --check`.
+Source commit `5b1cc83ae387deeb83ca98c2ae96782d471dc46c` is local pending push.
+No Railway build, Supabase write, or Vercel build occurred.
+
 ## M3.83 Clean-room runtime branding hardening (2026-08-05)
 
 Removed legacy comparison/provenance labels from shipped web/API/package

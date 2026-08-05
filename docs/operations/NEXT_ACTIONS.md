@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.84 audit summary count polish
+
+1. Push source SHA `5b1cc83ae387deeb83ca98c2ae96782d471dc46c` and the reviewed
+   docs commit to both target refs; do not manually redeploy Railway.
+2. Keep Vercel Git deployment disabled and create no preview/production build;
+   the retained revision remains `31c04942a93d` until an explicitly approved,
+   spend-capped release.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/90 with 35 pending
+   source migrations. No SQL, migration, data, storage, or provider writes.
+4. Next functional gate remains protected role/cross-tenant/redaction browser
+   proof, owner tenant mapping, clone reconciliation, rollback evidence, and
+   explicit spend cap before any Core canary.
+
 ## Exact next action after M3.83 clean-room branding hardening
 
 1. Keep the expanded clean-room guard in every release lane; runtime scan must
