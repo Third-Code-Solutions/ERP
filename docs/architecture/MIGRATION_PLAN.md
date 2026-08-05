@@ -1,5 +1,34 @@
 # Migration Plan
 
+## M3.92 - Closed Cortex keyword read projection (2026-08-06)
+
+Implemented the smallest safe Cortex authority seam: shared bounded query and
+source-result contracts, Nest controller/pipe/service/module, explicit
+`cortex.search` capability, server-owned role scope, and exact API flags. The
+existing Next search route now has a compatibility adapter selected only by
+`ERP_CORTEX_SEARCH_VIA_API=true` plus a strict tenant allowlist. Core errors do
+not fall back to direct database reads for a selected tenant. Defaults stay
+false/empty, so current users and UI behavior are unchanged.
+
+Validation: shared 21 files/203 tests; API 96 files/419 tests; Web 87 files/550
+tests; package-serial test run; typecheck; serial lint; production build
+80/80 routes; and diff check. The root turbo test was also run in parallel and
+reported five timeout failures from cross-package Nest HTTP-test contention;
+the isolated API suite and package-serial run passed. No hosted SQL, Supabase
+data/Storage write, Python transaction, Vercel build, or provider spend
+occurred. Release SHA/deployment identity is recorded only after commit and
+controlled Railway verification.
+
+## Next gate
+
+Keep `ERP_CORTEX_SEARCH_ENABLED` and both Cortex tenant allowlists false/empty.
+The new endpoint must remain an unauthenticated 401 boundary in production;
+do not enable a tenant until the ordered Supabase replay, role-scope review,
+protected browser proof, rollback evidence, and spend controls are complete.
+After the reviewed API release, probe readiness/health and the 401 boundary;
+do not trigger a Vercel build. Supabase remains read-only at 55/92 with 37
+missing migrations and one 12-record Purchase Order duplicate group.
+
 ## M3.91 - Closed operational asset read projection (2026-08-06)
 
 Added the smallest safe NestJS read seam for the source operational asset

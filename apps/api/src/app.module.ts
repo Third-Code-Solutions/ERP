@@ -22,6 +22,7 @@ import { AuditModule } from './audit/audit.module'
 import { ProviderQuotaModule } from './observability/provider-quota.module'
 import { RedisModule } from './observability/redis.module'
 import { AssetsModule } from './assets/assets.module'
+import { CortexModule } from './cortex/cortex.module'
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { AssetsModule } from './assets/assets.module'
     AuditModule,
     ProviderQuotaModule,
     AssetsModule,
+    CortexModule,
   ],
   controllers: [HealthController],
   providers: [

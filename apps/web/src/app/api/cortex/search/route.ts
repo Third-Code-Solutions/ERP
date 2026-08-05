@@ -3,11 +3,19 @@ import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
 import { searchCortexNodesByTerms } from '@third-code-erp/database'
 import {
+  cortexSearchTerms,
+  type CortexSearchResult,
+} from '@third-code-erp/shared-types'
+import {
   cortexEntityDefinition,
   cortexHref,
 } from '@/lib/cortex/entity-registry'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
+import {
+  cortexSearchUseCoreApi,
+  searchCortexThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 const querySchema = z.object({
   q: z.string().trim().min(2).max(100),
@@ -26,20 +34,22 @@ export interface CortexSearchHit {
   source: 'cortex'
 }
 
+interface CortexSearchRecord {
+  id: string
+  nodeType: string
+  title: string | null
+  summary: string | null
+  refTable: string
+  refId: string
+  projectId: string | null
+  freshness: string
+}
+
 function response(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
     headers: CORTEX_PRIVATE_HEADERS,
   })
-}
-
-/** Keep retrieval terms bounded and literal. Wildcard characters never reach SQL. */
-function searchTerms(query: string): string[] {
-  return query
-    .toLocaleLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((term) => term.length >= 3)
-    .slice(0, 8)
 }
 
 function projectId(attributes: unknown): string | null {
@@ -48,6 +58,30 @@ function projectId(attributes: unknown): string | null {
   }
   const value = (attributes as Record<string, unknown>).project_id
   return typeof value === 'string' ? value : null
+}
+
+function toHit(record: CortexSearchRecord): CortexSearchHit | null {
+  const definition = cortexEntityDefinition(record.nodeType)
+  if (!definition || !definition.refTables.includes(record.refTable)) {
+    return null
+  }
+
+  return {
+    id: record.id,
+    nodeType: record.nodeType,
+    label: definition.label,
+    title: record.title?.trim() || definition.label,
+    summary: record.summary?.trim() || null,
+    href: cortexHref({
+      type: record.nodeType,
+      refId: record.refId,
+      projectId: record.projectId,
+    }),
+    refTable: record.refTable,
+    refId: record.refId,
+    freshness: record.freshness,
+    source: 'cortex',
+  }
 }
 
 /**
@@ -69,9 +103,25 @@ export async function GET(req: NextRequest) {
     return response({ hits: [], hint: 'Type at least 2 characters.' }, 400)
   }
 
-  const terms = searchTerms(parsed.data.q)
+  const terms = cortexSearchTerms(parsed.data.q)
   if (terms.length === 0) {
     return response({ hits: [], hint: 'Type a longer keyword.' })
+  }
+
+  if (cortexSearchUseCoreApi(profile.tenantId)) {
+    const result = await searchCortexThroughCoreApi(parsed.data.q, 20)
+    if (!result.ok || !result.data) {
+      return response(
+        { hits: [], error: result.error ?? 'Cortex search service is unavailable.' },
+        result.status ?? 503
+      )
+    }
+
+    const hits = result.data.hits.flatMap((hit: CortexSearchResult['hits'][number]) => {
+      const mapped = toHit(hit)
+      return mapped ? [mapped] : []
+    })
+    return response({ hits })
   }
 
   const nodes = await searchCortexNodesByTerms(
@@ -82,27 +132,17 @@ export async function GET(req: NextRequest) {
   )
 
   const hits = nodes.flatMap<CortexSearchHit>((node) => {
-    const definition = cortexEntityDefinition(node.node_type)
-    if (!definition || !definition.refTables.includes(node.ref_table)) return []
-
-    return [
-      {
-        id: node.id,
-        nodeType: node.node_type,
-        label: definition.label,
-        title: node.title?.trim() || definition.label,
-        summary: node.summary?.trim() || null,
-        href: cortexHref({
-          type: node.node_type,
-          refId: node.ref_id,
-          projectId: projectId(node.attributes),
-        }),
-        refTable: node.ref_table,
-        refId: node.ref_id,
-        freshness: node.freshness,
-        source: 'cortex' as const,
-      },
-    ]
+    const mapped = toHit({
+      id: node.id,
+      nodeType: node.node_type,
+      title: node.title,
+      summary: node.summary,
+      refTable: node.ref_table,
+      refId: node.ref_id,
+      projectId: projectId(node.attributes),
+      freshness: node.freshness,
+    })
+    return mapped ? [mapped] : []
   })
 
   return response({ hits })

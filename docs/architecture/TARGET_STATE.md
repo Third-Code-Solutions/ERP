@@ -1,5 +1,16 @@
 # Target State
 
+## M3.92 increment: Core-owned Cortex keyword reads
+
+Cortex keyword retrieval is a read-only, tenant-derived NestJS contract before
+it becomes an AI/semantic workflow. The browser sends only a bounded query;
+the verified principal supplies tenant and role, and the server-owned role
+scope is applied before the derived graph is searched. Shared Zod types keep
+the transport stable. Next remains an adapter with a fail-closed tenant
+canary; no Core failure can silently restore direct database authority for a
+selected tenant. Provider-backed semantic retrieval, recommendations, and all
+official ERP writes remain separate, explicitly gated capabilities.
+
 Third Code ERP remains an incremental TypeScript system. The target is a
 modular monolith, not a rewrite and not a microservice fleet.
 

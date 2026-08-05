@@ -51,6 +51,23 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Cortex keyword reads stay fail-closed until the derived graph replay and
+  // a tenant-scoped canary are approved. Search never accepts tenant or role
+  // scope from the browser and never spends an external AI provider budget.
+  ERP_CORTEX_SEARCH_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CORTEX_SEARCH_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Project creation authority stays fail-closed until idempotency and a
   // tenant-scoped canary are approved.
   ERP_PROJECT_CREATE_WRITES_ENABLED: z

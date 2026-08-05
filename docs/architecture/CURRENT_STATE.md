@@ -4,6 +4,29 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.92 Closed Cortex keyword read projection (2026-08-06)
+
+Added an original shared Cortex search contract and NestJS
+`GET /v1/cortex/search` projection. The API accepts only a bounded query and
+limit, derives tenant and role scope from the verified Supabase principal,
+requires `cortex.search`, filters the derived graph through a server-owned
+role scope, and validates a source-cited result. Both API and Next selectors
+are disabled by default with empty tenant allowlists. The Next route remains
+the compatibility path for unselected tenants; an enabled canary fails closed
+instead of falling back if Core is unavailable. No UI rewrite, browser table
+write, Python transaction authority, hosted SQL, or provider/AI spend was
+added.
+
+Validation: shared 21 files/203 tests; API 96 files/419 tests; Web 87 files/550
+tests; package-serial test run; typecheck; serial lint; production build
+80/80 routes; and diff check. Root `pnpm test` was also attempted in parallel
+and hit five existing HTTP-test timeouts from cross-package contention; the
+package-serial run passed. Source and provider release evidence will be
+recorded after the reviewed commit/push. Supabase remains read-only at
+PostgreSQL 17 with 55/92 migrations applied, 37 missing, and one duplicate
+Purchase Order group of 12 records. Vercel spend guard remains closed/clear;
+no Vercel build or deploy was started.
+
 ## M3.91 Closed operational asset read projection (2026-08-06)
 
 Added an original NestJS `GET /v1/assets` read projection over the source

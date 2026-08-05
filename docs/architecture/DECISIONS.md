@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-202 - Cortex keyword reads use a closed Nest contract (2026-08-06)
+
+Decision: move Cortex keyword retrieval behind `GET /v1/cortex/search` without
+rewriting the current UI. The API owns strict query/limit validation, derives
+tenant and role scope from the verified principal, requires `cortex.search`,
+and returns only typed source references. The Next route remains the default
+compatibility path; a separate exact-boolean plus tenant-allowlist canary
+selects the authenticated adapter and fails closed on Core errors. Keep all
+flags false/empty until replay, protected browser, rollback, role-scope, and
+spend gates clear. Search never invokes external AI or finalizes ERP state.
+
+Evidence: shared 21 files/203 tests; API 96 files/419 tests; Web 87 files/550
+tests; package-serial tests; typecheck; serial lint; production build 80/80;
+and diff check. The parallel root turbo test had five cross-package timeout
+failures, while the isolated API and package-serial runs passed. No Supabase,
+Vercel, Python, or provider mutation occurred.
+
 ## D-201 - Asset reads use a closed, tenant-derived Nest contract (2026-08-06)
 
 Decision: expose the operational asset register only through the typed plural

@@ -151,6 +151,8 @@ import {
   type CreateCostEntryCommand,
   costEntryCreationResultSchema,
   type CostEntryCreationResult,
+  cortexSearchResultSchema,
+  type CortexSearchResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { z } from 'zod'
@@ -275,6 +277,15 @@ export function inventorySummaryReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_INVENTORY_SUMMARY_READS_VIA_API,
     process.env.ERP_INVENTORY_SUMMARY_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Cortex search authority remains disabled until a tenant-scoped canary is approved. */
+export function cortexSearchUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_SEARCH_VIA_API,
+    process.env.ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS
   )
 }
 
@@ -708,6 +719,62 @@ export async function getCoreApiAccess(): Promise<
     ok: true,
     baseUrl,
     accessToken: session.access_token,
+  }
+}
+
+/**
+ * Read-only Cortex adapter. When enabled, a failed core response is returned
+ * to the caller; the legacy direct database route must not silently regain
+ * authority for the canary tenant.
+ */
+export async function searchCortexThroughCoreApi(
+  query: string,
+  limit = 20
+): Promise<CoreResult<CortexSearchResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex search service is unavailable.',
+      }
+    }
+
+    const parsed = cortexSearchResultSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid Cortex search result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex search service is unavailable.',
+    }
   }
 }
 
