@@ -13,9 +13,9 @@ import { tenants } from './tenants'
 import { purchaseOrders } from './purchase-orders'
 import { users } from './users'
 
-// REFACTOR.md M4 + Rework alignment — delivery scheduling, site preparation,
-// receipt, inspection, and acceptance. One delivery_schedule per PO line
-// batch (we allow one PO to have multiple deliveries when shipments split).
+// Delivery scheduling, site preparation, receipt, inspection, and acceptance.
+// One delivery_schedule per PO line batch; one PO may have multiple deliveries
+// when shipments split.
 
 export const deliveryStatusEnum = pgEnum('delivery_status', [
   'scheduled',

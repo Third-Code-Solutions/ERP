@@ -39,7 +39,7 @@ test.describe('Cortex focused graph', () => {
     const env = readLocalEnv()
     const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
     const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
-    const email = process.env.E2E_USER_EMAIL ?? 'test@buildops.local'
+    const email = process.env.E2E_USER_EMAIL ?? 'test@thirdcode.local'
     const baseUrl = testInfo.project.use.baseURL
     expect(supabaseUrl).toBeTruthy()
     expect(serviceRoleKey).toBeTruthy()

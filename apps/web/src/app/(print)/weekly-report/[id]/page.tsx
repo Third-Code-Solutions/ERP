@@ -18,7 +18,7 @@ import { PrintButton } from './print-button'
 
 export const metadata: Metadata = { title: 'Weekly Report' }
 
-// Phase 10 (Rework-alignment) — print-friendly server-rendered weekly report.
+// Print-friendly server-rendered weekly report.
 //
 // The HTML body is generated server-side by `buildWeeklyReportHtml`, which
 // fully escapes every user-supplied value. We deliver it to the browser
