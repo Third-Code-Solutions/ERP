@@ -114,6 +114,28 @@ function nextPoNumber(maxNumericSuffix: string | null): string {
   return `PO-${next.toString().padStart(4, '0')}`
 }
 
+function mapPurchaseOrderNumberConflict(error: unknown): never {
+  const candidate = error as {
+    code?: unknown
+    constraint?: unknown
+    message?: unknown
+  }
+  const message =
+    typeof candidate.message === 'string' ? candidate.message : ''
+  const isUniqueViolation =
+    candidate.code === '23505' &&
+    (candidate.constraint === 'ux_purchase_orders_tenant_po_number' ||
+      message.includes('ux_purchase_orders_tenant_po_number'))
+
+  if (isUniqueViolation) {
+    throw new ConflictException(
+      'Purchase Order number is already in use; resolve duplicate legacy records before retrying.'
+    )
+  }
+
+  throw error
+}
+
 function replayResult(value: unknown): PurchaseOrderCreationResult {
   const parsed = purchaseOrderCreationResultSchema.safeParse(value)
   if (!parsed.success) {
@@ -480,24 +502,30 @@ export class PurchaseOrderCreationService {
         const vat = percentHalfUp(subtotal, 12n)
         const withholdingTax = percentHalfUp(subtotal, 2n)
         const total = subtotal + vat - withholdingTax
-        const [created] = await transaction
-          .insert(purchaseOrders)
-          .values({
-            tenant_id: authorizedPrincipal.tenantId,
-            project_id: bom.projectId,
-            vendor_id: group.bucket.vendorId ?? undefined,
-            created_by: authorizedPrincipal.userId,
-            po_number: poNumber,
-            status: 'draft',
-            subtotal_cents: safeDatabaseCents(subtotal),
-            vat_cents: safeDatabaseCents(vat),
-            withholding_tax_cents: safeDatabaseCents(withholdingTax),
-            total_cents: safeDatabaseCents(total),
-          })
-          .returning({
-            id: purchaseOrders.id,
-            poNumber: purchaseOrders.po_number,
-          })
+        let created: { id: string; poNumber: string } | undefined
+        try {
+          const createdRows = await transaction
+            .insert(purchaseOrders)
+            .values({
+              tenant_id: authorizedPrincipal.tenantId,
+              project_id: bom.projectId,
+              vendor_id: group.bucket.vendorId ?? undefined,
+              created_by: authorizedPrincipal.userId,
+              po_number: poNumber,
+              status: 'draft',
+              subtotal_cents: safeDatabaseCents(subtotal),
+              vat_cents: safeDatabaseCents(vat),
+              withholding_tax_cents: safeDatabaseCents(withholdingTax),
+              total_cents: safeDatabaseCents(total),
+            })
+            .returning({
+              id: purchaseOrders.id,
+              poNumber: purchaseOrders.po_number,
+            })
+          created = createdRows[0]
+        } catch (error) {
+          mapPurchaseOrderNumberConflict(error)
+        }
         if (!created) {
           throw new InternalServerErrorException(
             'Grouped Purchase Order insert returned no record'
@@ -1198,28 +1226,34 @@ export class PurchaseOrderCreationService {
         numberRecord?.maxNumericSuffix ?? null
       )
 
-      const [created] = await transaction
-        .insert(purchaseOrders)
-        .values({
-          tenant_id: authorizedPrincipal.tenantId,
-          project_id: parsedCommand.projectId,
-          vendor_id: parsedCommand.vendorId ?? undefined,
-          created_by: authorizedPrincipal.userId,
-          po_number: poNumber,
-          status: 'draft',
-          subtotal_cents: subtotalCents,
-          vat_cents: vatCents,
-          withholding_tax_cents: withholdingTaxCents,
-          total_cents: totalCents,
-          delivery_date: parsedCommand.deliveryDate
-            ? new Date(parsedCommand.deliveryDate)
-            : undefined,
-          notes: parsedCommand.notes ?? undefined,
-        })
-        .returning({
-          id: purchaseOrders.id,
-          poNumber: purchaseOrders.po_number,
-        })
+      let created: { id: string; poNumber: string } | undefined
+      try {
+        const createdRows = await transaction
+          .insert(purchaseOrders)
+          .values({
+            tenant_id: authorizedPrincipal.tenantId,
+            project_id: parsedCommand.projectId,
+            vendor_id: parsedCommand.vendorId ?? undefined,
+            created_by: authorizedPrincipal.userId,
+            po_number: poNumber,
+            status: 'draft',
+            subtotal_cents: subtotalCents,
+            vat_cents: vatCents,
+            withholding_tax_cents: withholdingTaxCents,
+            total_cents: totalCents,
+            delivery_date: parsedCommand.deliveryDate
+              ? new Date(parsedCommand.deliveryDate)
+              : undefined,
+            notes: parsedCommand.notes ?? undefined,
+          })
+          .returning({
+            id: purchaseOrders.id,
+            poNumber: purchaseOrders.po_number,
+          })
+        created = createdRows[0]
+      } catch (error) {
+        mapPurchaseOrderNumberConflict(error)
+      }
       if (!created) {
         throw new InternalServerErrorException(
           'Purchase Order insert returned no record'
