@@ -1,5 +1,22 @@
 # Next Actions
 
+## Exact next action after M3.83 clean-room branding hardening
+
+1. Keep the expanded clean-room guard in every release lane; runtime scan must
+   remain zero for ERPNext/Frappe/ABI Ops/Rework/BuildOps outside classified
+   historical provenance.
+2. Preserve source SHA `1c5b8de` and Railway deployment
+   `2e4c80f9-e243-46c3-acfa-6af417a448ee`; no manual redeploy. File manifest is
+   API Dockerfile; stale provider metadata remains read-only review only.
+3. Do not rename/replay the timestamped historical migration without a
+   ledger-compatible plan. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at
+   55/90 with 35 pending migrations.
+4. Keep Vercel Git disconnected and do not create builds. Retained revision is
+   `31c04942a93d`; new source is not live on Vercel.
+5. Next functional gate: protected role/cross-tenant/redaction browser proof,
+   owner-approved tenant mapping, clone reconciliation, rollback evidence,
+   and explicit spend cap before any canary.
+
 ## Exact next action after M3.82 project audit filters and pagination
 
 1. Keep `ERP_AUDIT_ACTIVITY_READS_VIA_API=false` and

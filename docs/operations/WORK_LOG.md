@@ -1,5 +1,21 @@
 # Work Log
 
+## 2026-08-05 - M3.83 clean-room runtime branding hardening
+
+Removed legacy comparison labels from shipped source comments and changed the
+local E2E fallback address to `test@thirdcode.local`. Expanded the clean-room
+guard to reject `Rework` and `BuildOps` variants, while preserving the
+timestamped migration filename as immutable internal provenance. No product
+UI/copy, SQL, or migration execution changed.
+
+Evidence: clean-room guard 1/1; Web 87 files/545 tests; root typecheck;
+serial lint; production build 80/80 routes; diff check; runtime scan zero
+outside the historical migration path. Source commit `1c5b8de` pushed to both
+refs. Railway deployment `2e4c80f9-e243-46c3-acfa-6af417a448ee` is `SUCCESS`
+and active with the API Dockerfile manifest; live ready/health are 200 and
+unauthenticated audit is 401. Supabase remains read-only; Vercel remains on
+retained revision `31c04942a93d` with no new build.
+
 ## 2026-08-05 - M3.82 project audit filters and pagination
 
 Added bounded action/entity filters and URL pagination to the existing project

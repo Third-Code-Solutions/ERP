@@ -4,6 +4,26 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.83 Clean-room runtime branding hardening (2026-08-05)
+
+Removed legacy comparison/provenance labels from shipped web/API/package
+source comments and replaced the E2E fallback identity with a Third Code
+identity. Expanded the recursive branding guard to reject `Rework` and
+`BuildOps` variants alongside ERPNext/Frappe/ABI Ops markers. The immutable
+timestamped Supabase migration filename remains internal migration provenance;
+it is outside runtime roots and was not renamed because migration identity is
+source-of-truth metadata.
+
+Validation: focused clean-room guard 1/1; full Web 87 files/545 tests; root
+typecheck; serial lint; production build 80/80 routes; diff check; and a
+runtime-source scan with zero matches outside the historical migration path.
+Source commit `1c5b8de1ef9b709278487acbf145797adb1f745e` is pushed to both
+target refs. Railway deployment `2e4c80f9-e243-46c3-acfa-6af417a448ee` is
+`SUCCESS` for the exact SHA, active with the API Dockerfile manifest. Live
+`/ready` and `/health` are 200; unauthenticated audit activity is 401. No
+Supabase write occurred. Vercel remains on retained revision `31c04942a93d`
+with no new build.
+
 ## M3.82 Project audit filters and pagination (2026-08-05)
 
 The project Audit view now supports bounded action/entity filters and
