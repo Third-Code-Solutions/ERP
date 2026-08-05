@@ -1,5 +1,34 @@
 # Migration Plan
 
+## M3.86 - Project cost-entry creation authority (2026-08-06)
+
+Implemented the smallest safe financial execution slice. Added strict shared
+command/result contracts, a Drizzle `cost_entry_create_requests` ledger, and
+source migration `20260806100000_cost_entry_create_idempotency.sql` with
+tenant-composite FKs, state checks, forced RLS, and service-role-only grants.
+Nest now owns the opt-in command transaction and audit; the existing Next
+action remains the default fallback. The form carries one opaque retry key.
+
+Validation: API 90/393; database 44/173 active plus 141 guarded skips;
+shared 19/198; Web 87/546; typecheck; serial lint; production build 80/80;
+Actionlint; spend guard 3/3; diff check. Source SHA `bcee984`.
+
+Release boundary: API flags
+`ERP_COST_ENTRY_CREATE_WRITES_ENABLED=false` and
+`ERP_COST_ENTRY_CREATE_WRITES_TENANT_IDS` empty; matching Web adapter flags
+false/empty. Supabase project `aqqrtkmtcsfkbyyqxowv` remains read-only at
+55/91 (36 pending, `review_required`). Do not apply the migration, enable a
+tenant, or create a paid Vercel build from this source evidence alone.
+
+## Next gate
+
+Push the reviewed source and docs once, observe Railway's watched-path result,
+and probe the exact API release. Keep Vercel Git/build disabled. Before any
+cost canary: run a disposable PostgreSQL 17 replay including migration 91,
+obtain backup/export plus owner mapping, prove protected role and
+cross-tenant denial, verify audit redaction and idempotent replay, capture
+rollback evidence, and set an explicit provider spend cap.
+
 ## M3.85 - Vercel spend guard (2026-08-06)
 
 Added `scripts/verify-vercel-spend-guard.mjs` plus three Node tests. The guard

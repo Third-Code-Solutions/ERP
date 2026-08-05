@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-06 - M3.86 project cost-entry authority
+
+Implemented `POST /v1/projects/:projectId/cost-entries` as an original,
+closed-by-default Nest command. It locks tenant membership/project/Cost Code,
+uses exact integer centavos, claims and completes a tenant-scoped idempotency
+key, and writes semantic audit evidence. Added shared contracts, Drizzle
+ledger/schema, source migration, API tests, Web Core adapter, hidden retry
+key, and env documentation. Default direct Server Action behavior and visible
+UI remain unchanged.
+
+Validation: API 90 files/393 tests; database 44/173 active with 141 guarded
+skips; shared 19/198; Web 87/546; root typecheck; serial lint; production
+build 80/80 routes; Actionlint 1.7.12; spend guard 3/3; diff check. Source
+commit `bcee984`.
+
+Provider boundary: read-only Supabase planner reports PostgreSQL 17, 55/91
+applied/source migrations, 36 pending, `review_required`. No Supabase SQL or
+data/Storage/provider write. No Vercel build/deploy. Railway is not yet
+claimed for this SHA until the controlled push and exact deployment/readiness
+probe complete.
+
 ## 2026-08-06 - M3.85 Vercel spend guard
 
 Added a static CI guard for the user-requested billing boundary. It verifies
