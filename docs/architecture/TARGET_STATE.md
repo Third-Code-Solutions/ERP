@@ -13,6 +13,24 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.80 Audit activity projection (2026-08-05)
+
+The target now includes a small, permissioned activity read model before any
+AI indexing or UI cutover. Nest owns `GET /v1/audit/activity`; PostgreSQL's
+append-only `audit_log` remains the source of truth. The route is tenant-scoped
+from the verified principal, uses bounded pagination and allowlisted capability
+roles, and redacts `diff` payloads. Future Cortex/Obsidian-style views may
+consume this projection, but Python remains advisory and cannot approve or
+finalize ERP transactions.
+
+The source slice is live at Railway SHA `1170b55` with deployment
+`e62e25b9-7e26-4b59-bb32-35ba524c6ae2`; no hosted migration is needed. Keep
+Supabase reconciliation, tenant mapping, rollback, protected browser proof,
+and spend caps as separate gates. Resolve the stale provider build-command
+metadata only through a reviewed, non-billing provider change; do not infer
+correctness from that string while the file manifest and live health checks
+remain the evidence.
+
 ## M3.79 Read-only clone reconciliation (2026-08-05)
 
 The release process now has an original, fail-closed reconciliation report

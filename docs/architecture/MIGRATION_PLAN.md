@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.80 - Tenant-scoped audit activity read (2026-08-05)
+
+Added `GET /v1/audit/activity` as a read-only Nest authority seam over the
+existing `audit_log`. The shared contract enforces bounded pagination and
+strict entity/action filters; the API requires `audit.read`, derives tenant
+scope from the verified principal, and returns hash-chain metadata without
+exposing stored `diff` JSON. No migration, RLS policy, or Next UI path changed.
+
+Validation: shared-types 18/195; API 88/388 with 22 environment-skipped
+integration tests in a single worker; focused changed coverage 14/14; root
+typecheck; serial lint; Nest/Web production build; static migration verifier;
+and `git diff --check` pass. Source SHA
+`1170b55d73b87ac3c932a3c85f267201564cd7bc` is pushed to both target refs.
+Railway `e62e25b9-7e26-4b59-bb32-35ba524c6ae2` is `SUCCESS` for the exact SHA;
+live readiness/health are 200 and the unauthenticated activity boundary is
+401. The provider file manifest used the API Dockerfile, while a stale
+`@buildops/web` build-command string remains in metadata; no provider setting
+was changed. Supabase and Vercel were not mutated.
+
+## Next gate
+
+Keep all workflow flags and tenant allowlists false/empty. Add a browser
+activity view only after role-specific protected-flow proof and redaction review.
+Reconcile hosted schema/data/RLS/tenant/audit/financial drift with a supported
+backup/export and owner mapping before any Supabase action. Inspect, but do not
+blindly mutate, the stale Railway metadata; avoid Vercel builds.
+
 ## M3.79 - Read-only clone reconciliation (2026-08-05)
 
 Added a source-only reconciliation tool and pure helper tests. The tool

@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-190 - Audit activity is a redacted, tenant-scoped read seam (2026-08-05)
+
+Decision: expose the existing append-only `audit_log` through Nest as
+`GET /v1/audit/activity`, with strict shared contracts, bounded pagination,
+tenant predicates from the verified principal, and a dedicated `audit.read`
+capability limited to owner/admin/pm/finance. Return IDs, action/entity
+metadata, timestamps, and hash-chain values; never return stored `diff` JSON
+from this activity projection. This gives the future Cortex/Obsidian-style
+brain a searchable event spine without moving transaction authority into the
+browser or Python.
+
+Source SHA `1170b55d73b87ac3c932a3c85f267201564cd7bc` is live on Railway as
+`e62e25b9-7e26-4b59-bb32-35ba524c6ae2`; readiness/health are 200 and the
+unauthenticated route is 401. No migration or hosted write is required.
+Railway's file manifest used `apps/api/Dockerfile`, but its metadata retains a
+stale `@buildops/web` build-command string. Treat that as an operator review
+item; do not alter provider settings or trigger an extra build from this
+observation alone. Supabase and Vercel remain closed.
+
 ## D-189 - Clone reconciliation is read-only and fail-closed (2026-08-05)
 
 Decision: compare the clean replay and hosted target before any migration or

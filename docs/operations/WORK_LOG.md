@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-08-05 - M3.80 tenant-scoped audit activity read
+
+Added the redacted Nest activity projection `GET /v1/audit/activity` over the
+existing append-only `audit_log`. It requires `audit.read`, applies verified
+tenant scope and bounded filters/pagination, returns hash-chain metadata, and
+omits raw diff payloads. Added strict shared contracts, query pipe, service,
+controller, module registration, and guard/service/contract tests. No migration,
+Next UI, Supabase state, or Vercel state changed.
+
+Evidence: shared-types 18/195; API 88/388 passed with 22 integration tests
+skipped by missing explicit environment; focused new/changed API tests 14/14;
+root typecheck; serial lint; Nest/Web production build; static migration
+verification; and diff check pass. Commit
+`1170b55d73b87ac3c932a3c85f267201564cd7bc` pushed to `main` and
+`agent-02/third-code-erp-landing` as `kurtgav`.
+
+Railway project `a21fd382-80b2-4218-8025-11f420a062e3`, production service
+`c45b3d01-036a-4663-a524-0713d782fce3`, deployment
+`e62e25b9-7e26-4b59-bb32-35ba524c6ae2`: `SUCCESS` for the exact SHA. Live
+`/ready` and `/health` are 200 with database/Redis healthy; unauthenticated
+activity read is 401. File manifest evidence used the API Dockerfile and start
+command. Provider metadata also shows a stale `@buildops/web` build-command
+string; no provider setting or second build was triggered. Supabase remains
+read-only at 55/90; Vercel remains untouched for spend control.
+
 ## 2026-08-05 - M3.79 read-only clone reconciliation
 
 Added `scripts/reconcile-database-clones.mjs` plus three helper tests. The
