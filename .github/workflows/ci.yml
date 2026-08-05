@@ -238,6 +238,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Verify Vercel spend guard
+        run: node scripts/verify-vercel-spend-guard.mjs
       - run: pnpm turbo build
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
