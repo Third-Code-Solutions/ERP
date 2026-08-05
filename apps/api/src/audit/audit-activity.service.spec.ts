@@ -51,7 +51,12 @@ describe('AuditActivityService', () => {
     const service = new AuditActivityService(probe.database)
 
     const result = await service.list(
-      { entityType: 'project', page: 2, limit: 10 },
+      {
+        entityType: 'project',
+        entityIds: ['33333333-3333-4333-8333-333333333333'],
+        page: 2,
+        limit: 10,
+      },
       PRINCIPAL
     )
 
@@ -71,6 +76,7 @@ describe('AuditActivityService', () => {
     const whereSql = new PgDialect().sqlToQuery(probe.where.mock.calls[0]?.[0])
     expect(whereSql.sql).toContain('"audit_log"."tenant_id" = $1')
     expect(whereSql.params).toContain(TENANT_ID)
+    expect(whereSql.params).toContain('33333333-3333-4333-8333-333333333333')
     expect(result.rows[0]).not.toHaveProperty('diff')
   })
 })

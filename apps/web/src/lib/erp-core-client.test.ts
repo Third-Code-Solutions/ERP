@@ -22,6 +22,7 @@ import {
   logRfqQuoteThroughCoreApi,
   getProjectThroughCoreApi,
   getProjectsThroughCoreApi,
+  getAuditActivityThroughCoreApi,
   getAccountThroughCoreApi,
   getAccountsThroughCoreApi,
   getKycQueueThroughCoreApi,
@@ -32,6 +33,7 @@ import {
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
   projectListsUseCoreApi,
+  auditActivityReadsUseCoreApi,
   accountReadsUseCoreApi,
   accountKycQueueReadsUseCoreApi,
   inventorySummaryReadsUseCoreApi,
@@ -366,6 +368,26 @@ const READ_PROJECT_RESULT = {
   ...CREATED_PROJECT_RESULT,
   accountId: null,
   createdBy: '11111111-1111-4111-8111-111111111111',
+}
+const AUDIT_ACTIVITY_RESULT = {
+  tenantId: RESULT.tenantId,
+  rows: [
+    {
+      id: '42',
+      tenantId: RESULT.tenantId,
+      actorId: '11111111-1111-4111-8111-111111111111',
+      entityType: 'project',
+      entityId: PROJECT_ID,
+      action: 'update',
+      prevHash: 'genesis',
+      hash: 'a'.repeat(64),
+      createdAt: '2026-08-05T00:00:00.000Z',
+    },
+  ],
+  total: 1,
+  page: 1,
+  limit: 200,
+  totalPages: 1,
 }
 const ACCOUNT_LIST_RESULT = {
   rows: [
@@ -2541,6 +2563,43 @@ describe('ERP Core client', () => {
           'x-request-id': expect.stringMatching(
             /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
           ),
+        }),
+      })
+    )
+  })
+
+  it('keeps audit activity adapter fail-closed and validates the redacted result', async () => {
+    expect(auditActivityReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_AUDIT_ACTIVITY_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_AUDIT_ACTIVITY_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(auditActivityReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(AUDIT_ACTIVITY_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getAuditActivityThroughCoreApi({
+        entityIds: [PROJECT_ID],
+        page: 1,
+        limit: 200,
+      })
+    ).resolves.toEqual({ ok: true, data: AUDIT_ACTIVITY_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/audit/activity?entityIds=${PROJECT_ID}&page=1&limit=200`,
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
         }),
       })
     )

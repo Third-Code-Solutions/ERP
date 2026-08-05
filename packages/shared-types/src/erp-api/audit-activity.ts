@@ -4,8 +4,15 @@ export const auditActivityQuerySchema = z
   .object({
     entityType: z.string().trim().min(1).max(100).optional(),
     action: z.string().trim().min(1).max(50).optional(),
+    entityIds: z.preprocess(
+      (value) => {
+        if (value === undefined) return undefined
+        return Array.isArray(value) ? value : [value]
+      },
+      z.array(z.string().uuid()).max(500).optional()
+    ),
     page: z.coerce.number().int().min(1).max(100_000).default(1),
-    limit: z.coerce.number().int().min(1).max(100).default(25),
+    limit: z.coerce.number().int().min(1).max(200).default(25),
   })
   .strict()
 
@@ -30,7 +37,7 @@ export const auditActivityResultSchema = z.object({
   rows: z.array(auditActivityRowSchema),
   total: z.number().int().nonnegative(),
   page: z.number().int().min(1),
-  limit: z.number().int().min(1).max(100),
+  limit: z.number().int().min(1).max(200),
   totalPages: z.number().int().min(1),
 })
 
