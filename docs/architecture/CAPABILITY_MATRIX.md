@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `f11b146` (M3.91 closed operational asset read projection)
+Source checkpoint: `cd94e27` (M3.92 closed Cortex keyword read projection)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 M3.92 update: Cortex keyword search now has a typed, tenant-derived NestJS
@@ -10,6 +10,10 @@ capability and server-owned role scope. API and Next canary selectors are
 false/empty by default; unselected tenants retain the existing route. Core
 failure cannot fall back to a direct database read for a selected tenant. No
 UI, hosted migration, provider spend, or official ERP write changed.
+Source SHA `cd94e274a6a5cb19f715c73fa96fc717879644cc` is live on Railway
+deployment `e9e90045-f907-4f6c-ae49-5fa3dcff3cd9` (`SUCCESS`); readiness/health
+are 200 and unauthenticated Cortex search is 401. Vercel remains disconnected
+with no new build.
 
 M3.91 update: the operational asset register now has a typed, closed NestJS
 `GET /v1/assets` projection with strict bounded filters/pagination, the

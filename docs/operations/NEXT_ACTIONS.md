@@ -5,10 +5,11 @@
 1. Keep `ERP_CORTEX_SEARCH_ENABLED=false`,
    `ERP_CORTEX_SEARCH_TENANT_IDS` empty, and the two Next Cortex adapter flags
    false/empty. The API endpoint is a source seam, not a tenant canary.
-2. Commit and push the reviewed source/docs to `Third-Code-Solutions/ERP`;
-   allow only the watched Railway API deployment, then verify its exact SHA,
-   `/ready`, `/health`, and unauthenticated `/v1/cortex/search` = 401. Do not
-   manually redeploy or create any Vercel build.
+2. Source SHA `cd94e274a6a5cb19f715c73fa96fc717879644cc` is pushed to
+   `Third-Code-Solutions/ERP`; the watched Railway deployment
+   `e9e90045-f907-4f6c-ae49-5fa3dcff3cd9` is `SUCCESS` and verified at
+   `/ready` 200, `/health` 200, and unauthenticated `/v1/cortex/search` 401.
+   Do not manually redeploy or create any Vercel build.
 3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at PostgreSQL 17 with 55/92
    migrations applied and 37 missing. The duplicate planner still reports one
    tenant-scoped Purchase Order group containing 12 records; obtain supported

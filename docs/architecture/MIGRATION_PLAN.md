@@ -14,10 +14,12 @@ Validation: shared 21 files/203 tests; API 96 files/419 tests; Web 87 files/550
 tests; package-serial test run; typecheck; serial lint; production build
 80/80 routes; and diff check. The root turbo test was also run in parallel and
 reported five timeout failures from cross-package Nest HTTP-test contention;
-the isolated API suite and package-serial run passed. No hosted SQL, Supabase
-data/Storage write, Python transaction, Vercel build, or provider spend
-occurred. Release SHA/deployment identity is recorded only after commit and
-controlled Railway verification.
+the isolated API suite and package-serial run passed. Source SHA
+`cd94e274a6a5cb19f715c73fa96fc717879644cc` is pushed to both GitHub refs and
+Railway deployment `e9e90045-f907-4f6c-ae49-5fa3dcff3cd9` is `SUCCESS` using
+the API Dockerfile; live readiness/health are 200 and unauthenticated Cortex
+search is 401. No hosted SQL, Supabase data/Storage write, Python transaction,
+Vercel build, or extra provider spend occurred.
 
 ## Next gate
 
@@ -25,9 +27,10 @@ Keep `ERP_CORTEX_SEARCH_ENABLED` and both Cortex tenant allowlists false/empty.
 The new endpoint must remain an unauthenticated 401 boundary in production;
 do not enable a tenant until the ordered Supabase replay, role-scope review,
 protected browser proof, rollback evidence, and spend controls are complete.
-After the reviewed API release, probe readiness/health and the 401 boundary;
-do not trigger a Vercel build. Supabase remains read-only at 55/92 with 37
-missing migrations and one 12-record Purchase Order duplicate group.
+The reviewed API release is complete; retain the readiness/health and 401
+evidence above and do not trigger a Vercel build. Supabase remains read-only
+at 55/92 with 37 missing migrations and one 12-record Purchase Order duplicate
+group.
 
 ## M3.91 - Closed operational asset read projection (2026-08-06)
 
