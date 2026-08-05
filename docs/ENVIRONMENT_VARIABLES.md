@@ -168,6 +168,21 @@ writes.
 | `ERP_CORTEX_SEARCH_VIA_API` | no | Next server | Selects the authenticated Nest read adapter; exact `true` only |
 | `ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## General-ledger reads (NestJS, disabled by default)
+
+The posted general-ledger projection is tenant-derived and restricted to
+finance-authorized roles. The existing `/finance/ledger` page keeps its direct
+read path unless both exact flags and the tenant allowlist match. Keep these
+closed until disposable replay, hosted parity, protected browser proof, and
+rollback evidence are complete.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_FINANCE_LEDGER_READS_ENABLED` | no | Railway API | Exact `true` enables `GET /v1/finance/ledger`; default `false` |
+| `ERP_FINANCE_LEDGER_READS_TENANT_IDS` | no | Railway API | Strict UUID allowlist; default empty |
+| `ERP_FINANCE_LEDGER_READS_VIA_API` | no | Next server | Selects the authenticated Nest read adapter; exact `true` only |
+| `ERP_FINANCE_LEDGER_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
 ## Project detail read cutover (NestJS, disabled by default)
 
 The project detail page can opt into the tenant-scoped Nest read contract for
