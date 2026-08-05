@@ -15,6 +15,7 @@ import { PUBLIC_ROUTE } from './supabase-jwt.guard'
 
 export const ERP_CAPABILITIES = [
   'account.read',
+  'audit.read',
   'account.kyc_review',
   'opportunity.read',
   'project.read',
@@ -56,6 +57,9 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'cx',
     'viewer',
   ],
+  // Audit activity exposes entity and actor metadata, so keep it narrower
+  // than ordinary ERP reads even though diff payloads are redacted.
+  'audit.read': ['owner', 'admin', 'pm', 'finance'],
   'account.kyc_review': ['owner', 'admin', 'finance'],
   'opportunity.read': [
     'owner',

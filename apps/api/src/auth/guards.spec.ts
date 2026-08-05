@@ -26,6 +26,9 @@ class GuardFixtureController {
   @RequireCapabilities('inventory.read')
   inventoryRead(): void {}
 
+  @RequireCapabilities('audit.read')
+  auditActivity(): void {}
+
   @RequireCapabilities('project.update')
   update(): void {}
 
@@ -247,6 +250,34 @@ describe('CapabilityGuard', () => {
         })
       )
     ).toBe(true)
+  })
+
+  it('keeps audit activity restricted to operational administrators', () => {
+    expect(
+      guard.canActivate(
+        contextFor('auditActivity', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'admin',
+            email: 'admin@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+
+    expect(() =>
+      guard.canActivate(
+        contextFor('auditActivity', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
   })
 
   it('allows inventory reads only for operationally authorized roles', () => {
