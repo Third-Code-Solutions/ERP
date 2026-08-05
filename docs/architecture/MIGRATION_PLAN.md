@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.79 - Read-only clone reconciliation (2026-08-05)
+
+Added a source-only reconciliation tool and pure helper tests. The tool
+requires separate `DATABASE_URL` (hosted target) and `REPLAY_DATABASE_URL`
+(disposable clone), refuses identical connection identities, and executes
+both snapshots in PostgreSQL `READ ONLY` transactions. It compares the
+migration ledger, relation/RLS/policy/index/trigger/function/grant catalogs,
+tenant row counts, exact financial totals, and audit first/last hashes.
+
+Validation: reconciliation helpers 3/3; combined script/plan tests 10/10;
+static migration verifier; root typecheck; serial TS-only lint; Nest/Web
+production build. The live read-only run found PostgreSQL 17 on both targets,
+35 hosted migration gaps, 26 missing relations, 114 missing indexes, two
+missing triggers, grant/function drift, five financial-total differences, and
+data/audit count drift. Exit status is intentionally nonzero
+(`reconcile_required`). No SQL write, hosted repair, provider setting, or
+Vercel action occurred.
+Source commit `cc0e1f7e14ef999cc550894e39c05938d7b0e326` contains the tool and
+tests.
+
+## Next gate
+
+Keep all workflow flags and tenant lists false/empty. Use the report to obtain
+the supported backup/export, dependent/audit export, and owner-approved tenant
+mapping; restore an isolated clone and reconcile the drift before reviewing a
+protected canary. Do not auto-repair or replay the hosted suffix.
+
 ## M3.78 - Disposable PostgreSQL 17 + Redis replay (2026-08-05)
 
 Ran `scripts/ci/run-wsl1-database-lane.ps1 -Distribution

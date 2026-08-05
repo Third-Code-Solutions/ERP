@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-189 - Clone reconciliation is read-only and fail-closed (2026-08-05)
+
+Decision: compare the clean replay and hosted target before any migration or
+canary decision, using separate PostgreSQL `READ ONLY` transactions. Compare
+history, schema/security catalog, tenant counts, exact financial measures,
+and audit endpoints; report drift for owner review. Refuse identical target
+and replay identities. The tool may never repair, apply migrations, or infer
+tenant mappings from row counts.
+
+The current evidence is `reconcile_required`: both sides are PostgreSQL 17,
+but hosted remains 55/90 with catalog, grants, data, financial, and audit
+differences. This preserves billing and data safety while making the next
+owner-approved reconciliation concrete. Vercel and hosted SQL remain closed.
+
 ## D-188 - Clean replay is a prerequisite to hosted migration (2026-08-05)
 
 Decision: treat the disposable PostgreSQL 17 + Redis lane as a hard release
