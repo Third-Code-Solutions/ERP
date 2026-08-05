@@ -200,6 +200,23 @@ are complete.
 | `ERP_FINANCE_RECEIVABLES_READS_VIA_API` | no | Next server | Selects the authenticated Nest read adapter; exact `true` only |
 | `ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## Supplier payables read projection (NestJS, disabled by default)
+
+The `/finance/payables` page can select the tenant-scoped Nest
+`GET /v1/finance/payables` projection. It returns supplier bills, posted
+disbursement allocations, open balances, and server-computed aging totals.
+The existing server-side read path remains the default. Keep both selectors
+closed until disposable replay, exact-cent supplier-bill/allocation parity,
+RLS and audit review, protected browser proof, rollback evidence, and spend
+controls are complete.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_FINANCE_PAYABLES_READS_ENABLED` | no | Railway API | Exact `true` enables `GET /v1/finance/payables`; default `false` |
+| `ERP_FINANCE_PAYABLES_READS_TENANT_IDS` | no | Railway API | Strict UUID allowlist; default empty |
+| `ERP_FINANCE_PAYABLES_READS_VIA_API` | no | Next server | Selects the authenticated Nest read adapter; exact `true` only |
+| `ERP_FINANCE_PAYABLES_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
 ## Project detail read cutover (NestJS, disabled by default)
 
 The project detail page can opt into the tenant-scoped Nest read contract for

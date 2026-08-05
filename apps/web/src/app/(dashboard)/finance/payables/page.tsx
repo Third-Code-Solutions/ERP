@@ -9,6 +9,10 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import {
+  financePayablesReadsUseCoreApi,
+  getFinancePayablesThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 export const metadata: Metadata = { title: 'Supplier payables' }
 
@@ -36,63 +40,141 @@ function agingBucket(daysPastDue: number): string {
   return '90+'
 }
 
+type PayableRow = {
+  id: string
+  vendorBillNumber: string
+  internalNumber: string | null
+  status: 'draft' | 'posted' | 'reversed'
+  billDate: string
+  dueDate: string | null
+  subtotalCents: number
+  inputVatCents: number
+  withholdingTaxCents: number
+  totalPayableCents: number
+  paidCents: number
+  vendorId: string
+  vendorName: string
+  purchaseOrderId: string
+  purchaseOrderNumber: string
+  projectId: string
+  projectName: string
+}
+
 export default async function PayablesPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.manage')
 
-  const rows = await db
-    .select({
-      id: supplierBills.id,
-      vendorBillNumber: supplierBills.vendor_bill_number,
-      internalNumber: supplierBills.internal_number,
-      status: supplierBills.status,
-      billDate: supplierBills.bill_date,
-      dueDate: supplierBills.due_date,
-      subtotalCents: supplierBills.subtotal_cents,
-      inputVatCents: supplierBills.input_vat_cents,
-      withholdingTaxCents: supplierBills.withholding_tax_cents,
-      totalPayableCents: supplierBills.total_payable_cents,
-      paidCents: sql<number>`coalesce((
-        select sum(allocation.amount_cents)
-        from public.cash_allocations allocation
-        join public.cash_transactions cash_tx
-          on cash_tx.id = allocation.cash_transaction_id
-         and cash_tx.tenant_id = allocation.tenant_id
-        where allocation.supplier_bill_id = ${supplierBills.id}
-          and allocation.tenant_id = ${supplierBills.tenant_id}
-          and cash_tx.status = 'posted'
-      ), 0)`,
-      vendorId: supplierBills.vendor_id,
-      vendorName: vendors.name,
-      purchaseOrderId: supplierBills.purchase_order_id,
-      purchaseOrderNumber: purchaseOrders.po_number,
-      projectId: supplierBills.project_id,
-      projectName: projects.name,
+  let rows: PayableRow[]
+  if (financePayablesReadsUseCoreApi(profile.tenantId)) {
+    const result = await getFinancePayablesThroughCoreApi({
+      vendorId: undefined,
+      projectId: undefined,
+      status: undefined,
+      dueFrom: undefined,
+      dueTo: undefined,
+      page: 1,
+      limit: 500,
     })
-    .from(supplierBills)
-    .innerJoin(
-      vendors,
-      and(
-        eq(vendors.id, supplierBills.vendor_id),
-        eq(vendors.tenant_id, supplierBills.tenant_id)
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Supplier payables were not read.')
+    }
+    if (result.data.total > result.data.rows.length) {
+      throw new Error('Supplier payables exceed the closed projection page limit.')
+    }
+    rows = result.data.rows.map((bill) => ({
+      id: bill.id,
+      vendorBillNumber: bill.vendorBillNumber,
+      internalNumber: bill.internalNumber,
+      status: bill.status,
+      billDate: bill.billDate,
+      dueDate: bill.dueDate,
+      subtotalCents: bill.subtotalCents,
+      inputVatCents: bill.inputVatCents,
+      withholdingTaxCents: bill.withholdingTaxCents,
+      totalPayableCents: bill.totalPayableCents,
+      paidCents: bill.paidCents,
+      vendorId: bill.vendorId,
+      vendorName: bill.vendorName,
+      purchaseOrderId: bill.purchaseOrderId,
+      purchaseOrderNumber: bill.purchaseOrderNumber,
+      projectId: bill.projectId,
+      projectName: bill.projectName,
+    }))
+  } else {
+    const directRows = await db
+      .select({
+        id: supplierBills.id,
+        vendorBillNumber: supplierBills.vendor_bill_number,
+        internalNumber: supplierBills.internal_number,
+        status: supplierBills.status,
+        billDate: supplierBills.bill_date,
+        dueDate: supplierBills.due_date,
+        subtotalCents: supplierBills.subtotal_cents,
+        inputVatCents: supplierBills.input_vat_cents,
+        withholdingTaxCents: supplierBills.withholding_tax_cents,
+        totalPayableCents: supplierBills.total_payable_cents,
+        paidCents: sql<number>`coalesce((
+          select sum(allocation.amount_cents)
+          from public.cash_allocations allocation
+          join public.cash_transactions cash_tx
+            on cash_tx.id = allocation.cash_transaction_id
+           and cash_tx.tenant_id = allocation.tenant_id
+          where allocation.supplier_bill_id = ${supplierBills.id}
+            and allocation.tenant_id = ${supplierBills.tenant_id}
+            and cash_tx.status = 'posted'
+        ), 0)`,
+        vendorId: supplierBills.vendor_id,
+        vendorName: vendors.name,
+        purchaseOrderId: supplierBills.purchase_order_id,
+        purchaseOrderNumber: purchaseOrders.po_number,
+        projectId: supplierBills.project_id,
+        projectName: projects.name,
+      })
+      .from(supplierBills)
+      .innerJoin(
+        vendors,
+        and(
+          eq(vendors.id, supplierBills.vendor_id),
+          eq(vendors.tenant_id, supplierBills.tenant_id)
+        )
       )
-    )
-    .innerJoin(
-      purchaseOrders,
-      and(
-        eq(purchaseOrders.id, supplierBills.purchase_order_id),
-        eq(purchaseOrders.tenant_id, supplierBills.tenant_id)
+      .innerJoin(
+        purchaseOrders,
+        and(
+          eq(purchaseOrders.id, supplierBills.purchase_order_id),
+          eq(purchaseOrders.tenant_id, supplierBills.tenant_id)
+        )
       )
-    )
-    .innerJoin(
-      projects,
-      and(
-        eq(projects.id, supplierBills.project_id),
-        eq(projects.tenant_id, supplierBills.tenant_id)
+      .innerJoin(
+        projects,
+        and(
+          eq(projects.id, supplierBills.project_id),
+          eq(projects.tenant_id, supplierBills.tenant_id)
+        )
       )
-    )
-    .where(eq(supplierBills.tenant_id, profile.tenantId))
-    .orderBy(desc(supplierBills.bill_date), asc(vendors.name))
+      .where(eq(supplierBills.tenant_id, profile.tenantId))
+      .orderBy(desc(supplierBills.bill_date), asc(vendors.name))
+
+    rows = directRows.map((row) => ({
+      id: row.id,
+      vendorBillNumber: row.vendorBillNumber,
+      internalNumber: row.internalNumber,
+      status: row.status,
+      billDate: row.billDate,
+      dueDate: row.dueDate,
+      subtotalCents: row.subtotalCents,
+      inputVatCents: row.inputVatCents,
+      withholdingTaxCents: row.withholdingTaxCents,
+      totalPayableCents: row.totalPayableCents,
+      paidCents: Number(row.paidCents ?? 0),
+      vendorId: row.vendorId,
+      vendorName: row.vendorName,
+      purchaseOrderId: row.purchaseOrderId,
+      purchaseOrderNumber: row.purchaseOrderNumber,
+      projectId: row.projectId,
+      projectName: row.projectName,
+    }))
+  }
 
   const today = new Date().toISOString().slice(0, 10)
   const rowsWithBalance = rows.map((row) => ({
