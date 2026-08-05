@@ -4,6 +4,19 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.85 Vercel spend guard (2026-08-06)
+
+Added a read-only repository guard that requires
+`apps/web/vercel.json.git.deploymentEnabled=false` and rejects Vercel deploy
+commands in package scripts or GitHub automation. CI runs the guard before its
+build job. This protects the billing boundary without calling Vercel or
+changing provider settings.
+
+Validation: spend-guard 3/3; actionlint 1.7.12; Web 87 files/545 tests; root
+typecheck; serial lint; production build 80/80 routes; and diff check. Source
+commit `9cfee695f75e66375c2578235d0f1544a987e3ab` is local pending push. No
+Railway build, Supabase write, or Vercel build occurred.
+
 ## M3.84 Audit summary count polish (2026-08-06)
 
 The project Audit header now reports the authoritative filtered total rather

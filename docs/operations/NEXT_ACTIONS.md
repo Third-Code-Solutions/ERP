@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.85 Vercel spend guard
+
+1. Push source SHA `9cfee695f75e66375c2578235d0f1544a987e3ab` and reviewed docs
+   to both GitHub refs. Do not run Vercel CLI or manually redeploy Railway.
+2. Keep `apps/web/vercel.json` Git deployment disabled; CI must keep the guard
+   green. Retained Vercel revision remains `31c04942a93d`.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/90 with 35 pending
+   migrations; no SQL, data, Storage, or provider writes.
+4. Continue with protected role/cross-tenant/redaction browser proof, owner
+   tenant mapping, clone reconciliation, rollback evidence, and an explicit
+   spend cap before any Core canary.
+
 ## Exact next action after M3.84 audit summary count polish
 
 1. Push source SHA `5b1cc83ae387deeb83ca98c2ae96782d471dc46c` and the reviewed

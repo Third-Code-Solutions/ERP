@@ -1,5 +1,18 @@
 # Architecture Decisions
 
+## D-195 - Vercel deployment automation fails closed for spend control (2026-08-06)
+
+Decision: enforce the existing Vercel Git-disable setting in repository CI and
+reject deploy commands in package/workflow automation. This prevents an
+accidental push or script from creating billable builds. The guard is static,
+read-only, and does not replace the required human/provider review for an
+approved release.
+
+Evidence: spend-guard 3/3, actionlint 1.7.12, Web 87/545, typecheck, serial
+lint, 80-route production build, and diff check. Source SHA
+`9cfee695f75e66375c2578235d0f1544a987e3ab`; no provider or hosted data state
+changed.
+
 ## D-194 - Audit totals must be authoritative and singular (2026-08-06)
 
 Decision: show the filtered audit total in the single summary line and remove

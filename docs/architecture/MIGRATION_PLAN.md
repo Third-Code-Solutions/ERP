@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.85 - Vercel spend guard (2026-08-06)
+
+Added `scripts/verify-vercel-spend-guard.mjs` plus three Node tests. The guard
+requires the checked-in Vercel project config to keep Git deployment disabled
+and scans repository automation for `vercel deploy`/`vc deploy` patterns. CI
+runs it before the build job. It never calls a provider, creates a deployment,
+or changes a setting.
+
+Validation: spend-guard 3/3; actionlint 1.7.12; Web 87/545; root typecheck;
+serial lint; production build 80/80 routes; and diff check. Source SHA
+`9cfee695f75e66375c2578235d0f1544a987e3ab` is ready to push. No Railway,
+Supabase, or Vercel mutation occurred.
+
+## Next gate
+
+Push source/docs only. Keep Vercel Git disabled and Supabase read-only at
+55/90. The next functional gate remains protected role/cross-tenant/redaction
+browser proof, owner tenant mapping, clone reconciliation, rollback evidence,
+and an explicit spend cap before any Core canary.
+
 ## M3.84 - Audit summary count polish (2026-08-06)
 
 Changed only the project Audit summary copy: it now uses the authoritative

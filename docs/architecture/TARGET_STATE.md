@@ -3,6 +3,13 @@
 Third Code ERP remains an incremental TypeScript system. The target is a
 modular monolith, not a rewrite and not a microservice fleet.
 
+## M3.85 Spend-safe web delivery (2026-08-06)
+
+The target web delivery lane must fail closed when automatic Vercel Git
+deployments are enabled or repository automation contains a deploy command.
+The guard is static and read-only; an explicitly approved production release
+must still use a separately reviewed, spend-capped provider action.
+
 ## M3.84 Audit summary clarity (2026-08-06)
 
 Audit retrieval should expose one authoritative filtered total above the
