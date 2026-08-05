@@ -1,5 +1,22 @@
 # Work Log
 
+## 2026-08-05 - M3.82 project audit filters and pagination
+
+Added bounded action/entity filters and URL pagination to the existing project
+Audit page. Both direct and Core reads use the same 25-row page contract;
+Core forwards filters and preserves redaction/totals. Unsupported query values
+are discarded, page numbers are clamped, and no official write or authority
+default changed. Added pure helper tests; no database migration or hosted
+state mutation occurred.
+
+Evidence: helper 3/3; Web 87 files/545 tests; root typecheck; serial lint;
+production build 80/80 routes; diff check pass. Source commit `e98a03b`
+pushed to both target refs under `kurtgav`. No Railway API build was needed
+because watched API paths were unchanged. Vercel Git/build remained disabled;
+read-only checks of retained revision `31c04942a93d` returned 200 for public,
+dashboard, SEO, health, and readiness routes. New source is not claimed live
+on Vercel.
+
 ## 2026-08-05 - M3.81 Core-gated project audit read adapter
 
 Added the first UI consumer of the Nest audit authority without a big-bang

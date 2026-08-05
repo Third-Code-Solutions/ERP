@@ -4,6 +4,27 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.82 Project audit filters and pagination (2026-08-05)
+
+The project Audit view now supports bounded action/entity filters and
+URL-addressable pagination. The same filter contract is applied to the legacy
+tenant-scoped read and to the closed Core adapter; Core remains selected only
+by its existing exact flag and tenant allowlist. Page size is 25, filters are
+allowlisted in the view, and the Core response supplies authoritative totals.
+No official mutation, migration, RLS policy, or default authority boundary
+changed.
+
+Validation: audit view helper 3/3; full Web suite 87 files/545 tests; root
+typecheck; serial lint; production build 80/80 routes; and `git diff --check`
+pass. Source commit `e98a03b` is pushed to `main` and
+`agent-02/third-code-erp-landing` as `kurtgav`.
+
+No Railway API build was needed because the change is outside watched API
+paths. No Supabase write occurred. Vercel Git/build activity remains disabled;
+read-only probes of the retained production revision `31c04942a93d` returned
+200 for `/`, `/dashboard`, `/robots.txt`, `/sitemap.xml`, `/api/health`, and
+`/api/ready`. The new source is not claimed live on Vercel.
+
 ## M3.81 Core-gated project audit read adapter (2026-08-05)
 
 The existing project Audit page now has a closed-by-default adapter to the

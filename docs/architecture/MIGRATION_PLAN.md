@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.82 - Project audit filters and pagination (2026-08-05)
+
+Added a read-only usability slice to the existing project Audit page. Users
+can filter by supported action/entity values and move through 25-row pages via
+stable URL parameters. Direct reads apply the same tenant/filter/offset rules;
+the Core adapter forwards the filters and uses its redacted totals. The Core
+flag remains closed by default, no migration was added, and no visible default
+authority or write path changed.
+
+Validation: helper 3/3; Web 87 files/545 tests; root typecheck; serial lint;
+production build 80/80 routes; diff check pass. Source SHA `e98a03b` is
+pushed to both target refs. No Railway API build, Supabase write, or Vercel
+build occurred; Vercel read-only probes still resolve retained revision
+`31c04942a93d`.
+
+## Next gate
+
+Keep Core audit flags false/empty. Obtain protected role/browser evidence for
+the filter and redaction states, then reconcile the hosted clone and secure
+owner-approved tenant mapping before any canary. Do not trigger Vercel or
+apply the 35 pending Supabase migrations.
+
 ## M3.81 - Core-gated project audit read adapter (2026-08-05)
 
 Added the smallest UI authority cutover slice: the existing project Audit page

@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-05
-Source checkpoint: `e8d993d` (M3.81 Core-gated project audit read adapter)
+Source checkpoint: `e98a03b` (M3.82 project audit filters and pagination)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 This matrix is the product scope baseline. It describes business outcomes and
@@ -9,6 +9,12 @@ the current Third Code implementation; it is not a source, schema, UI, copy, or
 test port from another product. Status is deliberately separated from hosted
 release status so local capability work cannot be mistaken for production
 authorization.
+
+M3.82 update: project Audit now has allowlisted action/entity filters and
+URL-addressable 25-row pagination. Direct and Core reads share tenant-scoped
+filter semantics; Core remains closed by flag/tenant allowlist and redacts
+details. Source SHA `e98a03b` is locally validated only; Supabase and Vercel
+remain unchanged.
 
 M3.81 update: the existing project Audit page can select the redacted Nest
 `GET /v1/audit/activity` projection only behind an explicit environment flag,
