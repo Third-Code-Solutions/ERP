@@ -31,6 +31,7 @@ import {
   getInventoryStockMovementDetailThroughCoreApi,
   getFinanceReceivablesThroughCoreApi,
   getFinancePayablesThroughCoreApi,
+  getFinanceCashThroughCoreApi,
   getOpportunityThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
@@ -43,6 +44,7 @@ import {
   inventoryStockMovementDetailReadsUseCoreApi,
   financeReceivablesReadsUseCoreApi,
   financePayablesReadsUseCoreApi,
+  financeCashReadsUseCoreApi,
   inventoryStockMovementCreateWritesUseCoreApi,
   inventoryStockMovementWorkflowUseCoreApi,
   opportunityReadsUseCoreApi,
@@ -472,6 +474,38 @@ const FINANCE_PAYABLES_RESULT = {
   aging31To60Cents: 85_000,
   aging61To90Cents: 0,
   aging90PlusCents: 0,
+  page: 1,
+  limit: 500,
+  totalPages: 1,
+}
+const FINANCE_CASH_RESULT = {
+  tenantId: RESULT.tenantId,
+  rows: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      internalNumber: 'CT-2026-000001',
+      referenceNumber: 'BANK-001',
+      direction: 'disbursement' as const,
+      status: 'posted' as const,
+      transactionDate: '2026-08-01',
+      currency: 'PHP',
+      amountCents: 85_000,
+      postingJournalEntryId: '66666666-6666-4666-8666-666666666666',
+      postedAt: '2026-08-01T02:00:00.000Z',
+      cashAccountId: '55555555-5555-4555-8555-555555555555',
+      cashAccountName: 'Operating bank',
+      businessAccountId: null,
+      businessAccountName: null,
+      vendorId: '77777777-7777-4777-8777-777777777777',
+      vendorName: 'Acme Supply',
+    },
+  ],
+  total: 1,
+  postedReceiptCents: 0,
+  postedDisbursementCents: 85_000,
+  draftCount: 0,
+  postedCount: 1,
+  reversedCount: 0,
   page: 1,
   limit: 500,
   totalPages: 1,
@@ -945,6 +979,53 @@ describe('ERP Core client', () => {
     ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/finance/payables?vendorId=55555555-5555-4555-8555-555555555555&dueFrom=2026-08-01&dueTo=2026-08-31&page=1&limit=500',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('keeps Finance cash reads on the legacy path unless the exact gate matches', () => {
+    expect(financeCashReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_FINANCE_CASH_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_FINANCE_CASH_READS_VIA_API_TENANT_IDS', RESULT.tenantId)
+    expect(financeCashReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_CASH_READS_VIA_API', 'TRUE')
+    expect(financeCashReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_CASH_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_FINANCE_CASH_READS_VIA_API_TENANT_IDS', '')
+    expect(financeCashReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(financeCashReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('calls the authenticated Core Finance cash read and validates evidence', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(FINANCE_CASH_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getFinanceCashThroughCoreApi({
+        cashAccountId: '55555555-5555-4555-8555-555555555555',
+        direction: 'receipt',
+        status: undefined,
+        fromDate: '2026-08-01',
+        toDate: '2026-08-31',
+        page: 1,
+        limit: 500,
+      })
+    ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/finance/cash-transactions?cashAccountId=55555555-5555-4555-8555-555555555555&direction=receipt&fromDate=2026-08-01&toDate=2026-08-31&page=1&limit=500',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

@@ -25,6 +25,8 @@ import { FinanceReceivablesController } from './finance-receivables.controller'
 import { FinanceReceivablesService } from './finance-receivables.service'
 import { FinancePayablesController } from './finance-payables.controller'
 import { FinancePayablesService } from './finance-payables.service'
+import { FinanceCashController } from './finance-cash.controller'
+import { FinanceCashService } from './finance-cash.service'
 
 @Module({
   imports: [AuditModule],
@@ -41,6 +43,7 @@ import { FinancePayablesService } from './finance-payables.service'
     FinanceLedgerController,
     FinanceReceivablesController,
     FinancePayablesController,
+    FinanceCashController,
   ],
   providers: [
     JournalPostService,
@@ -55,6 +58,7 @@ import { FinancePayablesService } from './finance-payables.service'
     FinanceLedgerService,
     FinanceReceivablesService,
     FinancePayablesService,
+    FinanceCashService,
   ],
 })
 export class FinanceModule implements NestModule {
@@ -73,7 +77,8 @@ export class FinanceModule implements NestModule {
         CustomerInvoiceCancelController,
         FinanceLedgerController,
         FinanceReceivablesController,
-        FinancePayablesController
+        FinancePayablesController,
+        FinanceCashController
       )
   }
 }

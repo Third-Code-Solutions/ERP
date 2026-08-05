@@ -46,6 +46,7 @@ import {
   financeLedgerResultSchema,
   financeReceivablesResultSchema,
   financePayablesResultSchema,
+  financeCashResultSchema,
   stockMovementCreationResultSchema,
   stockMovementPostingResultSchema,
   stockMovementReversalResultSchema,
@@ -125,6 +126,8 @@ import {
   type FinanceReceivablesResult,
   type FinancePayablesQuery,
   type FinancePayablesResult,
+  type FinanceCashQuery,
+  type FinanceCashResult,
   type CreateStockMovementCommand,
   type StockMovementCreationResult,
   type StockMovementPostCommand,
@@ -322,6 +325,15 @@ export function financePayablesReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_FINANCE_PAYABLES_READS_VIA_API,
     process.env.ERP_FINANCE_PAYABLES_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Cash register reads remain disabled until a protected finance canary is approved. */
+export function financeCashReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_CASH_READS_VIA_API,
+    process.env.ERP_FINANCE_CASH_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1360,6 +1372,66 @@ export async function getFinancePayablesThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Supplier payables were not read.',
+    }
+  }
+}
+
+export async function getFinanceCashThroughCoreApi(
+  query: FinanceCashQuery
+): Promise<CoreResult<FinanceCashResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams()
+    if (query.cashAccountId) params.set('cashAccountId', query.cashAccountId)
+    if (query.direction) params.set('direction', query.direction)
+    if (query.status) params.set('status', query.status)
+    if (query.fromDate) params.set('fromDate', query.fromDate)
+    if (query.toDate) params.set('toDate', query.toDate)
+    params.set('page', String(query.page))
+    params.set('limit', String(query.limit))
+
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/cash-transactions?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Cash transaction filters are invalid.'
+            : response.status === 403
+              ? 'You do not have permission to view cash transactions.'
+              : 'Cash transactions were not completed.',
+        status: response.status,
+      }
+    }
+
+    const parsed = financeCashResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid cash transaction result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Cash transactions were not read.',
     }
   }
 }
