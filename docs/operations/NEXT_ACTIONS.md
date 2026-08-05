@@ -1,5 +1,28 @@
 # Next Actions
 
+## Exact next action after M3.94
+
+1. Keep `ERP_FINANCE_RECEIVABLES_READS_ENABLED=false`,
+   `ERP_FINANCE_RECEIVABLES_READS_TENANT_IDS` empty,
+   `ERP_FINANCE_RECEIVABLES_READS_VIA_API=false`, and
+   `ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS` empty. Production
+   receivables remains an unauthenticated 401 boundary, not a tenant canary.
+2. Source SHA `f298b61a215ea43753f627010444c488f0c46518` is pushed to
+   `Third-Code-Solutions/ERP`; Railway deployment
+   `bfec3369-dee7-4ed9-9cb7-37f1e71fe9ab` is `SUCCESS`/`RUNNING` with API
+   Dockerfile, `/ready` 200, `/health` 200, and receivables 401. Do not trigger
+   another Railway build unless source changes; do not create a Vercel preview
+   or production build.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at PostgreSQL 17 with 55/92
+   migrations applied and 37 missing. The duplicate planner still reports
+   one tenant-scoped Purchase Order group containing 12 records; obtain the
+   supported backup/export, dependent/audit export, and owner-approved mapping
+   before any migration apply or canary.
+4. Replay invoice/allocation data on disposable PostgreSQL 17; compare direct
+   and Core exact-cent balances and aging totals, review RLS/audit behavior,
+   exercise a protected browser tenant canary, and capture rollback/spend
+   evidence before enabling Core reads. Python and AI remain advisory only.
+
 ## Exact next action after M3.93
 
 1. Keep `ERP_FINANCE_LEDGER_READS_ENABLED=false`,

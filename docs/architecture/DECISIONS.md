@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-204 - Receivables reads use a closed Nest contract (2026-08-06)
+
+Decision: expose customer receivables through `GET /v1/finance/receivables`
+with strict bounded filters, verified-principal tenant scope, posted invoice
+status and issuance evidence, same-tenant context joins, integer-cent
+allocation math, and server-computed aging totals. The existing Next page keeps
+its direct-read compatibility path; an exact boolean plus tenant allowlist
+selects the typed Core adapter and Core errors fail closed. Nest remains the
+authority for invoice/cash writes; Python cannot approve or finalize state.
+
+Evidence: shared 23 files/208 tests; API 100 files/430 tests; Web 87 files/554
+tests; database active/skipped lanes, package-serial tests, typecheck, serial
+lint, production build 80/80, Vercel spend guard, and diff check. Source SHA
+`f298b61a215ea43753f627010444c488f0c46518` is Railway deployment
+`bfec3369-dee7-4ed9-9cb7-37f1e71fe9ab` (`SUCCESS`/`RUNNING`); live readiness and
+health are 200 and unauthenticated receivables is 401. Supabase was not
+written and Vercel remained unchanged.
+
 ## D-203 - Finance ledger reads use a closed Nest contract (2026-08-06)
 
 Decision: expose the general ledger through `GET /v1/finance/ledger` with

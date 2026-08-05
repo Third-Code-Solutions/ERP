@@ -1,5 +1,37 @@
 # Migration Plan
 
+## M3.94 - Closed customer receivables read projection (2026-08-06)
+
+Implemented the smallest safe receivables read seam: shared bounded filters and
+strict result types, Nest controller/pipe/service, `finance.read` authorization,
+same-tenant invoice/project/account joins, posted cash-allocation math, and a
+typed Next adapter. The existing page remains the compatibility path unless
+`ERP_FINANCE_RECEIVABLES_READS_VIA_API=true` and the tenant is in the exact
+allowlist; selected tenants fail closed on Core errors and over-limit results.
+API and Next flags remain false/empty.
+
+Validation: shared 23 files/208 tests; API 100 files/430 tests; Web 87 files/554
+tests; database 45 files/177 active tests with 4 files/141 skipped integration/
+RLS tests without local `DATABASE_URL`; package-serial tests; typecheck; serial
+lint; production build 80/80; Vercel spend guard; and diff check. Source SHA
+`f298b61a215ea43753f627010444c488f0c46518` is pushed to both GitHub refs.
+Railway `bfec3369-dee7-4ed9-9cb7-37f1e71fe9ab` is `SUCCESS`/`RUNNING` with the
+API Dockerfile; live `/ready` 200, `/health` 200, and unauthenticated
+receivables 401. No hosted SQL, Supabase data/Storage write, Python
+transaction, Vercel build, or extra AI/provider spend occurred.
+
+## Next gate
+
+Keep `ERP_FINANCE_RECEIVABLES_READS_ENABLED=false`,
+`ERP_FINANCE_RECEIVABLES_READS_TENANT_IDS` empty,
+`ERP_FINANCE_RECEIVABLES_READS_VIA_API=false`, and
+`ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS` empty. Do not enable a
+tenant until invoice/allocation data is replayed on disposable PostgreSQL 17,
+exact-cent and aging totals match the direct path, RLS/audit behavior is
+reviewed, a protected browser canary passes, and rollback/spend evidence is
+captured. Do not trigger a Vercel build; Supabase remains read-only at 55/92
+with 37 missing migrations and the 12-record Purchase Order duplicate group.
+
 ## M3.93 - Closed Finance general-ledger read projection (2026-08-06)
 
 Implemented the smallest safe Finance read seam: shared bounded query/result

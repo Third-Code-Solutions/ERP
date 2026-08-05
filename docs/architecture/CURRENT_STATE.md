@@ -4,6 +4,36 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.94 Closed customer receivables read projection (2026-08-06)
+
+Added an original shared Finance Receivables query/result contract and NestJS
+`GET /v1/finance/receivables` projection. The API requires `finance.read`,
+derives tenant scope from the verified principal, restricts the default view to
+issued/partial/overdue invoices with issuance evidence, joins same-tenant
+Project and Business Account context, and computes posted receipt allocations,
+retention, exact-cent balances, and aging totals server-side. Next keeps the
+existing Receivables page and direct-read path by default; the Core adapter is
+selected only by exact boolean plus UUID tenant allowlist and fails closed on
+Core error or an over-limit result. No UI redesign, browser write, Python
+transaction authority, hosted SQL, or data mutation was added.
+
+Validation: shared 23 files/208 tests; API 100 files/430 tests; Web 87 files/554
+tests; database 45 files/177 active tests with 4 files/141 integration/RLS
+tests skipped because local `DATABASE_URL` is unavailable; package-serial test
+run; typecheck; serial lint; production build 80/80 routes; Vercel spend guard;
+and diff check. Source SHA
+`f298b61a215ea43753f627010444c488f0c46518` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`bfec3369-dee7-4ed9-9cb7-37f1e71fe9ab` is `SUCCESS`/`RUNNING` from
+`/railway.toml` with `apps/api/Dockerfile`, `/ready`, and
+`node apps/api/dist/main.js`; image digest is
+`sha256:e5aed31b20eebf7511208a23f90eacaabeca7d572c6c0c12ff3b1ff396b785a9`.
+Live `/ready` and `/health` are 200 and unauthenticated
+`/v1/finance/receivables` is 401. Supabase remains read-only at PostgreSQL 17
+with 55/92 migrations applied, 37 missing, and one duplicate Purchase Order
+group of 12 records. Vercel Git remains disconnected, the spend guard is
+clear, and no Vercel build or deploy was started.
+
 ## M3.93 Closed Finance general-ledger read projection (2026-08-06)
 
 Added an original shared Finance Ledger query/result contract and NestJS

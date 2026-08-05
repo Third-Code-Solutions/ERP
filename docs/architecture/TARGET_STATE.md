@@ -1,5 +1,15 @@
 # Target State
 
+## M3.94 increment: Core-owned customer receivables reads
+
+Customer receivables reads move behind a typed NestJS projection before a
+browser cutover. `GET /v1/finance/receivables` owns tenant and invoice-status
+scope, posted allocation joins, integer-cent balance math, and aging totals;
+Next retains a fail-closed adapter and the existing page for unselected
+tenants. Keep the seam closed until disposable invoice/allocation replay,
+exact-cent parity, RLS/audit review, protected browser proof, rollback, and
+spend gates clear.
+
 ## M3.93 increment: Core-owned Finance general-ledger reads
 
 Finance Ledger reads move behind a typed NestJS projection before any browser

@@ -1,8 +1,20 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `c279f61` (M3.93 closed Finance ledger read projection)
+Source checkpoint: `f298b61` (M3.94 closed customer receivables read projection)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.94 update: customer receivables now has a typed, tenant-derived NestJS
+`GET /v1/finance/receivables` projection with posted invoice status scope,
+same-tenant Project/Business Account context, exact-cent allocation balances,
+and server-computed aging totals. API and Next selectors are false/empty by
+default; the existing page remains the compatibility path for unselected
+tenants and Core failure cannot fall back for a selected tenant. Source SHA
+`f298b61a215ea43753f627010444c488f0c46518` is live on Railway deployment
+`bfec3369-dee7-4ed9-9cb7-37f1e71fe9ab` (`SUCCESS`/`RUNNING`); readiness/health
+are 200 and unauthenticated receivables is 401. No UI, hosted migration,
+provider spend, or official ERP write changed. Vercel remains disconnected
+with no new build.
 
 M3.93 update: the general ledger now has a typed, tenant-derived NestJS
 `GET /v1/finance/ledger` read projection with posted-entry scope, integer cents,
