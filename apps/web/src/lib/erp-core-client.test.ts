@@ -29,6 +29,7 @@ import {
   getInventorySummaryThroughCoreApi,
   getInventoryStockMovementsThroughCoreApi,
   getInventoryStockMovementDetailThroughCoreApi,
+  getFinanceReceivablesThroughCoreApi,
   getOpportunityThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
@@ -39,6 +40,7 @@ import {
   inventorySummaryReadsUseCoreApi,
   inventoryStockMovementReadsUseCoreApi,
   inventoryStockMovementDetailReadsUseCoreApi,
+  financeReceivablesReadsUseCoreApi,
   inventoryStockMovementCreateWritesUseCoreApi,
   inventoryStockMovementWorkflowUseCoreApi,
   opportunityReadsUseCoreApi,
@@ -392,6 +394,40 @@ const AUDIT_ACTIVITY_RESULT = {
   total: 1,
   page: 1,
   limit: 200,
+  totalPages: 1,
+}
+const FINANCE_RECEIVABLES_RESULT = {
+  tenantId: RESULT.tenantId,
+  asOfDate: '2026-08-06',
+  rows: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      invoiceNumber: 'INV-2026-000001',
+      status: 'partial_payment' as const,
+      netAmountCents: 100_000,
+      retentionCents: 10_000,
+      withholdingTaxCents: 2_000,
+      currentAllocatedCents: 25_000,
+      retentionAllocatedCents: 0,
+      currentOpenCents: 75_000,
+      retentionOpenCents: 10_000,
+      dueDate: '2026-08-01T00:00:00.000Z',
+      issuedAt: '2026-07-01T00:00:00.000Z',
+      issuanceJournalEntryId: '66666666-6666-4666-8666-666666666666',
+      projectId: PROJECT_ID,
+      projectName: 'Warehouse fit-out',
+      accountId: '55555555-5555-4555-8555-555555555555',
+      accountName: 'Acme Holdings',
+    },
+  ],
+  total: 1,
+  totalDueCents: 75_000,
+  totalRetentionCents: 10_000,
+  totalWithheldCents: 2_000,
+  overdueTotalCents: 75_000,
+  overdueCount: 1,
+  page: 1,
+  limit: 500,
   totalPages: 1,
 }
 const ACCOUNT_LIST_RESULT = {
@@ -763,6 +799,56 @@ describe('ERP Core client', () => {
     ).resolves.toMatchObject({ ok: true, data: { total: 0 } })
     expect(fetchMock).toHaveBeenCalledWith(
       `https://erp-api.example.test/v1/finance/ledger?accountId=${RESULT.tenantId}&from=2026-01-01&to=2026-01-31&page=1&limit=500`,
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('keeps Finance receivables reads on the legacy path unless the exact gate matches', () => {
+    expect(financeReceivablesReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_FINANCE_RECEIVABLES_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeReceivablesReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_RECEIVABLES_READS_VIA_API', 'TRUE')
+    expect(financeReceivablesReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_RECEIVABLES_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS', '')
+    expect(financeReceivablesReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(financeReceivablesReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('calls the authenticated Core Finance receivables read and validates balances', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(FINANCE_RECEIVABLES_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getFinanceReceivablesThroughCoreApi({
+        accountId: '55555555-5555-4555-8555-555555555555',
+        projectId: undefined,
+        status: undefined,
+        dueFrom: '2026-08-01',
+        dueTo: '2026-08-31',
+        page: 1,
+        limit: 500,
+      })
+    ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/finance/receivables?accountId=55555555-5555-4555-8555-555555555555&dueFrom=2026-08-01&dueTo=2026-08-31&page=1&limit=500',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',
