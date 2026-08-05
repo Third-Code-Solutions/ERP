@@ -14,10 +14,13 @@ write, Python transaction, hosted SQL, Vercel build, or provider spend.
 Validation: shared 21 files/203 tests; API 96 files/419 tests; Web 87 files/550
 tests; package-serial suite; typecheck; serial lint; production build 80/80;
 and diff check. A parallel root turbo test hit five cross-package HTTP-test
-timeouts; isolated API and package-serial runs passed. Source/provider SHA and
-Railway evidence are pending the reviewed commit; Supabase remains read-only
-at 55/92 with one 12-record Purchase Order duplicate group, and Vercel stays
-spend-guarded with no build/deploy.
+timeouts; isolated API and package-serial runs passed. Source SHA
+`cd94e274a6a5cb19f715c73fa96fc717879644cc` is pushed to both GitHub refs.
+Railway deployment `e9e90045-f907-4f6c-ae49-5fa3dcff3cd9` is `SUCCESS` using
+the API Dockerfile; live `/ready` and `/health` are 200 and unauthenticated
+`/v1/cortex/search` is 401. Supabase remains read-only at 55/92 with one
+12-record Purchase Order duplicate group, and Vercel stays spend-guarded with
+no build/deploy.
 
 ## 2026-08-06 - M3.91 closed operational asset read projection
 

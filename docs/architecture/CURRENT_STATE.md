@@ -21,11 +21,16 @@ Validation: shared 21 files/203 tests; API 96 files/419 tests; Web 87 files/550
 tests; package-serial test run; typecheck; serial lint; production build
 80/80 routes; and diff check. Root `pnpm test` was also attempted in parallel
 and hit five existing HTTP-test timeouts from cross-package contention; the
-package-serial run passed. Source and provider release evidence will be
-recorded after the reviewed commit/push. Supabase remains read-only at
-PostgreSQL 17 with 55/92 migrations applied, 37 missing, and one duplicate
-Purchase Order group of 12 records. Vercel spend guard remains closed/clear;
-no Vercel build or deploy was started.
+package-serial run passed. Source SHA
+`cd94e274a6a5cb19f715c73fa96fc717879644cc` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`e9e90045-f907-4f6c-ae49-5fa3dcff3cd9` reports `SUCCESS` with the API
+Dockerfile, `/ready` healthcheck, and `node apps/api/dist/main.js`; live
+`/ready` and `/health` are 200 and unauthenticated `/v1/cortex/search` is 401.
+Supabase remains read-only at PostgreSQL 17 with 55/92 migrations applied,
+37 missing, and one duplicate Purchase Order group of 12 records. Vercel
+Git remains disconnected, the spend guard is clear, and no Vercel build or
+deploy was started.
 
 ## M3.91 Closed operational asset read projection (2026-08-06)
 

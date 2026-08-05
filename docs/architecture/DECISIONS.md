@@ -14,8 +14,11 @@ spend gates clear. Search never invokes external AI or finalizes ERP state.
 Evidence: shared 21 files/203 tests; API 96 files/419 tests; Web 87 files/550
 tests; package-serial tests; typecheck; serial lint; production build 80/80;
 and diff check. The parallel root turbo test had five cross-package timeout
-failures, while the isolated API and package-serial runs passed. No Supabase,
-Vercel, Python, or provider mutation occurred.
+failures, while the isolated API and package-serial runs passed. Source SHA
+`cd94e274a6a5cb19f715c73fa96fc717879644cc` is Railway deployment
+`e9e90045-f907-4f6c-ae49-5fa3dcff3cd9` (`SUCCESS`); live readiness/health are
+200 and unauthenticated Cortex search is 401. Supabase was not written and
+Vercel stayed unchanged for spend control.
 
 ## D-201 - Asset reads use a closed, tenant-derived Nest contract (2026-08-06)
 
