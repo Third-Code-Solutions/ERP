@@ -2,10 +2,11 @@
 
 ## Exact next action after M3.86
 
-1. Push source SHA `bcee984` and the reviewed documentation once to both
-   GitHub refs. Do not use Vercel CLI, create a preview, or manually redeploy
-   Railway; observe whether the API watched paths produce one controlled
-   Railway deployment.
+1. Completed: source SHA `bcee984` and the reviewed documentation are pushed
+   to both GitHub refs. Controlled Railway deployment
+   `76c27b43-47cd-4912-bca0-19a597190318` is `SUCCESS` for SHA
+   `f2457fd13bc7d7d1911e9f3bbb231cddb4de571b`; `/ready` and `/health` are 200.
+   No Vercel CLI, preview, or manual Railway redeploy was used.
 2. Keep API flags
    `ERP_COST_ENTRY_CREATE_WRITES_ENABLED=false` and
    `ERP_COST_ENTRY_CREATE_WRITES_TENANT_IDS` empty. Keep matching Web Core
@@ -14,10 +15,10 @@
    migrations. Obtain supported backup/export, dependent/audit export, owner
    tenant mapping, and isolated PostgreSQL 17 replay evidence before any
    migration apply.
-4. After the exact Railway release is observed, probe `/ready`, `/health`,
-   unauthenticated 401, role denial, cross-tenant denial, redaction, and
-   idempotent replay in a protected disposable/browser lane. Capture rollback
-   evidence and an explicit spend cap before a named tenant canary.
+4. Next: probe role denial, cross-tenant denial, redaction, and idempotent
+   replay in a protected disposable/browser lane. Capture rollback evidence
+   and an explicit spend cap before a named tenant canary; the unauthenticated
+   401 boundary is already observed.
 5. Preserve Vercel Git deployment disabled and the retained production
    revision `31c04942a93d`; new source is not live on Vercel until a separately
    approved, spend-capped release.

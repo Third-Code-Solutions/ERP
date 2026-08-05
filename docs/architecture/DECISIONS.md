@@ -14,8 +14,11 @@ Evidence: API route/controller/service contracts, 3 route tests plus a
 fail-closed service test, database migration contract 3/3, shared contracts
 2/2, Web Core flag suite 97/97, full API 90/393, database 44/173 active,
 shared 19/198, Web 87/546, typecheck/lint/build/actionlint/spend guard/diff
-check. Source SHA `bcee984`. Hosted Supabase was not written; Vercel was not
-built or deployed.
+check. Source SHA `bcee984` is included in Railway deployment
+`76c27b43-47cd-4912-bca0-19a597190318` (`SUCCESS`, SHA
+`f2457fd13bc7d7d1911e9f3bbb231cddb4de571b`); live readiness/health are 200
+and the unauthenticated command is 401. Hosted Supabase was not written;
+Vercel stayed on `31c04942a93d` without a build/deploy.
 
 ## D-195 - Vercel deployment automation fails closed for spend control (2026-08-06)
 

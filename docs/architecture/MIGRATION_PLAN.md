@@ -18,12 +18,18 @@ Release boundary: API flags
 `ERP_COST_ENTRY_CREATE_WRITES_TENANT_IDS` empty; matching Web adapter flags
 false/empty. Supabase project `aqqrtkmtcsfkbyyqxowv` remains read-only at
 55/91 (36 pending, `review_required`). Do not apply the migration, enable a
-tenant, or create a paid Vercel build from this source evidence alone.
+ tenant, or create a paid Vercel build from this source evidence alone.
+
+Controlled release observation: source/docs are pushed to both GitHub refs;
+Railway deployment `76c27b43-47cd-4912-bca0-19a597190318` is `SUCCESS` for
+`f2457fd13bc7d7d1911e9f3bbb231cddb4de571b`, with live `/ready` and `/health`
+200 and unauthenticated command 401. Vercel stayed on `31c04942a93d` with no
+new build.
 
 ## Next gate
 
-Push the reviewed source and docs once, observe Railway's watched-path result,
-and probe the exact API release. Keep Vercel Git/build disabled. Before any
+Probe the exact API release's protected role/cross-tenant/redaction/idempotent
+boundaries. Keep Vercel Git/build disabled. Before any
 cost canary: run a disposable PostgreSQL 17 replay including migration 91,
 obtain backup/export plus owner mapping, prove protected role and
 cross-tenant denial, verify audit redaction and idempotent replay, capture
