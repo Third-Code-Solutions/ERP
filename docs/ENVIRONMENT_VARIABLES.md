@@ -183,6 +183,23 @@ rollback evidence are complete.
 | `ERP_FINANCE_LEDGER_READS_VIA_API` | no | Next server | Selects the authenticated Nest read adapter; exact `true` only |
 | `ERP_FINANCE_LEDGER_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## Customer receivables read projection (NestJS, disabled by default)
+
+The `/finance/receivables` page can select the tenant-scoped Nest
+`GET /v1/finance/receivables` projection. It returns posted invoice balances,
+receipt allocations, retention, withholding, and server-computed aging totals.
+The existing server-side read path remains the default. Keep both selectors
+closed until disposable replay, exact-cent invoice/allocation parity, RLS and
+audit review, protected browser proof, rollback evidence, and spend controls
+are complete.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_FINANCE_RECEIVABLES_READS_ENABLED` | no | Railway API | Exact `true` enables `GET /v1/finance/receivables`; default `false` |
+| `ERP_FINANCE_RECEIVABLES_READS_TENANT_IDS` | no | Railway API | Strict UUID allowlist; default empty |
+| `ERP_FINANCE_RECEIVABLES_READS_VIA_API` | no | Next server | Selects the authenticated Nest read adapter; exact `true` only |
+| `ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
 ## Project detail read cutover (NestJS, disabled by default)
 
 The project detail page can opt into the tenant-scoped Nest read contract for

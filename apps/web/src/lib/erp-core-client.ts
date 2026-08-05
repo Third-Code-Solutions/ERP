@@ -44,6 +44,7 @@ import {
   inventoryStockMovementDetailResultSchema,
   auditActivityResultSchema,
   financeLedgerResultSchema,
+  financeReceivablesResultSchema,
   stockMovementCreationResultSchema,
   stockMovementPostingResultSchema,
   stockMovementReversalResultSchema,
@@ -119,6 +120,8 @@ import {
   type AuditActivityResult,
   type FinanceLedgerQuery,
   type FinanceLedgerResult,
+  type FinanceReceivablesQuery,
+  type FinanceReceivablesResult,
   type CreateStockMovementCommand,
   type StockMovementCreationResult,
   type StockMovementPostCommand,
@@ -298,6 +301,15 @@ export function financeLedgerReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_FINANCE_LEDGER_READS_VIA_API,
     process.env.ERP_FINANCE_LEDGER_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Customer receivables reads remain disabled until a protected finance canary is approved. */
+export function financeReceivablesReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_RECEIVABLES_READS_VIA_API,
+    process.env.ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1216,6 +1228,66 @@ export async function getFinanceLedgerThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Finance ledger was not read.',
+    }
+  }
+}
+
+export async function getFinanceReceivablesThroughCoreApi(
+  query: FinanceReceivablesQuery
+): Promise<CoreResult<FinanceReceivablesResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams()
+    if (query.accountId) params.set('accountId', query.accountId)
+    if (query.projectId) params.set('projectId', query.projectId)
+    if (query.status) params.set('status', query.status)
+    if (query.dueFrom) params.set('dueFrom', query.dueFrom)
+    if (query.dueTo) params.set('dueTo', query.dueTo)
+    params.set('page', String(query.page))
+    params.set('limit', String(query.limit))
+
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/receivables?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Customer receivables filters are invalid.'
+            : response.status === 403
+              ? 'You do not have permission to view customer receivables.'
+              : 'Customer receivables were not completed.',
+        status: response.status,
+      }
+    }
+
+    const parsed = financeReceivablesResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid customer receivables result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Customer receivables were not read.',
     }
   }
 }

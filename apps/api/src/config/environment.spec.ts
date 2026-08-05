@@ -63,6 +63,35 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_ASSET_READS_TENANT_IDS')
   })
 
+  it('keeps customer receivables reads disabled and tenant-scoped by default', () => {
+    expect(
+      validateEnvironment(REQUIRED).ERP_FINANCE_RECEIVABLES_READS_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED).ERP_FINANCE_RECEIVABLES_READS_TENANT_IDS
+    ).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_FINANCE_RECEIVABLES_READS_ENABLED: 'true',
+        ERP_FINANCE_RECEIVABLES_READS_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_FINANCE_RECEIVABLES_READS_ENABLED: true,
+      ERP_FINANCE_RECEIVABLES_READS_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_FINANCE_RECEIVABLES_READS_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_FINANCE_RECEIVABLES_READS_TENANT_IDS')
+  })
+
   it('keeps Cortex search disabled and tenant-scoped by default', () => {
     expect(validateEnvironment(REQUIRED).ERP_CORTEX_SEARCH_ENABLED).toBe(false)
     expect(validateEnvironment(REQUIRED).ERP_CORTEX_SEARCH_TENANT_IDS).toEqual([])
