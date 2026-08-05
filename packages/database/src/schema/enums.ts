@@ -311,6 +311,11 @@ export const costSourceEnum = pgEnum('cost_source', [
   'import',
 ])
 
+export const costEntryCreateRequestStateEnum = pgEnum(
+  'cost_entry_create_request_state',
+  ['processing', 'succeeded']
+)
+
 // Accounting ledger foundation.
 export const fiscalPeriodStatusEnum = pgEnum('fiscal_period_status', [
   'open',

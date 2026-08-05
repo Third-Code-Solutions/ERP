@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
@@ -11,6 +12,10 @@ import {
   projects,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  costEntryCreateWritesUseCoreApi,
+  createCostEntryThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 const createSchema = z.object({
   project_id: z.string().uuid(),
@@ -23,6 +28,7 @@ const createSchema = z.object({
   incurred_at: z.string().optional(),
   reference_number: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
+  idempotency_key: z.string().trim().min(1).max(256).optional(),
 })
 
 type Result = { id: string } | { error: string }
@@ -52,12 +58,40 @@ export async function createCostEntry(formData: FormData): Promise<Result> {
       incurred_at: formData.get('incurred_at') || undefined,
       reference_number: formData.get('reference_number') || undefined,
       notes: formData.get('notes') || undefined,
+      idempotency_key: formData.get('idempotency_key') || undefined,
     })
     if (!parsed.success) {
       return { error: parsed.error.issues[0]?.message ?? 'Invalid input.' }
     }
     const d = parsed.data
     const amountCents = Math.round(d.amount_php * 100)
+
+    if (costEntryCreateWritesUseCoreApi(profile.tenantId)) {
+      const result = await createCostEntryThroughCoreApi(
+        d.project_id,
+        {
+          costCodeId: d.cost_code_id,
+          costCategory: d.cost_category,
+          description: d.description,
+          amountCents,
+          quantity: d.quantity,
+          unit: d.unit ?? null,
+          incurredAt: d.incurred_at
+            ? new Date(`${d.incurred_at}T00:00:00.000Z`).toISOString()
+            : null,
+          referenceNumber: d.reference_number ?? null,
+          notes: d.notes ?? null,
+        },
+        d.idempotency_key ?? randomUUID()
+      )
+      if (!result.ok || !result.data) {
+        return { error: result.error ?? 'Could not record the cost entry.' }
+      }
+      revalidatePath(`/projects/${d.project_id}/cost`)
+      revalidatePath(`/projects/${d.project_id}`)
+      revalidatePath('/reports')
+      return { id: result.data.id }
+    }
 
     // Verify the project belongs to the caller's tenant. The Drizzle client runs
     // as the postgres owner (RLS-bypassed), so the action is the sole authz gate.

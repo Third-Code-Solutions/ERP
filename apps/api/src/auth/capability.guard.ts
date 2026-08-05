@@ -21,6 +21,7 @@ export const ERP_CAPABILITIES = [
   'project.read',
   'project.create',
   'project.update',
+  'cost.record',
   'rfq.dispatch',
   'po.create',
   'po.approve',
@@ -107,6 +108,14 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'commercial',
     'sd_pm_pe',
     'pm',
+  ],
+  'cost.record': [
+    'owner',
+    'admin',
+    'sd_pm_pe',
+    'pm',
+    'commercial',
+    'finance',
   ],
   'rfq.dispatch': ['owner', 'admin', 'procurement'],
   // Kept intentionally narrow while the PO command is disabled by default.

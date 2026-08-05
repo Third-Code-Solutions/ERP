@@ -148,6 +148,9 @@ import {
   type DeliveryInspectionCompleteResult,
   type DeliveryCancelCommand,
   type DeliveryCancelResult,
+  type CreateCostEntryCommand,
+  costEntryCreationResultSchema,
+  type CostEntryCreationResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { z } from 'zod'
@@ -368,6 +371,14 @@ export function projectCreateWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_PROJECT_CREATE_WRITES_VIA_API,
     process.env.ERP_PROJECT_CREATE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function costEntryCreateWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_COST_ENTRY_CREATE_WRITES_VIA_API,
+    process.env.ERP_COST_ENTRY_CREATE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -1955,6 +1966,62 @@ export async function createProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project was created.',
+    }
+  }
+}
+
+export async function createCostEntryThroughCoreApi(
+  projectId: string,
+  command: CreateCostEntryCommand,
+  idempotencyKey: string
+): Promise<CoreResult<CostEntryCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/projects/${encodeURIComponent(projectId)}/cost-entries`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 503
+            ? 'Cost entry creation is not enabled for this tenant.'
+            : response.status === 409
+              ? 'Cost entry conflicts with the selected Cost Code.'
+              : 'Cost entry was not created.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = costEntryCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid cost entry result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No cost entry was created.',
     }
   }
 }
