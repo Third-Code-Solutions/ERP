@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.88 - Purchase Order creation boundary proof (2026-08-06)
+
+Added executable service proof around the existing Purchase Order command:
+role/tenant denial happens before idempotency; one transaction creates exact
+header/line cents and tax totals; semantic audit stores bounded identifiers and
+hash evidence; replay returns the exact stored result without a second insert
+or audit event.
+
+Validation: focused service 10/10; full API 90/401; root typecheck; serial
+lint; production build 80/80; diff check. Source SHA
+`e4db66a8eb4eed15a68ced1b76d9cf26f7ce6462` is pushed to both refs. Railway
+deployment `a7fb39dc-94c9-4cf0-8ad4-b0c3b7f32aa3` is `SUCCESS`; live readiness
+and health are 200; unauthenticated PO creation is 401. Supabase remains
+read-only; Vercel remains on `31c04942a93d` without a build.
+
+## Next gate
+
+Keep PO and all Core write flags false/empty. Obtain supported Supabase
+backup/export, owner tenant mapping, and disposable PostgreSQL 17 replay of
+the ordered migration suffix. Then prove protected role/cross-tenant,
+duplicate-number, rollback, audit-redaction, and idempotent replay behavior
+before any named-tenant canary or hosted apply.
+
 ## M3.87 - Protected cost-entry boundary proof (2026-08-06)
 
 Added executable service-level proof for the M3.86 command without changing

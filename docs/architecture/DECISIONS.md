@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-198 - Purchase Order creation requires exact transactional boundary proof (2026-08-06)
+
+Decision: require Purchase Order creation to derive tenant and actor from locked
+membership, authorize `po.create`, claim idempotency only after membership
+proof, calculate all monetary values as exact integer centavos, commit header
+and lines atomically, and audit only bounded evidence. Replays return the exact
+stored result without a second ERP insert or audit row. Keep PO Core flags
+false/empty until hosted and disposable integration gates pass.
+
+Evidence: focused PO service 10/10; full API 90/401; typecheck, serial lint,
+production build, and diff check. Source SHA
+`e4db66a8eb4eed15a68ced1b76d9cf26f7ce6462` is Railway deployment
+`a7fb39dc-94c9-4cf0-8ad4-b0c3b7f32aa3` (`SUCCESS`); live readiness/health are
+200 and unauthenticated PO creation is 401. Supabase was not written; Vercel
+stayed on `31c04942a93d` without a build.
+
 ## D-197 - Cost-entry authority requires executable protected-boundary proof (2026-08-06)
 
 Decision: treat disabled defaults, capability denial, tenant membership scope,

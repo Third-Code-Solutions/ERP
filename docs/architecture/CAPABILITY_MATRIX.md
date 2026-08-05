@@ -1,8 +1,13 @@
 # Third Code ERP capability matrix
 
-Status date: 2026-08-05
-Source checkpoint: `1c5b8de` (M3.83 clean-room runtime branding hardening)
+Status date: 2026-08-06
+Source checkpoint: `e4db66a` (M3.88 Purchase Order creation boundary proof)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.88 update: Purchase Order creation now has executable service proof for
+capability/tenant denial, exact centavo header and line totals, bounded audit
+evidence, and exact idempotent replay. Runtime flags remain false/empty;
+hosted migration and canary gates remain unchanged.
 
 This matrix is the product scope baseline. It describes business outcomes and
 the current Third Code implementation; it is not a source, schema, UI, copy, or

@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.88
+
+1. Keep `ERP_PO_CREATE_WRITES_ENABLED=false`, BOM/grouped PO flags false, and
+   all Core tenant allowlists empty. Source SHA `e4db66a` and docs are pushed;
+   Railway deployment `a7fb39dc-94c9-4cf0-8ad4-b0c3b7f32aa3` is `SUCCESS`, with
+   live readiness/health 200 and unauthenticated PO creation 401.
+2. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/91 with 36 pending
+   migrations. Obtain supported backup/export, dependent/audit export, and
+   owner-approved tenant mapping before any ordered apply.
+3. Run disposable PostgreSQL 17 replay, duplicate PO-number reconciliation,
+   protected role/cross-tenant/rollback/audit/idempotency evidence, then set an
+   explicit provider spend cap before a named tenant canary.
+4. Preserve Vercel Git deployment disabled and retained revision `31c04942a93d`;
+   create no preview or production build.
+
 ## Exact next action after M3.87
 
 1. Keep `ERP_COST_ENTRY_CREATE_WRITES_ENABLED=false` and both Core tenant
