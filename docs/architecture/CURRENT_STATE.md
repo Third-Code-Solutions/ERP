@@ -14,7 +14,8 @@ expose PO numbers, tenant identifiers, or raw database text. Added a focused
 service proof for the direct command; runtime flags and schema are unchanged.
 
 Validation: focused PO service 11/11; full API 90 files/402 tests; root
-typecheck; serial lint; production build 80/80 routes; and `git diff --check`.
+`pnpm test`; root typecheck; serial lint; production build 80/80 routes; and
+`git diff --check`.
 Source SHA `354401d434f3556d39bed2600748822b755c6c69` is pushed to both GitHub
 refs. Railway deployment `b6149479-1856-4ba7-baac-3e8df22bd262` reports
 `SUCCESS` for Kurt Gavin's production service, using `apps/api/Dockerfile` and

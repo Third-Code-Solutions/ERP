@@ -8,8 +8,8 @@ bounded conflict response; raw database messages and business identifiers are
 not returned. This is compatible with the source migration's duplicate
 preflight and does not change flags or hosted data.
 
-Validation: focused service 11/11; full API 90/402; root typecheck; serial
-lint; production build 80/80; diff check. Source SHA
+Validation: focused service 11/11; full API 90/402; root `pnpm test`; root
+typecheck; serial lint; production build 80/80; diff check. Source SHA
 `354401d434f3556d39bed2600748822b755c6c69` is pushed to both refs. Railway
 deployment `b6149479-1856-4ba5-baac-3e8df22bd262` is `SUCCESS`; live readiness
 and health are 200; unauthenticated PO creation is 401. Supabase remains

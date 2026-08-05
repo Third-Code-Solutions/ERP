@@ -9,7 +9,8 @@ identifiers. Added one focused test; no UI, schema, feature flag, Supabase, or
 Vercel state changed.
 
 Validation: focused PO service 11/11; full API 90 files/402 tests; root
-typecheck; serial lint; production build 80/80 routes; diff check. Source SHA
+`pnpm test`; root typecheck; serial lint; production build 80/80 routes; diff
+check. Source SHA
 `354401d` is pushed to both GitHub refs. Railway deployment
 `b6149479-1856-4ba7-baac-3e8df22bd262` is `SUCCESS` with the API Dockerfile;
 live `/ready`/`/health` are 200 and unauthenticated PO creation is 401. The
