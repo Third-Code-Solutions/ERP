@@ -3,6 +3,15 @@
 Third Code ERP remains an incremental TypeScript system. The target is a
 modular monolith, not a rewrite and not a microservice fleet.
 
+## M3.87 Protected cost-entry boundary proof (2026-08-06)
+
+Every financial command must have executable proof for disabled defaults,
+capability denial, tenant membership scope, idempotent replay, and bounded
+audit content before a canary. Tests must exercise server-owned tenant/project
+identity and prove rejected requests cannot claim or create records. Keep
+Core cost writes and the browser adapter disabled until hosted reconciliation,
+backup/export, disposable replay, rollback, and spend-cap evidence exist.
+
 ## M3.86 Cost entry command authority (2026-08-06)
 
 Manual project cost recording is a tenant-scoped Nest command, not a browser

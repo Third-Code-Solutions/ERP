@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-06 - M3.87 protected cost-entry boundary proof
+
+Added five service tests around the existing closed-by-default cost-entry
+authority: disabled gate, role denial, missing tenant membership, exact replay,
+and bounded/redacted audit evidence. No runtime code, schema, flag, UI, or
+hosted data changed.
+
+Validation: focused service 5/5; full API 90 files/397 tests; root typecheck;
+serial lint; production build 80/80 routes; diff check. Source SHA
+`8be8630` is pushed to both GitHub refs. Railway deployment
+`61680ed6-7a13-4dc1-9bfb-d3c9c8b29352` is `SUCCESS` on `apps/api/Dockerfile`;
+live `/ready`/`/health` are 200 and unauthenticated cost-entry is 401. No
+Supabase write or Vercel build/deploy occurred; Vercel revision remains
+`31c04942a93d`.
+
 ## 2026-08-06 - M3.86 project cost-entry authority
 
 Implemented `POST /v1/projects/:projectId/cost-entries` as an original,
