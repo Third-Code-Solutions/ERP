@@ -1,5 +1,14 @@
 # Work Log
 
+## 2026-08-06 - M3.85 Vercel spend guard
+
+Added a static CI guard for the user-requested billing boundary. It verifies
+`git.deploymentEnabled=false` in `apps/web/vercel.json` and rejects Vercel
+deploy commands in tracked automation. The guard and actionlint pass; Web
+87/545, typecheck, serial lint, 80-route build, and diff check pass. Source
+commit `9cfee69` is ready to push. No Vercel build, Railway build, or Supabase
+write occurred.
+
 ## 2026-08-06 - M3.84 audit summary count polish
 
 Changed one project Audit presentation detail: the header now uses the
