@@ -18,6 +18,7 @@ import { CadModule } from './cad/cad.module'
 import { CrmModule } from './crm/crm.module'
 import { FinanceModule } from './finance/finance.module'
 import { DocumentsModule } from './documents/documents.module'
+import { AuditModule } from './audit/audit.module'
 import { ProviderQuotaModule } from './observability/provider-quota.module'
 import { RedisModule } from './observability/redis.module'
 
@@ -51,6 +52,7 @@ import { RedisModule } from './observability/redis.module'
     CrmModule,
     FinanceModule,
     DocumentsModule,
+    AuditModule,
     ProviderQuotaModule,
   ],
   controllers: [HealthController],
