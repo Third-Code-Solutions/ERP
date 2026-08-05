@@ -20,9 +20,12 @@ Validation: focused migration contract 4/4; root `pnpm test`; root typecheck;
 serial lint; production build 80/80 routes; and `git diff --check`. The
 read-only Supabase planner reports PostgreSQL 17, 55/92 migrations applied,
 37 missing, and one duplicate Purchase Order group with 12 records; no hosted
-SQL was executed. Vercel spend guard is clear, but Git deployment remains
-disabled and the retained production revision is unchanged. Source commit and
-provider deployment status are recorded after the controlled push.
+SQL was executed. Source SHA `5541840b1fe3ea24fdfef09ffac98b236af5aab5`
+is pushed to GitHub `main` and `agent-02/third-code-erp-landing`. Railway
+deployment `1a072ca0-9267-4a16-aad6-fdc2c7ba83ff` reports `SUCCESS` using
+`apps/api/Dockerfile`; live `/ready` and `/health` are 200 and unauthenticated
+PO creation remains 401. Vercel spend guard is clear, Git deployment remains
+disabled, and the retained production revision is unchanged.
 
 ## M3.89 Purchase Order uniqueness-conflict guard (2026-08-06)
 

@@ -1,14 +1,16 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: pending M3.90 controlled push
+Source checkpoint: `5541840` (M3.90 operational asset register foundation)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 M3.90 update: the source now defines an operational asset register with
 tenant-safe identity, controlled kind/status, assignment constraints, audit,
 forced RLS, and service-only access. There is no API/UI authority, hosted
-migration, maintenance workflow, or accounting fixed-asset behavior; the next
-proof is disposable replay and then a closed Nest read projection.
+migration, maintenance workflow, or accounting fixed-asset behavior; Railway
+deployment `1a072ca0-9267-4a16-aad6-fdc2c7ba83ff` is live on the source SHA,
+while the next functional proof is disposable replay and then a closed Nest
+read projection.
 
 M3.89 update: direct and grouped Nest Purchase Order header inserts map only
 the named tenant/PO unique constraint to a bounded 409 response; raw database
