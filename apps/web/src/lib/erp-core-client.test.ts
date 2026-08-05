@@ -30,6 +30,7 @@ import {
   getInventoryStockMovementsThroughCoreApi,
   getInventoryStockMovementDetailThroughCoreApi,
   getFinanceReceivablesThroughCoreApi,
+  getFinancePayablesThroughCoreApi,
   getOpportunityThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
@@ -41,6 +42,7 @@ import {
   inventoryStockMovementReadsUseCoreApi,
   inventoryStockMovementDetailReadsUseCoreApi,
   financeReceivablesReadsUseCoreApi,
+  financePayablesReadsUseCoreApi,
   inventoryStockMovementCreateWritesUseCoreApi,
   inventoryStockMovementWorkflowUseCoreApi,
   opportunityReadsUseCoreApi,
@@ -426,6 +428,50 @@ const FINANCE_RECEIVABLES_RESULT = {
   totalWithheldCents: 2_000,
   overdueTotalCents: 75_000,
   overdueCount: 1,
+  page: 1,
+  limit: 500,
+  totalPages: 1,
+}
+const FINANCE_PAYABLES_RESULT = {
+  tenantId: RESULT.tenantId,
+  asOfDate: '2026-08-06',
+  rows: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      vendorBillNumber: 'V-2026-001',
+      internalNumber: 'SBL-2026-000001',
+      status: 'posted' as const,
+      billDate: '2026-07-01',
+      dueDate: '2026-08-01',
+      subtotalCents: 100_000,
+      inputVatCents: 12_000,
+      withholdingTaxCents: 2_000,
+      totalPayableCents: 110_000,
+      paidCents: 25_000,
+      openCents: 85_000,
+      postedAt: '2026-07-02T00:00:00.000Z',
+      postingJournalEntryId: '66666666-6666-4666-8666-666666666666',
+      vendorId: '55555555-5555-4555-8555-555555555555',
+      vendorName: 'Acme Supply',
+      purchaseOrderId: '77777777-7777-4777-8777-777777777777',
+      purchaseOrderNumber: 'PO-2026-001',
+      projectId: PROJECT_ID,
+      projectName: 'Warehouse fit-out',
+    },
+  ],
+  total: 1,
+  totalPayableCents: 110_000,
+  totalPaidCents: 25_000,
+  totalOpenCents: 85_000,
+  overdueOpenCents: 85_000,
+  overdueCount: 1,
+  draftCount: 0,
+  postedOpenCount: 1,
+  agingCurrentCents: 0,
+  aging1To30Cents: 0,
+  aging31To60Cents: 85_000,
+  aging61To90Cents: 0,
+  aging90PlusCents: 0,
   page: 1,
   limit: 500,
   totalPages: 1,
@@ -849,6 +895,56 @@ describe('ERP Core client', () => {
     ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/finance/receivables?accountId=55555555-5555-4555-8555-555555555555&dueFrom=2026-08-01&dueTo=2026-08-31&page=1&limit=500',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('keeps Finance payables reads on the legacy path unless the exact gate matches', () => {
+    expect(financePayablesReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_FINANCE_PAYABLES_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_PAYABLES_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financePayablesReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_PAYABLES_READS_VIA_API', 'TRUE')
+    expect(financePayablesReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_PAYABLES_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_FINANCE_PAYABLES_READS_VIA_API_TENANT_IDS', '')
+    expect(financePayablesReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(financePayablesReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('calls the authenticated Core Finance payables read and validates balances', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(FINANCE_PAYABLES_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getFinancePayablesThroughCoreApi({
+        vendorId: '55555555-5555-4555-8555-555555555555',
+        projectId: undefined,
+        status: undefined,
+        dueFrom: '2026-08-01',
+        dueTo: '2026-08-31',
+        page: 1,
+        limit: 500,
+      })
+    ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/finance/payables?vendorId=55555555-5555-4555-8555-555555555555&dueFrom=2026-08-01&dueTo=2026-08-31&page=1&limit=500',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

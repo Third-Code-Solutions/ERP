@@ -45,6 +45,7 @@ import {
   auditActivityResultSchema,
   financeLedgerResultSchema,
   financeReceivablesResultSchema,
+  financePayablesResultSchema,
   stockMovementCreationResultSchema,
   stockMovementPostingResultSchema,
   stockMovementReversalResultSchema,
@@ -122,6 +123,8 @@ import {
   type FinanceLedgerResult,
   type FinanceReceivablesQuery,
   type FinanceReceivablesResult,
+  type FinancePayablesQuery,
+  type FinancePayablesResult,
   type CreateStockMovementCommand,
   type StockMovementCreationResult,
   type StockMovementPostCommand,
@@ -310,6 +313,15 @@ export function financeReceivablesReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_FINANCE_RECEIVABLES_READS_VIA_API,
     process.env.ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Supplier payables reads remain disabled until a protected finance canary is approved. */
+export function financePayablesReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_PAYABLES_READS_VIA_API,
+    process.env.ERP_FINANCE_PAYABLES_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1288,6 +1300,66 @@ export async function getFinanceReceivablesThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Customer receivables were not read.',
+    }
+  }
+}
+
+export async function getFinancePayablesThroughCoreApi(
+  query: FinancePayablesQuery
+): Promise<CoreResult<FinancePayablesResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams()
+    if (query.vendorId) params.set('vendorId', query.vendorId)
+    if (query.projectId) params.set('projectId', query.projectId)
+    if (query.status) params.set('status', query.status)
+    if (query.dueFrom) params.set('dueFrom', query.dueFrom)
+    if (query.dueTo) params.set('dueTo', query.dueTo)
+    params.set('page', String(query.page))
+    params.set('limit', String(query.limit))
+
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/payables?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Supplier payables filters are invalid.'
+            : response.status === 403
+              ? 'You do not have permission to view supplier payables.'
+              : 'Supplier payables were not completed.',
+        status: response.status,
+      }
+    }
+
+    const parsed = financePayablesResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid supplier payables result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Supplier payables were not read.',
     }
   }
 }
