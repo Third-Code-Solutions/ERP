@@ -13,6 +13,19 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.82 Searchable audit history (2026-08-05)
+
+The target Audit surface offers a small, calm query model: action/entity
+filters, stable URLs, 25-row pages, and explicit totals. Both compatibility
+and Core paths share the same bounded view contract, while Nest remains the
+future authority and raw `diff` stays redacted whenever Core is selected.
+Protected browser evidence, tenant canary approval, hosted reconciliation,
+and rollback proof remain separate release gates.
+
+Source SHA `e98a03b` is validated locally but is not a Vercel production claim.
+Vercel remains on retained revision `31c04942a93d` with no new build; Supabase
+remains read-only. No provider action is justified by this read-only UI slice.
+
 ## M3.81 Core-gated audit browser seam (2026-08-05)
 
 The target keeps the project Audit experience visually stable while moving its

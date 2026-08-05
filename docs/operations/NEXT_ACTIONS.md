@@ -1,5 +1,22 @@
 # Next Actions
 
+## Exact next action after M3.82 project audit filters and pagination
+
+1. Keep `ERP_AUDIT_ACTIVITY_READS_VIA_API=false` and
+   `ERP_AUDIT_ACTIVITY_READS_VIA_API_TENANT_IDS` empty. Filter/pagination
+   source proof is not protected browser or production-canary evidence.
+2. Preserve source SHA `e98a03b` and do not manually redeploy Railway; API
+   watched paths were unchanged. Keep Vercel Git disconnected and do not
+   create a preview or production build. Retained Vercel revision is
+   `31c04942a93d`; new source is not live there.
+3. Exercise filter, pagination, role denial, cross-tenant denial, and Core
+   redaction in a protected disposable/browser lane before naming a canary.
+4. Keep Supabase project `aqqrtkmtcsfkbyyqxowv` read-only at 55/90. Obtain
+   supported backup/export, dependent/audit export, owner mapping, clone
+   reconciliation, rollback proof, and spend cap before hosted action.
+5. Resolve stale Railway provider metadata only through a reviewed,
+   non-billing provider action. Python remains advisory.
+
 ## Exact next action after M3.81 Core-gated project audit read
 
 1. Keep `ERP_AUDIT_ACTIVITY_READS_VIA_API=false` and

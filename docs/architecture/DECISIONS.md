@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-192 - Audit filters stay bounded and authority-neutral (2026-08-05)
+
+Decision: add only allowlisted action/entity filters and URL pagination to the
+project Audit page. Use 25 rows per page, apply identical tenant predicates to
+legacy SQL and Core requests, and expose Core totals without exposing `diff`.
+Filter parsing rejects unsupported values and clamps page numbers. Keep the
+existing direct read as default; Core remains behind its exact flag/tenant
+allowlist. This improves retrieval without changing official transaction
+authority or requiring a migration.
+
+Source SHA `e98a03b` passed 87 Web test files/545 tests, typecheck, serial lint,
+80-route build, and diff check. No hosted state changed. Vercel's retained
+revision `31c04942a93d` was read-only checked; no build was triggered.
+
 ## D-191 - Project audit reads cut over only through an explicit Core gate (2026-08-05)
 
 Decision: add a closed-by-default adapter in the existing project Audit page
