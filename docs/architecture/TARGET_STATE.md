@@ -13,6 +13,23 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.81 Core-gated audit browser seam (2026-08-05)
+
+The target keeps the project Audit experience visually stable while moving its
+read authority incrementally. A tenant allowlist and explicit environment flag
+select the Nest redacted activity projection; the page checks the verified
+role before selection and never falls back to a direct database read after
+Core is chosen. The default remains the existing path until protected role,
+redaction, tenant-isolation, rollback, and hosted-data gates pass. No AI or
+Python process may approve or finalize a transaction.
+
+Source SHA `e8d993d` is live on Railway deployment
+`5a562db0-d682-4d99-adba-0adb20436bc8`; readiness/health are 200 and the
+unauthenticated activity boundary is 401. Supabase remains read-only at 55/90
+and Vercel remains untouched. Treat the stale Railway provider metadata as an
+operator review item only; do not trigger a billing-producing provider change
+from the metadata string alone.
+
 ## M3.80 Audit activity projection (2026-08-05)
 
 The target now includes a small, permissioned activity read model before any

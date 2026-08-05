@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-05 - M3.81 Core-gated project audit read adapter
+
+Added the first UI consumer of the Nest audit authority without a big-bang
+rewrite. The project Audit page selects the Core adapter only when the exact
+flag and tenant allowlist match, checks the existing audit roles, bounds
+related entity IDs, and renders redacted activity metadata. The default legacy
+database read remains unchanged and Core failures do not silently fall back.
+Shared query/result contracts, API entity filtering, adapter tests, and env
+documentation were added. No migration, hosted write, or default UI/copy
+change occurred.
+
+Evidence: shared audit 3/3; API focused guard/activity 14/14; web Core client
+96/96; full web 86 files/542 tests; root typecheck; serial lint; production
+build 80/80 routes; and diff check pass. Source commit
+`e8d993d5d23e34b1690781f083b7a0c1c5a0603a` pushed to both target refs.
+Railway deployment `5a562db0-d682-4d99-adba-0adb20436bc8` is `SUCCESS` for
+the exact SHA; live `/ready` and `/health` are 200, and unauthenticated audit
+activity is 401. File manifest uses `apps/api/Dockerfile`; stale
+`@buildops/web` metadata remains a read-only provider risk. Supabase stays
+read-only at 55/90 with 35 pending; Vercel stays untouched to cap billing.
+
 ## 2026-08-05 - M3.80 tenant-scoped audit activity read
 
 Added the redacted Nest activity projection `GET /v1/audit/activity` over the

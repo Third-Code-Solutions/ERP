@@ -4,6 +4,32 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.81 Core-gated project audit read adapter (2026-08-05)
+
+The existing project Audit page now has a closed-by-default adapter to the
+Nest `GET /v1/audit/activity` authority seam. When
+`ERP_AUDIT_ACTIVITY_READS_VIA_API=true` and the tenant is in the exact
+`ERP_AUDIT_ACTIVITY_READS_VIA_API_TENANT_IDS` allowlist, the page requires an
+`audit.read` role, sends bounded related entity IDs, and renders the API's
+redacted activity rows. Otherwise the legacy direct read remains unchanged;
+there is no silent fallback after Core selection. The API filter accepts one
+or many entity IDs with a maximum of 500 and returns at most 200 rows.
+
+Validation: focused shared audit contracts 3/3; focused API guard/activity
+14/14; web Core client 96/96; full web suite 86 files/542 tests; root
+typecheck; serial lint; production build with 80/80 routes; and `git diff
+--check` pass. Source commit `e8d993d5d23e34b1690781f083b7a0c1c5a0603a`
+is pushed to `main` and `agent-02/third-code-erp-landing` as `kurtgav`.
+
+Railway deployment `5a562db0-d682-4d99-adba-0adb20436bc8` is `SUCCESS` for
+that exact SHA. Live `/ready` and `/health` return 200 with PostgreSQL/Redis
+healthy; unauthenticated `/v1/audit/activity` returns 401. The file manifest
+uses `apps/api/Dockerfile` and `node apps/api/dist/main.js`; provider metadata
+still contains a stale `@buildops/web` build-command string. No provider
+setting was changed. No database migration or hosted write occurred;
+Supabase remains read-only at 55/90 with 35 source migrations pending.
+Vercel Git/build activity remains disabled for spend control.
+
 ## M3.80 Tenant-scoped audit activity read (2026-08-05)
 
 Added an original NestJS read seam at `GET /v1/audit/activity` over the
