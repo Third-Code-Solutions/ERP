@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.83 - Clean-room runtime branding hardening (2026-08-05)
+
+Removed legacy comparison labels from runtime source comments and changed the
+local E2E fallback address to `test@thirdcode.local`. The branding guard now
+rejects `Rework` and `BuildOps` variants in addition to ERPNext/Frappe/ABI Ops
+markers across Web, API, package, and public text roots. The timestamped
+Supabase migration filename is retained as immutable internal provenance; no
+SQL or migration content was applied.
+
+Validation: clean-room 1/1; Web 87/545; root typecheck; serial lint; build
+80/80 routes; diff check; runtime scan zero outside the historical migration
+path. Source SHA `1c5b8de` is pushed to both refs. Railway deployment
+`2e4c80f9-e243-46c3-acfa-6af417a448ee` is `SUCCESS` on the API Dockerfile and
+live probes are ready/health 200, unauthenticated audit 401. Supabase and
+Vercel were not mutated.
+
+## Next gate
+
+Keep the clean-room guard in every release lane. Do not rename or replay the
+historical migration without a migration-ledger plan. Keep Supabase 55/90
+read-only and Vercel Git/build disabled; next functional canary still needs
+protected role/cross-tenant/redaction evidence and clone reconciliation.
+
 ## M3.82 - Project audit filters and pagination (2026-08-05)
 
 Added a read-only usability slice to the existing project Audit page. Users

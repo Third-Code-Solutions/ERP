@@ -13,6 +13,19 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.83 Clean-room source boundary (2026-08-05)
+
+Runtime web/API/package text must contain only Third Code product identity.
+The regression guard rejects former-product/vendor markers, including
+`Rework` and `BuildOps`; research documents and immutable migration history
+remain separately classified provenance. New source slices must keep this
+boundary green before release.
+
+SHA `1c5b8de` is active on Railway deployment
+`2e4c80f9-e243-46c3-acfa-6af417a448ee` with readiness/health 200 and audit
+401 boundary. Vercel remains on old revision `31c04942a93d` with no build;
+Supabase remains read-only.
+
 ## M3.82 Searchable audit history (2026-08-05)
 
 The target Audit surface offers a small, calm query model: action/entity

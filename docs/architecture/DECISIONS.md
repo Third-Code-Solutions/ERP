@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-193 - Runtime branding must be clean without rewriting migration identity (2026-08-05)
+
+Decision: remove legacy product/source labels from runtime Web/API/package text
+and enforce both former-product/vendor families and `BuildOps` through the
+branding regression test. Keep historical migration filenames as internal
+version identity; do not rename or replay them solely to alter provenance.
+This separates user-facing clean-room requirements from safe database
+migration bookkeeping.
+
+Evidence: clean-room 1/1, Web 87/545, typecheck, serial lint, 80-route build,
+diff check, and zero-match runtime scan outside the historical migration path.
+SHA `1c5b8de` is Railway deployment
+`2e4c80f9-e243-46c3-acfa-6af417a448ee`, live ready/health 200, audit 401.
+Supabase and Vercel remain unchanged.
+
 ## D-192 - Audit filters stay bounded and authority-neutral (2026-08-05)
 
 Decision: add only allowlisted action/entity filters and URL pagination to the

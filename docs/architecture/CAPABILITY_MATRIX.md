@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-05
-Source checkpoint: `e98a03b` (M3.82 project audit filters and pagination)
+Source checkpoint: `1c5b8de` (M3.83 clean-room runtime branding hardening)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 This matrix is the product scope baseline. It describes business outcomes and
@@ -9,6 +9,11 @@ the current Third Code implementation; it is not a source, schema, UI, copy, or
 test port from another product. Status is deliberately separated from hosted
 release status so local capability work cannot be mistaken for production
 authorization.
+
+M3.83 update: runtime Web/API/package text now passes an expanded clean-room
+guard for ERPNext/Frappe/ABI Ops/Rework/BuildOps variants. Historical migration
+identity remains classified internal provenance. Source SHA `1c5b8de` is active
+on Railway; Supabase and Vercel remain unchanged.
 
 M3.82 update: project Audit now has allowlisted action/entity filters and
 URL-addressable 25-row pagination. Direct and Core reads share tenant-scoped
