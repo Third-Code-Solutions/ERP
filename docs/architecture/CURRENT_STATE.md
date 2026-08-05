@@ -4,6 +4,32 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.80 Tenant-scoped audit activity read (2026-08-05)
+
+Added an original NestJS read seam at `GET /v1/audit/activity` over the
+existing append-only `audit_log`. The endpoint uses the verified principal's
+tenant, bounded page/limit plus entity/action filters, strict shared Zod
+contracts, and the explicit `audit.read` capability (`owner`, `admin`, `pm`,
+`finance`). It returns entity/actor IDs and hash-chain metadata only; raw
+`diff` JSON never crosses the API boundary. No migration or browser write path
+changed.
+
+Validation: shared-types 18 files/195 tests; API 88 files/388 passed with 22
+environment-skipped integration tests in a single worker; focused guard/activity
+coverage 14/14; root typecheck; serial lint; Nest and Next production build;
+static migration verification; and `git diff --check` all pass. Source commit
+`1170b55d73b87ac3c932a3c85f267201564cd7bc` is pushed to `main` and
+`agent-02/third-code-erp-landing` under `kurtgav`.
+
+Railway deployment `e62e25b9-7e26-4b59-bb32-35ba524c6ae2` is `SUCCESS` for
+that exact SHA. Live `/ready` and `/health` return 200 with PostgreSQL/Redis
+healthy; unauthenticated `/v1/audit/activity` returns 401. The deployment's
+file manifest used `apps/api/Dockerfile` and `node apps/api/dist/main.js`, but
+provider metadata also reports a stale `pnpm --filter @buildops/web build`
+string. This is recorded for read-only provider follow-up; no provider setting
+was changed. Supabase remains read-only at 55/90 with 35 source migrations
+pending. Vercel Git/build activity remains disabled for spend control.
+
 ## M3.79 Read-only clone reconciliation evidence (2026-08-05)
 
 Added `scripts/reconcile-database-clones.mjs`, a fail-closed comparison of a

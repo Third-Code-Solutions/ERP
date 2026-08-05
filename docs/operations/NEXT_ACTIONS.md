@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.80 audit activity read
+
+1. Keep every workflow flag false and every tenant allowlist empty. The new
+   activity route is read-only and redacted; do not add a browser cutover until
+   role-specific protected-flow and data-redaction evidence exists.
+2. Preserve source SHA
+   `1170b55d73b87ac3c932a3c85f267201564cd7bc`, Railway deployment
+   `e62e25b9-7e26-4b59-bb32-35ba524c6ae2`, and live `/ready`/`/health` 200.
+   Do not manually redeploy or trigger another paid backend build.
+3. Inspect the Railway service's stale `@buildops/web` metadata versus the
+   `fileServiceManifest` API Dockerfile evidence. Resolve only with an explicit,
+   reviewed provider change; no blind setting mutation.
+4. Keep Supabase project `aqqrtkmtcsfkbyyqxowv` read-only at 55/90. Obtain
+   supported backup/export, dependent/audit export, owner-approved mapping,
+   isolated PostgreSQL 17 clone reconciliation, rollback proof, and a spend
+   cap before any hosted write or protected canary.
+5. Keep Vercel Git disconnected and do not create previews or production builds.
+   The next source milestone may add a permissioned activity browser view only
+   after the above gates; Python remains advisory.
+
 ## Exact next action after M3.79 read-only clone reconciliation
 
 1. Keep every ERP workflow flag false and every tenant allowlist empty. The

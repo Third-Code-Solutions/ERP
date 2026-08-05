@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-05
-Source checkpoint: `cc0e1f7` (M3.79 read-only clone reconciliation)
+Source checkpoint: `1170b55` (M3.80 tenant-scoped audit activity read)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 This matrix is the product scope baseline. It describes business outcomes and
@@ -9,6 +9,16 @@ the current Third Code implementation; it is not a source, schema, UI, copy, or
 test port from another product. Status is deliberately separated from hosted
 release status so local capability work cannot be mistaken for production
 authorization.
+
+M3.80 update: the API now exposes a redacted, paginated
+`GET /v1/audit/activity` projection over the existing append-only `audit_log`.
+It requires the explicit `audit.read` capability, derives tenant scope from the
+verified principal, and never returns `diff` payloads. Source SHA `1170b55` is
+live on Railway deployment `e62e25b9-7e26-4b59-bb32-35ba524c6ae2`; Supabase
+and Vercel remain unchanged. Railway's deployment metadata still carries a
+stale `@buildops/web` build-command string even though the file manifest used
+the intended API Dockerfile; keep this as an operator follow-up, not as a
+permission to change provider settings.
 
 ## Status vocabulary
 
