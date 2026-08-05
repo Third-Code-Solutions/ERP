@@ -1,0 +1,67 @@
+import { describe, expect, it } from 'vitest'
+import {
+  assetListQuerySchema,
+  assetListResultSchema,
+} from './assets'
+
+const TENANT_ID = '22222222-2222-4222-8222-222222222222'
+const ASSET_ID = '33333333-3333-4333-8333-333333333333'
+const USER_ID = '11111111-1111-4111-8111-111111111111'
+
+describe('asset API contracts', () => {
+  it('normalizes a bounded list query and rejects unknown fields', () => {
+    expect(
+      assetListQuerySchema.parse({
+        q: '  excavator ',
+        kind: 'equipment',
+        status: 'active',
+        sort: 'asset_tag',
+        order: 'asc',
+        page: '2',
+        limit: '50',
+      })
+    ).toEqual({
+      q: 'excavator',
+      kind: 'equipment',
+      status: 'active',
+      sort: 'asset_tag',
+      order: 'asc',
+      page: 2,
+      limit: 50,
+    })
+    expect(() => assetListQuerySchema.parse({ cursor: 'unexpected' })).toThrow()
+  })
+
+  it('keeps read rows additive, typed, and tenant-visible', () => {
+    expect(
+      assetListResultSchema.parse({
+        rows: [
+          {
+            id: ASSET_ID,
+            tenantId: TENANT_ID,
+            assetTag: 'EQ-001',
+            name: 'Excavator',
+            kind: 'equipment',
+            status: 'active',
+            serialNumber: 'SN-001',
+            manufacturer: 'Example',
+            model: 'EX-1',
+            assignedProjectId: null,
+            assignedProjectName: null,
+            location: 'Yard',
+            commissionedOn: '2026-01-01',
+            retiredOn: null,
+            notes: null,
+            createdBy: USER_ID,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+      })
+    ).toMatchObject({ total: 1, rows: [{ tenantId: TENANT_ID }] })
+  })
+})

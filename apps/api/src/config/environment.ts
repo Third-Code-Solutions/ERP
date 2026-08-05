@@ -34,6 +34,23 @@ const environmentSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
   REDIS_URL: z.string().url(),
   ERP_API_CORS_ORIGINS: z.string().default('http://localhost:3000'),
+  // Asset register reads stay fail-closed until the hosted migration suffix,
+  // replay, and a tenant-scoped read canary are approved. This seam never
+  // grants browser table access or write authority.
+  ERP_ASSET_READS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_ASSET_READS_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Project creation authority stays fail-closed until idempotency and a
   // tenant-scoped canary are approved.
   ERP_PROJECT_CREATE_WRITES_ENABLED: z

@@ -21,6 +21,7 @@ export * from './erp-api/finance'
 export * from './erp-api/deliveries'
 export * from './erp-api/audit-activity'
 export * from './erp-api/cost-entries'
+export * from './erp-api/assets'
 // BOM calculations exported via './bom' subpath to avoid BasisPoints conflict
 export {
   lineTotal,

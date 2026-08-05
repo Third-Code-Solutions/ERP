@@ -9,6 +9,31 @@ const REQUIRED = {
 }
 
 describe('ERP API environment', () => {
+  it('keeps asset register reads disabled and tenant-scoped by default', () => {
+    expect(validateEnvironment(REQUIRED).ERP_ASSET_READS_ENABLED).toBe(false)
+    expect(validateEnvironment(REQUIRED).ERP_ASSET_READS_TENANT_IDS).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_ASSET_READS_ENABLED: 'true',
+        ERP_ASSET_READS_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_ASSET_READS_ENABLED: true,
+      ERP_ASSET_READS_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_ASSET_READS_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_ASSET_READS_TENANT_IDS')
+  })
+
   it('keeps notification recovery polling disabled by default', () => {
     expect(
       validateEnvironment(REQUIRED)
