@@ -1,6 +1,7 @@
 import 'reflect-metadata'
 
 import {
+  ConflictException,
   ForbiddenException,
   ServiceUnavailableException,
 } from '@nestjs/common'
@@ -350,6 +351,67 @@ describe('PurchaseOrderCreationService migration boundary', () => {
     expect(transactionClient.select).toHaveBeenCalledTimes(2)
     expect(transactionClient.insert).toHaveBeenCalledOnce()
     expect(audit.stampActor).toHaveBeenCalledOnce()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('maps the tenant PO-number unique constraint to a safe conflict', async () => {
+    const membershipQuery = selectQuery([
+      {
+        tenantId: PRINCIPAL.tenantId,
+        role: PRINCIPAL.role,
+        email: PRINCIPAL.email,
+      },
+    ])
+    const request = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      requestHash: '',
+      state: 'processing',
+      result: null,
+    }
+    const requestQuery = selectQuery([request])
+    const projectQuery = selectQuery([{ id: COMMAND.projectId }])
+    const costCodesQuery = selectQuery([{ id: COMMAND.lines[0]!.costCodeId }])
+    const numberQuery = {
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ maxNumericSuffix: '41' }]),
+      }),
+    }
+    const insertRequestValues = vi.fn().mockImplementation((values) => {
+      request.requestHash = values.request_hash
+      return { onConflictDoNothing: vi.fn() }
+    })
+    const insertPoValues = vi.fn().mockReturnValue({
+      returning: vi.fn().mockRejectedValue({
+        code: '23505',
+        constraint: 'ux_purchase_orders_tenant_po_number',
+      }),
+    })
+    const transactionClient = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce({ from: membershipQuery.from })
+        .mockReturnValueOnce({ from: requestQuery.from })
+        .mockReturnValueOnce({ from: projectQuery.from })
+        .mockReturnValueOnce({ from: costCodesQuery.from })
+        .mockReturnValueOnce({ from: numberQuery.from }),
+      insert: vi
+        .fn()
+        .mockReturnValueOnce({ values: insertRequestValues })
+        .mockReturnValueOnce({ values: insertPoValues }),
+      execute: vi.fn().mockResolvedValue(undefined),
+    }
+    const { candidate, audit } = enabledHarness(transactionClient)
+
+    await expect(
+      candidate.create(COMMAND, PRINCIPAL, 'po-create-unique-conflict')
+    ).rejects.toEqual(
+      expect.objectContaining({
+        constructor: ConflictException,
+        message:
+          'Purchase Order number is already in use; resolve duplicate legacy records before retrying.',
+      })
+    )
+    expect(transactionClient.insert).toHaveBeenCalledTimes(2)
     expect(audit.writeSemantic).not.toHaveBeenCalled()
   })
 })
