@@ -231,7 +231,7 @@ export default async function ProjectAuditPage({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div>
           <p style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-500)', margin: 0 }}>
-            {entries.length} event{entries.length !== 1 ? 's' : ''} — append-only, hash-chained
+            {total} matching event{total !== 1 ? 's' : ''} — append-only, hash-chained
           </p>
         </div>
       </div>
@@ -296,10 +296,6 @@ export default async function ProjectAuditPage({
           </Link>
         )}
       </form>
-
-      <p style={{ margin: '-6px 0 12px', color: 'var(--color-neutral-500)', fontSize: '0.75rem' }}>
-        {total} matching event{total !== 1 ? 's' : ''}; page {Math.min(filters.page, totalPages)} of {totalPages}
-      </p>
 
       {entries.length === 0 ? (
         <div
