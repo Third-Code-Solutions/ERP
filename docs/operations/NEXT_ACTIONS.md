@@ -1,5 +1,26 @@
 # Next Actions
 
+## Exact next action after M3.81 Core-gated project audit read
+
+1. Keep `ERP_AUDIT_ACTIVITY_READS_VIA_API=false` and
+   `ERP_AUDIT_ACTIVITY_READS_VIA_API_TENANT_IDS` empty. The adapter is a
+   source seam, not protected production-canary evidence.
+2. Preserve source SHA
+   `e8d993d5d23e34b1690781f083b7a0c1c5a0603a`, Railway deployment
+   `5a562db0-d682-4d99-adba-0adb20436bc8`, and live `/ready`/`/health` 200.
+   Do not manually redeploy or trigger another paid backend build.
+3. Before a named-tenant canary, obtain protected browser proof for every
+   allowed role, verify redaction and cross-tenant denial, capture rollback
+   evidence, and reconcile the hosted clone with the clean PostgreSQL 17
+   replay.
+4. Keep Supabase project `aqqrtkmtcsfkbyyqxowv` read-only at 55/90. Do not
+   apply the 35 pending migrations or perform any hosted repair without a
+   supported backup/export, dependent/audit export, owner mapping, and an
+   explicit spend cap.
+5. Keep Vercel Git disconnected; do not create previews or production builds.
+   Inspect the stale Railway `@buildops/web` metadata only through a reviewed
+   non-billing provider action. Python remains advisory.
+
 ## Exact next action after M3.80 audit activity read
 
 1. Keep every workflow flag false and every tenant allowlist empty. The new

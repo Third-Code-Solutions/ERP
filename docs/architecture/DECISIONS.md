@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-191 - Project audit reads cut over only through an explicit Core gate (2026-08-05)
+
+Decision: add a closed-by-default adapter in the existing project Audit page
+for the Nest redacted `GET /v1/audit/activity` projection. Selection requires
+the exact `ERP_AUDIT_ACTIVITY_READS_VIA_API` flag, tenant allowlist, and an
+`owner`/`admin`/`pm`/`finance` role; the adapter sends at most 500 related IDs,
+parses strict shared results, and never falls back to direct SQL after
+selection. Keep direct reads as the default compatibility behavior until
+protected browser, tenant-isolation, redaction, rollback, and hosted-data
+gates pass. This preserves current UI behavior while making Nest the future
+read authority; no migration or provider change is required.
+
+Source SHA `e8d993d5d23e34b1690781f083b7a0c1c5a0603a` is Railway deployment
+`5a562db0-d682-4d99-adba-0adb20436bc8` with live readiness/health 200 and an
+unauthenticated activity boundary of 401. Supabase remains read-only at
+55/90; Vercel remains disconnected/untouched for spend control. The Railway
+file manifest is the API Dockerfile, despite a stale `@buildops/web` metadata
+string; do not alter provider settings from that discrepancy alone.
+
 ## D-190 - Audit activity is a redacted, tenant-scoped read seam (2026-08-05)
 
 Decision: expose the existing append-only `audit_log` through Nest as

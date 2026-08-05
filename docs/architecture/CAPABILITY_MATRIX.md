@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-05
-Source checkpoint: `1170b55` (M3.80 tenant-scoped audit activity read)
+Source checkpoint: `e8d993d` (M3.81 Core-gated project audit read adapter)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 This matrix is the product scope baseline. It describes business outcomes and
@@ -9,6 +9,14 @@ the current Third Code implementation; it is not a source, schema, UI, copy, or
 test port from another product. Status is deliberately separated from hosted
 release status so local capability work cannot be mistaken for production
 authorization.
+
+M3.81 update: the existing project Audit page can select the redacted Nest
+`GET /v1/audit/activity` projection only behind an explicit environment flag,
+tenant allowlist, and capability role. The default direct read remains in
+place; no migration or default UI change occurred. Source SHA `e8d993d` is
+live on Railway deployment `5a562db0-d682-4d99-adba-0adb20436bc8`. Supabase
+and Vercel remain unchanged; stale Railway provider metadata is an operator
+review item only.
 
 M3.80 update: the API now exposes a redacted, paginated
 `GET /v1/audit/activity` projection over the existing append-only `audit_log`.

@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.81 - Core-gated project audit read adapter (2026-08-05)
+
+Added the smallest UI authority cutover slice: the existing project Audit page
+can consume the redacted Nest `GET /v1/audit/activity` projection behind
+`ERP_AUDIT_ACTIVITY_READS_VIA_API` plus an exact tenant allowlist. The adapter
+enforces the existing capability roles, bounds related entity IDs to 500,
+uses strict shared result parsing, and fails closed on Core errors. The legacy
+direct read remains the default compatibility path; no visible default UI or
+copy changed and no database migration was added.
+
+Validation: shared audit 3/3; API focused guard/activity 14/14; web Core
+client 96/96; full web 86 files/542 tests; root typecheck; serial lint; and
+production build 80/80 routes pass. Source SHA
+`e8d993d5d23e34b1690781f083b7a0c1c5a0603a` is pushed to both target refs.
+Railway deployment `5a562db0-d682-4d99-adba-0adb20436bc8` is `SUCCESS` for
+the exact SHA; live `/ready` and `/health` are 200 and unauthenticated audit
+activity is 401. The API Dockerfile file manifest is correct, while stale
+`@buildops/web` provider metadata remains unresolved by design. Supabase and
+Vercel were not mutated.
+
+## Next gate
+
+Keep the adapter flag false and its tenant list empty. Obtain owner-approved
+tenant mapping, protected role/browser proof, redaction review, rollback
+evidence, and hosted clone reconciliation before selecting one canary tenant.
+Do not apply the 35 pending Supabase migrations, alter provider settings, or
+trigger Vercel builds; Python remains advisory.
+
 ## M3.80 - Tenant-scoped audit activity read (2026-08-05)
 
 Added `GET /v1/audit/activity` as a read-only Nest authority seam over the
