@@ -1,8 +1,14 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `354401d` (M3.89 Purchase Order uniqueness-conflict guard)
+Source checkpoint: pending M3.90 controlled push
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.90 update: the source now defines an operational asset register with
+tenant-safe identity, controlled kind/status, assignment constraints, audit,
+forced RLS, and service-only access. There is no API/UI authority, hosted
+migration, maintenance workflow, or accounting fixed-asset behavior; the next
+proof is disposable replay and then a closed Nest read projection.
 
 M3.89 update: direct and grouped Nest Purchase Order header inserts map only
 the named tenant/PO unique constraint to a bounded 409 response; raw database
@@ -97,7 +103,7 @@ provider, and canary gates are complete.
 | Receivables | Invoice, tax/retention, receipt, reconciliation, reversal | Local finance slices exist | Hosted parity and exact-cent integration canary |
 | Compliance and audit | Tenant isolation, capability checks, immutable audit, evidence lineage | Implemented across current slices | Audit-chain recovery with owner-approved tenant input |
 | People and work management | Role-aware tasks, approvals, workload, site cadence | Tasks and permissions exist | Keep HR/payroll out of the construction transaction path until discovery |
-| Assets and maintenance | Track equipment, warranties, service history, and cost | Warranty is project/customer focused; asset register is a gap | Discovery only; no schema inferred yet |
+| Assets and maintenance | Track equipment, warranties, service history, and cost | Operational asset register is source-only; no API/read canary, maintenance history, or accounting lifecycle | Disposable replay, then closed Nest read projection; defer maintenance/history/accounting authority |
 | Service and customer success | Portal, issues, warranty, satisfaction, communications | Warranty portal and CNPS are live | Add supplier/customer response loops only after token threat model |
 | Reporting and planning | Role-specific Today views, scheduled reports, exports, forecasts | Dashboard, reports, and Cortex context exist | Measure decision latency and data freshness before adding breadth |
 

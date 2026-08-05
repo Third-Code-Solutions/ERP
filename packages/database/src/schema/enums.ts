@@ -447,3 +447,17 @@ export const budgetControlModeEnum = pgEnum('budget_control_mode', [
   'warn',
   'block',
 ])
+
+export const assetKindEnum = pgEnum('asset_kind', [
+  'equipment',
+  'vehicle',
+  'tool',
+  'fixture',
+  'other',
+])
+
+export const assetStatusEnum = pgEnum('asset_status', [
+  'active',
+  'maintenance',
+  'retired',
+])
