@@ -17,6 +17,8 @@ missing triggers, grant/function drift, five financial-total differences, and
 data/audit count drift. Exit status is intentionally nonzero
 (`reconcile_required`). No SQL write, hosted repair, provider setting, or
 Vercel action occurred.
+Railway recorded only `SKIPPED`
+`8812b0dd-a1bd-4040-925d-c83389447dc6` for the docs push; no build ran.
 Source commit `cc0e1f7e14ef999cc550894e39c05938d7b0e326` contains the tool and
 tests.
 

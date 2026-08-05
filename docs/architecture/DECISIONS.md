@@ -12,7 +12,9 @@ tenant mappings from row counts.
 The current evidence is `reconcile_required`: both sides are PostgreSQL 17,
 but hosted remains 55/90 with catalog, grants, data, financial, and audit
 differences. This preserves billing and data safety while making the next
-owner-approved reconciliation concrete. Vercel and hosted SQL remain closed.
+owner-approved reconciliation concrete. The docs/scripts push produced only
+Railway `SKIPPED` deployment `8812b0dd-a1bd-4040-925d-c83389447dc6`; no paid
+build occurred. Vercel and hosted SQL remain closed.
 
 ## D-188 - Clean replay is a prerequisite to hosted migration (2026-08-05)
 
