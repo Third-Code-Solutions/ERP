@@ -16,10 +16,12 @@ build 80/80 routes; Actionlint 1.7.12; spend guard 3/3; diff check. Source
 commit `bcee984`.
 
 Provider boundary: read-only Supabase planner reports PostgreSQL 17, 55/91
-applied/source migrations, 36 pending, `review_required`. No Supabase SQL or
-data/Storage/provider write. No Vercel build/deploy. Railway is not yet
-claimed for this SHA until the controlled push and exact deployment/readiness
-probe complete.
+applied/source migrations, 36 pending, `review_required`; no Supabase SQL or
+data/Storage/provider write occurred. Source/docs are pushed to both GitHub
+refs. Railway deployment `76c27b43-47cd-4912-bca0-19a597190318` is `SUCCESS`
+for `f2457fd13bc7d7d1911e9f3bbb231cddb4de571b`; `/ready` and `/health` are
+200 and the unauthenticated cost-entry command returns 401. No Vercel
+build/deploy occurred; retained revision remains `31c04942a93d`.
 
 ## 2026-08-06 - M3.85 Vercel spend guard
 

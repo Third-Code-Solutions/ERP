@@ -1,6 +1,6 @@
 # Current State
 
-Verified from the repository and the configured Supabase target on 2026-08-05.
+Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
@@ -17,10 +17,15 @@ the direct compatibility path remains the default and no UI copy/layout was
 rewritten.
 
 Source migration `20260806100000_cost_entry_create_idempotency.sql` is source
-only. The hosted Supabase planner is read-only at PostgreSQL 17, 55 applied
-versus 91 source migrations, 36 pending, status `review_required`. No hosted
-SQL, data, Storage, provider, or Vercel action occurred. Source commit
-`bcee984` is validated locally and pending provider observation.
+only.
+The hosted Supabase planner is read-only at PostgreSQL 17, 55 applied versus
+91 source migrations, 36 pending, status `review_required`. No hosted SQL,
+data, Storage, or Supabase provider write occurred. Source SHA `bcee984` and
+the reviewed docs are pushed to both GitHub refs. Controlled Railway deployment
+`76c27b43-47cd-4912-bca0-19a597190318` reports `SUCCESS` for SHA
+`f2457fd13bc7d7d1911e9f3bbb231cddb4de571b`; live `/ready` and `/health` are
+200, and the unauthenticated cost-entry command is 401. Vercel remains on
+retained revision `31c04942a93d`; no Vercel build or deployment occurred.
 
 Validation: API 90 files/393 tests; database 44 files/173 active tests with
 141 environment-guarded skips; shared-types 19 files/198 tests; Web 87
