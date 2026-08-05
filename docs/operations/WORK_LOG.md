@@ -1,5 +1,22 @@
 # Work Log
 
+## 2026-08-06 - M3.91 closed operational asset read projection
+
+Added the closed NestJS `GET /v1/assets` read projection and shared strict
+contracts. The service derives tenant scope from the verified principal,
+requires `asset.read`, bounds filters/pagination, joins same-tenant Project
+context, and validates the response. `ERP_ASSET_READS_ENABLED` plus
+`ERP_ASSET_READS_TENANT_IDS` default to false/empty. No Web adapter, UI, browser
+table access, write authority, hosted SQL, or data mutation changed.
+
+Validation: focused API 60/60; shared asset contract 2/2; root `pnpm test`
+(API 93/410; shared 20/200); root typecheck; serial lint; production build
+80/80 routes; diff check. Source SHA `f11b1467b5d3def986b73411a54a6f501339c803`
+is pushed to both GitHub refs. Railway deployment
+`f0358fdd-f927-465c-b930-ec68b0baf240` is `SUCCESS` with live readiness/health
+200 and unauthenticated `/v1/assets` 401. Supabase was not written; Vercel
+remains on the retained revision with no new build/deploy.
+
 ## 2026-08-06 - M3.90 operational asset register foundation
 
 Defined the asset glossary and boundary, then added a source-only Drizzle

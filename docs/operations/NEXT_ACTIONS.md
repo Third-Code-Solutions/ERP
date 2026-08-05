@@ -1,5 +1,24 @@
 # Next Actions
 
+## Exact next action after M3.91
+
+1. Keep `ERP_ASSET_READS_ENABLED=false` and `ERP_ASSET_READS_TENANT_IDS`
+   empty. Do not add a Web adapter, browser table access, write command, or
+   maintenance/accounting behavior; the 401 boundary is not a canary.
+2. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at PostgreSQL 17 with 55/92
+   migrations applied and 37 missing. The duplicate planner still reports
+   one tenant-scoped Purchase Order group containing 12 records; obtain the
+   supported backup/export, dependent/audit export, and owner-approved mapping
+   first.
+3. Replay the ordered suffix, including
+   `20260806110000_asset_register_foundation.sql`, on disposable PostgreSQL 17;
+   reconcile data/catalog/RLS/audit and rollback evidence; then run a protected
+   tenant asset-read canary before any Web cutover. Do not apply hosted SQL.
+4. Railway deployment `f0358fdd-f927-465c-b930-ec68b0baf240` is the approved
+   API release for this SHA; do not trigger another manual Railway build. Keep Vercel Git deployment
+   disabled and create no preview or production build while spend controls are
+   closed.
+
 ## Exact next action after M3.90
 
 1. Keep the asset register source-only: no API route, browser table access,

@@ -1,5 +1,35 @@
 # Migration Plan
 
+## M3.91 - Closed operational asset read projection (2026-08-06)
+
+Added the smallest safe NestJS read seam for the source operational asset
+register. Shared Zod contracts bound query shape and response size; the API
+derives tenant scope from the verified principal, requires `asset.read`,
+supports only same-tenant Project context, and stays fail-closed behind exact
+`ERP_ASSET_READS_ENABLED` plus `ERP_ASSET_READS_TENANT_IDS`. No Web adapter,
+browser write, hosted SQL, or data mutation changed.
+
+Validation: focused API 60/60; shared asset contract 2/2; root `pnpm test`
+(API 93/410; shared 20/200); typecheck; serial lint; production build 80/80;
+diff check. Source SHA `f11b1467b5d3def986b73411a54a6f501339c803` is pushed to
+both GitHub refs. Railway deployment `f0358fdd-f927-465c-b930-ec68b0baf240`
+is `SUCCESS`; live readiness/health are 200 and unauthenticated asset reads
+are 401. Supabase was not written; Vercel stayed on the retained revision
+without a build/deploy.
+
+## Next gate
+
+Keep both asset flags false/empty and the route out of the browser. Keep the
+Supabase target read-only at PostgreSQL 17 with 55/92 migrations applied, 37
+missing, and one duplicate Purchase Order group containing 12 records. Obtain
+the supported backup/export, dependent/audit export, and owner-approved
+mapping; replay the ordered suffix including
+`20260806110000_asset_register_foundation.sql` on disposable PostgreSQL 17;
+reconcile catalog/data/RLS/audit and rollback evidence; then run a protected
+tenant canary before adding a Web adapter. Do not trigger another manual
+Railway deploy after the approved API release;
+keep Vercel builds disabled for spend control.
+
 ## M3.90 - Operational asset register foundation (2026-08-06)
 
 Added a source-only operational asset register contract. It introduces

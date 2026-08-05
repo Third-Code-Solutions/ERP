@@ -1,8 +1,16 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `5541840` (M3.90 operational asset register foundation)
+Source checkpoint: `f11b146` (M3.91 closed operational asset read projection)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.91 update: the operational asset register now has a typed, closed NestJS
+`GET /v1/assets` projection with strict bounded filters/pagination, the
+`asset.read` capability, verified-principal tenant scope, and same-tenant
+Project context. API flags remain false/empty; there is no Web adapter, browser
+table access, write authority, hosted migration, or Vercel build. Railway
+deployment `f0358fdd-f927-465c-b930-ec68b0baf240` is live on the source SHA;
+the next proof is disposable replay and a protected tenant canary.
 
 M3.90 update: the source now defines an operational asset register with
 tenant-safe identity, controlled kind/status, assignment constraints, audit,
@@ -105,7 +113,7 @@ provider, and canary gates are complete.
 | Receivables | Invoice, tax/retention, receipt, reconciliation, reversal | Local finance slices exist | Hosted parity and exact-cent integration canary |
 | Compliance and audit | Tenant isolation, capability checks, immutable audit, evidence lineage | Implemented across current slices | Audit-chain recovery with owner-approved tenant input |
 | People and work management | Role-aware tasks, approvals, workload, site cadence | Tasks and permissions exist | Keep HR/payroll out of the construction transaction path until discovery |
-| Assets and maintenance | Track equipment, warranties, service history, and cost | Operational asset register is source-only; no API/read canary, maintenance history, or accounting lifecycle | Disposable replay, then closed Nest read projection; defer maintenance/history/accounting authority |
+| Assets and maintenance | Track equipment, warranties, service history, and cost | Operational asset register plus closed Nest read projection; no Web adapter, maintenance history, or accounting lifecycle | Disposable replay, then protected tenant read canary; defer maintenance/history/accounting authority |
 | Service and customer success | Portal, issues, warranty, satisfaction, communications | Warranty portal and CNPS are live | Add supplier/customer response loops only after token threat model |
 | Reporting and planning | Role-specific Today views, scheduled reports, exports, forecasts | Dashboard, reports, and Cortex context exist | Measure decision latency and data freshness before adding breadth |
 

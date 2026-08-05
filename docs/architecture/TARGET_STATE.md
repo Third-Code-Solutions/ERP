@@ -3,6 +3,17 @@
 Third Code ERP remains an incremental TypeScript system. The target is a
 modular monolith, not a rewrite and not a microservice fleet.
 
+## M3.91 Closed operational asset read projection (2026-08-06)
+
+The first operational asset read is a typed, tenant-derived NestJS projection:
+`GET /v1/assets` with bounded filters and pagination, `asset.read` capability
+authorization, and a same-tenant Project name join. Keep it closed behind the
+API flag and tenant allowlist until the source migration suffix has been
+replayed on disposable PostgreSQL 17 and a protected canary proves schema
+parity, tenant isolation, audit/RLS behavior, and rollback. Do not add a Web
+adapter or maintenance/accounting behavior in this slice. Python remains
+advisory only and direct browser database access remains denied.
+
 ## M3.90 Operational asset register boundary (2026-08-06)
 
 The first asset capability is an operational register, not a fixed-asset
