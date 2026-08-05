@@ -1,5 +1,21 @@
 # Work Log
 
+## 2026-08-06 - M3.90 operational asset register foundation
+
+Defined the asset glossary and boundary, then added a source-only Drizzle
+`assets` table plus `20260806110000_asset_register_foundation.sql`. The slice
+has controlled kind/status values, tenant/tag/serial uniqueness,
+tenant-composite Project and creator FKs, date/state checks, the existing audit
+trigger, forced RLS, and service-role-only privileges. No API route, feature
+flag, UI, hosted SQL, or provider build was added. Accounting fixed assets,
+maintenance workflows, and assignment history remain explicitly deferred.
+
+Validation: migration contract 4/4; root `pnpm test`; root typecheck; serial
+lint; production build 80/80 routes; `git diff --check`; read-only Supabase
+planner 55/92 with 37 missing; duplicate planner review-required for one
+12-record group; Vercel spend guard clear. Source commit and Railway/provider
+result are recorded after the controlled push.
+
 ## 2026-08-06 - M3.89 Purchase Order uniqueness-conflict guard
 
 Mapped only the named tenant/PO PostgreSQL unique constraint at both Nest

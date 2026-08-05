@@ -4,6 +4,26 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.90 Operational asset register foundation (2026-08-06)
+
+Defined and implemented the first operational asset-register slice. The new
+tenant-scoped `assets` table has controlled kind/status values, tag and serial
+uniqueness, composite Project/creator foreign keys, date/state checks, the
+existing audit trigger, forced RLS, and service-role-only privileges. It is
+deliberately separate from the `asset` Ledger Account and does not authorize
+capitalization, depreciation, disposal, maintenance work orders, or browser
+writes. Added the domain glossary, boundary document, Drizzle exports, source
+migration, and a four-test migration contract. No API route, feature flag, UI,
+hosted SQL, or data mutation was added.
+
+Validation: focused migration contract 4/4; root `pnpm test`; root typecheck;
+serial lint; production build 80/80 routes; and `git diff --check`. The
+read-only Supabase planner reports PostgreSQL 17, 55/92 migrations applied,
+37 missing, and one duplicate Purchase Order group with 12 records; no hosted
+SQL was executed. Vercel spend guard is clear, but Git deployment remains
+disabled and the retained production revision is unchanged. Source commit and
+provider deployment status are recorded after the controlled push.
+
 ## M3.89 Purchase Order uniqueness-conflict guard (2026-08-06)
 
 Hardened the existing Nest Purchase Order command at the database boundary.

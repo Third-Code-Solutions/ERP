@@ -1,5 +1,22 @@
 # Next Actions
 
+## Exact next action after M3.90
+
+1. Keep the asset register source-only: no API route, browser table access,
+   feature flag, hosted SQL, or data mutation. The source contract is not a
+   production canary.
+2. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at PostgreSQL 17 with 55/92
+   migrations applied and 37 missing. The duplicate planner still reports one
+   tenant-scoped Purchase Order group containing 12 records; obtain supported
+   backup/export, dependent/audit export, and owner-approved mapping first.
+3. Replay the ordered suffix, including the asset migration, on disposable
+   PostgreSQL 17. Reconcile the duplicate records and prove tenant RLS,
+   composite-FK, audit, rollback, exact idempotency, and spend-cap gates before
+   defining a closed Nest read projection or any write authority.
+4. Preserve Vercel Git deployment disabled and the retained production
+   revision; do not create preview or production builds while the spend guard
+   and provider approval gate remain closed.
+
 ## Exact next action after M3.89
 
 1. Keep `ERP_PO_CREATE_WRITES_ENABLED=false`, BOM/grouped PO flags false, and

@@ -3,6 +3,21 @@
 Third Code ERP remains an incremental TypeScript system. The target is a
 modular monolith, not a rewrite and not a microservice fleet.
 
+## M3.90 Operational asset register boundary (2026-08-06)
+
+The first asset capability is an operational register, not a fixed-asset
+accounting module. Each row has a tenant-safe identity, controlled kind and
+status, optional current Project/location assignment, and immutable-history
+intent through the existing audit boundary. Retired rows remain evidence.
+
+Keep acquisition, capitalization, depreciation, tax basis, disposal,
+maintenance events, service history, assignment history, and work orders out of
+this slice until separate accounting, approval, and event-history contracts are
+specified. NestJS must own any future read/write projection; direct browser
+table access remains denied. The source migration stays closed until the
+ordered hosted suffix, duplicate Purchase Order reconciliation, disposable
+PostgreSQL replay, rollback, and spend gates clear.
+
 ## M3.89 Purchase Order uniqueness must fail as a bounded conflict (2026-08-06)
 
 After the tenant-scoped unique index is proven on the replay and hosted

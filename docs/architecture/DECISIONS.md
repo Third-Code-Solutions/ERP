@@ -1,5 +1,17 @@
 # Architecture Decisions
 
+## D-200 - Keep the first asset slice operational, not accounting (2026-08-06)
+
+The register names and tracks durable tenant-owned items without pretending to
+be a fixed-asset ledger. `Operational Asset` is distinct from an `asset` Ledger
+Account and an inventory Item. Controlled kind/status, tenant-safe assignment,
+forced RLS, service-only privileges, and the existing audit trigger are enough
+for the first source slice. Capitalization, depreciation, disposal,
+maintenance, and assignment history require separate authority and accounting
+contracts, so they remain deferred. This prevents a plausible-looking schema
+from silently creating financial or lifecycle semantics the product has not
+approved.
+
 ## D-199 - Map only the Purchase Order number constraint to a safe conflict (2026-08-06)
 
 Decision: catch PostgreSQL `23505` only when the named

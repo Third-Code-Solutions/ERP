@@ -187,6 +187,35 @@ Stock Receipts. It remains visible in Purchase Order received totals but is not
 invented into historical Stock Receipt evidence.
 _Avoid_: Posted Stock Receipt, stock adjustment
 
+## Asset register
+
+**Operational Asset**:
+A tenant-owned item with a stable identity that the business can assign to a
+Project or location and track through an operational lifecycle. It is separate
+from an `asset` Ledger Account and from an inventory Item.
+_Avoid_: Ledger Account, inventory balance, generic uploaded file
+
+**Asset Kind**:
+The controlled operational classification of an Operational Asset: equipment,
+vehicle, tool, fixture, or other.
+_Avoid_: Cost Code, Ledger Account, free-text status
+
+**Asset Status**:
+The controlled lifecycle state of an Operational Asset: active, maintenance, or
+retired. Retired assets remain historical evidence and are not deleted.
+_Avoid_: Approval state, warranty ticket status, accounting disposal
+
+**Asset Assignment**:
+The current optional Project association and location recorded for an
+Operational Asset. Assignment is not a history log; service and movement events
+are a later capability with their own append-only evidence.
+_Avoid_: Project ownership, warehouse stock, service event
+
+The first asset slice is an operational register only. It intentionally does
+not authorize acquisition, depreciation, capitalization, disposal, maintenance
+work orders, or direct browser writes. Those workflows require separate
+accounting, approval, and audit specifications.
+
 **Cash Account**:
 A controlled cash, bank, or e-wallet account tied one-to-one to an asset
 Ledger Account.

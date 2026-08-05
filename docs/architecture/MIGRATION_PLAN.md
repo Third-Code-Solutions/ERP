@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.90 - Operational asset register foundation (2026-08-06)
+
+Added a source-only operational asset register contract. It introduces
+controlled `asset_kind` and `asset_status` values, tenant/tag/serial uniqueness,
+tenant-composite Project and creator foreign keys, date/state checks, audit
+coverage, forced RLS, and service-role-only table privileges. The glossary and
+domain boundary explicitly defer accounting fixed-asset, maintenance, and
+history workflows. No API route, flag, UI, hosted SQL, or data write changed.
+
+Validation: focused migration contract 4/4; root `pnpm test`; root typecheck;
+serial lint; production build 80/80; diff check; read-only Supabase planner at
+55/92 with 37 missing; duplicate planner still review-required for one group of
+12 records; Vercel spend guard clear. Source commit and Railway status are
+filled in after push.
+
+## Next gate
+
+Keep the asset register source-only: no hosted migration apply, browser access,
+or API authority. Obtain the supported Supabase backup/export, dependent/audit
+export, and owner-approved mapping for the duplicate Purchase Order group.
+Replay the complete ordered suffix, including
+`20260806110000_asset_register_foundation.sql`, on disposable PostgreSQL 17;
+reconcile tenant data and prove RLS, composite-FK, audit, rollback, and provider
+spend gates. Only then define a closed Nest read projection and a separate
+idempotent command slice.
+
 ## M3.89 - Purchase Order uniqueness-conflict guard (2026-08-06)
 
 Added a source/runtime guard around direct and grouped Nest Purchase Order
