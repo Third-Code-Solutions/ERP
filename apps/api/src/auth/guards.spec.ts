@@ -20,6 +20,9 @@ class GuardFixtureController {
   @RequireCapabilities('asset.read')
   assetRead(): void {}
 
+  @RequireCapabilities('cortex.search')
+  cortexSearch(): void {}
+
   @RequireCapabilities('project.read')
   projectRead(): void {}
 
@@ -244,6 +247,21 @@ describe('CapabilityGuard', () => {
     expect(
       guard.canActivate(
         contextFor('assetRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('allows read-only Cortex search for a viewer', () => {
+    expect(
+      guard.canActivate(
+        contextFor('cortexSearch', {
           principal: {
             userId: '11111111-1111-4111-8111-111111111111',
             tenantId: '22222222-2222-4222-8222-222222222222',

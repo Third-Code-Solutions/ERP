@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   cortexNodeTypeScope: vi.fn(),
   cortexEntityDefinition: vi.fn(),
   cortexHref: vi.fn(),
+  cortexSearchUseCoreApi: vi.fn(),
+  searchCortexThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -24,6 +26,11 @@ vi.mock('@/lib/cortex/rbac', () => ({
 vi.mock('@/lib/cortex/entity-registry', () => ({
   cortexEntityDefinition: mocks.cortexEntityDefinition,
   cortexHref: mocks.cortexHref,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  cortexSearchUseCoreApi: mocks.cortexSearchUseCoreApi,
+  searchCortexThroughCoreApi: mocks.searchCortexThroughCoreApi,
 }))
 
 import { GET } from './route'
@@ -50,6 +57,7 @@ describe('Cortex search authorization and retrieval', () => {
       refTables: ['invoices'],
     })
     mocks.cortexHref.mockReturnValue('/invoices/' + REF_ID)
+    mocks.cortexSearchUseCoreApi.mockReturnValue(false)
   })
 
   it('requires an authenticated profile', async () => {
@@ -143,6 +151,52 @@ describe('Cortex search authorization and retrieval', () => {
       hits: [],
       hint: 'Type a longer keyword.',
     })
+    expect(mocks.searchCortexNodesByTerms).not.toHaveBeenCalled()
+  })
+
+  it('uses the closed Core API adapter for an explicit tenant canary', async () => {
+    mocks.cortexSearchUseCoreApi.mockReturnValue(true)
+    mocks.searchCortexThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        hits: [
+          {
+            id: NODE_ID,
+            nodeType: 'invoice',
+            title: 'Invoice 1042',
+            summary: 'Concrete Tower progress billing',
+            refTable: 'invoices',
+            refId: REF_ID,
+            projectId: null,
+            freshness: 'fresh',
+            source: 'cortex',
+          },
+        ],
+      },
+    })
+
+    const response = await request('?q=concrete')
+    await expect(response.json()).resolves.toMatchObject({
+      hits: [expect.objectContaining({ nodeType: 'invoice' })],
+    })
+    expect(mocks.searchCortexThroughCoreApi).toHaveBeenCalledWith(
+      'concrete',
+      20
+    )
+    expect(mocks.searchCortexNodesByTerms).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back to direct database reads when Core is enabled but unavailable', async () => {
+    mocks.cortexSearchUseCoreApi.mockReturnValue(true)
+    mocks.searchCortexThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'Cortex search service is unavailable.',
+    })
+
+    const response = await request('?q=concrete')
+
+    expect(response.status).toBe(503)
     expect(mocks.searchCortexNodesByTerms).not.toHaveBeenCalled()
   })
 })

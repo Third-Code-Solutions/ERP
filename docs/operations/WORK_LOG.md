@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-06 - M3.92 closed Cortex keyword read projection
+
+Added the shared Cortex query/result contract, bounded term normalization, and
+NestJS `GET /v1/cortex/search` controller/pipe/service/module. The service
+requires `cortex.search`, derives tenant and role scope from the verified
+principal, and stays closed behind `ERP_CORTEX_SEARCH_ENABLED` plus an exact
+tenant allowlist. The Next route gained a separate Core adapter selected only
+by `ERP_CORTEX_SEARCH_VIA_API` plus its tenant allowlist; selected tenants do
+not fall back to direct database reads on Core failure. No UI rewrite, browser
+write, Python transaction, hosted SQL, Vercel build, or provider spend.
+
+Validation: shared 21 files/203 tests; API 96 files/419 tests; Web 87 files/550
+tests; package-serial suite; typecheck; serial lint; production build 80/80;
+and diff check. A parallel root turbo test hit five cross-package HTTP-test
+timeouts; isolated API and package-serial runs passed. Source/provider SHA and
+Railway evidence are pending the reviewed commit; Supabase remains read-only
+at 55/92 with one 12-record Purchase Order duplicate group, and Vercel stays
+spend-guarded with no build/deploy.
+
 ## 2026-08-06 - M3.91 closed operational asset read projection
 
 Added the closed NestJS `GET /v1/assets` read projection and shared strict

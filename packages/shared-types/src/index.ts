@@ -22,6 +22,7 @@ export * from './erp-api/deliveries'
 export * from './erp-api/audit-activity'
 export * from './erp-api/cost-entries'
 export * from './erp-api/assets'
+export * from './erp-api/cortex-search'
 // BOM calculations exported via './bom' subpath to avoid BasisPoints conflict
 export {
   lineTotal,

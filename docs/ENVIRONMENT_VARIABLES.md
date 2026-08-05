@@ -152,6 +152,22 @@ authority.
 | `ERP_ASSET_READS_ENABLED` | no | Railway API | Exact `true` enables the Nest read seam; default `false` |
 | `ERP_ASSET_READS_TENANT_IDS` | no | Railway API | Comma-separated strict UUID allowlist; default empty |
 
+## Cortex keyword search reads (NestJS, disabled by default)
+
+The Cortex keyword read contract is a closed, tenant-derived NestJS seam. The
+Next route remains the compatibility path unless both the exact boolean and
+the tenant allowlist match. An enabled canary never falls back to a direct
+database query if the Core API is unavailable. Search is bounded keyword
+retrieval only; it does not invoke an external AI provider or authorize ERP
+writes.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_CORTEX_SEARCH_ENABLED` | no | Railway API | Exact `true` enables `GET /v1/cortex/search`; default `false` |
+| `ERP_CORTEX_SEARCH_TENANT_IDS` | no | Railway API | Strict UUID allowlist; default empty |
+| `ERP_CORTEX_SEARCH_VIA_API` | no | Next server | Selects the authenticated Nest read adapter; exact `true` only |
+| `ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
 ## Project detail read cutover (NestJS, disabled by default)
 
 The project detail page can opt into the tenant-scoped Nest read contract for
