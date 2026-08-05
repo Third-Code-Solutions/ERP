@@ -4,6 +4,25 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.89 Purchase Order uniqueness-conflict guard (2026-08-06)
+
+Hardened the existing Nest Purchase Order command at the database boundary.
+Direct and grouped header inserts now translate only PostgreSQL `23505` errors
+for `ux_purchase_orders_tenant_po_number` into a fixed `409 ConflictException`;
+all other database failures still propagate unchanged. The response does not
+expose PO numbers, tenant identifiers, or raw database text. Added a focused
+service proof for the direct command; runtime flags and schema are unchanged.
+
+Validation: focused PO service 11/11; full API 90 files/402 tests; root
+typecheck; serial lint; production build 80/80 routes; and `git diff --check`.
+Source SHA `354401d434f3556d39bed2600748822b755c6c69` is pushed to both GitHub
+refs. Railway deployment `b6149479-1856-4ba7-baac-3e8df22bd262` reports
+`SUCCESS` for Kurt Gavin's production service, using `apps/api/Dockerfile` and
+the `/ready` healthcheck; live `/ready` and `/health` are 200 and unauthenticated
+PO creation remains 401. The read-only Supabase duplicate planner still finds
+one tenant-scoped group with 12 records, so no hosted migration/data write was
+attempted. Vercel remains on `31c04942a93d` with no new build.
+
 ## M3.88 Purchase Order creation boundary proof (2026-08-06)
 
 Expanded tests around existing Nest Purchase Order creation authority without

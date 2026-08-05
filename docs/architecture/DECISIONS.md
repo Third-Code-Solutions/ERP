@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-199 - Map only the Purchase Order number constraint to a safe conflict (2026-08-06)
+
+Decision: catch PostgreSQL `23505` only when the named
+`ux_purchase_orders_tenant_po_number` constraint rejects a direct or grouped
+header insert, and return a fixed Nest conflict message. Re-throw all other
+errors so integrity failures are not hidden. Do not surface raw database text,
+PO numbers, tenant IDs, or other business values. This guard does not authorize
+the pending hosted migration or a tenant canary.
+
+Evidence: focused PO service 11/11; full API 90/402; typecheck, serial lint,
+production build, and diff check. Source SHA
+`354401d434f3556d39bed2600748822b755c6c69` is Railway deployment
+`b6149479-1856-4ba5-baac-3e8df22bd262` (`SUCCESS`); live readiness/health are
+200 and unauthenticated PO creation is 401. Supabase was not written; its
+read-only planner reports one duplicate group with 12 records. Vercel stayed
+on `31c04942a93d` without a build.
+
 ## D-198 - Purchase Order creation requires exact transactional boundary proof (2026-08-06)
 
 Decision: require Purchase Order creation to derive tenant and actor from locked

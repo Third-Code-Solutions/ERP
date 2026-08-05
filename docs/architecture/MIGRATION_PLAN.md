@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.89 - Purchase Order uniqueness-conflict guard (2026-08-06)
+
+Added a source/runtime guard around direct and grouped Nest Purchase Order
+header inserts. Only the named tenant/PO unique constraint is converted to a
+bounded conflict response; raw database messages and business identifiers are
+not returned. This is compatible with the source migration's duplicate
+preflight and does not change flags or hosted data.
+
+Validation: focused service 11/11; full API 90/402; root typecheck; serial
+lint; production build 80/80; diff check. Source SHA
+`354401d434f3556d39bed2600748822b755c6c69` is pushed to both refs. Railway
+deployment `b6149479-1856-4ba5-baac-3e8df22bd262` is `SUCCESS`; live readiness
+and health are 200; unauthenticated PO creation is 401. Supabase remains
+read-only: PostgreSQL 17, 55/91 migrations applied, one duplicate group with
+12 records. Vercel remains on `31c04942a93d` without a build.
+
+## Next gate
+
+Keep PO/BOM/grouped PO flags false and tenant allowlists empty. Obtain a
+supported Supabase backup/export, dependent/audit export, and owner-approved
+mapping for the one duplicate group. Replay the ordered migration suffix on a
+disposable PostgreSQL 17 clone, reconcile the 12 records, then prove the unique
+index, role/cross-tenant denial, idempotent replay, audit redaction, rollback,
+and spend cap before any named-tenant canary or hosted apply.
+
 ## M3.88 - Purchase Order creation boundary proof (2026-08-06)
 
 Added executable service proof around the existing Purchase Order command:

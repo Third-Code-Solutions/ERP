@@ -1,5 +1,22 @@
 # Next Actions
 
+## Exact next action after M3.89
+
+1. Keep `ERP_PO_CREATE_WRITES_ENABLED=false`, BOM/grouped PO flags false, and
+   every Core tenant allowlist empty. Source SHA `354401d` and docs are pushed;
+   Railway deployment `b6149479-1856-4ba5-baac-3e8df22bd262` is `SUCCESS`, with
+   live readiness/health 200 and unauthenticated PO creation 401.
+2. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at PostgreSQL 17, 55/91
+   migrations applied. The duplicate planner found one tenant-scoped group
+   containing 12 records; obtain supported backup/export, dependent/audit
+   export, and owner-approved record mapping before any apply or cleanup.
+3. Run the ordered suffix on a disposable PostgreSQL 17 replay, prove the
+   unique-index migration, protected role/cross-tenant, redaction, exact
+   replay, rollback, and spend-cap gates, then request an explicitly scoped
+   hosted canary. Do not use the source guard as permission to mutate data.
+4. Preserve Vercel Git deployment disabled and retained revision
+   `31c04942a93d`; create no preview or production build.
+
 ## Exact next action after M3.88
 
 1. Keep `ERP_PO_CREATE_WRITES_ENABLED=false`, BOM/grouped PO flags false, and

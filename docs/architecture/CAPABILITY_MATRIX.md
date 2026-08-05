@@ -1,8 +1,14 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `e4db66a` (M3.88 Purchase Order creation boundary proof)
+Source checkpoint: `354401d` (M3.89 Purchase Order uniqueness-conflict guard)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.89 update: direct and grouped Nest Purchase Order header inserts map only
+the named tenant/PO unique constraint to a bounded 409 response; raw database
+errors and business identifiers are not exposed. Runtime flags remain
+false/empty, Supabase duplicate reconciliation is still blocked, Railway is
+live on the guarded API SHA, and Vercel remains unchanged.
 
 M3.88 update: Purchase Order creation now has executable service proof for
 capability/tenant denial, exact centavo header and line totals, bounded audit

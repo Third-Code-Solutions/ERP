@@ -1,5 +1,21 @@
 # Work Log
 
+## 2026-08-06 - M3.89 Purchase Order uniqueness-conflict guard
+
+Mapped only the named tenant/PO PostgreSQL unique constraint at both Nest
+Purchase Order header insert paths to a fixed 409 conflict. Unknown database
+errors still propagate, and the response never leaks raw SQL or business
+identifiers. Added one focused test; no UI, schema, feature flag, Supabase, or
+Vercel state changed.
+
+Validation: focused PO service 11/11; full API 90 files/402 tests; root
+typecheck; serial lint; production build 80/80 routes; diff check. Source SHA
+`354401d` is pushed to both GitHub refs. Railway deployment
+`b6149479-1856-4ba7-baac-3e8df22bd262` is `SUCCESS` with the API Dockerfile;
+live `/ready`/`/health` are 200 and unauthenticated PO creation is 401. The
+read-only Supabase duplicate planner remains blocked by one group/12 records;
+Vercel stayed on `31c04942a93d` with no build/deploy.
+
 ## 2026-08-06 - M3.88 Purchase Order creation boundary proof
 
 Added five service tests around existing Nest Purchase Order creation:

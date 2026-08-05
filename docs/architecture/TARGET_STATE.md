@@ -3,6 +3,15 @@
 Third Code ERP remains an incremental TypeScript system. The target is a
 modular monolith, not a rewrite and not a microservice fleet.
 
+## M3.89 Purchase Order uniqueness must fail as a bounded conflict (2026-08-06)
+
+After the tenant-scoped unique index is proven on the replay and hosted
+database, a concurrent or legacy-number collision at the official Purchase
+Order transaction boundary must return a stable 409 conflict without exposing
+PostgreSQL details. Unknown database failures remain errors. Keep all PO Core
+flags false/empty while duplicate records, migration parity, rollback, audit,
+and spend-cap gates are unresolved.
+
 ## M3.88 Purchase Order creation boundary proof (2026-08-06)
 
 Purchase Order commands must calculate integer centavos server-side, derive
