@@ -42,6 +42,7 @@ import {
   inventorySummaryResultSchema,
   inventoryStockMovementListResultSchema,
   inventoryStockMovementDetailResultSchema,
+  auditActivityResultSchema,
   stockMovementCreationResultSchema,
   stockMovementPostingResultSchema,
   stockMovementReversalResultSchema,
@@ -113,6 +114,8 @@ import {
   type InventorySummaryResult,
   type InventoryStockMovementListResult,
   type InventoryStockMovementDetailResult,
+  type AuditActivityQuery,
+  type AuditActivityResult,
   type CreateStockMovementCommand,
   type StockMovementCreationResult,
   type StockMovementPostCommand,
@@ -253,6 +256,14 @@ export function opportunityReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_OPPORTUNITY_READS_VIA_API,
     process.env.ERP_OPPORTUNITY_READS_VIA_API_TENANT_IDS
+  )
+}
+
+export function auditActivityReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_AUDIT_ACTIVITY_READS_VIA_API,
+    process.env.ERP_AUDIT_ACTIVITY_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -994,6 +1005,66 @@ export async function getProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Project data was not read.',
+    }
+  }
+}
+
+export async function getAuditActivityThroughCoreApi(
+  query: AuditActivityQuery
+): Promise<CoreResult<AuditActivityResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams()
+    if (query.entityType) params.set('entityType', query.entityType)
+    if (query.action) params.set('action', query.action)
+    for (const entityId of query.entityIds ?? []) {
+      params.append('entityIds', entityId)
+    }
+    params.set('page', String(query.page))
+    params.set('limit', String(query.limit))
+
+    const response = await fetch(
+      `${access.baseUrl}/v1/audit/activity?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Audit activity filters are invalid.'
+            : response.status === 403
+              ? 'You do not have permission to view audit activity.'
+              : 'Audit activity was not completed.',
+      }
+    }
+
+    const parsed = auditActivityResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid audit activity result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Audit activity was not read.',
     }
   }
 }

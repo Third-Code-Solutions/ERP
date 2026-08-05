@@ -5,7 +5,7 @@ import {
   type AuditActivityQuery,
   type AuditActivityResult,
 } from '@third-code-erp/shared-types'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { DatabaseService } from '../database/database.service'
 
@@ -47,6 +47,9 @@ export class AuditActivityService {
     }
     if (query.action) {
       conditions.push(eq(auditLog.action, query.action))
+    }
+    if (query.entityIds?.length) {
+      conditions.push(inArray(auditLog.entity_id, query.entityIds))
     }
     const whereClause =
       conditions.length === 1 ? conditions[0] : and(...conditions)

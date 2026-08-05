@@ -5,6 +5,10 @@ import { getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { auditLog, boms, invoices, projects, scopeItems, users } from '@third-code-erp/database/schema'
 import { and, desc, eq, inArray, or } from 'drizzle-orm'
+import {
+  auditActivityReadsUseCoreApi,
+  getAuditActivityThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 export const metadata: Metadata = { title: 'Audit Trail' }
 
@@ -50,13 +54,35 @@ function relativeTime(date: Date): string {
   return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+type AuditEntryView = {
+  id: string | number
+  action: string
+  entity_type: string
+  entity_id: string
+  diff: unknown
+  hash: string
+  created_at: Date
+  redacted: boolean
+}
+
+const AUDIT_CORE_ROLES = new Set(['owner', 'admin', 'pm', 'finance'])
+
 export default async function ProjectAuditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const user = await getUser()
   if (!user) return null
 
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
+  const [userRow] = await db
+    .select({ tenant_id: users.tenant_id, role: users.role })
+    .from(users)
+    .where(eq(users.id, user.id))
   if (!userRow?.tenant_id) return notFound()
+  if (
+    auditActivityReadsUseCoreApi(userRow.tenant_id) &&
+    !AUDIT_CORE_ROLES.has(userRow.role)
+  ) {
+    return notFound()
+  }
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -82,12 +108,47 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
     ...invoiceIds.map((r) => r.id),
   ]
 
-  const entries = await db
-    .select()
-    .from(auditLog)
-    .where(and(eq(auditLog.tenant_id, userRow.tenant_id), inArray(auditLog.entity_id, relatedIds)))
-    .orderBy(desc(auditLog.created_at))
-    .limit(200)
+  let entries: AuditEntryView[]
+  if (auditActivityReadsUseCoreApi(userRow.tenant_id)) {
+    if (relatedIds.length > 500) {
+      throw new Error('Project audit scope is too broad for the Core activity boundary.')
+    }
+    const result = await getAuditActivityThroughCoreApi({
+      entityIds: relatedIds,
+      page: 1,
+      limit: 200,
+    })
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Audit activity was not read')
+    }
+    entries = result.data.rows.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      entity_type: entry.entityType,
+      entity_id: entry.entityId,
+      diff: null,
+      hash: entry.hash,
+      created_at: new Date(entry.createdAt),
+      redacted: true,
+    }))
+  } else {
+    const directEntries = await db
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.tenant_id, userRow.tenant_id), inArray(auditLog.entity_id, relatedIds)))
+      .orderBy(desc(auditLog.created_at))
+      .limit(200)
+    entries = directEntries.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      entity_type: entry.entity_type,
+      entity_id: entry.entity_id,
+      diff: entry.diff,
+      hash: entry.hash,
+      created_at: entry.created_at,
+      redacted: false,
+    }))
+  }
 
   const baseHref = `/projects/${id}`
 
@@ -220,7 +281,9 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
                     {ENTITY_LABELS[entry.entity_type] ?? entry.entity_type}
                   </td>
                   <td style={{ padding: '10px 16px', color: 'var(--color-neutral-600)', fontSize: '0.75rem', fontFamily: 'JetBrains Mono, monospace', maxWidth: '320px' }}>
-                    {entry.diff
+                    {entry.redacted
+                      ? 'Details redacted by the Core authority'
+                      : entry.diff
                       ? Object.entries(entry.diff as Record<string, unknown>)
                           .slice(0, 3)
                           .map(([k, v]) => {

@@ -10,7 +10,18 @@ describe('audit activity contracts', () => {
       page: 1,
       limit: 25,
     })
-    expect(() => auditActivityQuerySchema.parse({ limit: 101 })).toThrow()
+    expect(() => auditActivityQuerySchema.parse({ limit: 201 })).toThrow()
+  })
+
+  it('normalizes one or many entity IDs without widening the contract', () => {
+    const entityId = '33333333-3333-4333-8333-333333333333'
+    expect(auditActivityQuerySchema.parse({ entityIds: entityId }).entityIds).toEqual([
+      entityId,
+    ])
+    expect(
+      auditActivityQuerySchema.parse({ entityIds: [entityId] }).entityIds
+    ).toEqual([entityId])
+    expect(() => auditActivityQuerySchema.parse({ entityIds: ['bad'] })).toThrow()
   })
 
   it('rejects malformed hash-chain rows', () => {
