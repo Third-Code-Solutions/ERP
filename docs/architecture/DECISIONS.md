@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-205 - Supplier payables reads use a closed Nest contract (2026-08-06)
+
+Decision: expose supplier payables through `GET /v1/finance/payables` with
+strict bounded filters, verified-principal tenant scope, same-tenant
+Supplier Bill/Vendor/Purchase Order/Project joins, posted disbursement
+allocation math, integer-cent balances, and server-computed aging totals. The
+existing Next page keeps its direct-read compatibility path; an exact boolean
+plus tenant allowlist selects the typed Core adapter and Core errors fail
+closed. Nest remains the authority for supplier-bill/cash writes; Python
+cannot approve or finalize state.
+
+Evidence: shared 24 files/211 tests; API 102 files/435 tests; Web 87 files/556
+tests; database active/skipped lanes, package-serial tests, typecheck, serial
+lint, production build 80/80, Vercel spend guard, and diff check. Source SHA
+`de0b7e1909ec127ec94ec044202f78f44ab8bd4a` is Railway deployment
+`dcb4579e-5bb5-4661-9896-fc1fd607bd92` (`SUCCESS`/`RUNNING`); live readiness and
+health are 200 and unauthenticated payables is 401. Supabase was not written
+and Vercel remained unchanged.
+
 ## D-204 - Receivables reads use a closed Nest contract (2026-08-06)
 
 Decision: expose customer receivables through `GET /v1/finance/receivables`

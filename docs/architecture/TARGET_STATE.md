@@ -1,5 +1,15 @@
 # Target State
 
+## M3.95 increment: Core-owned supplier payables reads
+
+Supplier payables reads move behind a typed NestJS projection before a
+browser cutover. `GET /v1/finance/payables` owns tenant/status/date scope,
+same-tenant supplier-bill context, posted disbursement allocation joins,
+integer-cent balances, and aging totals; Next retains a fail-closed adapter
+and the existing page for unselected tenants. Keep the seam closed until
+disposable supplier-bill/allocation replay, exact-cent parity, RLS/audit
+review, protected browser proof, rollback, and spend gates clear.
+
 ## M3.94 increment: Core-owned customer receivables reads
 
 Customer receivables reads move behind a typed NestJS projection before a

@@ -1,5 +1,28 @@
 # Work Log
 
+## 2026-08-06 - M3.95 closed supplier payables read projection
+
+Added the shared Finance Payables query/result contract, bounded filters and
+integer-cent output, NestJS `GET /v1/finance/payables` controller/pipe/service,
+`finance.read` authorization, same-tenant Supplier Bill/Vendor/Purchase
+Order/Project context, posted allocation balances, and a typed Next adapter.
+The existing Payables page remains unchanged by default; Core selection is
+exact-flag/tenant-canary only and fails closed. No UI redesign, browser write,
+Python transaction, hosted SQL, Vercel build, or AI/provider spend.
+
+Validation: shared 24 files/211 tests; API 102 files/435 tests; Web 87 files/556
+tests; database 45 files/177 active tests with 4 files/141 skipped integration/
+RLS tests without local `DATABASE_URL`; package-serial suite; typecheck; serial
+lint; production build 80/80; Vercel spend guard; and diff check. Source SHA
+`de0b7e1909ec127ec94ec044202f78f44ab8bd4a` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`dcb4579e-5bb5-4661-9896-fc1fd607bd92` is `SUCCESS`/`RUNNING` with the API
+Dockerfile and live `/ready` 200, `/health` 200, and unauthenticated payables
+401; image digest
+`sha256:117bcbcd52099412e319b8c6aa345daec0a2d6d0ba047c65c4e4987e200105d0`.
+Supabase remains read-only at 55/92 with one 12-record Purchase Order
+duplicate group, and Vercel remains spend-guarded with no build/deploy.
+
 ## 2026-08-06 - M3.94 closed customer receivables read projection
 
 Added the shared Finance Receivables query/result contract, bounded filters,

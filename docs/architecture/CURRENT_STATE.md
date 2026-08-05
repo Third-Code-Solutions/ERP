@@ -4,6 +4,36 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.95 Closed supplier payables read projection (2026-08-06)
+
+Added an original shared Finance Payables query/result contract and NestJS
+`GET /v1/finance/payables` projection. The API requires `finance.read`, derives
+tenant scope from the verified principal, restricts status/vendor/project/date
+filters, joins same-tenant Supplier Bill, Vendor, Purchase Order, and Project
+context, and computes posted disbursement allocations, exact-cent open
+balances, and aging totals server-side. Next keeps the existing Payables page
+and direct-read path by default; the Core adapter is selected only by exact
+boolean plus UUID tenant allowlist and fails closed on Core error or an
+over-limit result. No UI redesign, browser write, Python transaction
+authority, hosted SQL, or data mutation was added.
+
+Validation: shared 24 files/211 tests; API 102 files/435 tests; Web 87 files/556
+tests; database 45 files/177 active tests with 4 files/141 integration/RLS
+tests skipped because local `DATABASE_URL` is unavailable; package-serial test
+run; typecheck; serial lint; production build 80/80 routes; Vercel spend guard;
+and diff check. Source SHA
+`de0b7e1909ec127ec94ec044202f78f44ab8bd4a` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`dcb4579e-5bb5-4661-9896-fc1fd607bd92` is `SUCCESS`/`RUNNING` from
+`/railway.toml` with `apps/api/Dockerfile`, `/ready`, and
+`node apps/api/dist/main.js`; image digest is
+`sha256:117bcbcd52099412e319b8c6aa345daec0a2d6d0ba047c65c4e4987e200105d0`.
+Live `/ready` and `/health` are 200 and unauthenticated
+`/v1/finance/payables` is 401. Supabase remains read-only at PostgreSQL 17
+with 55/92 migrations applied, 37 missing, and one duplicate Purchase Order
+group of 12 records. Vercel Git remains disconnected, the spend guard is
+clear, and no Vercel build or deploy was started.
+
 ## M3.94 Closed customer receivables read projection (2026-08-06)
 
 Added an original shared Finance Receivables query/result contract and NestJS
