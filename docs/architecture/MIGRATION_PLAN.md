@@ -12,8 +12,10 @@ history workflows. No API route, flag, UI, hosted SQL, or data write changed.
 Validation: focused migration contract 4/4; root `pnpm test`; root typecheck;
 serial lint; production build 80/80; diff check; read-only Supabase planner at
 55/92 with 37 missing; duplicate planner still review-required for one group of
-12 records; Vercel spend guard clear. Source commit and Railway status are
-filled in after push.
+12 records; Vercel spend guard clear. Source SHA
+`5541840b1fe3ea24fdfef09ffac98b236af5aab5` is pushed to both GitHub refs.
+Railway deployment `1a072ca0-9267-4a16-aad6-fdc2c7ba83ff` is `SUCCESS`; live
+`/ready` and `/health` are 200 and unauthenticated PO creation remains 401.
 
 ## Next gate
 

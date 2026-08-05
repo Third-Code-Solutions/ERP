@@ -13,8 +13,10 @@ maintenance workflows, and assignment history remain explicitly deferred.
 Validation: migration contract 4/4; root `pnpm test`; root typecheck; serial
 lint; production build 80/80 routes; `git diff --check`; read-only Supabase
 planner 55/92 with 37 missing; duplicate planner review-required for one
-12-record group; Vercel spend guard clear. Source commit and Railway/provider
-result are recorded after the controlled push.
+12-record group; Vercel spend guard clear. Source SHA
+`5541840b1fe3ea24fdfef09ffac98b236af5aab5` is pushed to both GitHub refs.
+Railway deployment `1a072ca0-9267-4a16-aad6-fdc2c7ba83ff` is `SUCCESS`; live
+`/ready` and `/health` are 200 and unauthenticated PO creation remains 401.
 
 ## 2026-08-06 - M3.89 Purchase Order uniqueness-conflict guard
 
