@@ -3,6 +3,22 @@
 Third Code ERP remains an incremental TypeScript system. The target is a
 modular monolith, not a rewrite and not a microservice fleet.
 
+## M3.86 Cost entry command authority (2026-08-06)
+
+Manual project cost recording is a tenant-scoped Nest command, not a browser
+database write. The command accepts integer centavos, validates the project
+and active Cost Code inside one transaction, requires `cost.record`, writes
+audit evidence, and replays an exact result for a reused idempotency key. The
+Next Server Action remains a compatibility adapter selected only by an exact
+flag and tenant allowlist; default flags stay false/empty. Python/Cortex may
+recommend or analyze costs but cannot create, approve, or finalize them.
+
+The source ledger includes the new forced-RLS, service-only idempotency table,
+but hosted reconciliation, backup/export, tenant mapping, protected browser
+proof, rollback evidence, and spend cap remain mandatory before any canary or
+hosted apply. Keep Vercel Git/build disabled and do not infer production
+promotion from local compilation.
+
 ## M3.85 Spend-safe web delivery (2026-08-06)
 
 The target web delivery lane must fail closed when automatic Vercel Git

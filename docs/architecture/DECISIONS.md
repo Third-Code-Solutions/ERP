@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-196 - Manual cost recording uses a fail-closed Nest command boundary (2026-08-06)
+
+Decision: move manual project cost-entry creation into a tenant-scoped NestJS
+transaction incrementally. Require `cost.record` and a membership recheck;
+derive tenant/project/actor server-side; validate an active Cost Code; store
+integer centavos; complete a forced-RLS idempotency ledger and semantic audit
+row in the same transaction; and replay the exact result for the same key.
+Keep the current Next direct action as the default compatibility path until
+hosted schema and protected-canary gates pass. Keep all new flags false/empty.
+
+Evidence: API route/controller/service contracts, 3 route tests plus a
+fail-closed service test, database migration contract 3/3, shared contracts
+2/2, Web Core flag suite 97/97, full API 90/393, database 44/173 active,
+shared 19/198, Web 87/546, typecheck/lint/build/actionlint/spend guard/diff
+check. Source SHA `bcee984`. Hosted Supabase was not written; Vercel was not
+built or deployed.
+
 ## D-195 - Vercel deployment automation fails closed for spend control (2026-08-06)
 
 Decision: enforce the existing Vercel Git-disable setting in repository CI and

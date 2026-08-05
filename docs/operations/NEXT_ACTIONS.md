@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.86
+
+1. Push source SHA `bcee984` and the reviewed documentation once to both
+   GitHub refs. Do not use Vercel CLI, create a preview, or manually redeploy
+   Railway; observe whether the API watched paths produce one controlled
+   Railway deployment.
+2. Keep API flags
+   `ERP_COST_ENTRY_CREATE_WRITES_ENABLED=false` and
+   `ERP_COST_ENTRY_CREATE_WRITES_TENANT_IDS` empty. Keep matching Web Core
+   flags false/empty. The route is not a production canary.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at 55/91 with 36 pending
+   migrations. Obtain supported backup/export, dependent/audit export, owner
+   tenant mapping, and isolated PostgreSQL 17 replay evidence before any
+   migration apply.
+4. After the exact Railway release is observed, probe `/ready`, `/health`,
+   unauthenticated 401, role denial, cross-tenant denial, redaction, and
+   idempotent replay in a protected disposable/browser lane. Capture rollback
+   evidence and an explicit spend cap before a named tenant canary.
+5. Preserve Vercel Git deployment disabled and the retained production
+   revision `31c04942a93d`; new source is not live on Vercel until a separately
+   approved, spend-capped release.
+
 ## Exact next action after M3.85 Vercel spend guard
 
 1. Push source SHA `9cfee695f75e66375c2578235d0f1544a987e3ab` and reviewed docs

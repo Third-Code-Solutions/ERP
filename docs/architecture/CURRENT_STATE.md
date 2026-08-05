@@ -4,6 +4,29 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.86 Project cost-entry creation authority (2026-08-06)
+
+Added the next incremental NestJS authority seam for manual project cost
+entries. `POST /v1/projects/:projectId/cost-entries` derives tenant and actor
+from the verified principal, requires `cost.record`, rechecks membership,
+locks the project and active Cost Code, commits exact integer centavos, writes
+semantic audit evidence, and stores/replays a tenant-scoped idempotency result
+inside one transaction. The browser action and form select this route only
+behind exact `ERP_COST_ENTRY_CREATE_WRITES_VIA_API=true` plus tenant allowlist;
+the direct compatibility path remains the default and no UI copy/layout was
+rewritten.
+
+Source migration `20260806100000_cost_entry_create_idempotency.sql` is source
+only. The hosted Supabase planner is read-only at PostgreSQL 17, 55 applied
+versus 91 source migrations, 36 pending, status `review_required`. No hosted
+SQL, data, Storage, provider, or Vercel action occurred. Source commit
+`bcee984` is validated locally and pending provider observation.
+
+Validation: API 90 files/393 tests; database 44 files/173 active tests with
+141 environment-guarded skips; shared-types 19 files/198 tests; Web 87
+files/546 tests; root typecheck; serial lint; production build 80/80 routes;
+Actionlint 1.7.12; Vercel spend guard 3/3; and `git diff --check`.
+
 ## M3.85 Vercel spend guard (2026-08-06)
 
 Added a read-only repository guard that requires
