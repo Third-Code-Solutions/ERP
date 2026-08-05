@@ -4,6 +4,22 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.87 Protected cost-entry boundary proof (2026-08-06)
+
+Expanded the cost-entry authority test matrix without changing runtime code,
+database schema, flags, or visible UI. Tests now prove fail-closed behavior,
+role denial before idempotency, no membership cross-tenant denial, exact
+idempotent replay without a second audit row, and bounded audit diff fields
+with a one-way idempotency hash.
+
+Validation: focused cost-entry service 5/5; full API 90 files/397 tests; root
+typecheck; serial lint; production build 80/80 routes; and `git diff --check`.
+Source SHA `8be86304cf892fe645a3e3722d60275cdb01192a` is pushed to both GitHub
+refs. Controlled Railway deployment `61680ed6-7a13-4dc1-9bfb-d3c9c8b29352`
+reports `SUCCESS` with the API Dockerfile and `/ready` healthcheck; live
+readiness/health are 200 and unauthenticated cost-entry remains 401. No
+Supabase write occurred. Vercel remains on `31c04942a93d` with no new build.
+
 ## M3.86 Project cost-entry creation authority (2026-08-06)
 
 Added the next incremental NestJS authority seam for manual project cost

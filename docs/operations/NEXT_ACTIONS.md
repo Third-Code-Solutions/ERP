@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.87
+
+1. Keep `ERP_COST_ENTRY_CREATE_WRITES_ENABLED=false` and both Core tenant
+   allowlists empty. Source SHA `8be8630` and docs are pushed; Railway
+   deployment `61680ed6-7a13-4dc1-9bfb-d3c9c8b29352` is `SUCCESS`, with live
+   readiness/health 200 and unauthenticated command 401.
+2. Obtain supported Supabase backup/export, dependent/audit export, and owner
+   tenant mapping. Keep project `aqqrtkmtcsfkbyyqxowv` read-only at 55/91 with
+   36 pending migrations; do not apply source migration yet.
+3. Run disposable PostgreSQL 17 replay including migration 91, then protected
+   role denial, cross-tenant denial, audit redaction, idempotent replay, and
+   rollback evidence. Set explicit provider spend cap before any tenant canary.
+4. Preserve Vercel Git deployment disabled and retained revision `31c04942a93d`;
+   create no preview or production build.
+
 ## Exact next action after M3.86
 
 1. Completed: source SHA `bcee984` and the reviewed documentation are pushed

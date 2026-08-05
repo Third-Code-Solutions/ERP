@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-197 - Cost-entry authority requires executable protected-boundary proof (2026-08-06)
+
+Decision: treat disabled defaults, capability denial, tenant membership scope,
+idempotent replay, and audit redaction as release invariants for manual cost
+entry. Unit/service tests must prove rejected requests do not claim idempotency
+or write ERP records; replay must return the exact stored result without a
+second audit event. Keep Core flags false/empty until hosted and disposable
+integration evidence exists.
+
+Evidence: focused cost-entry service 5/5; full API 90/397; typecheck, serial
+lint, production build, and diff check. Source SHA
+`8be86304cf892fe645a3e3722d60275cdb01192a` is Railway deployment
+`61680ed6-7a13-4dc1-9bfb-d3c9c8b29352` (`SUCCESS`); live readiness/health are
+200 and unauthenticated command is 401. Supabase was not written; Vercel
+stayed on `31c04942a93d` without a build.
+
 ## D-196 - Manual cost recording uses a fail-closed Nest command boundary (2026-08-06)
 
 Decision: move manual project cost-entry creation into a tenant-scoped NestJS

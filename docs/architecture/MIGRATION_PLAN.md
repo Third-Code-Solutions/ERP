@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.87 - Protected cost-entry boundary proof (2026-08-06)
+
+Added executable service-level proof for the M3.86 command without changing
+production behavior: disabled flags do not open a transaction; viewer and
+missing-tenant membership are denied before idempotency; replay returns the
+stored result without a second ERP insert/audit; and semantic audit diff keeps
+descriptive fields out while retaining only bounded identifiers, amount, and
+hash evidence.
+
+Validation: focused service 5/5; full API 90/397; root typecheck; serial lint;
+production build 80/80; diff check. Source SHA
+`8be86304cf892fe645a3e3722d60275cdb01192a` is pushed to both refs. Railway
+deployment `61680ed6-7a13-4dc1-9bfb-d3c9c8b29352` is `SUCCESS`; live readiness
+and health are 200; unauthenticated command is 401. Supabase remains
+read-only; Vercel remains on `31c04942a93d` without a build.
+
+## Next gate
+
+Obtain supported Supabase backup/export, owner tenant mapping, and disposable
+PostgreSQL 17 replay including migration 91. Then run protected role,
+cross-tenant, redaction, and idempotent integration/browser evidence. Keep
+Core flags false/empty, do not apply hosted SQL, and set explicit provider
+spend cap before a named tenant canary.
+
 ## M3.86 - Project cost-entry creation authority (2026-08-06)
 
 Implemented the smallest safe financial execution slice. Added strict shared
