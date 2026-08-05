@@ -4,11 +4,17 @@ import Link from 'next/link'
 import { getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { auditLog, boms, invoices, projects, scopeItems, users } from '@third-code-erp/database/schema'
-import { and, desc, eq, inArray, or } from 'drizzle-orm'
+import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import {
   auditActivityReadsUseCoreApi,
   getAuditActivityThroughCoreApi,
 } from '@/lib/erp-core-client'
+import {
+  AUDIT_ACTION_OPTIONS,
+  AUDIT_ENTITY_OPTIONS,
+  auditActivityHref,
+  parseAuditActivityViewParams,
+} from '@/lib/audit-activity-view'
 
 export const metadata: Metadata = { title: 'Audit Trail' }
 
@@ -66,9 +72,17 @@ type AuditEntryView = {
 }
 
 const AUDIT_CORE_ROLES = new Set(['owner', 'admin', 'pm', 'finance'])
+const AUDIT_PAGE_SIZE = 25
 
-export default async function ProjectAuditPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProjectAuditPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { id } = await params
+  const filters = parseAuditActivityViewParams(await searchParams)
   const user = await getUser()
   if (!user) return null
 
@@ -109,18 +123,24 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
   ]
 
   let entries: AuditEntryView[]
+  let total = 0
+  let totalPages = 1
   if (auditActivityReadsUseCoreApi(userRow.tenant_id)) {
     if (relatedIds.length > 500) {
       throw new Error('Project audit scope is too broad for the Core activity boundary.')
     }
     const result = await getAuditActivityThroughCoreApi({
       entityIds: relatedIds,
-      page: 1,
-      limit: 200,
+      action: filters.action,
+      entityType: filters.entityType,
+      page: filters.page,
+      limit: AUDIT_PAGE_SIZE,
     })
     if (!result.ok || !result.data) {
       throw new Error(result.error ?? 'Audit activity was not read')
     }
+    total = result.data.total
+    totalPages = result.data.totalPages
     entries = result.data.rows.map((entry) => ({
       id: entry.id,
       action: entry.action,
@@ -132,12 +152,27 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
       redacted: true,
     }))
   } else {
-    const directEntries = await db
-      .select()
-      .from(auditLog)
-      .where(and(eq(auditLog.tenant_id, userRow.tenant_id), inArray(auditLog.entity_id, relatedIds)))
-      .orderBy(desc(auditLog.created_at))
-      .limit(200)
+    const conditions = [
+      eq(auditLog.tenant_id, userRow.tenant_id),
+      inArray(auditLog.entity_id, relatedIds),
+    ]
+    if (filters.action) conditions.push(eq(auditLog.action, filters.action))
+    if (filters.entityType) {
+      conditions.push(eq(auditLog.entity_type, filters.entityType))
+    }
+    const whereClause = and(...conditions)
+    const [directEntries, directCount] = await Promise.all([
+      db
+        .select()
+        .from(auditLog)
+        .where(whereClause)
+        .orderBy(desc(auditLog.created_at))
+        .limit(AUDIT_PAGE_SIZE)
+        .offset((filters.page - 1) * AUDIT_PAGE_SIZE),
+      db.select({ total: count() }).from(auditLog).where(whereClause),
+    ])
+    total = directCount[0]?.total ?? 0
+    totalPages = total === 0 ? 1 : Math.ceil(total / AUDIT_PAGE_SIZE)
     entries = directEntries.map((entry) => ({
       id: entry.id,
       action: entry.action,
@@ -200,6 +235,71 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
           </p>
         </div>
       </div>
+
+      <form
+        method="get"
+        aria-label="Filter audit activity"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'end',
+          gap: '10px',
+          marginBottom: '16px',
+          padding: '12px',
+          background: 'var(--color-neutral-50)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '8px',
+        }}
+      >
+        <label style={{ display: 'grid', gap: '4px', fontSize: '0.75rem', color: 'var(--color-neutral-600)' }}>
+          Action
+          <select
+            name="action"
+            defaultValue={filters.action ?? ''}
+            style={{ minWidth: '150px', minHeight: '36px', padding: '0 8px', border: '1px solid var(--color-border-strong)', borderRadius: '6px', background: 'white', color: 'var(--color-neutral-800)' }}
+          >
+            <option value="">All actions</option>
+            {AUDIT_ACTION_OPTIONS.map((action) => (
+              <option key={action} value={action}>
+                {ACTION_LABELS[action] ?? action}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: '4px', fontSize: '0.75rem', color: 'var(--color-neutral-600)' }}>
+          Entity
+          <select
+            name="entityType"
+            defaultValue={filters.entityType ?? ''}
+            style={{ minWidth: '170px', minHeight: '36px', padding: '0 8px', border: '1px solid var(--color-border-strong)', borderRadius: '6px', background: 'white', color: 'var(--color-neutral-800)' }}
+          >
+            <option value="">All entities</option>
+            {AUDIT_ENTITY_OPTIONS.map((entityType) => (
+              <option key={entityType} value={entityType}>
+                {ENTITY_LABELS[entityType] ?? entityType}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          style={{ minHeight: '36px', padding: '0 14px', border: 0, borderRadius: '6px', color: 'white', background: 'var(--color-navy-700)', fontWeight: 600, cursor: 'pointer' }}
+        >
+          Apply filters
+        </button>
+        {(filters.action || filters.entityType || filters.page > 1) && (
+          <Link
+            href={baseHref + '/audit'}
+            style={{ minHeight: '36px', display: 'inline-flex', alignItems: 'center', padding: '0 10px', color: 'var(--color-neutral-600)', fontSize: '0.8125rem', textDecoration: 'none' }}
+          >
+            Clear
+          </Link>
+        )}
+      </form>
+
+      <p style={{ margin: '-6px 0 12px', color: 'var(--color-neutral-500)', fontSize: '0.75rem' }}>
+        {total} matching event{total !== 1 ? 's' : ''}; page {Math.min(filters.page, totalPages)} of {totalPages}
+      </p>
 
       {entries.length === 0 ? (
         <div
@@ -304,6 +404,37 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
             </tbody>
           </table>
         </div>
+      )}
+
+      {totalPages > 1 && (
+        <nav
+          aria-label="Audit activity pages"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px', fontSize: '0.8125rem' }}
+        >
+          {filters.page > 1 ? (
+            <Link
+              href={auditActivityHref(`${baseHref}/audit`, filters, filters.page - 1)}
+              style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}
+            >
+              Previous
+            </Link>
+          ) : (
+            <span style={{ color: 'var(--color-neutral-300)' }}>Previous</span>
+          )}
+          <span style={{ color: 'var(--color-neutral-500)' }}>
+            Page {Math.min(filters.page, totalPages)} of {totalPages}
+          </span>
+          {filters.page < totalPages ? (
+            <Link
+              href={auditActivityHref(`${baseHref}/audit`, filters, filters.page + 1)}
+              style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}
+            >
+              Next
+            </Link>
+          ) : (
+            <span style={{ color: 'var(--color-neutral-300)' }}>Next</span>
+          )}
+        </nav>
       )}
     </div>
   )
