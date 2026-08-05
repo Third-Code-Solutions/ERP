@@ -95,6 +95,8 @@ import {
   getDocumentProcessingStatusThroughCoreApi,
   cortexSearchUseCoreApi,
   searchCortexThroughCoreApi,
+  financeLedgerReadsUseCoreApi,
+  getFinanceLedgerThroughCoreApi,
 } from './erp-core-client'
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -700,6 +702,67 @@ describe('ERP Core client', () => {
     })
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/cortex/search?q=Concrete%20Tower&limit=20',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('keeps Finance ledger reads on the legacy path unless the exact gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_LEDGER_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_LEDGER_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeLedgerReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_LEDGER_READS_VIA_API', 'TRUE')
+    expect(financeLedgerReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_LEDGER_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_FINANCE_LEDGER_READS_VIA_API_TENANT_IDS', '')
+    expect(financeLedgerReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(financeLedgerReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('calls the authenticated Core Finance ledger read and validates the response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          rows: [],
+          total: 0,
+          totalDebitCents: 0,
+          totalCreditCents: 0,
+          page: 1,
+          limit: 500,
+          totalPages: 1,
+          ledgerAccounts: [],
+          businessAccounts: [],
+          vendors: [],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getFinanceLedgerThroughCoreApi({
+        accountId: RESULT.tenantId,
+        customerId: undefined,
+        vendorId: undefined,
+        projectId: undefined,
+        from: '2026-01-01',
+        to: '2026-01-31',
+        page: 1,
+        limit: 500,
+      })
+    ).resolves.toMatchObject({ ok: true, data: { total: 0 } })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/finance/ledger?accountId=${RESULT.tenantId}&from=2026-01-01&to=2026-01-31&page=1&limit=500`,
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

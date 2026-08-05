@@ -43,6 +43,7 @@ import {
   inventoryStockMovementListResultSchema,
   inventoryStockMovementDetailResultSchema,
   auditActivityResultSchema,
+  financeLedgerResultSchema,
   stockMovementCreationResultSchema,
   stockMovementPostingResultSchema,
   stockMovementReversalResultSchema,
@@ -116,6 +117,8 @@ import {
   type InventoryStockMovementDetailResult,
   type AuditActivityQuery,
   type AuditActivityResult,
+  type FinanceLedgerQuery,
+  type FinanceLedgerResult,
   type CreateStockMovementCommand,
   type StockMovementCreationResult,
   type StockMovementPostCommand,
@@ -286,6 +289,15 @@ export function cortexSearchUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_CORTEX_SEARCH_VIA_API,
     process.env.ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS
+  )
+}
+
+/** General-ledger reads remain disabled until a protected finance canary is approved. */
+export function financeLedgerReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_LEDGER_READS_VIA_API,
+    process.env.ERP_FINANCE_LEDGER_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1143,6 +1155,67 @@ export async function getAuditActivityThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Audit activity was not read.',
+    }
+  }
+}
+
+export async function getFinanceLedgerThroughCoreApi(
+  query: FinanceLedgerQuery
+): Promise<CoreResult<FinanceLedgerResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams()
+    if (query.accountId) params.set('accountId', query.accountId)
+    if (query.customerId) params.set('customerId', query.customerId)
+    if (query.vendorId) params.set('vendorId', query.vendorId)
+    if (query.projectId) params.set('projectId', query.projectId)
+    if (query.from) params.set('from', query.from)
+    if (query.to) params.set('to', query.to)
+    params.set('page', String(query.page))
+    params.set('limit', String(query.limit))
+
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/ledger?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Finance ledger filters are invalid.'
+            : response.status === 403
+              ? 'You do not have permission to view the general ledger.'
+              : 'Finance ledger was not completed.',
+        status: response.status,
+      }
+    }
+
+    const parsed = financeLedgerResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid finance ledger result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Finance ledger was not read.',
     }
   }
 }

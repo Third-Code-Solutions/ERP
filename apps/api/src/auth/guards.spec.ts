@@ -23,6 +23,9 @@ class GuardFixtureController {
   @RequireCapabilities('cortex.search')
   cortexSearch(): void {}
 
+  @RequireCapabilities('finance.read')
+  financeLedgerRead(): void {}
+
   @RequireCapabilities('project.read')
   projectRead(): void {}
 
@@ -271,6 +274,34 @@ describe('CapabilityGuard', () => {
         })
       )
     ).toBe(true)
+  })
+
+  it('allows ledger reads only for finance-authorized roles', () => {
+    expect(
+      guard.canActivate(
+        contextFor('financeLedgerRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'finance',
+            email: 'finance@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+
+    expect(() =>
+      guard.canActivate(
+        contextFor('financeLedgerRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
   })
 
   it('allows read-only Opportunity access for a viewer', () => {
