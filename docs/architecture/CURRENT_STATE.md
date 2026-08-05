@@ -19,7 +19,9 @@ The report is correctly `reconcile_required`: hosted is missing 35 migration
 versions, 26 relations, 114 indexes, two triggers, and source-side grants;
 financial totals differ in five measures and row/audit counts require owner
 mapping. These are evidence of drift, not permission to repair automatically.
-No Supabase, Storage, Railway, or Vercel state was changed for this slice.
+No Supabase, Storage, or Vercel state changed. Railway recorded one
+`SKIPPED` deployment `8812b0dd-a1bd-4040-925d-c83389447dc6` for docs commit
+`8d708193cae3454c7ee6c508ba000839f6115337`; no build or runtime mutation ran.
 
 ## M3.78 Disposable PostgreSQL 17 + Redis replay gate (2026-08-05)
 

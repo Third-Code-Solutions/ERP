@@ -13,7 +13,8 @@ Live evidence: replay and Supabase are PostgreSQL 17; status is intentionally
 missing indexes, two missing triggers, grant/function drift, five changed
 financial measures, and data/audit drift. Script/plan tests 10/10, static
 verification, typecheck, serial lint, and production build pass. No Supabase,
-Storage, Railway, or Vercel state changed. Root package scripts were left
+Storage or Vercel state changed. Railway recorded only `SKIPPED`
+`8812b0dd-a1bd-4040-925d-c83389447dc6` for the docs push; no build ran. Root package scripts were left
 unchanged so this source-only tooling follow-up stays outside Railway watch
 patterns.
 Source commit `cc0e1f7e14ef999cc550894e39c05938d7b0e326` contains the tool and

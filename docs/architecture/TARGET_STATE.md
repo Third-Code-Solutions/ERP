@@ -26,7 +26,8 @@ The current report proves PostgreSQL 17 on both sides but finds the expected
 55/90 hosted prefix plus catalog, grant, data, financial, and audit drift.
 Backup/export, owner-approved mapping, rollback proof, protected browser
 evidence, and spend approval remain mandatory before any hosted apply or
-canary. Vercel remains untouched.
+canary. Vercel remains untouched. Docs/scripts-only pushes should remain
+Railway `SKIPPED` records, never paid builds.
 
 ## M3.78 Disposable replay evidence (2026-08-05)
 
