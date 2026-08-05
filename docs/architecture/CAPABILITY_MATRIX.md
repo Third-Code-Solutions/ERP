@@ -1,7 +1,7 @@
 # Third Code ERP capability matrix
 
-Status date: 2026-08-04
-Source checkpoint: `b77227d` (M3.39 durable project-create idempotency)
+Status date: 2026-08-05
+Source checkpoint: `cc0e1f7` (M3.79 read-only clone reconciliation)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 This matrix is the product scope baseline. It describes business outcomes and
@@ -96,13 +96,13 @@ unchanged.
 
 ## Release boundary
 
-Current hosted Supabase is at 55 applied migrations while source contains 86.
-The 31-migration suffix must be planned and applied in order as one reviewed
+Current hosted Supabase is at 55 applied migrations while source contains 90.
+The 35-migration suffix must be planned and applied in order as one reviewed
 release. Duplicate Purchase Order data, the owner-approved audit-recovery
-tenant, disposable database/Redis evidence, rollback, exact provider identity,
-and spend controls remain independent gates. Vercel Git stays disconnected to
-avoid duplicate or surprise builds. Railway readiness does not clear these
-gates.
+tenant, disposable database/Redis evidence, clone catalog/data/RLS/audit/
+financial reconciliation, rollback, exact provider identity, and spend
+controls remain independent gates. Vercel Git stays disconnected to avoid
+duplicate or surprise builds. Railway readiness does not clear these gates.
 
 ## Source-of-truth references
 

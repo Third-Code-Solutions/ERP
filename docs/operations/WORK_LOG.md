@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-05 - M3.79 read-only clone reconciliation
+
+Added `scripts/reconcile-database-clones.mjs` plus three helper tests. The
+tool refuses identical connections and runs both snapshots in PostgreSQL
+`READ ONLY` transactions. It compares migration history, relations/RLS,
+policies, indexes, triggers, functions, grants, tenant counts, financial
+totals, and audit endpoints without emitting repair SQL.
+
+Live evidence: replay and Supabase are PostgreSQL 17; status is intentionally
+`reconcile_required` with 35 hosted migration gaps, 26 missing relations, 114
+missing indexes, two missing triggers, grant/function drift, five changed
+financial measures, and data/audit drift. Script/plan tests 10/10, static
+verification, typecheck, serial lint, and production build pass. No Supabase,
+Storage, Railway, or Vercel state changed. Root package scripts were left
+unchanged so this source-only tooling follow-up stays outside Railway watch
+patterns.
+Source commit `cc0e1f7e14ef999cc550894e39c05938d7b0e326` contains the tool and
+tests.
+
 ## 2026-08-05 - M3.78 disposable replay and Warehouse fixture correction
 
 Ran the repo's WSL disposable lane from an empty database using PostgreSQL 17

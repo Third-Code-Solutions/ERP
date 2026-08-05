@@ -4,6 +4,23 @@ Verified from the repository and the configured Supabase target on 2026-08-05.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.79 Read-only clone reconciliation evidence (2026-08-05)
+
+Added `scripts/reconcile-database-clones.mjs`, a fail-closed comparison of a
+clean replay and a hosted target. Each connection runs one PostgreSQL
+`READ ONLY` transaction. It compares the migration ledger, public relations
+and RLS flags, policies, indexes, triggers, functions, table/routine grants,
+tenant row counts, financial totals, and audit-chain endpoints. It never
+executes migration, repair, or data-write SQL. Three pure helper tests pass.
+Source commit `cc0e1f7e14ef999cc550894e39c05938d7b0e326` contains the tool.
+
+Against the disposable replay and Supabase, both targets are PostgreSQL 17.
+The report is correctly `reconcile_required`: hosted is missing 35 migration
+versions, 26 relations, 114 indexes, two triggers, and source-side grants;
+financial totals differ in five measures and row/audit counts require owner
+mapping. These are evidence of drift, not permission to repair automatically.
+No Supabase, Storage, Railway, or Vercel state was changed for this slice.
+
 ## M3.78 Disposable PostgreSQL 17 + Redis replay gate (2026-08-05)
 
 The repository's self-hosted WSL lane now replays all 90 source migrations

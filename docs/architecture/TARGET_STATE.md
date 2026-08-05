@@ -13,6 +13,21 @@ source deployment, and basic PostgreSQL/Redis readiness are verified as
 required. Keep Vercel Git deployment disabled and avoid preview builds while
 those gates are incomplete.
 
+## M3.79 Read-only clone reconciliation (2026-08-05)
+
+The release process now has an original, fail-closed reconciliation report
+between the disposable PostgreSQL 17 replay and a hosted clone. It compares
+schema/security catalog, migration history, tenant-scoped record counts,
+financial measures, and audit endpoints inside read-only transactions. A
+non-empty diff produces `reconcile_required`; it cannot apply SQL or mutate
+data.
+
+The current report proves PostgreSQL 17 on both sides but finds the expected
+55/90 hosted prefix plus catalog, grant, data, financial, and audit drift.
+Backup/export, owner-approved mapping, rollback proof, protected browser
+evidence, and spend approval remain mandatory before any hosted apply or
+canary. Vercel remains untouched.
+
 ## M3.78 Disposable replay evidence (2026-08-05)
 
 Promotion requires a clean, no-skips source replay before any hosted database

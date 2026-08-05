@@ -1,5 +1,22 @@
 # Next Actions
 
+## Exact next action after M3.79 read-only clone reconciliation
+
+1. Keep every ERP workflow flag false and every tenant allowlist empty. The
+   reconciliation report is evidence, not approval for a hosted write or
+   protected browser canary.
+2. Run the report only with separate hosted `DATABASE_URL` and disposable
+   PostgreSQL 17 `REPLAY_DATABASE_URL`; retain the nonzero
+   `reconcile_required` result and never pass a hosted URL as the replay URL.
+3. Obtain supported backup/export plus dependent/audit export, restore an
+   isolated clone, and have the owner map the 35-version ledger gap, missing
+   catalog objects, tenant rows, financial totals, and audit differences.
+4. Record rollback proof and an explicit spend cap. Do not apply, delete,
+   repair, or hand-edit Supabase state; do not trigger Vercel builds.
+5. After reconciliation and owner approval, review one named-tenant protected
+   Stock Movement canary. Keep docs/scripts-only follow-ups outside Railway
+   watch patterns so they remain `SKIPPED`.
+
 ## Exact next action after M3.78 disposable replay gate
 
 1. Keep all ERP workflow API flags false and all tenant allowlists empty. The
