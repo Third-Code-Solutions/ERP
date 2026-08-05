@@ -4,6 +4,23 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.88 Purchase Order creation boundary proof (2026-08-06)
+
+Expanded tests around existing Nest Purchase Order creation authority without
+changing runtime code, schema, flags, or UI. Coverage now proves capability and
+tenant denial before idempotency, exact centavo subtotal/VAT/withholding/total
+calculation, tenant-scoped line creation, bounded audit evidence, and exact
+replay without a second ERP insert or audit row.
+
+Validation: focused Purchase Order service 10/10; full API 90 files/401 tests;
+root typecheck; serial lint; production build 80/80 routes; and
+`git diff --check`. Source SHA `e4db66a8eb4eed15a68ced1b76d9cf26f7ce6462`
+is pushed to both GitHub refs. Railway deployment
+`a7fb39dc-94c9-4cf0-8ad4-b0c3b7f32aa3` reports `SUCCESS` with the API Dockerfile
+and `/ready` healthcheck; live readiness/health are 200 and unauthenticated
+Purchase Order creation is 401. No Supabase write occurred. Vercel remains on
+`31c04942a93d` with no new build.
+
 ## M3.87 Protected cost-entry boundary proof (2026-08-06)
 
 Expanded the cost-entry authority test matrix without changing runtime code,

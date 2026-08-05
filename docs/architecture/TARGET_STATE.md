@@ -3,6 +3,16 @@
 Third Code ERP remains an incremental TypeScript system. The target is a
 modular monolith, not a rewrite and not a microservice fleet.
 
+## M3.88 Purchase Order creation boundary proof (2026-08-06)
+
+Purchase Order commands must calculate integer centavos server-side, derive
+tenant/project/actor scope from locked membership, create header and lines in
+one transaction, record a bounded audit event, and replay exact results for a
+reused idempotency key. Capability denial and missing tenant membership must
+occur before the replay ledger claims a request. Keep PO Core flags disabled
+until hosted reconciliation, disposable replay, rollback, and spend-cap gates
+clear.
+
 ## M3.87 Protected cost-entry boundary proof (2026-08-06)
 
 Every financial command must have executable proof for disabled defaults,

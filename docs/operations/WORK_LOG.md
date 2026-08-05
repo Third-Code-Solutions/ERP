@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-06 - M3.88 Purchase Order creation boundary proof
+
+Added five service tests around existing Nest Purchase Order creation:
+capability denial, missing tenant membership, exact centavo/tax totals and
+tenant-scoped lines, bounded audit evidence, and exact idempotent replay. No
+runtime code, schema, feature flag, UI, or hosted data changed.
+
+Validation: focused PO service 10/10; full API 90 files/401 tests; root
+typecheck; serial lint; production build 80/80 routes; diff check. Source SHA
+`e4db66a` is pushed to both GitHub refs. Railway deployment
+`a7fb39dc-94c9-4cf0-8ad4-b0c3b7f32aa3` is `SUCCESS` on `apps/api/Dockerfile`;
+live `/ready`/`/health` are 200 and unauthenticated PO creation is 401. No
+Supabase write or Vercel build/deploy occurred; Vercel revision remains
+`31c04942a93d`.
+
 ## 2026-08-06 - M3.87 protected cost-entry boundary proof
 
 Added five service tests around the existing closed-by-default cost-entry
