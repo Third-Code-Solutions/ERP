@@ -1,5 +1,15 @@
 # Target State
 
+## M3.93 increment: Core-owned Finance general-ledger reads
+
+Finance Ledger reads move behind a typed NestJS projection before any browser
+cutover. `GET /v1/finance/ledger` derives tenant and posted-state scope from
+the verified principal, requires `finance.read`, uses integer cents, and
+returns bounded same-tenant journal context. Next keeps a compatibility
+adapter, exact feature flag, and tenant allowlist; no Core failure restores a
+direct read for a selected tenant. Keep this closed until disposable replay,
+parity, protected browser proof, rollback, and spend gates clear.
+
 ## M3.92 increment: Core-owned Cortex keyword reads
 
 Cortex keyword retrieval is a read-only, tenant-derived NestJS contract before

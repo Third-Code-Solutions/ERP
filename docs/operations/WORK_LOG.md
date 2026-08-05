@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-06 - M3.93 closed Finance general-ledger read projection
+
+Added the shared Finance Ledger query/result contract, bounded filters and
+integer-cents output, NestJS `GET /v1/finance/ledger` controller/pipe/service,
+`finance.read` authorization, and a typed Next adapter. The existing ledger
+page remains unchanged by default; the Core path is exact-flag/tenant-canary
+only and fails closed. No UI redesign, browser write, Python transaction,
+hosted SQL, Vercel build, or AI/provider spend.
+
+Validation: shared 22 files/206 tests; API 98 files/425 tests; Web 87 files/552
+tests; package-serial suite; typecheck; serial lint; production build 80/80;
+Vercel spend guard; and diff check. Database integration/RLS tests were skipped
+without local `DATABASE_URL`. Source SHA
+`c279f61555ba772579fb4091dd3d5884b48af273` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`ac9f3fee-0a54-4bf7-91db-2b6815a3638e` is `SUCCESS`/`RUNNING` with the API
+Dockerfile and live `/ready` 200, `/health` 200, and unauthenticated Finance
+Ledger 401; image digest
+`sha256:ea7036fbe9a11187434735df3662e6f6a84b21fb4d572720605319b747643fd5`.
+Supabase remains read-only at 55/92 with one 12-record Purchase Order
+duplicate group, and Vercel remains spend-guarded with no build/deploy.
+
 ## 2026-08-06 - M3.92 closed Cortex keyword read projection
 
 Added the shared Cortex query/result contract, bounded term normalization, and

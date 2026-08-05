@@ -4,6 +4,35 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.93 Closed Finance general-ledger read projection (2026-08-06)
+
+Added an original shared Finance Ledger query/result contract and NestJS
+`GET /v1/finance/ledger` read projection. The API requires `finance.read`,
+derives tenant scope and posted-entry visibility from the verified principal,
+keeps money as integer cents, bounds filters/pagination, and returns only
+same-tenant journal, account, project, customer, and vendor context. Next has a
+separate typed adapter, but the existing direct-read page remains the default;
+the Core path is selected only by an exact boolean plus UUID tenant allowlist
+and fails closed. No UI redesign, browser write, Python transaction authority,
+hosted SQL, or data mutation was added.
+
+Validation: shared 22 files/206 tests; API 98 files/425 tests; Web 87 files/552
+tests; package-serial test run; typecheck; serial lint; production build
+80/80 routes; Vercel spend guard; and diff check. Database package validation
+had 45 active files/177 active tests and 4 files/141 skipped integration/RLS
+tests because local `DATABASE_URL` is unavailable. Source SHA
+`c279f61555ba772579fb4091dd3d5884b48af273` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Final Railway deployment
+`ac9f3fee-0a54-4bf7-91db-2b6815a3638e` is `SUCCESS` and `RUNNING` from
+`/railway.toml` with `apps/api/Dockerfile`, `/ready`, and
+`node apps/api/dist/main.js`; image digest is
+`sha256:ea7036fbe9a11187434735df3662e6f6a84b21fb4d572720605319b747643fd5`.
+Live `/ready` and `/health` are 200 and unauthenticated
+`/v1/finance/ledger` is 401. Supabase remains read-only at PostgreSQL 17 with
+55/92 migrations applied, 37 missing, and one duplicate Purchase Order group
+of 12 records. Vercel Git remains disconnected, the spend guard is clear, and
+no Vercel build or deploy was started.
+
 ## M3.92 Closed Cortex keyword read projection (2026-08-06)
 
 Added an original shared Cortex search contract and NestJS
