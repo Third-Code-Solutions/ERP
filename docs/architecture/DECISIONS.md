@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-203 - Finance ledger reads use a closed Nest contract (2026-08-06)
+
+Decision: expose the general ledger through `GET /v1/finance/ledger` with
+strict bounded filters, integer-cent money, verified-principal tenant scope,
+posted-entry visibility, and `finance.read` authorization. The current Next
+page keeps its direct-read compatibility path; an exact boolean plus tenant
+allowlist selects the typed Core adapter and Core errors fail closed. This is
+read-only: Nest remains the authority for official ERP writes and Python does
+not approve or finalize transactions.
+
+Evidence: shared 22 files/206 tests; API 98 files/425 tests; Web 87 files/552
+tests; package-serial tests; typecheck; serial lint; production build 80/80;
+Vercel spend guard; and diff check. Source SHA
+`c279f61555ba772579fb4091dd3d5884b48af273` is live on Railway deployment
+`ac9f3fee-0a54-4bf7-91db-2b6815a3638e` (`SUCCESS`/`RUNNING`) with live
+readiness/health 200 and unauthenticated Finance Ledger 401. Supabase was not
+written and Vercel remained unchanged.
+
 ## D-202 - Cortex keyword reads use a closed Nest contract (2026-08-06)
 
 Decision: move Cortex keyword retrieval behind `GET /v1/cortex/search` without

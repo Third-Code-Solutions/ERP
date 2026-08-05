@@ -1,5 +1,37 @@
 # Migration Plan
 
+## M3.93 - Closed Finance general-ledger read projection (2026-08-06)
+
+Implemented the smallest safe Finance read seam: shared bounded query/result
+contracts, Nest controller/pipe/service/module, `finance.read` capability, and
+an authenticated Next adapter. The adapter is selected only by
+`ERP_FINANCE_LEDGER_READS_VIA_API=true` plus an exact UUID tenant allowlist;
+otherwise the existing page path remains unchanged. Core failure does not
+fall back for a selected tenant. API and Next flags remain false/empty.
+
+Validation: shared 22 files/206 tests; API 98 files/425 tests; Web 87 files/552
+tests; package-serial tests; typecheck; serial lint; production build 80/80;
+Vercel spend guard; and diff check. Database integration/RLS tests remain
+skipped without local `DATABASE_URL`. Source SHA
+`c279f61555ba772579fb4091dd3d5884b48af273` is pushed to both GitHub refs.
+Railway `ac9f3fee-0a54-4bf7-91db-2b6815a3638e` is `SUCCESS`/`RUNNING` with the
+API Dockerfile and live `/ready` 200, `/health` 200, and unauthenticated
+Finance Ledger 401. No hosted SQL, Supabase data/Storage write, Python
+transaction, Vercel build, or extra AI/provider spend occurred.
+
+## Next gate
+
+Keep `ERP_FINANCE_LEDGER_READS_ENABLED=false`,
+`ERP_FINANCE_LEDGER_READS_TENANT_IDS` empty,
+`ERP_FINANCE_LEDGER_READS_VIA_API=false`, and
+`ERP_FINANCE_LEDGER_READS_VIA_API_TENANT_IDS` empty. Do not enable a tenant
+until the ordered Supabase suffix is replayed on disposable PostgreSQL 17,
+data/RLS/audit parity is reviewed, a protected browser canary passes, and
+rollback and spend evidence exists. The production 401 boundary is the only
+live proof required for this closed seam; do not trigger a Vercel build.
+Supabase remains read-only at 55/92 with 37 missing migrations and one
+12-record Purchase Order duplicate group.
+
 ## M3.92 - Closed Cortex keyword read projection (2026-08-06)
 
 Implemented the smallest safe Cortex authority seam: shared bounded query and

@@ -1,8 +1,19 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `cd94e27` (M3.92 closed Cortex keyword read projection)
+Source checkpoint: `c279f61` (M3.93 closed Finance ledger read projection)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.93 update: the general ledger now has a typed, tenant-derived NestJS
+`GET /v1/finance/ledger` read projection with posted-entry scope, integer cents,
+same-tenant context joins, and an explicit `finance.read` capability. API and
+Next selectors are false/empty by default; the existing page remains the
+compatibility path for unselected tenants and Core failure cannot fall back for
+a selected tenant. Source SHA `c279f61555ba772579fb4091dd3d5884b48af273` is
+live on Railway deployment `ac9f3fee-0a54-4bf7-91db-2b6815a3638e`
+(`SUCCESS`/`RUNNING`); readiness/health are 200 and unauthenticated Finance
+Ledger is 401. No UI, hosted migration, provider spend, or official ERP write
+changed. Vercel remains disconnected with no new build.
 
 M3.92 update: Cortex keyword search now has a typed, tenant-derived NestJS
 `GET /v1/cortex/search` read projection with an explicit `cortex.search`
