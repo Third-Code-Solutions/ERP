@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, bigint, integer, timestamp, index, foreignKey } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, bigint, integer, timestamp, index, foreignKey, uniqueIndex } from 'drizzle-orm/pg-core'
 import { costCategoryEnum, costSourceEnum } from './enums'
 import { tenants } from './tenants'
 import { projects } from './projects'
@@ -36,6 +36,10 @@ export const costEntries = pgTable(
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex('ux_cost_entries_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     tenantIdx: index('idx_cost_entries_tenant_id').on(table.tenant_id),
     projectIdx: index('idx_cost_entries_project_id').on(table.project_id),
     bomLineItemIdx: index('idx_cost_entries_bom_line_item_id').on(

@@ -31,6 +31,7 @@ export function CostEntryForm({
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
   const [selectedCodeId, setSelectedCodeId] = useState(
     costCodes[0]?.id ?? ''
   )
@@ -49,6 +50,7 @@ export function CostEntryForm({
         return
       }
       form.reset()
+      setIdempotencyKey(crypto.randomUUID())
       setOpen(false)
       router.refresh()
     })
@@ -74,6 +76,7 @@ export function CostEntryForm({
 
   return (
     <form className="cost-form" onSubmit={onSubmit}>
+      <input type="hidden" name="idempotency_key" value={idempotencyKey} />
       <div className="cost-form__grid">
         <label className="cost-field cost-field--wide">
           <span>Description</span>

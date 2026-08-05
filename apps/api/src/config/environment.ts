@@ -50,6 +50,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Manual project cost entry authority stays fail-closed until the
+  // idempotency ledger, replay, and tenant canary are approved.
+  ERP_COST_ENTRY_CREATE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_COST_ENTRY_CREATE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   RESEND_API_KEY: z.string().min(20).optional(),
   EMAIL_FROM: z.string().min(3).max(320).optional(),
   ERP_WEB_BASE_URL: optionalHttpUrl,

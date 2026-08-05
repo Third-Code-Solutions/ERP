@@ -7,11 +7,13 @@ import { AuditModule } from '../audit/audit.module'
 import { RequestObservabilityMiddleware } from '../observability/request-observability.middleware'
 import { ProjectsController } from './projects.controller'
 import { ProjectsService } from './projects.service'
+import { CostEntryCreationController } from './cost-entry-creation.controller'
+import { CostEntryCreationService } from './cost-entry-creation.service'
 
 @Module({
   imports: [AuditModule],
-  controllers: [ProjectsController],
-  providers: [ProjectsService],
+  controllers: [ProjectsController, CostEntryCreationController],
+  providers: [ProjectsService, CostEntryCreationService],
 })
 export class ProjectsModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
