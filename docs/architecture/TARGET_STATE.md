@@ -3,6 +3,14 @@
 Third Code ERP remains an incremental TypeScript system. The target is a
 modular monolith, not a rewrite and not a microservice fleet.
 
+## M3.84 Audit summary clarity (2026-08-06)
+
+Audit retrieval should expose one authoritative filtered total above the
+event stream. The page-length count is not presented as the total, and the
+summary remains read-only, tenant-scoped, and compatible with the closed Core
+adapter. This is a usability polish slice; it does not authorize a cutover,
+hosted migration, or provider build.
+
 Release evidence policy (rechecked 2026-08-03): provider readiness is only a
 necessary signal. A production promotion also requires an exact source SHA,
 complete ordered migration ledger, duplicate-record decision, audit-chain

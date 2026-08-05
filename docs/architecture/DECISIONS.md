@@ -1,5 +1,17 @@
 # Architecture Decisions
 
+## D-194 - Audit totals must be authoritative and singular (2026-08-06)
+
+Decision: show the filtered audit total in the single summary line and remove
+the duplicate count/page helper. Page length is an implementation detail, not
+the result count. Keep the change presentation-only: no query, tenant scope,
+Core gate, official transaction authority, migration, or provider state may
+change for this slice.
+
+Evidence: source SHA `5b1cc83ae387deeb83ca98c2ae96782d471dc46c` passed focused
+helper 3/3, Web 87/545, typecheck, serial lint, 80-route production build,
+and diff check. No Railway build, Supabase write, or Vercel build occurred.
+
 ## D-193 - Runtime branding must be clean without rewriting migration identity (2026-08-05)
 
 Decision: remove legacy product/source labels from runtime Web/API/package text
