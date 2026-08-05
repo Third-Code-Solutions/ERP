@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-201 - Asset reads use a closed, tenant-derived Nest contract (2026-08-06)
+
+Decision: expose the operational asset register only through the typed plural
+`GET /v1/assets` route. Parse a strict bounded query, require `asset.read`,
+derive tenant scope from the verified principal, and allow only same-tenant
+Project context. Keep the route fail-closed behind an exact API boolean and
+UUID tenant allowlist. Do not add browser direct-table access, a write command,
+or a UI adapter until migration parity and a protected canary are proven.
+
+Evidence: focused API asset/config/auth suite 60/60; shared contract 2/2;
+root tests, typecheck, serial lint, production build, and diff check. Source
+SHA `f11b1467b5d3def986b73411a54a6f501339c803` is Railway deployment
+`f0358fdd-f927-465c-b930-ec68b0baf240` (`SUCCESS`); live readiness/health are
+200 and unauthenticated asset reads are 401. Supabase was not written and
+Vercel stayed unchanged.
+
 ## D-200 - Keep the first asset slice operational, not accounting (2026-08-06)
 
 The register names and tracks durable tenant-owned items without pretending to

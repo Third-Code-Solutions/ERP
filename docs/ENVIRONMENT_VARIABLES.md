@@ -139,6 +139,19 @@ When enabled, failed Nest/Redis quota calls fail closed before external AI
 work. Edge limiter remains separate per-instance burst guard. This is not a
 global budget until every provider instance uses shared accounting.
 
+## Operational asset register reads (NestJS, disabled by default)
+
+The asset register read projection is intentionally closed until the ordered
+Supabase migration suffix, disposable PostgreSQL replay, tenant mapping,
+protected canary, and rollback evidence are approved. These variables belong
+only on the Railway API. They do not grant browser table access or any write
+authority.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_ASSET_READS_ENABLED` | no | Railway API | Exact `true` enables the Nest read seam; default `false` |
+| `ERP_ASSET_READS_TENANT_IDS` | no | Railway API | Comma-separated strict UUID allowlist; default empty |
+
 ## Project detail read cutover (NestJS, disabled by default)
 
 The project detail page can opt into the tenant-scoped Nest read contract for

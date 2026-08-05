@@ -4,6 +4,28 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.91 Closed operational asset read projection (2026-08-06)
+
+Added an original NestJS `GET /v1/assets` read projection over the source
+operational asset register. The shared contract strictly bounds search, kind,
+status, sort, order, page, and limit; the service derives tenant scope from
+the verified principal, joins only the same-tenant Project context, applies
+`asset.read`, and validates the response before returning it. Reads are
+fail-closed behind `ERP_ASSET_READS_ENABLED=true` plus an exact tenant UUID
+allowlist. No browser adapter, direct table access, write command, hosted SQL,
+or UI change was added; defaults remain disabled/empty.
+
+Validation: focused API asset/config/auth suite 60/60; shared asset contract
+2/2; root `pnpm test` (API 93 files/410 tests; shared 20 files/200 tests);
+root typecheck; serial lint; production build 80/80 routes; and diff check.
+Source SHA `f11b1467b5d3def986b73411a54a6f501339c803` is pushed to GitHub
+`main` and `agent-02/third-code-erp-landing`. Railway deployment
+`f0358fdd-f927-465c-b930-ec68b0baf240` reports `SUCCESS` with
+`apps/api/Dockerfile` and `/ready`; live `/ready` and `/health` are 200 and
+unauthenticated `/v1/assets` is 401. The earlier Git-triggered Railway
+deployment was replaced by this controlled release. Vercel spend guard remains
+clear, Git deployment remains disabled, and no Vercel build/deploy was started.
+
 ## M3.90 Operational asset register foundation (2026-08-06)
 
 Defined and implemented the first operational asset-register slice. The new
