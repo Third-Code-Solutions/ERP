@@ -5,10 +5,12 @@ import {
   createInventoryWarehouseCommandSchema,
   createStockReceiptCommandSchema,
   inventoryUomCreationResultSchema,
+  inventoryUomUpdateResultSchema,
   inventoryWarehouseCreationResultSchema,
   inventoryWarehouseCloseoutResultSchema,
   inventoryWarehouseUpdateResultSchema,
   updateInventoryWarehouseCommandSchema,
+  updateInventoryUomCommandSchema,
   inventoryItemConfigurationResultSchema,
   inventorySummaryResultSchema,
   inventoryStockMovementListQuerySchema,
@@ -97,6 +99,13 @@ const UOM_CREATION = {
   isActive: true,
   createdAt: '2026-08-05T00:00:00.000Z',
   updatedAt: '2026-08-05T00:00:00.000Z',
+} as const
+
+const UOM_UPDATE = {
+  ...UOM_CREATION,
+  name: 'Units',
+  isActive: false,
+  updatedAt: '2026-08-05T00:01:00.000Z',
 } as const
 
 const WAREHOUSE_CREATION = {
@@ -210,6 +219,25 @@ describe('Inventory UOM creation contract', () => {
         name: 'Each',
         decimalPlaces: 0,
         tenantId: UOM_CREATION.tenantId,
+      })
+    ).toThrow()
+  })
+})
+
+describe('Inventory UOM update contract', () => {
+  it('accepts explicit mutable state and rejects identity fields', () => {
+    expect(
+      updateInventoryUomCommandSchema.parse({
+        name: ' Units ',
+        isActive: false,
+      })
+    ).toEqual({ name: 'Units', isActive: false })
+    expect(inventoryUomUpdateResultSchema.parse(UOM_UPDATE)).toEqual(UOM_UPDATE)
+    expect(() =>
+      updateInventoryUomCommandSchema.parse({
+        name: 'Units',
+        isActive: false,
+        code: 'U',
       })
     ).toThrow()
   })

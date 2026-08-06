@@ -109,6 +109,33 @@ export type InventoryUomCreationResult = z.infer<
   typeof inventoryUomCreationResultSchema
 >
 
+export const updateInventoryUomCommandSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    isActive: z.boolean(),
+  })
+  .strict()
+
+export const inventoryUomUpdateResultSchema = z
+  .object({
+    uomId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    code: z.string().trim().min(1).max(32),
+    name: z.string().trim().min(1).max(120),
+    decimalPlaces: z.number().int().nonnegative().max(6),
+    isActive: z.boolean(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+
+export type UpdateInventoryUomCommand = z.infer<
+  typeof updateInventoryUomCommandSchema
+>
+export type InventoryUomUpdateResult = z.infer<
+  typeof inventoryUomUpdateResultSchema
+>
+
 export const createInventoryWarehouseCommandSchema = z
   .object({
     code: z.string().trim().min(1).max(40),

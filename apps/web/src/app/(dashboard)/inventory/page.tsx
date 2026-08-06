@@ -6,6 +6,7 @@ import {
   CreateUomForm,
   CreateWarehouseForm,
   EditInventoryItemPolicyForm,
+  EditUomForm,
   EditWarehouseForm,
 } from './setup-controls'
 import { getInventorySummary } from '@/lib/inventory-queries'
@@ -186,13 +187,24 @@ export default async function InventoryPage() {
                       {uom.name} / {uom.decimal_places} decimal places
                     </span>
                   </div>
-                  <span
-                    className={`finance-status finance-status-${
-                      uom.is_active ? 'open' : 'closed'
-                    }`}
-                  >
-                    {uom.is_active ? 'active' : 'inactive'}
-                  </span>
+                  <div className="finance-record-action">
+                    <span
+                      className={`finance-status finance-status-${
+                        uom.is_active ? 'open' : 'closed'
+                      }`}
+                    >
+                      {uom.is_active ? 'active' : 'inactive'}
+                    </span>
+                    <EditUomForm
+                      uom={{
+                        id: uom.id,
+                        code: uom.code,
+                        name: uom.name,
+                        decimalPlaces: uom.decimal_places,
+                        isActive: uom.is_active,
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

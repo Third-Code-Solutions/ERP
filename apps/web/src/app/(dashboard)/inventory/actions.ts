@@ -19,6 +19,8 @@ import {
   createInventoryWarehouseThroughCoreApi,
   createStockReceiptThroughCoreApi,
   inventoryUomCreateWritesUseCoreApi,
+  inventoryUomUpdateWritesUseCoreApi,
+  updateInventoryUomThroughCoreApi,
   inventoryWarehouseCreateWritesUseCoreApi,
   inventoryWarehouseUpdateWritesUseCoreApi,
   updateInventoryWarehouseThroughCoreApi,
@@ -85,9 +87,11 @@ function safeInventoryError(error: unknown): string {
     'Used Warehouse identity is immutable',
     'Item stock identity is immutable after posting',
     'Active UOM not found',
+    'UOM not found',
     'Item not found',
     'UOM code already exists',
     'Inventory UOM was not created',
+    'Inventory UOM was not updated',
     'Warehouse code already exists',
     'Project not found',
     'Inventory Warehouse was not created',
@@ -160,6 +164,60 @@ export async function createUnitOfMeasure(
     })
     revalidateInventory()
     return { ok: true }
+  } catch (error) {
+    return { ok: false, error: safeInventoryError(error) }
+  }
+}
+
+export async function updateUnitOfMeasure(
+  uomId: string,
+  formData: FormData
+): Promise<InventoryActionResult> {
+  try {
+    const profile = await requireUserProfile()
+    requireCapability(profile, 'inventory.manage')
+    const parsedUomId = uuidSchema.parse(uomId)
+    const input = z
+      .object({
+        name: z.string().trim().min(1).max(120),
+        isActive: z.boolean(),
+      })
+      .parse({
+        name: formData.get('name'),
+        isActive: formData.get('isActive') === 'on',
+      })
+
+    if (inventoryUomUpdateWritesUseCoreApi(profile.tenantId)) {
+      const result = await updateInventoryUomThroughCoreApi(parsedUomId, input)
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ?? 'Inventory UOM could not be updated through ERP Core.',
+        }
+      }
+      revalidateInventory()
+      return { ok: true, id: result.data.uomId }
+    }
+
+    const [updated] = await db
+      .update(unitsOfMeasure)
+      .set({
+        name: input.name,
+        is_active: input.isActive,
+        updated_at: new Date(),
+      })
+      .where(
+        and(
+          eq(unitsOfMeasure.id, parsedUomId),
+          eq(unitsOfMeasure.tenant_id, profile.tenantId)
+        )
+      )
+      .returning({ id: unitsOfMeasure.id })
+    if (!updated) throw new Error('UOM not found')
+
+    revalidateInventory()
+    return { ok: true, id: updated.id }
   } catch (error) {
     return { ok: false, error: safeInventoryError(error) }
   }

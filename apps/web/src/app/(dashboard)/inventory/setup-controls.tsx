@@ -5,6 +5,7 @@ import {
   configureInventoryItem,
   createUnitOfMeasure,
   createWarehouse,
+  updateUnitOfMeasure,
   updateWarehouse,
 } from './actions'
 
@@ -70,6 +71,67 @@ export function CreateUomForm() {
       </button>
       {state.error && <p className="finance-form-error">{state.error}</p>}
     </form>
+  )
+}
+
+export function EditUomForm({
+  uom,
+}: {
+  uom: {
+    id: string
+    code: string
+    name: string
+    decimalPlaces: number
+    isActive: boolean
+  }
+}) {
+  const state = useInventoryForm()
+
+  return (
+    <details className="inventory-uom-editor">
+      <summary className="finance-secondary-button">Edit UOM</summary>
+      <form
+        ref={state.formRef}
+        action={(data) =>
+          state.run((formData) => updateUnitOfMeasure(uom.id, formData), data)
+        }
+        className="finance-setup-form"
+      >
+        <p className="finance-form-hint">
+          <strong>{uom.code}</strong> / {uom.decimalPlaces} decimals are
+          immutable after stock evidence.
+        </p>
+        <div className="finance-field finance-field-grow">
+          <label htmlFor={`uom-${uom.id}-name`}>Name</label>
+          <input
+            id={`uom-${uom.id}-name`}
+            name="name"
+            required
+            maxLength={120}
+            defaultValue={uom.name}
+          />
+        </div>
+        <label className="inventory-check">
+          <input
+            name="isActive"
+            type="checkbox"
+            defaultChecked={uom.isActive}
+          />
+          <span>
+            <strong>Available for new assignments</strong>
+            <small>Existing stock evidence remains unchanged.</small>
+          </span>
+        </label>
+        <button
+          type="submit"
+          className="finance-primary-button"
+          disabled={state.pending}
+        >
+          {state.pending ? 'Saving...' : 'Save UOM'}
+        </button>
+        {state.error && <p className="finance-form-error">{state.error}</p>}
+      </form>
+    </details>
   )
 }
 
