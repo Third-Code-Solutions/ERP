@@ -5,6 +5,7 @@ import {
   ConfigureItemForm,
   CreateUomForm,
   CreateWarehouseForm,
+  EditWarehouseForm,
 } from './setup-controls'
 import { getInventorySummary } from '@/lib/inventory-queries'
 
@@ -219,13 +220,23 @@ export default async function InventoryPage() {
                         : 'Shared Warehouse'}
                     </span>
                   </div>
-                  <span
-                    className={`finance-status finance-status-${
-                      warehouse.is_active ? 'open' : 'closed'
-                    }`}
-                  >
-                    {warehouse.is_active ? 'active' : 'inactive'}
-                  </span>
+                  <div className="finance-record-action">
+                    <span
+                      className={`finance-status finance-status-${
+                        warehouse.is_active ? 'open' : 'closed'
+                      }`}
+                    >
+                      {warehouse.is_active ? 'active' : 'inactive'}
+                    </span>
+                    <EditWarehouseForm
+                      warehouse={{
+                        id: warehouse.id,
+                        code: warehouse.code,
+                        name: warehouse.name,
+                        isActive: warehouse.is_active,
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

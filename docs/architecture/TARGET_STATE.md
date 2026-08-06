@@ -1,5 +1,14 @@
 # Target State
 
+## M3.105 inventory warehouse control gate (2026-08-06)
+
+Warehouse maintenance must remain a permission-checked server action backed by
+the Nest authority seam when its exact feature flag and tenant UUID allowlist
+are enabled. The UI may edit only the display name and active state; code and
+project identity stay immutable, and deactivation is rejected when net stock is
+nonzero. Keep the selector closed until hosted schema/RLS parity, protected
+canary, rollback, readiness, and spend evidence clear.
+
 ## M3.104 provider spend guard gate (2026-08-06)
 
 Every frontend release must fail closed when Vercel Git deployment is enabled

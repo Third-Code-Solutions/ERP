@@ -1,5 +1,20 @@
 # Migration Plan
 
+## M3.105 inventory warehouse control surface (2026-08-06)
+
+Exposed the existing Warehouse update authority through the Inventory UI with
+name and active-state controls. The immutable code/project boundary and
+zero-net-stock guard remain in the server action/Core service; no migration or
+provider work was needed. Local Web typecheck, focused inventory/Core tests
+125/125, full Web 87/567, and production build 81/81 routes pass.
+
+## Next gate
+
+Push only the reviewed feature branch. Keep the Core selector compatibility-
+default and proceed with supported Supabase backup/export plus ordered source
+suffix reconciliation before any hosted apply, canary, Railway promotion, or
+Vercel build.
+
 ## M3.104 provider spend guard audit (2026-08-06)
 
 Expanded `scripts/verify-vercel-spend-guard.mjs` to discover all workspace
