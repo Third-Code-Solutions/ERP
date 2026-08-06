@@ -1,5 +1,46 @@
 # Work Log
 
+## 2026-08-07 - M3.132 asset maintenance due projection
+
+Added a read-only maintenance due projection without touching the hosted
+database. Shared Zod contracts bound `asOf`, `daysAhead`, pagination, row
+shape, and explicit overdue/due-soon state. NestJS now exposes a capability-
+protected `GET /v1/assets/maintenance/due` through `AssetMaintenanceService`;
+its lateral query resolves the latest record first, scopes every join by
+tenant, and returns a bounded window count. Web calls the route only through
+the existing Core/asset gate and renders a non-blocking service-watch panel.
+No migration, flag, direct browser write, Vercel build, Railway deploy, or
+Supabase action occurred.
+
+Changed files: `packages/shared-types/src/erp-api/assets.ts`,
+`packages/shared-types/src/erp-api/assets.test.ts`,
+`apps/api/src/assets/asset-maintenance.service.ts`,
+`apps/api/src/assets/asset-maintenance-due.controller.ts`,
+`apps/api/src/assets/asset-maintenance-due.pipe.ts`,
+`apps/api/src/assets/asset-maintenance-due.controller.spec.ts`,
+`apps/api/src/assets/assets.module.ts`,
+`apps/api/src/assets/assets.service.spec.ts`,
+`apps/api/integration/asset-maintenance.database.integration.spec.ts`,
+`apps/web/src/lib/erp-core-client.ts`,
+`apps/web/src/lib/erp-core-client.test.ts`, and
+`apps/web/src/app/(dashboard)/assets/page.tsx`.
+
+Unresolved risks: hosted Supabase remains behind migration/catalog/RLS,
+backup/rollback, duplicate-record, audit-recovery, identity, and spend gates;
+the pinned Supabase CLI shadow-database diff still needs Docker/CI evidence;
+the default parallel Turbo test runner is resource-flaky on Windows. These
+risks block provider deploys and canaries.
+
+Validation: WSL PostgreSQL 17.10/Redis 7.4.9 replay, verifier, and asset
+maintenance integration passed. Serial workspace tests passed: shared 27
+files/228 tests; database 47/51 files, 183/324 tests with 141 compatibility
+skips; API 112 files/477 tests; Web 89 files/581 tests. Production build
+generated 81/81 routes; typecheck and lint passed. Migration verifier,
+Actionlint, Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed.
+The parallel Turbo test runner hit seven Windows 5-second HTTP timeouts under
+cross-package load; no M3.132 assertion failed, and the serial run is the
+retained evidence. Code commit: `be760ed`. Docs/source push remains pending.
+
 ## 2026-08-07 - M3.131 asset maintenance history
 
 Implemented the bounded asset service-history vertical slice. Added the

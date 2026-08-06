@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-240 - Resolve maintenance due dates from the latest record (2026-08-07)
+
+Decision: keep the due projection in `AssetMaintenanceService`, choose the
+latest maintenance record per tenant asset inside a lateral query, then apply
+the bounded due window. Return a window count and explicit `overdue` or
+`due_soon` state; do not materialize a new table or add a scheduler in this
+slice.
+
+Rationale: a prior service event must not remain actionable after a newer
+event changes the next due date. A single tenant-scoped read preserves current
+source-of-truth semantics, avoids migration/provider cost, and gives field
+teams a useful queue before a full work-order scheduler is designed.
+
+Evidence: asset maintenance unit/HTTP contracts, self-hosted PostgreSQL
+integration, and serial Web/API tests pass. The route remains closed by the
+existing maintenance-read gate; no hosted/provider state changed.
+
 ## D-239 - Model asset maintenance as append-only evidence (2026-08-07)
 
 Decision: represent service history as append-only `asset_maintenance_records`

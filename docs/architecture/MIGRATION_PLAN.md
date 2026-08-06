@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.132 asset maintenance due projection
+
+Added the smallest read-only operational projection on top of the existing
+asset-maintenance history table: strict shared query/result contracts, a
+NestJS `GET /v1/assets/maintenance/due` route, latest-record-first tenant SQL
+with bounded pagination, and a Core-only Web service-watch panel. The
+projection reuses the maintenance-read capability/allowlist, has no migration
+or new flag, and does not change create/replay/audit authority.
+
+Validation: WSL PostgreSQL 17.10/Redis 7.4.9 replay and asset-maintenance
+integration pass; serial package tests pass (shared 27/228, database
+47/51 with 141 compatibility skips, API 112/477, Web 89/581); production
+build 81/81 routes; typecheck, lint, migration verifier, Actionlint,
+Gitleaks, controlled-release 5/5, and provider-spend 4/4 pass. The parallel
+Turbo test command had seven Windows 5-second HTTP timeouts; the serial
+workspace run is the retained evidence. Code is committed as `be760ed`; the
+feature-branch push is the remaining source action. Hosted Supabase, Vercel,
+Railway, and canaries stay closed.
+
 ## M3.131 asset maintenance history
 
 Added the smallest vertical slice for service continuity: Drizzle schema and
@@ -15,9 +34,9 @@ Web client tests 116/116; package typechecks; WSL replay 98/98 ordered
 migrations, verifier pass, 20 Nest integration files/27 tests, and database
 51/51 files/324 tests with zero skips. Serial build, typecheck, lint, full
 tests, migration verifier, actionlint, gitleaks, controlled-release, and
-provider-spend guards all pass. A single feature-branch push remains. Hosted
-Supabase, Vercel, Railway, and canaries stay closed for billing and
-release-safety reasons.
+provider-spend guards all pass. The code/docs checkpoints were subsequently
+pushed. Hosted Supabase, Vercel, Railway, and canaries stay closed for billing
+and release-safety reasons.
 
 ## M3.130 dashboard fault isolation
 

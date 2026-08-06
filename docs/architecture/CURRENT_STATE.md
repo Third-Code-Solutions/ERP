@@ -1,8 +1,24 @@
 # Current State
 
-Verified from the repository and the configured Supabase target on 2026-08-06.
-Application deployments are reported separately and are never inferred from a
-successful build.
+Verified from the repository and local replay evidence on 2026-08-07.
+Managed-provider state is intentionally not refreshed or mutated for this
+milestone. Application deployments are reported separately and are never
+inferred from a successful build.
+
+## M3.132 asset maintenance due projection (2026-08-07)
+
+The asset maintenance authority now exposes `GET /v1/assets/maintenance/due`.
+It returns a tenant-scoped, paginated view of assets whose latest service
+record has a next due date on or before `asOf + daysAhead`, with overdue/due
+soon state, days remaining, project/location context, and a window total.
+The latest-record-first lateral query prevents an old due record from leaking
+through after a newer service event. The route is capability-protected and
+closed by the existing maintenance-read flag/tenant allowlist. Web calls it
+through the Core client and renders a non-blocking service-watch panel; no
+direct browser table access or new migration was added.
+
+Source commit `be760ed`; local source gates passed. No hosted Supabase SQL,
+Vercel build, Railway deploy, or ERP feature flag changed.
 
 ## M3.131 asset maintenance history (2026-08-07)
 
