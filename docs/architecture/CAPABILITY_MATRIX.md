@@ -14,7 +14,9 @@ database 53/53 files and 329/329 tests; API integration 20/20 files and
 `18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`;
 serial workspace tests; typecheck/lint; build 81/81 routes; migration
 verifier; Actionlint; Gitleaks; controlled-release 5/5; provider-spend 4/4.
-Source checkpoint is recorded after commit and remote verification.
+Source checkpoint: `3ca2060332fbda01f56b3044a8cde9e0201af71a`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified.
 
 ## M3.144 Core Cost Entry restore boundary (2026-08-07)
 

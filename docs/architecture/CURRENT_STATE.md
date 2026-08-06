@@ -22,9 +22,11 @@ and pending-recovery checks, and produced identical schema hashes before and
 after: `18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`.
 Workspace serial tests, typecheck/lint, production build (81/81 routes),
 migration verifier, Actionlint, Gitleaks, controlled-release, and
-provider-spend gates also pass. Source checkpoint will be recorded after the
-reviewed commit and remote verification. Hosted Supabase, Vercel, Railway,
-provider variables, and tenant data remain unchanged.
+provider-spend gates also pass. Source checkpoint:
+`3ca2060332fbda01f56b3044a8cde9e0201af71a`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified. Hosted Supabase, Vercel, Railway, provider variables, and tenant
+data remain unchanged.
 
 ## M3.144 Core Cost Entry restore boundary (2026-08-07)
 

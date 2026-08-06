@@ -16,8 +16,10 @@ schema hash before/after
 `18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`;
 serial workspace tests; typecheck/lint; production build 81/81 routes;
 migration verifier; Actionlint; Gitleaks; controlled-release 5/5; and
-provider-spend 4/4. Source checkpoint is recorded after commit and remote
-verification. Hosted canaries remain closed.
+provider-spend 4/4. Source checkpoint:
+`3ca2060332fbda01f56b3044a8cde9e0201af71a`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified. Hosted canaries remain closed.
 
 ## M3.144 Core Cost Entry restore boundary
 

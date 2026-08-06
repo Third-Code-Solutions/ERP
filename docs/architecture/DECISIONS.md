@@ -19,7 +19,10 @@ Evidence: corrected disposable lane passed 100/100 migrations, database
 Redis recovery checks, and identical before/after schema hash
 `18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`.
 Workspace, build, security, release, and spend gates pass; no hosted state
-changed. Source checkpoint is recorded after commit and remote verification.
+changed. Source checkpoint:
+`3ca2060332fbda01f56b3044a8cde9e0201af71a`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified.
 
 ## D-252 - Separate the Core Cost Entry restore ledger (2026-08-07)
 

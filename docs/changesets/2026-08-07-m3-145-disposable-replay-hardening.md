@@ -29,3 +29,9 @@ tenant data changed. Disposable services were stopped and cleaned.
 Rollback is the reviewed prior source release. Do not restore browser Cost
 Entry grants; Core-only authority and the closed feature flags remain the
 safe default.
+
+## Source checkpoint
+
+`3ca2060332fbda01f56b3044a8cde9e0201af71a` is pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree were
+verified. No hosted provider state changed.
