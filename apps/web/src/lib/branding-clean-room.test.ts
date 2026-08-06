@@ -17,6 +17,10 @@ const runtimeRoots = [
   runtimeApiRoot,
   runtimePackagesRoot,
 ]
+const sidebarSource = readFileSync(
+  resolve(directory, '../components/nav/sidebar.tsx'),
+  'utf8'
+)
 const textExtensions = new Set([
   '.css',
   '.html',
@@ -41,6 +45,10 @@ function collectTextFiles(root: string): string[] {
 }
 
 describe('Third Code ERP clean-room runtime branding', () => {
+  it('uses Third Code identity in the authenticated shell mark', () => {
+    expect(sidebarSource).toMatch(/sidebar-brand-mark[\s\S]*>\s*TC\s*</)
+  })
+
   it('contains no legacy vendor markers in runtime text', () => {
     const files = runtimeRoots.flatMap(collectTextFiles)
     const sources = files.map((file) => ({

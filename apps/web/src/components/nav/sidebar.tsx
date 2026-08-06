@@ -82,8 +82,12 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
   return (
     <nav className="sidebar" aria-label="Main navigation">
       <div className="sidebar-brand">
-        <div className="sidebar-brand-mark" aria-hidden>
-          A
+        <div
+          className="sidebar-brand-mark"
+          aria-label="Third Code ERP"
+          role="img"
+        >
+          TC
         </div>
         <div className="sidebar-brand-text">
           <span className="sidebar-brand-name">Third Code ERP</span>

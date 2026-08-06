@@ -173,8 +173,8 @@ body {
   place-items: center;
   color: white;
   font-weight: 700;
-  font-size: 13px;
-  letter-spacing: -0.02em;
+  font-size: 10px;
+  letter-spacing: 0.02em;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
