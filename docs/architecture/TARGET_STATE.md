@@ -1,5 +1,15 @@
 # Target State
 
+## M3.145 Core-only Cost Entry permissions and replay proof
+
+The reproducibility verifier must model the current authority boundary:
+authenticated users retain tenant-scoped Cost Entry reads, while all Cost
+Entry INSERT/UPDATE/DELETE operations are committed by NestJS Core under its
+transaction, capability, idempotency, and audit contract. Runtime replay must
+prove that even a permitted business role cannot bypass Core with a direct
+browser write. Every migration change must replay no-skip PostgreSQL/Redis,
+run API integration, and preserve the schema hash before managed review.
+
 ## M3.144 Core Cost Entry restore boundary
 
 Restoration must be a separate authenticated, idempotent command. NestJS

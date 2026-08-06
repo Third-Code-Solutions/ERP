@@ -1,5 +1,28 @@
 # Work Log
 
+## 2026-08-07 - M3.145 disposable replay hardening
+
+Fresh replay first found a stale verifier/test contract: authenticated Cost
+Entry writes were still expected even though M3.142 revoked them for the
+Core-only path. Removed Cost Entry from the legacy minimum-write fixture,
+added an explicit no-write verifier assertion, and changed the runtime test
+to prove a permitted business role cannot insert directly. No migration or
+hosted provider state changed.
+
+Validation: corrected WSL disposable lane applied 100/100 migrations on
+PostgreSQL 17 with Redis 7.4.9; database 53/53 files and 329/329 tests; API
+integration 20/20 files and 27/27 tests; Redis restart/reconnect and
+database-pending recovery; schema before/after SHA256
+`18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`;
+serial workspace tests; typecheck/lint; build 81/81 routes; migration,
+Actionlint, Gitleaks, controlled-release, and provider-spend gates passed.
+Disposable services were stopped and cleaned. Source checkpoint: pending
+reviewed commit and remote SHA verification.
+
+Unresolved risks: managed Supabase catalog/RLS/data parity, supported
+backup/PITR restore, Auth identity, audit recovery, and spend approval still
+block any hosted canary.
+
 ## 2026-08-07 - M3.144 Core Cost Entry restore boundary
 
 Added the source restore migration and tenant-scoped Drizzle replay ledger.

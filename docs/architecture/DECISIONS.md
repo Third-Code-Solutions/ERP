@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-253 - Keep Cost Entry browser writes closed in replay/verifier (2026-08-07)
+
+Decision: align reproducibility expectations and runtime tests with the
+Core-only Cost Entry authority introduced by M3.142. Remove obsolete
+authenticated INSERT/UPDATE/DELETE requirements from the verifier, add an
+explicit no-write invariant, and assert that a permitted business role is
+denied direct Cost Entry writes. Do not restore browser grants to make the
+legacy test pass.
+
+Rationale: the source migration correctly revokes direct client writes;
+reintroducing them would bypass NestJS transaction-bound authorization,
+idempotency, exact-money validation, and audit. The failure was in the
+verification fixture, not the database design.
+
+Evidence: corrected disposable lane passed 100/100 migrations, database
+53/53 files and 329/329 tests, API integration 20/20 files and 27/27 tests,
+Redis recovery checks, and identical before/after schema hash
+`18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`.
+Workspace, build, security, release, and spend gates pass; no hosted state
+changed. Source checkpoint is recorded after commit and remote verification.
+
 ## D-252 - Separate the Core Cost Entry restore ledger (2026-08-07)
 
 Decision: implement restoration as a distinct NestJS command and

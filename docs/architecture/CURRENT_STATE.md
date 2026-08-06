@@ -5,6 +5,27 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.145 disposable replay hardening (2026-08-07)
+
+The first fresh replay of M3.144 exposed a stale reproducibility invariant:
+the verifier still required authenticated Cost Entry INSERT/UPDATE/DELETE
+grants even though the M3.142 Core-only migration revokes them. The verifier
+now removes those obsolete requirements and explicitly asserts that
+`authenticated` cannot mutate `cost_entries`; the runtime hardening test now
+proves a permitted business role is also denied direct writes. No migration
+or provider state changed.
+
+The corrected disposable lane applied all 100 migrations on PostgreSQL 17,
+passed the no-skip database suite (53/53 files, 329/329 tests), passed Nest
+API integration (20/20 files, 27/27 tests), passed Redis restart/reconnect
+and pending-recovery checks, and produced identical schema hashes before and
+after: `18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`.
+Workspace serial tests, typecheck/lint, production build (81/81 routes),
+migration verifier, Actionlint, Gitleaks, controlled-release, and
+provider-spend gates also pass. Source checkpoint will be recorded after the
+reviewed commit and remote verification. Hosted Supabase, Vercel, Railway,
+provider variables, and tenant data remain unchanged.
+
 ## M3.144 Core Cost Entry restore boundary (2026-08-07)
 
 Core now exposes a separate, closed-by-default
