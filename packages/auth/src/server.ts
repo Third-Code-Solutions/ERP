@@ -145,6 +145,7 @@ export function hasRole(role: AppRole, minRole: AppRole): boolean {
  */
 export type ErpCapability =
   | 'project.create'
+  | 'project.update'
   | 'account.create'
   | 'opportunity.read'
   | 'account.kyc_review'
@@ -191,6 +192,7 @@ export type ErpCapability =
 
 const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   'project.create': ['admin', 'owner', 'sales', 'commercial', 'sd_pm_pe', 'pm', 'estimator'],
+  'project.update': ['admin', 'owner', 'sales', 'commercial', 'sd_pm_pe', 'pm'],
   // CRM
   'account.create': ['admin', 'owner', 'sales'],
   'opportunity.read': [

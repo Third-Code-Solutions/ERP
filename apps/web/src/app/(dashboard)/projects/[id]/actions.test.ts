@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getUser: vi.fn(),
+  requireUserProfile: vi.fn(),
+  requireCapability: vi.fn(),
   select: vi.fn(),
   update: vi.fn(),
   updateSet: vi.fn(),
@@ -14,7 +15,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
-  getUser: mocks.getUser,
+  requireUserProfile: mocks.requireUserProfile,
+  requireCapability: mocks.requireCapability,
 }))
 
 vi.mock('@third-code-erp/database', () => ({
@@ -44,6 +46,13 @@ const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const UPDATED_AT = new Date('2026-07-28T00:00:00.000Z')
+const PROFILE = {
+  user: { id: USER_ID },
+  tenantId: TENANT_ID,
+  role: 'admin',
+  email: 'admin@example.test',
+  fullName: 'Admin',
+}
 
 const EXISTING = {
   id: PROJECT_ID,
@@ -79,10 +88,9 @@ function projectForm(): FormData {
 describe('Project update migration switch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getUser.mockResolvedValue({ id: USER_ID })
-    mocks.select
-      .mockReturnValueOnce(selectQuery([{ tenant_id: TENANT_ID }]))
-      .mockReturnValueOnce(selectQuery([EXISTING]))
+    mocks.requireUserProfile.mockResolvedValue(PROFILE)
+    mocks.requireCapability.mockReturnValue(undefined)
+    mocks.select.mockReturnValueOnce(selectQuery([EXISTING]))
     mocks.updateWhere.mockResolvedValue(undefined)
     mocks.updateSet.mockReturnValue({ where: mocks.updateWhere })
     mocks.update.mockReturnValue({ set: mocks.updateSet })
@@ -113,6 +121,7 @@ describe('Project update migration switch', () => {
     expect(mocks.writeAuditLog).toHaveBeenCalledOnce()
     expect(mocks.updateProjectThroughCoreApi).not.toHaveBeenCalled()
     expect(mocks.projectWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+    expect(mocks.requireCapability).toHaveBeenCalledWith(PROFILE, 'project.update')
   })
 
   it('routes only through Nest when flag is true', async () => {
@@ -126,5 +135,34 @@ describe('Project update migration switch', () => {
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
     expect(mocks.projectWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+    expect(mocks.requireCapability).toHaveBeenCalledWith(PROFILE, 'project.update')
+  })
+
+  it('rejects a terminal status reopen before any write path', async () => {
+    mocks.select.mockReset()
+    mocks.select.mockReturnValueOnce(
+      selectQuery([{ ...EXISTING, status: 'completed' }])
+    )
+    const form = projectForm()
+    form.set('status', 'active')
+
+    await expect(updateProject(PROJECT_ID, form)).resolves.toEqual({
+      error: 'Project status cannot change from completed to active',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.updateProjectThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('requires project.update before reading the legacy write target', async () => {
+    mocks.requireCapability.mockImplementation(() => {
+      throw new Error('Forbidden')
+    })
+
+    await expect(updateProject(PROJECT_ID, projectForm())).rejects.toThrow(
+      'Forbidden'
+    )
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 })
