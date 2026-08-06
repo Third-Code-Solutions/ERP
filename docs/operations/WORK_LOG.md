@@ -15,8 +15,11 @@ integration 2/2; full reproducibility verifier 93/93 migrations, 32 protected
 tables, 3 service-only tables; shared/database/API/Web typechecks. Source SHA
 `db786f2` pushed to GitHub `main` and `agent-02/third-code-erp-landing`.
 Hosted Supabase remains read-only at 55/93; no Supabase, Storage, Vercel,
-Railway, or tenant-canary mutation. Next action is ordered hosted suffix
-reconciliation/backup/export, not deployment.
+Railway, or tenant-canary mutation. Focused gates are green; broad API and
+local production-build attempts hit the bounded Windows process/test-server
+timeout and are explicitly not treated as release green. Next action is
+clean-lane gate rerun plus ordered hosted suffix reconciliation/backup/export,
+not deployment.
 
 ## 2026-08-06 - M3.101 hosted Supabase Asset Register parity snapshot
 

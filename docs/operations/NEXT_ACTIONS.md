@@ -17,6 +17,9 @@
 4. After parity, run one protected delivery browser canary covering
    `site_ready -> in_transit`, duplicate retry, cross-tenant denial, audit,
    rollback, readiness, and spend. Keep Python/AI advisory-only.
+5. Before any provider promotion, rerun the broad API suite and both local
+   production builds in a clean, isolated process lane; the bounded Windows
+   attempt was incomplete and is not release evidence.
 
 ## Exact next action after M3.101 hosted Asset Register parity snapshot
 
