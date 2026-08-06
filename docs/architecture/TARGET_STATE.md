@@ -1,5 +1,15 @@
 # Target State
 
+## M3.137 Core-only Project updates
+
+The Project edit surface must be a thin command client. Next validates form
+shape and revalidation only; NestJS authenticates and authorizes the tenant,
+locks membership and Project rows, applies the status state machine, commits
+the official record, and emits audit. Any Core read/write failure must fail
+closed without a direct-table retry. The remaining work is protected runtime
+canary evidence and removal of the obsolete update feature-flag/config
+surface.
+
 ## M3.136 one Project update authority
 
 All Web Project updates must call the NestJS transaction authority. Until

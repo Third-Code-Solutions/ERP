@@ -1,5 +1,32 @@
 # Work Log
 
+## 2026-08-07 - M3.137 Project update Core cutover
+
+Removed the remaining legacy Project update writer. The Web Server Action now
+requires the local capability check, reads the Project through tenant-scoped
+Core, verifies returned Project/tenant identity, sends `expectedUpdatedAt`,
+and delegates the complete command to NestJS. No direct table mutation or
+duplicate Web audit remains; Core conflicts and availability failures fail
+closed. Project update URL path segments are encoded.
+
+Changed files: `apps/web/src/app/(dashboard)/projects/[id]/actions.ts`,
+`apps/web/src/app/(dashboard)/projects/[id]/actions.test.ts`,
+`apps/web/src/lib/erp-core-client.ts`, and the milestone records in
+`docs/architecture/`, `docs/operations/`, plus
+`docs/changesets/2026-08-07-m3-137-project-update-core-cutover.md`.
+
+Validation: focused action 5/5; Core client 116/116; serial workspace tests
+passed (shared 27/229, database 47/51 files with 141 compatibility skips, API
+112/480, Web 89/584); production build generated 81/81 routes; typecheck,
+lint, migration verifier, Actionlint, Gitleaks, controlled-release 5/5, and
+provider-spend 4/4 passed. Source commit: `927a2c3`.
+
+Unresolved risks: hosted Supabase schema/catalog/RLS parity, managed
+backup/rollback, duplicate mapping, audit recovery, identity, runtime Core
+read/write availability, and spend evidence remain open. The obsolete
+`ERP_PROJECT_WRITES_VIA_API` configuration surface still needs cleanup.
+Provider state was not touched.
+
 ## 2026-08-07 - M3.136 legacy Project update fallback guard
 
 Hardened the compatibility Project update action. It now derives the tenant

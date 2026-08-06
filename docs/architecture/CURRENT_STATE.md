@@ -5,6 +5,17 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.137 Project update Core cutover (2026-08-07)
+
+Project edits from the Web now use a Core read followed by the NestJS PATCH
+authority. The action performs no direct `projects` write and emits no
+duplicate Web audit. It checks the Core response's Project and tenant identity,
+passes `updatedAt` for optimistic concurrency, and returns Core conflict or
+availability errors without retrying through another writer. Core owns the
+membership lock, capability recheck, state machine, mutation, and audit
+transaction. No migration or provider state changed. Source commit:
+`927a2c3`.
+
 ## M3.136 legacy Project update fallback guard (2026-08-07)
 
 The Web Project update action now fails closed through `requireUserProfile` and

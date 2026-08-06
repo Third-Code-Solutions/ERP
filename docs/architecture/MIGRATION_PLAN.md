@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.137 Project update Core cutover
+
+Removed the final legacy Project update writer from the Web Server Action. The
+action now obtains the current Project through the tenant-scoped Core read,
+checks returned identity/tenant scope, and sends the full command with
+`expectedUpdatedAt` to NestJS. Core owns transition validation, membership
+recheck/locks, optimistic concurrency, mutation, and semantic audit. Core
+errors are returned to the caller; no direct-database fallback remains.
+
+Validation: focused action 5/5; Core client 116/116; serial workspace tests
+(shared 27/229, database 47/51 with 141 compatibility skips, API 112/480,
+Web 89/584); production build 81/81 routes; typecheck, lint, migration
+verifier, Actionlint, Gitleaks, controlled-release 5/5, and provider-spend
+4/4 passed. Code commit `927a2c3`. Hosted Supabase, Vercel, Railway, and ERP
+canaries stay closed.
+
+Compatibility boundary: when `ERP_CORE_API_URL` or the authenticated Core
+session is unavailable, Project updates now fail closed rather than mutating
+the database. Rollback is the reviewed source commit, not a second writer.
+The obsolete `ERP_PROJECT_WRITES_VIA_API` configuration surface remains to be
+removed in a follow-up cleanup after operator/runtime evidence.
+
 ## M3.136 legacy Project update fallback guard
 
 Replaced the Web action's ad-hoc user/tenant lookup with

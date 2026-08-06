@@ -1,5 +1,24 @@
 # Third Code ERP capability matrix
 
+## M3.137 Project update Core cutover (2026-08-07)
+
+The Web Project update action no longer has a direct database or Web-audit
+fallback. It reads the tenant-scoped Project through Core to obtain the
+optimistic-concurrency token, validates the returned tenant/record scope, and
+submits the complete command to NestJS. NestJS remains the only writer: it
+rechecks membership/capability, locks membership and Project rows, enforces
+status transitions, commits the mutation, and writes semantic audit in one
+transaction. Core/API unavailability now fails closed with no write. No
+migration, flag, hosted SQL, Vercel build, Railway deploy, or provider
+mutation was added; hosted providers and ERP canaries remain closed.
+
+Validation: focused Web action tests 5/5; Core client tests 116/116; serial
+workspace tests passed (shared 27/229, database 47/51 files with 141
+compatibility skips, API 112/480, Web 89/584); production build emitted
+81/81 routes; typecheck, lint, migration verifier, Actionlint, Gitleaks,
+controlled-release, and provider-spend guards passed. Source checkpoint:
+commit `927a2c3`.
+
 ## M3.136 legacy Project update fallback guard (2026-08-07)
 
 The legacy Web Project update action now derives the tenant and actor from
