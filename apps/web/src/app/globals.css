@@ -2442,6 +2442,17 @@ a { color: inherit; }
   background: var(--color-neutral-50);
 }
 
+.finance-form-hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--color-neutral-500);
+  font-size: 0.7rem;
+}
+
+.finance-form-hint strong {
+  color: var(--color-neutral-800);
+}
+
 .finance-field {
   display: flex;
   min-width: 120px;
@@ -2594,6 +2605,36 @@ a { color: inherit; }
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.inventory-warehouse-editor {
+  position: relative;
+}
+
+.inventory-warehouse-editor summary {
+  display: inline-flex;
+  align-items: center;
+  list-style: none;
+}
+
+.inventory-warehouse-editor summary::-webkit-details-marker {
+  display: none;
+}
+
+.inventory-warehouse-editor[open] summary {
+  border-color: var(--color-navy-500);
+  background: var(--color-navy-50);
+}
+
+.inventory-warehouse-editor form {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(440px, calc(100vw - 64px));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(15, 45, 74, 0.14);
 }
 
 .finance-account-label {

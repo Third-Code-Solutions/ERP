@@ -1,5 +1,17 @@
 # Work Log
 
+## 2026-08-06 - M3.105 inventory warehouse control surface
+
+Added a compact Warehouse edit/deactivation control to the Inventory page.
+The form uses the existing authenticated `updateWarehouse` server action and
+therefore preserves the exact Core feature flag/tenant allowlist seam, the
+immutable warehouse code/project identity, and the backend zero-net-stock
+deactivation guard. No new table, migration, browser-direct sensitive write,
+hosted SQL, Vercel build, Railway build, Storage write, or tenant data changed.
+Validation: Web typecheck, focused inventory/Core tests 125/125, full Web
+suite 87/567, production build 81/81 routes, and diff check. Source remains on
+the feature branch pending review and push.
+
 ## 2026-08-06 - M3.104 provider spend guard audit
 
 Expanded the Vercel spend guard to scan every workspace `package.json` and

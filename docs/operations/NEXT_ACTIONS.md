@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.105 inventory warehouse control surface
+
+Keep the Warehouse edit/deactivation form compatibility-default until the
+existing Core selector and hosted parity gates clear. Do not trigger Vercel or
+Railway builds. Push only the reviewed feature branch after local checks, then
+continue with supported Supabase backup/catalog/data/audit export for
+`aqqrtkmtcsfkbyyqxowv`; reconcile the 39 source migrations after hosted
+`20260729233017` in order, resolve the owner-approved tenant-scoped Purchase
+Order duplicate mapping, and review security warnings. No production canary
+or hosted SQL apply is authorized yet.
+
 ## Exact next action after M3.104 provider spend guard audit
 
 Keep Vercel Git disconnected and do not create a build. The repository guard

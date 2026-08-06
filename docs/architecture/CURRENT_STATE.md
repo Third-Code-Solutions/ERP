@@ -4,6 +4,15 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.105 inventory warehouse control surface (2026-08-06)
+
+Inventory now exposes an authenticated edit/deactivation form for each
+Warehouse. It reuses the existing Web server action and guarded Core selector;
+warehouse code and project scope remain immutable, while Nest enforces the
+zero-net-stock rule before deactivation. No schema/provider/tenant-data change
+occurred. Web typecheck, focused inventory/Core tests 125/125, full Web 87/567,
+and Next production routes 81/81 are green.
+
 ## M3.104 provider spend guard audit (2026-08-06)
 
 The repository spend guard now scans every workspace package manifest and GitHub

@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-217 - Reuse guarded Warehouse authority for the first edit surface (2026-08-06)
+
+Decision: expose Warehouse name and active-state maintenance through the
+existing authenticated Web server action and Core selector. Keep warehouse
+code and project scope immutable in the form, and retain the Nest
+zero-net-stock deactivation guard. Leave the selector compatibility-default
+until hosted parity and protected canary gates clear.
+
+Rationale: this delivers a usable inventory control surface without putting
+sensitive database writes in React, adding schema drift, or starting a
+big-bang migration. The server action preserves current API behavior while the
+existing authority seam can be enabled per tenant later.
+
+Evidence: focused inventory/Core tests 125/125, Web suite 87/567, typecheck,
+and production build 81/81 routes. No Supabase, Vercel, Railway, Storage, or
+tenant-data mutation occurred.
+
 ## D-216 - Fail closed on hidden Vercel deploy automation (2026-08-06)
 
 Decision: make the Vercel spend guard discover every workspace `package.json`

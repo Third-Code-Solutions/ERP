@@ -5,6 +5,7 @@ import {
   configureInventoryItem,
   createUnitOfMeasure,
   createWarehouse,
+  updateWarehouse,
 } from './actions'
 
 function useInventoryForm() {
@@ -124,6 +125,65 @@ export function CreateWarehouseForm({
       </button>
       {state.error && <p className="finance-form-error">{state.error}</p>}
     </form>
+  )
+}
+
+export function EditWarehouseForm({
+  warehouse,
+}: {
+  warehouse: {
+    id: string
+    code: string
+    name: string
+    isActive: boolean
+  }
+}) {
+  const state = useInventoryForm()
+
+  return (
+    <details className="inventory-warehouse-editor">
+      <summary className="finance-secondary-button">Edit</summary>
+      <form
+        ref={state.formRef}
+        action={(data) =>
+          state.run((formData) => updateWarehouse(warehouse.id, formData), data)
+        }
+        className="finance-setup-form"
+      >
+        <p className="finance-form-hint">
+          <strong>{warehouse.code}</strong> is the immutable warehouse code.
+        </p>
+        <div className="finance-field finance-field-grow">
+          <label htmlFor={`warehouse-${warehouse.id}-name`}>Name</label>
+          <input
+            id={`warehouse-${warehouse.id}-name`}
+            name="name"
+            required
+            maxLength={160}
+            defaultValue={warehouse.name}
+          />
+        </div>
+        <label className="inventory-check">
+          <input
+            name="isActive"
+            type="checkbox"
+            defaultChecked={warehouse.isActive}
+          />
+          <span>
+            <strong>Available for new receipts</strong>
+            <small>Deactivation requires zero net stock.</small>
+          </span>
+        </label>
+        <button
+          type="submit"
+          className="finance-primary-button"
+          disabled={state.pending}
+        >
+          {state.pending ? 'Saving...' : 'Save changes'}
+        </button>
+        {state.error && <p className="finance-form-error">{state.error}</p>}
+      </form>
+    </details>
   )
 }
 
