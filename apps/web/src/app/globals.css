@@ -1098,6 +1098,24 @@ a { color: inherit; }
   font-size: 0.75rem;
 }
 
+.dashboard-data-notice {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-gold-500) 42%, var(--color-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-gold-100) 48%, white);
+  color: var(--color-navy-800);
+  font-size: 13px;
+}
+
+.dashboard-data-notice span {
+  color: var(--color-neutral-600);
+}
+
 .dashboard-route-error-reference code {
   color: rgba(255, 255, 255, 0.72);
   font-family: var(--font-mono);

@@ -87,6 +87,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         renderedAt,
         canViewPath(profile.role, '/projects')
       ),
+  }, {
+    onExecutiveFailure: () =>
+      getTodayCommandCenter(
+        profile.tenantId,
+        profile.user.id,
+        renderedAt,
+        canViewPath(profile.role, '/projects')
+      ),
   })
 
   const fmt = new Intl.DateTimeFormat('en-PH', {
@@ -106,9 +114,22 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // dashboard; for now they only flow into ExportCsvButton via the URL.
   void resolvedSearch
 
-  if (dashboard.mode === 'my_work') {
+  if (dashboard.mode === 'my_work' || dashboard.mode === 'degraded') {
     return (
       <>
+        {dashboard.mode === 'degraded' && (
+          <section
+            className="dashboard-data-notice"
+            role="status"
+            aria-label="Dashboard data notice"
+          >
+            <strong>Executive analytics are temporarily unavailable.</strong>
+            <span>
+              Your authorized work queue is still current. Retry later for the
+              full portfolio view; no records were changed.
+            </span>
+          </section>
+        )}
         <div className="page-header">
           <p className="page-eyebrow">Today · {roleLabel(profile.role)}</p>
           <h1 className="page-title">

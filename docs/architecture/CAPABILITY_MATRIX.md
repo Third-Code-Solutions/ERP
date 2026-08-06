@@ -1,5 +1,13 @@
 # Third Code ERP capability matrix
 
+## M3.130 dashboard fault isolation (2026-08-07)
+
+Executive dashboard analytics now degrade to the authorized Today view when a
+portfolio query fails during an incremental schema rollout. The UI discloses
+the degraded state; no zero-valued KPI substitute, tenant-scope expansion, or
+transaction path changed. Web tests/build and source gates pass; no provider
+release occurred.
+
 ## M3.129 self-hosted free database lane (2026-08-07)
 
 The free WSL lane proves 97/97 ordered migrations, PostgreSQL 17.10/Redis

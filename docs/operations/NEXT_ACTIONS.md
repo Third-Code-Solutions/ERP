@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.130 dashboard fault isolation
+
+Keep the degraded dashboard path source-only until the normal spend-approved
+release lane exists. On the next protected browser canary, exercise both a
+healthy executive dashboard and a controlled analytics failure, verify the
+Today fallback, tenant scope, notice, server log reference, and zero console
+errors. Do not create a Vercel build, manually redeploy Railway, apply hosted
+SQL, or enable ERP canaries while the database/security/duplicate/audit/
+rollback/identity/spend gates remain open.
+
 ## Exact next action after M3.129 self-hosted free database lane
 
 Use the approved GitHub self-hosted/Docker CI lane to capture the pinned

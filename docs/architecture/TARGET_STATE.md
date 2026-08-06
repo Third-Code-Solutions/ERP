@@ -1,5 +1,13 @@
 # Target State
 
+## M3.130 dashboard resilience (2026-08-07)
+
+Dashboard analytics must degrade to the already-authorized Today view when an
+optional executive query fails. The UI must say that analytics are unavailable,
+must never substitute fake KPI values, and must preserve tenant/role scope.
+The original failure remains observable in server logs and the full executive
+view returns when the data boundary is healthy.
+
 ## M3.129 self-hosted replay evidence (2026-08-07)
 
 The free self-hosted lane must prove the ordered migration ledger, zero-skip
