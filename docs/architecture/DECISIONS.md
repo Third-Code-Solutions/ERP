@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-208 - Hosted Supabase remains read-only during parity reconciliation (2026-08-06)
+
+Decision: treat the connected Supabase project as a read-only evidence source
+until backup/catalog/data/audit export, ordered migration reconciliation,
+duplicate Purchase Order mapping, and security review are complete. Hosted
+state is 55/92 migrations, 88 RLS-enabled public tables, 303 policies, zero
+cash/supplier-bill rows, and one 12-record tenant-scoped PO duplicate group.
+Security advisors include 11 warnings, including security-definer grants and
+disabled leaked-password protection. Do not apply migrations, enable cash
+tenants, create branches, or trigger paid frontend builds from this snapshot.
+
+Evidence: read-only Supabase project/catalog/table/advisor queries on
+2026-08-06; no SQL, Storage, branch, Vercel, or Railway mutation.
+
 ## D-207 - Cash read canary requires disposable parity (2026-08-06)
 
 Decision: require rollback-only PostgreSQL 17 replay before selecting any

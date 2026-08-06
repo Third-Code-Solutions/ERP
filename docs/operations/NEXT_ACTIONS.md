@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.97 hosted parity snapshot
+
+1. Keep `ERP_FINANCE_CASH_READS_ENABLED=false`,
+   `ERP_FINANCE_CASH_READS_TENANT_IDS` empty,
+   `ERP_FINANCE_CASH_READS_VIA_API=false`, and
+   `ERP_FINANCE_CASH_READS_VIA_API_TENANT_IDS` empty. Do not create a Vercel
+   build or a new Railway build for docs-only work.
+2. Obtain a supported Supabase backup/catalog/data/audit export, reconcile the
+   37 source migrations after `20260729233017` in order, and obtain an
+   owner-approved mapping for the one tenant-scoped 12-record Purchase Order
+   duplicate group. Review the 11 security warnings before any apply.
+3. Compare hosted RLS/policy/audit behavior against the disposable replay,
+   then run a protected browser cash canary and rollback drill. No hosted
+   migration or tenant selection is cleared by this snapshot.
+
 ## Exact next action after M3.96 replay parity
 
 1. Keep `ERP_FINANCE_CASH_READS_ENABLED=false`,

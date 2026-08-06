@@ -4,6 +4,23 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.97 hosted Supabase read-only parity snapshot (2026-08-06)
+
+Read-only inspection of project `aqqrtkmtcsfkbyyqxowv` confirms PostgreSQL
+17.6, 55 hosted migrations through `20260729233017` versus 92 in source (37
+source migrations pending), 88 public tables with RLS reported enabled, and
+303 public policies. Snapshot counts: 2 tenants, 13 users, 13 purchase
+orders, 4 invoices, 662 audit rows, 385 Cortex nodes, 454 Cortex edges, and
+zero cash accounts, cash transactions, or supplier bills. One tenant-scoped
+Purchase Order duplicate group contains 12 records.
+
+Supabase security advisors report 14 notices (11 warnings), including public
+execution of security-definer authorization helpers and disabled leaked
+password protection; performance advisors report 253 notices, including one
+duplicate tenant index. These are review gates, not authorization to apply the
+37 migrations. No SQL write, migration, branch, backup, Storage write, Vercel
+build, or Railway build occurred for this snapshot.
+
 ## M3.96 replay parity evidence (2026-08-06)
 
 Added `apps/api/integration/finance-cash-read.database.integration.spec.ts`.

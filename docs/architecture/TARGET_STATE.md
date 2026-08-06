@@ -1,5 +1,16 @@
 # Target State
 
+## M3.97 hosted parity gate (2026-08-06)
+
+Hosted Supabase is an evidence source only: PostgreSQL 17.6, 55/92 migrations,
+88 RLS-enabled public tables, 303 policies, zero cash/supplier-bill rows, and
+one 12-record tenant-scoped Purchase Order duplicate group. Keep all cash
+selectors false/empty. Before any hosted apply or tenant canary, obtain the
+supported backup/catalog/data/audit export, resolve the duplicate mapping,
+review the 11 security warnings (including security-definer grants and leaked
+password protection), and reconcile source migrations in order. No provider
+action is implied by a read-only snapshot.
+
 ## M3.96 replay parity gate
 
 The cash register Core seam now has disposable database proof: direct and Nest
