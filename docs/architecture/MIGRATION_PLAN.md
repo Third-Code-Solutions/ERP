@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.138 retire Project update flag surface
+
+Deleted the unused `projectWritesUseCoreApi` function and its branch tests,
+removed the Project update flag/allowlist from both env examples, and replaced
+the old flag-driven runbook with a Core-only authority/canary runbook. Updated
+database-release and self-hosted-CI guidance so rollback never restores a
+direct writer. No runtime provider environment or database schema changed.
+
+Validation: Core client 115/115; Web action 5/5; serial workspace tests
+(shared 27/229, database 47/51 with 141 compatibility skips, API 112/480,
+Web 89/583); production build 81/81 routes; typecheck, lint, migration
+verifier, Actionlint, Gitleaks, controlled-release 5/5, and provider-spend
+4/4 passed. Code/ops commit `a978b4f`. Hosted providers and ERP canaries stay
+closed.
+
+Remaining boundary: historical architecture/work logs may mention the former
+flag as prior evidence, but no current runtime or operator path depends on it.
+
 ## M3.137 Project update Core cutover
 
 Removed the final legacy Project update writer from the Web Server Action. The

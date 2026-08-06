@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.138 retire Project update flag surface
+
+Push the reviewed source/docs to
+`origin/agent-02/third-code-erp-landing`, verify remote SHA and clean
+worktree, then stop. Keep Supabase SQL/data, Vercel builds, Railway deploys,
+and ERP flags closed to control spend. Next source action: execute only the
+approved self-hosted/protected Core read/write canary using the new runbook;
+prove membership denial, tenant isolation, stale-token conflict, audit actor,
+terminal-state rejection, and Core-unavailable fail-closed behavior before any
+hosted canary or deployment.
+
 ## Exact next action after M3.137 Project update Core cutover
 
 Push the reviewed source/docs to

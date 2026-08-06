@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.138 retire Project update flag surface (2026-08-07)
+
+Removed the unused `projectWritesUseCoreApi` selector, its Web test branch,
+and the `ERP_PROJECT_WRITES_VIA_API`/tenant-allowlist entries from environment
+examples. Replaced the old flag-driven cutover runbook with a Core-authority
+validation runbook; runtime provider configuration was not changed. Project
+updates remain Core-only and fail closed when Core is unavailable. No
+migration, hosted SQL, Vercel build, Railway deploy, or provider mutation was
+added.
+
+Validation: Core client 115/115; Web action 5/5; serial workspace tests
+passed (shared 27/229, database 47/51 files with 141 compatibility skips, API
+112/480, Web 89/583); production build emitted 81/81 routes; typecheck, lint,
+migration verifier, Actionlint, Gitleaks, controlled-release, and
+provider-spend guards passed. Source checkpoint: commit `a978b4f`.
+
 ## M3.137 Project update Core cutover (2026-08-07)
 
 The Web Project update action no longer has a direct database or Web-audit

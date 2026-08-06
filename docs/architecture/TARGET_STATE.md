@@ -1,5 +1,12 @@
 # Target State
 
+## M3.138 one configuration vocabulary for Project updates
+
+Project update routing must not have a dormant legacy selector or operator
+flag. The only required Web setting is the Core API endpoint/session boundary;
+readiness and tenant authorization are enforced by NestJS. Rollback is an
+exact Web/API source release, and Core outage remains fail-closed.
+
 ## M3.137 Core-only Project updates
 
 The Project edit surface must be a thin command client. Next validates form

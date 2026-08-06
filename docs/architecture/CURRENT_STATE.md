@@ -5,6 +5,15 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.138 retire Project update flag surface (2026-08-07)
+
+The obsolete Project update selector and env-example entries are removed.
+Current source has one Project write authority: the authenticated Core
+read/PATCH boundary. The former cutover runbook is replaced with a
+fail-closed Core validation runbook. This is source/documentation cleanup only;
+hosted Supabase, Vercel, Railway, flags, and tenant data were not touched.
+Source commit: `a978b4f`.
+
 ## M3.137 Project update Core cutover (2026-08-07)
 
 Project edits from the Web now use a Core read followed by the NestJS PATCH

@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-07 - M3.138 retire Project update flag surface
+
+Removed the dead `projectWritesUseCoreApi` selector and its branch tests,
+deleted Project update flag/allowlist entries from `.env.example` files, and
+replaced the flag-driven cutover runbook with Core-only validation. Updated
+database-release and self-hosted-CI rollback guidance. No hosted env, SQL,
+Vercel, Railway, Supabase, or tenant data changed.
+
+Changed files: `.env.example`, `apps/web/.env.example`,
+`apps/web/src/lib/erp-core-client.ts`,
+`apps/web/src/lib/erp-core-client.test.ts`, the three runbooks, and the
+milestone records in `docs/architecture/`, `docs/operations/`, plus
+`docs/changesets/2026-08-07-m3-138-project-update-flag-retirement.md`.
+
+Validation: Core client 115/115; Web action 5/5; serial workspace tests
+passed (shared 27/229, database 47/51 files with 141 compatibility skips, API
+112/480, Web 89/583); production build generated 81/81 routes; typecheck,
+lint, migration verifier, Actionlint, Gitleaks, controlled-release 5/5, and
+provider-spend 4/4 passed. Source/ops commit: `a978b4f`.
+
+Unresolved risks: protected runtime Core canary, hosted schema/catalog/RLS
+parity, managed backup/rollback, identity, audit recovery, and spend evidence
+remain open. Historical docs retain old flag references only as prior evidence.
+
 ## 2026-08-07 - M3.137 Project update Core cutover
 
 Removed the remaining legacy Project update writer. The Web Server Action now
