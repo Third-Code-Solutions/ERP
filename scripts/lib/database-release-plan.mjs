@@ -85,3 +85,28 @@ export function sha256(source) {
 export function releaseGatePassed(ledgerStatus, blockers) {
   return ledgerStatus === 'current' && blockers.length === 0
 }
+
+export function analyzeSecurityCatalog({
+  anonTablePrivilegeCount,
+  publicPolicyCount,
+}) {
+  const anonPrivileges = Number(anonTablePrivilegeCount ?? 0)
+  const publicPolicies = Number(publicPolicyCount ?? 0)
+
+  return {
+    anonTablePrivilegeCount: anonPrivileges,
+    publicPolicyCount: publicPolicies,
+    blockers: [
+      ...(anonPrivileges > 0
+        ? [
+            `target grants direct table privileges to anon (${anonPrivileges} privilege rows)`,
+          ]
+        : []),
+      ...(publicPolicies > 0
+        ? [
+            `target assigns public ERP policies to PUBLIC (${publicPolicies} policies)`,
+          ]
+        : []),
+    ],
+  }
+}

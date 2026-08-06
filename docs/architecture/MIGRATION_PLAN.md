@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.123 read-only catalog security gate
+
+Implemented the database planner catalog query and pure analyzer for direct
+anonymous table privileges and `PUBLIC`-role policies. Added tests for blocked
+and green catalog states and broadened the replay verifier's policy check to
+catch any policy role set containing `public`.
+
+Validation: focused planner tests 9/9, full Turbo tests 4/4, typecheck,
+TS-only lint, production build 2/2, migration verifier, Actionlint, Gitleaks,
+controlled-release tests 5/5, and spend-guard tests 4/4 pass. The hosted
+read-only planner reports 213 anonymous privilege rows and 209 public-role
+policies, so the controlled release remains blocked. Next: push only the
+reviewed feature branch. Do not apply hosted SQL or trigger Vercel or Railway
+while migration drift, security findings, duplicate Purchase Orders, audit
+recovery, rollback, identity, and spend gates remain open.
+
 ## M3.122 source anonymous-grant and policy hardening
 
 Implemented migration `20260806160000_security_role_baseline.sql`. It removes

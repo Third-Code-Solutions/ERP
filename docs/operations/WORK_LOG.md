@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-06 - M3.123 read-only catalog security gate
+
+Extended `scripts/plan-database-release.mjs` with a catalog query and
+`analyzeSecurityCatalog` helper. The gate counts direct `anon` SELECT/INSERT/
+UPDATE/DELETE privileges on public tables and any `pg_policies.roles` array
+containing `public`; positive counts become blockers. The replay verifier now
+uses the same containment rule.
+
+Focused planner tests pass (9/9). Full Turbo tests (4/4), typecheck, TS-only
+lint, production build (2/2), migration verifier, Actionlint, Gitleaks,
+controlled-release tests (5/5), and spend-guard tests (4/4) also pass. The
+configured hosted read-only planner reports 213 anon privilege rows and 209
+public-role policies, so promotion remains closed. No Supabase SQL,
+tenant-data write, provider setting, build, or deployment ran.
+
 ## 2026-08-06 - M3.122 source anonymous-grant and policy hardening
 
 Added `20260806160000_security_role_baseline.sql`. It revokes direct

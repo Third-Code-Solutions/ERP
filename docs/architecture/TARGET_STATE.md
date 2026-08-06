@@ -1,5 +1,13 @@
 # Target State
 
+## M3.123 catalog security gate (2026-08-06)
+
+Every controlled database release plan must report both direct table privileges
+held by `anon` and policies that include `public` in their role set. Either
+count blocks promotion, even when RLS is enabled or readiness endpoints return
+HTTP 200. The gate is read-only and must remain independent of migration
+execution, provider deploys, and application feature flags.
+
 ## M3.122 anonymous authority baseline (2026-08-06)
 
 The source ledger now carries an explicit least-privilege migration: no direct
