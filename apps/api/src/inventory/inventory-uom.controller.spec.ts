@@ -66,7 +66,7 @@ describe('Inventory UOM HTTP contract', () => {
       .expect(400)
 
     expect(create).not.toHaveBeenCalled()
-  })
+  }, 15_000)
 
   it('forwards validated command and verified principal', async () => {
     const create = vi.fn().mockResolvedValue({
@@ -90,5 +90,5 @@ describe('Inventory UOM HTTP contract', () => {
       { code: 'EA', name: 'Each', decimalPlaces: 0 },
       expect.objectContaining({ tenantId: TENANT_ID, userId: expect.any(String) })
     )
-  })
+  }, 15_000)
 })

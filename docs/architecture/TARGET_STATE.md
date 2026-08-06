@@ -14,6 +14,13 @@ selected Core error. Keep
 until the ordered hosted migration suffix, protected canary, rollback, and
 spend gates clear. Python/AI remains advisory and cannot commit the transition.
 
+Local release evidence now includes broad API 104/445, Web 87/565, database
+reproducibility 93/93 migrations, and an isolated Nest/Next production build
+with 81/81 routes. These checks do not authorize hosted migration or provider
+promotion while Supabase remains at 55/93 and the required backup, catalog,
+data/audit, duplicate-PO, security, canary, rollback, and spend gates remain
+open.
+
 ## M3.101 hosted Asset Register parity gate (2026-08-06)
 
 Hosted Supabase must contain the ordered asset migration and match the

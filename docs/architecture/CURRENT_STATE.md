@@ -18,14 +18,17 @@ Validation: shared delivery contract 14/14; focused API controller/service
 43/43; focused Web adapter/delivery actions 2 files/131 tests; rollback-only
 PostgreSQL 17 integration 2 files/2 tests; full database reproducibility
 verification 93/93 migrations, 32 protected tables, and 3 service-only tables;
-shared/database/API/Web typechecks pass. Source SHA `db786f2` is pushed to
-GitHub `main` and `agent-02/third-code-erp-landing`. Hosted Supabase remains
-read-only at 55/93 migrations; no Supabase, Storage, Vercel, Railway, or
-tenant-canary mutation occurred. A broad API suite attempt hit the existing
-Windows test-server timeout pattern, and local API/Web production-build
-attempts exceeded the bounded command window under shared process load; these
-are not counted as green release gates and must be rerun in a clean lane before
-any provider promotion.
+shared/database/API/Web typechecks pass; Web 87 files/565 tests pass; broad API
+104 files/445 tests pass; and the isolated Turbo production build passes Nest
+webpack plus Next 81/81 routes. The only source adjustment in this gate was a
+15-second timeout budget for the inventory UOM HTTP contract's test-app startup;
+runtime behavior is unchanged. Source SHA `db786f2` plus the release-evidence
+docs/test-budget change is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Hosted Supabase remains read-only at 55/93
+migrations; no Supabase, Storage, Vercel, Railway, or tenant-canary mutation
+occurred. Provider promotion remains blocked by hosted suffix reconciliation,
+backup/catalog/data/audit export, duplicate-PO mapping, security review,
+protected canary, and spend approval.
 
 ## M3.101 hosted Supabase Asset Register parity snapshot (2026-08-06)
 

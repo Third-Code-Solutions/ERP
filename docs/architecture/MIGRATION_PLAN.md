@@ -15,9 +15,13 @@ path never falls back to a browser write after a Core error.
 Validation: shared 14/14; API delivery service/controller 43/43; Web delivery
 adapter/actions 131/131; rollback-only PostgreSQL 17 delivery integrations
 2/2; full reproducibility verifier 93/93 migrations, 32 protected tables,
-3 service-only tables; shared/database/API/Web typechecks pass. Source SHA
-`db786f2` is pushed to both GitHub refs. No hosted migration apply, Vercel
-build, Railway build, Storage write, or tenant canary occurred.
+3 service-only tables; shared/database/API/Web typechecks pass; Web 87/565 and
+broad API 104/445 pass; and the isolated Nest/Next production build passes
+81/81 routes. The inventory UOM HTTP contract test-app startup budget is 15
+seconds to avoid a false negative under the full serial suite; application
+behavior is unchanged. Source and evidence docs are pushed to both GitHub
+refs. No hosted migration apply, Vercel build, Railway build, Storage write,
+or tenant canary occurred.
 
 ## Next gate
 
