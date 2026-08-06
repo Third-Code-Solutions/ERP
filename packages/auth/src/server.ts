@@ -179,6 +179,7 @@ export type ErpCapability =
   | 'finance.post_supplier_bill'
   | 'finance.manage_cash'
   | 'asset.read'
+  | 'asset.maintenance.manage'
   | 'inventory.read'
   | 'inventory.manage'
   | 'inventory.post_receipt'
@@ -270,6 +271,13 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
     'safety',
     'cx',
     'viewer',
+  ],
+  'asset.maintenance.manage': [
+    'admin',
+    'owner',
+    'pm',
+    'sd_pm_pe',
+    'procurement',
   ],
   'inventory.read': [
     'admin',

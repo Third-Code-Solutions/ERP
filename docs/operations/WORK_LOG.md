@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-07 - M3.131 asset maintenance history
+
+Implemented the bounded asset service-history vertical slice. Added the
+append-only record and idempotency schemas/migration with tenant FKs, date and
+exact-cent constraints, audit trigger, forced RLS, and service-only grants.
+Added shared Zod contracts, `asset.maintenance.manage`, fail-closed API
+environment gates, Nest list/detail/create routes, membership/asset locks,
+hash-safe replay, and semantic audit. Web now links register rows to an asset
+detail timeline and exposes a Core-only form only for an explicitly canaried
+tenant. No direct browser fallback or hosted/provider action.
+
+Focused validation passed: shared 3/3; API 111 files/473 tests; Web client
+116/116; package typechecks; WSL PostgreSQL 17.10/Redis 7.4.9 replay with
+98/98 migrations, verifier pass, 20 integration files/27 tests, and database
+51/51 files/324 tests with zero skips. Serial build, typecheck, lint, full
+tests, migration verifier, actionlint, gitleaks, controlled-release, and
+provider-spend guards all pass. Commit `309435a` is complete; feature-branch
+push remains.
+
 ## 2026-08-07 - M3.130 dashboard fault isolation
 
 The executive `/dashboard` path used an all-or-nothing `Promise.all` across

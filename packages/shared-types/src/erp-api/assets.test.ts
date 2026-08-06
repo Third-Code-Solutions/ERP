@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   assetListQuerySchema,
   assetListResultSchema,
+  assetMaintenanceListQuerySchema,
+  createAssetMaintenanceRecordCommandSchema,
 } from './assets'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -63,5 +65,31 @@ describe('asset API contracts', () => {
         totalPages: 1,
       })
     ).toMatchObject({ total: 1, rows: [{ tenantId: TENANT_ID }] })
+  })
+
+  it('defaults maintenance commands and rejects an inverted service window', () => {
+    expect(
+      assetMaintenanceListQuerySchema.parse({ page: '1', limit: '50' })
+    ).toEqual({ page: 1, limit: 50 })
+    expect(
+      createAssetMaintenanceRecordCommandSchema.parse({
+        maintenanceType: 'inspection',
+        summary: 'Annual safety inspection',
+        performedOn: '2026-01-15',
+      })
+    ).toMatchObject({
+      nextDueOn: null,
+      vendorName: null,
+      costCents: 0,
+      notes: null,
+    })
+    expect(() =>
+      createAssetMaintenanceRecordCommandSchema.parse({
+        maintenanceType: 'repair',
+        summary: 'Repair',
+        performedOn: '2026-02-01',
+        nextDueOn: '2026-01-31',
+      })
+    ).toThrow('nextDueOn must be on or after performedOn')
   })
 })

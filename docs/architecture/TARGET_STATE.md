@@ -1,5 +1,15 @@
 # Target State
 
+## M3.131 asset maintenance history
+
+Every operational asset must expose a tenant-scoped, append-only service
+timeline. A maintenance command must use exact cent amounts, enforce service
+date ordering in both Zod and PostgreSQL, lock the asset and membership in one
+transaction, be replay-safe by tenant/idempotency key, and emit semantic plus
+row-trigger audit evidence. Browser clients may only call the Nest authority;
+the default remains closed until hosted schema parity and a protected canary
+are approved. Retired assets remain historical but reject new events.
+
 ## M3.130 dashboard resilience (2026-08-07)
 
 Dashboard analytics must degrade to the already-authorized Today view when an

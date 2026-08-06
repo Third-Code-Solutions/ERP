@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-239 - Model asset maintenance as append-only evidence (2026-08-07)
+
+Decision: represent service history as append-only `asset_maintenance_records`
+plus a separate server-only idempotency ledger. Do not introduce work orders,
+automatic scheduling, mutable status, or accounting fixed-asset behavior in
+this slice. New events lock tenant membership and the asset, reject retired
+assets, and remain closed by default behind exact tenant flags.
+
+Rationale: construction teams need a searchable continuity trail before a full
+maintenance/work-order lifecycle is safe. Append-only records preserve audit
+truth, exact-cent cost, and clean migration boundaries while avoiding a
+premature state machine that would touch inventory or finance authority.
+
+Evidence: source replay applied migration `20260807100000`, API contracts and
+integration coverage pass, and no hosted/provider state changed.
+
 ## D-238 - Preserve a truthful Today view when executive analytics fail (2026-08-07)
 
 Decision: executive dashboard queries may fall back only to the existing

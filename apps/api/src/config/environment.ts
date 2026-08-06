@@ -51,6 +51,36 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Asset maintenance history remains fail-closed until the migration replay,
+  // audit/RLS review, and a protected tenant canary are approved.
+  ERP_ASSET_MAINTENANCE_READS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_ASSET_MAINTENANCE_READS_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  ERP_ASSET_MAINTENANCE_CREATE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_ASSET_MAINTENANCE_CREATE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Cortex keyword reads stay fail-closed until the derived graph replay and
   // a tenant-scoped canary are approved. Search never accepts tenant or role
   // scope from the browser and never spends an external AI provider budget.
