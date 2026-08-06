@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   recordDeliveryReceiptThroughCoreApi: vi.fn(),
   deliveryMarkInTransitWritesUseCoreApi: vi.fn(),
   markDeliveryInTransitThroughCoreApi: vi.fn(),
+  deliveryScheduleCreateWritesUseCoreApi: vi.fn(),
+  createDeliveryScheduleThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
   notifyRoles: vi.fn(),
   writeAuditLog: vi.fn(),
@@ -81,6 +83,10 @@ vi.mock('@/lib/erp-core-client', () => ({
     mocks.deliveryMarkInTransitWritesUseCoreApi,
   markDeliveryInTransitThroughCoreApi:
     mocks.markDeliveryInTransitThroughCoreApi,
+  deliveryScheduleCreateWritesUseCoreApi:
+    mocks.deliveryScheduleCreateWritesUseCoreApi,
+  createDeliveryScheduleThroughCoreApi:
+    mocks.createDeliveryScheduleThroughCoreApi,
 }))
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }))
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }))
@@ -92,6 +98,7 @@ import {
   markSitePreparing,
   markInTransit,
   recordReceipt,
+  scheduleDelivery,
   startInspection,
 } from './actions'
 
@@ -127,6 +134,7 @@ describe('Delivery receipt compatibility seam', () => {
     mocks.deliveryInspectionCompleteWritesUseCoreApi.mockReturnValue(false)
     mocks.deliveryCancelWritesUseCoreApi.mockReturnValue(false)
     mocks.deliveryMarkInTransitWritesUseCoreApi.mockReturnValue(false)
+    mocks.deliveryScheduleCreateWritesUseCoreApi.mockReturnValue(false)
     mocks.startDeliveryInspectionThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
@@ -205,6 +213,79 @@ describe('Delivery receipt compatibility seam', () => {
         cancelledAt: '2026-08-02T12:00:00.000Z',
       },
     })
+    mocks.createDeliveryScheduleThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        id: SCHEDULE_ID,
+        tenantId: TENANT_ID,
+        purchaseOrderId: '44444444-4444-4444-8444-444444444444',
+        status: 'scheduled',
+        scheduledDate: '2026-08-06T09:00:00.000Z',
+        siteAddress: '6F, Third Code Building',
+        siteContactName: 'Site lead',
+        siteContactPhone: '+63 900 000 0000',
+        sitePreparationNotes: null,
+        createdAt: '2026-08-06T09:00:00.000Z',
+        updatedAt: '2026-08-06T09:00:00.000Z',
+      },
+    })
+  })
+
+  it('routes schedule creation through Nest without a direct browser write', async () => {
+    mocks.deliveryScheduleCreateWritesUseCoreApi.mockReturnValue(true)
+    const form = new FormData()
+    form.set('purchase_order_id', '44444444-4444-4444-8444-444444444444')
+    form.set('scheduled_date', '2026-08-06T09:00:00.000Z')
+    form.set('site_address', '6F, Third Code Building')
+    form.set('site_contact_name', 'Site lead')
+    form.set('site_contact_phone', '+63 900 000 0000')
+    form.set('site_preparation_notes', '')
+    form.set('idempotency_key', 'delivery-schedule-1')
+    mocks.redirect.mockImplementationOnce(() => {
+      throw new Error('NEXT_REDIRECT')
+    })
+
+    await expect(scheduleDelivery(form)).rejects.toThrow('NEXT_REDIRECT')
+
+    expect(mocks.createDeliveryScheduleThroughCoreApi).toHaveBeenCalledWith(
+      {
+        purchaseOrderId: '44444444-4444-4444-8444-444444444444',
+        scheduledDate: '2026-08-06T09:00:00.000Z',
+        siteAddress: '6F, Third Code Building',
+        siteContactName: 'Site lead',
+        siteContactPhone: '+63 900 000 0000',
+        sitePreparationNotes: null,
+      },
+      'delivery-schedule-1'
+    )
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.notifyRoles).not.toHaveBeenCalled()
+    expect(mocks.redirect).toHaveBeenCalledWith(
+      `/procurement/deliveries/${SCHEDULE_ID}`
+    )
+  })
+
+  it('does not fall back to direct scheduling after a Core error', async () => {
+    mocks.deliveryScheduleCreateWritesUseCoreApi.mockReturnValue(true)
+    mocks.createDeliveryScheduleThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No delivery schedule was committed.',
+    })
+    const form = new FormData()
+    form.set('purchase_order_id', '44444444-4444-4444-8444-444444444444')
+    form.set('scheduled_date', '2026-08-06T09:00:00.000Z')
+    form.set('site_address', '6F, Third Code Building')
+    form.set('site_contact_name', 'Site lead')
+    form.set('site_contact_phone', '+63 900 000 0000')
+    form.set('idempotency_key', 'delivery-schedule-2')
+
+    await expect(scheduleDelivery(form)).resolves.toEqual({
+      error: 'ERP Core API is unavailable. No delivery schedule was committed.',
+    })
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.notifyRoles).not.toHaveBeenCalled()
   })
 
   it('routes the selected tenant through Nest with normalized notes', async () => {

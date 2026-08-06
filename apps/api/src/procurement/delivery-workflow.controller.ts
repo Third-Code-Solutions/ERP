@@ -11,6 +11,8 @@ import {
   Post,
 } from '@nestjs/common'
 import type {
+  CreateDeliveryScheduleCommand,
+  DeliveryScheduleCreationResult,
   DeliveryReceiptCommand,
   DeliveryReceiptResult,
   DeliveryMarkInTransitCommand,
@@ -32,6 +34,7 @@ import {
 } from '../auth/current-principal.decorator'
 import { RequireCapabilities } from '../auth/capability.guard'
 import { DeliveryInspectionCompletePipe } from './delivery-inspection-complete.pipe'
+import { DeliveryScheduleCreatePipe } from './delivery-schedule-create.pipe'
 import { DeliveryCancelPipe } from './delivery-cancel.pipe'
 import { DeliveryReceiptPipe } from './delivery-receipt.pipe'
 import { DeliveryMarkInTransitPipe } from './delivery-mark-in-transit.pipe'
@@ -46,6 +49,27 @@ export class DeliveryWorkflowController {
     @Inject(DeliveryWorkflowService)
     private readonly workflow: DeliveryWorkflowService
   ) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @RequireCapabilities('delivery.receive')
+  createSchedule(
+    @Body(DeliveryScheduleCreatePipe) command: CreateDeliveryScheduleCommand,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<DeliveryScheduleCreationResult> {
+    if (!idempotencyKey?.trim()) {
+      throw new BadRequestException('Idempotency-Key header is required')
+    }
+    if (idempotencyKey.length > 256) {
+      throw new BadRequestException('Idempotency-Key header is too long')
+    }
+    return this.workflow.createSchedule(
+      command,
+      principal,
+      idempotencyKey.trim()
+    )
+  }
 
   @Post(':deliveryScheduleId/receipt')
   @HttpCode(HttpStatus.OK)

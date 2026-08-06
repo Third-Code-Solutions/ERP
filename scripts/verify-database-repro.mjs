@@ -57,6 +57,7 @@ const requiredMigrations = [
   '20260729233017_notification_outbox_foundation.sql',
   '20260806110000_asset_register_foundation.sql',
   '20260806120000_delivery_in_transit_workflow.sql',
+  '20260806130000_delivery_schedule_create_idempotency.sql',
 ]
 
 const requiredTables = [
@@ -101,6 +102,7 @@ const requiredTables = [
 const requiredServerOnlyTables = [
   'stock_movement_create_requests',
   'stock_movement_workflow_requests',
+  'delivery_schedule_create_requests',
   'assets',
 ]
 
@@ -306,6 +308,9 @@ const requiredServerOnlyIndexes = [
   'ux_stock_movement_workflow_requests_tenant_id_id',
   'ux_stock_movement_workflow_requests_tenant_key',
   'idx_stock_movement_workflow_requests_tenant_state',
+  'ux_delivery_schedule_create_requests_tenant_id_id',
+  'ux_delivery_schedule_create_requests_tenant_key',
+  'idx_delivery_schedule_create_requests_tenant_state',
 ]
 
 const requiredExpandedNodeTypes = [
@@ -914,7 +919,7 @@ try {
   )
 
   await query(
-    'Stock Movement idempotency indexes exist and are valid',
+    'server-only idempotency indexes exist and are valid',
     `select c.relname, i.indisvalid
        from pg_class c
        join pg_index i on i.indexrelid = c.oid

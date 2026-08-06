@@ -25,7 +25,8 @@ describe('Delivery workflow HTTP contract', () => {
     cancelDelivery = vi.fn(),
     startSitePreparation = vi.fn(),
     completeSitePreparation = vi.fn(),
-    markInTransit = vi.fn()
+    markInTransit = vi.fn(),
+    createSchedule = vi.fn()
   ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [DeliveryWorkflowController],
@@ -40,6 +41,7 @@ describe('Delivery workflow HTTP contract', () => {
             startSitePreparation,
             completeSitePreparation,
             markInTransit,
+            createSchedule,
           },
         },
       ],
@@ -58,6 +60,82 @@ describe('Delivery workflow HTTP contract', () => {
     close = () => app.close()
     return app
   }
+
+  it('requires an idempotency key for delivery schedule creation', async () => {
+    const createSchedule = vi.fn()
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      createSchedule
+    )
+
+    await request(app.getHttpServer())
+      .post('/v1/procurement/deliveries')
+      .send({})
+      .expect(400)
+
+    expect(createSchedule).not.toHaveBeenCalled()
+  })
+
+  it('forwards the strict schedule command, principal, and trimmed key', async () => {
+    const createSchedule = vi.fn().mockResolvedValue({
+      id: '44444444-4444-4444-8444-444444444444',
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      purchaseOrderId: '33333333-3333-4333-8333-333333333333',
+      status: 'scheduled',
+      scheduledDate: '2026-08-06T09:00:00.000Z',
+      siteAddress: '6F, Third Code Building',
+      siteContactName: 'Site lead',
+      siteContactPhone: '+63 900 000 0000',
+      sitePreparationNotes: null,
+      createdAt: '2026-08-06T09:00:00.000Z',
+      updatedAt: '2026-08-06T09:00:00.000Z',
+    })
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      createSchedule
+    )
+
+    await request(app.getHttpServer())
+      .post('/v1/procurement/deliveries')
+      .set('Idempotency-Key', ' delivery-schedule-1 ')
+      .send({
+        purchaseOrderId: '33333333-3333-4333-8333-333333333333',
+        scheduledDate: '2026-08-06T09:00:00.000Z',
+        siteAddress: '6F, Third Code Building',
+        siteContactName: 'Site lead',
+        siteContactPhone: '+63 900 000 0000',
+        sitePreparationNotes: null,
+      })
+      .expect(201)
+
+    expect(createSchedule).toHaveBeenCalledWith(
+      {
+        purchaseOrderId: '33333333-3333-4333-8333-333333333333',
+        scheduledDate: '2026-08-06T09:00:00.000Z',
+        siteAddress: '6F, Third Code Building',
+        siteContactName: 'Site lead',
+        siteContactPhone: '+63 900 000 0000',
+        sitePreparationNotes: null,
+      },
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        userId: '11111111-1111-4111-8111-111111111111',
+      }),
+      'delivery-schedule-1'
+    )
+  })
 
   it('requires an idempotency key', async () => {
     const recordReceipt = vi.fn()

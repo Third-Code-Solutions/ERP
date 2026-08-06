@@ -16,6 +16,7 @@ import { DeliverySitePreparationStartPipe } from './delivery-site-preparation-st
 import { DeliverySitePreparationCompletePipe } from './delivery-site-preparation-complete.pipe'
 import { DeliveryWorkflowController } from './delivery-workflow.controller'
 import { DeliveryWorkflowService } from './delivery-workflow.service'
+import { DeliveryScheduleCreatePipe } from './delivery-schedule-create.pipe'
 import { PurchaseOrderController } from './purchase-order.controller'
 import { ProcurementService } from './procurement.service'
 import { PurchaseOrderCreationService } from './purchase-order-creation.service'
@@ -59,6 +60,7 @@ import { VendorConfirmationLinkService } from './vendor-confirmation-link.servic
     PurchaseOrderWorkflowService,
     PurchaseOrderWorkflowPipe,
     DeliveryWorkflowService,
+    DeliveryScheduleCreatePipe,
     DeliveryReceiptPipe,
     DeliveryMarkInTransitPipe,
     DeliveryCancelPipe,

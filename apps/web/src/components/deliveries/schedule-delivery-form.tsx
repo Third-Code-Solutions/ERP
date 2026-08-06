@@ -29,6 +29,7 @@ export function ScheduleDeliveryForm({
     e.preventDefault()
     setError('')
     const data = new FormData(e.currentTarget)
+    data.set('idempotency_key', crypto.randomUUID())
     startTransition(async () => {
       const result = await scheduleDelivery(data)
       if (result?.error) setError(result.error)

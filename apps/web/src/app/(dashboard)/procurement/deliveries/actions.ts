@@ -44,6 +44,8 @@ import {
   deliveryReceiptWritesUseCoreApi,
   recordDeliveryReceiptThroughCoreApi,
   markDeliveryInTransitThroughCoreApi,
+  createDeliveryScheduleThroughCoreApi,
+  deliveryScheduleCreateWritesUseCoreApi,
 } from '@/lib/erp-core-client'
 
 type DeliveryStatus =
@@ -146,6 +148,40 @@ export async function scheduleDelivery(
   const scheduledDate = new Date(input.scheduled_date)
   if (Number.isNaN(scheduledDate.getTime())) {
     return { error: 'scheduled_date: invalid date' }
+  }
+
+  if (deliveryScheduleCreateWritesUseCoreApi(profile.tenantId)) {
+    const key = z
+      .string()
+      .trim()
+      .min(1)
+      .max(256)
+      .safeParse(formData.get('idempotency_key'))
+    if (!key.success) {
+      return {
+        error: 'Retry token is required for the delivery schedule command.',
+      }
+    }
+    const result = await createDeliveryScheduleThroughCoreApi(
+      {
+        purchaseOrderId: input.purchase_order_id,
+        scheduledDate: scheduledDate.toISOString(),
+        siteAddress: input.site_address,
+        siteContactName: input.site_contact_name,
+        siteContactPhone: input.site_contact_phone,
+        sitePreparationNotes: input.site_preparation_notes ?? null,
+      },
+      key.data
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'Delivery schedule could not be created through ERP Core.',
+      }
+    }
+    revalidate(result.data.id)
+    redirect(`/procurement/deliveries/${result.data.id}`)
   }
 
   // Tenant ownership: PO must live in this tenant.

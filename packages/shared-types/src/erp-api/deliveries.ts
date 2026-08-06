@@ -1,5 +1,39 @@
 import { z } from 'zod'
 
+export const createDeliveryScheduleCommandSchema = z
+  .object({
+    purchaseOrderId: z.string().uuid(),
+    scheduledDate: z.string().datetime({ offset: true }),
+    siteAddress: z.string().trim().min(3).max(5_000),
+    siteContactName: z.string().trim().min(1).max(255),
+    siteContactPhone: z.string().trim().min(1).max(64),
+    sitePreparationNotes: z.string().trim().max(5_000).nullable(),
+  })
+  .strict()
+
+export const deliveryScheduleCreationResultSchema = z
+  .object({
+    id: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    purchaseOrderId: z.string().uuid(),
+    status: z.literal('scheduled'),
+    scheduledDate: z.string().datetime({ offset: true }),
+    siteAddress: z.string(),
+    siteContactName: z.string(),
+    siteContactPhone: z.string(),
+    sitePreparationNotes: z.string().nullable(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+
+export type CreateDeliveryScheduleCommand = z.infer<
+  typeof createDeliveryScheduleCommandSchema
+>
+export type DeliveryScheduleCreationResult = z.infer<
+  typeof deliveryScheduleCreationResultSchema
+>
+
 export const deliveryReceiptCommandSchema = z
   .object({
     notes: z.string().trim().max(2_000).nullable().optional(),
