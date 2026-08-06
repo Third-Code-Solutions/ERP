@@ -1,5 +1,16 @@
 # Target State
 
+## M3.144 Core Cost Entry restore boundary
+
+Restoration must be a separate authenticated, idempotent command. NestJS
+must lock membership and the voided Cost Entry, require `cost.record`, verify
+the tenant-scoped prior void snapshot, clear only void metadata, audit the
+restore, and commit a replay result in one transaction. The command is
+manual-entry-only, returns a terminal `restored` result, and fails closed on
+missing or mismatched snapshots. Restore flags remain disabled until
+disposable replay, managed parity, backup/recovery, identity, audit, and
+spend evidence pass. No browser or Python path may restore a record directly.
+
 ## M3.143 Core-only Cost Entry deletion action
 
 Cost Entry deletion must remain a thin authenticated command client. Next

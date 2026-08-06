@@ -342,6 +342,32 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_COST_ENTRY_DELETE_WRITES_TENANT_IDS')
   })
 
+  it('keeps cost entry restoration disabled and tenant-scoped', () => {
+    expect(
+      validateEnvironment(REQUIRED).ERP_COST_ENTRY_RESTORE_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED).ERP_COST_ENTRY_RESTORE_WRITES_TENANT_IDS
+    ).toEqual([])
+
+    const enabled = validateEnvironment({
+      ...REQUIRED,
+      ERP_COST_ENTRY_RESTORE_WRITES_ENABLED: 'true',
+      ERP_COST_ENTRY_RESTORE_WRITES_TENANT_IDS:
+        '22222222-2222-4222-8222-222222222222',
+    })
+    expect(enabled.ERP_COST_ENTRY_RESTORE_WRITES_ENABLED).toBe(true)
+    expect(enabled.ERP_COST_ENTRY_RESTORE_WRITES_TENANT_IDS).toEqual([
+      '22222222-2222-4222-8222-222222222222',
+    ])
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_COST_ENTRY_RESTORE_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_COST_ENTRY_RESTORE_WRITES_TENANT_IDS')
+  })
+
   it('keeps Won-to-Project handoff authority disabled and tenant-scoped', () => {
     expect(
       validateEnvironment(REQUIRED).ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED

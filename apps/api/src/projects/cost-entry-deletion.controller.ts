@@ -9,10 +9,13 @@ import {
   Inject,
   Param,
   ParseUUIDPipe,
+  Post,
 } from '@nestjs/common'
 import type {
   CostEntryDeletionResult,
   DeleteCostEntryBody,
+  CostEntryRestoreResult,
+  RestoreCostEntryBody,
 } from '@third-code-erp/shared-types'
 import {
   CurrentPrincipal,
@@ -21,6 +24,7 @@ import {
 import { RequireCapabilities } from '../auth/capability.guard'
 import { CostEntryDeletionService } from './cost-entry-deletion.service'
 import { DeleteCostEntryPipe } from './delete-cost-entry.pipe'
+import { RestoreCostEntryPipe } from './restore-cost-entry.pipe'
 
 @Controller('v1/projects')
 export class CostEntryDeletionController {
@@ -43,6 +47,28 @@ export class CostEntryDeletionController {
       throw new BadRequestException('Idempotency-Key header is required')
     }
     return this.costs.delete(
+      projectId,
+      costEntryId,
+      command.reason,
+      principal,
+      idempotencyKey.trim()
+    )
+  }
+
+  @Post(':projectId/cost-entries/:costEntryId/restore')
+  @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('cost.record')
+  restore(
+    @Param('projectId', new ParseUUIDPipe()) projectId: string,
+    @Param('costEntryId', new ParseUUIDPipe()) costEntryId: string,
+    @Body(RestoreCostEntryPipe) command: RestoreCostEntryBody,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<CostEntryRestoreResult> {
+    if (!idempotencyKey?.trim()) {
+      throw new BadRequestException('Idempotency-Key header is required')
+    }
+    return this.costs.restore(
       projectId,
       costEntryId,
       command.reason,

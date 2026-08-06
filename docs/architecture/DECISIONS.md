@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-252 - Separate the Core Cost Entry restore ledger (2026-08-07)
+
+Decision: implement restoration as a distinct NestJS command and
+tenant-scoped idempotency table, not as a reuse of the void request ledger.
+The command requires `cost.record`, locks membership and the voided manual
+entry, validates the matching prior void snapshot, clears only void metadata,
+writes an `update` audit event with bounded evidence, and returns a terminal
+`restored` result. Keep restore flags disabled and unscoped.
+
+Rationale: restore retries and void retries are different state transitions.
+Separate replay records prevent key collisions, preserve a clear recovery
+trail, and make a missing or mismatched snapshot a hard failure instead of an
+implicit data repair. A single transaction keeps authorization, mutation,
+audit, and replay atomic.
+
+Evidence: focused restore service/controller, shared contract, environment,
+and database tests pass; full serial workspace tests, typecheck/lint,
+production build, migration/security, controlled-release, and spend gates
+pass. No hosted state changed. Source checkpoint is recorded after commit and
+remote verification.
+
 ## D-251 - Remove the legacy Web Cost Entry delete writer (2026-08-07)
 
 Decision: migrate the existing Cost Entry delete Server Action to the typed

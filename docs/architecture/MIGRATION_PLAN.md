@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.144 Core Cost Entry restore boundary
+
+Added a separate source migration and Drizzle model for tenant-scoped restore
+idempotency. NestJS now exposes a closed-by-default restore command that
+locks membership and the voided manual entry, validates a matching prior void
+snapshot, clears void metadata transactionally, writes bounded audit evidence,
+and replays the exact result. Added strict shared contracts, body pipe,
+controller, service tests, environment validation, and database static
+coverage. No Web restore UI, hosted migration, provider environment change,
+Vercel build, or Railway deploy is authorized.
+
+Validation passed: focused restore boundary (shared 4, database 2, API
+service/controller plus environment 64); shared 27/231; database 49/53 files
+with 188 passed/141 skipped; API 114/496; Web 92/600; serial Turbo workspace
+tests; production build 81/81 routes; typecheck/lint; migration verifier (100
+files); Actionlint; Gitleaks; controlled-release 5/5; provider-spend 4/4.
+Database skips require `DATABASE_URL`; the disposable replay remains
+unperformed for this new migration. Source checkpoint is recorded after
+commit and remote verification.
+
 ## M3.143 Core-only Cost Entry deletion action
 
 Removed the legacy Web direct `cost_entries` delete and duplicate audit path.
