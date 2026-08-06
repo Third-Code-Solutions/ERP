@@ -178,6 +178,7 @@ export type ErpCapability =
   | 'finance.issue_invoice'
   | 'finance.post_supplier_bill'
   | 'finance.manage_cash'
+  | 'asset.read'
   | 'inventory.read'
   | 'inventory.manage'
   | 'inventory.post_receipt'
@@ -256,6 +257,20 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   'finance.issue_invoice': ['admin', 'owner', 'finance'],
   'finance.post_supplier_bill': ['admin', 'owner', 'finance'],
   'finance.manage_cash': ['admin', 'owner', 'finance'],
+  'asset.read': [
+    'admin',
+    'owner',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'pm',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+    'viewer',
+  ],
   'inventory.read': [
     'admin',
     'owner',

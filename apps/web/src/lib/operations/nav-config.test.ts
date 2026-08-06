@@ -43,6 +43,7 @@ describe('RBAC: visibleNavSections', () => {
     expect(hrefs).not.toContain('/finance')
     expect(hrefs).not.toContain('/finance/payables')
     expect(hrefs).not.toContain('/bom')
+    expect(hrefs).toContain('/assets')
   })
 
   it('legacy estimator inherits commercial visibility (BOM Builder)', () => {
@@ -84,6 +85,7 @@ describe('RBAC: canViewPath (deny-by-default route guard)', () => {
     expect(canViewPath('finance', '/finance/cash/new')).toBe(true)
     expect(canViewPath('procurement', '/procurement/rfqs')).toBe(true)
     expect(canViewPath('commercial', '/bom')).toBe(true)
+    expect(canViewPath('viewer', '/assets')).toBe(true)
   })
 
   it('child routes inherit their parent permission', () => {
