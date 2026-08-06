@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.109 dashboard render recovery boundary (2026-08-06)
+
+Added a route-group error boundary for protected dashboard render failures.
+The boundary displays a calm recovery state with retry and dashboard
+navigation, preserves only the Next digest reference, and states that records
+remain unchanged. Added responsive navy/gold styling and a source contract
+test forbidding `error.message` exposure. No API, schema, migration, or
+provider behavior changed. Web full tests are 88/570, production build is
+81/81 routes, and typecheck/lint pass.
+
+## Next gate
+
+Source commit `6eb0b0a0388d0e9cc00981173c5a40f2ce458116` is pushed to the
+feature branch by `kurtgav`; `origin/main` remains unchanged. Keep Vercel Git
+disconnected and do not trigger a build. Continue hosted Supabase backup/
+catalog/data/audit export, ordered 39-migration reconciliation, duplicate-PO
+owner mapping, security review, protected canary, rollback, readiness, exact
+identity, and spend gates.
+
 ## M3.108 hosted Supabase parity refresh (2026-08-06)
 
 Performed a read-only hosted snapshot against `aqqrtkmtcsfkbyyqxowv` and

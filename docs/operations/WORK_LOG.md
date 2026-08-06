@@ -1,5 +1,19 @@
 # Work Log
 
+## 2026-08-06 - M3.109 dashboard render recovery boundary
+
+Added `apps/web/src/app/(dashboard)/error.tsx` for uncaught protected-route
+render failures. Operators now see a Third Code ERP recovery state with retry,
+safe dashboard navigation, explicit no-record-change copy, and opaque digest
+reference; raw `error.message` is never rendered. Responsive styling keeps
+failure recovery usable on mobile. No API, DB, migration, Storage, Railway, or
+Vercel behavior changed.
+
+Validation: boundary contract 1/1, Web full suite 88/570, Next production
+routes 81/81, Web typecheck/lint, and diff check. Source commit
+`6eb0b0a0388d0e9cc00981173c5a40f2ce458116` pushed to the feature branch by
+`kurtgav`; no provider build or hosted mutation.
+
 ## 2026-08-06 - M3.108 hosted Supabase parity refresh
 
 Ran the supported read-only parity checks against Supabase project

@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.109 dashboard render recovery boundary
+
+Keep recovery boundary deployed only through a future approved release; do
+not trigger Vercel/Railway builds now. Source commit
+`6eb0b0a0388d0e9cc00981173c5a40f2ce458116` is pushed to the feature branch by
+`kurtgav`; `origin/main` remains unchanged. Continue hosted Supabase
+backup/catalog/data/audit export, ordered 39-migration replay, owner-approved
+duplicate-PO mapping, and security review before any protected canary or
+production promotion. Keep all ERP Core flags and tenant allowlists
+false/empty, Vercel Git disconnected, and Railway free of manual builds.
+
 ## Exact next action after M3.108 hosted Supabase parity refresh
 
 Do not deploy or apply hosted SQL. Obtain a supported recoverable

@@ -5,6 +5,12 @@ Source checkpoint: `ead54aac876ed6a52f1b693c7fe6fec8f2026f8b` (M3.107 inventory
 UOM maintenance authority slice)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
+M3.109 update: protected dashboard render failures now receive a responsive,
+branded recovery boundary with retry/navigation and digest-only support
+reference. No ERP authority or transaction path changed. Web evidence is
+88/570 tests and 81/81 production routes; no provider build or hosted mutation
+occurred. Source is pushed to the feature branch by `kurtgav`.
+
 M3.108 update: refreshed hosted parity read-only. Supabase remains PostgreSQL
 17.6 at 55/94 migrations with 88 RLS-enabled public tables, 22 forced-RLS
 tables, 303 policies, 2 tenants, 13 users, 13 Purchase Orders, 4 invoices,
