@@ -1,5 +1,14 @@
 # Target State
 
+## M3.104 provider spend guard gate (2026-08-06)
+
+Every frontend release must fail closed when Vercel Git deployment is enabled
+or any workspace manifest/workflow contains a Vercel deploy command. The guard
+is green (`3/3`), Vercel Git is disconnected, and no preview/build is created
+by default. A single explicit provider action remains gated on hosted Supabase
+parity, rollback, protected canary, exact deployment identity, and spend-cap
+evidence. Railway is not manually redeployed.
+
 ## M3.103 delivery schedule creation authority gate (2026-08-06)
 
 Delivery scheduling must commit through Nest under `delivery.receive`,

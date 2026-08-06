@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.104 provider spend guard audit
+
+Keep Vercel Git disconnected and do not create a build. The repository guard
+now scans all workspace manifests/workflows and is green (`3/3` tests). Keep
+all ERP delivery mutation flags false/empty. Obtain supported Supabase backup,
+catalog, data, and audit export for `aqqrtkmtcsfkbyyqxowv`; reconcile the 39
+source migrations after hosted `20260729233017` in order, including
+`20260806130000_delivery_schedule_create_idempotency.sql`. Resolve the
+owner-approved duplicate PO mapping and security warnings before any hosted
+apply/canary. Do not trigger Railway manually; only one watched backend
+promotion is allowed after parity. No Vercel promotion is authorized.
+
 ## Exact next action after M3.103 delivery schedule creation authority slice
 
 Source commit `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is pushed to the

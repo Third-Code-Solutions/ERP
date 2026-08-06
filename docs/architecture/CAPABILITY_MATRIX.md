@@ -5,6 +5,12 @@ Source checkpoint: `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` (M3.103 delivery
 schedule creation authority slice)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
+M3.104 update: the Vercel spend guard scans all workspace package manifests
+and GitHub workflow YAML, passes 3/3, and confirms no deploy command or Git
+deployment is enabled. No Vercel deployment was created for the current
+feature SHA; Supabase remains read-only at 55/94 and Railway readiness remains
+healthy. No hosted mutation occurred.
+
 M3.103 update: delivery scheduling for issued Purchase Orders now has a closed
 NestJS `POST /v1/procurement/deliveries` authority route with tenant-scoped
 idempotent replay, issued-PO locking, in-app notifications, and semantic audit.

@@ -1,5 +1,14 @@
 # Migration Plan
 
+## M3.104 provider spend guard audit (2026-08-06)
+
+Expanded `scripts/verify-vercel-spend-guard.mjs` to discover all workspace
+`package.json` manifests and `.github/workflows/*.{yml,yaml}` files. The guard
+still requires `apps/web/vercel.json` `git.deploymentEnabled=false` and now
+blocks hidden Vercel deploy commands. Guard tests pass 3/3. This source-only
+change does not authorize a provider build; hosted Supabase parity and the
+single-promotion gate remain open.
+
 ## M3.103 closed delivery schedule creation authority (2026-08-06)
 
 Added `20260806130000_delivery_schedule_create_idempotency.sql`, a new

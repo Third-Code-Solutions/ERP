@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-06 - M3.104 provider spend guard audit
+
+Expanded the Vercel spend guard to scan every workspace `package.json` and
+GitHub workflow YAML, not only the root/known CI files. The guard confirms
+Vercel Git deployment remains disabled and no repository automation contains a
+Vercel deploy command. Read-only provider checks found no deployment for the
+current feature SHA; Railway readiness/health remain 200. Supabase remains at
+55 hosted migrations with the new delivery-schedule ledger and asset table
+absent. No hosted SQL, Vercel build, Railway build, Storage, branch, or tenant
+data changed. Validation: guard 3/3 tests plus `Vercel spend guard: clear`.
+Next action remains supported Supabase backup/export and ordered suffix
+reconciliation before any single spend-bounded promotion.
+
 ## 2026-08-06 - M3.103 delivery schedule creation authority slice
 
 Added the issued-PO delivery schedule command to Nest: strict shared
