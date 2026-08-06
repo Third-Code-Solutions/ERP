@@ -16,9 +16,10 @@ API 104/449; Web 87/567; typechecks/lint; Turbo production build 2/2 with
 Next 81/81 routes; and full API integration rerun 19 files/24 passed with 2
 existing conditional skips. The first WSL queue lane had one intermittent
 document-processing Redis timing failure; isolated and rerun integration passed.
-Source commit `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is local only. No
-hosted Supabase SQL, Storage, Vercel build, Railway build, or tenant canary
-changed. Next action: reconcile hosted suffix/backup/export/security gates,
+Source commit `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is pushed to the
+feature branch only; `origin/main` and Railway were not changed. No hosted
+Supabase SQL, Storage, Vercel build, Railway build, or tenant canary changed.
+Next action: reconcile hosted suffix/backup/export/security gates,
 then decide one spend-bounded provider promotion.
 
 ## 2026-08-06 - M3.102 local release gates rerun

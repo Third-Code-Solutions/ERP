@@ -18,7 +18,8 @@ official transaction into the modular Nest monolith without a big-bang rewrite,
 preserves the default compatibility path, and makes retries safe. Python/AI
 has no transaction authority.
 
-Evidence: source `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9`; shared/API/Web
+Evidence: source `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` on the feature
+branch; `origin/main` remains unchanged. Shared/API/Web
 focused tests, rollback-only PostgreSQL integration, 94/94 disposable schema
 verification, API/Web full suites, and 81/81 production routes all pass. No
 Supabase, Vercel, Railway, Storage, or tenant-canary mutation occurred.

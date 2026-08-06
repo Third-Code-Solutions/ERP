@@ -27,8 +27,10 @@ passes Nest webpack plus Next 81/81 routes. The first full local queue lane
 hit one known document-processing Redis timing flake; the complete API
 integration lane was rerun and passed 19 files/24 tests with 2 existing
 conditional skips, and the new schedule integration passed independently.
-Source SHA `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is local and not yet
-promoted. Hosted Supabase remains read-only at 55/94 migrations; no Supabase,
+Source SHA `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is pushed to the
+`origin/agent-02/third-code-erp-landing` feature branch; `origin/main` remains
+at the previously promoted source. Hosted Supabase remains read-only at
+55/94 migrations; no Supabase,
 Storage, Vercel, Railway, or tenant-canary mutation occurred for this slice.
 Promotion remains blocked by hosted suffix reconciliation, supported
 backup/catalog/data/audit export, duplicate-PO mapping, security review,

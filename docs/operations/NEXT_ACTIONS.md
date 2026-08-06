@@ -2,9 +2,10 @@
 
 ## Exact next action after M3.103 delivery schedule creation authority slice
 
-Source commit `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is local and fully
-validated. Keep Vercel Git disconnected, do not create a Vercel build, and do
-not manually repeat Railway deployment. Keep
+Source commit `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is pushed to the
+feature branch and fully validated; `origin/main` remains unchanged. Keep
+Vercel Git disconnected, do not create a Vercel build, and do not manually
+repeat Railway deployment. Keep
 `ERP_DELIVERY_SCHEDULE_CREATE_WRITES_ENABLED=false`,
 `ERP_DELIVERY_SCHEDULE_CREATE_WRITES_TENANT_IDS` empty,
 `ERP_DELIVERY_SCHEDULE_CREATE_WRITES_VIA_API=false`, and its allowlist empty.
