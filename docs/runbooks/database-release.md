@@ -57,9 +57,10 @@ It prints migration versions, file hashes, SQL-risk warnings, unexpected
 history, and later versions applied after the first gap. It never executes SQL
 or repairs migration history.
 
-## Current release state
+## Historical M3.111 snapshot (2026-08-05)
 
-Verified 2026-08-05 against the authorized Supabase target:
+The following block is retained for audit history only. The current state is
+the 2026-08-06 section above:
 
 - PostgreSQL 17 (`server_version_num = 170006`).
 - 55 hosted versions are recorded as applied; the source ledger contains 89.
