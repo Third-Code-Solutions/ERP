@@ -256,14 +256,6 @@ export function tenantEnabledForCoreApi(
   return allowlist.includes(normalizedTenantId)
 }
 
-export function projectWritesUseCoreApi(tenantId: string): boolean {
-  return tenantEnabledForCoreApi(
-    tenantId,
-    process.env.ERP_PROJECT_WRITES_VIA_API,
-    process.env.ERP_PROJECT_WRITES_VIA_API_TENANT_IDS
-  )
-}
-
 export function projectReadsUseCoreApi(tenantId: string): boolean {
   return tenantEnabledForCoreApi(
     tenantId,
