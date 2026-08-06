@@ -1,5 +1,16 @@
 # Target State
 
+## M3.132 maintenance due operations
+
+Asset operations should answer “what needs service next?” without opening each
+record. The maintenance authority must select the latest record per tenant
+asset before applying a bounded date window, expose explicit overdue/due-soon
+state and pagination, and retain project/location context. Web surfaces the
+projection as an optional service-watch panel that fails independently from
+the register. The route remains capability-checked and closed until hosted
+schema parity, RLS/audit review, and a protected canary are approved; Python
+and Cortex may advise but cannot finalize service transactions.
+
 ## M3.131 asset maintenance history
 
 Every operational asset must expose a tenant-scoped, append-only service

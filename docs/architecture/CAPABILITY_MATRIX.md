@@ -1,5 +1,25 @@
 # Third Code ERP capability matrix
 
+## M3.132 asset maintenance due projection (2026-08-07)
+
+Asset operations now have a read-only, bounded due/overdue projection. The
+NestJS maintenance authority selects the latest maintenance record per asset
+before applying the due window, preserves tenant/project predicates, returns a
+window count for pagination, and reuses the existing closed maintenance-read
+flag. Shared contracts reject browser tenant identity and bound the watch
+window to 365 days/100 rows. Web adds a non-blocking service-watch panel; a
+maintenance-read failure never breaks the asset register. No new migration,
+hosted SQL, feature flag, Vercel build, Railway deploy, or provider mutation.
+
+Validation: self-hosted PostgreSQL 17.10/Redis 7.4.9 replay and asset
+maintenance integration pass; serial package tests pass (shared 27 files/228
+tests, database 47/51 files with 141 compatibility skips, API 112/112 files
+and 477/477 tests, Web 89/89 files and 581/581 tests); build emits 81/81
+routes; typecheck, lint, migration verifier, Actionlint, Gitleaks,
+controlled-release, and provider-spend guards pass. The parallel Turbo test
+runner still times out seven API HTTP tests under Windows cross-package load;
+the serial run is the release evidence. Source checkpoint: commit `be760ed`.
+
 ## M3.131 asset maintenance history (2026-08-07)
 
 Operational asset service history now has an original, append-only source
@@ -27,7 +47,7 @@ Docker/CI and remains open; hosted Supabase, Vercel, Railway, and ERP canaries
 are unchanged.
 
 Status date: 2026-08-07
-Source checkpoint: commit `a232bf9` on `agent-02/third-code-erp-landing`
+Source checkpoint: commit `be760ed` on `agent-02/third-code-erp-landing`
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 M3.125 current-state refresh: the source branch contains 97 ordered Supabase
