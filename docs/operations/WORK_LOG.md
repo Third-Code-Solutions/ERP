@@ -1,5 +1,17 @@
 # Work Log
 
+## 2026-08-06 - M3.128 cache-safe runtime test gate
+
+Found that root Turbo test output could be reused from a no-database run even
+when database expectation flags were later supplied. Added 14 explicit runtime
+environment inputs to `turbo.json`, a verifier plus two-test regression
+contract, and a CI preflight.
+
+The filtered Turbo database task cache-missed and passed 51/51 files,
+324/324 tests, zero skips against `erp_clean_head_20260806_m3125`. Full
+typecheck, lint, build, migration, Gitleaks, Actionlint, controlled-release,
+and spend gates passed. No hosted/provider mutation.
+
 ## 2026-08-06 - M3.127 pinned CLI diff boundary
 
 Tried the pinned Supabase CLI `2.109.1` schema diff against

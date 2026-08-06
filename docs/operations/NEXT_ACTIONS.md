@@ -1,5 +1,13 @@
 # Next Actions
 
+## Exact next action after M3.128 cache-safe runtime test gate
+
+Push the reviewed branch after source gates pass. In the next release lane,
+run the pinned Supabase CLI schema diff in self-hosted Docker/CI, then repeat
+the controlled planner. Keep hosted SQL, Vercel, Railway, and ERP canaries
+closed while security, migration parity, duplicate Purchase Orders, audit
+recovery, rollback, identity, and spend gates remain open.
+
 ## Exact next action after M3.127 pinned CLI diff boundary
 
 Run Supabase CLI `2.109.1` schema diff in the approved self-hosted CI/Docker

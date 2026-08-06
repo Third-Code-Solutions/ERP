@@ -1,5 +1,18 @@
 # Architecture Decisions
 
+## D-236 - Hash runtime test inputs in Turbo (2026-08-06)
+
+Decision: the Turbo `test` task must include database, Redis, and integration
+expectation environment inputs in its cache key, with a source-level contract
+checked in CI.
+
+Rationale: a green cached test task is invalid if the previous run had no
+database and skipped runtime suites. Explicit inputs preserve fast caching
+without confusing a compatibility-only run with release evidence.
+
+Evidence: filtered database Turbo task cache-missed under the disposable
+PostgreSQL replay and passed 324/324 tests with zero skips.
+
 ## D-235 - Do not waive the CLI schema-diff gate when Docker is unavailable (2026-08-06)
 
 Decision: a failed pinned Supabase CLI schema-diff remains `review_required`;

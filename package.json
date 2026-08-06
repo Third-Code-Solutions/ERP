@@ -23,6 +23,7 @@
     "test:purchase-order-mapping-template": "node --test scripts/plan-purchase-order-mapping-template.test.mjs",
     "test:controlled-release-plan": "node --test scripts/controlled-release-plan.test.mjs",
     "test:provider-spend-guard": "node --test scripts/verify-vercel-spend-guard.test.mjs",
+    "test:turbo-test-cache": "node scripts/verify-turbo-test-cache.mjs",
     "ci:actionlint": "node scripts/run-actionlint.mjs",
     "ci:gitleaks": "node scripts/run-gitleaks.mjs",
     "plan:database-release": "node scripts/plan-database-release.mjs",
