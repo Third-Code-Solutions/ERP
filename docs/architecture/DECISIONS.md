@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-219 - Closed authority seam for UOM maintenance (2026-08-06)
+
+Decision: expose UOM display-name and active-state edits through the existing
+authenticated Web action and exact Core tenant selector, with Nest owning the
+official transaction. Recheck membership/capability inside the transaction,
+lock the tenant and UOM rows, preserve immutable code/decimal precision, and
+write semantic audit evidence. Leave all selectors fail-closed by default.
+
+Rationale: operators need safe catalog maintenance without browser-direct
+sensitive writes or schema drift. A narrow mutable-field command preserves
+current API behavior and supports a protected per-tenant rollout after hosted
+parity and spend gates clear.
+
+Evidence: shared focused 29/29, API 452 passed with 26 skipped, Web 569/569,
+Next 81/81, and repository lint/type checks. Source commit
+`ead54aac876ed6a52f1b693c7fe6fec8f2026f8b` is pushed to the feature branch by
+`kurtgav`; `origin/main` remains unchanged. No Supabase, Vercel, Railway,
+Storage, or tenant-data mutation occurred.
+
 ## D-218 - Reuse guarded item-policy authority for catalog maintenance (2026-08-06)
 
 Decision: expose base-UOM and perpetual-tracking edits per active catalog item

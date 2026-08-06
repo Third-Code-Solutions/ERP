@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.107 inventory UOM maintenance authority
+
+Keep `ERP_INVENTORY_UOM_UPDATE_WRITES_ENABLED=false`,
+`ERP_INVENTORY_UOM_UPDATE_WRITES_TENANT_IDS` empty,
+`ERP_INVENTORY_UOM_UPDATE_VIA_API=false`, and
+`ERP_INVENTORY_UOM_UPDATE_TENANT_IDS` empty. Source is pushed at
+`ead54aac876ed6a52f1b693c7fe6fec8f2026f8b` on the feature branch by `kurtgav`;
+`origin/main` is unchanged. Do not trigger Vercel or Railway builds. Continue
+supported Supabase backup/catalog/data/audit export for
+`aqqrtkmtcsfkbyyqxowv`; reconcile the 39 source migrations after hosted
+`20260729233017` in order, resolve the owner-approved tenant-scoped Purchase
+Order duplicate mapping, and review security warnings before any hosted SQL,
+protected canary, or production promotion.
+
 ## Exact next action after M3.106 inventory item policy control surface
 
 Source/docs commit `7570cda` is pushed only to the existing feature branch;

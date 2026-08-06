@@ -1,9 +1,16 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` (M3.103 delivery
-schedule creation authority slice)
+Source checkpoint: `ead54aac876ed6a52f1b693c7fe6fec8f2026f8b` (M3.107 inventory
+UOM maintenance authority slice)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.107 update: Inventory now has an authenticated UOM editor for display name
+and active state. Nest owns the fail-closed, tenant-scoped PATCH authority with
+membership/capability recheck, row locks, immutable code/decimal precision, and
+semantic audit. Local evidence is shared 29/29, API 452 passed with 26 skipped,
+Web 569/569, Next 81/81, and repository lint/type checks. Source is pushed to
+the feature branch by `kurtgav`; no provider build or hosted mutation occurred.
 
 M3.106 update: Inventory now exposes per-item policy editing for active catalog
 items, reusing the guarded `configureInventoryItem` authority for base UOM and

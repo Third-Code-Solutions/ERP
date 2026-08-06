@@ -1,5 +1,15 @@
 # Target State
 
+## M3.107 inventory UOM maintenance gate (2026-08-06)
+
+UOM maintenance must remain permission-checked and tenant-scoped through the
+Nest authority seam when its exact feature flag and UUID allowlist are enabled.
+Only display name and active state may change; code and decimal precision stay
+immutable. The Web/Core selectors remain compatibility-default and must fail
+closed until hosted Supabase parity, protected canary, rollback, readiness,
+exact deployment identity, and spend evidence clear. Deactivation only removes
+the UOM from new assignments; existing stock evidence is retained.
+
 ## M3.106 inventory item policy control gate (2026-08-06)
 
 Catalog item policy maintenance must remain permission-checked and routed
