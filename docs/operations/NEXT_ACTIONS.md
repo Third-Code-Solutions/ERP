@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.111 read-only Supabase export preflight
+
+Do not run a dump through the current transaction-pooler URL or install a
+provider-side branch. Obtain an approved Supabase session-pooler/direct
+connection on port 5432 and a local PostgreSQL 17 client or Supabase CLI with
+Docker; run `node --env-file=apps/web/.env.local scripts/plan-database-export.mjs`
+first, then create encrypted roles/schema/data exports outside Git. Hash and
+review the exports, replay them only on a disposable PostgreSQL 17 clone, and
+keep all ERP flags/tenant allowlists false/empty. No Vercel/Railway build or
+Supabase SQL mutation is authorized by this preflight. Separately remediate
+the six existing gitleaks findings in idempotency tests; do not mix that
+unrelated cleanup into the database export gate.
+
 ## Exact next action after M3.110 public landing UX and SEO smoke audit
 
 Keep the public alias and feature branch separate: the browser audit validates

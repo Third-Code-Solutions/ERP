@@ -1,5 +1,25 @@
 # Work Log
 
+## 2026-08-06 - M3.111 read-only Supabase export preflight
+
+Added `scripts/plan-database-export.mjs` and its pure planner/test. The
+preflight never connects or writes; it redacts the password and checks
+connection-string shape plus local tooling. Against the repository env,
+`DATABASE_URL` connects read-only to PostgreSQL 17.6 through the Supavisor
+transaction pooler (`aws-1-ap-northeast-2.pooler.supabase.com:6543`); the
+official Supabase dump path requires session pooler/direct port 5432. The
+machine has no Supabase CLI, `pg_dump`, or Docker, so the export gate is
+review-required. Read-only Node/Postgres metadata returned a 25 MB database,
+88 public tables, and 55 applied migrations through `20260729233017`. Focused
+serial validation is green: export planner 4/4, API 105/452, Web 88/570,
+shared-types 25/219, database 45/177 with 141 expected integration skips,
+lint/typecheck, and Next build 81/81. The first concurrent turbo test attempt
+hit four 5-second API timeouts; serial reruns passed. No dump, DB write,
+Storage change, provider build, or deployment occurred. The repository-wide
+gitleaks scan remains red on six historical `REDACTED` idempotency-test
+literals in existing files; no new export-guard finding was reported. Keep
+that cleanup as a separate security change.
+
 ## 2026-08-06 - M3.110 public landing UX and SEO smoke audit
 
 Ran a read-only browser audit against `https://thirdcode-erp.vercel.app/`.

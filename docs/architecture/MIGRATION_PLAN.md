@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.111 read-only Supabase export preflight (2026-08-06)
+
+Added a pure export planner and CLI report. It validates connection-string
+metadata without printing secrets, rejects the current transaction pooler
+port 6543 for dumps, and requires Supabase CLI plus Docker or PostgreSQL 17
+client tools. Unit tests pass 4/4. The repository URL is readable as
+PostgreSQL 17.6 with a 25 MB database, 88 public tables, and 55 migrations
+through `20260729233017`; local export tooling is absent. Serial package
+validation is green: API 105/452, Web 88/570, shared-types 25/219, database
+45/177 with 141 expected skips, lint/typecheck, and Next build 81/81.
+
+## Next gate
+
+Use an approved session-pooler/direct URL on port 5432 and install or expose a
+supported dump tool. Create encrypted roles/schema/data exports outside Git,
+hash them, restore them into a disposable PostgreSQL 17 clone, and compare
+catalog/RLS/policies/data/audit/financial totals before any hosted SQL.
+
 ## M3.110 public landing UX and SEO smoke audit (2026-08-06)
 
 Performed a read-only browser pass at 1440px and 390px. Verified the hosted

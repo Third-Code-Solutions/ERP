@@ -1,5 +1,14 @@
 # Target State
 
+## M3.111 recoverable database export gate (2026-08-06)
+
+Every hosted parity rehearsal must begin with a supported, redacted logical
+export plus a platform backup/PITR point. The export preflight must reject a
+transaction-pooler URL, missing PostgreSQL 17/Supabase tooling, leaked
+connection secrets, and any attempt to store roles/schema/data dumps in Git or
+public build artifacts. Exports are evidence only until restored and compared
+on an isolated PostgreSQL 17 clone.
+
 ## M3.110 public landing release evidence (2026-08-06)
 
 The public landing route must keep its Third Code ERP identity and discoverable

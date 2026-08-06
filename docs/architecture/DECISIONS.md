@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-223 - Fail closed before hosted database export (2026-08-06)
+
+Decision: require a read-only export preflight before any Supabase backup or
+parity rehearsal. Reject transaction-pooler port 6543, absent supported dump
+tooling, and any destination inside Git/public build output. Use session
+pooler/direct port 5432 with Supabase CLI plus Docker or PostgreSQL 17 client
+tools, then replay only on an isolated clone.
+
+Rationale: the current application connection is suitable for transactional
+queries but not a supported logical dump path. A blind export risks incomplete
+or unusable recovery evidence and would not justify a production migration.
+
+Evidence: `plan-database-export` tests 4/4; read-only metadata PostgreSQL 17.6,
+25 MB, 88 public tables, 55 migrations; no dump or provider/hosted mutation.
+
 ## D-222 - Treat hosted landing QA as evidence, not release identity (2026-08-06)
 
 Decision: use a read-only browser smoke pass to verify public landing UX and

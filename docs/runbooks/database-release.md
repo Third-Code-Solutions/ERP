@@ -1,5 +1,19 @@
 # Hosted Database Release
 
+## Export preflight (required)
+
+Before using any backup/export command, run the read-only guard:
+
+```powershell
+node --env-file=apps/web/.env.local scripts/plan-database-export.mjs
+```
+
+The guard must report `status: "ready"`. It rejects the transaction pooler
+(`:6543`) used by the application because supported Supabase logical dumps
+require a session pooler/direct connection on `:5432`. It also rejects missing
+Supabase CLI/Docker or PostgreSQL 17 client tooling. Never print or commit the
+connection string, roles dump, schema dump, or data dump.
+
 ## Purpose
 
 Safely reconcile and release Third Code ERP migrations to a hosted Supabase
