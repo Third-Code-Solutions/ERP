@@ -10,8 +10,9 @@ provider action was needed. Local Web focused tests 125/125, full suite
 
 ## Next gate
 
-Review/push source and docs to the feature branch only. Keep the item-policy
-selector compatibility-default and complete supported Supabase backup/export,
+Source/docs commit `7570cda` is pushed to the feature branch only;
+`origin/main` remains unchanged. Keep the item-policy selector
+compatibility-default and complete supported Supabase backup/export,
 ordered suffix reconciliation, duplicate-PO mapping, and security review before
 any hosted apply, canary, Railway promotion, or Vercel build.
 

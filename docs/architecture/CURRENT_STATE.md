@@ -11,7 +11,8 @@ surface reuses the authenticated `configureInventoryItem` action and guarded
 Core seam to change base UOM/tracking while preserving item identity guidance;
 inactive UOM choices cannot be newly selected. No schema/provider/tenant-data
 change occurred. Web focused tests are 125/125, full Web 87/567, and Next
-production routes 81/81.
+production routes 81/81. Source commit `7570cda` is pushed to the feature
+branch; `origin/main` remains unchanged.
 
 ## M3.105 inventory warehouse control surface (2026-08-06)
 
