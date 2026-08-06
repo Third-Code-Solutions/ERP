@@ -1,5 +1,17 @@
 # Target State
 
+## M3.121 hosted role and policy baseline (2026-08-06)
+
+Every public ERP table must remain RLS-enabled and have no direct `anon`
+table or sequence privileges. Tenant ERP policies target the authenticated
+role unless a documented public-portal edge is intentionally server-mediated;
+public policies and broad client grants are not accepted as a substitute for
+NestJS authorization. The controlled release planner must include catalog
+evidence for RLS, role grants, privileged function execution, and service-only
+ledgers. A readiness 200 or an empty advisor response cannot override a
+catalog security finding. The source hardening migration must pass a clean
+PostgreSQL 17 replay before any hosted application.
+
 ## M3.120 dashboard incident revalidation (2026-08-06)
 
 Protected dashboard access must redirect anonymous requests to sign-in and

@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-06 - M3.121 hosted Supabase security and parity refresh
+
+Read-only Supabase MCP confirmed project `aqqrtkmtcsfkbyyqxowv` is healthy on
+PostgreSQL 17.6.1 in `ap-northeast-2`; hosted schema is 55/96 migrations and
+88/88 public tables have RLS. Catalog SQL found 375 direct `anon` table-grant
+rows, including write privileges on 54 tables (321 write rows), plus 56
+tables whose tenant policies are attached to `public`. The current advisor
+endpoint returned no records; this was recorded as inconclusive, not green.
+
+The controlled release plan still reports migration drift, one tenant-scoped
+12-record duplicate Purchase Order group, and missing `AUDIT_RECOVERY_TENANT_ID`.
+Railway/Vercel readiness is 200 and the spend guard is clear, but no Supabase
+SQL, Storage, provider setting, build, deployment, or tenant-data write ran.
+
+Validation: controlled-release 5/5, provider-spend 4/4, serial Turbo tests
+4/4, serial Turbo builds 2/2 (cached), typecheck 5/5, TS-only lint 2/2,
+Gitleaks 8.30.1 clean across 483 commits, Actionlint 1.7.12 clean,
+96-migration file verifier pass, and `git diff --check` pass.
+
+Next action: source-only anonymous-grant/policy hardening plus disposable
+PostgreSQL 17 replay; keep hosted migration and paid provider actions closed
+until backup, owner mapping, audit recovery, rollback, security, and spend
+gates pass.
+
 ## 2026-08-06 - M3.120 dashboard incident revalidation
 
 Read-only reproduction of `https://thirdcode-erp.vercel.app/dashboard` in a

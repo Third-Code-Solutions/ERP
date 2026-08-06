@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.121 hosted Supabase security and parity refresh
+
+Do not deploy or apply hosted SQL. Add the source-only security migration and
+replay it on disposable PostgreSQL 17: remove direct `anon` table/sequence
+privileges, explicitly target tenant policies to `authenticated` where no
+documented public server-mediated edge exists, and verify service-only ledgers
+remain forced-RLS/service-role-only. Extend the read-only catalog gate for
+anonymous grants and public-role policies. Then obtain the managed backup,
+owner-approved mapping for the tenant-scoped 12-record Purchase Order group,
+`AUDIT_RECOVERY_TENANT_ID`, rollback proof, and spend approval before one
+bounded hosted action. Keep Vercel Git disabled, all Core canaries
+false/empty, and no paid build or deploy command.
+
 ## Exact next action after M3.120 dashboard incident revalidation
 
 Do not deploy a retest. Keep production spend closed and continue the planned
