@@ -25,8 +25,9 @@ routes; typecheck/lint, migration verifier (99 files), Actionlint, Gitleaks,
 controlled-release 5/5, and provider-spend 4/4. Database skips require
 `DATABASE_URL`; the disposable replay remains the no-skip path. No hosted
 Supabase SQL, Vercel build, Railway deploy, provider variable, or tenant data
-changed. Source checkpoint will be recorded after the reviewed commit and
-remote verification.
+changed. Source checkpoint: `ad1d8d2f5e902148cf3805d97232f8273afdc88b`,
+pushed to `origin/agent-02/third-code-erp-landing`; remote SHA and clean
+worktree verified.
 
 ## M3.140 Core-only Project creation (2026-08-07)
 

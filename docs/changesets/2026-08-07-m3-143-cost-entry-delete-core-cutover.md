@@ -37,3 +37,7 @@ package concurrency constrained to one.
 Rollback is the reviewed prior Web/API source release. Do not re-enable a
 direct database delete. Keep the Core delete gate closed until restore and
 managed-provider evidence are approved.
+
+Source checkpoint: `ad1d8d2f5e902148cf3805d97232f8273afdc88b`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified.

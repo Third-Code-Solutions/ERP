@@ -37,8 +37,9 @@ blocks hosted canaries.
 
 ## Exact next action after M3.143 Core-only Cost Entry deletion action
 
-M3.143 source validation is green, but the reviewed commit and remote SHA
-verification must be recorded before this checkpoint is closed. Keep
+M3.143 source checkpoint `ad1d8d2f5e902148cf3805d97232f8273afdc88b` is pushed
+to `origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree are
+verified. Keep
 `ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false` and its tenant allowlist empty;
 do not apply `20260807110000_cost_entry_delete_workflow.sql`, change hosted
 Supabase, trigger Vercel, or deploy Railway. Next source slice: implement a

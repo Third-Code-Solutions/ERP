@@ -15,8 +15,9 @@ Validation: focused Web deletion action/client 14/14; Web 92/600; shared
 Turbo workspace tests; production build 81/81 routes; typecheck/lint,
 migration verifier, Actionlint, Gitleaks, controlled-release 5/5, and
 provider-spend 4/4 passed. Database skips require `DATABASE_URL`; disposable
-replay remains the no-skip evidence. Source checkpoint is recorded after
-commit and remote verification.
+replay remains the no-skip evidence. Source checkpoint:
+`ad1d8d2f5e902148cf3805d97232f8273afdc88b`; remote branch and clean worktree
+verified.
 
 ## M3.140 Core-only Project creation (2026-08-07)
 
