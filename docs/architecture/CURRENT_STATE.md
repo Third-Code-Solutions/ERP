@@ -4,6 +4,19 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.131 asset maintenance history (2026-08-07)
+
+Added `asset_maintenance_records` as an append-only, tenant-scoped service
+history table with exact cent cost, date/order checks, same-tenant asset and
+actor FKs, audit trigger, forced RLS, and service-role-only grants. Added a
+tenant/idempotency ledger for create replay. NestJS owns closed-by-default
+GET/POST maintenance routes with membership/capability recheck, asset locking,
+idempotent replay/hash conflict handling, and semantic audit. Web adds linked
+asset detail, maintenance timeline, and a form that can only call Core through
+exact tenant/flag gates. Local WSL replay now proves 98/98 migrations,
+verifier, 20 integration files/27 tests, and zero-skip database tests. No
+hosted SQL, Vercel, Railway, feature flag, or tenant data changed.
+
 ## M3.130 dashboard fault isolation (2026-08-07)
 
 Executive dashboard loading now has a fail-closed degraded path. If the

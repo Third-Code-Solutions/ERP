@@ -63,6 +63,47 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_ASSET_READS_TENANT_IDS')
   })
 
+  it('keeps asset maintenance reads and writes disabled and tenant-scoped by default', () => {
+    const defaults = validateEnvironment(REQUIRED)
+    expect(defaults.ERP_ASSET_MAINTENANCE_READS_ENABLED).toBe(false)
+    expect(defaults.ERP_ASSET_MAINTENANCE_READS_TENANT_IDS).toEqual([])
+    expect(defaults.ERP_ASSET_MAINTENANCE_CREATE_WRITES_ENABLED).toBe(false)
+    expect(defaults.ERP_ASSET_MAINTENANCE_CREATE_WRITES_TENANT_IDS).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_ASSET_MAINTENANCE_READS_ENABLED: 'true',
+        ERP_ASSET_MAINTENANCE_READS_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+        ERP_ASSET_MAINTENANCE_CREATE_WRITES_ENABLED: 'true',
+        ERP_ASSET_MAINTENANCE_CREATE_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_ASSET_MAINTENANCE_READS_ENABLED: true,
+      ERP_ASSET_MAINTENANCE_READS_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+      ERP_ASSET_MAINTENANCE_CREATE_WRITES_ENABLED: true,
+      ERP_ASSET_MAINTENANCE_CREATE_WRITES_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_ASSET_MAINTENANCE_READS_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_ASSET_MAINTENANCE_READS_TENANT_IDS')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_ASSET_MAINTENANCE_CREATE_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_ASSET_MAINTENANCE_CREATE_WRITES_TENANT_IDS')
+  })
+
   it('keeps customer receivables reads disabled and tenant-scoped by default', () => {
     expect(
       validateEnvironment(REQUIRED).ERP_FINANCE_RECEIVABLES_READS_ENABLED

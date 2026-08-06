@@ -477,3 +477,16 @@ export const assetStatusEnum = pgEnum('asset_status', [
   'maintenance',
   'retired',
 ])
+
+export const assetMaintenanceTypeEnum = pgEnum('asset_maintenance_type', [
+  'preventive',
+  'inspection',
+  'repair',
+  'calibration',
+  'other',
+])
+
+export const assetMaintenanceCreateRequestStateEnum = pgEnum(
+  'asset_maintenance_create_request_state',
+  ['processing', 'succeeded']
+)

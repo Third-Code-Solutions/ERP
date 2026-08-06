@@ -15,6 +15,7 @@ import { PUBLIC_ROUTE } from './supabase-jwt.guard'
 
 export const ERP_CAPABILITIES = [
   'asset.read',
+  'asset.maintenance.manage',
   'cortex.search',
   'finance.read',
   'account.read',
@@ -62,6 +63,13 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'safety',
     'cx',
     'viewer',
+  ],
+  'asset.maintenance.manage': [
+    'owner',
+    'admin',
+    'pm',
+    'sd_pm_pe',
+    'procurement',
   ],
   'cortex.search': [
     'owner',

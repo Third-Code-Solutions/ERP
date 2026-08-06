@@ -1,7 +1,8 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common'
+import { Controller, Get, Inject, Param, ParseUUIDPipe, Query } from '@nestjs/common'
 import type {
   AssetListQuery,
   AssetListResult,
+  AssetReadResult,
 } from '@third-code-erp/shared-types'
 import {
   CurrentPrincipal,
@@ -25,5 +26,14 @@ export class AssetsController {
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<AssetListResult> {
     return this.assets.list(query, principal)
+  }
+
+  @Get(':assetId')
+  @RequireCapabilities('asset.read')
+  get(
+    @Param('assetId', new ParseUUIDPipe()) assetId: string,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<AssetReadResult> {
+    return this.assets.get(assetId, principal)
   }
 }

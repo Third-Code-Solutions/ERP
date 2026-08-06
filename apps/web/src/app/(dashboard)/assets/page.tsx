@@ -171,7 +171,9 @@ function AssetRegister({ data, query }: { data: AssetListResult; query: AssetLis
                 {data.rows.map((row) => (
                   <tr key={row.id}>
                     <td>
-                      <strong>{row.assetTag}</strong>
+                      <Link href={`/assets/${row.id}`}>
+                        <strong>{row.assetTag}</strong>
+                      </Link>
                       <span className="finance-cell-detail">{row.name}</span>
                     </td>
                     <td>{row.kind}</td>

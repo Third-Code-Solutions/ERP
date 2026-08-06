@@ -1,5 +1,14 @@
 # Third Code ERP capability matrix
 
+## M3.131 asset maintenance history (2026-08-07)
+
+Operational asset service history now has an original, append-only source
+slice: tenant-safe records, exact-cent cost, date constraints, audit trigger,
+and service-only idempotency ledger. NestJS owns closed-by-default list/create
+routes; Web has a read/detail surface and a guarded command form. All new
+flags/tenant allowlists default closed. Local replay proves 98/98 migrations,
+zero-skip database/runtime integration, and no hosted/provider mutation.
+
 ## M3.130 dashboard fault isolation (2026-08-07)
 
 Executive dashboard analytics now degrade to the authorized Today view when a
@@ -18,8 +27,7 @@ Docker/CI and remains open; hosted Supabase, Vercel, Railway, and ERP canaries
 are unchanged.
 
 Status date: 2026-08-07
-Source checkpoint: `d5d0869272d2edbbe40fb0faf9804169675ec474` (M3.128 cache-safe
-runtime test gate)
+Source checkpoint: commit `309435a` on `agent-02/third-code-erp-landing`
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 M3.125 current-state refresh: the source branch contains 97 ordered Supabase
@@ -331,7 +339,7 @@ provider, and canary gates are complete.
 | Receivables | Invoice, tax/retention, receipt, reconciliation, reversal | Local finance slices exist | Hosted parity and exact-cent integration canary |
 | Compliance and audit | Tenant isolation, capability checks, immutable audit, evidence lineage | Implemented across current slices | Audit-chain recovery with owner-approved tenant input |
 | People and work management | Role-aware tasks, approvals, workload, site cadence | Tasks and permissions exist | Keep HR/payroll out of the construction transaction path until discovery |
-| Assets and maintenance | Track equipment, warranties, service history, and cost | Operational asset register plus closed Nest/Web read projection; no maintenance history or accounting lifecycle | Hosted parity, then protected tenant read canary; defer maintenance/history/accounting authority |
+| Assets and maintenance | Track equipment, warranties, service history, and cost | Operational register plus closed Nest/Web read projection and append-only maintenance history slice; no accounting fixed-asset lifecycle | Hosted parity, then protected tenant read/write canary; defer accounting lifecycle |
 | Service and customer success | Portal, issues, warranty, satisfaction, communications | Warranty portal and CNPS are live | Add supplier/customer response loops only after token threat model |
 | Reporting and planning | Role-specific Today views, scheduled reports, exports, forecasts | Dashboard, reports, and Cortex context exist | Measure decision latency and data freshness before adding breadth |
 

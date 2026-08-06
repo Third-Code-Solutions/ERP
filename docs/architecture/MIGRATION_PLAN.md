@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.131 asset maintenance history
+
+Added the smallest vertical slice for service continuity: Drizzle schema and
+replayable Supabase migration, shared contracts, capability/environment gates,
+Nest list/create authority, Web detail/timeline/form, and focused contracts.
+The create path parses and hashes a strict command, locks membership and asset,
+claims a tenant-scoped idempotency row, commits the record, writes audit, and
+stores a validated replay result. No direct browser table write or legacy
+fallback was added. All flags are false with empty allowlists.
+
+Validation: shared contract tests 3/3; API focused run 111 files/473 tests;
+Web client tests 116/116; package typechecks; WSL replay 98/98 ordered
+migrations, verifier pass, 20 Nest integration files/27 tests, and database
+51/51 files/324 tests with zero skips. Serial build, typecheck, lint, full
+tests, migration verifier, actionlint, gitleaks, controlled-release, and
+provider-spend guards all pass. A single feature-branch push remains. Hosted
+Supabase, Vercel, Railway, and canaries stay closed for billing and
+release-safety reasons.
+
 ## M3.130 dashboard fault isolation
 
 Extended `loadDashboardForRole` with an optional executive-failure fallback.

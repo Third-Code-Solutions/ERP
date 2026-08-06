@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
@@ -9,9 +10,11 @@ import {
   projects,
 } from '@third-code-erp/database/schema'
 import {
+  assetReadResultSchema,
   assetListResultSchema,
   type AssetListQuery,
   type AssetListResult,
+  type AssetReadResult,
 } from '@third-code-erp/shared-types'
 import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
@@ -138,30 +141,77 @@ export class AssetsService {
     const totalPages = total === 0 ? 1 : Math.ceil(total / query.limit)
 
     return assetListResultSchema.parse({
-      rows: (rows as AssetListDatabaseRow[]).map((row) => ({
-        id: row.id,
-        tenantId: row.tenantId,
-        assetTag: row.assetTag,
-        name: row.name,
-        kind: row.kind,
-        status: row.status,
-        serialNumber: row.serialNumber,
-        manufacturer: row.manufacturer,
-        model: row.model,
-        assignedProjectId: row.assignedProjectId,
-        assignedProjectName: row.assignedProjectName,
-        location: row.location,
-        commissionedOn: toDate(row.commissionedOn),
-        retiredOn: toDate(row.retiredOn),
-        notes: row.notes,
-        createdBy: row.createdBy,
-        createdAt: toIso(row.createdAt),
-        updatedAt: toIso(row.updatedAt),
-      })),
+      rows: (rows as AssetListDatabaseRow[]).map((row) => this.toResult(row)),
       total,
       page: query.page,
       limit: query.limit,
       totalPages,
+    })
+  }
+
+  async get(
+    assetId: string,
+    principal: ErpPrincipal
+  ): Promise<AssetReadResult> {
+    this.assertReadEnabled(principal)
+    const [row] = await this.database.client
+      .select({
+        id: assets.id,
+        tenantId: assets.tenant_id,
+        assetTag: assets.asset_tag,
+        name: assets.name,
+        kind: assets.kind,
+        status: assets.status,
+        serialNumber: assets.serial_number,
+        manufacturer: assets.manufacturer,
+        model: assets.model,
+        assignedProjectId: assets.assigned_project_id,
+        assignedProjectName: projects.name,
+        location: assets.location,
+        commissionedOn: assets.commissioned_on,
+        retiredOn: assets.retired_on,
+        notes: assets.notes,
+        createdBy: assets.created_by,
+        createdAt: assets.created_at,
+        updatedAt: assets.updated_at,
+      })
+      .from(assets)
+      .leftJoin(
+        projects,
+        and(
+          eq(projects.id, assets.assigned_project_id),
+          eq(projects.tenant_id, principal.tenantId)
+        )
+      )
+      .where(
+        and(eq(assets.id, assetId), eq(assets.tenant_id, principal.tenantId))
+      )
+      .limit(1)
+
+    if (!row) throw new NotFoundException('Asset not found')
+    return assetReadResultSchema.parse(this.toResult(row as AssetListDatabaseRow))
+  }
+
+  private toResult(row: AssetListDatabaseRow): AssetReadResult {
+    return assetReadResultSchema.parse({
+      id: row.id,
+      tenantId: row.tenantId,
+      assetTag: row.assetTag,
+      name: row.name,
+      kind: row.kind,
+      status: row.status,
+      serialNumber: row.serialNumber,
+      manufacturer: row.manufacturer,
+      model: row.model,
+      assignedProjectId: row.assignedProjectId,
+      assignedProjectName: row.assignedProjectName,
+      location: row.location,
+      commissionedOn: toDate(row.commissionedOn),
+      retiredOn: toDate(row.retiredOn),
+      notes: row.notes,
+      createdBy: row.createdBy,
+      createdAt: toIso(row.createdAt),
+      updatedAt: toIso(row.updatedAt),
     })
   }
 

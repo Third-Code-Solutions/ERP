@@ -34,6 +34,9 @@ import {
   getFinancePayablesThroughCoreApi,
   getFinanceCashThroughCoreApi,
   getAssetsThroughCoreApi,
+  getAssetThroughCoreApi,
+  getAssetMaintenanceThroughCoreApi,
+  createAssetMaintenanceThroughCoreApi,
   getOpportunityThroughCoreApi,
   convertOpportunityToProjectThroughCoreApi,
   projectWritesUseCoreApi,
@@ -49,6 +52,8 @@ import {
   financePayablesReadsUseCoreApi,
   financeCashReadsUseCoreApi,
   assetReadsUseCoreApi,
+  assetMaintenanceReadsUseCoreApi,
+  assetMaintenanceCreateWritesUseCoreApi,
   inventoryStockMovementCreateWritesUseCoreApi,
   inventoryStockMovementWorkflowUseCoreApi,
   opportunityReadsUseCoreApi,
@@ -405,6 +410,31 @@ const ASSET_LIST_RESULT = {
   total: 1,
   page: 1,
   limit: 20,
+  totalPages: 1,
+}
+const ASSET_DETAIL_RESULT = ASSET_LIST_RESULT.rows[0]!
+const ASSET_MAINTENANCE_RESULT = {
+  tenantId: RESULT.tenantId,
+  assetId: ASSET_DETAIL_RESULT.id,
+  rows: [
+    {
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      tenantId: RESULT.tenantId,
+      assetId: ASSET_DETAIL_RESULT.id,
+      maintenanceType: 'inspection' as const,
+      summary: 'Annual inspection',
+      performedOn: '2026-08-02',
+      nextDueOn: '2027-08-02',
+      vendorName: 'LiftCo Service',
+      costCents: 12_500,
+      notes: null,
+      createdBy: '11111111-1111-4111-8111-111111111111',
+      createdAt: '2026-08-02T00:00:00.000Z',
+    },
+  ],
+  total: 1,
+  page: 1,
+  limit: 50,
   totalPages: 1,
 }
 const CREATED_PROJECT_RESULT = {
@@ -1121,6 +1151,61 @@ describe('ERP Core client', () => {
         headers: expect.objectContaining({
           authorization: 'Bearer never-log-or-return-this-token',
         }),
+      })
+    )
+  })
+
+  it('keeps asset maintenance gates closed until exact tenant flags match', () => {
+    expect(assetMaintenanceReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(assetMaintenanceCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_ASSET_MAINTENANCE_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_ASSET_MAINTENANCE_READS_VIA_API_TENANT_IDS', RESULT.tenantId)
+    vi.stubEnv('ERP_ASSET_MAINTENANCE_CREATE_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_ASSET_MAINTENANCE_CREATE_WRITES_VIA_API_TENANT_IDS', RESULT.tenantId)
+    expect(assetMaintenanceReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(assetMaintenanceCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    vi.stubEnv('ERP_ASSET_MAINTENANCE_CREATE_WRITES_VIA_API', 'TRUE')
+    expect(assetMaintenanceCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+  })
+
+  it('calls authenticated asset detail and maintenance read/create routes', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(ASSET_DETAIL_RESULT), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(ASSET_MAINTENANCE_RESULT), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(ASSET_MAINTENANCE_RESULT.rows[0]), { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getAssetThroughCoreApi(ASSET_DETAIL_RESULT.id)).resolves.toMatchObject({ ok: true })
+    await expect(
+      getAssetMaintenanceThroughCoreApi(ASSET_DETAIL_RESULT.id, { page: 1, limit: 50 })
+    ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
+    await expect(
+      createAssetMaintenanceThroughCoreApi(
+        ASSET_DETAIL_RESULT.id,
+        {
+          maintenanceType: 'inspection',
+          summary: 'Annual inspection',
+          performedOn: '2026-08-02',
+          nextDueOn: '2027-08-02',
+          vendorName: 'LiftCo Service',
+          costCents: 12_500,
+          notes: null,
+        },
+        'maintenance-client-test'
+      )
+    ).resolves.toMatchObject({ ok: true })
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://erp-api.example.test/v1/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/maintenance?page=1&limit=50',
+      expect.objectContaining({ method: 'GET' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'https://erp-api.example.test/v1/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/maintenance',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'Idempotency-Key': 'maintenance-client-test' }),
       })
     )
   })

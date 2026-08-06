@@ -51,6 +51,9 @@ import {
   financePayablesResultSchema,
   financeCashResultSchema,
   assetListResultSchema,
+  assetReadResultSchema,
+  assetMaintenanceListResultSchema,
+  assetMaintenanceCreationResultSchema,
   stockMovementCreationResultSchema,
   stockMovementPostingResultSchema,
   stockMovementReversalResultSchema,
@@ -139,6 +142,11 @@ import {
   type FinanceCashResult,
   type AssetListQuery,
   type AssetListResult,
+  type AssetReadResult,
+  type AssetMaintenanceListQuery,
+  type AssetMaintenanceListResult,
+  type AssetMaintenanceCreationResult,
+  type CreateAssetMaintenanceRecordCommand,
   type CreateStockMovementCommand,
   type StockMovementCreationResult,
   type StockMovementPostCommand,
@@ -326,6 +334,24 @@ export function assetReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_ASSET_READS_VIA_API,
     process.env.ERP_ASSET_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Asset service history stays closed until its source migration and canary are approved. */
+export function assetMaintenanceReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_ASSET_MAINTENANCE_READS_VIA_API,
+    process.env.ERP_ASSET_MAINTENANCE_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Maintenance creation stays closed until an explicit tenant canary is approved. */
+export function assetMaintenanceCreateWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_ASSET_MAINTENANCE_CREATE_WRITES_VIA_API,
+    process.env.ERP_ASSET_MAINTENANCE_CREATE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -1776,6 +1802,178 @@ export async function getAssetsThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Assets were not read.',
+      status: 503,
+    }
+  }
+}
+
+export async function getAssetThroughCoreApi(
+  assetId: string
+): Promise<CoreResult<AssetReadResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/assets/${encodeURIComponent(assetId)}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 404
+            ? 'Asset was not found.'
+            : response.status === 403
+              ? 'You do not have permission to view this asset.'
+              : response.status === 503
+                ? 'Asset register is not enabled for this tenant.'
+                : 'Asset detail was not completed.',
+        status: response.status,
+      }
+    }
+    const parsed = assetReadResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid asset detail result.',
+        status: 503,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Asset detail was not read.',
+      status: 503,
+    }
+  }
+}
+
+export async function getAssetMaintenanceThroughCoreApi(
+  assetId: string,
+  query: AssetMaintenanceListQuery
+): Promise<CoreResult<AssetMaintenanceListResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams({
+      page: String(query.page),
+      limit: String(query.limit),
+    })
+    const response = await fetch(
+      `${access.baseUrl}/v1/assets/${encodeURIComponent(assetId)}/maintenance?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 404
+            ? 'Asset was not found.'
+            : response.status === 403
+              ? 'You do not have permission to view maintenance history.'
+              : response.status === 503
+                ? 'Asset maintenance history is not enabled for this tenant.'
+                : 'Asset maintenance history was not completed.',
+        status: response.status,
+      }
+    }
+    const parsed = assetMaintenanceListResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid asset maintenance result.',
+        status: 503,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Maintenance history was not read.',
+      status: 503,
+    }
+  }
+}
+
+export async function createAssetMaintenanceThroughCoreApi(
+  assetId: string,
+  command: CreateAssetMaintenanceRecordCommand,
+  idempotencyKey: string
+): Promise<CoreResult<AssetMaintenanceCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/assets/${encodeURIComponent(assetId)}/maintenance`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 503
+            ? 'Asset maintenance creation is not enabled for this tenant.'
+            : response.status === 409
+              ? 'Asset maintenance conflicts with existing asset state.'
+              : 'Asset maintenance was not created.'
+      return { ok: false, error: message, status: response.status }
+    }
+    const parsed = assetMaintenanceCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid asset maintenance result.',
+        status: 503,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No maintenance record was created.',
       status: 503,
     }
   }

@@ -1,5 +1,14 @@
 # Next Actions
 
+## Exact next action after M3.131 asset maintenance history
+
+Push only the reviewed feature branch as `kurtgav`. Do not apply migration
+`20260807100000` to hosted Supabase, enable any maintenance flag, create a
+Vercel build, or redeploy Railway: hosted parity/security/duplicate/audit/
+rollback/identity/spend gates remain open and the user's Vercel bill is a hard
+constraint. A later protected canary must exercise read, create, replay, hash
+conflict, retired-asset rejection, tenant isolation, and audit evidence.
+
 ## Exact next action after M3.130 dashboard fault isolation
 
 Keep the degraded dashboard path source-only until the normal spend-approved
