@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-234 - Treat disposable replay as source evidence, not hosted approval (2026-08-06)
+
+Decision: accept a fresh PostgreSQL 17.10 ordered replay and zero-skip database
+tests as source correctness evidence, while keeping hosted promotion blocked
+until supported Supabase CLI/backup/catalog/data/rollback evidence is complete.
+
+Rationale: the replay validates migrations, RLS, grants, triggers, constraints,
+and runtime workflows without touching paid or production services. It cannot
+prove managed Supabase history, existing tenant data, provider identity, or
+rollback safety.
+
+Evidence: disposable `erp_clean_head_20260806_m3125`; verifier pass; database
+51/51 files and 324/324 tests; no hosted/provider mutation.
+
 ## D-233 - Keep capability evidence source- and provider-scoped (2026-08-06)
 
 Decision: the capability matrix must identify the exact source checkpoint and

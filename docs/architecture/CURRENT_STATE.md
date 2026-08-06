@@ -4,6 +4,20 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.126 clean disposable PostgreSQL replay (2026-08-06)
+
+Created disposable database `erp_clean_head_20260806_m3125` on PostgreSQL
+17.10 in the local `ThirdCodeERP-Test` lane. Applied the Supabase system
+bootstrap, all 97 ordered repository migrations from zero, and `supabase/seed.sql`.
+The catalog contains 119 public tables, 303 public policies, and RLS on all
+119 tables. `scripts/verify-database-repro.mjs` passes every invariant, and
+database Vitest passes 51/51 files and 324/324 tests with zero skips after
+enabling each database runtime expectation flag. This is clean source replay
+evidence, not hosted Supabase parity or a provider release; the migration
+ledger was recorded after the ordered SQL apply and a pinned Supabase CLI
+schema-diff artifact remains a separate gate. No hosted or provider state
+changed.
+
 ## M3.125 capability matrix and release-boundary refresh (2026-08-06)
 
 The capability matrix now points at source SHA

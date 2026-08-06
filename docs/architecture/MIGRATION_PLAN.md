@@ -1,5 +1,20 @@
 # Migration Plan
 
+## M3.126 clean disposable PostgreSQL replay
+
+Replayed the source from zero into local disposable PostgreSQL 17.10 database
+`erp_clean_head_20260806_m3125`: applied the Supabase system bootstrap, all 97
+ordered migrations, and `supabase/seed.sql`. The verifier passed 97/97 ledger,
+RLS, policy, privilege, trigger, function, index, constraint, and service-only
+checks. Database Vitest passed 51/51 files and 324/324 tests with zero skips
+when all runtime expectation flags were enabled.
+
+Boundary: this replay used the repository bootstrap plus ordered `psql` apply;
+it is not a hosted migration, backup, or Supabase CLI schema-diff proof. Next:
+capture the pinned CLI diff/CI artifact, then obtain managed backup, duplicate
+Purchase Order owner mapping, audit recovery input, rollback, identity,
+security, and spend approval before any hosted action.
+
 ## M3.125 capability evidence boundary
 
 Refreshed `CAPABILITY_MATRIX.md` to the verified source SHA and current
