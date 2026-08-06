@@ -1,5 +1,14 @@
 # Work Log
 
+## 2026-08-06 - M3.101 hosted Supabase Asset Register parity snapshot
+
+Read-only Supabase MCP inspection confirmed project `aqqrtkmtcsfkbyyqxowv` is
+healthy on PostgreSQL 17.6.1, hosted migration ledger ends at
+`20260729233017` (55/92), and source asset migration/table are absent. No
+hosted asset RLS/grants/policies/triggers/data can be canaried. Security
+advisors remain 14 notices/11 warnings. No SQL, Storage, branch, data,
+Vercel, or Railway mutation.
+
 ## 2026-08-06 - M3.100 disposable Asset Register replay parity
 
 Added rollback-only API integration coverage for the Asset Register and made

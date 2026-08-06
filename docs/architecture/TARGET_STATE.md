@@ -1,5 +1,15 @@
 # Target State
 
+## M3.101 hosted Asset Register parity gate (2026-08-06)
+
+Hosted Supabase must contain the ordered asset migration and match the
+disposable replay before any tenant canary: `public.assets`, forced RLS,
+service-role-only grants, audit trigger, composite indexes, and migration
+ledger entry must be present and verified. Current hosted evidence is 55/92
+migrations with no asset relation. Keep all asset selectors false/empty and
+do not apply or create a branch until supported backup/catalog/data/audit
+export, duplicate Purchase Order mapping, and security review are complete.
+
 ## M3.100 Asset Register replay gate (2026-08-06)
 
 The disposable replay now proves the typed Core asset read projection matches

@@ -4,6 +4,13 @@ Status date: 2026-08-06
 Source checkpoint: `91ed375` (M3.96 cash register replay parity evidence)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
+M3.101 hosted update: Supabase project `aqqrtkmtcsfkbyyqxowv` is healthy on
+PostgreSQL 17.6.1 but remains at 55/92 migrations. Source asset migration
+`20260806110000_asset_register_foundation` and `public.assets` are absent
+hosted, so asset selectors remain false/empty. Security advisors remain 14
+notices/11 warnings; no hosted migration, official ERP write, or provider
+build occurred.
+
 M3.100 replay update: rollback-only disposable PostgreSQL 17/Redis 7.4.9 proof
 now compares direct and Core Asset Register rows across two tenants, Project
 joins, pagination/search, audit, forced RLS, and client-role privilege denial.

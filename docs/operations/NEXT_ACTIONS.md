@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.101 hosted Asset Register parity snapshot
+
+1. Keep `ERP_ASSET_READS_ENABLED=false`, `ERP_ASSET_READS_TENANT_IDS` empty,
+   `ERP_ASSET_READS_VIA_API=false`, and
+   `ERP_ASSET_READS_VIA_API_TENANT_IDS` empty. Do not apply the asset
+   migration, create a branch, or trigger a paid deploy.
+2. Obtain supported Supabase backup/catalog/data/audit export and reconcile
+   the 37 source migrations after `20260729233017` in order. Confirm
+   `public.assets` metadata, forced RLS, service-role-only grants, audit
+   trigger, indexes, and migration ledger entry after review.
+3. Resolve the owner-approved tenant-scoped 12-record Purchase Order
+   duplicate mapping and remediate/review the 11 security warnings before
+   any hosted canary.
+4. Then run one protected Asset Register browser canary with rollback and
+   spend evidence. Python/AI remains advisory; Nest owns official writes.
+
 ## Exact next action after M3.100 Asset Register replay parity
 
 1. Keep `ERP_ASSET_READS_ENABLED=false`, `ERP_ASSET_READS_TENANT_IDS` empty,
