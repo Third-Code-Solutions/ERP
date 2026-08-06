@@ -288,6 +288,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Marking a prepared delivery in transit stays fail-closed until the
+  // server-owned request ledger and a tenant canary are approved.
+  ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Starting delivery site preparation stays fail-closed until the existing
   // delivery ledger and a tenant canary are approved.
   ERP_DELIVERY_SITE_PREPARATION_START_WRITES_ENABLED: z

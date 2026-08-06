@@ -23,6 +23,8 @@ import {
   deliveryInspectionCompleteResultSchema,
   deliveryReceiptCommandSchema,
   deliveryReceiptResultSchema,
+  deliveryMarkInTransitCommandSchema,
+  deliveryMarkInTransitResultSchema,
   deliveryStartSitePreparationCommandSchema,
   deliveryStartSitePreparationResultSchema,
   deliveryCompleteSitePreparationCommandSchema,
@@ -35,6 +37,8 @@ import {
   type DeliveryCancelResult,
   type DeliveryReceiptCommand,
   type DeliveryReceiptResult,
+  type DeliveryMarkInTransitCommand,
+  type DeliveryMarkInTransitResult,
   type DeliveryStartSitePreparationCommand,
   type DeliveryStartSitePreparationResult,
   type DeliveryCompleteSitePreparationCommand,
@@ -83,6 +87,20 @@ function commandHash(
       canonicalJson({
         deliveryScheduleId,
         notes: command.notes ?? null,
+      })
+    )
+    .digest('hex')
+}
+
+function markInTransitCommandHash(
+  deliveryScheduleId: string,
+  command: DeliveryMarkInTransitCommand
+): string {
+  return createHash('sha256')
+    .update(
+      canonicalJson({
+        deliveryScheduleId,
+        command,
       })
     )
     .digest('hex')
@@ -163,6 +181,18 @@ function replayResult(value: unknown): DeliveryReceiptResult {
   if (!parsed.success) {
     throw new InternalServerErrorException(
       'Delivery receipt idempotency result is invalid'
+    )
+  }
+  return parsed.data
+}
+
+function replayMarkInTransitResult(
+  value: unknown
+): DeliveryMarkInTransitResult {
+  const parsed = deliveryMarkInTransitResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new InternalServerErrorException(
+      'Delivery in-transit idempotency result is invalid'
     )
   }
   return parsed.data
@@ -457,6 +487,227 @@ export class DeliveryWorkflowService {
           from: fromStatus,
           to: 'received',
           notes: parsedCommand.notes ?? null,
+          idempotency_key_hash: requestHash,
+        },
+      })
+
+      return result
+    })
+  }
+
+  async markInTransit(
+    deliveryScheduleId: string,
+    command: DeliveryMarkInTransitCommand,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<DeliveryMarkInTransitResult> {
+    if (!UUID_PATTERN.test(deliveryScheduleId)) {
+      throw new BadRequestException('Invalid delivery schedule id')
+    }
+    const parsedCommand = deliveryMarkInTransitCommandSchema.parse(command)
+    const idempotencyKey = rawIdempotencyKey.trim()
+    if (idempotencyKey.length === 0 || idempotencyKey.length > 256) {
+      throw new BadRequestException('Invalid Idempotency-Key header')
+    }
+
+    const enabled = this.config.get<boolean>(
+      'ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_ENABLED',
+      false
+    )
+    const allowedTenantIds = this.config.get<string[]>(
+      'ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_TENANT_IDS',
+      []
+    )
+    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+      throw new ServiceUnavailableException(
+        'Delivery in-transit transition is not enabled for this tenant; no delivery was updated.'
+      )
+    }
+
+    const requestHash = markInTransitCommandHash(
+      deliveryScheduleId,
+      parsedCommand
+    )
+    return this.database.client.transaction(async (transaction) => {
+      const [membership] = await transaction
+        .select({
+          tenantId: users.tenant_id,
+          role: users.role,
+          email: users.email,
+        })
+        .from(users)
+        .where(
+          and(
+            eq(users.id, principal.userId),
+            eq(users.tenant_id, principal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      const role = membership?.role as ErpRole | undefined
+      if (
+        !membership ||
+        !role ||
+        !roleHasCapability(role, 'delivery.receive')
+      ) {
+        throw new ForbiddenException()
+      }
+      const authorizedPrincipal: ErpPrincipal = {
+        userId: principal.userId,
+        tenantId: membership.tenantId,
+        role,
+        email: membership.email,
+      }
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+
+      const [visibleSchedule] = await transaction
+        .select({ id: deliverySchedules.id })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+      if (!visibleSchedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+
+      await transaction
+        .insert(deliveryWorkflowRequests)
+        .values({
+          tenant_id: authorizedPrincipal.tenantId,
+          delivery_schedule_id: deliveryScheduleId,
+          action: 'mark_in_transit',
+          idempotency_key: idempotencyKey,
+          request_hash: requestHash,
+          created_by: authorizedPrincipal.userId,
+        })
+        .onConflictDoNothing({
+          target: [
+            deliveryWorkflowRequests.tenant_id,
+            deliveryWorkflowRequests.idempotency_key,
+          ],
+        })
+
+      const [request] = await transaction
+        .select({
+          id: deliveryWorkflowRequests.id,
+          requestHash: deliveryWorkflowRequests.request_hash,
+          state: deliveryWorkflowRequests.state,
+          result: deliveryWorkflowRequests.result,
+        })
+        .from(deliveryWorkflowRequests)
+        .where(
+          and(
+            eq(
+              deliveryWorkflowRequests.tenant_id,
+              authorizedPrincipal.tenantId
+            ),
+            eq(deliveryWorkflowRequests.idempotency_key, idempotencyKey)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      if (!request) {
+        throw new InternalServerErrorException(
+          'Delivery in-transit idempotency record was not created'
+        )
+      }
+      if (request.requestHash !== requestHash) {
+        throw new ConflictException(
+          'Idempotency key was already used with a different delivery in-transit command'
+        )
+      }
+      if (request.state === 'succeeded') {
+        return replayMarkInTransitResult(request.result)
+      }
+      if (request.state !== 'processing') {
+        throw new ConflictException(
+          'Delivery in-transit idempotency record has an unsupported state'
+        )
+      }
+
+      const [schedule] = await transaction
+        .select({
+          id: deliverySchedules.id,
+          status: deliverySchedules.status,
+        })
+        .from(deliverySchedules)
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!schedule) {
+        throw new NotFoundException('Delivery not found')
+      }
+      if (schedule.status !== 'site_ready') {
+        throw new ConflictException(
+          `Cannot mark delivery in transit from delivery status "${schedule.status}"`
+        )
+      }
+
+      const now = new Date()
+      const [updated] = await transaction
+        .update(deliverySchedules)
+        .set({ status: 'in_transit', updated_at: now })
+        .where(
+          and(
+            eq(deliverySchedules.id, deliveryScheduleId),
+            eq(deliverySchedules.tenant_id, authorizedPrincipal.tenantId),
+            eq(deliverySchedules.status, 'site_ready')
+          )
+        )
+        .returning({ id: deliverySchedules.id })
+      if (!updated) {
+        throw new ConflictException(
+          'Delivery changed before its in-transit transition was committed'
+        )
+      }
+
+      const result = deliveryMarkInTransitResultSchema.parse({
+        deliveryScheduleId,
+        tenantId: authorizedPrincipal.tenantId,
+        action: 'mark_in_transit',
+        fromStatus: 'site_ready',
+        status: 'in_transit',
+      })
+      const [completed] = await transaction
+        .update(deliveryWorkflowRequests)
+        .set({
+          state: 'succeeded',
+          result,
+          completed_at: now,
+        })
+        .where(
+          and(
+            eq(deliveryWorkflowRequests.id, request.id),
+            eq(deliveryWorkflowRequests.state, 'processing')
+          )
+        )
+        .returning({ id: deliveryWorkflowRequests.id })
+      if (!completed) {
+        throw new InternalServerErrorException(
+          'Delivery in-transit idempotency record changed before completion'
+        )
+      }
+
+      await this.audit.writeSemantic(transaction, {
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
+        entityType: 'delivery_schedule',
+        entityId: deliveryScheduleId,
+        action: 'status_change',
+        diff: {
+          from: 'site_ready',
+          to: 'in_transit',
           idempotency_key_hash: requestHash,
         },
       })

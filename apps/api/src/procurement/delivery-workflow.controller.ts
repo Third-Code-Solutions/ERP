@@ -13,6 +13,8 @@ import {
 import type {
   DeliveryReceiptCommand,
   DeliveryReceiptResult,
+  DeliveryMarkInTransitCommand,
+  DeliveryMarkInTransitResult,
   DeliveryInspectionCompleteCommand,
   DeliveryInspectionCompleteResult,
   DeliveryCancelCommand,
@@ -32,6 +34,7 @@ import { RequireCapabilities } from '../auth/capability.guard'
 import { DeliveryInspectionCompletePipe } from './delivery-inspection-complete.pipe'
 import { DeliveryCancelPipe } from './delivery-cancel.pipe'
 import { DeliveryReceiptPipe } from './delivery-receipt.pipe'
+import { DeliveryMarkInTransitPipe } from './delivery-mark-in-transit.pipe'
 import { DeliveryStartInspectionPipe } from './delivery-start-inspection.pipe'
 import { DeliverySitePreparationStartPipe } from './delivery-site-preparation-start.pipe'
 import { DeliverySitePreparationCompletePipe } from './delivery-site-preparation-complete.pipe'
@@ -60,6 +63,29 @@ export class DeliveryWorkflowController {
       throw new BadRequestException('Idempotency-Key header is too long')
     }
     return this.workflow.recordReceipt(
+      deliveryScheduleId,
+      command,
+      principal,
+      idempotencyKey.trim()
+    )
+  }
+
+  @Post(':deliveryScheduleId/in-transit')
+  @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('delivery.receive')
+  markInTransit(
+    @Param('deliveryScheduleId', new ParseUUIDPipe()) deliveryScheduleId: string,
+    @Body(DeliveryMarkInTransitPipe) command: DeliveryMarkInTransitCommand,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<DeliveryMarkInTransitResult> {
+    if (!idempotencyKey?.trim()) {
+      throw new BadRequestException('Idempotency-Key header is required')
+    }
+    if (idempotencyKey.length > 256) {
+      throw new BadRequestException('Idempotency-Key header is too long')
+    }
+    return this.workflow.markInTransit(
       deliveryScheduleId,
       command,
       principal,

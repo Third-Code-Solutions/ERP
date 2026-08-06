@@ -56,6 +56,7 @@ const requiredMigrations = [
   '20260728005112_fix_purchase_order_status_catalog.sql',
   '20260729233017_notification_outbox_foundation.sql',
   '20260806110000_asset_register_foundation.sql',
+  '20260806120000_delivery_in_transit_workflow.sql',
 ]
 
 const requiredTables = [
