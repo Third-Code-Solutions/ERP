@@ -21,7 +21,11 @@ verification 93/93 migrations, 32 protected tables, and 3 service-only tables;
 shared/database/API/Web typechecks pass. Source SHA `db786f2` is pushed to
 GitHub `main` and `agent-02/third-code-erp-landing`. Hosted Supabase remains
 read-only at 55/93 migrations; no Supabase, Storage, Vercel, Railway, or
-tenant-canary mutation occurred.
+tenant-canary mutation occurred. A broad API suite attempt hit the existing
+Windows test-server timeout pattern, and local API/Web production-build
+attempts exceeded the bounded command window under shared process load; these
+are not counted as green release gates and must be rerun in a clean lane before
+any provider promotion.
 
 ## M3.101 hosted Supabase Asset Register parity snapshot (2026-08-06)
 
