@@ -35,7 +35,9 @@ Validation: focused action 5/5; Core client 113/113; Web 91/591; shared
 production build 81/81 routes; typecheck/lint, migration verifier, Actionlint,
 Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed. Database
 skips require `DATABASE_URL`; prior disposable replay supplies no-skip
-evidence. No hosted state changed.
+evidence. No hosted state changed. Source checkpoint:
+`f9770a015e0c8769010cf08cb4f31f7c26b6f656`; remote branch and clean worktree
+verified.
 
 ## M3.139 self-hosted Core authority evidence (2026-08-07)
 
