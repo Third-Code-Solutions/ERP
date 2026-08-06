@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-206 - Cash register reads use a closed Nest contract (2026-08-06)
+
+Decision: expose cash transactions through `GET /v1/finance/cash-transactions`
+with strict bounded filters, verified-principal tenant scope, same-tenant cash
+account and optional business/vendor joins, exact-cent amounts, and
+server-computed receipt/disbursement aggregates. The existing Next Cash page
+keeps its direct-read compatibility path; an exact boolean plus tenant
+allowlist selects the typed Core adapter and Core errors fail closed. Nest
+remains the authority for cash writes and workflow transitions; Python cannot
+approve or finalize state.
+
+Evidence: shared 25 files/214 tests; API 104 files/440 tests; Web 87 files/558
+tests; database active/skipped lanes, package-serial tests, typecheck, serial
+lint, production build 80/80, Vercel spend guard, and diff check. Source SHA
+`ddadd2fa3f7c2451dcfc97f53529ba9edba1f3ee` is Railway deployment
+`fbfc7eb0-4820-4359-a42f-74b3c0351558` (`SUCCESS`/running); live readiness and
+health are 200 and unauthenticated cash register is 401. Supabase was not
+written and Vercel remained unchanged.
+
 ## D-205 - Supplier payables reads use a closed Nest contract (2026-08-06)
 
 Decision: expose supplier payables through `GET /v1/finance/payables` with

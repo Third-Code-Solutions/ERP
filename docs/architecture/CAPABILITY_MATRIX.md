@@ -1,8 +1,20 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `de0b7e1` (M3.95 closed supplier payables read projection)
+Source checkpoint: `ddadd2f` (M3.96 closed cash register read projection)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.96 update: cash transactions now have a typed, tenant-derived NestJS
+`GET /v1/finance/cash-transactions` projection with same-tenant cash-account
+and optional counterparty joins, exact-cent register rows, and posted
+receipt/disbursement aggregates. API and Next selectors are false/empty by
+default; the existing page remains the compatibility path for unselected
+tenants and Core failure cannot fall back for a selected tenant. Source SHA
+`ddadd2fa3f7c2451dcfc97f53529ba9edba1f3ee` is live on Railway deployment
+`fbfc7eb0-4820-4359-a42f-74b3c0351558` (`SUCCESS`/running); readiness/health
+are 200 and unauthenticated cash register is 401. No UI, hosted migration,
+provider spend, or official ERP write changed. Vercel remains disconnected
+with no new build.
 
 M3.95 update: supplier payables now has a typed, tenant-derived NestJS
 `GET /v1/finance/payables` projection with Supplier Bill/Vendor/Purchase

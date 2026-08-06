@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-06 - M3.96 closed cash transaction register read projection
+
+Added the shared Finance Cash query/result contract, bounded filters and
+integer-cent output, NestJS `GET /v1/finance/cash-transactions` controller/
+pipe/service, `finance.read` authorization, same-tenant cash-account and
+optional business/vendor context, posted receipt/disbursement aggregates, and
+a typed Next adapter. The existing Cash page remains unchanged by default;
+Core selection is exact-flag/tenant-canary only and fails closed. No UI
+redesign, browser write, Python transaction, hosted SQL, Vercel build, or
+AI/provider spend.
+
+Validation: shared 25 files/214 tests; API 104 files/440 tests; Web 87 files/558
+tests; database 45 files/177 active tests with 4 files/141 skipped integration/
+RLS tests without local `DATABASE_URL`; package-serial suite; typecheck; serial
+lint; production build 80/80 routes; Vercel spend guard; and diff check. Source
+SHA `ddadd2fa3f7c2451dcfc97f53529ba9edba1f3ee` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`fbfc7eb0-4820-4359-a42f-74b3c0351558` is `SUCCESS`/running with the API
+Dockerfile and live `/ready` 200, `/health` 200, and unauthenticated cash
+register 401; image digest
+`sha256:cd7e1770c08ddf3c5e458ed6299467fa96e59ea2a2701f021630599f25c26e88`.
+Supabase remains read-only at 55/92 with one 12-record Purchase Order
+duplicate group, and Vercel remains spend-guarded with no build/deploy.
+
 ## 2026-08-06 - M3.95 closed supplier payables read projection
 
 Added the shared Finance Payables query/result contract, bounded filters and

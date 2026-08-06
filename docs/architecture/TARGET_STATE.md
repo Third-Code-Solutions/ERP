@@ -1,5 +1,15 @@
 # Target State
 
+## M3.96 increment: Core-owned cash transaction register reads
+
+Cash register reads move behind a typed, tenant-derived NestJS projection
+before a browser cutover. `GET /v1/finance/cash-transactions` owns bounded
+account/direction/status/date scope, same-tenant cash-account and counterparty
+joins, exact-cent amounts, and receipt/disbursement aggregates; Next retains a
+fail-closed adapter and the existing page for unselected tenants. Keep the
+seam closed until disposable cash/account/vendor replay, exact-cent parity,
+RLS/audit review, protected browser proof, rollback, and spend gates clear.
+
 ## M3.95 increment: Core-owned supplier payables reads
 
 Supplier payables reads move behind a typed NestJS projection before a
