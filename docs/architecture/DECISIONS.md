@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-251 - Remove the legacy Web Cost Entry delete writer (2026-08-07)
+
+Decision: migrate the existing Cost Entry delete Server Action to the typed
+NestJS Core DELETE command. Preserve the two-argument UI caller, add bounded
+reason/idempotency inputs with safe defaults, verify tenant/Project/entry and
+the manual-void result, and revalidate only after a valid Core response. Do
+not retain a direct database delete or duplicate Web audit fallback. Keep the
+server-side Core delete gate disabled and unscoped until restore, managed
+parity, identity, audit, and spend evidence pass.
+
+Rationale: leaving a second writer after the reversible void boundary would
+allow physical deletion, bypass transaction-bound authorization, and make
+recovery/audit semantics diverge. A command-only adapter keeps the current UI
+stable while making Core the sole authority and failing closed when it is not
+available.
+
+Evidence: focused Web deletion action/client 14/14; full serial workspace
+tests, typecheck/lint, production build, migration/security, controlled
+release, and spend gates passed. No hosted provider state changed. Source
+checkpoint is recorded after commit and remote verification.
+
 ## D-248 - Make NestJS the only Project creation writer (2026-08-07)
 
 Decision: remove the Web Server Action's direct `projects` insert and its

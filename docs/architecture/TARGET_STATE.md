@@ -1,5 +1,17 @@
 # Target State
 
+## M3.143 Core-only Cost Entry deletion action
+
+Cost Entry deletion must remain a thin authenticated command client. Next
+requires `cost.record`, validates the bounded reason/idempotency inputs, and
+calls the NestJS DELETE boundary; it must never delete `cost_entries` or write
+a second audit event. The action must verify the Core result's tenant,
+Project, entry, manual source, and `voided` state before revalidation. Core
+errors and invalid scope fail closed. The API gate stays disabled until
+restore/recovery proof, managed parity, identity, audit, and spend evidence
+are approved. The existing Cost Table surface remains compatible while the
+command boundary is migrated.
+
 ## M3.140 Core-only Project creation
 
 Project creation must be a thin authenticated command client. Next validates

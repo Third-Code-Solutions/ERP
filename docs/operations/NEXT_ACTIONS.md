@@ -30,10 +30,23 @@ M3.142 is pushed as source SHA
 `476903d934c3c1b65bf50b6075497707b8841248`; remote SHA and clean worktree
 verified. Keep `ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false` and its tenant
 allowlist empty; do not apply the new Supabase migration or trigger Vercel or
-Railway. Next source slice: add the Web Core delete adapter and migrate the
-legacy action only after void/restore replay, active-read parity, and local
-transaction evidence are complete. Managed parity/recovery/identity/audit/
-spend evidence still blocks hosted canaries.
+Railway. The Web Core delete adapter and action migration are now complete;
+the next source slice is a Core restore command plus focused restore/read
+parity proof. Managed parity/recovery/identity/audit/spend evidence still
+blocks hosted canaries.
+
+## Exact next action after M3.143 Core-only Cost Entry deletion action
+
+M3.143 source validation is green, but the reviewed commit and remote SHA
+verification must be recorded before this checkpoint is closed. Keep
+`ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false` and its tenant allowlist empty;
+do not apply `20260807110000_cost_entry_delete_workflow.sql`, change hosted
+Supabase, trigger Vercel, or deploy Railway. Next source slice: implement a
+permissioned, idempotent Core restore command against the pre-void snapshot,
+prove active-read and restore replay parity on the disposable PostgreSQL/
+Redis lane, and then seek managed catalog/RLS, backup/PITR, Auth identity,
+audit recovery, and spend evidence. No production canary is authorized until
+those gates and explicit release approval are complete.
 
 ## Exact next action after M3.139 self-hosted Core authority evidence
 

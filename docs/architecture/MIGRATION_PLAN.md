@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.143 Core-only Cost Entry deletion action
+
+Removed the legacy Web direct `cost_entries` delete and duplicate audit path.
+The existing Server Action now calls the typed Core DELETE adapter with a
+bounded default or supplied reason and idempotency key, verifies tenant,
+Project, entry, source, and voided state, then revalidates the existing cost
+routes. Core failures and invalid results do not fall back to another writer;
+the Cost Table caller and visible copy remain unchanged. The Nest API delete
+gate is still false/empty and the void migration remains unapplied to hosted
+Supabase. No provider deploy or environment mutation is authorized.
+
+Validation passed: focused Web action/client 14/14; Web 92/600; shared
+27/230; database 48/52 files with 186 passed/141 skipped; API 114/489; serial
+Turbo workspace tests; production build 81/81 routes; typecheck/lint;
+migration verifier (99 files); Actionlint; Gitleaks; controlled-release 5/5;
+provider-spend 4/4. The default parallel workspace run exposed three
+pre-existing Nest controller timeouts; the same API suite passed when Turbo
+was constrained to one package at a time. No hosted state changed.
+Source checkpoint is recorded after commit and remote verification.
+
 ## M3.140 Core-only Project creation
 
 Removed the Web Project-create direct database fallback and frontend
