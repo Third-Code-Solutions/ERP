@@ -4,6 +4,18 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.125 capability matrix and release-boundary refresh (2026-08-06)
+
+The capability matrix now points at source SHA
+`86db0e4935ff7f655e6443d19834fe3e1e9bc013` and records the current source
+boundary: 97 ordered migrations, closed-by-default NestJS authority slices,
+exact Web tenant/flag selection, and advisory-only Python/Cortex behavior. The
+read-only hosted planner remains blocked at 55/97 migrations with 213 direct
+`anon` privilege rows, 209 policies containing `public`, one duplicate
+Purchase Order number group, and missing audit recovery input. This was a
+documentation-only refresh; no hosted SQL, provider build, deployment,
+feature flag, or tenant-data write occurred.
+
 ## M3.124 bounded landing carousel and image priority (2026-08-06)
 
 The public landing team-priority carousel now clamps state at its first and

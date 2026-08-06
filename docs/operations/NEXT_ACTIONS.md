@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.125 capability evidence boundary refresh
+
+Run `git diff --check`, the clean-room/branding test, and the normal serial
+source gates. Push only the reviewed feature branch. Do not trigger Vercel or
+Railway, apply Supabase SQL, or enable ERP canaries: the hosted planner remains
+blocked by 55/97 migration parity, 213 direct `anon` grants, 209 `public`
+policies, duplicate Purchase Orders, missing audit recovery, rollback,
+identity, and spend evidence. Continue with a clean zero-to-head disposable
+PostgreSQL/Supabase replay as the next technical milestone.
+
 ## Exact next action after M3.124 bounded landing carousel and image priority
 
 Run focused/full web tests, typecheck, lint, production build, clean-room

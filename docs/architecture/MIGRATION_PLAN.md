@@ -1,5 +1,18 @@
 # Migration Plan
 
+## M3.125 capability evidence boundary
+
+Refreshed `CAPABILITY_MATRIX.md` to the verified source SHA and current
+hosted planner output without changing application or database behavior. Keep
+hosted Supabase, Vercel, Railway, and all ERP canary flags unchanged until a
+managed backup/rollback path, clean zero-to-head replay, duplicate Purchase
+Order owner mapping, audit recovery input, exact provider identity, security,
+and spend gates are independently green.
+
+Validation: `git diff --check` and the repository clean-room/branding checks
+remain required before the feature branch is pushed. Rollback is a one-file
+revert of the matrix and memory documentation; no hosted rollback is needed.
+
 ## M3.124 bounded landing carousel and image priority
 
 Implemented a source-only UX correction: clamp team-priority navigation at

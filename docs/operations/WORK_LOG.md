@@ -1,5 +1,17 @@
 # Work Log
 
+## 2026-08-06 - M3.125 capability evidence boundary refresh
+
+Updated the capability matrix and architecture memory to source SHA
+`86db0e4935ff7f655e6443d19834fe3e1e9bc013`. Recorded the current 97-migration
+source ledger, closed-by-default NestJS authority boundary, advisory-only
+Python/Cortex rule, and hosted planner blockers: 55/97 migrations, 213 direct
+`anon` privilege rows, 209 `public` policies, duplicate Purchase Order
+numbers, and missing audit recovery input. No provider or database mutation.
+
+Next action: run documentation/source gates, then push only the reviewed
+feature branch. Keep live deploys and hosted SQL closed.
+
 ## 2026-08-06 - M3.124 bounded landing carousel and image priority
 
 Updated `third-code-landing.tsx` so team-priority controls clamp instead of
