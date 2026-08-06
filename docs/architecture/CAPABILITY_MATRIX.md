@@ -1,5 +1,17 @@
 # Third Code ERP capability matrix
 
+## M3.139 self-hosted Core authority evidence (2026-08-07)
+
+The approved disposable WSL lane replayed all 98 repository migrations against
+PostgreSQL 17 with Redis 7.4.9, passed the database no-skip gate and Nest API
+integration suite, and produced identical schema-before/schema-after SHA256
+`6E1CA120B357614D2A9C4CF06F1E306E08210CFB7B11F340A5E2A286D42D1B71`.
+Services and the disposable database were stopped after the run. This proves
+source/runtime behavior only; it does not prove managed Supabase parity,
+backup/restore, hosted identity, or release authorization. No hosted SQL,
+Vercel build, Railway deploy, or provider mutation occurred.
+
+## M3.138 retire Project update flag surface (2026-08-07)
 ## M3.138 retire Project update flag surface (2026-08-07)
 
 Removed the unused `projectWritesUseCoreApi` selector, its Web test branch,

@@ -1,5 +1,13 @@
 # Next Actions
 
+## Exact next action after M3.139 self-hosted Core authority evidence
+
+Keep hosted Supabase, Vercel, Railway, and ERP canaries closed. Obtain the
+remaining managed parity/catalog/RLS, backup/PITR restore, identity, audit
+recovery, and spend evidence. Only after those gates and explicit release
+approval may a one-tenant Core runtime canary be attempted; repeat the local
+lane after any migration change.
+
 ## Exact next action after M3.138 retire Project update flag surface
 
 Push the reviewed source/docs to
