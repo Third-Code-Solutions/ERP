@@ -4,6 +4,25 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.100 disposable Asset Register replay parity (2026-08-06)
+
+Added rollback-only `apps/api/integration/assets-read.database.integration.spec.ts`.
+On the disposable `ThirdCodeERP-Test` PostgreSQL 17 replay, it seeds two
+tenants, a same-tenant assigned Project, active/maintenance/retired assets,
+and an unrelated tenant asset. The proof compares direct rows with the Nest
+projection across tenant scope, project-name joins, ascending pagination,
+search filtering, and retired-date serialization. It also verifies three audit
+rows, forced RLS, and that `anon`/`authenticated` have no direct SELECT.
+
+Replay evidence: schema before/after SHA256 is
+`36AC6C9CFB138589031C4BE6FF328748CA80AD45B07DAB40BAEE10C05E2F0B0B`; API
+integration is 17 files/24 tests and the database suite is 49 files/318 tests,
+both with zero skips. `verify-database-repro.mjs` now requires the asset
+migration, service-only table, indexes, and audit trigger; it passes 92/92
+migrations, 32 protected tables, and 3 service-only tables. Source SHA
+`8586beb9e53d5fafd2289451eda576ea5b1a1726` is pushed to both GitHub refs.
+No hosted Supabase, Vercel, Railway, Storage, or tenant-canary mutation.
+
 ## M3.99 closed Web Asset Register read surface (2026-08-06)
 
 Added the original Next.js Asset Register route and Core-only read adapter for

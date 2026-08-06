@@ -1,5 +1,16 @@
 # Target State
 
+## M3.100 Asset Register replay gate (2026-08-06)
+
+The disposable replay now proves the typed Core asset read projection matches
+the direct tenant-scoped query, including Project context, pagination/search,
+tenant exclusion, audit trigger output, forced RLS, and client-role privilege
+denial. This is necessary evidence, not hosted authorization. Keep
+`ERP_ASSET_READS_ENABLED=false`, `ERP_ASSET_READS_TENANT_IDS` empty,
+`ERP_ASSET_READS_VIA_API=false`, and its allowlist empty until hosted migration
+parity, backup/catalog/data/audit export, security review, protected browser
+canary, rollback, and spend gates pass.
+
 ## M3.99 Asset Register Web cutover gate (2026-08-06)
 
 The Asset Register Web route must remain a read-only, tenant-derived surface

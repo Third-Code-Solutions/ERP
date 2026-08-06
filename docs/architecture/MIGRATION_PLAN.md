@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.100 disposable Asset Register replay parity (2026-08-06)
+
+Added a rollback-only API integration fixture and expanded the reproducibility
+verifier to require `20260806110000_asset_register_foundation.sql`, the
+service-only `assets` table, all five asset indexes, and `audit_assets`. The
+fixture compares direct/Core rows and total counts for two tenants, same-tenant
+Project names, page 1/page 2 ordering, search, retired dates, and cross-tenant
+exclusion; it checks audit and forced-RLS/client privilege boundaries.
+
+Validation: disposable PostgreSQL 17/Redis 7.4.9, schema hash unchanged at
+`36AC6C9CFB138589031C4BE6FF328748CA80AD45B07DAB40BAEE10C05E2F0B0B`, API
+17/24, database 49/318, verifier 92/92 migrations with 32 protected and 3
+service-only tables, and API typecheck. Source SHA
+`8586beb9e53d5fafd2289451eda576ea5b1a1726` is pushed to both refs. No hosted
+write or provider build occurred.
+
+## Next gate
+
+Hosted Supabase still reports 55/92 migrations; the asset migration is not
+applied there. Obtain supported backup/catalog/data/audit export, reconcile
+pending migrations in order, resolve the owner-approved 12-record Purchase
+Order duplicate group, and review security warnings. Only then run a protected
+asset browser canary with exact flags and rollback/spend evidence. Do not
+trigger Vercel or Railway builds for this replay-only source change.
+
 ## M3.99 closed Web Asset Register read surface (2026-08-06)
 
 Implemented the smallest Web increment over the already closed Core asset
