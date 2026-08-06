@@ -14,8 +14,9 @@ API 114/496; Web 92/600; serial Turbo workspace tests; production build
 81/81 routes; typecheck/lint, migration verifier (100 files), Actionlint,
 Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed. Database
 skips require `DATABASE_URL`; the new migration has not received disposable
-replay evidence. Source checkpoint is recorded after commit and remote
-verification.
+replay evidence. Source checkpoint: `963ae464ac35f9bc388605bcb641b2f42442ac19`,
+pushed to `origin/agent-02/third-code-erp-landing`; remote SHA and clean
+worktree verified.
 
 ## M3.143 Core-only Cost Entry deletion action (2026-08-07)
 

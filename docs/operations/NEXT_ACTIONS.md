@@ -51,8 +51,10 @@ audit recovery, spend evidence, and explicit release approval are complete.
 
 ## Exact next action after M3.144 Core Cost Entry restore boundary
 
-M3.144 source validation is green, but the reviewed commit and remote SHA
-verification remain to be recorded. Keep
+M3.144 source validation is green. Source checkpoint
+`963ae464ac35f9bc388605bcb641b2f42442ac19` is pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree are
+verified. Keep
 `ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false`,
 `ERP_COST_ENTRY_RESTORE_WRITES_ENABLED=false`, and both tenant allowlists
 empty. Do not apply the void or restore migrations to hosted Supabase,

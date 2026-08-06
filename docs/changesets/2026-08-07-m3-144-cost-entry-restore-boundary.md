@@ -31,3 +31,9 @@ tenant data changed.
 Rollback is the reviewed prior source release. Keep both delete and restore
 flags closed; never restore by direct browser/database writes or edit applied
 migration history.
+
+## Source checkpoint
+
+`963ae464ac35f9bc388605bcb641b2f42442ac19` is pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree were
+verified. No hosted provider state changed.
