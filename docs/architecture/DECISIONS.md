@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-243 - Make Project status transitions explicit (2026-08-07)
+
+Decision: define a shared Project transition table. `lead` advances to
+`active`, `on_hold`, or `cancelled`; `active` advances to `on_hold`,
+`completed`, or `cancelled`; `on_hold` resumes to `active` or cancels;
+`completed` and `cancelled` remain terminal while same-state edits stay
+allowed. Reject other Core transitions with a 409 before update.
+
+Rationale: Project status drives operational reporting and downstream finance/
+procurement expectations. Arbitrary enum assignment can silently reopen
+closed work or skip review. A small shared table makes workflow behavior
+auditable without adding schema/provider cost; legacy fallback convergence is
+tracked separately.
+
+Evidence: shared transition tests, terminal-state service regression, WSL
+PostgreSQL/Redis replay, API suite, serial workspace suite, and production
+build pass. Core and hosted canaries remain closed.
+
 ## D-242 - Lock project-update membership before mutation (2026-08-07)
 
 Decision: in `ProjectsService.update`, lock the caller's tenant membership

@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.135 project status state machine
+
+Added a shared Project transition table and applied it inside the existing
+NestJS update transaction after membership/Project locks and before mutation.
+Forward operational movement, hold/resume, and same-state edits remain valid;
+terminal `completed`/`cancelled` records cannot reopen through Core. Invalid
+movement returns a bounded conflict and writes no update. No migration, flag,
+browser-path rewrite, or provider action was introduced; the legacy Web
+fallback remains a separately gated convergence task.
+
+Validation: shared 27/229; focused Project service/HTTP 22/22; WSL
+PostgreSQL 17.10/Redis 7.4.9 replay, verifier, 98/98 migrations, and Project
+API integration passed; serial workspace tests passed (database 47/51 with
+141 compatibility skips, API 112/480, Web 89/581); production build 81/81
+routes; typecheck, lint, Actionlint, Gitleaks, controlled-release 5/5, and
+provider-spend 4/4 passed. Code commit `97c41f8`. Hosted Supabase, Vercel,
+Railway, and ERP canaries stay closed.
+
 ## M3.134 project-update authority hardening
 
 Extended the existing Project Core authority so `PATCH /v1/projects/:id`

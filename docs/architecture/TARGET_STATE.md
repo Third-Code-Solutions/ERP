@@ -1,5 +1,13 @@
 # Target State
 
+## M3.135 explicit Project status workflow
+
+Project status must be a server-owned state machine, not a free-form enum
+assignment. Core updates must allow only declared transitions, preserve
+terminal states, return a bounded conflict for invalid movement, and audit
+the before/after status in the same transaction. Legacy compatibility paths
+must converge on this authority before any tenant canary is enabled.
+
 ## M3.134 transaction-bound project-update authorization
 
 Every mutable Project command must lock and recheck tenant membership before
