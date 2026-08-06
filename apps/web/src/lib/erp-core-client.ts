@@ -1147,7 +1147,7 @@ export async function updateProjectThroughCoreApi(
 
   try {
     const response = await fetch(
-      `${access.baseUrl}/v1/projects/${projectId}`,
+      `${access.baseUrl}/v1/projects/${encodeURIComponent(projectId)}`,
       {
         method: 'PATCH',
         headers: {
