@@ -8,6 +8,14 @@ invoke Vercel or Railway deploy commands, and readiness alone cannot authorize
 a paid provider action. A failed or missing spend report blocks the release;
 the gate does not create a build or infer a numeric billing allowance.
 
+## M3.117 duplicate Purchase Order owner-review artifact (2026-08-06)
+
+The duplicate-data gate must offer a safe path for a database owner to review
+the exact current snapshot without exposing business values in logs or writing
+to hosted state. The template generator writes only to an explicit secure path
+outside the repository/build output, refuses overwrite, leaves every
+replacement blank, and remains separate from the SQL repair/migration action.
+
 ## M3.116 Togal BOM authority target (2026-08-06)
 
 Togal-derived BOM commits must execute through NestJS for explicitly canaried

@@ -1,5 +1,21 @@
 # Work Log
 
+## 2026-08-06 - M3.117 Purchase Order mapping-template preflight
+
+Added a read-only owner-review artifact generator for the existing
+tenant-scoped duplicate Purchase Order gate. It queries one repeatable-read
+snapshot, requires an explicit output path outside the repository and known
+build/public directories, refuses overwrite, and leaves every replacement
+number blank so no business decision is guessed. The artifact is compatible
+with the existing mapping validator after owner completion. Focused template
+tests pass 3/3 and existing mapping tests pass 4/4. No hosted SQL, migration
+history, Purchase Order row, Storage object, provider setting, build, or
+deployment changed.
+
+Next action: database owner completes and approves the external mapping, then
+rerun the mapping, managed Supabase parity, rollback, canary, identity,
+readiness, security, and spend gates.
+
 ## 2026-08-06 - M3.116 Togal BOM commit authority seam
 
 Moved Togal BOM line commit authority into a new NestJS endpoint

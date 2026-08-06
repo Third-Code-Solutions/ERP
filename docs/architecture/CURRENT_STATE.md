@@ -4,6 +4,16 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.117 Purchase Order mapping-template preflight (2026-08-06)
+
+The duplicate Purchase Order gate now has a read-only owner-review template
+generator. It captures one repeatable-read snapshot into a new file only when
+the caller supplies an explicit path outside the repository and known
+build/public-output directories. Existing files are never overwritten, every
+replacement number is blank until the database owner approves it, and no SQL,
+provider, migration-history, or Purchase Order state is changed. Focused
+template and validator tests pass; hosted release gates remain unchanged.
+
 ## M3.116 Togal BOM commit authority seam (2026-08-06)
 
 The Togal import commit now has an original NestJS command boundary at
