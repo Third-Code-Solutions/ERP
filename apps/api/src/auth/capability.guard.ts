@@ -38,6 +38,7 @@ export const ERP_CAPABILITIES = [
   'document.manage',
   'document.process',
   'document.processing.read',
+  'bom.generate',
   'finance.post',
   'finance.issue_invoice',
   'finance.manage_cash',
@@ -216,6 +217,9 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'pm',
     'sales',
   ],
+  // Mirrors web permission matrix. Togal commit remains separately
+  // fail-closed behind a tenant-scoped server feature flag.
+  'bom.generate': ['owner', 'admin', 'commercial', 'estimator'],
   'finance.post': ['owner', 'admin', 'finance'],
   'finance.issue_invoice': ['owner', 'admin', 'finance'],
   'finance.manage_cash': ['owner', 'admin', 'finance'],

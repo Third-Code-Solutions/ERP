@@ -223,6 +223,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Togal BOM line commits stay fail-closed until the dedicated idempotency
+  // ledger, transaction replay, and tenant canary are approved.
+  ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Client Change Request authority stays fail-closed until hosted schema
   // reconciliation and a tenant-scoped canary are explicitly approved.
   ERP_CHANGE_REQUEST_WRITES_ENABLED: z

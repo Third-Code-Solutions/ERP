@@ -58,6 +58,7 @@ const requiredMigrations = [
   '20260806110000_asset_register_foundation.sql',
   '20260806120000_delivery_in_transit_workflow.sql',
   '20260806130000_delivery_schedule_create_idempotency.sql',
+  '20260806140000_togal_bom_commit_idempotency.sql',
 ]
 
 const requiredTables = [
@@ -103,6 +104,7 @@ const requiredServerOnlyTables = [
   'stock_movement_create_requests',
   'stock_movement_workflow_requests',
   'delivery_schedule_create_requests',
+  'togal_bom_commit_requests',
   'assets',
 ]
 
@@ -311,6 +313,9 @@ const requiredServerOnlyIndexes = [
   'ux_delivery_schedule_create_requests_tenant_id_id',
   'ux_delivery_schedule_create_requests_tenant_key',
   'idx_delivery_schedule_create_requests_tenant_state',
+  'ux_togal_bom_commit_requests_tenant_id_id',
+  'ux_togal_bom_commit_requests_tenant_key',
+  'idx_togal_bom_commit_requests_tenant_state',
 ]
 
 const requiredExpandedNodeTypes = [

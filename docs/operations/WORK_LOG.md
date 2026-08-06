@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-06 - M3.116 Togal BOM commit authority seam
+
+Moved Togal BOM line commit authority into a new NestJS endpoint
+`POST /v1/procurement/boms/togal-commit`, protected by `bom.generate`, an
+explicit server flag, and tenant UUID allowlist. Added strict shared contracts,
+forced-RLS service-only idempotency ledger, composite tenant FKs, BOM row lock,
+catalog identity checks, exact-cent arithmetic, atomic line/total update, and
+in-transaction audit. Next route keeps historical response shape and direct
+write fallback for non-canary tenants; Core unavailability never falls back
+for canary tenants. Browser sends an idempotency key per commit attempt.
+
+Validation: focused shared 3/3, database migration 3/3, API authority 7/7,
+Web Core client 112/112, Web route 3/3; full Turbo tests 4/4 package tasks,
+typecheck, production build, gitleaks, actionlint, and the 95-file repository
+migration-ledger verifier pass. Hosted Supabase remains unchanged at 55/95
+source migrations; the read-only controlled plan is still review-required for
+40 missing hosted migrations, duplicate Purchase Orders, and missing audit
+tenant input. No provider build/deploy or billing action ran; all new flags
+remain closed.
+
+Next action: push the reviewed feature branch only. Keep hosted migration and
+provider promotion closed pending managed parity, owner PO mapping, rollback,
+canary, exact identity, readiness, and spend gates.
+
 ## 2026-08-06 - M3.115 provider spend gate
 
 Integrated the existing Vercel Git/deploy-command guard into the controlled
