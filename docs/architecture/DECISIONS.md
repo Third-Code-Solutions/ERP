@@ -1,5 +1,18 @@
 # Architecture Decisions
 
+## D-232 - Clamp public carousel navigation (2026-08-06)
+
+Decision: team-priority navigation must clamp at first/last item and use native
+disabled buttons instead of wrapping from first to last or last to first.
+Preserve manual navigation, 44px controls, accessible names, and local state.
+
+Rationale: wraparound hides state boundaries and creates an unexpected focus
+loop for keyboard and assistive-technology users. Native disabled semantics
+communicate the workflow bound without adding product logic or a dependency.
+
+Evidence: local Playwright at 390px reports previous disabled at `1 / 4`; after
+three next clicks it reports next disabled at `4 / 4`. No hosted mutation.
+
 ## D-231 - Make hosted catalog security explicit in the release planner (2026-08-06)
 
 Decision: the read-only database planner must count direct `anon` privileges on

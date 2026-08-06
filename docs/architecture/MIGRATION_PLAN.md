@@ -1,5 +1,19 @@
 # Migration Plan
 
+## M3.124 bounded landing carousel and image priority
+
+Implemented a source-only UX correction: clamp team-priority navigation at
+`0..3`, expose native disabled states, preserve 44px touch targets, and add a
+disabled hover/opacity treatment. Marked the above-fold hero media as a
+priority image. Existing landing structure, copy, tokens, GSAP motion, and
+clean-room asset contract remain unchanged.
+
+Browser validation: local Playwright at 1440/768/390 showed three-line H1,
+no horizontal overflow, correct disabled states, and zero console errors. One
+Next development LCP warning remains for a duplicated decorative hero asset.
+Next: run full local gates, update release memory, push feature branch only;
+do not deploy while provider spend/release gates are red.
+
 ## M3.123 read-only catalog security gate
 
 Implemented the database planner catalog query and pure analyzer for direct

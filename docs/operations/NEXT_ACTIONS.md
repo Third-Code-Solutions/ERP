@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.124 bounded landing carousel and image priority
+
+Run focused/full web tests, typecheck, lint, production build, clean-room
+branding scan, and Playwright production-equivalent browser checks. Review
+the remaining Next development LCP warning before any marketing release. Keep
+the source branch separate and do not trigger Vercel/Railway while the
+controlled-release planner remains blocked by hosted security, migration
+drift, duplicate Purchase Orders, audit recovery, rollback, identity, and
+spend gates.
+
 ## Exact next action after M3.123 read-only catalog security gate
 
 Run the full local test, typecheck, lint, build, migration-verifier,
