@@ -23,6 +23,27 @@ export type DeliveryReceiptResult = z.infer<
   typeof deliveryReceiptResultSchema
 >
 
+export const deliveryMarkInTransitCommandSchema = z
+  .object({})
+  .strict()
+
+export const deliveryMarkInTransitResultSchema = z
+  .object({
+    deliveryScheduleId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    action: z.literal('mark_in_transit'),
+    fromStatus: z.literal('site_ready'),
+    status: z.literal('in_transit'),
+  })
+  .strict()
+
+export type DeliveryMarkInTransitCommand = z.infer<
+  typeof deliveryMarkInTransitCommandSchema
+>
+export type DeliveryMarkInTransitResult = z.infer<
+  typeof deliveryMarkInTransitResultSchema
+>
+
 export const deliveryStartInspectionCommandSchema = z
   .object({})
   .strict()

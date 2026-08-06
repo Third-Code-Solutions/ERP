@@ -55,6 +55,7 @@ import {
   stockReceiptPostingResultSchema,
   stockReceiptReversalResultSchema,
   deliveryReceiptResultSchema,
+  deliveryMarkInTransitResultSchema,
   deliveryStartSitePreparationResultSchema,
   deliveryCompleteSitePreparationResultSchema,
   deliveryStartInspectionResultSchema,
@@ -153,6 +154,8 @@ import {
   type StockReceiptReversalResult,
   type DeliveryReceiptCommand,
   type DeliveryReceiptResult,
+  type DeliveryMarkInTransitCommand,
+  type DeliveryMarkInTransitResult,
   type DeliveryStartSitePreparationCommand,
   type DeliveryStartSitePreparationResult,
   type DeliveryCompleteSitePreparationCommand,
@@ -663,6 +666,16 @@ export function deliveryReceiptWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_DELIVERY_RECEIPT_WRITES_VIA_API,
     process.env.ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function deliveryMarkInTransitWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API,
+    process.env.ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -2728,6 +2741,63 @@ export async function createStockReceiptThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Stock Receipt was committed.',
+    }
+  }
+}
+
+export async function markDeliveryInTransitThroughCoreApi(
+  deliveryScheduleId: string,
+  command: DeliveryMarkInTransitCommand,
+  idempotencyKey: string
+): Promise<CoreResult<DeliveryMarkInTransitResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/deliveries/${encodeURIComponent(
+        deliveryScheduleId
+      )}/in-transit`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Delivery in-transit transition conflicts with its current state.'
+            : response.status === 404
+              ? 'Delivery was not found.'
+              : 'Delivery was not marked in transit.'
+      return { ok: false, error: message }
+    }
+    const parsed = deliveryMarkInTransitResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid delivery in-transit result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No delivery in-transit transition was committed.',
     }
   }
 }

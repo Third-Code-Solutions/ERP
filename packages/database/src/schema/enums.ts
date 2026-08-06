@@ -273,6 +273,7 @@ export const deliveryWorkflowActionEnum = pgEnum(
   'delivery_workflow_action',
   [
     'record_receipt',
+    'mark_in_transit',
     'start_inspection',
     'complete_inspection',
     'cancel_delivery',

@@ -27,7 +27,9 @@ function service(
   sitePreparationStartEnabled = false,
   sitePreparationStartTenantIds: string[] = [],
   sitePreparationCompleteEnabled = false,
-  sitePreparationCompleteTenantIds: string[] = []
+  sitePreparationCompleteTenantIds: string[] = [],
+  markInTransitEnabled = false,
+  markInTransitTenantIds: string[] = []
 ) {
   const config = {
     get: vi.fn((key: string) => {
@@ -63,6 +65,12 @@ function service(
       if (key === 'ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_TENANT_IDS') {
         return sitePreparationCompleteTenantIds
       }
+      if (key === 'ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_ENABLED') {
+        return markInTransitEnabled
+      }
+      if (key === 'ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_TENANT_IDS') {
+        return markInTransitTenantIds
+      }
       return undefined
     }),
   } as unknown as ConfigService
@@ -74,6 +82,41 @@ function service(
 }
 
 describe('DeliveryWorkflowService migration boundary', () => {
+  it('keeps the in-transit transition closed by default without touching the database', async () => {
+    await expect(
+      service().markInTransit(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        'delivery-in-transit-1'
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+
+  it('stays closed when the in-transit tenant allowlist is empty', async () => {
+    await expect(
+      service(false, [], false, [], false, [], false, [], false, [], false, [], true).markInTransit(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        'delivery-in-transit-1'
+      )
+    ).rejects.toThrow(
+      'Delivery in-transit transition is not enabled for this tenant; no delivery was updated.'
+    )
+  })
+
+  it('validates the in-transit idempotency key before the feature gate', async () => {
+    await expect(
+      service().markInTransit(
+        '33333333-3333-4333-8333-333333333333',
+        {},
+        PRINCIPAL,
+        ' '
+      )
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
   it('fails closed by default without touching the database', async () => {
     await expect(
       service().recordReceipt(

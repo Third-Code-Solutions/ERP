@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   completeDeliverySitePreparationThroughCoreApi: vi.fn(),
   deliveryReceiptWritesUseCoreApi: vi.fn(),
   recordDeliveryReceiptThroughCoreApi: vi.fn(),
+  deliveryMarkInTransitWritesUseCoreApi: vi.fn(),
+  markDeliveryInTransitThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
   notifyRoles: vi.fn(),
   writeAuditLog: vi.fn(),
@@ -75,6 +77,10 @@ vi.mock('@/lib/erp-core-client', () => ({
   deliveryReceiptWritesUseCoreApi: mocks.deliveryReceiptWritesUseCoreApi,
   recordDeliveryReceiptThroughCoreApi:
     mocks.recordDeliveryReceiptThroughCoreApi,
+  deliveryMarkInTransitWritesUseCoreApi:
+    mocks.deliveryMarkInTransitWritesUseCoreApi,
+  markDeliveryInTransitThroughCoreApi:
+    mocks.markDeliveryInTransitThroughCoreApi,
 }))
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }))
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }))
@@ -84,6 +90,7 @@ import {
   completeInspection,
   markSiteReady,
   markSitePreparing,
+  markInTransit,
   recordReceipt,
   startInspection,
 } from './actions'
@@ -119,6 +126,7 @@ describe('Delivery receipt compatibility seam', () => {
     mocks.deliverySitePreparationCompleteWritesUseCoreApi.mockReturnValue(false)
     mocks.deliveryInspectionCompleteWritesUseCoreApi.mockReturnValue(false)
     mocks.deliveryCancelWritesUseCoreApi.mockReturnValue(false)
+    mocks.deliveryMarkInTransitWritesUseCoreApi.mockReturnValue(false)
     mocks.startDeliveryInspectionThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
@@ -138,6 +146,16 @@ describe('Delivery receipt compatibility seam', () => {
         action: 'start_site_preparation',
         fromStatus: 'scheduled',
         status: 'site_preparing',
+      },
+    })
+    mocks.markDeliveryInTransitThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        deliveryScheduleId: SCHEDULE_ID,
+        tenantId: TENANT_ID,
+        action: 'mark_in_transit',
+        fromStatus: 'site_ready',
+        status: 'in_transit',
       },
     })
     mocks.completeDeliverySitePreparationThroughCoreApi.mockResolvedValue({
@@ -273,6 +291,43 @@ describe('Delivery receipt compatibility seam', () => {
     )
     expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('routes in-transit transition through Nest with a stable retry key', async () => {
+    mocks.deliveryMarkInTransitWritesUseCoreApi.mockReturnValue(true)
+    selectSchedule('site_ready')
+
+    await expect(
+      markInTransit(SCHEDULE_ID, 'delivery-in-transit-1')
+    ).resolves.toEqual({})
+
+    expect(mocks.markDeliveryInTransitThroughCoreApi).toHaveBeenCalledWith(
+      SCHEDULE_ID,
+      {},
+      'delivery-in-transit-1'
+    )
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when selected in-transit transition cannot commit', async () => {
+    mocks.deliveryMarkInTransitWritesUseCoreApi.mockReturnValue(true)
+    mocks.markDeliveryInTransitThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No delivery in-transit transition was committed.',
+    })
+    selectSchedule('site_ready')
+
+    await expect(
+      markInTransit(SCHEDULE_ID, 'delivery-in-transit-2')
+    ).resolves.toEqual({
+      error:
+        'ERP Core API is unavailable. No delivery in-transit transition was committed.',
+    })
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
   it('allows site-preparation replay after the first core commit changed status', async () => {

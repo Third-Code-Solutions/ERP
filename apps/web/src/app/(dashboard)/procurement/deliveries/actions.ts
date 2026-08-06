@@ -33,6 +33,7 @@ import {
   completeDeliveryInspectionThroughCoreApi,
   cancelDeliveryThroughCoreApi,
   deliveryCancelWritesUseCoreApi,
+  deliveryMarkInTransitWritesUseCoreApi,
   deliveryInspectionCompleteWritesUseCoreApi,
   deliveryInspectionStartWritesUseCoreApi,
   deliverySitePreparationCompleteWritesUseCoreApi,
@@ -42,6 +43,7 @@ import {
   startDeliverySitePreparationThroughCoreApi,
   deliveryReceiptWritesUseCoreApi,
   recordDeliveryReceiptThroughCoreApi,
+  markDeliveryInTransitThroughCoreApi,
 } from '@/lib/erp-core-client'
 
 type DeliveryStatus =
@@ -331,7 +333,8 @@ export async function markSiteReady(
 }
 
 export async function markInTransit(
-  scheduleId: string
+  scheduleId: string,
+  idempotencyKey?: string
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
   const forbid = guardScheduling(profile.role)
@@ -339,6 +342,29 @@ export async function markInTransit(
 
   const row = await loadSchedule(scheduleId, profile.tenantId)
   if (!row) return { error: 'Delivery not found' }
+
+  if (deliveryMarkInTransitWritesUseCoreApi(profile.tenantId)) {
+    const key = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
+    if (!key.success) {
+      return {
+        error: 'Retry token is required for the delivery in-transit command.',
+      }
+    }
+    const result = await markDeliveryInTransitThroughCoreApi(
+      scheduleId,
+      {},
+      key.data
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'Delivery could not be marked in transit through ERP Core.',
+      }
+    }
+    revalidate(scheduleId)
+    return {}
+  }
 
   const violation = assertTransition(row.status as DeliveryStatus, 'in_transit', [
     'site_ready',

@@ -12,6 +12,7 @@ import {
   postStockReceiptThroughCoreApi,
   reverseStockReceiptThroughCoreApi,
   recordDeliveryReceiptThroughCoreApi,
+  markDeliveryInTransitThroughCoreApi,
   startDeliverySitePreparationThroughCoreApi,
   completeDeliverySitePreparationThroughCoreApi,
   startDeliveryInspectionThroughCoreApi,
@@ -57,6 +58,7 @@ import {
   stockReceiptPostWritesUseCoreApi,
   stockReceiptReverseWritesUseCoreApi,
   deliveryReceiptWritesUseCoreApi,
+  deliveryMarkInTransitWritesUseCoreApi,
   deliverySitePreparationStartWritesUseCoreApi,
   deliverySitePreparationCompleteWritesUseCoreApi,
   deliveryInspectionStartWritesUseCoreApi,
@@ -206,6 +208,13 @@ const DELIVERY_RECEIPT_RESULT = {
   action: 'record_receipt' as const,
   fromStatus: 'in_transit' as const,
   status: 'received' as const,
+}
+const DELIVERY_IN_TRANSIT_RESULT = {
+  deliveryScheduleId: DELIVERY_RECEIPT_RESULT.deliveryScheduleId,
+  tenantId: DELIVERY_RECEIPT_RESULT.tenantId,
+  action: 'mark_in_transit' as const,
+  fromStatus: 'site_ready' as const,
+  status: 'in_transit' as const,
 }
 const DELIVERY_INSPECTION_RESULT = {
   deliveryScheduleId: DELIVERY_RECEIPT_RESULT.deliveryScheduleId,
@@ -1494,6 +1503,53 @@ describe('ERP Core client', () => {
         body: JSON.stringify(command),
         headers: expect.objectContaining({
           'Idempotency-Key': 'delivery-receipt-1',
+        }),
+      })
+    )
+  })
+
+  it('keeps delivery in-transit delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(deliveryMarkInTransitWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API', 'TRUE')
+    expect(deliveryMarkInTransitWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(deliveryMarkInTransitWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(deliveryMarkInTransitWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('sends and validates an idempotent delivery in-transit command', async () => {
+    const command = {}
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DELIVERY_IN_TRANSIT_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      markDeliveryInTransitThroughCoreApi(
+        DELIVERY_IN_TRANSIT_RESULT.deliveryScheduleId,
+        command,
+        'delivery-in-transit-1'
+      )
+    ).resolves.toEqual({ ok: true, data: DELIVERY_IN_TRANSIT_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/procurement/deliveries/${DELIVERY_IN_TRANSIT_RESULT.deliveryScheduleId}/in-transit`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'delivery-in-transit-1',
         }),
       })
     )

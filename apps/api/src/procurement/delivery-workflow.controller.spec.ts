@@ -24,7 +24,8 @@ describe('Delivery workflow HTTP contract', () => {
     completeInspection = vi.fn(),
     cancelDelivery = vi.fn(),
     startSitePreparation = vi.fn(),
-    completeSitePreparation = vi.fn()
+    completeSitePreparation = vi.fn(),
+    markInTransit = vi.fn()
   ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [DeliveryWorkflowController],
@@ -38,6 +39,7 @@ describe('Delivery workflow HTTP contract', () => {
             cancelDelivery,
             startSitePreparation,
             completeSitePreparation,
+            markInTransit,
           },
         },
       ],
@@ -67,6 +69,62 @@ describe('Delivery workflow HTTP contract', () => {
       .expect(400)
 
     expect(recordReceipt).not.toHaveBeenCalled()
+  })
+
+  it('forwards the strict in-transit command, principal, and trimmed key', async () => {
+    const markInTransit = vi.fn().mockResolvedValue({
+      deliveryScheduleId: DELIVERY_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      action: 'mark_in_transit',
+      fromStatus: 'site_ready',
+      status: 'in_transit',
+    })
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      markInTransit
+    )
+
+    await request(app.getHttpServer())
+      .post(`/v1/procurement/deliveries/${DELIVERY_ID}/in-transit`)
+      .set('Idempotency-Key', ' delivery-in-transit-1 ')
+      .send({})
+      .expect(200)
+
+    expect(markInTransit).toHaveBeenCalledWith(
+      DELIVERY_ID,
+      {},
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        userId: '11111111-1111-4111-8111-111111111111',
+      }),
+      'delivery-in-transit-1'
+    )
+  })
+
+  it('rejects caller-supplied authority fields for in-transit transition', async () => {
+    const markInTransit = vi.fn()
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      markInTransit
+    )
+
+    await request(app.getHttpServer())
+      .post(`/v1/procurement/deliveries/${DELIVERY_ID}/in-transit`)
+      .set('Idempotency-Key', 'delivery-in-transit-1')
+      .send({ tenantId: '22222222-2222-4222-8222-222222222222' })
+      .expect(400)
+
+    expect(markInTransit).not.toHaveBeenCalled()
   })
 
   it('rejects caller-supplied tenant or actor fields', async () => {
