@@ -1,5 +1,34 @@
 # Work Log
 
+## 2026-08-07 - M3.140 Core-only Project creation
+
+Audited the Project creation path and found a browser-side direct `projects`
+insert behind `ERP_PROJECT_CREATE_WRITES_VIA_API`. Removed that fallback and
+the frontend selector/allowlist. The Web action now requires `project.create`,
+calls the typed Core POST command with a supplied or generated idempotency key,
+checks the returned tenant, and fails closed on Core errors. Added five
+focused regressions covering routing, idempotency, Core failure, tenant
+mismatch, and capability denial. Core already owns the locked membership,
+idempotency, transaction, and audit contract; its server-side tenant gate
+remains disabled by default.
+
+Changed files: `apps/web/src/app/(dashboard)/projects/new/actions.ts`,
+`apps/web/src/app/(dashboard)/projects/new/actions.test.ts`,
+`apps/web/src/lib/erp-core-client.ts`,
+`apps/web/src/lib/erp-core-client.test.ts`, root/Web env examples, and the
+M3.140 architecture/operations records.
+
+Validation: focused Web action 5/5; Core client 114/114; Web 90 files/587
+tests; shared 27/229; database 47/51 files with 183 passed/141 skipped; API
+112/480; production build 81/81 routes; typecheck/lint, migration verifier,
+Actionlint, Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed.
+No hosted SQL, Vercel build, Railway deploy, provider environment, or tenant
+data changed.
+
+Unresolved risks: Core/API runtime availability, managed Supabase
+catalog/data/RLS parity, backup/PITR restore, Auth identity, audit recovery,
+and spend approval still block a protected canary.
+
 ## 2026-08-07 - M3.139 self-hosted Core authority evidence
 
 Ran the approved disposable WSL lane and cleanup. PostgreSQL 17 and Redis

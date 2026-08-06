@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-248 - Make NestJS the only Project creation writer (2026-08-07)
+
+Decision: remove the Web Server Action's direct `projects` insert and its
+frontend Project-create selector. The action may parse form data, require
+`project.create`, and call the typed Core POST boundary with an idempotency
+key. It must verify the returned tenant before redirecting and must fail
+closed on Core/API errors. NestJS remains responsible for membership
+recheck/lock, tenant-scoped idempotency, transaction commit, and audit.
+
+Rationale: a browser-side fallback could bypass the transaction-bound
+authorization and replay contract already implemented in Core, while a
+dormant frontend flag could be mistaken for a safe rollback. A single
+authority makes tenant scope and billing-safe release review explicit. The
+temporary availability loss when Core is disabled is intentional; rollback
+is a reviewed source/API release, not a second writer.
+
+Evidence: focused Web action 5/5, Core client 114/114 plus the action suite,
+Web typecheck passed, and no hosted provider state changed. The API-side
+Project creation gate remains closed pending managed parity/recovery,
+identity, audit, and spend evidence.
+
 ## D-247 - Require disposable replay before hosted Core canary (2026-08-07)
 
 Decision: retain the self-hosted PostgreSQL/Redis replay, no-skip database

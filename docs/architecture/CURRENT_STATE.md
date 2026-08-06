@@ -5,6 +5,25 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.140 Core-only Project creation (2026-08-07)
+
+The `/projects/new` Server Action now requires the local `project.create`
+capability and delegates every official Project creation to the NestJS Core
+POST boundary. The browser no longer queries `users` or inserts `projects`;
+Core owns tenant membership recheck, idempotency, transaction commit, and
+audit. The action verifies the returned tenant before redirecting and fails
+closed on Core errors or an unavailable Core session. The obsolete frontend
+Project-create selector and allowlist were removed from source and env
+examples. The API-side Core gate remains closed by default pending protected
+canary approval. No migration, hosted provider state, Vercel build, Railway
+deploy, or tenant data changed.
+
+Local validation is green: Web 90 files/587 tests, shared 27/229, database
+47/51 files with 183 passed/141 skipped, API 112/480, production build
+81/81 routes, typecheck/lint, migration verifier, Actionlint, Gitleaks,
+controlled-release 5/5, and provider-spend 4/4. The skipped database suites
+require `DATABASE_URL` and remain covered by the prior disposable replay.
+
 ## M3.139 self-hosted Core authority evidence (2026-08-07)
 
 The disposable WSL lane replayed 98 migrations on PostgreSQL 17 with Redis

@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.140 Core-only Project creation
+
+Commit only the reviewed M3.140 source/docs, push to
+`origin/agent-02/third-code-erp-landing`, verify the remote SHA and a clean
+worktree, then stop. Local validation is green: Web 90/587, shared 27/229,
+database 47/51 files with 141 skips, API 112/480, build 81/81, typecheck,
+lint, migration verifier, Actionlint, Gitleaks, controlled-release 5/5, and
+provider-spend 4/4. Keep Supabase SQL/data, Vercel builds, Railway deploys,
+provider variables, and ERP canaries closed. The next release gate is managed
+parity/catalog/RLS, backup/PITR restore, identity, audit recovery, and spend
+evidence before any one-tenant Core runtime canary.
+
 ## Exact next action after M3.139 self-hosted Core authority evidence
 
 Keep hosted Supabase, Vercel, Railway, and ERP canaries closed. Obtain the

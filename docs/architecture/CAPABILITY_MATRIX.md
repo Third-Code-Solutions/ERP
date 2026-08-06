@@ -1,5 +1,23 @@
 # Third Code ERP capability matrix
 
+## M3.140 Core-only Project creation (2026-08-07)
+
+The Web `/projects/new` action requires `project.create` and calls the typed
+NestJS `POST /v1/projects` boundary for every official creation. It performs
+no direct `users` lookup or `projects` insert, preserves/provisions an
+idempotency key, checks the returned tenant, and fails closed on Core errors.
+The frontend Project-create selector and allowlist were removed. The API-side
+tenant gate remains closed by default; no hosted SQL, Vercel build, Railway
+deploy, or provider mutation occurred.
+
+Validation: focused Web Project-create action 5/5; Core client 114/114;
+full Web 90 files/587 tests; shared 27/229; database 47/51 files with
+183 passed/141 skipped; API 112/480; production build 81/81 routes;
+typecheck/lint, migration verifier, Actionlint, Gitleaks, controlled-release
+5/5, and provider-spend 4/4 passed. The four database files/141 tests are
+the documented `DATABASE_URL`-dependent skips; the prior disposable replay
+supplies no-skip evidence. No hosted state changed.
+
 ## M3.139 self-hosted Core authority evidence (2026-08-07)
 
 The approved disposable WSL lane replayed all 98 repository migrations against
