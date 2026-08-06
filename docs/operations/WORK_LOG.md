@@ -25,6 +25,9 @@ Actionlint, Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed.
 No hosted SQL, Vercel build, Railway deploy, provider environment, or tenant
 data changed.
 
+Source checkpoint: `c702bd9edec41cb3a9efd8b490ae5e82a3a04ceb`, pushed and
+verified with a clean worktree using `kurtgav`.
+
 Unresolved risks: Core/API runtime availability, managed Supabase
 catalog/data/RLS parity, backup/PITR restore, Auth identity, audit recovery,
 and spend approval still block a protected canary.

@@ -2,15 +2,16 @@
 
 ## Exact next action after M3.140 Core-only Project creation
 
-Commit only the reviewed M3.140 source/docs, push to
-`origin/agent-02/third-code-erp-landing`, verify the remote SHA and a clean
-worktree, then stop. Local validation is green: Web 90/587, shared 27/229,
-database 47/51 files with 141 skips, API 112/480, build 81/81, typecheck,
-lint, migration verifier, Actionlint, Gitleaks, controlled-release 5/5, and
-provider-spend 4/4. Keep Supabase SQL/data, Vercel builds, Railway deploys,
-provider variables, and ERP canaries closed. The next release gate is managed
-parity/catalog/RLS, backup/PITR restore, identity, audit recovery, and spend
-evidence before any one-tenant Core runtime canary.
+Keep hosted Supabase, Vercel, Railway, provider variables, and ERP canaries
+closed. Obtain managed Supabase catalog/data/RLS parity, supported
+backup/PITR restore, Auth identity, audit recovery, duplicate-record, and
+spend evidence for the exact Core release. Only after those artifacts and
+explicit release approval may a one-tenant Project-create runtime canary be
+attempted; repeat the disposable PostgreSQL/Redis lane after any migration
+change. The canary must prove allowed create, locked-membership denial,
+tenant isolation, idempotent replay/hash conflict, audit actor identity, and
+Core-unavailable fail-closed behavior without creating a Vercel build or
+redeploying Railway.
 
 ## Exact next action after M3.139 self-hosted Core authority evidence
 

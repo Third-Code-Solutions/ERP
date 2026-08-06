@@ -20,6 +20,8 @@ Evidence: focused Web action 5/5, Core client 114/114 plus the action suite,
 Web typecheck passed, and no hosted provider state changed. The API-side
 Project creation gate remains closed pending managed parity/recovery,
 identity, audit, and spend evidence.
+Source checkpoint: `c702bd9edec41cb3a9efd8b490ae5e82a3a04ceb`, remote SHA verified
+on `origin/agent-02/third-code-erp-landing`.
 
 ## D-247 - Require disposable replay before hosted Core canary (2026-08-07)
 
