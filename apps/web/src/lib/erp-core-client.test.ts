@@ -81,7 +81,6 @@ import {
   transitionRfqThroughCoreApi,
   transitionPurchaseOrderThroughCoreApi,
   createProjectThroughCoreApi,
-  projectCreateWritesUseCoreApi,
   costEntryCreateWritesUseCoreApi,
   updateProjectThroughCoreApi,
   financeJournalPostWritesUseCoreApi,
@@ -1355,26 +1354,6 @@ describe('ERP Core client', () => {
     expect(inventoryStockMovementDetailReadsUseCoreApi('not-a-uuid')).toBe(
       false
     )
-  })
-
-  it('keeps Project creation delegation fail-closed unless its exact gate matches', () => {
-    vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API', 'true')
-    vi.stubEnv(
-      'ERP_PROJECT_CREATE_WRITES_VIA_API_TENANT_IDS',
-      RESULT.tenantId
-    )
-    expect(projectCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
-
-    vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API', 'TRUE')
-    expect(projectCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API', 'true')
-    vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API_TENANT_IDS', '')
-    expect(projectCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API_TENANT_IDS', '*')
-    expect(projectCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
-    expect(projectCreateWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Won-to-Project delegation fail-closed unless its exact gate matches', () => {

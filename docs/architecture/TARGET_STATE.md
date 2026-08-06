@@ -1,5 +1,16 @@
 # Target State
 
+## M3.140 Core-only Project creation
+
+Project creation must be a thin authenticated command client. Next validates
+the form and idempotency input, requires the local capability, and calls
+NestJS; it must never write `projects` or re-derive tenant ownership from a
+browser-side database query. NestJS remains the only authority for locked
+membership authorization, tenant-scoped idempotency, official mutation, and
+audit. Core/API unavailability or a mismatched tenant result fails closed.
+The API-side tenant canary gate stays disabled until managed parity,
+recovery, identity, audit, and spend evidence are approved.
+
 ## M3.139 repeatable Core authority evidence
 
 Every Core write slice must have a disposable PostgreSQL/Redis replay, no-skip

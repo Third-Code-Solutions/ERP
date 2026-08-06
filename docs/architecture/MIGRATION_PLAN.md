@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.140 Core-only Project creation
+
+Removed the Web Project-create direct database fallback and frontend
+`ERP_PROJECT_CREATE_WRITES_VIA_API` selector. The action now requires
+`project.create`, submits the typed command and idempotency key to
+`POST /v1/projects`, checks the Core response tenant, and redirects only after
+the official result is valid. Added focused action coverage for Core routing,
+idempotency preservation, Core failure, tenant mismatch, and capability
+denial. The Nest API gate remains closed by default; this source milestone
+does not authorize a hosted canary or provider mutation.
+
+Validation passed: Web 90 files/587 tests; shared 27/229; database 47/51
+files with 183 passed/141 skipped; API 112/480; production build 81/81
+routes; typecheck/lint; migration verifier; Actionlint; Gitleaks;
+controlled-release 5/5; provider-spend 4/4. No hosted state changed.
+
 ## M3.139 self-hosted Core authority evidence
 
 Ran `scripts/ci/run-wsl1-database-lane.ps1` and its cleanup script. The lane

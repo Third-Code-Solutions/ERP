@@ -3,14 +3,8 @@
 import { randomUUID } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { projects, users } from '@third-code-erp/database/schema'
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import {
-  createProjectThroughCoreApi,
-  projectCreateWritesUseCoreApi,
-} from '@/lib/erp-core-client'
+import { createProjectThroughCoreApi } from '@/lib/erp-core-client'
 
 const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
@@ -24,16 +18,7 @@ const createProjectSchema = z.object({
 
 export async function createProject(formData: FormData) {
   const profile = await requireUserProfile()
-  const user = profile.user
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  if (!userRow?.tenant_id) {
-    throw new Error('User has no tenant')
-  }
+  requireCapability(profile, 'project.create')
 
   const input = createProjectSchema.parse({
     name: formData.get('name'),
@@ -45,9 +30,8 @@ export async function createProject(formData: FormData) {
     idempotency_key: formData.get('idempotency_key') || undefined,
   })
 
-  if (projectCreateWritesUseCoreApi(profile.tenantId)) {
-    requireCapability(profile, 'project.create')
-    const result = await createProjectThroughCoreApi({
+  const result = await createProjectThroughCoreApi(
+    {
       name: input.name,
       client: input.client,
       status: 'lead',
@@ -55,21 +39,14 @@ export async function createProject(formData: FormData) {
       totalSqm: input.total_sqm ?? null,
       location: input.location ?? null,
       notes: input.notes ?? null,
-    }, input.idempotency_key ?? randomUUID())
-    if (!result.ok || !result.data) {
-      throw new Error(result.error ?? 'Project was not created')
-    }
-    redirect(`/projects/${result.data.id}`)
+    },
+    input.idempotency_key ?? randomUUID()
+  )
+  if (!result.ok || !result.data) {
+    throw new Error(result.error ?? 'Project was not created')
   }
-
-  const [inserted] = await db
-    .insert(projects)
-    .values({
-      tenant_id: userRow.tenant_id,
-      created_by: user.id,
-      ...input,
-    })
-    .returning({ id: projects.id })
-
-  redirect(`/projects/${inserted?.id}`)
+  if (result.data.tenantId !== profile.tenantId) {
+    throw new Error('Project creation returned an invalid tenant scope.')
+  }
+  redirect(`/projects/${result.data.id}`)
 }
