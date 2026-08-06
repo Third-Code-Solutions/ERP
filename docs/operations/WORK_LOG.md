@@ -16,8 +16,10 @@ database-pending recovery; schema before/after SHA256
 `18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`;
 serial workspace tests; typecheck/lint; build 81/81 routes; migration,
 Actionlint, Gitleaks, controlled-release, and provider-spend gates passed.
-Disposable services were stopped and cleaned. Source checkpoint: pending
-reviewed commit and remote SHA verification.
+Disposable services were stopped and cleaned. Source checkpoint:
+`3ca2060332fbda01f56b3044a8cde9e0201af71a`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified.
 
 Unresolved risks: managed Supabase catalog/RLS/data parity, supported
 backup/PITR restore, Auth identity, audit recovery, and spend approval still
