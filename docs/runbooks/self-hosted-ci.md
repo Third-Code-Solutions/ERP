@@ -88,5 +88,6 @@ Compilation alone is not release evidence.
 5. Remove `.github/workflows/ci-self-hosted.yml` and the runner scripts in a
    rollback commit if this lane is no longer wanted.
 
-This CI alternative does not change runtime traffic. Keep
-`ERP_PROJECT_WRITES_VIA_API=false` until the full M1 canary gate is approved.
+This CI alternative does not change runtime traffic. Project updates are
+already Core-only; a self-hosted pass does not authorize hosted deployment,
+tenant canary, or a direct-database rollback writer.

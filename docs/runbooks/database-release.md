@@ -187,7 +187,8 @@ would create false evidence.
 ## Phase 4 — Production release
 
 1. Announce a maintenance window and pause background jobs.
-2. Keep `ERP_PROJECT_WRITES_VIA_API=false`.
+2. Keep Project updates on the NestJS Core authority. If Core is unavailable,
+   the Web action must fail closed; do not restore a direct SQL writer.
 3. Record the final PITR/backup restore point and logical-dump hashes.
 4. Re-run the read-only planner. Abort if output differs from rehearsal.
 5. Put write-capable application paths into maintenance mode.
@@ -207,9 +208,9 @@ Abort immediately on migration error, unexpected lock duration, invariant
 failure, cross-tenant visibility, audit attribution failure, row-count drift,
 financial imbalance, or readiness failure.
 
-- Application rollback: keep or restore
-  `ERP_PROJECT_WRITES_VIA_API=false` and promote the last known-good web/API
-  release.
+- Application rollback: promote the last known-good Web/API release. Do not
+  restore the retired `ERP_PROJECT_WRITES_VIA_API` flag or a direct Project
+  writer.
 - Database fix-forward: allowed only for a fully understood additive defect
   with intact data and approved forward migration.
 - Database restore: for destructive or uncertain outcomes, restore the

@@ -40,7 +40,6 @@ import {
   createAssetMaintenanceThroughCoreApi,
   getOpportunityThroughCoreApi,
   convertOpportunityToProjectThroughCoreApi,
-  projectWritesUseCoreApi,
   projectReadsUseCoreApi,
   projectListsUseCoreApi,
   auditActivityReadsUseCoreApi,
@@ -830,47 +829,6 @@ describe('ERP Core client', () => {
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
-  })
-
-  it('keeps legacy writes active unless the flag and tenant allowlist both match', () => {
-    vi.stubEnv('ERP_PROJECT_WRITES_VIA_API', '')
-    vi.stubEnv(
-      'ERP_PROJECT_WRITES_VIA_API_TENANT_IDS',
-      RESULT.tenantId
-    )
-    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv('ERP_PROJECT_WRITES_VIA_API', 'false')
-    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv('ERP_PROJECT_WRITES_VIA_API', 'TRUE')
-    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv('ERP_PROJECT_WRITES_VIA_API', 'true')
-    vi.stubEnv('ERP_PROJECT_WRITES_VIA_API_TENANT_IDS', '')
-    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv(
-      'ERP_PROJECT_WRITES_VIA_API_TENANT_IDS',
-      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-    )
-    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv(
-      'ERP_PROJECT_WRITES_VIA_API_TENANT_IDS',
-      ` ${RESULT.tenantId},aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa `
-    )
-    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(true)
-
-    vi.stubEnv(
-      'ERP_PROJECT_WRITES_VIA_API_TENANT_IDS',
-      `*,${RESULT.tenantId}`
-    )
-    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv('ERP_PROJECT_WRITES_VIA_API_TENANT_IDS', '*')
-    expect(projectWritesUseCoreApi(RESULT.tenantId)).toBe(true)
-    expect(projectWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Cortex search on the legacy route unless the exact tenant gate matches', () => {
