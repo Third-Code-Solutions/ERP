@@ -47,6 +47,7 @@ import {
   financeReceivablesResultSchema,
   financePayablesResultSchema,
   financeCashResultSchema,
+  assetListResultSchema,
   stockMovementCreationResultSchema,
   stockMovementPostingResultSchema,
   stockMovementReversalResultSchema,
@@ -128,6 +129,8 @@ import {
   type FinancePayablesResult,
   type FinanceCashQuery,
   type FinanceCashResult,
+  type AssetListQuery,
+  type AssetListResult,
   type CreateStockMovementCommand,
   type StockMovementCreationResult,
   type StockMovementPostCommand,
@@ -289,6 +292,16 @@ export function inventorySummaryReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_INVENTORY_SUMMARY_READS_VIA_API,
     process.env.ERP_INVENTORY_SUMMARY_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Operational asset reads remain closed until the hosted asset schema and
+ * protected tenant canary are approved. */
+export function assetReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_ASSET_READS_VIA_API,
+    process.env.ERP_ASSET_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1641,6 +1654,67 @@ export async function getAccountThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Account detail was not read.',
+    }
+  }
+}
+
+export async function getAssetsThroughCoreApi(
+  query: AssetListQuery
+): Promise<CoreResult<AssetListResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams()
+    if (query.q) params.set('q', query.q)
+    if (query.kind) params.set('kind', query.kind)
+    if (query.status) params.set('status', query.status)
+    params.set('sort', query.sort)
+    params.set('order', query.order)
+    params.set('page', String(query.page))
+    params.set('limit', String(query.limit))
+
+    const response = await fetch(`${access.baseUrl}/v1/assets?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'x-request-id': randomUUID(),
+      },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    })
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Asset register filters are invalid.'
+            : response.status === 403
+              ? 'You do not have permission to view assets.'
+              : response.status === 503
+                ? 'Asset register is not enabled for this tenant.'
+                : 'Asset register was not completed.',
+        status: response.status,
+      }
+    }
+
+    const parsed = assetListResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid asset register result.',
+        status: 503,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Assets were not read.',
+      status: 503,
     }
   }
 }

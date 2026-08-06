@@ -2391,6 +2391,11 @@ a { color: inherit; }
   color: #646b76;
 }
 
+.finance-status-maintenance {
+  background: #fff6df;
+  color: #8a5c00;
+}
+
 .finance-status-overdue {
   background: #fff0f0;
   color: #a83232;

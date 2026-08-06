@@ -32,6 +32,7 @@ import {
   getFinanceReceivablesThroughCoreApi,
   getFinancePayablesThroughCoreApi,
   getFinanceCashThroughCoreApi,
+  getAssetsThroughCoreApi,
   getOpportunityThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
@@ -45,6 +46,7 @@ import {
   financeReceivablesReadsUseCoreApi,
   financePayablesReadsUseCoreApi,
   financeCashReadsUseCoreApi,
+  assetReadsUseCoreApi,
   inventoryStockMovementCreateWritesUseCoreApi,
   inventoryStockMovementWorkflowUseCoreApi,
   opportunityReadsUseCoreApi,
@@ -364,6 +366,34 @@ const RESULT = {
   location: 'Makati',
   notes: 'Controlled update',
   updatedAt: '2026-07-28T00:00:00.000Z',
+}
+const ASSET_LIST_RESULT = {
+  rows: [
+    {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      tenantId: RESULT.tenantId,
+      assetTag: 'EQ-001',
+      name: 'Scissor lift',
+      kind: 'equipment' as const,
+      status: 'active' as const,
+      serialNumber: 'SL-001',
+      manufacturer: 'LiftCo',
+      model: 'S-20',
+      assignedProjectId: PROJECT_ID,
+      assignedProjectName: 'Warehouse fit-out',
+      location: 'Makati',
+      commissionedOn: '2026-08-01',
+      retiredOn: null,
+      notes: null,
+      createdBy: '11111111-1111-4111-8111-111111111111',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    },
+  ],
+  total: 1,
+  page: 1,
+  limit: 20,
+  totalPages: 1,
 }
 const CREATED_PROJECT_RESULT = {
   ...RESULT,
@@ -1026,6 +1056,53 @@ describe('ERP Core client', () => {
     ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/finance/cash-transactions?cashAccountId=55555555-5555-4555-8555-555555555555&direction=receipt&fromDate=2026-08-01&toDate=2026-08-31&page=1&limit=500',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('keeps Asset reads closed unless exact flag and tenant allowlist match', () => {
+    expect(assetReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_ASSET_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_ASSET_READS_VIA_API_TENANT_IDS', RESULT.tenantId)
+    expect(assetReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_ASSET_READS_VIA_API', 'TRUE')
+    expect(assetReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_ASSET_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_ASSET_READS_VIA_API_TENANT_IDS', '')
+    expect(assetReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(assetReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('calls authenticated Core Asset reads with bounded filters and validates evidence', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(ASSET_LIST_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getAssetsThroughCoreApi({
+        q: 'lift',
+        kind: 'equipment',
+        status: 'active',
+        sort: 'asset_tag',
+        order: 'asc',
+        page: 1,
+        limit: 20,
+      })
+    ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/assets?q=lift&kind=equipment&status=active&sort=asset_tag&order=asc&page=1&limit=20',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',
