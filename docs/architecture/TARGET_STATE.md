@@ -1,5 +1,14 @@
 # Target State
 
+## M3.110 public landing release evidence (2026-08-06)
+
+The public landing route must keep its Third Code ERP identity and discoverable
+metadata while remaining responsive at desktop and mobile widths. A browser
+smoke pass is required for title, canonical, description, OG image, structured
+data, H1, overflow, and console errors. Hosted landing evidence is separate
+from feature-branch promotion and cannot waive backend, database, rollback, or
+spend gates.
+
 ## M3.109 dashboard failure-state gate (2026-08-06)
 
 Every protected dashboard route must fail into a recoverable Third Code ERP

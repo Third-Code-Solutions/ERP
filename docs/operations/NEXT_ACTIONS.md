@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.110 public landing UX and SEO smoke audit
+
+Keep the public alias and feature branch separate: the browser audit validates
+the currently hosted landing page, while source commit `1de166509223a351f099c702218f789361802e13`
+is not a production deployment. Do not trigger Vercel/Railway builds. Continue
+supported Supabase backup/catalog/data/audit export, ordered 39-migration
+replay, owner-approved duplicate-PO mapping, and security review before any
+protected canary or promotion. Preserve the spend guard and keep all ERP Core
+flags and tenant allowlists false/empty.
+
 ## Exact next action after M3.109 dashboard render recovery boundary
 
 Keep recovery boundary deployed only through a future approved release; do

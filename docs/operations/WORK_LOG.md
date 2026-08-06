@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-06 - M3.110 public landing UX and SEO smoke audit
+
+Ran a read-only browser audit against `https://thirdcode-erp.vercel.app/`.
+The public alias returned the rebranded Third Code ERP landing page with title
+`Construction ERP with a permission-aware AI brain`, canonical
+`https://thirdcode-erp.vercel.app`, description, OG image, one JSON-LD block,
+and the expected H1. Desktop viewport was 1440px with no console errors; the
+390px mobile viewport measured 375px document width with no horizontal
+overflow and no console errors. Screenshots were captured as Playwright MCP
+artifacts. This validates the currently hosted page only; it does not prove
+the feature-branch dashboard boundary is deployed. No provider build, DB,
+Storage, or deployment mutation occurred.
+
 ## 2026-08-06 - M3.109 dashboard render recovery boundary
 
 Added `apps/web/src/app/(dashboard)/error.tsx` for uncaught protected-route

@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-222 - Treat hosted landing QA as evidence, not release identity (2026-08-06)
+
+Decision: use a read-only browser smoke pass to verify public landing UX and
+SEO/GEO metadata at desktop and mobile widths, but keep that evidence separate
+from source-branch deployment identity. Do not trigger a provider build merely
+to refresh the landing page while database parity and spend gates remain open.
+
+Rationale: the public alias is healthy and discoverable, but the current
+feature branch is not deployed. Conflating those facts would create a false
+production claim and unnecessary Vercel cost.
+
+Evidence: title, canonical, description, OG image, JSON-LD, H1, no console
+errors at 1440px/390px, and 375px mobile document width; no provider or hosted
+mutation.
+
 ## D-221 - Recover dashboard render failures without leaking details (2026-08-06)
 
 Decision: add one route-group Next error boundary for protected dashboard
