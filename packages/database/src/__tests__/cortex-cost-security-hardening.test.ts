@@ -565,8 +565,8 @@ runtimeSuite('Cortex/cost hardening runtime proof', () => {
     expect(rejected).toBe(true)
   })
 
-  it('allows a permitted role to append a valid manual cost', async () => {
-    const inserted = await inRollback(sql, async (tx) => {
+  it('rejects direct cost writes even for a permitted business role', async () => {
+    const rejected = await inRollback(sql, async (tx) => {
       const { tenantId, userA } = await seedSameTenantUsers(tx)
       const projectId = (
         (await tx.unsafe(
@@ -584,33 +584,37 @@ runtimeSuite('Cortex/cost hardening runtime proof', () => {
       )[0].id as string
       await becomeAuthenticated(tx, userA)
 
-      const rows = (await tx.unsafe(
-        `insert into cost_entries(
-           tenant_id,
-           project_id,
-           cost_code_id,
-           created_by,
-           cost_category,
-           description,
-           amount_cents,
-           quantity
-         )
-         values(
-           '${tenantId}',
-           '${projectId}',
-           '${costCodeId}',
-           '${userA}',
-           'other',
-           'Authorized manual cost',
-           100,
-           1
-         )
-         returning id`
-      )) as Rows
-      return rows.length === 1
+      try {
+        await tx.unsafe(
+          `insert into cost_entries(
+             tenant_id,
+             project_id,
+             cost_code_id,
+             created_by,
+             cost_category,
+             description,
+             amount_cents,
+             quantity
+           )
+           values(
+             '${tenantId}',
+             '${projectId}',
+             '${costCodeId}',
+             '${userA}',
+             'other',
+             'Core-only cost write',
+             100,
+             1
+           )
+           returning id`
+        )
+        return false
+      } catch {
+        return true
+      }
     })
 
-    expect(inserted).toBe(true)
+    expect(rejected).toBe(true)
   })
 
   it('rejects a directly forged audit row', async () => {

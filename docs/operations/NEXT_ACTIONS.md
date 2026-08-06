@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.145 disposable replay hardening
+
+Keep `ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false`,
+`ERP_COST_ENTRY_RESTORE_WRITES_ENABLED=false`, and both tenant allowlists
+empty. Commit and remotely verify this verifier/test checkpoint, then keep
+hosted Supabase, Vercel, Railway, provider variables, and ERP canaries
+closed. The disposable 100-migration PostgreSQL/Redis replay is green; do
+not repeat it until a migration changes. Next gate is managed catalog/RLS
+and data parity, supported backup/PITR recovery, Auth identity, audit
+recovery, bounded spend approval, and explicit canary authorization.
+
 ## Exact next action after M3.140 Core-only Project creation
 
 Keep hosted Supabase, Vercel, Railway, provider variables, and ERP canaries

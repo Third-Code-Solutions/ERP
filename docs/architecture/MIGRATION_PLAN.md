@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.145 disposable replay hardening
+
+The first fresh replay after M3.144 stopped at the database verifier because
+its minimum-grant fixture still demanded legacy authenticated Cost Entry
+writes. The source migration already revoked those grants for Core-only
+authority. Removed the obsolete verifier requirements, added an explicit
+no-write invariant, and changed the runtime hardening assertion to reject a
+permitted role's direct insert. No migration SQL or hosted state changed.
+
+Validation: corrected disposable PostgreSQL 17/Redis 7.4.9 lane applied
+100/100 migrations; database 53/53 files and 329/329 tests; API integration
+20/20 files and 27/27 tests; Redis restart/reconnect/pending-recovery checks;
+schema hash before/after
+`18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`;
+serial workspace tests; typecheck/lint; production build 81/81 routes;
+migration verifier; Actionlint; Gitleaks; controlled-release 5/5; and
+provider-spend 4/4. Source checkpoint is recorded after commit and remote
+verification. Hosted canaries remain closed.
+
 ## M3.144 Core Cost Entry restore boundary
 
 Added a separate source migration and Drizzle model for tenant-scoped restore

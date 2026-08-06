@@ -1645,7 +1645,6 @@ try {
 
   const minimumAuthenticatedTableGrants = [
     ...authenticatedReadableTables.map((table) => [table, 'SELECT']),
-    ['cost_entries', 'DELETE'],
     ['fiscal_periods', 'DELETE'],
     ['ledger_accounts', 'DELETE'],
     ['journal_entries', 'DELETE'],
@@ -1681,20 +1680,20 @@ try {
     (rows) => rows.map((row) => `${row.table_name}:${row.privilege}`).join(', ')
   )
 
+  await query(
+    'authenticated cannot mutate Core-owned cost entries',
+    `select privilege
+       from unnest(array['INSERT', 'UPDATE', 'DELETE']) as privilege
+      where has_table_privilege(
+        'authenticated',
+        'public.cost_entries',
+        privilege
+      )`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => `cost_entries:${row.privilege}`).join(', ')
+  )
+
   const minimumAuthenticatedColumnGrants = [
-    ['cost_entries', 'tenant_id', 'INSERT'],
-    ['cost_entries', 'project_id', 'INSERT'],
-    ['cost_entries', 'cost_code_id', 'INSERT'],
-    ['cost_entries', 'created_by', 'INSERT'],
-    ['cost_entries', 'cost_category', 'INSERT'],
-    ['cost_entries', 'description', 'INSERT'],
-    ['cost_entries', 'amount_cents', 'INSERT'],
-    ['cost_entries', 'quantity', 'INSERT'],
-    ['cost_entries', 'cost_category', 'UPDATE'],
-    ['cost_entries', 'description', 'UPDATE'],
-    ['cost_entries', 'amount_cents', 'UPDATE'],
-    ['cost_entries', 'cost_code_id', 'UPDATE'],
-    ['cost_entries', 'quantity', 'UPDATE'],
     ['fiscal_periods', 'tenant_id', 'INSERT'],
     ['fiscal_periods', 'name', 'INSERT'],
     ['fiscal_periods', 'starts_on', 'INSERT'],

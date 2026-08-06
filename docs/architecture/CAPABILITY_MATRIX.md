@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.145 disposable replay hardening (2026-08-07)
+
+Updated the database reproducibility verifier and runtime hardening test to
+match the Core-only Cost Entry write boundary. `authenticated` is now
+explicitly required to have no Cost Entry INSERT/UPDATE/DELETE privilege;
+reads remain tenant-scoped. No Web UI, migration SQL, or hosted provider
+mutation occurred.
+
+Validation: disposable PostgreSQL 17/Redis 7.4.9, 100/100 migrations;
+database 53/53 files and 329/329 tests; API integration 20/20 files and
+27/27 tests; Redis recovery checks; identical schema hash
+`18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`;
+serial workspace tests; typecheck/lint; build 81/81 routes; migration
+verifier; Actionlint; Gitleaks; controlled-release 5/5; provider-spend 4/4.
+Source checkpoint is recorded after commit and remote verification.
+
 ## M3.144 Core Cost Entry restore boundary (2026-08-07)
 
 Added a closed-by-default Core restore command and separate tenant-scoped
