@@ -26,9 +26,9 @@ spend evidence still blocks hosted canaries.
 
 ## Exact next action after M3.142 Core Cost Entry void boundary
 
-Push the reviewed M3.142 source/docs to
-`origin/agent-02/third-code-erp-landing`, verify remote SHA and clean worktree,
-then stop. Keep `ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false` and its tenant
+M3.142 is pushed as source SHA
+`476903d934c3c1b65bf50b6075497707b8841248`; remote SHA and clean worktree
+verified. Keep `ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false` and its tenant
 allowlist empty; do not apply the new Supabase migration or trigger Vercel or
 Railway. Next source slice: add the Web Core delete adapter and migrate the
 legacy action only after void/restore replay, active-read parity, and local

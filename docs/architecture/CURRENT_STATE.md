@@ -66,6 +66,9 @@ Local validation is green: Web 91 files/591 tests, shared 27/230, database
 81/81 routes, typecheck/lint, migration verifier (99 files), Actionlint,
 Gitleaks, controlled-release 5/5, and provider-spend 4/4. Database skips
 require `DATABASE_URL`; the disposable replay remains the no-skip path.
+Source checkpoint: `476903d934c3c1b65bf50b6075497707b8841248`, pushed to
+`origin/agent-02/third-code-erp-landing` with the `kurtgav` identity; worktree
+is clean.
 
 ## M3.139 self-hosted Core authority evidence (2026-08-07)
 
