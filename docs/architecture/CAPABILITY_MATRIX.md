@@ -5,6 +5,13 @@ Source checkpoint: `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` (M3.103 delivery
 schedule creation authority slice)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
+M3.106 update: Inventory now exposes per-item policy editing for active catalog
+items, reusing the guarded `configureInventoryItem` authority for base UOM and
+perpetual tracking. Item identity remains stable and inactive UOMs cannot be
+newly assigned. Local evidence is 125/125 focused tests, 87/567 full Web tests,
+and 81/81 production routes. Supabase remains read-only at 55/94; no provider
+build or hosted mutation occurred.
+
 M3.105 update: Inventory now provides an authenticated Warehouse edit surface
 for name and active state while preserving immutable code/project identity and
 the Nest zero-net-stock deactivation guard. Source commit

@@ -241,3 +241,75 @@ export function ConfigureItemForm({
     </form>
   )
 }
+
+export function EditInventoryItemPolicyForm({
+  item,
+  uoms,
+}: {
+  item: {
+    id: string
+    code: string
+    description: string
+    baseUomId: string
+    inventoryTracked: boolean
+  }
+  uoms: Array<{ id: string; code: string; name: string; isActive: boolean }>
+}) {
+  const state = useInventoryForm()
+
+  return (
+    <details className="inventory-item-editor">
+      <summary className="finance-secondary-button">Edit policy</summary>
+      <form
+        ref={state.formRef}
+        action={(data) => state.run(configureInventoryItem, data)}
+        className="finance-setup-form"
+      >
+        <input type="hidden" name="materialItemId" value={item.id} />
+        <p className="finance-form-hint">
+          <strong>{item.code}</strong> identity stays stable after stock posts.
+        </p>
+        <div className="finance-field finance-field-grow">
+          <label htmlFor={`inventory-${item.id}-uom`}>Base UOM</label>
+          <select
+            id={`inventory-${item.id}-uom`}
+            name="uomId"
+            required
+            defaultValue={item.baseUomId}
+          >
+            <option value="">Choose UOM</option>
+            {uoms.map((uom) => (
+              <option
+                value={uom.id}
+                key={uom.id}
+                disabled={!uom.isActive && uom.id !== item.baseUomId}
+              >
+                {uom.code} / {uom.name}
+                {!uom.isActive ? ' (inactive)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <label className="inventory-check">
+          <input
+            name="tracked"
+            type="checkbox"
+            defaultChecked={item.inventoryTracked}
+          />
+          <span>
+            <strong>Track perpetual stock</strong>
+            <small>Posting creates immutable quantity and value movements.</small>
+          </span>
+        </label>
+        <button
+          type="submit"
+          className="finance-primary-button"
+          disabled={state.pending}
+        >
+          {state.pending ? 'Saving...' : 'Save policy'}
+        </button>
+        {state.error && <p className="finance-form-error">{state.error}</p>}
+      </form>
+    </details>
+  )
+}

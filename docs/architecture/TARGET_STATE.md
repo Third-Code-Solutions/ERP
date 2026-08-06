@@ -1,5 +1,14 @@
 # Target State
 
+## M3.106 inventory item policy control gate (2026-08-06)
+
+Catalog item policy maintenance must remain permission-checked and routed
+through the Nest authority seam when its exact tenant flag/allowlist is enabled.
+The UI may select only an active UOM for a catalog item and must preserve the
+immutable item identity boundary; database stock-posting invariants remain the
+final guard. Keep the selector closed until hosted parity, protected canary,
+rollback, readiness, and spend evidence clear.
+
 ## M3.105 inventory warehouse control gate (2026-08-06)
 
 Warehouse maintenance must remain a permission-checked server action backed by

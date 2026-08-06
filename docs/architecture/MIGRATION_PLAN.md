@@ -1,5 +1,20 @@
 # Migration Plan
 
+## M3.106 inventory item policy control surface (2026-08-06)
+
+Exposed per-item base-UOM and perpetual-tracking maintenance in Inventory using
+the existing authenticated Web action and Core selector. The form keeps item
+identity stable and prevents selecting newly inactive UOMs; no migration or
+provider action was needed. Local Web focused tests 125/125, full suite
+87/567, typecheck, and production build 81/81 routes pass.
+
+## Next gate
+
+Review/push source and docs to the feature branch only. Keep the item-policy
+selector compatibility-default and complete supported Supabase backup/export,
+ordered suffix reconciliation, duplicate-PO mapping, and security review before
+any hosted apply, canary, Railway promotion, or Vercel build.
+
 ## M3.105 inventory warehouse control surface (2026-08-06)
 
 Exposed the existing Warehouse update authority through the Inventory UI with

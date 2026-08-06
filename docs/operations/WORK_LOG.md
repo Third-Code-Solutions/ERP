@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-06 - M3.106 inventory item policy control surface
+
+Added per-item policy editing to Inventory. Active catalog items now show
+tracked/not-tracked state and a compact editor for base UOM and perpetual
+tracking. The form reuses the existing authenticated `configureInventoryItem`
+server action/Core selector, carries an immutable item identity hint, and
+disables inactive UOM choices except the current value. No schema, hosted SQL,
+Vercel build, Railway build, Storage write, or tenant data changed.
+
+Evidence: Web typecheck, focused inventory/Core tests 125/125, full Web suite
+87/567, Next production build 81/81 routes, and diff check. Source is pending
+review and push on the feature branch.
+
 ## 2026-08-06 - M3.105 inventory warehouse control surface
 
 Added a compact Warehouse edit/deactivation control to the Inventory page.
