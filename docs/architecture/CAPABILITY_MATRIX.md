@@ -18,7 +18,8 @@ and 477/477 tests, Web 89/89 files and 581/581 tests); build emits 81/81
 routes; typecheck, lint, migration verifier, Actionlint, Gitleaks,
 controlled-release, and provider-spend guards pass. The parallel Turbo test
 runner still times out seven API HTTP tests under Windows cross-package load;
-the serial run is the release evidence. Source checkpoint: commit `be760ed`.
+the serial run is the release evidence. Source checkpoint: commit `be760ed`;
+remote branch tip verified at `2b8968f`.
 
 ## M3.131 asset maintenance history (2026-08-07)
 

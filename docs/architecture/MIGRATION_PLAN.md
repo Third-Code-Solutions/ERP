@@ -15,9 +15,9 @@ integration pass; serial package tests pass (shared 27/228, database
 build 81/81 routes; typecheck, lint, migration verifier, Actionlint,
 Gitleaks, controlled-release 5/5, and provider-spend 4/4 pass. The parallel
 Turbo test command had seven Windows 5-second HTTP timeouts; the serial
-workspace run is the retained evidence. Code is committed as `be760ed`; the
-feature-branch push is the remaining source action. Hosted Supabase, Vercel,
-Railway, and canaries stay closed.
+workspace run is the retained evidence. Code is committed as `be760ed` and
+the reviewed branch tip `2b8968f` is pushed. Hosted Supabase, Vercel, Railway,
+and canaries stay closed.
 
 ## M3.131 asset maintenance history
 

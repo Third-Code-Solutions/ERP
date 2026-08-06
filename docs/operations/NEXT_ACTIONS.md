@@ -2,10 +2,11 @@
 
 ## Exact next action after M3.132 asset maintenance due projection
 
-Push the reviewed code plus milestone docs to
-`origin/agent-02/third-code-erp-landing` using `kurtgav`, then stop. Keep
-hosted Supabase SQL, Vercel builds, Railway deploys, and all ERP flags closed;
-this slice adds no migration. The next separately approved action is a
+The reviewed code plus milestone docs are pushed to
+`origin/agent-02/third-code-erp-landing` using `kurtgav` (remote tip
+`2b8968f`). Stop here. Keep hosted Supabase SQL, Vercel builds, Railway
+deploys, and all ERP flags closed; this slice adds no migration. The next
+separately approved action is a
 protected canary only after the pinned Supabase CLI/CI diff, managed backup
 and rollback, catalog/security, duplicate-record mapping, audit recovery,
 identity, and spend gates clear. The canary must verify latest-record
