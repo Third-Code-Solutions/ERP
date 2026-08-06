@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-229 - Hosted anonymous grants block promotion (2026-08-06)
+
+Decision: treat any direct `anon` table/sequence privilege on a tenant ERP
+surface as a release blocker. Keep hosted SQL, Vercel builds, and Railway
+deploys closed until the source hardening migration has passed disposable
+PostgreSQL 17 replay and the managed catalog shows no anonymous authority.
+Keep explicit authenticated grants and server-only service-role ledgers
+separate; do not remove working authenticated reads or invent public portal
+exceptions.
+
+Rationale: hosted Supabase currently reports RLS on all 88 public tables, but
+the catalog also reports 54 tables with anonymous write privileges. RLS is a
+policy check, not a reason to retain unnecessary database authority. A
+readiness response or empty advisor result cannot prove this baseline safe.
+
+Evidence: read-only Supabase MCP project/migration/table/advisor calls and
+catalog SQL on 2026-08-06; no hosted or provider mutation. Spend guard remains
+clear and Vercel Git deployment remains disabled.
+
 ## D-228 - Togal BOM commits use an idempotent Nest authority seam (2026-08-06)
 
 Decision: add a tenant-allowlisted NestJS command for Togal BOM line commits.

@@ -4,6 +4,29 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.121 hosted Supabase security and parity refresh (2026-08-06)
+
+Read-only Supabase MCP and catalog queries confirm project
+`aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY` on PostgreSQL 17.6.1 in
+`ap-northeast-2`. The hosted migration ledger remains 55 applied versus 96
+repository migrations, so 41 ordered migrations are still pending. The public
+catalog has 88 tables and all 88 have RLS enabled, but the role catalog is not
+production-safe: `anon` has 375 direct table-grant rows, including write
+privileges on 54 tables (321 write-grant rows). Fifty-six tables also expose
+tenant policies to the `public` role; their current helper derives tenant
+scope from `auth.uid()`, but direct anonymous grants remain an unnecessary
+authority surface and must be removed or explicitly justified.
+
+The current Supabase advisor MCP calls returned no records; that is not a
+clean security release signal because the direct catalog check found the
+anonymous grants. Railway and Vercel readiness remain HTTP 200, the provider
+spend guard is clear, Vercel Git deployment remains disabled, and no SQL,
+Storage, provider, build, deploy, or tenant-data write occurred. The controlled
+release plan remains `review_required` for migration drift, the one
+tenant-scoped 12-record duplicate Purchase Order group, and missing
+`AUDIT_RECOVERY_TENANT_ID`; the anonymous-grant catalog is now an explicit
+security blocker for any hosted promotion.
+
 ## M3.120 dashboard incident revalidation (2026-08-06)
 
 The reported Server Components digest was rechecked without credentials or

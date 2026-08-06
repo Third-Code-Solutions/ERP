@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.121 hosted Supabase security and parity refresh
+
+Completed a read-only hosted catalog audit. Supabase is healthy on PostgreSQL
+17.6.1 with 55/96 migrations and 88/88 public tables using RLS, but 54 tables
+still expose direct `anon` write privileges (321 write-grant rows) and 56
+tables use `public`-role tenant policies. No provider or database mutation is
+authorized from this evidence. The empty advisor response is recorded as
+inconclusive rather than green.
+
+Next: add a narrowly scoped source migration that removes anonymous table and
+sequence authority and makes tenant policies explicitly authenticated where
+the route is not a documented server-mediated public edge. Replay the complete
+source ledger on disposable PostgreSQL 17, then extend the read-only hosted
+catalog gate. Do not apply hosted SQL until the managed backup, duplicate-PO
+owner mapping, audit-recovery tenant, rollback, and spend gates are green.
+
 ## M3.120 dashboard incident revalidation
 
 Completed read-only revalidation of the reported `/dashboard` failure. Live
