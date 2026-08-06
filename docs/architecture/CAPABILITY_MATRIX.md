@@ -4,6 +4,15 @@ Status date: 2026-08-06
 Source checkpoint: `91ed375` (M3.96 cash register replay parity evidence)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
+M3.97 hosted parity update: read-only Supabase inspection confirms PostgreSQL
+17.6, 55/92 hosted/source migrations, 88 public tables with RLS enabled, and
+303 public policies. Counts are 2 tenants, 13 users, 13 Purchase Orders, 4
+invoices, 662 audit rows, 385 Cortex nodes, 454 Cortex edges, and zero cash
+accounts, cash transactions, or supplier bills; one tenant-scoped PO duplicate
+group contains 12 records. Security advisors include 11 warnings and the
+selectors remain false/empty. No hosted migration, official ERP write, branch,
+Vercel build, or Railway build changed.
+
 M3.96 replay update: disposable PostgreSQL 17/Redis 7.4.9 proof compares the
 cash compatibility query with the typed Nest projection across two tenants,
 state/direction/date filters, exact-cent totals, and same-tenant joins. 92/92

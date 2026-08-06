@@ -1,5 +1,22 @@
 # Migration Plan
 
+## M3.97 hosted parity snapshot (2026-08-06)
+
+Read-only Supabase inspection: project `aqqrtkmtcsfkbyyqxowv` is healthy on
+PostgreSQL 17.6; hosted migration count is 55 through `20260729233017` while
+source has 92; all 37 newer source migrations remain unapplied. The hosted
+catalog reports 88 public tables with RLS enabled and 303 policies. Data
+snapshot is 2 tenants, 13 users, 13 Purchase Orders, 4 invoices, 662 audit
+rows, 385 Cortex nodes, 454 Cortex edges, and zero cash accounts, cash
+transactions, or supplier bills. Duplicate planner: one tenant-scoped PO
+group, 12 records.
+
+Security/performance advisors: 14 security notices (11 warnings) and 253
+performance notices (one warning). No hosted write or provider build is
+authorized from this evidence. Next gate is supported backup/catalog/data/RLS/
+audit export and owner-approved duplicate mapping; keep production selectors
+closed and avoid Vercel builds.
+
 ## M3.96 replay parity evidence (2026-08-06)
 
 Added a rollback-only API integration proof for the closed cash register read

@@ -1,5 +1,17 @@
 # Work Log
 
+## 2026-08-06 - M3.97 hosted Supabase parity snapshot
+
+Captured a read-only catalog/data/security snapshot for
+`aqqrtkmtcsfkbyyqxowv`: PostgreSQL 17.6; 55/92 migrations; 88 RLS-enabled
+public tables; 303 policies; 2 tenants; 13 users; 13 Purchase Orders; 4
+invoices; 662 audit rows; 385 Cortex nodes; 454 Cortex edges; zero cash
+accounts, cash transactions, and supplier bills; one 12-record tenant-scoped
+Purchase Order duplicate group. Security advisors: 14 notices, 11 warnings;
+performance advisors: 253 notices, one warning. No SQL write, branch, Storage
+write, Vercel build, or Railway build. Production cash selectors remain
+false/empty.
+
 ## 2026-08-06 - M3.96 cash register replay parity evidence
 
 Added rollback-only API integration proof comparing direct cash register rows
