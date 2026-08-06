@@ -1,5 +1,14 @@
 # Target State
 
+## M3.125 capability evidence boundary (2026-08-06)
+
+Capability status must name the exact source checkpoint and distinguish local
+implementation from hosted readiness. A green local build or HTTP 200 does not
+promote a capability while migration parity, catalog least privilege, duplicate
+record mapping, audit recovery, rollback, identity, or spend evidence is open.
+The matrix must keep NestJS as the transaction authority, Web as a guarded
+client, and Python/Cortex as advisory-only.
+
 ## M3.124 bounded public interaction (2026-08-06)
 
 Public interactive controls must expose their domain bounds to keyboard and

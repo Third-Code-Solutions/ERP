@@ -1,9 +1,22 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `ead54aac876ed6a52f1b693c7fe6fec8f2026f8b` (M3.107 inventory
-UOM maintenance authority slice)
+Source checkpoint: `86db0e4935ff7f655e6443d19834fe3e1e9bc013` (M3.124 bounded
+landing carousel and above-fold image priority)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.125 current-state refresh: the source branch contains 97 ordered Supabase
+migrations, including the source-only anonymous-grant and policy hardening
+baseline. The read-only hosted planner still reports 55/97 migrations, 213
+direct `anon` privilege rows, 209 policies containing `public`, one
+tenant-scoped duplicate Purchase Order number group, and no configured audit
+recovery tenant. These are release blockers; this matrix does not authorize a
+hosted SQL apply, Vercel build, Railway deploy, or feature-flag canary.
+The current functional source boundary remains: NestJS owns closed-by-default
+Purchase Order workflow and delivery/asset authority slices; Web uses exact
+tenant/flag selectors and compatibility paths where the Core slice is not
+enabled; Python/Cortex stays advisory and cannot finalize ERP transactions.
+No provider or hosted database state changed for this refresh.
 
 M3.109 update: protected dashboard render failures now receive a responsive,
 branded recovery boundary with retry/navigation and digest-only support

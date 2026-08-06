@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-233 - Keep capability evidence source- and provider-scoped (2026-08-06)
+
+Decision: the capability matrix must identify the exact source checkpoint and
+label hosted readiness separately. Local implementation, a successful build,
+or an HTTP readiness response cannot authorize SQL, deployment, or canary
+promotion while release blockers remain.
+
+Rationale: the repository is incrementally migrating authority into NestJS,
+while the configured Supabase project is behind the source ledger and exposes
+catalog security findings. Explicit evidence scope prevents a docs refresh or
+local proof from being mistaken for production parity.
+
+Evidence: M3.125 matrix refresh at source SHA
+`86db0e4935ff7f655e6443d19834fe3e1e9bc013`; hosted state unchanged.
+
 ## D-232 - Clamp public carousel navigation (2026-08-06)
 
 Decision: team-priority navigation must clamp at first/last item and use native
