@@ -4,6 +4,19 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.123 read-only security release planner (2026-08-06)
+
+The database release planner now queries the target catalog for direct
+`anon` privileges on public ERP tables and any policy containing the `public`
+role. These findings are surfaced as release blockers and included in JSON and
+human-readable evidence. The live read-only planner reports 213 direct anon
+privilege rows and 209 public-role policies; this confirms that hosted Supabase
+must not receive the source hardening migration yet. Full Turbo tests (4/4),
+typecheck, TS-only lint, production build (2/2), migration verifier,
+Actionlint, Gitleaks, controlled-release tests (5/5), spend-guard tests (4/4),
+and focused planner tests (9/9) pass. No hosted SQL, data, provider setting,
+build, or deployment changed.
+
 ## M3.122 source anonymous-grant and policy hardening (2026-08-06)
 
 Added source migration `20260806160000_security_role_baseline.sql`. It

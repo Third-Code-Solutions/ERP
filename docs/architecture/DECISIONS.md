@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-231 - Make hosted catalog security explicit in the release planner (2026-08-06)
+
+Decision: the read-only database planner must count direct `anon` privileges on
+every public table and every policy whose role array contains `public`. Any
+positive count becomes a release blocker. Keep the query observational; it
+must not repair grants, alter policies, or execute migration SQL.
+
+Rationale: a successful connection, RLS flag, readiness response, or empty
+advisor response cannot establish least privilege. Counting the complete role
+surface gives the release operator one deterministic, bill-safe reason to stop
+before a hosted migration or provider build.
+
+Evidence: planner query against the configured Supabase target reports 213
+direct anon privilege rows and 209 public-role policies. No hosted mutation
+occurred.
+
 ## D-230 - Remove anonymous table authority at the database boundary (2026-08-06)
 
 Decision: add one source migration that revokes `anon` table and sequence

@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.123 read-only catalog security gate
+
+Run the full local test, typecheck, lint, build, migration-verifier,
+Actionlint, Gitleaks, controlled-release, and spend-guard gates. Push only the
+reviewed feature branch after they pass. Keep hosted Supabase unchanged: the
+read-only planner reports 55/97 migrations, 213 direct anon privilege rows,
+209 public-role policies, one tenant-scoped duplicate Purchase Order group,
+and missing audit-recovery input. Do not trigger Vercel/Railway or apply SQL;
+the source hardening migration still needs a clean zero-to-head replay,
+managed backup, owner mapping, rollback, exact provider identity, and explicit
+spend approval.
+
 ## Exact next action after M3.122 source anonymous-grant and policy hardening
 
 Create a clean disposable PostgreSQL 17/Supabase replay from zero and verify

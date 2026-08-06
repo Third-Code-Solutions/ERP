@@ -1604,7 +1604,7 @@ try {
     `select tablename, policyname
        from pg_policies
       where schemaname = 'public'
-        and roles = ARRAY['public']::name[]`,
+        and roles @> ARRAY['public']::name[]`,
     (rows) => rows.length === 0,
     (rows) => rows.map((row) => `${row.tablename}:${row.policyname}`).join(', ')
   )
