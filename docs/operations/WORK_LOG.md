@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-07 - M3.133 project-create authority hardening
+
+Hardened the existing NestJS `POST /v1/projects` transaction. It now locks
+the tenant membership with `FOR UPDATE`, rechecks the stored role's
+`project.create` capability, and derives an authorized principal before
+idempotency, project insert, actor context, and semantic audit. Added a
+regression test for a forged admin principal against a locked viewer. The
+closed-by-default Core gate, tenant allowlist, and non-canary legacy fallback
+are unchanged. No migration, flag, hosted SQL, Vercel build, Railway deploy,
+or Supabase action occurred.
+
+Changed files: `apps/api/src/projects/projects.service.ts`,
+`apps/api/src/projects/projects.service.spec.ts`, and the milestone records
+`docs/architecture/CAPABILITY_MATRIX.md`, `CURRENT_STATE.md`,
+`TARGET_STATE.md`, `MIGRATION_PLAN.md`, `DECISIONS.md`,
+`docs/operations/WORK_LOG.md`, `NEXT_ACTIONS.md`, and
+`docs/changesets/2026-08-07-m3-133-project-create-authority.md`.
+
+Validation: focused project tests 20/20; WSL PostgreSQL 17.10/Redis 7.4.9
+replay applied 98/98 migrations and passed the project-create integration
+lane; serial workspace tests passed (shared 27/228, database 47/51 files
+with 141 compatibility skips, API 112/478, Web 89/581); production build
+generated 81/81 routes; typecheck, lint, migration verifier, Actionlint,
+Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed.
+
+Unresolved risks: hosted Supabase schema/catalog/RLS parity, managed backup
+and rollback, duplicate-record mapping, audit recovery, identity, and spend
+evidence remain open; the pinned Supabase CLI shadow-database diff still
+needs Docker/CI evidence. These gates block provider deploys and ERP
+canaries. Source commit: `6276d10`; provider state was not touched.
+
 ## 2026-08-07 - M3.132 asset maintenance due projection
 
 Added a read-only maintenance due projection without touching the hosted
