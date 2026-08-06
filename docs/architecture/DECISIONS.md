@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-246 - Retire the Project update feature flag (2026-08-07)
+
+Decision: delete the unused Web Project update selector and its env-example
+surface after Core-only cutover. Do not retain a dormant flag that suggests a
+direct-writer rollback. Operator rollback uses the exact known-good Web/API
+release; Core outage remains fail-closed.
+
+Rationale: a stale flag creates unsafe operational ambiguity and can be
+mistaken for an approved canary control. One authority and one configuration
+vocabulary make authorization, audit, and spend review auditable. Historical
+records may retain the flag name as evidence of the earlier migration.
+
+Evidence: focused/full Web tests, serial workspace suite, production build,
+typecheck/lint, security, release-plan, and spend gates pass. No provider state
+changed.
+
 ## D-245 - Make NestJS the only Project update writer (2026-08-07)
 
 Decision: remove the Web Server Action's direct Project update and Web-audit
