@@ -35,6 +35,7 @@ import {
   getFinanceCashThroughCoreApi,
   getAssetsThroughCoreApi,
   getAssetThroughCoreApi,
+  getAssetMaintenanceDueThroughCoreApi,
   getAssetMaintenanceThroughCoreApi,
   createAssetMaintenanceThroughCoreApi,
   getOpportunityThroughCoreApi,
@@ -430,6 +431,35 @@ const ASSET_MAINTENANCE_RESULT = {
       notes: null,
       createdBy: '11111111-1111-4111-8111-111111111111',
       createdAt: '2026-08-02T00:00:00.000Z',
+    },
+  ],
+  total: 1,
+  page: 1,
+  limit: 50,
+  totalPages: 1,
+}
+const ASSET_MAINTENANCE_DUE_RESULT = {
+  tenantId: RESULT.tenantId,
+  asOf: '2026-08-07',
+  daysAhead: 30,
+  rows: [
+    {
+      tenantId: RESULT.tenantId,
+      assetId: ASSET_DETAIL_RESULT.id,
+      assetTag: ASSET_DETAIL_RESULT.assetTag,
+      assetName: ASSET_DETAIL_RESULT.name,
+      assetKind: ASSET_DETAIL_RESULT.kind,
+      assetStatus: ASSET_DETAIL_RESULT.status,
+      assignedProjectId: ASSET_DETAIL_RESULT.assignedProjectId,
+      assignedProjectName: ASSET_DETAIL_RESULT.assignedProjectName,
+      location: ASSET_DETAIL_RESULT.location,
+      maintenanceRecordId: ASSET_MAINTENANCE_RESULT.rows[0]!.id,
+      maintenanceType: 'inspection' as const,
+      summary: 'Annual inspection',
+      performedOn: '2026-08-02',
+      nextDueOn: '2026-08-20',
+      daysUntilDue: 13,
+      dueState: 'due_soon' as const,
     },
   ],
   total: 1,
@@ -1173,12 +1203,16 @@ describe('ERP Core client', () => {
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(ASSET_DETAIL_RESULT), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(ASSET_MAINTENANCE_RESULT), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(ASSET_MAINTENANCE_DUE_RESULT), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(ASSET_MAINTENANCE_RESULT.rows[0]), { status: 201 }))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(getAssetThroughCoreApi(ASSET_DETAIL_RESULT.id)).resolves.toMatchObject({ ok: true })
     await expect(
       getAssetMaintenanceThroughCoreApi(ASSET_DETAIL_RESULT.id, { page: 1, limit: 50 })
+    ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
+    await expect(
+      getAssetMaintenanceDueThroughCoreApi({ daysAhead: 30, page: 1, limit: 50 })
     ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
     await expect(
       createAssetMaintenanceThroughCoreApi(
@@ -1202,6 +1236,11 @@ describe('ERP Core client', () => {
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
+      'https://erp-api.example.test/v1/assets/maintenance/due?daysAhead=30&page=1&limit=50',
+      expect.objectContaining({ method: 'GET' })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
       'https://erp-api.example.test/v1/assets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/maintenance',
       expect.objectContaining({
         method: 'POST',

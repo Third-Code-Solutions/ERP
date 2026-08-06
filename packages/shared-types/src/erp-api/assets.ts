@@ -130,6 +130,63 @@ export type AssetMaintenanceListResult = z.infer<
   typeof assetMaintenanceListResultSchema
 >
 
+export const assetMaintenanceDueStateValues = ['overdue', 'due_soon'] as const
+
+export const assetMaintenanceDueQuerySchema = z
+  .object({
+    asOf: assetMaintenanceDateSchema.optional(),
+    daysAhead: z.coerce.number().int().min(0).max(365).default(30),
+    page: z.coerce.number().int().min(1).max(100_000).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  })
+  .strict()
+
+export type AssetMaintenanceDueQuery = z.infer<
+  typeof assetMaintenanceDueQuerySchema
+>
+
+export const assetMaintenanceDueReadResultSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    assetId: z.string().uuid(),
+    assetTag: z.string().trim().min(1).max(64),
+    assetName: z.string().trim().min(1).max(160),
+    assetKind: z.enum(assetKindValues),
+    assetStatus: z.enum(['active', 'maintenance']),
+    assignedProjectId: z.string().uuid().nullable(),
+    assignedProjectName: z.string().nullable(),
+    location: z.string().trim().max(255).nullable(),
+    maintenanceRecordId: z.string().uuid(),
+    maintenanceType: z.enum(assetMaintenanceTypeValues),
+    summary: z.string().trim().min(1).max(200),
+    performedOn: assetMaintenanceDateSchema,
+    nextDueOn: assetMaintenanceDateSchema,
+    daysUntilDue: z.number().int(),
+    dueState: z.enum(assetMaintenanceDueStateValues),
+  })
+  .strict()
+
+export type AssetMaintenanceDueReadResult = z.infer<
+  typeof assetMaintenanceDueReadResultSchema
+>
+
+export const assetMaintenanceDueResultSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    asOf: assetMaintenanceDateSchema,
+    daysAhead: z.number().int().min(0).max(365),
+    rows: z.array(assetMaintenanceDueReadResultSchema).max(100),
+    total: z.number().int().nonnegative(),
+    page: z.number().int().min(1),
+    limit: z.number().int().min(1).max(100),
+    totalPages: z.number().int().min(1),
+  })
+  .strict()
+
+export type AssetMaintenanceDueResult = z.infer<
+  typeof assetMaintenanceDueResultSchema
+>
+
 export const createAssetMaintenanceRecordCommandSchema = z
   .object({
     maintenanceType: z.enum(assetMaintenanceTypeValues),

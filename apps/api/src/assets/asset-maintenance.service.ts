@@ -18,8 +18,11 @@ import {
 } from '@third-code-erp/database/schema'
 import {
   assetMaintenanceCreationResultSchema,
+  assetMaintenanceDueResultSchema,
   assetMaintenanceListResultSchema,
   createAssetMaintenanceRecordCommandSchema,
+  type AssetMaintenanceDueQuery,
+  type AssetMaintenanceDueResult,
   type AssetMaintenanceListQuery,
   type AssetMaintenanceListResult,
   type AssetMaintenanceCreationResult,
@@ -68,6 +71,27 @@ function toDate(value: Date | string | null): string | null {
   return typeof value === 'string' ? value : value.toISOString().slice(0, 10)
 }
 
+interface AssetMaintenanceDueDatabaseRow {
+  [key: string]: unknown
+  tenant_id: string
+  asset_id: string
+  asset_tag: string
+  asset_name: string
+  asset_kind: 'equipment' | 'vehicle' | 'tool' | 'fixture' | 'other'
+  asset_status: 'active' | 'maintenance'
+  assigned_project_id: string | null
+  assigned_project_name: string | null
+  location: string | null
+  maintenance_record_id: string
+  maintenance_type: 'preventive' | 'inspection' | 'repair' | 'calibration' | 'other'
+  summary: string
+  performed_on: string | Date
+  next_due_on: string | Date
+  days_until_due: string | number | bigint
+  due_state: 'overdue' | 'due_soon'
+  total_count: string | number | bigint
+}
+
 @Injectable()
 export class AssetMaintenanceService {
   constructor(
@@ -112,6 +136,91 @@ export class AssetMaintenanceService {
       tenantId: principal.tenantId,
       assetId,
       rows: rows.map((row) => this.toResult(row)),
+      total,
+      page: query.page,
+      limit: query.limit,
+      totalPages: total === 0 ? 1 : Math.ceil(total / query.limit),
+    })
+  }
+
+  async maintenanceDue(
+    query: AssetMaintenanceDueQuery,
+    principal: ErpPrincipal
+  ): Promise<AssetMaintenanceDueResult> {
+    this.assertReadEnabled(principal)
+
+    const asOf = query.asOf ?? new Date().toISOString().slice(0, 10)
+    const offset = (query.page - 1) * query.limit
+    const rows = await this.database.client.execute<AssetMaintenanceDueDatabaseRow>(sql`
+      select
+        asset.tenant_id,
+        asset.id as asset_id,
+        asset.asset_tag,
+        asset.name as asset_name,
+        asset.kind as asset_kind,
+        asset.status as asset_status,
+        asset.assigned_project_id,
+        project.name as assigned_project_name,
+        asset.location,
+        maintenance.id as maintenance_record_id,
+        maintenance.maintenance_type,
+        maintenance.summary,
+        maintenance.performed_on,
+        maintenance.next_due_on,
+        (maintenance.next_due_on - ${asOf}::date)::integer as days_until_due,
+        case
+          when maintenance.next_due_on < ${asOf}::date then 'overdue'
+          else 'due_soon'
+        end as due_state,
+        count(*) over()::integer as total_count
+      from public.assets asset
+      join lateral (
+        select
+          record.id,
+          record.maintenance_type,
+          record.summary,
+          record.performed_on,
+          record.next_due_on
+        from public.asset_maintenance_records record
+        where record.tenant_id = asset.tenant_id
+          and record.asset_id = asset.id
+        order by record.performed_on desc, record.created_at desc, record.id desc
+        limit 1
+      ) maintenance on maintenance.next_due_on is not null
+      left join public.projects project
+        on project.id = asset.assigned_project_id
+       and project.tenant_id = asset.tenant_id
+      where asset.tenant_id = ${principal.tenantId}::uuid
+        and asset.status <> 'retired'
+        and maintenance.next_due_on <= (${asOf}::date + ${query.daysAhead}::integer)
+      order by maintenance.next_due_on asc, asset.asset_tag asc, asset.id asc
+      limit ${query.limit}
+      offset ${offset}
+    `)
+
+    const total = Number(rows[0]?.total_count ?? 0)
+    return assetMaintenanceDueResultSchema.parse({
+      tenantId: principal.tenantId,
+      asOf,
+      daysAhead: query.daysAhead,
+      rows: rows.map((row) => ({
+        tenantId: row.tenant_id,
+        assetId: row.asset_id,
+        assetTag: row.asset_tag,
+        assetName: row.asset_name,
+        assetKind: row.asset_kind,
+        assetStatus: row.asset_status,
+        assignedProjectId: row.assigned_project_id,
+        assignedProjectName: row.assigned_project_name,
+        location: row.location,
+        maintenanceRecordId: row.maintenance_record_id,
+        maintenanceType: row.maintenance_type,
+        summary: row.summary,
+        performedOn: toDate(row.performed_on),
+        nextDueOn: toDate(row.next_due_on)!,
+        daysUntilDue: Number(row.days_until_due),
+        dueState: row.due_state,
+      })),
       total,
       page: query.page,
       limit: query.limit,

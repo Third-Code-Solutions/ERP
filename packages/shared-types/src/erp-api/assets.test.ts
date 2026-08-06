@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   assetListQuerySchema,
   assetListResultSchema,
+  assetMaintenanceDueQuerySchema,
+  assetMaintenanceDueResultSchema,
   assetMaintenanceListQuerySchema,
   createAssetMaintenanceRecordCommandSchema,
 } from './assets'
@@ -91,5 +93,47 @@ describe('asset API contracts', () => {
         nextDueOn: '2026-01-31',
       })
     ).toThrow('nextDueOn must be on or after performedOn')
+  })
+
+  it('defaults the bounded maintenance due window', () => {
+    expect(assetMaintenanceDueQuerySchema.parse({})).toEqual({
+      daysAhead: 30,
+      page: 1,
+      limit: 50,
+    })
+  })
+
+  it('accepts a typed maintenance due result', () => {
+    expect(
+      assetMaintenanceDueResultSchema.parse({
+        tenantId: TENANT_ID,
+        asOf: '2026-08-07',
+        daysAhead: 30,
+        rows: [
+          {
+            tenantId: TENANT_ID,
+            assetId: ASSET_ID,
+            assetTag: 'EQ-001',
+            assetName: 'Excavator',
+            assetKind: 'equipment',
+            assetStatus: 'active',
+            assignedProjectId: null,
+            assignedProjectName: null,
+            location: 'Yard',
+            maintenanceRecordId: '44444444-4444-4444-8444-444444444444',
+            maintenanceType: 'inspection',
+            summary: 'Annual inspection',
+            performedOn: '2026-01-15',
+            nextDueOn: '2026-08-20',
+            daysUntilDue: 13,
+            dueState: 'due_soon',
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 50,
+        totalPages: 1,
+      })
+    ).toMatchObject({ total: 1, rows: [{ dueState: 'due_soon' }] })
   })
 })
