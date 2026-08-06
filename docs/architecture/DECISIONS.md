@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-218 - Reuse guarded item-policy authority for catalog maintenance (2026-08-06)
+
+Decision: expose base-UOM and perpetual-tracking edits per active catalog item
+through the existing authenticated Web action and exact Core tenant selector.
+Keep item identity immutable in the UI, make inactive UOMs non-selectable for
+new assignments, and retain database posting invariants as final authority.
+
+Rationale: operators need to correct policy without rebuilding a catalog or
+using an opaque setup form. Reusing the existing command preserves tenant and
+capability checks, current API behavior, and compatibility-default rollout
+while avoiding a schema change or browser-direct sensitive write.
+
+Evidence: focused inventory/Core tests 125/125, Web suite 87/567, typecheck,
+and production build 81/81 routes. No Supabase, Vercel, Railway, Storage, or
+tenant-data mutation occurred.
+
 ## D-217 - Reuse guarded Warehouse authority for the first edit surface (2026-08-06)
 
 Decision: expose Warehouse name and active-state maintenance through the

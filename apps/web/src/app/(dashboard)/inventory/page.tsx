@@ -5,6 +5,7 @@ import {
   ConfigureItemForm,
   CreateUomForm,
   CreateWarehouseForm,
+  EditInventoryItemPolicyForm,
   EditWarehouseForm,
 } from './setup-controls'
 import { getInventorySummary } from '@/lib/inventory-queries'
@@ -39,6 +40,7 @@ export default async function InventoryPage() {
   } = await getInventorySummary(profile.tenantId)
 
   const trackedItems = items.filter((item) => item.inventory_tracked)
+  const activeItems = items.filter((item) => item.is_active)
   const inventoryValue = balances.reduce(
     (sum, row) => sum + Number(row.value_cents),
     0
@@ -267,7 +269,7 @@ export default async function InventoryPage() {
                 }))}
             />
             <div className="finance-record-list">
-              {trackedItems.map((item) => (
+              {activeItems.map((item) => (
                 <div className="finance-record" key={item.id}>
                   <div>
                     <strong>
@@ -279,9 +281,30 @@ export default async function InventoryPage() {
                         'unmapped'}
                     </span>
                   </div>
-                  <span className="finance-status finance-status-open">
-                    tracked
-                  </span>
+                  <div className="finance-record-action">
+                    <span
+                      className={`finance-status finance-status-${
+                        item.inventory_tracked ? 'open' : 'closed'
+                      }`}
+                    >
+                      {item.inventory_tracked ? 'tracked' : 'not tracked'}
+                    </span>
+                    <EditInventoryItemPolicyForm
+                      item={{
+                        id: item.id,
+                        code: item.code,
+                        description: item.description,
+                        baseUomId: item.base_uom_id,
+                        inventoryTracked: item.inventory_tracked,
+                      }}
+                      uoms={uoms.map((uom) => ({
+                        id: uom.id,
+                        code: uom.code,
+                        name: uom.name,
+                        isActive: uom.is_active,
+                      }))}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

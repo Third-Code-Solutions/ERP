@@ -2607,26 +2607,31 @@ a { color: inherit; }
   gap: 10px;
 }
 
-.inventory-warehouse-editor {
+.inventory-warehouse-editor,
+.inventory-item-editor {
   position: relative;
 }
 
-.inventory-warehouse-editor summary {
+.inventory-warehouse-editor summary,
+.inventory-item-editor summary {
   display: inline-flex;
   align-items: center;
   list-style: none;
 }
 
-.inventory-warehouse-editor summary::-webkit-details-marker {
+.inventory-warehouse-editor summary::-webkit-details-marker,
+.inventory-item-editor summary::-webkit-details-marker {
   display: none;
 }
 
-.inventory-warehouse-editor[open] summary {
+.inventory-warehouse-editor[open] summary,
+.inventory-item-editor[open] summary {
   border-color: var(--color-navy-500);
   background: var(--color-navy-50);
 }
 
-.inventory-warehouse-editor form {
+.inventory-warehouse-editor form,
+.inventory-item-editor form {
   position: absolute;
   z-index: 2;
   top: calc(100% + 8px);

@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.106 inventory item policy control surface
+
+Review and push this source/docs slice only to the existing feature branch.
+Keep item policy Core selection compatibility-default and do not trigger
+Vercel/Railway builds. Continue supported Supabase backup/catalog/data/audit
+export for `aqqrtkmtcsfkbyyqxowv`; reconcile all 39 source migrations after
+hosted `20260729233017` in order, resolve the owner-approved tenant-scoped
+Purchase Order duplicate mapping, and review security warnings before any
+hosted SQL, canary, or production promotion.
+
 ## Exact next action after M3.105 inventory warehouse control surface
 
 Keep the Warehouse edit/deactivation form compatibility-default until the
