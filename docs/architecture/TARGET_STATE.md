@@ -1,5 +1,13 @@
 # Target State
 
+## M3.124 bounded public interaction (2026-08-06)
+
+Public interactive controls must expose their domain bounds to keyboard and
+assistive technology. The team-priority carousel uses a clamped index, native
+`disabled` buttons, visible disabled styling, and no wraparound surprise.
+Above-fold media must declare intentional loading priority without making
+below-fold decorative assets eager on mobile.
+
 ## M3.123 catalog security gate (2026-08-06)
 
 Every controlled database release plan must report both direct table privileges

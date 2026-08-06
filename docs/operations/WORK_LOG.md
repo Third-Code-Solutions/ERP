@@ -1,5 +1,17 @@
 # Work Log
 
+## 2026-08-06 - M3.124 bounded landing carousel and image priority
+
+Updated `third-code-landing.tsx` so team-priority controls clamp instead of
+wrapping and expose native disabled states. Added disabled visual treatment in
+the module stylesheet, source contract assertions, and `priority` on the
+above-fold hero media.
+
+Playwright local proof at 1440/768/390: three-line H1, no horizontal overflow,
+correct first/last disabled states, zero console errors. One Next development
+LCP warning remains for the duplicated decorative hero asset. No hosted SQL,
+tenant-data write, provider setting, build, or deployment ran.
+
 ## 2026-08-06 - M3.123 read-only catalog security gate
 
 Extended `scripts/plan-database-release.mjs` with a catalog query and

@@ -26,6 +26,7 @@ describe('Third Code ERP public landing contract', () => {
     ).toHaveLength(3)
     expect(landingSource).toContain('Start guided setup')
     expect(landingSource).toContain('Open workspace')
+    expect(landingSource).toContain('priority')
     expect(landingSource).not.toMatch(/SECTION\s+0?\d|QUESTION\s+0?\d/)
   })
 
@@ -45,6 +46,10 @@ describe('Third Code ERP public landing contract', () => {
     expect(landingSource).toContain('<details')
     expect(landingSource).toContain('aria-label="Previous team priority"')
     expect(landingSource).toContain('aria-label="Next team priority"')
+    expect(landingSource).toContain('disabled={priorityIndex === 0}')
+    expect(landingSource).toContain(
+      'disabled={priorityIndex === teamPriorities.length - 1}'
+    )
     expect((landingContent.match(/question:/g) ?? [])).toHaveLength(5)
     expect(landingSource).toContain('permission-aware')
     expect(landingSource).toContain('Human-approved actions')

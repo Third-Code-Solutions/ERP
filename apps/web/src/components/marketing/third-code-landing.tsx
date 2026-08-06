@@ -320,10 +320,10 @@ export function ThirdCodeLanding() {
 
   function movePriority(direction: -1 | 1) {
     setPriorityIndex((current) => {
-      const next = current + direction
-      if (next < 0) return teamPriorities.length - 1
-      if (next >= teamPriorities.length) return 0
-      return next
+      return Math.min(
+        Math.max(current + direction, 0),
+        teamPriorities.length - 1
+      )
     })
   }
 
@@ -424,6 +424,7 @@ export function ThirdCodeLanding() {
                 fill
                 fetchPriority="high"
                 loading="eager"
+                priority
                 sizes="(max-width: 900px) 100vw, 58vw"
                 src="/images/third-code-erp-hero.png"
               />
@@ -644,10 +645,20 @@ export function ThirdCodeLanding() {
                 {priorityIndex + 1} / {teamPriorities.length}
               </span>
               <div>
-                <button aria-label="Previous team priority" onClick={() => movePriority(-1)} type="button">
+                <button
+                  aria-label="Previous team priority"
+                  disabled={priorityIndex === 0}
+                  onClick={() => movePriority(-1)}
+                  type="button"
+                >
                   <ProductIcon name="arrow" />
                 </button>
-                <button aria-label="Next team priority" onClick={() => movePriority(1)} type="button">
+                <button
+                  aria-label="Next team priority"
+                  disabled={priorityIndex === teamPriorities.length - 1}
+                  onClick={() => movePriority(1)}
+                  type="button"
+                >
                   <ProductIcon name="arrow" />
                 </button>
               </div>

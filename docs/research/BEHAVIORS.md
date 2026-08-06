@@ -1,5 +1,14 @@
 # Third Code ERP landing behavior audit
 
+## 2026-08-06 M3.124 source recheck
+
+- Team-priority navigation is clamped to four states. At `1 / 4`, previous is
+  natively disabled; at `4 / 4`, next is natively disabled. Controls remain
+  manual, 44px, and keyboard-addressable.
+- Local Playwright proof at 1440/768/390 reports three-line H1, no horizontal
+  overflow, and zero console errors. Development emits one Next LCP warning
+  for the duplicated decorative hero asset; this is not hosted release proof.
+
 Status: observed from the live deployment at `https://thirdcode-erp.vercel.app/` on 2026-08-01. This is a clean-room behavior record; it does not copy implementation code or vendor internals.
 
 ## Viewports

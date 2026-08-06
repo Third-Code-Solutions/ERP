@@ -4,6 +4,17 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.124 bounded landing carousel and image priority (2026-08-06)
+
+The public landing team-priority carousel now clamps state at its first and
+last item, exposes native disabled states, and keeps the existing 44px controls
+and visual contract. The above-fold hero image is marked as a priority asset.
+Source browser proof at 1440/768/390 confirms three-line H1, no horizontal
+overflow, disabled controls at both bounds, and zero console errors. A single
+Next development LCP warning remains for the duplicated decorative hero asset;
+production build evidence is still required. No hosted or provider state
+changed.
+
 ## M3.123 read-only security release planner (2026-08-06)
 
 The database release planner now queries the target catalog for direct

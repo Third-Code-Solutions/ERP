@@ -1,5 +1,14 @@
 # Component specification: Third Code ERP public landing
 
+## 2026-08-06 M3.124 boundary correction
+
+- Priority carousel index clamps to `0..3`; navigation never wraps.
+- `Previous team priority` is disabled at `1 / 4`; `Next team priority` is
+  disabled at `4 / 4`. Native button semantics preserve keyboard and screen
+  reader state; controls remain 44px.
+- Above-fold hero media declares Next image priority. Decorative inline media
+  remains non-eager so mobile does not pay unnecessary image work.
+
 Scope: public marketing route only. This specification documents the current live/source contract; it authorizes preservation and targeted refinement, not a rewrite.
 
 ## Visual system

@@ -1104,6 +1104,16 @@
   background: var(--landing-ink);
 }
 
+.carouselControls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.carouselControls button:disabled:hover {
+  color: var(--landing-ink);
+  background: transparent;
+}
+
 .faqChapter {
   display: grid;
   grid-template-columns: minmax(260px, 0.58fr) minmax(0, 1.42fr);
