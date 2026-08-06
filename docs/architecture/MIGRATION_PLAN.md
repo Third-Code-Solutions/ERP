@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.133 project-create authority hardening
+
+Moved the smallest safe authorization boundary into the existing Core project
+create transaction. NestJS now locks the tenant membership, rechecks the
+`project.create` capability, and uses the resulting database-backed principal
+for actor context, idempotency claim, tenant-scoped insert, and semantic audit.
+The Web fallback remains available only for non-canary tenants; no critical
+business logic moved into React and no new migration or feature flag was
+introduced.
+
+Validation: focused project service/HTTP tests 20/20; WSL PostgreSQL 17.10 /
+Redis 7.4.9 replay, 98/98 migrations, verifier, and project-create database
+integration passed; serial workspace tests passed (shared 27/228, database
+47/51 with 141 compatibility skips, API 112/478, Web 89/581); production
+build 81/81 routes; typecheck, lint, Actionlint, Gitleaks,
+controlled-release 5/5, and provider-spend 4/4 passed. Code commit
+`6276d10`. Hosted Supabase, Vercel, Railway, and ERP canaries stay closed.
+
 ## M3.132 asset maintenance due projection
 
 Added the smallest read-only operational projection on top of the existing

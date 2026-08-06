@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-241 - Lock project-create membership before authorization (2026-08-07)
+
+Decision: in `ProjectsService.create`, lock the caller's tenant membership
+with `FOR UPDATE` before the idempotency claim, re-evaluate `project.create`
+from the stored role, and use that result for actor context, tenant scope,
+mutation, and semantic audit. Reject missing or insufficient membership with
+a transaction rollback.
+
+Rationale: a request principal is an input claim, not an authority boundary.
+Deriving authorization only from the request would allow stale or forged role
+data to cross the critical write path. The row lock keeps the membership check
+and commit in one transaction without adding a migration or provider cost.
+
+Evidence: focused regression coverage rejects an admin-shaped principal when
+the locked membership is a viewer; WSL PostgreSQL/Redis replay and full serial
+workspace gates pass. Core and hosted canaries remain closed.
+
 ## D-240 - Resolve maintenance due dates from the latest record (2026-08-07)
 
 Decision: keep the due projection in `AssetMaintenanceService`, choose the

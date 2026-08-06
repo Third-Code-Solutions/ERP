@@ -5,6 +5,18 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.133 project-create authority hardening (2026-08-07)
+
+The Core `POST /v1/projects` authority now locks the caller's tenant
+membership row inside the transaction, rechecks `project.create` against the
+database-backed role, and derives a fresh authorized principal before
+claiming idempotency or inserting the project. Actor context, tenant scope,
+and semantic audit all use that rechecked principal. The new regression test
+proves a forged admin principal cannot create through a locked viewer
+membership. The existing closed-by-default Core feature gate and non-canary
+legacy fallback remain unchanged. No migration or hosted/provider action
+occurred. Source commit: `6276d10`.
+
 ## M3.132 asset maintenance due projection (2026-08-07)
 
 The asset maintenance authority now exposes `GET /v1/assets/maintenance/due`.

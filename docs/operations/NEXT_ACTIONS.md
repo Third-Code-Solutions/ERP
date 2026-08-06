@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.133 project-create authority hardening
+
+Push the reviewed source/doc milestone to
+`origin/agent-02/third-code-erp-landing`, verify the remote branch and clean
+worktree, then stop. Keep hosted Supabase SQL, Vercel builds, Railway
+deploys, and all ERP flags closed; this slice adds no migration. The next
+separately approved canary must exercise locked-membership denial, allowed
+create, idempotent replay/hash conflict, tenant scope, and audit actor
+identity only after schema/RLS, managed backup/rollback, identity, duplicate,
+audit-recovery, and spend gates clear.
+
 ## Exact next action after M3.132 asset maintenance due projection
 
 The reviewed code plus milestone docs are pushed to

@@ -1,5 +1,15 @@
 # Target State
 
+## M3.133 transaction-bound project-create authorization
+
+Every sensitive Core write must derive authorization from a tenant membership
+row locked in the same database transaction as idempotency, mutation, and
+audit. Project creation is the current reference slice: stale or forged
+request claims cannot change tenant scope or capabilities, and a denied
+membership aborts before any idempotency or project write. Keep the canary
+closed until hosted parity, RLS/catalog review, identity evidence, rollback,
+and spend controls are approved.
+
 ## M3.132 maintenance due operations
 
 Asset operations should answer “what needs service next?” without opening each
