@@ -5,6 +5,17 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.135 project status state machine (2026-08-07)
+
+The Core Project update authority now applies a shared transition table after
+locking the tenant membership and Project row. It permits forward operational
+movement and controlled hold/resume, preserves same-state metadata edits, and
+rejects reopening `completed` or `cancelled` Projects with a bounded 409.
+Regression coverage exercises allowed transitions and terminal rejection. No
+migration or hosted/provider action occurred. The legacy Web fallback remains
+outside this Core state-machine boundary until its canary migration. Source
+commit: `97c41f8`.
+
 ## M3.134 project-update authority hardening (2026-08-07)
 
 The Core `PATCH /v1/projects/:projectId` authority now locks the caller's

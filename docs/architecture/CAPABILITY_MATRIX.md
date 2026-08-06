@@ -1,5 +1,24 @@
 # Third Code ERP capability matrix
 
+## M3.135 project status state machine (2026-08-07)
+
+Core Project update now enforces explicit status transitions: `lead` may move
+to `active`, `on_hold`, or `cancelled`; `active` may move to `on_hold`,
+`completed`, or `cancelled`; `on_hold` may resume to `active` or cancel;
+`completed` and `cancelled` are terminal and only allow same-state edits. The
+check runs after the locked Project read and before mutation/audit. No
+migration, flag, hosted SQL, Vercel build, Railway deploy, or provider
+mutation was added. The non-canary legacy Web fallback remains a separately
+tracked migration boundary.
+
+Validation: shared contract tests 27 files/229 tests; focused Project service
+and HTTP tests 22/22; self-hosted PostgreSQL 17.10/Redis 7.4.9 replay applied
+98/98 migrations and passed the Project API integration path; serial workspace
+tests passed (database 47/51 files with 141 compatibility skips, API 112/480,
+Web 89/581); production build emitted 81/81 routes; typecheck, lint, migration
+verifier, Actionlint, Gitleaks, controlled-release, and provider-spend guards
+passed. Source checkpoint: commit `97c41f8`; hosted providers remain closed.
+
 ## M3.134 project-update authority hardening (2026-08-07)
 
 Project updates now recheck the caller's tenant membership and
@@ -83,7 +102,7 @@ Docker/CI and remains open; hosted Supabase, Vercel, Railway, and ERP canaries
 are unchanged.
 
 Status date: 2026-08-07
-Source checkpoint: commit `5534046` on `agent-02/third-code-erp-landing`
+Source checkpoint: commit `97c41f8` on `agent-02/third-code-erp-landing`
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 M3.125 current-state refresh: the source branch contains 97 ordered Supabase

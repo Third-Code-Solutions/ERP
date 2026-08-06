@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.135 project status state machine
+
+Push the reviewed source/doc milestone to
+`origin/agent-02/third-code-erp-landing`, verify remote SHA and clean
+worktree, then stop. Keep hosted Supabase SQL, Vercel builds, Railway
+deploys, and all ERP flags closed; this slice adds no migration. Next source
+slice: make the legacy Web Project update fallback call the same Core
+transition authority without changing default behavior, then prove allowed
+movement, terminal rejection, optimistic concurrency, tenant isolation, and
+audit parity before any canary. Hosted parity, backup/rollback, identity,
+duplicate, audit-recovery, and spend gates still block release.
+
 ## Exact next action after M3.134 project-update authority hardening
 
 Push the reviewed source/doc milestone to

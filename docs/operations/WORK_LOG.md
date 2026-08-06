@@ -1,5 +1,37 @@
 # Work Log
 
+## 2026-08-07 - M3.135 project status state machine
+
+Added explicit Project status transitions to shared types and enforced them in
+NestJS Core update after membership and Project row locks. `lead` advances to
+`active`/`on_hold`/`cancelled`; `active` advances to `on_hold`/`completed`/
+`cancelled`; `on_hold` resumes to `active` or cancels; terminal states only
+allow same-state edits. Invalid reopening returns 409 before mutation. The
+legacy Web fallback remains a separate migration boundary. No migration,
+flag, hosted SQL, Vercel build, Railway deploy, or Supabase action occurred.
+
+Changed files: `packages/shared-types/src/projects.ts`,
+`packages/shared-types/src/erp-api/projects.test.ts`,
+`apps/api/src/projects/projects.service.ts`,
+`apps/api/src/projects/projects.service.spec.ts`, and the milestone records
+`docs/architecture/CAPABILITY_MATRIX.md`, `CURRENT_STATE.md`,
+`TARGET_STATE.md`, `MIGRATION_PLAN.md`, `DECISIONS.md`,
+`docs/operations/WORK_LOG.md`, `NEXT_ACTIONS.md`, and
+`docs/changesets/2026-08-07-m3-135-project-status-state-machine.md`.
+
+Validation: shared 27/229; focused Project tests 22/22; WSL PostgreSQL
+17.10/Redis 7.4.9 replay applied 98/98 migrations and passed Project API
+integration; serial workspace tests passed (database 47/51 files with 141
+compatibility skips, API 112/480, Web 89/581); production build generated
+81/81 routes; typecheck, lint, migration verifier, Actionlint, Gitleaks,
+controlled-release 5/5, and provider-spend 4/4 passed.
+
+Unresolved risks: legacy Web update fallback does not yet converge on Core's
+state machine; hosted Supabase schema/catalog/RLS parity, managed backup and
+rollback, duplicate-record mapping, audit recovery, identity, and spend
+evidence remain open. These gates block provider deploys and ERP canaries.
+Source commit: `97c41f8`; provider state was not touched.
+
 ## 2026-08-07 - M3.134 project-update authority hardening
 
 Hardened NestJS `PATCH /v1/projects/:projectId`. The service now locks tenant
