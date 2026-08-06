@@ -4,6 +4,26 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.112 recoverable export and disposable suffix replay (2026-08-06)
+
+The session pooler on port 5432 was independently verified read-only. A free
+PostgreSQL 17.10 client was extracted only into the OS temp directory. A
+four-part supplemental safety export (roles without passwords, public
+pre-data, public data, and public post-data) was created outside Git and
+hashed in a temp manifest; it is not a substitute for the Supabase-managed
+auth/storage/roles logical export. The exact hosted snapshot restored into an
+isolated PostgreSQL 17.10 clone after a local-only vector-column adapter.
+
+The exact first pending migration, `20260801090000`, failed as designed on the
+hosted duplicate Purchase Order group (one tenant, 12 records). No duplicate
+was changed in Supabase. For replay evidence only, duplicate numbers were
+synthetically renamed inside the disposable clone; all 39 pending migrations
+then applied 39/39 with exit code 0. The 29 migration-created tables exist and
+all 29 have RLS enabled; delivery workflow enum expansion is present. The
+full repository verifier is intentionally not called green because the local
+clone lacks Supabase-managed auth trigger, vector HNSW, and provider grants.
+No hosted SQL/data/Storage/branch write or Vercel/Railway build occurred.
+
 ## M3.111 read-only Supabase export preflight (2026-08-06)
 
 The new export planner is fail-closed and never opens a database connection or

@@ -1,5 +1,16 @@
 # Target State
 
+## M3.112 managed replay and duplicate-data gate (2026-08-06)
+
+The release lane must retain a recoverable supplemental export plus a
+Supabase-managed backup/PITR point, restore the real auth/storage/grants/RLS
+surface into an isolated PostgreSQL 17 clone, and replay the ordered suffix.
+Synthetic duplicate renames are permitted only to test migration syntax and
+dependencies; they never authorize a hosted data repair. The hosted suffix
+and all feature flags remain closed until the owner maps the 12 duplicate
+Purchase Orders, the managed catalog/security diff is green, rollback is
+proved, and provider spend/identity gates pass.
+
 ## M3.111 recoverable database export gate (2026-08-06)
 
 Every hosted parity rehearsal must begin with a supported, redacted logical

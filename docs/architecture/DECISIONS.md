@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-224 - Synthetic replay cannot authorize a hosted data repair (2026-08-06)
+
+Decision: use the exact clone failure on the duplicate Purchase Order guard as
+the hosted stop condition. A synthetic duplicate-number rename is allowed
+only inside the disposable replay to prove the 39-migration suffix applies;
+never repair, rename, delete, or reorder the 12 hosted rows without an owner
+mapping. Treat the raw public PostgreSQL export as supplemental safety
+evidence, not as a replacement for a Supabase-managed auth/storage/roles
+backup.
+
+Rationale: all pending SQL can be dependency-checked without risking tenant
+data, while the first migration correctly refuses to create a uniqueness
+index over ambiguous business records. Provider grants, auth triggers, and
+vector indexes also require a managed clone before a release claim.
+
+Evidence: exact clone failed at `20260801090000`; clone-only sanitized replay
+passed 39/39; no hosted/provider mutation; Vercel spend guard remains clear.
+
 ## D-223 - Fail closed before hosted database export (2026-08-06)
 
 Decision: require a read-only export preflight before any Supabase backup or
