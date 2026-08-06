@@ -1,5 +1,21 @@
 # Work Log
 
+## 2026-08-06 - M3.99 closed Web Asset Register read surface
+
+Added the source-only Next.js Asset Register route, Core adapter, exact
+tenant-allowlist gate, `asset.read` capability/nav entry, environment examples,
+and component specification. Disabled tenants receive a staged state; selected
+tenants fail closed on Core errors or invalid payloads. No direct browser
+database fallback or write control was introduced.
+
+Validation: Web 87 test files/561 tests; focused adapter/navigation 2/122;
+typecheck; TS-only lint; production build 81/81 routes; Vercel spend guard; and
+diff check. Source SHA
+`b7f274ad078965239a9138545a96bd6468b4dcda` pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. No Vercel/Railway build, Supabase SQL or
+Storage write, branch, or hosted tenant canary. Rollback target is
+`9e87d855a2ea96de28fbe6cf02159c195a4f67a6`.
+
 ## 2026-08-06 - M3.98 authenticated shell rebrand correction
 
 Replaced leftover sidebar `A` mark with accessible `TC` Third Code ERP mark;

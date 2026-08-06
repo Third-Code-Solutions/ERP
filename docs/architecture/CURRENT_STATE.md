@@ -4,6 +4,26 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.99 closed Web Asset Register read surface (2026-08-06)
+
+Added the original Next.js Asset Register route and Core-only read adapter for
+the existing tenant-safe `GET /v1/assets` contract. The route requires
+`asset.read`, uses the existing Operations navigation and finance visual
+tokens, and supports bounded search, kind/status filters, pagination, and
+read-only custody context. It never imports the database client: disabled or
+unlisted tenants render a staged state, while enabled tenants fail closed on
+Core timeout, error, or invalid response with no direct database fallback.
+
+`ERP_ASSET_READS_VIA_API=false` and its tenant allowlist are false/empty in
+both environment examples. Web validation: 87 test files/561 tests, focused
+adapter/navigation 2 files/122 tests, typecheck, TS-only lint, production
+build 81/81 routes, Vercel spend guard, and diff check pass. Component
+specification: `docs/research/components/asset-register-page.spec.md`.
+Source SHA `b7f274ad078965239a9138545a96bd6468b4dcda` is pushed to GitHub
+`main` and `agent-02/third-code-erp-landing`. This is source-only: no Vercel
+build/deploy, Railway build, Supabase SQL/Storage/branch write, or hosted
+tenant canary occurred.
+
 ## M3.98 authenticated shell rebrand correction (2026-08-06)
 
 Replaced the authenticated dashboard sidebar's leftover single-letter `A`

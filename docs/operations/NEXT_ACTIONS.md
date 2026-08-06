@@ -1,5 +1,22 @@
 # Next Actions
 
+## Exact next action after M3.99 Web Asset Register slice
+
+1. Keep `ERP_ASSET_READS_ENABLED=false`, `ERP_ASSET_READS_TENANT_IDS` empty,
+   `ERP_ASSET_READS_VIA_API=false`, and
+   `ERP_ASSET_READS_VIA_API_TENANT_IDS` empty. Do not trigger Vercel or
+   Railway builds for this source-only Web change.
+2. Replay the source asset migration suffix on disposable PostgreSQL 17;
+   compare direct and Core asset rows, project joins, pagination, and
+   tenant-isolation behavior. Review RLS/audit behavior and capture schema
+   hash before/after.
+3. For hosted Supabase `aqqrtkmtcsfkbyyqxowv`, obtain supported backup,
+   catalog/data/audit export, reconcile the 37 pending migrations after
+   `20260729233017`, resolve the owner-approved 12-record Purchase Order
+   duplicate mapping, and review security warnings before any apply/canary.
+4. After parity, run one protected browser canary with rollback and spend
+   evidence. Keep Python/AI advisory-only and official ERP writes in Nest.
+
 ## Exact next action after M3.98 shell rebrand correction
 
 1. Keep Vercel Git disconnected and do not create a preview/production build

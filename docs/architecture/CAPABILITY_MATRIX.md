@@ -4,6 +4,15 @@ Status date: 2026-08-06
 Source checkpoint: `91ed375` (M3.96 cash register replay parity evidence)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
+M3.99 Web update: Asset Register now has an original Next route over the
+closed Core `GET /v1/assets` read projection. It requires `asset.read`, exact
+flag/tenant selection, strict response validation, and no direct database
+fallback; default selectors remain false/empty. Source SHA
+`b7f274ad078965239a9138545a96bd6468b4dcda` is pushed to both refs. Web
+87/561 and build 81/81 pass; Vercel remains disconnected with no new build.
+Hosted Supabase remains read-only at 55/92 migrations; no official ERP write,
+tenant canary, or provider spend occurred.
+
 M3.98 rebrand update: authenticated shell source now uses an accessible `TC`
 Third Code ERP mark instead of the leftover `A`. Clean-room branding test,
 web 87/559, typecheck, serial lint, and production build 80/80 pass. Source

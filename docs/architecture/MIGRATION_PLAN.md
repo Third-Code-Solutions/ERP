@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.99 closed Web Asset Register read surface (2026-08-06)
+
+Implemented the smallest Web increment over the already closed Core asset
+projection: shared adapter validation, exact boolean/UUID tenant selection,
+`asset.read` route authorization, Operations navigation, bounded filter form,
+read-only table, pagination, and explicit staged/error states. No direct DB
+fallback or mutation control exists on the page.
+
+Validation: Web 87/561, focused adapter/navigation 2/122, typecheck, TS-only
+lint, production build 81/81 routes, Vercel spend guard, and diff check. Source
+SHA `b7f274ad078965239a9138545a96bd6468b4dcda` is pushed to both GitHub refs.
+No Vercel build, Railway build, hosted Supabase write, Storage write, or tenant
+canary occurred.
+
+## Next gate
+
+Keep `ERP_ASSET_READS_ENABLED=false`,
+`ERP_ASSET_READS_TENANT_IDS` empty,
+`ERP_ASSET_READS_VIA_API=false`, and
+`ERP_ASSET_READS_VIA_API_TENANT_IDS` empty. Replay the source asset migration
+suffix on disposable PostgreSQL 17, compare direct/Core asset rows and
+project joins, review RLS/audit behavior, and obtain hosted backup/catalog/data
+parity before any protected browser canary. Do not trigger a Vercel build or
+Railway build for this source-only slice; preserve the rollback target at
+`9e87d855a2ea96de28fbe6cf02159c195a4f67a6`.
+
 ## M3.98 shell rebrand correction (2026-08-06)
 
 Source fix replaces the authenticated sidebar's leftover `A` mark with an
