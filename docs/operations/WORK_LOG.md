@@ -23,7 +23,9 @@ files), Actionlint, Gitleaks, controlled-release 5/5, and provider-spend 4/4
 passed. Database skips require `DATABASE_URL`; disposable replay for the new
 migration remains open.
 
-Source checkpoint: pending reviewed commit and remote SHA verification.
+Source checkpoint: `963ae464ac35f9bc388605bcb641b2f42442ac19`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified.
 Unresolved risks: the restore migration has no disposable replay yet;
 managed Supabase catalog/RLS/data parity, backup/PITR restore, Auth identity,
 audit recovery, and spend approval still block any restore canary.

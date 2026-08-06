@@ -18,8 +18,10 @@ audit, and replay atomic.
 Evidence: focused restore service/controller, shared contract, environment,
 and database tests pass; full serial workspace tests, typecheck/lint,
 production build, migration/security, controlled-release, and spend gates
-pass. No hosted state changed. Source checkpoint is recorded after commit and
-remote verification.
+pass. No hosted state changed. Source checkpoint:
+`963ae464ac35f9bc388605bcb641b2f42442ac19`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified.
 
 ## D-251 - Remove the legacy Web Cost Entry delete writer (2026-08-07)
 

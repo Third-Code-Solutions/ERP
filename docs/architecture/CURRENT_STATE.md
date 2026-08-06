@@ -25,8 +25,9 @@ files); Actionlint; Gitleaks; controlled-release 5/5; and provider-spend
 4/4. Database skips require `DATABASE_URL`; disposable PostgreSQL/Redis
 replay remains required before any canary. No hosted Supabase SQL, Vercel
 build, Railway deploy, provider variable, or tenant data changed. Source
-checkpoint will be recorded after the reviewed commit and remote
-verification.
+checkpoint: `963ae464ac35f9bc388605bcb641b2f42442ac19`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified.
 
 ## M3.143 Core-only Cost Entry deletion action (2026-08-07)
 
