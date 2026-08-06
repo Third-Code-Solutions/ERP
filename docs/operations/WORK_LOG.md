@@ -10,7 +10,10 @@ deactivation guard. No new table, migration, browser-direct sensitive write,
 hosted SQL, Vercel build, Railway build, Storage write, or tenant data changed.
 Validation: Web typecheck, focused inventory/Core tests 125/125, full Web
 suite 87/567, production build 81/81 routes, and diff check. Source remains on
-the feature branch pending review and push.
+the feature branch at `e9ee5adb44e3bc2da5cab54af2828065f117f343`, pushed as
+`kurtgav`. `origin/main` remains `0ff8e91c1a09e8bbfb130c681f96fccfbe038d96`.
+Railway `/ready` and `/health` remain 200 on the prior deployment; Vercel has
+no deployment for this SHA and the spend guard is clear.
 
 ## 2026-08-06 - M3.104 provider spend guard audit
 

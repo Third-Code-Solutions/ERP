@@ -14,7 +14,9 @@ big-bang migration. The server action preserves current API behavior while the
 existing authority seam can be enabled per tenant later.
 
 Evidence: focused inventory/Core tests 125/125, Web suite 87/567, typecheck,
-and production build 81/81 routes. No Supabase, Vercel, Railway, Storage, or
+and production build 81/81 routes. Source commit
+`e9ee5adb44e3bc2da5cab54af2828065f117f343` is pushed to the feature branch;
+`origin/main` is unchanged. No Supabase, Vercel, Railway, Storage, or
 tenant-data mutation occurred.
 
 ## D-216 - Fail closed on hidden Vercel deploy automation (2026-08-06)

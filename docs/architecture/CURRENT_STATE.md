@@ -11,7 +11,10 @@ Warehouse. It reuses the existing Web server action and guarded Core selector;
 warehouse code and project scope remain immutable, while Nest enforces the
 zero-net-stock rule before deactivation. No schema/provider/tenant-data change
 occurred. Web typecheck, focused inventory/Core tests 125/125, full Web 87/567,
-and Next production routes 81/81 are green.
+and Next production routes 81/81 are green. Source is pushed on the feature
+branch at `e9ee5adb44e3bc2da5cab54af2828065f117f343`; `origin/main` is
+unchanged. Railway readiness remains green, while Vercel has no deployment for
+this SHA.
 
 ## M3.104 provider spend guard audit (2026-08-06)
 

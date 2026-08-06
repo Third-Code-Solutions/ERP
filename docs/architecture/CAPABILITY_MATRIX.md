@@ -7,9 +7,11 @@ Scope: clean-room construction ERP capability planning and incremental delivery
 
 M3.105 update: Inventory now provides an authenticated Warehouse edit surface
 for name and active state while preserving immutable code/project identity and
-the Nest zero-net-stock deactivation guard. Local Web evidence is 125/125
-focused tests, 87/567 full tests, and 81/81 production routes. No hosted
-mutation or provider build occurred; Supabase remains read-only at 55/94.
+the Nest zero-net-stock deactivation guard. Source commit
+`e9ee5adb44e3bc2da5cab54af2828065f117f343` is pushed to the feature branch;
+local Web evidence is 125/125 focused tests, 87/567 full tests, and 81/81
+production routes. No hosted mutation or provider build occurred; Supabase
+remains read-only at 55/94.
 
 M3.104 update: the Vercel spend guard scans all workspace package manifests
 and GitHub workflow YAML, passes 3/3, and confirms no deploy command or Git
