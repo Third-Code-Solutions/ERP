@@ -4,6 +4,21 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.101 hosted Supabase Asset Register parity snapshot (2026-08-06)
+
+Read-only MCP inspection of project `aqqrtkmtcsfkbyyqxowv` confirms the
+project is `ACTIVE_HEALTHY` on PostgreSQL 17.6.1 in `ap-northeast-2`. Hosted
+migrations stop at `20260729233017` (55 migrations); the source asset
+`20260806110000_asset_register_foundation` migration is absent. `public.assets`
+is absent, with no hosted asset RLS metadata, policies, grants, trigger, or
+rows. The hosted public catalog remains 88 RLS-enabled tables with the prior
+demo-data snapshot. Security advisors still report 14 notices (11 warnings),
+including public/security-definer execution and leaked-password protection
+disabled.
+
+This is a parity blocker, not permission to apply SQL. No Supabase SQL,
+Storage, branch, data, migration, Vercel, or Railway write occurred.
+
 ## M3.100 disposable Asset Register replay parity (2026-08-06)
 
 Added rollback-only `apps/api/integration/assets-read.database.integration.spec.ts`.

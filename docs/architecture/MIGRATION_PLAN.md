@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.101 hosted Supabase Asset Register parity snapshot (2026-08-06)
+
+Read-only project inspection confirms `ACTIVE_HEALTHY`, PostgreSQL 17.6.1,
+55 hosted migrations through `20260729233017`, and no
+`20260806110000_asset_register_foundation` entry. `public.assets` is absent;
+therefore hosted asset RLS, service-role grants, audit trigger, indexes, and
+data are not yet verifiable. Security advisors remain at 14 notices/11
+warnings, including public SECURITY DEFINER execution and disabled leaked
+password protection. No Supabase write or provider build occurred.
+
+## Next gate
+
+Keep `ERP_ASSET_READS_ENABLED=false`, `ERP_ASSET_READS_TENANT_IDS` empty,
+`ERP_ASSET_READS_VIA_API=false`, and its allowlist empty. Obtain supported
+backup/catalog/data/audit export and owner-approved duplicate PO mapping,
+reconcile the 37 source migrations in order, and review security warnings.
+Only after hosted parity may a protected browser canary be considered.
+
 ## M3.100 disposable Asset Register replay parity (2026-08-06)
 
 Added a rollback-only API integration fixture and expanded the reproducibility

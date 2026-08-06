@@ -1,5 +1,17 @@
 # Architecture Decisions
 
+## D-212 - Hosted Asset Register remains unapplied (2026-08-06)
+
+Decision: do not apply the source asset migration to Supabase from this
+snapshot. Hosted ledger/catalog evidence shows 55/92 migrations and no
+`public.assets`; applying before backup, ordered reconciliation, duplicate
+Purchase Order mapping, and security review would bypass the production data
+gate. Keep Web/Core selectors closed and use the disposable replay as the
+only current asset proof.
+
+Evidence: read-only project/migration/table/SQL metadata inspection; no
+Supabase, Vercel, Railway, Storage, branch, or tenant-canary mutation.
+
 ## D-211 - Asset Register replay is required before hosted read selection (2026-08-06)
 
 Decision: require a rollback-only disposable PostgreSQL replay before any
