@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createInventoryUomThroughCoreApi,
   inventoryUomCreateWritesUseCoreApi,
+  inventoryUomUpdateWritesUseCoreApi,
+  updateInventoryUomThroughCoreApi,
 } from './erp-core-client'
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -75,6 +77,39 @@ describe('ERP Core inventory UOM client', () => {
             /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
           ),
         }),
+      })
+    )
+  })
+
+  it('gates updates by tenant and sends only mutable UOM state', async () => {
+    expect(inventoryUomUpdateWritesUseCoreApi(TENANT_ID)).toBe(false)
+    vi.stubEnv('ERP_INVENTORY_UOM_UPDATE_VIA_API', 'true')
+    vi.stubEnv('ERP_INVENTORY_UOM_UPDATE_TENANT_IDS', TENANT_ID)
+    expect(inventoryUomUpdateWritesUseCoreApi(TENANT_ID)).toBe(true)
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ...RESULT, name: 'Units', isActive: false }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      updateInventoryUomThroughCoreApi(RESULT.uomId, {
+        name: 'Units',
+        isActive: false,
+      })
+    ).resolves.toEqual({
+      ok: true,
+      data: { ...RESULT, name: 'Units', isActive: false },
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/inventory/uoms/${RESULT.uomId}`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'Units', isActive: false }),
       })
     )
   })

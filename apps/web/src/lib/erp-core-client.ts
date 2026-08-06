@@ -35,6 +35,7 @@ import {
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
   inventoryUomCreationResultSchema,
+  inventoryUomUpdateResultSchema,
   inventoryWarehouseCreationResultSchema,
   inventoryWarehouseCloseoutResultSchema,
   inventoryWarehouseUpdateResultSchema,
@@ -141,6 +142,8 @@ import {
   type StockMovementReversalResult,
   type CreateInventoryUomCommand,
   type InventoryUomCreationResult,
+  type InventoryUomUpdateResult,
+  type UpdateInventoryUomCommand,
   type CreateInventoryWarehouseCommand,
   type InventoryWarehouseCreationResult,
   type InventoryWarehouseCloseoutResult,
@@ -371,6 +374,14 @@ export function inventoryUomCreateWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_INVENTORY_UOM_CREATE_VIA_API,
     process.env.ERP_INVENTORY_UOM_CREATE_TENANT_IDS
+  )
+}
+
+export function inventoryUomUpdateWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_INVENTORY_UOM_UPDATE_VIA_API,
+    process.env.ERP_INVENTORY_UOM_UPDATE_TENANT_IDS
   )
 }
 
@@ -2160,6 +2171,58 @@ export async function createInventoryUomThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No inventory UOM was created.',
+    }
+  }
+}
+
+export async function updateInventoryUomThroughCoreApi(
+  uomId: string,
+  command: UpdateInventoryUomCommand
+): Promise<CoreResult<InventoryUomUpdateResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/inventory/uoms/${encodeURIComponent(uomId)}`,
+      {
+        method: 'PATCH',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 404
+            ? 'UOM not found.'
+            : 'Inventory UOM was not updated.'
+      return { ok: false, error: message }
+    }
+
+    const parsed = inventoryUomUpdateResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid inventory UOM update result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No inventory UOM was updated.',
     }
   }
 }

@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 import { InventoryUomController } from './inventory-uom.controller'
 import { InventoryUomCreationService } from './inventory-uom-creation.service'
+import { InventoryUomUpdateService } from './inventory-uom-update.service'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 
@@ -19,13 +20,17 @@ describe('Inventory UOM HTTP contract', () => {
     close = undefined
   })
 
-  async function appFor(create = vi.fn()) {
+  async function appFor(create = vi.fn(), update = vi.fn()) {
     const moduleRef = await Test.createTestingModule({
       controllers: [InventoryUomController],
       providers: [
         {
           provide: InventoryUomCreationService,
           useValue: { create },
+        },
+        {
+          provide: InventoryUomUpdateService,
+          useValue: { update },
         },
       ],
     }).compile()
@@ -88,6 +93,31 @@ describe('Inventory UOM HTTP contract', () => {
 
     expect(create).toHaveBeenCalledWith(
       { code: 'EA', name: 'Each', decimalPlaces: 0 },
+      expect.objectContaining({ tenantId: TENANT_ID, userId: expect.any(String) })
+    )
+  }, 15_000)
+
+  it('forwards validated update command and verified principal', async () => {
+    const update = vi.fn().mockResolvedValue({
+      uomId: '66666666-6666-4666-8666-666666666666',
+      tenantId: TENANT_ID,
+      code: 'EA',
+      name: 'Units',
+      decimalPlaces: 0,
+      isActive: false,
+      createdAt: '2026-08-05T00:00:00.000Z',
+      updatedAt: '2026-08-05T00:01:00.000Z',
+    })
+    const app = await appFor(vi.fn(), update)
+
+    await request(app.getHttpServer())
+      .patch('/v1/inventory/uoms/66666666-6666-4666-8666-666666666666')
+      .send({ name: ' Units ', isActive: false })
+      .expect(200)
+
+    expect(update).toHaveBeenCalledWith(
+      '66666666-6666-4666-8666-666666666666',
+      { name: 'Units', isActive: false },
       expect.objectContaining({ tenantId: TENANT_ID, userId: expect.any(String) })
     )
   }, 15_000)

@@ -13,6 +13,8 @@ import { InventoryItemConfigurationService } from './inventory-item-configuratio
 import { InventoryUomController } from './inventory-uom.controller'
 import { InventoryUomCreatePipe } from './inventory-uom-create.pipe'
 import { InventoryUomCreationService } from './inventory-uom-creation.service'
+import { InventoryUomUpdatePipe } from './inventory-uom-update.pipe'
+import { InventoryUomUpdateService } from './inventory-uom-update.service'
 import { InventoryWarehouseController } from './inventory-warehouse.controller'
 import { InventoryWarehouseCreatePipe } from './inventory-warehouse-create.pipe'
 import { InventoryWarehouseCreationService } from './inventory-warehouse-creation.service'
@@ -65,6 +67,8 @@ import { StockReceiptWorkflowService } from './stock-receipt-workflow.service'
     InventoryItemConfigurationPipe,
     InventoryUomCreationService,
     InventoryUomCreatePipe,
+    InventoryUomUpdateService,
+    InventoryUomUpdatePipe,
     InventoryWarehouseCreationService,
     InventoryWarehouseCreatePipe,
     InventoryWarehouseUpdateService,
