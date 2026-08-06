@@ -1,8 +1,17 @@
 # Third Code ERP capability matrix
 
-Status date: 2026-08-06
-Source checkpoint: `86db0e4935ff7f655e6443d19834fe3e1e9bc013` (M3.124 bounded
-landing carousel and above-fold image priority)
+## M3.129 self-hosted free database lane (2026-08-07)
+
+The free WSL lane proves 97/97 ordered migrations, PostgreSQL 17.10/Redis
+7.4.9 runtime behavior, 51/51 database files with 324/324 tests and zero
+skips, Nest integration, and unchanged schema dumps. This is source evidence
+only. The pinned Supabase CLI `2.109.1` shadow-database diff still requires
+Docker/CI and remains open; hosted Supabase, Vercel, Railway, and ERP canaries
+are unchanged.
+
+Status date: 2026-08-07
+Source checkpoint: `d5d0869272d2edbbe40fb0faf9804169675ec474` (M3.128 cache-safe
+runtime test gate)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 M3.125 current-state refresh: the source branch contains 97 ordered Supabase

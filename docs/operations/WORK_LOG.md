@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-07 - M3.129 self-hosted free database lane
+
+Ran the approved WSL lane on `ThirdCodeERP-Test`. PostgreSQL 17.10 and Redis
+7.4.9 started locally; the database was rebuilt from the system bootstrap,
+all 97 ordered migrations and deterministic seed were applied, and the
+verifier passed. Database Vitest passed 51/51 files and 324/324 tests with
+zero skips; Nest transaction integration passed; schema dumps before and after
+the test suite had the same SHA-256. The lane was cleaned afterward.
+
+Retried pinned Supabase CLI `2.109.1` with `--db-url`; it stopped before
+inspection because Docker Desktop's Linux engine pipe is unavailable. No
+hosted Supabase, Vercel, Railway, feature flag, or tenant-data state changed.
+
 ## 2026-08-06 - M3.128 cache-safe runtime test gate
 
 Found that root Turbo test output could be reused from a no-database run even

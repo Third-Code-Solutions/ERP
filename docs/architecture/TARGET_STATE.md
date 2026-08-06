@@ -1,5 +1,12 @@
 # Target State
 
+## M3.129 self-hosted replay evidence (2026-08-07)
+
+The free self-hosted lane must prove the ordered migration ledger, zero-skip
+runtime tests, Nest integration, and unchanged schema hash before any managed
+database action. A direct replay does not replace the pinned Supabase CLI
+shadow-database diff; that artifact remains required in Docker/CI.
+
 ## M3.128 cache-safe test evidence (2026-08-06)
 
 Runtime test results must be invalidated when database, Redis, or integration
