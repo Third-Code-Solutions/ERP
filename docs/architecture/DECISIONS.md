@@ -11,9 +11,11 @@ changed. This evidence still cannot authorize a hosted migration or paid
 provider promotion while Supabase parity and operational gates are open.
 
 Evidence: broad API 104 files/445 tests, Web 87 files/565 tests, database
-93/93 migrations with 32 protected and 3 service-only tables, and Turbo build
-2/2 (Nest webpack, Next 81/81 routes). No Supabase, Vercel, Railway, Storage,
-or tenant-canary mutation.
+93/93 migrations with 32 protected and 3 service-only tables, Turbo build 2/2
+(Nest webpack, Next 81/81 routes), and Railway deployment
+`27591050-3977-4755-92ae-941a6894ac77` `SUCCESS` on the exact commit. No
+Supabase, Vercel, Storage, or tenant-canary mutation; the Railway promotion
+was the single Git-triggered backend deploy and was not manually repeated.
 
 ## D-213 - Route delivery in-transit through the existing Nest ledger (2026-08-06)
 

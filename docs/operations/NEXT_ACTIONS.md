@@ -2,6 +2,10 @@
 
 ## Exact next action after M3.102 delivery in-transit authority slice
 
+The single Git-triggered Railway backend deployment for `dcf7b04c` is green;
+do not manually repeat it. Keep Vercel disconnected and all delivery flags
+closed while hosted Supabase parity is reconciled.
+
 1. Keep `ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_ENABLED=false`,
    `ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_TENANT_IDS` empty,
    `ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API=false`, and its allowlist

@@ -20,8 +20,10 @@ broad API 104/445 pass; and the isolated Nest/Next production build passes
 81/81 routes. The inventory UOM HTTP contract test-app startup budget is 15
 seconds to avoid a false negative under the full serial suite; application
 behavior is unchanged. Source and evidence docs are pushed to both GitHub
-refs. No hosted migration apply, Vercel build, Railway build, Storage write,
-or tenant canary occurred.
+refs. Railway automatically promoted the backend commit once from `main`:
+deployment `27591050-3977-4755-92ae-941a6894ac77` is `SUCCESS`, `/ready` and
+`/health` are 200, and the protected assets route is 401 without auth. No
+hosted migration apply, Vercel build, Storage write, or tenant canary occurred.
 
 ## Next gate
 
