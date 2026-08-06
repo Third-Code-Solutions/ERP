@@ -4,6 +4,23 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.111 read-only Supabase export preflight (2026-08-06)
+
+The new export planner is fail-closed and never opens a database connection or
+changes provider state. Repository `DATABASE_URL` is valid and independently
+readable as PostgreSQL 17.6, but it uses the Supavisor transaction pooler on
+port 6543; supported Supabase logical dumps require a session pooler/direct
+connection on port 5432. The current machine has no Supabase CLI, `pg_dump`, or
+Docker. A direct read-only metadata query reports a 25 MB database, 88 public
+tables, and 55 applied migrations through `20260729233017`. Export status is
+review-required; no dump or hosted mutation exists. Export planner tests are
+4/4; serial API/Web/shared/database suites are 452/452, 570/570, 219/219, and
+177/177 respectively, with 141 expected database integration skips; lint,
+typecheck, and the 81-route Web build pass.
+The repository-wide gitleaks scan remains review-required for six historical
+`REDACTED` idempotency-test literals outside this slice; the new export files
+were not reported.
+
 ## M3.110 public landing UX and SEO smoke audit (2026-08-06)
 
 Read-only Playwright checks against the public alias confirmed the current
