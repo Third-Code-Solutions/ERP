@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-06 - M3.100 disposable Asset Register replay parity
+
+Added rollback-only API integration coverage for the Asset Register and made
+the database reproducibility verifier require the asset migration, service-only
+table, indexes, and audit trigger. Replay seeded two tenants and verified
+direct/Core parity, Project context, pagination/search, cross-tenant exclusion,
+audit rows, forced RLS, and no `anon`/`authenticated` SELECT.
+
+Evidence: disposable PostgreSQL 17/Redis 7.4.9; schema before/after SHA256
+`36AC6C9CFB138589031C4BE6FF328748CA80AD45B07DAB40BAEE10C05E2F0B0B`; API 17
+files/24 tests; database 49 files/318 tests; verifier 92/92 migrations,
+32 protected tables, 3 service-only tables; zero skips. Source SHA
+`8586beb9e53d5fafd2289451eda576ea5b1a1726` pushed to both refs. No hosted
+Supabase write, Vercel/Railway build, or extra provider spend.
+
 ## 2026-08-06 - M3.99 closed Web Asset Register read surface
 
 Added the source-only Next.js Asset Register route, Core adapter, exact

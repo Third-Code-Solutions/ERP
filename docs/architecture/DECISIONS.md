@@ -1,5 +1,18 @@
 # Architecture Decisions
 
+## D-211 - Asset Register replay is required before hosted read selection (2026-08-06)
+
+Decision: require a rollback-only disposable PostgreSQL replay before any
+tenant is selected for the Web/Core Asset Register seam. The proof must compare
+direct and Core rows, same-tenant Project context, bounded pagination/search,
+tenant exclusion, audit output, forced RLS, and client-role privileges. Local
+parity cannot authorize applying the missing hosted migration, enabling a
+tenant, or creating a paid deployment.
+
+Evidence: `8586beb9e53d5fafd2289451eda576ea5b1a1726`; schema hash unchanged;
+API 17/24 and database 49/318 with zero skips; verifier 92/92, 32 protected,
+3 service-only. Supabase/Vercel/Railway remained unchanged.
+
 ## D-210 - Asset Register Web reads remain closed and Core-only (2026-08-06)
 
 Decision: expose the existing operational asset projection in Next only as a

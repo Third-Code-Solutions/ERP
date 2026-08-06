@@ -4,6 +4,15 @@ Status date: 2026-08-06
 Source checkpoint: `91ed375` (M3.96 cash register replay parity evidence)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
+M3.100 replay update: rollback-only disposable PostgreSQL 17/Redis 7.4.9 proof
+now compares direct and Core Asset Register rows across two tenants, Project
+joins, pagination/search, audit, forced RLS, and client-role privilege denial.
+Verifier coverage includes the asset migration, service-only table, indexes,
+and audit trigger. API 17/24, database 49/318, schema hash unchanged, and
+92/92 migration verification pass. Source SHA
+`8586beb9e53d5fafd2289451eda576ea5b1a1726` is pushed; hosted selectors remain
+false/empty and no provider/database write occurred.
+
 M3.99 Web update: Asset Register now has an original Next route over the
 closed Core `GET /v1/assets` read projection. It requires `asset.read`, exact
 flag/tenant selection, strict response validation, and no direct database

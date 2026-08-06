@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.100 Asset Register replay parity
+
+1. Keep `ERP_ASSET_READS_ENABLED=false`, `ERP_ASSET_READS_TENANT_IDS` empty,
+   `ERP_ASSET_READS_VIA_API=false`, and
+   `ERP_ASSET_READS_VIA_API_TENANT_IDS` empty. Replay is local evidence only;
+   do not create a Vercel preview/production build or Railway rebuild.
+2. Obtain supported Supabase backup/catalog/data/audit export for
+   `aqqrtkmtcsfkbyyqxowv`; reconcile the 37 source migrations after
+   `20260729233017` in order. The asset migration remains unapplied hosted.
+3. Resolve the owner-approved tenant-scoped 12-record Purchase Order
+   duplicate mapping and review the security warnings before any migration
+   apply or tenant canary.
+4. After hosted parity, run one protected Asset Register browser canary,
+   rollback drill, and spend check. Keep official writes in Nest and Python/
+   AI advisory-only.
+
 ## Exact next action after M3.99 Web Asset Register slice
 
 1. Keep `ERP_ASSET_READS_ENABLED=false`, `ERP_ASSET_READS_TENANT_IDS` empty,
