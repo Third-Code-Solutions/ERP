@@ -2,12 +2,13 @@
 
 ## Exact next action after M3.131 asset maintenance history
 
-Push only the reviewed feature branch as `kurtgav`. Do not apply migration
-`20260807100000` to hosted Supabase, enable any maintenance flag, create a
-Vercel build, or redeploy Railway: hosted parity/security/duplicate/audit/
-rollback/identity/spend gates remain open and the user's Vercel bill is a hard
-constraint. A later protected canary must exercise read, create, replay, hash
-conflict, retired-asset rejection, tenant isolation, and audit evidence.
+Keep hosted migration, flags, and deploys closed. The reviewed feature branch
+is pushed; the next release action is a manually approved protected canary
+after hosted parity/security/duplicate/audit/rollback/identity/spend gates
+clear. Do not apply migration `20260807100000` to hosted Supabase, enable a
+maintenance flag, create a Vercel build, or redeploy Railway while those gates
+remain open. A canary must exercise read, create, replay, hash conflict,
+retired-asset rejection, tenant isolation, and audit evidence.
 
 ## Exact next action after M3.130 dashboard fault isolation
 

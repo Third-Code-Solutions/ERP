@@ -16,8 +16,9 @@ Focused validation passed: shared 3/3; API 111 files/473 tests; Web client
 98/98 migrations, verifier pass, 20 integration files/27 tests, and database
 51/51 files/324 tests with zero skips. Serial build, typecheck, lint, full
 tests, migration verifier, actionlint, gitleaks, controlled-release, and
-provider-spend guards all pass. Commit `a232bf9` is complete; feature-branch
-push remains.
+provider-spend guards all pass. Code commit `a232bf9` plus checkpoint commit
+`6df905b` are pushed to `origin/agent-02/third-code-erp-landing` as
+`kurtgav`. No hosted/provider mutation occurred.
 
 ## 2026-08-07 - M3.130 dashboard fault isolation
 
