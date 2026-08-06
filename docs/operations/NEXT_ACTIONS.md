@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.119 public favicon identity
+
+Run focused branding tests, then the normal serial Turbo test, typecheck,
+TS-only lint, production build, Gitleaks, Actionlint, and migration-file
+verification. Push only the reviewed feature branch. Keep Vercel Git
+deployment disabled, Railway/Vercel builds closed, all ERP canary flags off,
+and Supabase unchanged while the controlled release planner remains blocked by
+41 missing hosted migrations, owner-approved duplicate Purchase Order mapping,
+and missing `AUDIT_RECOVERY_TENANT_ID`.
+
 ## Exact next action after M3.118 Won-to-Project authority seam
 
 Validation is green: serial Turbo tests, `pnpm typecheck`, `pnpm lint`,
