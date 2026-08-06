@@ -366,7 +366,21 @@ export class ProjectsService {
     principal: ErpPrincipal
   ): Promise<ProjectUpdateResult> {
     return this.database.client.transaction(async (transaction) => {
-      await this.audit.stampActor(transaction, principal)
+      const membership = await this.lockMembership(transaction, principal)
+      if (
+        !membership ||
+        !roleHasCapability(membership.role, 'project.update')
+      ) {
+        throw new ForbiddenException()
+      }
+      const authorizedPrincipal: ErpPrincipal = {
+        userId: principal.userId,
+        tenantId: membership.tenantId,
+        role: membership.role,
+        email: membership.email,
+      }
+
+      await this.audit.stampActor(transaction, authorizedPrincipal)
 
       const [existing] = await transaction
         .select()
@@ -374,7 +388,7 @@ export class ProjectsService {
         .where(
           and(
             eq(projects.id, projectId),
-            eq(projects.tenant_id, principal.tenantId)
+            eq(projects.tenant_id, authorizedPrincipal.tenantId)
           )
         )
         .limit(1)
@@ -405,15 +419,15 @@ export class ProjectsService {
         .where(
           and(
             eq(projects.id, projectId),
-            eq(projects.tenant_id, principal.tenantId)
+            eq(projects.tenant_id, authorizedPrincipal.tenantId)
           )
         )
         .returning()
 
       if (!updated) throw new NotFoundException('Project not found')
       await this.audit.writeSemantic(transaction, {
-        tenantId: principal.tenantId,
-        actorId: principal.userId,
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
         entityType: 'project',
         entityId: updated.id,
         action: 'update',
