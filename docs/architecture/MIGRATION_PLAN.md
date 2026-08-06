@@ -1,5 +1,38 @@
 # Migration Plan
 
+## M3.96 - Closed cash transaction register read projection (2026-08-06)
+
+Implemented the smallest safe cash read seam: shared bounded filters and
+strict result types, Nest controller/pipe/service, `finance.read`
+authorization, same-tenant cash-account and optional business/vendor joins,
+exact-cent register rows, and posted receipt/disbursement aggregates. The
+existing Cash page remains the compatibility path unless
+`ERP_FINANCE_CASH_READS_VIA_API=true` and the tenant is in the exact allowlist;
+selected tenants fail closed on Core errors and over-limit results. API and
+Next flags remain false/empty.
+
+Validation: shared 25 files/214 tests; API 104 files/440 tests; Web 87 files/558
+tests; database 45 files/177 active tests with 4 files/141 skipped integration/
+RLS tests without local `DATABASE_URL`; package-serial tests; typecheck; serial
+lint; production build 80/80; Vercel spend guard; and diff check. Source SHA
+`ddadd2fa3f7c2451dcfc97f53529ba9edba1f3ee` is pushed to both GitHub refs.
+Railway `fbfc7eb0-4820-4359-a42f-74b3c0351558` is `SUCCESS` with the API
+Dockerfile; live `/ready` 200, `/health` 200, and unauthenticated cash register
+401. No hosted SQL, Supabase data/Storage write, Python transaction, Vercel
+build, or extra AI/provider spend occurred.
+
+## Next gate
+
+Keep `ERP_FINANCE_CASH_READS_ENABLED=false`,
+`ERP_FINANCE_CASH_READS_TENANT_IDS` empty,
+`ERP_FINANCE_CASH_READS_VIA_API=false`, and
+`ERP_FINANCE_CASH_READS_VIA_API_TENANT_IDS` empty. Do not enable a tenant
+until cash/account/vendor data is replayed on disposable PostgreSQL 17,
+direct and Core exact-cent rows/aggregates match, RLS/audit behavior is
+reviewed, a protected browser canary passes, and rollback/spend evidence is
+recorded. No new Railway build for docs-only changes; no Vercel build; keep
+Supabase read-only while its migration/duplicate-record gate is unresolved.
+
 ## M3.95 - Closed supplier payables read projection (2026-08-06)
 
 Implemented the smallest safe payables read seam: shared bounded filters and

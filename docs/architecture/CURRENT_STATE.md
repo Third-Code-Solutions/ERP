@@ -4,6 +4,35 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.96 Closed cash transaction register read projection (2026-08-06)
+
+Added an original shared Finance Cash query/result contract and NestJS
+`GET /v1/finance/cash-transactions` projection. The API requires `finance.read`,
+derives tenant scope from the verified principal, joins only same-tenant cash
+accounts and optional business/vendor context, and returns bounded rows plus
+posted receipt/disbursement and workflow aggregates in exact cents. Next keeps
+the existing Cash page and direct-read path by default; the Core adapter is
+selected only by exact boolean plus UUID tenant allowlist and fails closed on
+Core error or an over-limit result. No UI redesign, browser write, Python
+transaction authority, hosted SQL, or data mutation was added.
+
+Validation: shared 25 files/214 tests; API 104 files/440 tests; Web 87 files/558
+tests; database 45 files/177 active tests with 4 files/141 integration/RLS
+tests skipped because local `DATABASE_URL` is unavailable; package-serial test
+run; typecheck; serial lint; production build 80/80 routes; Vercel spend guard;
+and diff check. Source SHA
+`ddadd2fa3f7c2451dcfc97f53529ba9edba1f3ee` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`fbfc7eb0-4820-4359-a42f-74b3c0351558` is `SUCCESS` with running instance
+`60e8b204-0920-4523-bc2d-aaaac70a1e55`, Dockerfile `apps/api/Dockerfile`,
+`/ready`, `node apps/api/dist/main.js`, and image digest
+`sha256:cd7e1770c08ddf3c5e458ed6299467fa96e59ea2a2701f021630599f25c26e88`.
+Live `/ready` and `/health` are 200 and unauthenticated
+`/v1/finance/cash-transactions` is 401. Supabase remains read-only at
+PostgreSQL 17 with 55/92 migrations applied, 37 missing, and one duplicate
+Purchase Order group of 12 records. Vercel Git remains disconnected; no
+Vercel build or deploy was started.
+
 ## M3.95 Closed supplier payables read projection (2026-08-06)
 
 Added an original shared Finance Payables query/result contract and NestJS
