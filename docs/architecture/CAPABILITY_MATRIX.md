@@ -1,5 +1,22 @@
 # Third Code ERP capability matrix
 
+## M3.136 legacy Project update fallback guard (2026-08-07)
+
+The legacy Web Project update action now derives the tenant and actor from
+`requireUserProfile`, checks `project.update` before reading the target, and
+applies the shared Core Project status-transition table before either the
+NestJS path or the direct-database compatibility fallback. Terminal status
+reopens are rejected consistently. The fallback still writes directly during
+migration, so it is not yet the official transaction authority. No migration,
+flag, hosted SQL, Vercel build, Railway deploy, or provider mutation was
+added; hosted providers and ERP canaries remain closed.
+
+Validation: focused Web Project action tests 4/4; serial workspace tests
+passed (shared 27/229, database 47/51 files with 141 compatibility skips, API
+112/480, Web 89/583); production build emitted 81/81 routes; typecheck, lint,
+migration verifier, Actionlint, Gitleaks, controlled-release, and
+provider-spend guards passed. Source checkpoint: commit `5a44ce8`.
+
 ## M3.135 project status state machine (2026-08-07)
 
 Core Project update now enforces explicit status transitions: `lead` may move

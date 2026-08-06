@@ -1,5 +1,14 @@
 # Target State
 
+## M3.136 one Project update authority
+
+All Web Project updates must call the NestJS transaction authority. Until
+that convergence, the compatibility fallback must use the same tenant/profile
+capability check and shared status-transition policy, fail closed before any
+write, and remain explicitly non-canary. The final migration removes direct
+browser-era writes and proves optimistic concurrency, audit parity, and
+rollback at the Core boundary.
+
 ## M3.135 explicit Project status workflow
 
 Project status must be a server-owned state machine, not a free-form enum

@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.136 legacy Project update fallback guard
+
+Replaced the Web action's ad-hoc user/tenant lookup with
+`requireUserProfile`, added the `project.update` capability, and applied the
+shared status-transition table before both write paths. Added focused
+regressions for terminal reopen rejection and capability denial before target
+read. This is a compatibility hardening slice only: the direct fallback still
+does not inherit Core's membership lock, idempotency, optimistic-concurrency,
+and audit transaction semantics. No migration, flag, browser redesign, or
+provider action was introduced.
+
+Validation: focused Web action 4/4; serial workspace tests (shared 27/229,
+database 47/51 with 141 compatibility skips, API 112/480, Web 89/583);
+production build 81/81 routes; typecheck, lint, migration verifier,
+Actionlint, Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed.
+Code commit `5a44ce8`. Hosted Supabase, Vercel, Railway, and ERP canaries stay
+closed.
+
 ## M3.135 project status state machine
 
 Added a shared Project transition table and applied it inside the existing
