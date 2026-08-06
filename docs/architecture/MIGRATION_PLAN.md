@@ -1,5 +1,22 @@
 # Migration Plan
 
+## M3.134 project-update authority hardening
+
+Extended the existing Project Core authority so `PATCH /v1/projects/:id`
+locks tenant membership and rechecks `project.update` inside the same
+transaction as Project row locking, optimistic concurrency, mutation, and
+audit. The service now derives a database-backed principal instead of trusting
+the request role. No migration, flag, browser write path, or provider action
+was introduced.
+
+Validation: focused Project service/HTTP tests 21/21; WSL PostgreSQL 17.10 /
+Redis 7.4.9 replay, 98/98 migrations, verifier, and Project API integration
+passed; serial workspace tests passed (shared 27/228, database 47/51 with 141
+compatibility skips, API 112/479, Web 89/581); production build 81/81 routes;
+typecheck, lint, Actionlint, Gitleaks, controlled-release 5/5, and
+provider-spend 4/4 passed. Code commit `5534046`. Hosted Supabase, Vercel,
+Railway, and ERP canaries stay closed.
+
 ## M3.133 project-create authority hardening
 
 Moved the smallest safe authorization boundary into the existing Core project

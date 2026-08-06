@@ -1,5 +1,22 @@
 # Third Code ERP capability matrix
 
+## M3.134 project-update authority hardening (2026-08-07)
+
+Project updates now recheck the caller's tenant membership and
+`project.update` capability inside the same NestJS transaction that locks and
+updates the Project. The database-backed role becomes the authorized
+principal for tenant predicates, actor context, and semantic audit; denied or
+stale role claims abort before the Project row is touched. No migration, flag,
+hosted SQL, Vercel build, Railway deploy, or provider mutation was added.
+
+Validation: focused Project service/HTTP tests 21/21; self-hosted PostgreSQL
+17.10/Redis 7.4.9 replay applied 98/98 migrations and passed the Project API
+integration path; serial workspace tests passed (shared 27/228, database
+47/51 files with 141 compatibility skips, API 112/479, Web 89/581);
+production build emitted 81/81 routes; typecheck, lint, migration verifier,
+Actionlint, Gitleaks, controlled-release, and provider-spend guards passed.
+Source checkpoint: commit `5534046`; hosted providers remain closed.
+
 ## M3.133 project-create authority hardening (2026-08-07)
 
 Project creation now rechecks the caller's tenant membership and capability
@@ -66,7 +83,7 @@ Docker/CI and remains open; hosted Supabase, Vercel, Railway, and ERP canaries
 are unchanged.
 
 Status date: 2026-08-07
-Source checkpoint: commit `6276d10` on `agent-02/third-code-erp-landing`
+Source checkpoint: commit `5534046` on `agent-02/third-code-erp-landing`
 Scope: clean-room construction ERP capability planning and incremental delivery
 
 M3.125 current-state refresh: the source branch contains 97 ordered Supabase

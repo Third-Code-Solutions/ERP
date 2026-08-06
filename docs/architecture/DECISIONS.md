@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-242 - Lock project-update membership before mutation (2026-08-07)
+
+Decision: in `ProjectsService.update`, lock the caller's tenant membership
+with `FOR UPDATE`, re-evaluate `project.update` from the stored role, and use
+that result for the Project tenant predicates, actor context, mutation, and
+semantic audit. Reject missing or insufficient membership before locking or
+updating the Project row.
+
+Rationale: the route guard is useful transport defense but cannot be the only
+authority boundary for internal callers or stale claims. Keeping membership,
+optimistic concurrency, mutation, and audit in one transaction closes the
+same-tenant authorization race without a schema/provider change.
+
+Evidence: focused regression coverage rejects an admin-shaped principal when
+the locked membership is a viewer; WSL PostgreSQL/Redis replay and full serial
+workspace gates pass. Core and hosted canaries remain closed.
+
 ## D-241 - Lock project-create membership before authorization (2026-08-07)
 
 Decision: in `ProjectsService.create`, lock the caller's tenant membership

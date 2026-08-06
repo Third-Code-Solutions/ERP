@@ -1,5 +1,14 @@
 # Target State
 
+## M3.134 transaction-bound project-update authorization
+
+Every mutable Project command must lock and recheck tenant membership before
+locking the Project, applying optimistic concurrency, writing the mutation,
+or emitting audit. Request roles remain transport claims only. A missing or
+insufficient membership rolls back without touching Project state. Keep the
+Core canary closed until hosted parity, RLS/catalog review, identity,
+rollback, audit recovery, and spend controls are approved.
+
 ## M3.133 transaction-bound project-create authorization
 
 Every sensitive Core write must derive authorization from a tenant membership
