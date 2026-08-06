@@ -4,7 +4,9 @@
 
 Use the approved GitHub self-hosted/Docker CI lane to capture the pinned
 Supabase CLI `2.109.1` schema-diff artifact. Keep the CLI gate open when the
-Docker Linux engine is unavailable. Then repeat the read-only controlled
+Docker Linux engine is unavailable. The last `CI (Self-Hosted Free)` dispatch
+returned HTTP 500 with no created run; investigate runner/dispatch health
+before a single retry. Then repeat the read-only controlled
 planner; do not apply hosted SQL, create a Vercel build, manually redeploy
 Railway, or enable an ERP canary while migration parity, catalog security,
 duplicate Purchase Orders, audit recovery, rollback, identity, and spend

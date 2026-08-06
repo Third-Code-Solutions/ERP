@@ -12,6 +12,8 @@ the test suite had the same SHA-256. The lane was cleaned afterward.
 Retried pinned Supabase CLI `2.109.1` with `--db-url`; it stopped before
 inspection because Docker Desktop's Linux engine pipe is unavailable. No
 hosted Supabase, Vercel, Railway, feature flag, or tenant-data state changed.
+The `CI (Self-Hosted Free)` dispatch under `kurtgav` returned GitHub HTTP 500
+and created no run; it was not retried blindly.
 
 ## 2026-08-06 - M3.128 cache-safe runtime test gate
 
