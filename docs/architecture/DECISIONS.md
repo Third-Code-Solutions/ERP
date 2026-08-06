@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-221 - Recover dashboard render failures without leaking details (2026-08-06)
+
+Decision: add one route-group Next error boundary for protected dashboard
+pages. Show a branded recovery panel, retry action, safe dashboard link, and
+opaque digest only; never render `error.message` or stack details. Keep data
+and transaction claims explicit: a render failure does not imply a rollback or
+data change.
+
+Rationale: the reported production screen exposed only a generic framework
+failure. A calm boundary improves operator recovery and support correlation
+without masking the underlying server logs, changing authorization, or adding
+provider cost.
+
+Evidence: Web 88/570, Next build 81/81, typecheck/lint, and source contract
+test 1/1. Source commit `6eb0b0a0388d0e9cc00981173c5a40f2ce458116` is pushed to
+the feature branch by `kurtgav`; no hosted/provider mutation occurred.
+
 ## D-220 - Hosted parity is a release gate, not a deploy guess (2026-08-06)
 
 Decision: treat the hosted Supabase snapshot as evidence only. Do not apply

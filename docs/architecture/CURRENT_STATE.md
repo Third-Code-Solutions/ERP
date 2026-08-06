@@ -4,6 +4,18 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.109 dashboard render recovery boundary (2026-08-06)
+
+The protected dashboard route group now has a branded Next error boundary for
+uncaught render failures. It preserves the non-leaking digest reference,
+explains that records were not changed, offers retry and dashboard navigation,
+and responds at mobile widths without changing ERP transaction behavior. A
+static contract test prevents rendering `error.message` into the browser.
+Web full tests are 88/570, production routes 81/81, and typecheck/lint pass.
+Source commit `6eb0b0a0388d0e9cc00981173c5a40f2ce458116` is pushed to the
+feature branch; no provider build, hosted SQL, or tenant-data mutation
+occurred.
+
 ## M3.108 hosted Supabase parity refresh (2026-08-06)
 
 Read-only Supabase MCP and repository planner evidence still agree: PostgreSQL

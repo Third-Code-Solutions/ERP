@@ -1,5 +1,13 @@
 # Target State
 
+## M3.109 dashboard failure-state gate (2026-08-06)
+
+Every protected dashboard route must fail into a recoverable Third Code ERP
+state, never an opaque framework screen. The boundary may expose only an
+opaque digest, must provide retry and safe navigation, preserve tenant/data
+claims, and remain usable at mobile widths. It does not replace provider
+runtime logs or authorize deployment while hosted parity gates remain open.
+
 ## M3.108 hosted parity release gate (2026-08-06)
 
 Treat the hosted target as not promotable while its 55-migration prefix is
