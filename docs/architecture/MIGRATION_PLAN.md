@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.107 inventory UOM maintenance authority (2026-08-06)
+
+Added the strict shared UOM update command/result, Nest pipe/service/controller
+with tenant membership and capability recheck, row locks, tenant-scoped update,
+semantic audit, and fail-closed feature flag/allowlist. Added the compatibility
+Web action/Core selector and compact Inventory editor for name and active state;
+code and decimal precision remain immutable. No migration or provider action
+was needed. Local evidence is shared 29/29, API 452 passed with 26 skipped,
+Web 569/569, Next 81/81, and repository lint/type checks.
+
+## Next gate
+
+Source/docs commit `ead54aac876ed6a52f1b693c7fe6fec8f2026f8b` is pushed to the
+feature branch by `kurtgav`; `origin/main` remains unchanged. Keep UOM update
+flags and tenant allowlists empty/false. Continue supported Supabase
+backup/catalog/data/audit export for `aqqrtkmtcsfkbyyqxowv`, reconcile all 39
+source migrations after hosted `20260729233017` in order, resolve the
+owner-approved tenant-scoped Purchase Order duplicate mapping, and review
+security warnings before any hosted SQL, canary, Railway promotion, or Vercel
+build.
+
 ## M3.106 inventory item policy control surface (2026-08-06)
 
 Exposed per-item base-UOM and perpetual-tracking maintenance in Inventory using

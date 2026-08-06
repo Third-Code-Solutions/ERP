@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-06 - M3.107 inventory UOM maintenance authority
+
+Added a narrow, authenticated UOM maintenance slice. Nest now owns
+`PATCH /v1/inventory/uoms/:uomId` behind an exact feature flag and tenant UUID
+allowlist, with membership/capability recheck, tenant/UOM row locks,
+tenant-scoped name/active-state updates, immutable code/decimal precision, and
+semantic audit. The compatibility Web action/Core selector and Inventory
+editor are default-off and never write from the browser. No schema, hosted SQL,
+Vercel build, Railway build, Storage write, or tenant data changed.
+
+Validation: shared focused 29/29, API 105 files (452 passed, 26 skipped), Web
+87/569, Next production routes 81/81, repository lint/type checks, and diff
+check. Commit `ead54aac876ed6a52f1b693c7fe6fec8f2026f8b` pushed to the feature
+branch as `kurtgav`; `origin/main` remains `0ff8e91c1a09e8bbfb130c681f96fccfbe038d96`.
+
 ## 2026-08-06 - M3.106 inventory item policy control surface
 
 Added per-item policy editing to Inventory. Active catalog items now show

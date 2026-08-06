@@ -4,6 +4,21 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.107 inventory UOM maintenance authority (2026-08-06)
+
+Inventory now exposes authenticated UOM name and active-state maintenance. The
+Nest `PATCH /v1/inventory/uoms/:uomId` authority is fail-closed behind an exact
+feature flag and tenant allowlist, rechecks tenant membership/capability,
+locks the tenant and UOM rows, updates only mutable fields, and writes a
+semantic audit record. The compatibility Web action and Core selector are
+default-off; UOM code and decimal precision remain immutable, while inactive
+UOMs are unavailable for new assignments. No migration, hosted SQL, provider
+build, or tenant-data change occurred. Evidence: shared focused 29/29, API
+105 files with 452 passed and 26 skipped tests, Web 87/569, Next routes 81/81,
+and repository lint/type checks. Source commit
+`ead54aac876ed6a52f1b693c7fe6fec8f2026f8b` is pushed to the feature branch by
+`kurtgav`; `origin/main` remains unchanged.
+
 ## M3.106 inventory item policy control surface (2026-08-06)
 
 Inventory now exposes per-item policy editing for active catalog items. The
