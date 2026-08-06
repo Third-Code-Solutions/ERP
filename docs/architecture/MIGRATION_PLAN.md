@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.116 Togal BOM commit authority seam (2026-08-06)
+
+Added strict shared command/result contracts, a service-only
+`togal_bom_commit_requests` idempotency ledger migration, Drizzle schema, and
+Nest controller/service/pipe. Added role capability parity, tenant-scoped
+feature flags, optional material/vendor tenant checks, row locking, exact
+cent arithmetic, atomic BOM line/total updates, replay, and in-transaction
+audit. The Next compatibility route delegates only for an explicit canary and
+returns the historical snake_case response; it never falls back when Core is
+enabled but unavailable. Browser commit now sends a per-attempt idempotency
+key.
+
+Focused contracts pass: shared 3/3, database migration 3/3, API authority 7/7,
+Web adapter 112/112, and Web route 3/3. Full Turbo tests (4/4 package tasks),
+typecheck, production build, gitleaks, actionlint, and the 95-file repository
+migration-ledger verifier pass. The read-only controlled release plan remains
+review-required for hosted migration drift, duplicate Purchase Orders, and
+missing audit-recovery tenant input. No provider or hosted state changed; all
+new flags remain false/empty.
+
+## Next gate
+
+Push the reviewed feature branch only after the new migration is included in
+the disposable replay verifier. Keep Core flags closed. Do not promote until
+managed Supabase parity, owner PO mapping, rollback, canary, exact provider
+identity, readiness, and spend gates clear.
+
 ## M3.115 provider spend gate (2026-08-06)
 
 Integrated the static provider spend guard into the controlled release planner.

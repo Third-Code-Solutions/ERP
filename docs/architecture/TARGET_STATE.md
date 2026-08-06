@@ -8,6 +8,17 @@ invoke Vercel or Railway deploy commands, and readiness alone cannot authorize
 a paid provider action. A failed or missing spend report blocks the release;
 the gate does not create a build or infer a numeric billing allowance.
 
+## M3.116 Togal BOM authority target (2026-08-06)
+
+Togal-derived BOM commits must execute through NestJS for explicitly canaried
+tenants. The browser supplies only a strict command and idempotency key; Nest
+derives actor/tenant authority, validates all referenced catalog identities,
+locks the BOM, commits lines/totals/audit evidence in one PostgreSQL
+transaction, and replays the exact result on retry. Core failures must never
+fall back to browser-owned writes. The migration, managed parity, disposable
+replay, protected canary, rollback, and provider-spend gates remain required
+before enabling production flags.
+
 ## M3.114 duplicate-data mapping gate (2026-08-06)
 
 Before any uniqueness migration, owner mapping must be versioned, external to

@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.116 Togal BOM authority seam
+
+Push the reviewed feature branch with the new migration included in the
+disposable PostgreSQL 17 replay verifier; do not apply it to hosted Supabase.
+Keep
+`ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED=false`,
+`ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS` empty,
+`ERP_BOM_TOGAL_COMMIT_VIA_API` unset/false, and its tenant allowlist empty.
+Push only the reviewed feature branch. Before any canary or deployment,
+obtain managed Supabase parity/backup, owner-approved duplicate PO mapping,
+rollback proof, exact provider identity, readiness, security review, and
+spend-cap approval.
+
 ## Exact next action after M3.115 provider spend gate
 
 Keep `apps/web/vercel.json` Git deployment disabled and keep repository

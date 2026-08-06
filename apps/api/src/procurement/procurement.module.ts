@@ -22,6 +22,9 @@ import { ProcurementService } from './procurement.service'
 import { PurchaseOrderCreationService } from './purchase-order-creation.service'
 import { PurchaseOrderWorkflowPipe } from './purchase-order-workflow.pipe'
 import { PurchaseOrderWorkflowService } from './purchase-order-workflow.service'
+import { TogalBomCommitController } from './togal-bom-commit.controller'
+import { TogalBomCommitPipe } from './togal-bom-commit.pipe'
+import { TogalBomCommitService } from './togal-bom-commit.service'
 import {
   RFQ_DISPATCH_DEAD_LETTER_QUEUE,
   RFQ_DISPATCH_QUEUE,
@@ -53,6 +56,7 @@ import { VendorConfirmationLinkService } from './vendor-confirmation-link.servic
     PurchaseOrderController,
     DeliveryWorkflowController,
     PublicVendorConfirmationController,
+    TogalBomCommitController,
   ],
   providers: [
     ProcurementService,
@@ -78,6 +82,8 @@ import { VendorConfirmationLinkService } from './vendor-confirmation-link.servic
     PublicVendorConfirmationService,
     VendorConfirmationSessionMintingService,
     VendorConfirmationLinkService,
+    TogalBomCommitService,
+    TogalBomCommitPipe,
   ],
 })
 export class ProcurementModule implements NestModule {
@@ -88,7 +94,8 @@ export class ProcurementModule implements NestModule {
         ProcurementController,
         PurchaseOrderController,
         DeliveryWorkflowController,
-        PublicVendorConfirmationController
+        PublicVendorConfirmationController,
+        TogalBomCommitController
       )
   }
 }

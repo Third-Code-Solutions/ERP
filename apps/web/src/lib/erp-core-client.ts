@@ -18,6 +18,7 @@ import {
   purchaseOrderBomCreationResultSchema,
   purchaseOrdersGroupedFromBomResultSchema,
   purchaseOrderWorkflowResultSchema,
+  togalBomCommitResultSchema,
   changeRequestCreationResultSchema,
   journalPostResultSchema,
   journalReverseResultSchema,
@@ -89,6 +90,8 @@ import {
   type PurchaseOrdersGroupedFromBomResult,
   type PurchaseOrderWorkflowCommand,
   type PurchaseOrderWorkflowResult,
+  type TogalBomCommitCommand,
+  type TogalBomCommitResult,
   type TransitionRfqCommand,
   type UpdateProjectCommand,
   type CreateChangeRequestCommand,
@@ -536,6 +539,16 @@ export function purchaseOrderBomGroupedWritesUseCoreApi(
     tenantId,
     process.env.ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API,
     process.env.ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function togalBomCommitWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_BOM_TOGAL_COMMIT_VIA_API,
+    process.env.ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS
   )
 }
 
@@ -2763,6 +2776,63 @@ export async function createPurchaseOrdersGroupedFromBomThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No grouped BOM Purchase Orders were committed.',
+    }
+  }
+}
+
+export async function commitTogalBomThroughCoreApi(
+  command: TogalBomCommitCommand,
+  idempotencyKey: string
+): Promise<CoreResult<TogalBomCommitResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/boms/togal-commit`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Togal BOM commit conflicts with the BOM state or idempotency key.'
+            : response.status === 404
+              ? 'BOM was not found.'
+              : 'Togal BOM lines were not committed.'
+      return { ok: false, status: response.status, error: message }
+    }
+
+    const parsed = togalBomCommitResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid Togal BOM commit result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. No Togal BOM lines were committed.',
     }
   }
 }

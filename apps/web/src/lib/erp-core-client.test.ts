@@ -54,6 +54,7 @@ import {
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
   purchaseOrderBomGroupedWritesUseCoreApi,
+  togalBomCommitWritesUseCoreApi,
   stockReceiptCreateWritesUseCoreApi,
   stockReceiptPostWritesUseCoreApi,
   stockReceiptReverseWritesUseCoreApi,
@@ -1366,6 +1367,26 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PO_BOM_GROUPED_CREATE_WRITES_VIA_API_TENANT_IDS', '*')
     expect(purchaseOrderBomGroupedWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(purchaseOrderBomGroupedWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Togal BOM commit delegation fail-closed unless its gate matches', () => {
+    vi.stubEnv('ERP_BOM_TOGAL_COMMIT_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(togalBomCommitWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_BOM_TOGAL_COMMIT_VIA_API', 'TRUE')
+    expect(togalBomCommitWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_BOM_TOGAL_COMMIT_VIA_API', 'true')
+    vi.stubEnv('ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS', '')
+    expect(togalBomCommitWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS', '*')
+    expect(togalBomCommitWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(togalBomCommitWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps PO workflow delegation fail-closed unless its independent gate matches', () => {

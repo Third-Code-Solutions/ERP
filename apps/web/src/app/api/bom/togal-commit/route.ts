@@ -10,6 +10,10 @@ import {
   computeGPMargin,
 } from '@third-code-erp/shared-types/bom'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  commitTogalBomThroughCoreApi,
+  togalBomCommitWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 
 /**
  * Togal commit endpoint (REFACTOR.md M3 / US-010 #6).
@@ -91,6 +95,57 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { bom_id: bomId, proposed_lines: proposedLines } = parsed.data
   const projectMarkupBps = parsed.data.markup_bps ?? DEFAULT_MARKUP_BPS
+
+  if (togalBomCommitWritesUseCoreApi(profile.tenantId)) {
+    const idempotencyKey = req.headers.get('idempotency-key')?.trim()
+    if (!idempotencyKey) {
+      return NextResponse.json(
+        { error: 'Idempotency-Key header is required when Core authority is enabled' },
+        { status: 400 }
+      )
+    }
+    if (idempotencyKey.length > 256) {
+      return NextResponse.json(
+        { error: 'Idempotency-Key header is too long' },
+        { status: 400 }
+      )
+    }
+
+    const coreResult = await commitTogalBomThroughCoreApi(
+      {
+        bomId,
+        proposedLines: proposedLines.map((line) => ({
+          materialItemId: line.material_item_id,
+          code: line.code,
+          description: line.description,
+          unit: line.unit,
+          qty: line.qty,
+          unitCostCents: line.unit_cost_cents,
+          markupBps: line.markup_bps,
+          vendorId: line.vendor_id,
+          sourceLabel: line.source_label,
+          notes: line.notes,
+        })),
+        markupBps: parsed.data.markup_bps,
+      },
+      idempotencyKey
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return NextResponse.json(
+        { error: coreResult.error ?? 'Togal BOM lines were not committed.' },
+        { status: coreResult.status ?? 503 }
+      )
+    }
+    return NextResponse.json({
+      ok: true,
+      lines_created: coreResult.data.linesCreated,
+      bom_id: coreResult.data.bomId,
+      total_cost_cents: coreResult.data.totalCostCents,
+      tcv_cents: coreResult.data.tcvCents,
+      gp_cents: coreResult.data.gpCents,
+      gp_margin_bps: coreResult.data.gpMarginBps,
+    })
+  }
 
   // Verify BOM belongs to tenant and is in a writable status.
   // The schema enum is ['draft', 'approved', 'locked', 'archived'] — we treat

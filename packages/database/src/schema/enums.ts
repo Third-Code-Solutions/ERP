@@ -292,6 +292,11 @@ export const deliveryScheduleCreateRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const togalBomCommitRequestStateEnum = pgEnum(
+  'togal_bom_commit_request_state',
+  ['processing', 'succeeded']
+)
+
 export const invoiceStatusEnum = pgEnum('invoice_status', [
   'draft',
   'issued',

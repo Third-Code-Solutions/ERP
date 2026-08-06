@@ -4,6 +4,22 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.116 Togal BOM commit authority seam (2026-08-06)
+
+The Togal import commit now has an original NestJS command boundary at
+`POST /v1/procurement/boms/togal-commit`. It is fail-closed by default behind
+`ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED` plus a tenant UUID allowlist. The command
+rechecks membership/capability, locks the tenant BOM, validates optional
+material/vendor identities, computes exact-cent totals, writes BOM lines and
+totals atomically, records a service-only idempotency result, and audits inside
+the transaction. The existing Next route preserves its response shape and
+uses the Core path only for an explicit tenant canary; compatibility fallback
+remains default. Full Turbo tests, typecheck, production build, gitleaks,
+actionlint, and the repository migration-ledger verifier pass; no hosted DB,
+provider, Storage, flag, or tenant-data mutation occurred. The read-only
+controlled release plan remains review-required for hosted migration drift,
+duplicate Purchase Orders, and missing audit-recovery tenant input.
+
 ## M3.115 provider spend gate (2026-08-06)
 
 The read-only controlled release planner now requires the repository provider

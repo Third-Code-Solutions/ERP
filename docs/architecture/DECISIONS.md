@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-228 - Togal BOM commits use an idempotent Nest authority seam (2026-08-06)
+
+Decision: add a tenant-allowlisted NestJS command for Togal BOM line commits.
+Keep the existing Next route as a compatibility adapter; when Core is enabled
+for a tenant, Core failure is terminal and direct database fallback is
+forbidden. Store replay state in a forced-RLS, service-only ledger keyed by
+tenant and idempotency key. Validate optional material/vendor references in the
+same tenant before the atomic line/total update, and write audit evidence in
+the transaction.
+
+Rationale: Togal commit was a sensitive Next direct-write path with no retry
+ledger and non-transactional audit. A small authority seam removes browser
+write authority without a big-bang rewrite, preserves current API behavior,
+and keeps rollback immediate while hosted parity is incomplete.
+
+Evidence: migration/schema static tests 3/3, API authority/controller tests
+7/7, shared contracts 3/3, Web adapter/route tests 115/115, lint/typecheck
+passing at slice review; no hosted or provider mutation.
+
 ## D-227 - Spend guard is a required release component (2026-08-06)
 
 Decision: make the static provider spend guard a mandatory component of the
