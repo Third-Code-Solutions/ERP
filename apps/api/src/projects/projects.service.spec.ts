@@ -518,6 +518,23 @@ describe('ProjectsService', () => {
     )
   })
 
+  it('rechecks the locked membership before project update', async () => {
+    const probe = harness([EXISTING], true, [
+      {
+        tenantId: PRINCIPAL.tenantId,
+        role: 'viewer',
+        email: PRINCIPAL.email,
+      },
+    ])
+
+    await expect(
+      probe.service.update(EXISTING.id, COMMAND, PRINCIPAL)
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(probe.membershipForUpdate).toHaveBeenCalledOnce()
+    expect(probe.transactionClient.update).not.toHaveBeenCalled()
+    expect(probe.audit.stampActor).not.toHaveBeenCalled()
+  })
+
   it('rejects a Project outside the caller tenant scope', async () => {
     const probe = harness([])
 
