@@ -4,6 +4,12 @@ Status date: 2026-08-06
 Source checkpoint: `91ed375` (M3.96 cash register replay parity evidence)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
+M3.98 rebrand update: authenticated shell source now uses an accessible `TC`
+Third Code ERP mark instead of the leftover `A`. Clean-room branding test,
+web 87/559, typecheck, serial lint, and production build 80/80 pass. Source
+SHA `a719d2321410c09658faca30c20c6c374f502360` is pushed to both refs. Vercel
+Git/build remains disconnected; live UI promotion is unverified by design.
+
 M3.97 hosted parity update: read-only Supabase inspection confirms PostgreSQL
 17.6, 55/92 hosted/source migrations, 88 public tables with RLS enabled, and
 303 public policies. Counts are 2 tenants, 13 users, 13 Purchase Orders, 4

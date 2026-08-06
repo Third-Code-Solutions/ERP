@@ -1,5 +1,14 @@
 # Migration Plan
 
+## M3.98 shell rebrand correction (2026-08-06)
+
+Source fix replaces the authenticated sidebar's leftover `A` mark with an
+accessible `TC` mark. Validation: web 87/559, typecheck, TS-only lint,
+production build 80/80, and diff check. SHA
+`a719d2321410c09658faca30c20c6c374f502360` is pushed to both refs. No
+Railway/API source changed. Vercel Git/build remains disabled for spend
+control; live UI proof is intentionally pending an approved manual release.
+
 ## M3.97 hosted parity snapshot (2026-08-06)
 
 Read-only Supabase inspection: project `aqqrtkmtcsfkbyyqxowv` is healthy on

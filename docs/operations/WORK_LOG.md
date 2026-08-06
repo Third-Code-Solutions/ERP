@@ -1,5 +1,15 @@
 # Work Log
 
+## 2026-08-06 - M3.98 authenticated shell rebrand correction
+
+Replaced leftover sidebar `A` mark with accessible `TC` Third Code ERP mark;
+added a regression assertion. Web 87 test files/559 tests, typecheck, TS-only
+lint, build 80/80, and diff check passed. Source SHA
+`a719d2321410c09658faca30c20c6c374f502360` pushed to `main` and
+`agent-02/third-code-erp-landing`. No Railway or Vercel build; Vercel Git
+remains disconnected to avoid surprise billing. Live UI promotion remains
+pending explicit spend-bounded approval.
+
 ## 2026-08-06 - M3.97 hosted Supabase parity snapshot
 
 Captured a read-only catalog/data/security snapshot for
