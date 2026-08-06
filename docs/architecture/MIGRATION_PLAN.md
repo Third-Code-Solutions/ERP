@@ -37,6 +37,21 @@ Actionlint; Gitleaks; controlled-release 5/5; provider-spend 4/4. No hosted
 state changed. Source checkpoint: `f9770a015e0c8769010cf08cb4f31f7c26b6f656`,
 remote verified, worktree clean.
 
+## M3.142 Core Cost Entry void boundary
+
+Added the source migration and Drizzle model for reversible Cost Entry voids,
+tenant-scoped deletion idempotency/snapshot records, and service-only replay
+evidence. Added a closed-by-default NestJS DELETE command with locked
+membership, `cost.record`, manual-only and tenant/project checks, exact
+transaction/audit behavior, and replay. Active Web cost page, dashboard, and
+budget reads now exclude voided rows. Direct Web delete is intentionally not
+migrated in this slice. No hosted migration or provider action is authorized.
+
+Validation passed: Web 91/591; shared 27/230; database 48/52 files with
+186 passed/141 skipped; API 114/489; production build 81/81 routes;
+typecheck/lint; migration verifier (99 files); Actionlint; Gitleaks;
+controlled-release 5/5; provider-spend 4/4. No hosted state changed.
+
 ## M3.139 self-hosted Core authority evidence
 
 Ran `scripts/ci/run-wsl1-database-lane.ps1` and its cleanup script. The lane

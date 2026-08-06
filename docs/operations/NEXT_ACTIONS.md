@@ -24,6 +24,17 @@ recoverable rollback contract; do not remove legacy delete until that boundary
 has tests and local replay evidence. Managed parity/recovery/identity/audit/
 spend evidence still blocks hosted canaries.
 
+## Exact next action after M3.142 Core Cost Entry void boundary
+
+Push the reviewed M3.142 source/docs to
+`origin/agent-02/third-code-erp-landing`, verify remote SHA and clean worktree,
+then stop. Keep `ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false` and its tenant
+allowlist empty; do not apply the new Supabase migration or trigger Vercel or
+Railway. Next source slice: add the Web Core delete adapter and migrate the
+legacy action only after void/restore replay, active-read parity, and local
+transaction evidence are complete. Managed parity/recovery/identity/audit/
+spend evidence still blocks hosted canaries.
+
 ## Exact next action after M3.139 self-hosted Core authority evidence
 
 Keep hosted Supabase, Vercel, Railway, and ERP canaries closed. Obtain the

@@ -61,6 +61,7 @@ export * from './customer-portal-sessions'
 // Phase 3 — Cost Tracking (F3.2)
 export * from './cost-entries'
 export * from './cost-entry-create-requests'
+export * from './cost-entry-delete-requests'
 // Cortex AI Brain — graph substrate (THIRD_CODE_ERP_IMPLEMENTATION_PROMPT §5, Appendix B)
 export * from './cortex'
 // Cortex AI Brain — agent memory (persisted conversations)

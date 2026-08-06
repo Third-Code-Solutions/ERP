@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { and, desc, eq, inArray, sum } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sum } from 'drizzle-orm'
 import { getUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -98,7 +98,13 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
       incurred_at: costEntries.incurred_at,
     })
     .from(costEntries)
-    .where(and(eq(costEntries.project_id, id), eq(costEntries.tenant_id, profile.tenantId)))
+    .where(
+      and(
+        eq(costEntries.project_id, id),
+        eq(costEntries.tenant_id, profile.tenantId),
+        isNull(costEntries.voided_at)
+      )
+    )
     .orderBy(desc(costEntries.incurred_at))
 
   const activeCostCodes = await db

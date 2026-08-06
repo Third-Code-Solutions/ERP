@@ -266,6 +266,7 @@ export default async function ProjectBudgetPage({
           where entry.tenant_id = ${profile.tenantId}::uuid
             and entry.project_id = ${projectId}::uuid
             and entry.cost_source::text in ('manual', 'import')
+            and entry.voided_at is null
           group by entry.cost_code_id
         ),
         bill_actual as (
