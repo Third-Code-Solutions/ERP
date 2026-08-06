@@ -34,7 +34,7 @@ the same snapshot so stale or cross-tenant edits fail closed.
 
 ```powershell
 node --env-file=apps/web/.env.local scripts/plan-purchase-order-mapping.mjs `
-  --mapping-file="C:\\secure\\thirdcode-po-mapping.json"
+  --mapping-file="C:\secure\thirdcode-po-mapping.json"
 ```
 
 Use `--json` for machine capture. Output contains only status, counts, a
