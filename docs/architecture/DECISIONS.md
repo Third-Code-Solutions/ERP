@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-244 - Guard the legacy Project update fallback (2026-08-07)
+
+Decision: use `requireUserProfile` and `project.update` as the Web action's
+fail-closed boundary, derive all tenant predicates from that profile, and
+apply the shared Project transition table before either Core or compatibility
+mutation. Keep the fallback direct write closed to canaries until it is
+migrated to the NestJS transaction authority.
+
+Rationale: the old action re-derived tenant state ad hoc and could accept a
+status assignment that Core would reject. Matching identity, capability, and
+workflow policy now prevents obvious divergence without changing the default
+legacy rollout or introducing provider cost. It does not pretend to solve the
+fallback's remaining transaction/audit parity gap.
+
+Evidence: focused Web action regressions, serial workspace tests, production
+build, typecheck/lint, security, release-plan, and spend gates pass. No hosted
+state changed.
+
 ## D-243 - Make Project status transitions explicit (2026-08-07)
 
 Decision: define a shared Project transition table. `lead` advances to

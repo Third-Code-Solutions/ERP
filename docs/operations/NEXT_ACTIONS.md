@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.136 legacy Project update fallback guard
+
+Push the reviewed source/docs to
+`origin/agent-02/third-code-erp-landing`, verify remote SHA and clean
+worktree, then stop. Keep hosted Supabase SQL, Vercel builds, Railway
+deploys, and ERP flags closed to control spend. Next source slice: migrate the
+legacy Project update fallback to the NestJS Core transaction authority and
+prove allowed transitions, terminal rejection, membership denial, tenant
+isolation, optimistic concurrency, and audit parity before any canary.
+
 ## Exact next action after M3.135 project status state machine
 
 Push the reviewed source/doc milestone to

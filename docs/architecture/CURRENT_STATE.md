@@ -5,6 +5,16 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.136 legacy Project update fallback guard (2026-08-07)
+
+The Web Project update action now fails closed through `requireUserProfile` and
+the `project.update` capability before the target read. It uses the profile's
+tenant for every compatibility-path predicate and applies the shared Project
+status-transition table before Core or direct-database mutation. Core remains
+the authoritative path for selected canary tenants; the non-canary fallback
+still performs a direct write and audit during migration. No schema, flag,
+provider, or hosted data changed. Source commit: `5a44ce8`.
+
 ## M3.135 project status state machine (2026-08-07)
 
 The Core Project update authority now applies a shared transition table after

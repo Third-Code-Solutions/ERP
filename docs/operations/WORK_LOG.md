@@ -1,5 +1,34 @@
 # Work Log
 
+## 2026-08-07 - M3.136 legacy Project update fallback guard
+
+Hardened the compatibility Project update action. It now derives the tenant
+from `requireUserProfile`, requires `project.update` before the target read,
+uses the profile tenant for all predicates/audit, and applies the shared
+status-transition table before Core or direct-database writes. Added
+regressions for terminal reopen rejection and capability denial. No UI/copy
+change, migration, flag, hosted SQL, Vercel build, Railway deploy, or Supabase
+action occurred.
+
+Changed files: `packages/auth/src/server.ts`,
+`apps/web/src/app/(dashboard)/projects/[id]/actions.ts`,
+`apps/web/src/app/(dashboard)/projects/[id]/actions.test.ts`, and the
+milestone records in `docs/architecture/`, `docs/operations/`, plus
+`docs/changesets/2026-08-07-m3-136-project-update-fallback.md`.
+
+Validation: focused Web action 4/4; serial workspace tests passed (shared
+27/229, database 47/51 files with 141 compatibility skips, API 112/480, Web
+89/583); production build generated 81/81 routes; typecheck, lint, migration
+verifier, Actionlint, Gitleaks, controlled-release 5/5, and provider-spend
+4/4 passed. Source commit: `5a44ce8`.
+
+Unresolved risks: the non-canary fallback remains a direct database write and
+does not yet share Core membership locking, idempotency, optimistic
+concurrency, and semantic-audit transaction semantics. Hosted Supabase
+schema/catalog/RLS parity, managed backup/rollback, duplicate mapping, audit
+recovery, identity, and spend evidence remain open; they block deployment and
+ERP canaries. Provider state was not touched.
+
 ## 2026-08-07 - M3.135 project status state machine
 
 Added explicit Project status transitions to shared types and enforced them in
