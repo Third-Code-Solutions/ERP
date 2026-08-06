@@ -297,6 +297,11 @@ export const togalBomCommitRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const opportunityProjectConversionRequestStateEnum = pgEnum(
+  'opportunity_project_conversion_request_state',
+  ['processing', 'succeeded']
+)
+
 export const invoiceStatusEnum = pgEnum('invoice_status', [
   'draft',
   'issued',

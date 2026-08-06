@@ -7,6 +7,8 @@ import { AccountsController } from './accounts.controller'
 import { AccountsService } from './accounts.service'
 import { OpportunitiesController } from './opportunities.controller'
 import { OpportunitiesService } from './opportunities.service'
+import { OpportunityProjectConversionController } from './opportunity-project-conversion.controller'
+import { OpportunityProjectConversionService } from './opportunity-project-conversion.service'
 
 @Module({
   imports: [AuditModule],
@@ -14,11 +16,13 @@ import { OpportunitiesService } from './opportunities.service'
     ChangeRequestsController,
     AccountsController,
     OpportunitiesController,
+    OpportunityProjectConversionController,
   ],
   providers: [
     ChangeRequestCreationService,
     AccountsService,
     OpportunitiesService,
+    OpportunityProjectConversionService,
   ],
 })
 export class CrmModule implements NestModule {
@@ -28,7 +32,8 @@ export class CrmModule implements NestModule {
       .forRoutes(
         ChangeRequestsController,
         AccountsController,
-        OpportunitiesController
+        OpportunitiesController,
+        OpportunityProjectConversionController
       )
   }
 }

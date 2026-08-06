@@ -1,5 +1,17 @@
 # Work Log
 
+## 2026-08-06 - M3.118 Won-to-Project authority seam
+
+Implemented the shared empty-command/result contract, service-only forced-RLS
+idempotency ledger, Nest controller/pipe/service, `opportunity.convert`
+capability, tenant gate, atomic project/checklist/notification/audit path, and
+Web compatibility adapter. All new flags remain false/empty. Focused and full
+serial validation pass: Turbo tests, typecheck, TS-only lint, production build,
+Gitleaks, Actionlint, and migration-file verification. The read-only hosted
+plan remains review-required for 41 missing migrations, the 12-record duplicate
+Purchase Order group, and missing audit-recovery tenant input. No hosted,
+Storage, provider, deployment, or tenant-data write occurred.
+
 ## 2026-08-06 - M3.117 Purchase Order mapping-template preflight
 
 Added a read-only owner-review artifact generator for the existing

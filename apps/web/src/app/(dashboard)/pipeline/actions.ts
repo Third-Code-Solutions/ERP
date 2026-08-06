@@ -1,11 +1,16 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { accounts, opportunities, projects, users } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  convertOpportunityToProjectThroughCoreApi,
+  opportunityConversionWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 import {
   PIPELINE_STAGES,
@@ -353,12 +358,20 @@ export async function advanceOpportunityStage(
   // back the stage change — they surface as audit-log gaps the operator
   // can re-trigger from the project detail page.
   if (nextStageTyped === 'won' || nextStageTyped === 'closed_won') {
-    try {
-      const { convertOpportunityToProject } = await import('@/lib/operations/won-conversion')
-      await convertOpportunityToProject(opportunityId, user.id)
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('[won-conversion] failed:', err instanceof Error ? err.message : err)
+    if (opportunityConversionWritesUseCoreApi(userRow.tenant_id)) {
+      const handoff = await convertOpportunityToProjectThroughCoreApi(
+        opportunityId,
+        randomUUID()
+      )
+      if (!handoff.ok) return { error: handoff.error }
+    } else {
+      try {
+        const { convertOpportunityToProject } = await import('@/lib/operations/won-conversion')
+        await convertOpportunityToProject(opportunityId, user.id)
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[won-conversion] failed:', err instanceof Error ? err.message : err)
+      }
     }
   }
 

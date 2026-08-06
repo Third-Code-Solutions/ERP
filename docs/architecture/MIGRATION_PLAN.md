@@ -1,5 +1,16 @@
 # Migration Plan
 
+## M3.118 Won-to-Project authority seam (2026-08-06)
+
+Implemented the shared empty command/result contract, forced-RLS service-only
+idempotency ledger migration, Nest controller/pipe/service, capability and
+tenant gates, atomic project/checklist/notification/audit transaction, and Web
+compatibility adapter. All new selectors remain false/empty. Focused and full
+local validation is green; the read-only hosted plan remains blocked by
+migration drift, duplicate Purchase Orders, and missing audit recovery tenant
+input. No hosted SQL, tenant data, Storage, provider setting, build, or deploy
+changed.
+
 ## M3.117 Purchase Order mapping-template preflight
 
 Completed a read-only owner-review artifact generator for the existing
@@ -4165,3 +4176,21 @@ Release gate: keep
 reconnect Vercel Git until hosted planner, duplicate-data mapping,
 audit-recovery tenant, readiness, exact SHA, rollback, integration, and
 spend-bounded provider gates clear.
+# M3.118 Won-to-Project handoff (in progress)
+
+1. Add the shared empty-command/result contract and server-only replay ledger.
+2. Implement the Nest transaction with tenant/capability checks, locks,
+   contract evidence, project/checklist/notification/audit side effects, and
+   exact replay.
+3. Add the Web compatibility adapter and keep it disabled by default; never
+   fall back after a selected Core failure.
+4. Run focused and full local gates, migration-file verification, and a
+   read-only controlled-release plan. Keep the new migration source-only until
+   hosted parity and owner approval exist.
+
+## M3.117 completed
+
+The Purchase Order duplicate gate has a read-only owner-review template
+generator. It writes only to an explicit secure path outside the repository,
+refuses overwrite, leaves replacement numbers blank, and never mutates hosted
+state.
