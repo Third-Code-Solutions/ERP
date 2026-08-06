@@ -29,7 +29,9 @@ function service(
   sitePreparationCompleteEnabled = false,
   sitePreparationCompleteTenantIds: string[] = [],
   markInTransitEnabled = false,
-  markInTransitTenantIds: string[] = []
+  markInTransitTenantIds: string[] = [],
+  scheduleCreateEnabled = false,
+  scheduleCreateTenantIds: string[] = []
 ) {
   const config = {
     get: vi.fn((key: string) => {
@@ -71,6 +73,12 @@ function service(
       if (key === 'ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_TENANT_IDS') {
         return markInTransitTenantIds
       }
+      if (key === 'ERP_DELIVERY_SCHEDULE_CREATE_WRITES_ENABLED') {
+        return scheduleCreateEnabled
+      }
+      if (key === 'ERP_DELIVERY_SCHEDULE_CREATE_WRITES_TENANT_IDS') {
+        return scheduleCreateTenantIds
+      }
       return undefined
     }),
   } as unknown as ConfigService
@@ -82,6 +90,40 @@ function service(
 }
 
 describe('DeliveryWorkflowService migration boundary', () => {
+  it('keeps delivery schedule creation closed by default without touching the database', async () => {
+    await expect(
+      service().createSchedule(
+        {
+          purchaseOrderId: '33333333-3333-4333-8333-333333333333',
+          scheduledDate: '2026-08-06T09:00:00.000Z',
+          siteAddress: '6F, Third Code Building',
+          siteContactName: 'Site lead',
+          siteContactPhone: '+63 900 000 0000',
+          sitePreparationNotes: null,
+        },
+        PRINCIPAL,
+        'delivery-schedule-1'
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+  })
+
+  it('validates schedule idempotency before the feature gate', async () => {
+    await expect(
+      service().createSchedule(
+        {
+          purchaseOrderId: '33333333-3333-4333-8333-333333333333',
+          scheduledDate: '2026-08-06T09:00:00.000Z',
+          siteAddress: '6F, Third Code Building',
+          siteContactName: 'Site lead',
+          siteContactPhone: '+63 900 000 0000',
+          sitePreparationNotes: null,
+        },
+        PRINCIPAL,
+        ' '
+      )
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
   it('keeps the in-transit transition closed by default without touching the database', async () => {
     await expect(
       service().markInTransit(

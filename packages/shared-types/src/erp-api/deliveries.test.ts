@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createDeliveryScheduleCommandSchema,
+  deliveryScheduleCreationResultSchema,
   deliveryReceiptCommandSchema,
   deliveryReceiptResultSchema,
   deliveryMarkInTransitCommandSchema,
@@ -15,6 +17,50 @@ import {
   deliveryCancelCommandSchema,
   deliveryCancelResultSchema,
 } from './deliveries'
+
+describe('delivery schedule creation contracts', () => {
+  it('accepts bounded tenant-neutral scheduling input', () => {
+    expect(
+      createDeliveryScheduleCommandSchema.parse({
+        purchaseOrderId: '33333333-3333-4333-8333-333333333333',
+        scheduledDate: '2026-08-06T09:00:00.000Z',
+        siteAddress: '6F, Third Code Building',
+        siteContactName: 'Site lead',
+        siteContactPhone: '+63 900 000 0000',
+        sitePreparationNotes: null,
+      })
+    ).toMatchObject({ sitePreparationNotes: null })
+    expect(
+      createDeliveryScheduleCommandSchema.safeParse({
+        purchaseOrderId: '33333333-3333-4333-8333-333333333333',
+        scheduledDate: '2026-08-06T09:00:00.000Z',
+        siteAddress: '6F, Third Code Building',
+        siteContactName: 'Site lead',
+        siteContactPhone: '+63 900 000 0000',
+        sitePreparationNotes: null,
+        tenantId: 'browser-authority',
+      }).success
+    ).toBe(false)
+  })
+
+  it('returns a strict scheduled delivery result', () => {
+    expect(
+      deliveryScheduleCreationResultSchema.parse({
+        id: '44444444-4444-4444-8444-444444444444',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        purchaseOrderId: '33333333-3333-4333-8333-333333333333',
+        status: 'scheduled',
+        scheduledDate: '2026-08-06T09:00:00.000Z',
+        siteAddress: '6F, Third Code Building',
+        siteContactName: 'Site lead',
+        siteContactPhone: '+63 900 000 0000',
+        sitePreparationNotes: null,
+        createdAt: '2026-08-06T09:00:00.000Z',
+        updatedAt: '2026-08-06T09:00:00.000Z',
+      })
+    ).toMatchObject({ status: 'scheduled' })
+  })
+})
 
 describe('delivery in-transit contracts', () => {
   it('accepts only the empty server-owned command', () => {

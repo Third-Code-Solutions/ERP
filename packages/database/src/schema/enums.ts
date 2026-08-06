@@ -287,6 +287,11 @@ export const deliveryWorkflowRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const deliveryScheduleCreateRequestStateEnum = pgEnum(
+  'delivery_schedule_create_request_state',
+  ['processing', 'succeeded']
+)
+
 export const invoiceStatusEnum = pgEnum('invoice_status', [
   'draft',
   'issued',

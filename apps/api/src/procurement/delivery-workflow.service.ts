@@ -11,12 +11,17 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import {
+  deliveryScheduleCreateRequests,
   deliveryInspections,
   deliverySchedules,
   deliveryWorkflowRequests,
+  notifications,
+  purchaseOrders,
   users,
 } from '@third-code-erp/database/schema'
 import {
+  createDeliveryScheduleCommandSchema,
+  deliveryScheduleCreationResultSchema,
   deliveryCancelCommandSchema,
   deliveryCancelResultSchema,
   deliveryInspectionCompleteCommandSchema,
@@ -45,8 +50,10 @@ import {
   type DeliveryCompleteSitePreparationResult,
   type DeliveryStartInspectionCommand,
   type DeliveryStartInspectionResult,
+  type CreateDeliveryScheduleCommand,
+  type DeliveryScheduleCreationResult,
 } from '@third-code-erp/shared-types'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -176,6 +183,24 @@ function cancelDeliveryCommandHash(
     .digest('hex')
 }
 
+function createDeliveryScheduleCommandHash(
+  command: CreateDeliveryScheduleCommand
+): string {
+  return createHash('sha256').update(canonicalJson(command)).digest('hex')
+}
+
+function replayDeliveryScheduleCreationResult(
+  value: unknown
+): DeliveryScheduleCreationResult {
+  const parsed = deliveryScheduleCreationResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new InternalServerErrorException(
+      'Delivery schedule idempotency result is invalid'
+    )
+  }
+  return parsed.data
+}
+
 function replayResult(value: unknown): DeliveryReceiptResult {
   const parsed = deliveryReceiptResultSchema.safeParse(value)
   if (!parsed.success) {
@@ -263,6 +288,256 @@ export class DeliveryWorkflowService {
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AuditService) private readonly audit: AuditService
   ) {}
+
+  async createSchedule(
+    command: CreateDeliveryScheduleCommand,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<DeliveryScheduleCreationResult> {
+    const parsedCommand = createDeliveryScheduleCommandSchema.parse(command)
+    const idempotencyKey = rawIdempotencyKey.trim()
+    if (idempotencyKey.length === 0 || idempotencyKey.length > 256) {
+      throw new BadRequestException('Invalid Idempotency-Key header')
+    }
+
+    const enabled = this.config.get<boolean>(
+      'ERP_DELIVERY_SCHEDULE_CREATE_WRITES_ENABLED',
+      false
+    )
+    const allowedTenantIds = this.config.get<string[]>(
+      'ERP_DELIVERY_SCHEDULE_CREATE_WRITES_TENANT_IDS',
+      []
+    )
+    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+      throw new ServiceUnavailableException(
+        'Delivery schedule creation is not enabled for this tenant; no delivery was created.'
+      )
+    }
+
+    const requestHash = createDeliveryScheduleCommandHash(parsedCommand)
+    return this.database.client.transaction(async (transaction) => {
+      const [membership] = await transaction
+        .select({
+          tenantId: users.tenant_id,
+          role: users.role,
+          email: users.email,
+        })
+        .from(users)
+        .where(
+          and(
+            eq(users.id, principal.userId),
+            eq(users.tenant_id, principal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      const role = membership?.role as ErpRole | undefined
+      if (
+        !membership ||
+        !role ||
+        !roleHasCapability(role, 'delivery.receive')
+      ) {
+        throw new ForbiddenException()
+      }
+      const authorizedPrincipal: ErpPrincipal = {
+        userId: principal.userId,
+        tenantId: membership.tenantId,
+        role,
+        email: membership.email,
+      }
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+
+      await transaction
+        .insert(deliveryScheduleCreateRequests)
+        .values({
+          tenant_id: authorizedPrincipal.tenantId,
+          idempotency_key: idempotencyKey,
+          request_hash: requestHash,
+          created_by: authorizedPrincipal.userId,
+        })
+        .onConflictDoNothing({
+          target: [
+            deliveryScheduleCreateRequests.tenant_id,
+            deliveryScheduleCreateRequests.idempotency_key,
+          ],
+        })
+
+      const [request] = await transaction
+        .select({
+          id: deliveryScheduleCreateRequests.id,
+          requestHash: deliveryScheduleCreateRequests.request_hash,
+          state: deliveryScheduleCreateRequests.state,
+          result: deliveryScheduleCreateRequests.result,
+        })
+        .from(deliveryScheduleCreateRequests)
+        .where(
+          and(
+            eq(
+              deliveryScheduleCreateRequests.tenant_id,
+              authorizedPrincipal.tenantId
+            ),
+            eq(deliveryScheduleCreateRequests.idempotency_key, idempotencyKey)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      if (!request) {
+        throw new InternalServerErrorException(
+          'Delivery schedule idempotency record was not created'
+        )
+      }
+      if (request.requestHash !== requestHash) {
+        throw new ConflictException(
+          'Idempotency key was already used with a different delivery schedule command'
+        )
+      }
+      if (request.state === 'succeeded') {
+        return replayDeliveryScheduleCreationResult(request.result)
+      }
+      if (request.state !== 'processing') {
+        throw new ConflictException(
+          'Delivery schedule idempotency record has an unsupported state'
+        )
+      }
+
+      const [purchaseOrder] = await transaction
+        .select({
+          id: purchaseOrders.id,
+          poNumber: purchaseOrders.po_number,
+          status: purchaseOrders.status,
+        })
+        .from(purchaseOrders)
+        .where(
+          and(
+            eq(purchaseOrders.id, parsedCommand.purchaseOrderId),
+            eq(purchaseOrders.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!purchaseOrder) {
+        throw new NotFoundException('Purchase order not found')
+      }
+      if (purchaseOrder.status !== 'issued') {
+        throw new ConflictException(
+          'Purchase order must be issued before scheduling a delivery'
+        )
+      }
+
+      const scheduledDate = new Date(parsedCommand.scheduledDate)
+      const now = new Date()
+      const [created] = await transaction
+        .insert(deliverySchedules)
+        .values({
+          tenant_id: authorizedPrincipal.tenantId,
+          purchase_order_id: parsedCommand.purchaseOrderId,
+          status: 'scheduled',
+          scheduled_date: scheduledDate,
+          site_address: parsedCommand.siteAddress,
+          site_contact_name: parsedCommand.siteContactName,
+          site_contact_phone: parsedCommand.siteContactPhone,
+          site_preparation_notes: parsedCommand.sitePreparationNotes,
+          created_by: authorizedPrincipal.userId,
+          created_at: now,
+          updated_at: now,
+        })
+        .returning({
+          id: deliverySchedules.id,
+          tenantId: deliverySchedules.tenant_id,
+          purchaseOrderId: deliverySchedules.purchase_order_id,
+          status: deliverySchedules.status,
+          scheduledDate: deliverySchedules.scheduled_date,
+          siteAddress: deliverySchedules.site_address,
+          siteContactName: deliverySchedules.site_contact_name,
+          siteContactPhone: deliverySchedules.site_contact_phone,
+          sitePreparationNotes: deliverySchedules.site_preparation_notes,
+          createdAt: deliverySchedules.created_at,
+          updatedAt: deliverySchedules.updated_at,
+        })
+      if (!created) {
+        throw new InternalServerErrorException(
+          'Delivery schedule insert returned no record'
+        )
+      }
+
+      const result = deliveryScheduleCreationResultSchema.parse({
+        id: created.id,
+        tenantId: created.tenantId,
+        purchaseOrderId: created.purchaseOrderId,
+        status: created.status,
+        scheduledDate: created.scheduledDate?.toISOString(),
+        siteAddress: created.siteAddress,
+        siteContactName: created.siteContactName,
+        siteContactPhone: created.siteContactPhone,
+        sitePreparationNotes: created.sitePreparationNotes,
+        createdAt: created.createdAt.toISOString(),
+        updatedAt: created.updatedAt.toISOString(),
+      })
+
+      const recipients = await transaction
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(
+          and(
+            eq(users.tenant_id, authorizedPrincipal.tenantId),
+            inArray(users.role, ['sd_pm_pe', 'procurement'])
+          )
+        )
+      if (recipients.length > 0) {
+        await transaction.insert(notifications).values(
+          recipients.map((recipient) => ({
+            tenant_id: authorizedPrincipal.tenantId,
+            recipient_user_id: recipient.id,
+            recipient_email: recipient.email,
+            channel: 'in_app' as const,
+            subject: `Delivery scheduled for PO ${purchaseOrder.poNumber}`,
+            body: `Scheduled ${scheduledDate.toLocaleDateString('en-PH')} · ${parsedCommand.siteAddress}`,
+            link_url: `/procurement/deliveries/${created.id}`,
+          }))
+        )
+      }
+
+      const [completed] = await transaction
+        .update(deliveryScheduleCreateRequests)
+        .set({
+          state: 'succeeded',
+          delivery_schedule_id: created.id,
+          result,
+          completed_at: now,
+        })
+        .where(
+          and(
+            eq(deliveryScheduleCreateRequests.id, request.id),
+            eq(deliveryScheduleCreateRequests.state, 'processing')
+          )
+        )
+        .returning({ id: deliveryScheduleCreateRequests.id })
+      if (!completed) {
+        throw new InternalServerErrorException(
+          'Delivery schedule idempotency record changed before completion'
+        )
+      }
+
+      await this.audit.writeSemantic(transaction, {
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
+        entityType: 'delivery_schedule',
+        entityId: created.id,
+        action: 'create',
+        diff: {
+          purchase_order_id: parsedCommand.purchaseOrderId,
+          scheduled_date: scheduledDate.toISOString(),
+          site_address: parsedCommand.siteAddress,
+          status: 'scheduled',
+          idempotency_key_hash: requestHash,
+        },
+      })
+
+      return result
+    })
+  }
 
   async recordReceipt(
     deliveryScheduleId: string,

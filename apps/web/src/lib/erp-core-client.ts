@@ -54,6 +54,7 @@ import {
   stockReceiptCreationResultSchema,
   stockReceiptPostingResultSchema,
   stockReceiptReversalResultSchema,
+  deliveryScheduleCreationResultSchema,
   deliveryReceiptResultSchema,
   deliveryMarkInTransitResultSchema,
   deliveryStartSitePreparationResultSchema,
@@ -152,6 +153,8 @@ import {
   type StockReceiptPostingResult,
   type StockReceiptReverseCommand,
   type StockReceiptReversalResult,
+  type CreateDeliveryScheduleCommand,
+  type DeliveryScheduleCreationResult,
   type DeliveryReceiptCommand,
   type DeliveryReceiptResult,
   type DeliveryMarkInTransitCommand,
@@ -666,6 +669,16 @@ export function deliveryReceiptWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_DELIVERY_RECEIPT_WRITES_VIA_API,
     process.env.ERP_DELIVERY_RECEIPT_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function deliveryScheduleCreateWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DELIVERY_SCHEDULE_CREATE_WRITES_VIA_API,
+    process.env.ERP_DELIVERY_SCHEDULE_CREATE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -2741,6 +2754,60 @@ export async function createStockReceiptThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No Stock Receipt was committed.',
+    }
+  }
+}
+
+export async function createDeliveryScheduleThroughCoreApi(
+  command: CreateDeliveryScheduleCommand,
+  idempotencyKey: string
+): Promise<CoreResult<DeliveryScheduleCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/procurement/deliveries`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Delivery schedule conflicts with existing ERP state.'
+            : response.status === 404
+              ? 'Purchase order was not found.'
+              : 'Delivery schedule was not created.'
+      return { ok: false, error: message }
+    }
+    const parsed = deliveryScheduleCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid delivery schedule result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No delivery schedule was committed.',
     }
   }
 }
