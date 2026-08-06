@@ -17,8 +17,9 @@ Turbo workspace tests; production build 81/81 routes; typecheck/lint;
 migration verifier (99 files); Actionlint; Gitleaks; controlled-release 5/5;
 provider-spend 4/4. The default parallel workspace run exposed three
 pre-existing Nest controller timeouts; the same API suite passed when Turbo
-was constrained to one package at a time. No hosted state changed.
-Source checkpoint is recorded after commit and remote verification.
+was constrained to one package at a time. No hosted state changed. Source
+checkpoint: `ad1d8d2f5e902148cf3805d97232f8273afdc88b`, remote verified, clean
+worktree.
 
 ## M3.140 Core-only Project creation
 

@@ -19,7 +19,7 @@ available.
 Evidence: focused Web deletion action/client 14/14; full serial workspace
 tests, typecheck/lint, production build, migration/security, controlled
 release, and spend gates passed. No hosted provider state changed. Source
-checkpoint is recorded after commit and remote verification.
+checkpoint: `ad1d8d2f5e902148cf3805d97232f8273afdc88b`, remote SHA verified.
 
 ## D-248 - Make NestJS the only Project creation writer (2026-08-07)
 

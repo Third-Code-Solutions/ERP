@@ -25,7 +25,9 @@ pre-existing Nest controller timeouts; the same API suite passed under the
 serial package gate. Database skips require `DATABASE_URL`; disposable replay
 remains no-skip evidence.
 
-Source checkpoint: pending reviewed commit and remote SHA verification.
+Source checkpoint: `ad1d8d2f5e902148cf3805d97232f8273afdc88b`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified.
 Unresolved risks: hosted Supabase migration/catalog/RLS/data parity,
 backup/PITR restore, Auth identity, audit recovery, and spend approval still
 block a Core delete canary.
