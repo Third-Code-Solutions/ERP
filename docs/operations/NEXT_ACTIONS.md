@@ -3,9 +3,10 @@
 ## Exact next action after M3.105 inventory warehouse control surface
 
 Keep the Warehouse edit/deactivation form compatibility-default until the
-existing Core selector and hosted parity gates clear. Do not trigger Vercel or
-Railway builds. Push only the reviewed feature branch after local checks, then
-continue with supported Supabase backup/catalog/data/audit export for
+existing Core selector and hosted parity gates clear. The reviewed feature
+branch is pushed at `e9ee5adb44e3bc2da5cab54af2828065f117f343`; `origin/main`
+remains unchanged. Do not trigger Vercel or Railway builds. Continue with
+supported Supabase backup/catalog/data/audit export for
 `aqqrtkmtcsfkbyyqxowv`; reconcile the 39 source migrations after hosted
 `20260729233017` in order, resolve the owner-approved tenant-scoped Purchase
 Order duplicate mapping, and review security warnings. No production canary

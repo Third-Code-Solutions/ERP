@@ -10,10 +10,11 @@ provider work was needed. Local Web typecheck, focused inventory/Core tests
 
 ## Next gate
 
-Push only the reviewed feature branch. Keep the Core selector compatibility-
-default and proceed with supported Supabase backup/export plus ordered source
-suffix reconciliation before any hosted apply, canary, Railway promotion, or
-Vercel build.
+Feature branch commit `e9ee5adb44e3bc2da5cab54af2828065f117f343` is pushed;
+`origin/main` remains unchanged. Keep the Core selector compatibility-default
+and proceed with supported Supabase backup/export plus ordered source suffix
+reconciliation before any hosted apply, canary, Railway promotion, or Vercel
+build.
 
 ## M3.104 provider spend guard audit (2026-08-06)
 
