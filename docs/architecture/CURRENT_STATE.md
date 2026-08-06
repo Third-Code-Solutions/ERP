@@ -4,6 +4,20 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.108 hosted Supabase parity refresh (2026-08-06)
+
+Read-only Supabase MCP and repository planner evidence still agree: PostgreSQL
+17.6, hosted migration ledger 55/94 through `20260729233017`, 88 public tables
+with RLS enabled, 22 forced-RLS tables, and 303 policies. The snapshot contains
+2 tenants, 13 users, 13 Purchase Orders, 4 invoices, 662 audit rows, 385
+Cortex nodes, and 454 Cortex edges. Source-only `public.assets` and
+`delivery_schedule_create_requests` are absent. The duplicate planner remains
+review-required for one tenant-scoped 12-record Purchase Order group; security
+advisors remain 14 notices/11 warnings. No hosted SQL/data/Storage/branch
+write occurred. Vercel runtime-error and production 500-log checks for
+`/dashboard` are empty, the spend guard is clear, and Railway `/ready`/`/health`
+remain 200; no provider build was triggered.
+
 ## M3.107 inventory UOM maintenance authority (2026-08-06)
 
 Inventory now exposes authenticated UOM name and active-state maintenance. The

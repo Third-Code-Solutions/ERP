@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-220 - Hosted parity is a release gate, not a deploy guess (2026-08-06)
+
+Decision: treat the hosted Supabase snapshot as evidence only. Do not apply
+the 39-migration source suffix, repair duplicate Purchase Orders, change RLS,
+or promote Vercel/Railway until supported backup/export, ordered replay and
+catalog/data/audit diff, owner mapping, security review, protected canary,
+rollback, readiness, exact identity, and spend gates pass.
+
+Rationale: the hosted database is healthy but materially behind source and
+has an unresolved tenant-scoped duplicate group. Readiness and empty Vercel
+runtime-error results prove liveness, not schema/data parity. Keeping the
+boundary closed protects tenant data and the user's billing budget.
+
+Evidence: read-only PostgreSQL 17.6 snapshot 55/94 migrations, 88 RLS tables,
+22 forced-RLS tables, 303 policies, 2 tenants, 13 users, 13 Purchase Orders,
+4 invoices, 662 audit rows, 385 Cortex nodes, 454 Cortex edges; one 12-record
+duplicate group; 14 security notices/11 warnings; no hosted/provider write.
+
 ## D-219 - Closed authority seam for UOM maintenance (2026-08-06)
 
 Decision: expose UOM display-name and active-state edits through the existing

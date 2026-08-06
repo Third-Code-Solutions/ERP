@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.108 hosted Supabase parity refresh
+
+Do not deploy or apply hosted SQL. Obtain a supported recoverable
+backup/catalog/data/audit export for `aqqrtkmtcsfkbyyqxowv`; replay the 39
+source migrations after hosted `20260729233017` in order on a protected
+disposable PostgreSQL 17 lane; compare relations/RLS/policies/indexes/triggers/
+grants/data/audit/financial totals; obtain owner-approved mapping for the
+tenant-scoped 12-record Purchase Order duplicate group; and review the 11
+security warnings. Keep all ERP Core flags and tenant allowlists false/empty,
+Vercel Git disconnected/spend-guarded, and Railway free of manual builds until
+rollback, protected canary, readiness, exact identity, and spend gates pass.
+
 ## Exact next action after M3.107 inventory UOM maintenance authority
 
 Keep `ERP_INVENTORY_UOM_UPDATE_WRITES_ENABLED=false`,

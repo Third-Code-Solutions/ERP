@@ -1,5 +1,23 @@
 # Work Log
 
+## 2026-08-06 - M3.108 hosted Supabase parity refresh
+
+Ran the supported read-only parity checks against Supabase project
+`aqqrtkmtcsfkbyyqxowv`: PostgreSQL 17.6, 55/94 migrations through
+`20260729233017`, 88 public tables with RLS, 22 forced-RLS tables, and 303
+policies. Snapshot counts: 2 tenants, 13 users, 13 Purchase Orders, 4
+invoices, 662 audit rows, 385 Cortex nodes, and 454 Cortex edges. The source
+`assets` table and delivery-schedule idempotency ledger are not hosted. The
+duplicate planner remains review-required for one tenant-scoped 12-record
+group; security advisors remain 14 notices/11 warnings. Vercel production
+runtime-error and status-500 grouped queries for `/dashboard` are empty;
+Railway `/ready` and `/health` are 200. No SQL, data, Storage, branch,
+provider-setting, build, or deployment mutation occurred.
+
+Next action remains supported backup/catalog/data/audit export, ordered suffix
+reconciliation, owner-approved duplicate mapping, and security review. Keep
+production selectors closed to protect tenant data and billing.
+
 ## 2026-08-06 - M3.107 inventory UOM maintenance authority
 
 Added a narrow, authenticated UOM maintenance slice. Nest now owns

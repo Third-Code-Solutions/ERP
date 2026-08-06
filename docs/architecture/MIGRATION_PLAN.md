@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.108 hosted Supabase parity refresh (2026-08-06)
+
+Performed a read-only hosted snapshot against `aqqrtkmtcsfkbyyqxowv` and
+cross-checked the repository migration planner. PostgreSQL is 17.6; hosted is
+55/94 migrations through `20260729233017`; the public catalog has 88 tables,
+88 RLS-enabled tables, 22 forced-RLS tables, and 303 policies. Data counts are
+2 tenants, 13 users, 13 Purchase Orders, 4 invoices, 662 audit rows, 385
+Cortex nodes, and 454 Cortex edges. `public.assets` and
+`delivery_schedule_create_requests` are absent. The duplicate planner reports
+one 12-record tenant-scoped group, and Supabase security advisors report 14
+notices/11 warnings. Vercel `/dashboard` runtime-error and 500-log queries are
+empty; Railway readiness/health are 200. No provider or hosted mutation was
+performed.
+
+## Next gate
+
+Obtain supported backup/catalog/data/audit export; reconcile the 39 source
+migrations after hosted `20260729233017` in order on a protected disposable
+lane; resolve the owner-approved duplicate-PO mapping and security warnings;
+then run rollback/protected-canary/readiness/exact-identity/spend gates. Keep
+all new Core selectors and tenant allowlists false/empty, and do not trigger a
+Vercel or Railway build.
+
 ## M3.107 inventory UOM maintenance authority (2026-08-06)
 
 Added the strict shared UOM update command/result, Nest pipe/service/controller
