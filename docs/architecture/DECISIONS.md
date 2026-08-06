@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-245 - Make NestJS the only Project update writer (2026-08-07)
+
+Decision: remove the Web Server Action's direct Project update and Web-audit
+fallback. The action may parse fields, request a tenant-scoped Core read, and
+submit a complete command with the Core `updatedAt` token. NestJS remains the
+sole authority for capability recheck, membership/Project locks, status
+transitions, mutation, optimistic concurrency, and semantic audit. Core
+failure returns an error and never retries through direct SQL.
+
+Rationale: two writers could diverge in authorization, state transitions,
+concurrency, and audit. A thin Core client makes the official transaction
+boundary explicit and prevents a failed canary from silently regaining a
+legacy write path. The temporary loss of updates when Core is unavailable is
+intentional fail-closed behavior; rollback is a source rollback, not a second
+writer.
+
+Evidence: focused Web/Core client tests, serial workspace suite, production
+build, typecheck/lint, migration/security, controlled-release, and spend gates
+pass. No hosted state changed.
+
 ## D-244 - Guard the legacy Project update fallback (2026-08-07)
 
 Decision: use `requireUserProfile` and `project.update` as the Web action's

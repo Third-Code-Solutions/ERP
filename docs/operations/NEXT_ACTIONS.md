@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.137 Project update Core cutover
+
+Push the reviewed source/docs to
+`origin/agent-02/third-code-erp-landing`, verify remote SHA and clean
+worktree, then stop. Keep Supabase SQL/data, Vercel builds, Railway deploys,
+and ERP flags closed to control spend. Next source slice: remove or formally
+deprecate the obsolete Project update feature-flag/config surface, then run a
+protected self-hosted Core read/write canary proving allowed movement,
+terminal rejection, membership denial, tenant isolation, stale-token conflict,
+audit identity, and Core-unavailable fail-closed behavior.
+
 ## Exact next action after M3.136 legacy Project update fallback guard
 
 Push the reviewed source/docs to
