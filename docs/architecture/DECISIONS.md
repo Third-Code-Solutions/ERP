@@ -1,5 +1,28 @@
 # Architecture Decisions
 
+## D-215 - Route delivery schedule creation through Nest (2026-08-06)
+
+Decision: add a dedicated `delivery_schedule_create_requests` server-only
+ledger and expose `POST /v1/procurement/deliveries` for scheduling against an
+issued Purchase Order. Nest derives tenant and actor membership, rechecks
+`delivery.receive`, locks the PO, claims/replays the tenant/idempotency key,
+creates the schedule, inserts the existing in-app role notifications, records
+the strict result, and writes semantic audit in one transaction. Next selects
+this authority only for exact-`true` plus UUID allowlist and never falls back
+after a selected Core failure. Keep selectors closed until hosted parity,
+protected canary, rollback, and spend evidence.
+
+Rationale: the legacy schedule action directly mutated a sensitive delivery
+table and notified recipients in separate calls. This increment moves the
+official transaction into the modular Nest monolith without a big-bang rewrite,
+preserves the default compatibility path, and makes retries safe. Python/AI
+has no transaction authority.
+
+Evidence: source `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9`; shared/API/Web
+focused tests, rollback-only PostgreSQL integration, 94/94 disposable schema
+verification, API/Web full suites, and 81/81 production routes all pass. No
+Supabase, Vercel, Railway, Storage, or tenant-canary mutation occurred.
+
 ## D-214 - Release gates rerun in an isolated local lane (2026-08-06)
 
 Decision: count the M3.102 source slice as locally build/test green only after

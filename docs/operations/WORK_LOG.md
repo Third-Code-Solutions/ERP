@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-06 - M3.103 delivery schedule creation authority slice
+
+Added the issued-PO delivery schedule command to Nest: strict shared
+contract/pipe, tenant-scoped server-only idempotency ledger, forced-RLS
+migration, membership/capability recheck, issued-PO lock, atomic schedule plus
+in-app notifications plus audit, and Core-only Web compatibility selection.
+The form now submits one retry key; selected Core errors cannot fall back to a
+direct browser write. All selectors/flags remain false/empty.
+
+Evidence: shared delivery 16/16; API focused 47/47; Web focused 22/22; new
+schedule rollback integration 1/1; local WSL PostgreSQL 17 replay/catalog/RLS/
+privilege verification 94/94 migrations and database 49/318 zero skips; serial
+API 104/449; Web 87/567; typechecks/lint; Turbo production build 2/2 with
+Next 81/81 routes; and full API integration rerun 19 files/24 passed with 2
+existing conditional skips. The first WSL queue lane had one intermittent
+document-processing Redis timing failure; isolated and rerun integration passed.
+Source commit `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is local only. No
+hosted Supabase SQL, Storage, Vercel build, Railway build, or tenant canary
+changed. Next action: reconcile hosted suffix/backup/export/security gates,
+then decide one spend-bounded provider promotion.
+
 ## 2026-08-06 - M3.102 local release gates rerun
 
 Reran the previously incomplete gates in a clean single-worker lane. The

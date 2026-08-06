@@ -1,5 +1,36 @@
 # Migration Plan
 
+## M3.103 closed delivery schedule creation authority (2026-08-06)
+
+Added `20260806130000_delivery_schedule_create_idempotency.sql`, a new
+server-only request state enum/table with tenant/idempotency uniqueness,
+composite tenant-safe foreign keys, forced RLS, and service-role-only grants.
+Added strict shared scheduling contracts, a Nest pipe/controller/service
+command, exact API/Web flags, Core adapter, retry-key form seam, and
+rollback-only integration. Nest rechecks membership and `delivery.receive`,
+locks an issued PO, creates the schedule, in-app role notifications, replay
+result, and semantic audit in one transaction. The selected Web path never
+falls back to a browser mutation after a Core error.
+
+Validation: shared delivery 16/16; API controller/service 47/47; Web action
+22/22; schedule database integration 1/1; disposable PostgreSQL migration,
+RLS, privilege, and catalog verification 94/94 with 4 service-only tables;
+database 49/318; API 104/449; Web 87/567; typechecks/lint; and production
+build 2/2 with 81/81 routes. Source SHA
+`b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is local only. No hosted SQL,
+Storage write, Vercel build, Railway build, or tenant canary occurred.
+
+## Next gate
+
+Keep all delivery schedule selectors and API flags false/empty. Before any
+provider promotion, reconcile the source suffix after hosted
+`20260729233017` in order on a supported backup/replay lane, verify the new
+ledger table's RLS/grants/foreign keys/audit behavior, resolve the owner-
+approved 12-record tenant-scoped PO duplicate group, review security warnings,
+and run one protected scheduling browser canary with duplicate retry,
+cross-tenant denial, notification/audit evidence, rollback, readiness, and
+spend checks. Do not apply hosted SQL or trigger Vercel/Railway builds yet.
+
 ## M3.102 closed delivery in-transit transition (2026-08-06)
 
 Added `20260806120000_delivery_in_transit_workflow.sql`, extending the

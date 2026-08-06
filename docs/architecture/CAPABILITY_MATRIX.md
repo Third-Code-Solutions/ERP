@@ -1,8 +1,17 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `db786f2` (M3.102 delivery in-transit authority slice)
+Source checkpoint: `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` (M3.103 delivery
+schedule creation authority slice)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.103 update: delivery scheduling for issued Purchase Orders now has a closed
+NestJS `POST /v1/procurement/deliveries` authority route with tenant-scoped
+idempotent replay, issued-PO locking, in-app notifications, and semantic audit.
+The Web form selects Core only for the exact flag/UUID allowlist and has no
+direct fallback; all new selectors remain false/empty. Local migration/RLS
+proof is 94/94, API 104/449, Web 87/567, and build 81/81. Hosted Supabase is
+still read-only at 55/94; no provider build or tenant canary occurred.
 
 M3.102 update: delivery `site_ready -> in_transit` now has a closed NestJS
 authority route with tenant/idempotency replay and semantic audit. The Web

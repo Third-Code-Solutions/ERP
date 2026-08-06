@@ -4,6 +4,36 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.103 closed Nest delivery schedule creation (2026-08-06)
+
+Added the smallest next delivery authority slice: scheduling a delivery for an
+issued Purchase Order. The strict shared command/result, server-only
+`delivery_schedule_create_requests` replay ledger, tenant-scoped composite
+foreign keys, forced RLS/service-role grants, Nest `POST
+/v1/procurement/deliveries`, membership/capability recheck, issued-PO lock,
+atomic schedule/notification/audit commit, and exact feature flag plus tenant
+allowlist are implemented. The Web form creates one retry key per submission,
+selects Core only for the exact enabled flag plus UUID allowlist, and never
+falls back to a direct database write after a selected Core error. All new
+selectors remain false/empty.
+
+Validation: delivery shared contracts 16/16; focused API controller/service
+47/47; focused Web delivery actions 22/22; new rollback-only PostgreSQL 17
+integration 1/1; disposable migration/catalog/RLS/privilege verifier 94/94
+migrations, 32 protected tables, and 4 service-only tables; database suite
+49/318 with zero skips; serial API 104/449; Web 87/567; shared/database/API/
+Web typechecks and TS-only lint pass; and isolated Turbo production build
+passes Nest webpack plus Next 81/81 routes. The first full local queue lane
+hit one known document-processing Redis timing flake; the complete API
+integration lane was rerun and passed 19 files/24 tests with 2 existing
+conditional skips, and the new schedule integration passed independently.
+Source SHA `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is local and not yet
+promoted. Hosted Supabase remains read-only at 55/94 migrations; no Supabase,
+Storage, Vercel, Railway, or tenant-canary mutation occurred for this slice.
+Promotion remains blocked by hosted suffix reconciliation, supported
+backup/catalog/data/audit export, duplicate-PO mapping, security review,
+protected canary, rollback, and spend approval.
+
 ## M3.102 closed Nest delivery in-transit transition (2026-08-06)
 
 Added the smallest next delivery authority slice: `site_ready -> in_transit`.
