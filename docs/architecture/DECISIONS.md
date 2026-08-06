@@ -60,7 +60,8 @@ changing money or source fields.
 
 Evidence: focused deletion service/controller 8/8; shared cost contract 3/3;
 database migration/schema 3/3; Web/API/full package gates green; no hosted
-state changed.
+state changed. Source checkpoint: `476903d934c3c1b65bf50b6075497707b8841248`,
+remote SHA verified.
 
 ## D-247 - Require disposable replay before hosted Core canary (2026-08-07)
 

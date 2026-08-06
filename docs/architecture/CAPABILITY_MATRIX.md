@@ -53,6 +53,8 @@ Validation: focused API deletion 8/8; shared 3/3; database migration/schema
 skipped; API 114/489; production build 81/81 routes; typecheck/lint,
 migration verifier, Actionlint, Gitleaks, controlled-release 5/5, and
 provider-spend 4/4 passed. Database skips require `DATABASE_URL`.
+Source checkpoint: `476903d934c3c1b65bf50b6075497707b8841248`; remote branch and
+clean worktree verified.
 
 ## M3.139 self-hosted Core authority evidence (2026-08-07)
 
