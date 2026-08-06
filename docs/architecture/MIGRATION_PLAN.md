@@ -1,5 +1,17 @@
 # Migration Plan
 
+## M3.120 dashboard incident revalidation
+
+Completed read-only revalidation of the reported `/dashboard` failure. Live
+anonymous behavior is the expected `307 /auth/login`; Vercel runtime-error
+clusters for `/dashboard` are zero in the current seven-day window; the active
+production deployment is `READY`; and historical root cause remains the
+repaired `partial_delivered` enum catalog gap. No source patch, hosted SQL,
+provider setting, or deployment was made.
+
+Next: keep the current repair and release gates intact; do not spend a Vercel
+build to retest an already-green unauthenticated boundary.
+
 ## M3.119 public favicon identity
 
 Completed source-only rebrand of the browser favicon from the legacy `B` mark

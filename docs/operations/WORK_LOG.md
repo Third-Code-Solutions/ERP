@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-06 - M3.120 dashboard incident revalidation
+
+Read-only reproduction of `https://thirdcode-erp.vercel.app/dashboard` in a
+clean browser context returned the expected `/auth/login` redirect with no
+console errors. Vercel connector evidence for project
+`prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` found zero `/dashboard` runtime-error
+clusters in the seven-day window. Active production deployment
+`dpl_Htv5nb1A8oHbtowQpmrToYQgxDDL` is `READY`, source SHA
+`31c04942a93dce78f165880fb02bdf38d25eb506`, and its error-only build log ends
+with `Build Completed in /vercel/output [2m]`. Historical digest `862076041`
+remains explained by the already-applied Purchase Order enum repair. No
+provider build, promotion, setting, billing, hosted SQL, or data write occurred.
+
 ## 2026-08-06 - M3.119 public favicon identity
 
 Read-only browser sweep at 1440px and 390px confirmed Third Code ERP title,

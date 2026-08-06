@@ -4,6 +4,18 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.120 dashboard incident revalidation (2026-08-06)
+
+The reported Server Components digest was rechecked without credentials or
+provider mutation. The public `/dashboard` probe redirects to `/auth/login` as
+designed; current Vercel runtime-error evidence contains zero `/dashboard`
+clusters; and the active production deployment is `READY` with build logs
+ending in `Build Completed`. Existing incident evidence attributes digest
+`862076041` to the historical missing `partial_delivered` Purchase Order enum
+label, already repaired by forward migration
+`20260728005112_fix_purchase_order_status_catalog.sql`. No additional source
+fix or deployment is justified by current evidence.
+
 ## M3.119 public favicon identity (2026-08-06)
 
 Read-only live inspection found product-facing copy and HTML free of forbidden

@@ -1,5 +1,13 @@
 # Target State
 
+## M3.120 dashboard incident revalidation (2026-08-06)
+
+Protected dashboard access must redirect anonymous requests to sign-in and
+must not reintroduce the historical Purchase Order enum drift. Incident proof
+must combine browser behavior, runtime error clusters, deployment identity, and
+schema/catalog evidence; a user-supplied digest alone is not release approval.
+No deployment is allowed while the controlled release planner is blocked.
+
 ## M3.119 public favicon identity (2026-08-06)
 
 All product entry points, including browser metadata assets, use the same
