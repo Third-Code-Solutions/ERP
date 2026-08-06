@@ -52,6 +52,7 @@ import {
   financeCashResultSchema,
   assetListResultSchema,
   assetReadResultSchema,
+  assetMaintenanceDueResultSchema,
   assetMaintenanceListResultSchema,
   assetMaintenanceCreationResultSchema,
   stockMovementCreationResultSchema,
@@ -143,6 +144,8 @@ import {
   type AssetListQuery,
   type AssetListResult,
   type AssetReadResult,
+  type AssetMaintenanceDueQuery,
+  type AssetMaintenanceDueResult,
   type AssetMaintenanceListQuery,
   type AssetMaintenanceListResult,
   type AssetMaintenanceCreationResult,
@@ -1917,6 +1920,65 @@ export async function getAssetMaintenanceThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Maintenance history was not read.',
+      status: 503,
+    }
+  }
+}
+
+export async function getAssetMaintenanceDueThroughCoreApi(
+  query: AssetMaintenanceDueQuery
+): Promise<CoreResult<AssetMaintenanceDueResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams({
+      daysAhead: String(query.daysAhead),
+      page: String(query.page),
+      limit: String(query.limit),
+    })
+    if (query.asOf) params.set('asOf', query.asOf)
+    const response = await fetch(
+      `${access.baseUrl}/v1/assets/maintenance/due?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 403
+            ? 'You do not have permission to view maintenance due items.'
+            : response.status === 503
+              ? 'Asset maintenance reads are not enabled for this tenant.'
+              : 'Maintenance due items were not completed.',
+        status: response.status,
+      }
+    }
+    const parsed = assetMaintenanceDueResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid maintenance due result.',
+        status: 503,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Maintenance due items were not read.',
       status: 503,
     }
   }

@@ -5,7 +5,9 @@ import { ConfigService } from '@nestjs/config'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
+import { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
+import { AssetMaintenanceService } from './asset-maintenance.service'
 import { AssetsService } from './assets.service'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -62,6 +64,45 @@ function listHarness(rows = [ASSET_ROW], total = rows.length) {
     }),
   } as unknown as ConfigService
   return { service: new AssetsService(config, database), select, rowWhere, rowLimit, rowOffset, countWhere }
+}
+
+const DUE_ROW = {
+  tenant_id: TENANT_ID,
+  asset_id: ASSET_ID,
+  asset_tag: 'EQ-001',
+  asset_name: 'Excavator',
+  asset_kind: 'equipment' as const,
+  asset_status: 'active' as const,
+  assigned_project_id: null,
+  assigned_project_name: null,
+  location: 'Yard',
+  maintenance_record_id: '44444444-4444-4444-8444-444444444444',
+  maintenance_type: 'inspection' as const,
+  summary: 'Annual inspection',
+  performed_on: '2026-01-15',
+  next_due_on: '2026-08-20',
+  days_until_due: 13,
+  due_state: 'due_soon' as const,
+  total_count: 1,
+}
+
+function dueHarness(rows = [DUE_ROW]) {
+  const execute = vi.fn().mockResolvedValue(rows)
+  const config = {
+    get: vi.fn((key: string, fallback: unknown) => {
+      if (key === 'ERP_ASSET_MAINTENANCE_READS_ENABLED') return true
+      if (key === 'ERP_ASSET_MAINTENANCE_READS_TENANT_IDS') return [TENANT_ID]
+      return fallback
+    }),
+  } as unknown as ConfigService
+  return {
+    service: new AssetMaintenanceService(
+      config,
+      { client: { execute } } as unknown as DatabaseService,
+      new AuditService()
+    ),
+    execute,
+  }
 }
 
 describe('AssetsService', () => {
@@ -129,5 +170,58 @@ describe('AssetsService', () => {
     expect(querySql.params).toContain('%Exc%')
     expect(querySql.params).toContain('equipment')
     expect(querySql.params).toContain('active')
+  })
+
+  it('returns the latest maintenance record in a bounded due window', async () => {
+    const probe = dueHarness()
+    const result = await probe.service.maintenanceDue(
+      { asOf: '2026-08-07', daysAhead: 30, page: 1, limit: 50 },
+      PRINCIPAL
+    )
+
+    expect(result).toMatchObject({
+      tenantId: TENANT_ID,
+      asOf: '2026-08-07',
+      daysAhead: 30,
+      total: 1,
+      rows: [
+        expect.objectContaining({
+          assetId: ASSET_ID,
+          maintenanceRecordId: DUE_ROW.maintenance_record_id,
+          nextDueOn: '2026-08-20',
+          daysUntilDue: 13,
+          dueState: 'due_soon',
+        }),
+      ],
+    })
+    expect(probe.execute).toHaveBeenCalledTimes(1)
+    const querySql = new PgDialect().sqlToQuery(
+      probe.execute.mock.calls[0]?.[0]
+    )
+    expect(querySql.sql).toContain('join lateral')
+    expect(querySql.sql).toContain('count(*) over()')
+    expect(querySql.params).toContain(TENANT_ID)
+    expect(querySql.params).toContain('2026-08-07')
+    expect(querySql.params).toContain(30)
+  })
+
+  it('fails closed before due-query execution', async () => {
+    const execute = vi.fn()
+    const config = {
+      get: vi.fn((_key: string, fallback: unknown) => fallback),
+    } as unknown as ConfigService
+    const service = new AssetMaintenanceService(
+      config,
+      { client: { execute } } as unknown as DatabaseService,
+      new AuditService()
+    )
+
+    await expect(
+      service.maintenanceDue(
+        { asOf: '2026-08-07', daysAhead: 30, page: 1, limit: 50 },
+        PRINCIPAL
+      )
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+    expect(execute).not.toHaveBeenCalled()
   })
 })

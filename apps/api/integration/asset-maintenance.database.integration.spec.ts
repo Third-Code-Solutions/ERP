@@ -174,6 +174,24 @@ suite('asset maintenance database integration', () => {
         summary: 'Annual safety inspection',
         costCents: 125_000,
       })
+      const due = await service.maintenanceDue(
+        { asOf: '2027-01-01', daysAhead: 30, page: 1, limit: 50 },
+        principalA
+      )
+      expect(due).toMatchObject({
+        tenantId: tenantA,
+        asOf: '2027-01-01',
+        daysAhead: 30,
+        total: 1,
+        rows: [
+          expect.objectContaining({
+            assetId: assetA,
+            nextDueOn: '2027-01-15',
+            daysUntilDue: 14,
+            dueState: 'due_soon',
+          }),
+        ],
+      })
       await expect(
         service.list(assetB, { page: 1, limit: 50 }, principalA)
       ).rejects.toThrow('Asset not found')

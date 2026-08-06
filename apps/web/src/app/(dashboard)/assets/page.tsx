@@ -5,10 +5,12 @@ import {
   assetListQuerySchema,
   type AssetListQuery,
   type AssetListResult,
+  type AssetMaintenanceDueResult,
 } from '@third-code-erp/shared-types'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import {
   assetReadsUseCoreApi,
+  getAssetMaintenanceDueThroughCoreApi,
   getAssetsThroughCoreApi,
 } from '@/lib/erp-core-client'
 
@@ -110,7 +112,92 @@ function AssetFilters({ query }: { query: AssetListQuery }) {
   )
 }
 
-function AssetRegister({ data, query }: { data: AssetListResult; query: AssetListQuery }) {
+function dueStateClass(state: AssetMaintenanceDueResult['rows'][number]['dueState']): string {
+  return state === 'overdue' ? 'finance-status-closed' : 'finance-status-maintenance'
+}
+
+function MaintenanceDuePanel({
+  due,
+  error,
+}: {
+  due: AssetMaintenanceDueResult | null
+  error: string | null
+}) {
+  return (
+    <section className="finance-section">
+      <div className="finance-section-heading">
+        <div>
+          <p className="finance-eyebrow">Service watch</p>
+          <h2>Due or overdue maintenance</h2>
+        </div>
+        <p>Latest service record per active asset, bounded to the next 30 days.</p>
+      </div>
+      <div className="finance-table-shell">
+        {error ? (
+          <div className="card-empty" aria-live="polite">
+            <p><strong>Maintenance watch unavailable</strong></p>
+            <p>{error}</p>
+          </div>
+        ) : !due || due.rows.length === 0 ? (
+          <div className="card-empty" aria-live="polite">
+            <p><strong>No service dates need attention.</strong></p>
+            <p>Assets with a next due date in the current watch window will appear here.</p>
+          </div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Next due</th>
+                <th>State</th>
+                <th>Latest service</th>
+                <th>Project / location</th>
+              </tr>
+            </thead>
+            <tbody>
+              {due.rows.map((row) => (
+                <tr key={row.assetId}>
+                  <td>
+                    <Link href={`/assets/${row.assetId}`}>
+                      <strong>{row.assetTag}</strong>
+                    </Link>
+                    <span className="finance-cell-detail">{row.assetName}</span>
+                  </td>
+                  <td>{formatDate(row.nextDueOn)}</td>
+                  <td>
+                    <span className={`finance-status ${dueStateClass(row.dueState)}`}>
+                      {row.dueState === 'overdue' ? 'Overdue' : `${row.daysUntilDue} days`}
+                    </span>
+                  </td>
+                  <td>
+                    <strong>{row.summary}</strong>
+                    <span className="finance-cell-detail">{row.maintenanceType}</span>
+                  </td>
+                  <td>
+                    <strong>{row.assignedProjectName ?? 'Unassigned'}</strong>
+                    <span className="finance-cell-detail">{row.location ?? 'No location'}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function AssetRegister({
+  data,
+  query,
+  due,
+  dueError,
+}: {
+  data: AssetListResult
+  query: AssetListQuery
+  due: AssetMaintenanceDueResult | null
+  dueError: string | null
+}) {
   const activeCount = data.rows.filter((row) => row.status === 'active').length
   const maintenanceCount = data.rows.filter((row) => row.status === 'maintenance').length
   const assignedCount = data.rows.filter((row) => row.assignedProjectId).length
@@ -140,6 +227,8 @@ function AssetRegister({ data, query }: { data: AssetListResult; query: AssetLis
           <p className="kpi-card-sub">Linked to a project</p>
         </div>
       </div>
+
+      <MaintenanceDuePanel due={due} error={dueError} />
 
       <section className="finance-section">
         <div className="finance-section-heading">
@@ -272,7 +361,10 @@ export default async function AssetsPage({
 }
 
 async function AssetData({ query }: { query: AssetListQuery }) {
-  const result = await getAssetsThroughCoreApi(query)
+  const [result, dueResult] = await Promise.all([
+    getAssetsThroughCoreApi(query),
+    getAssetMaintenanceDueThroughCoreApi({ daysAhead: 30, page: 1, limit: 50 }),
+  ])
   if (!result.ok || !result.data) {
     return (
       <AssetState
@@ -282,5 +374,12 @@ async function AssetData({ query }: { query: AssetListQuery }) {
       />
     )
   }
-  return <AssetRegister data={result.data} query={query} />
+  return (
+    <AssetRegister
+      data={result.data}
+      query={query}
+      due={dueResult.ok && dueResult.data ? dueResult.data : null}
+      dueError={dueResult.ok ? null : dueResult.error ?? 'Core returned no due data.'}
+    />
+  )
 }
