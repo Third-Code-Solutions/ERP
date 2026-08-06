@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.96 replay parity evidence (2026-08-06)
+
+Added a rollback-only API integration proof for the closed cash register read
+projection. The fixture covers two tenants, cash accounts, business/vendor
+counterparties, posted/draft/reversed states, journal evidence, exact-cent
+aggregates, direction/date filters, and direct-query parity. It uses the same
+Nest service/database transaction boundary as production and never commits
+probe data.
+
+Evidence: isolated PostgreSQL 17 and Redis 7.4.9 replay applied 92/92
+migrations; database 112/112 suites and 318/318 tests passed with zero skips;
+API integration 32/32 suites and 23/23 tests passed with zero skips; schema
+before/after SHA256 was
+`36AC6C9CFB138589031C4BE6FF328748CA80AD45B07DAB40BAEE10C05E2F0B0B`; source
+`91ed37570ea57fa456b569d247802cfd996cb9c6` is pushed to both GitHub refs;
+Railway `133e14b7-c879-4090-8ce1-26d9b42d93ca` is `SUCCESS`/running; live
+readiness/health are 200 and unauthenticated cash register is 401. No hosted
+SQL, Supabase Storage/data write, Vercel build, or extra AI/provider spend.
+
+## Next gate
+
+Keep all cash read flags false/empty. Local parity is complete, but do not
+enable a tenant until supported Supabase backup/catalog export, ordered
+migration/data/RLS/audit parity, duplicate Purchase Order mapping, protected
+browser proof, rollback evidence, and budget guard are complete. No new
+Railway build for docs-only changes; no Vercel build; keep Python advisory-only.
+
 ## M3.96 - Closed cash transaction register read projection (2026-08-06)
 
 Implemented the smallest safe cash read seam: shared bounded filters and

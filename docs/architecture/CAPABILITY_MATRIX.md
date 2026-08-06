@@ -1,8 +1,18 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `ddadd2f` (M3.96 closed cash register read projection)
+Source checkpoint: `91ed375` (M3.96 cash register replay parity evidence)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.96 replay update: disposable PostgreSQL 17/Redis 7.4.9 proof compares the
+cash compatibility query with the typed Nest projection across two tenants,
+state/direction/date filters, exact-cent totals, and same-tenant joins. 92/92
+migrations, 112 database suites/318 tests, and 32 API integration suites/23
+tests pass with zero skips. Source SHA
+`91ed37570ea57fa456b569d247802cfd996cb9c6` is live on Railway deployment
+`133e14b7-c879-4090-8ce1-26d9b42d93ca` (`SUCCESS`/running); readiness/health
+are 200 and unauthenticated cash register is 401. Hosted Supabase remains
+read-only and Vercel has no new build.
 
 M3.96 update: cash transactions now have a typed, tenant-derived NestJS
 `GET /v1/finance/cash-transactions` projection with same-tenant cash-account

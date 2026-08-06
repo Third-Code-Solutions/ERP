@@ -1,5 +1,15 @@
 # Target State
 
+## M3.96 replay parity gate
+
+The cash register Core seam now has disposable database proof: direct and Nest
+rows/aggregates match for two tenants, exact cents survive serialization, and
+direction/date filters remain bounded. Keep production selectors closed until
+hosted migration/data parity, owner-approved duplicate Purchase Order mapping,
+RLS/audit review against the hosted clone, protected browser proof, rollback,
+and spend controls clear. Local replay is evidence, not permission to mutate
+Supabase or enable a production tenant.
+
 ## M3.96 increment: Core-owned cash transaction register reads
 
 Cash register reads move behind a typed, tenant-derived NestJS projection

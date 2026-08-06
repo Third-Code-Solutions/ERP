@@ -4,6 +4,35 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.96 replay parity evidence (2026-08-06)
+
+Added `apps/api/integration/finance-cash-read.database.integration.spec.ts`.
+On an isolated PostgreSQL 17/Redis 7.4.9 replay, the test seeds two tenants,
+posted/draft/reversed receipts and disbursements, then compares the direct
+tenant-scoped register rows and aggregates with the Nest projection. It proves
+exact-cent receipt/disbursement totals, date/direction filters, same-tenant
+counterparty joins, and no other-tenant row leakage. Every probe runs inside
+an unconditional rollback; no hosted data is touched.
+
+Replay evidence: 92/92 migrations, 112 database suites/318 tests with zero
+skips, unchanged schema dump hash
+`36AC6C9CFB138589031C4BE6FF328748CA80AD45B07DAB40BAEE10C05E2F0B0B`, and 32
+API integration suites/23 tests with zero skips. Repository gates remain
+green: shared 25 files/214 tests, API 104 files/440 tests, Web 87 files/558
+tests, typecheck, serial lint, production build 80/80 routes, Vercel spend
+guard, and diff check. Source SHA
+`91ed37570ea57fa456b569d247802cfd996cb9c6` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`133e14b7-c879-4090-8ce1-26d9b42d93ca` is `SUCCESS` with running instance
+`109f0661-238c-4a53-b631-09ede636775c`, Dockerfile `apps/api/Dockerfile`,
+`/ready`, `node apps/api/dist/main.js`, and image digest
+`sha256:9a4a8c982ea4e872254a4258a24b2982212bd5581f0888426561d2b007e19fdf`.
+Live `/ready` and `/health` are 200 and unauthenticated
+`/v1/finance/cash-transactions` is 401. Supabase remains read-only at
+PostgreSQL 17 with 55/92 migrations applied, 37 missing, and one duplicate
+Purchase Order group of 12 records. Vercel Git remains disconnected; no
+Vercel build or deploy was started.
+
 ## M3.96 Closed cash transaction register read projection (2026-08-06)
 
 Added an original shared Finance Cash query/result contract and NestJS

@@ -1,5 +1,28 @@
 # Next Actions
 
+## Exact next action after M3.96 replay parity
+
+1. Keep `ERP_FINANCE_CASH_READS_ENABLED=false`,
+   `ERP_FINANCE_CASH_READS_TENANT_IDS` empty,
+   `ERP_FINANCE_CASH_READS_VIA_API=false`, and
+   `ERP_FINANCE_CASH_READS_VIA_API_TENANT_IDS` empty. Local parity does not
+   authorize production tenant selection; live cash register remains 401.
+2. Source SHA `91ed37570ea57fa456b569d247802cfd996cb9c6` is pushed to
+   `Third-Code-Solutions/ERP`; Railway deployment
+   `133e14b7-c879-4090-8ce1-26d9b42d93ca` is `SUCCESS`/running with `/ready`
+   200, `/health` 200, and cash register 401. Do not trigger another Railway
+   build unless runtime source changes; do not create a Vercel preview or
+   production build.
+3. Keep Supabase `aqqrtkmtcsfkbyyqxowv` read-only at PostgreSQL 17 with 55/92
+   migrations applied and 37 missing. Obtain supported backup/catalog/data
+   export, dependent/audit export, and owner-approved mapping for its one
+   tenant-scoped 12-record Purchase Order duplicate group before any apply or
+   canary.
+4. Next milestone: compare hosted clone catalog/data/RLS/audit against the
+   disposable replay, then run protected browser cash canary and rollback
+   drill. Python/AI remain advisory; no official ERP transaction is finalized
+   by analysis services.
+
 ## Exact next action after M3.96
 
 1. Keep `ERP_FINANCE_CASH_READS_ENABLED=false`,
