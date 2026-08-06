@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-06 - M3.122 source anonymous-grant and policy hardening
+
+Added `20260806160000_security_role_baseline.sql`. It revokes direct
+anonymous table/sequence privileges, protects future public objects through
+default privileges, and normalizes legacy tenant policies whose only role was
+`public` to `authenticated`. The database verifier now checks the migration,
+zero anonymous public-table privileges, and zero `PUBLIC`-role ERP policies.
+
+On the disposable PostgreSQL 17.10 lane, the known replay clone advanced to
+97/97 and passed the full verifier. Database Vitest passed 51/51 files and
+324/324 tests with zero skips after updating the anonymous-boundary assertion
+to require permission denial. Full Turbo tests/build, typecheck, TS-only lint,
+Gitleaks, Actionlint, and migration-file checks passed. Hosted Supabase remains
+55/97; no hosted SQL, Storage, provider setting, build, deploy, or tenant-data
+write occurred.
+
+Next action: prove a clean zero-to-head replay and review public portal flows
+through Nest/service authority before requesting any hosted migration.
+
 ## 2026-08-06 - M3.121 hosted Supabase security and parity refresh
 
 Read-only Supabase MCP confirmed project `aqqrtkmtcsfkbyyqxowv` is healthy on

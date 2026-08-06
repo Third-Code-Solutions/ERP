@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.122 source anonymous-grant and policy hardening
+
+Implemented migration `20260806160000_security_role_baseline.sql`. It removes
+anonymous table/sequence authority, protects future public objects through
+default privileges, and normalizes only legacy `public`-role tenant policies
+to `authenticated`. The verifier now treats anonymous grants and `PUBLIC`
+tenant policies as catalog failures.
+
+Validation: disposable PostgreSQL 17.10 suffix replay reached 97/97 and the
+database verifier passed every catalog check; database Vitest passed 51/51
+files and 324/324 tests with zero skips. Full Turbo tests/build, typecheck,
+TS-only lint, Gitleaks, Actionlint, and migration-file validation pass. No
+hosted database or provider state changed.
+
+Next: obtain a clean zero-to-head Supabase/PostgreSQL 17 replay artifact and
+review public-portal behavior through Nest/service paths. Keep the hosted
+55/97 ledger, duplicate Purchase Order mapping, audit recovery tenant, managed
+backup, rollback, identity, security, and spend gates unresolved until their
+own evidence is complete.
+
 ## M3.121 hosted Supabase security and parity refresh
 
 Completed a read-only hosted catalog audit. Supabase is healthy on PostgreSQL

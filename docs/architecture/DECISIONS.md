@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-230 - Remove anonymous table authority at the database boundary (2026-08-06)
+
+Decision: add one source migration that revokes `anon` table and sequence
+privileges across the public ERP schema, sets the same default-privilege
+baseline for future objects, and changes only policies whose role set is
+exactly `public` to `authenticated`. Preserve explicit authenticated and
+service-role grants and keep public signing server-mediated.
+
+Rationale: RLS predicates are defense in depth, not a reason to leave direct
+anonymous grants on 54 hosted tables. A small catalog migration closes the
+unnecessary authority surface without moving business logic or changing the
+Nest/API contract.
+
+Evidence: migration `20260806160000_security_role_baseline.sql`; disposable
+PostgreSQL 17.10 suffix replay and verifier pass at 97/97; database tests
+51/51 files, 324/324 tests; no hosted/provider mutation.
+
 ## D-229 - Hosted anonymous grants block promotion (2026-08-06)
 
 Decision: treat any direct `anon` table/sequence privilege on a tenant ERP

@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.122 source anonymous-grant and policy hardening
+
+Create a clean disposable PostgreSQL 17/Supabase replay from zero and verify
+the 97-file ledger, roles, policies, grants, Storage/auth dependencies, and
+public signing/warranty portal routes. The current 97/97 evidence is a suffix
+replay on the existing disposable clone, not a fresh zero-to-head proof. Do
+not apply `20260806160000_security_role_baseline.sql` to hosted Supabase until
+that replay, managed backup, duplicate Purchase Order owner mapping,
+`AUDIT_RECOVERY_TENANT_ID`, rollback, exact provider identity, readiness,
+security, and spend gates all pass. Keep Vercel Git disabled and do not create
+a paid Vercel/Railway build.
+
 ## Exact next action after M3.121 hosted Supabase security and parity refresh
 
 Do not deploy or apply hosted SQL. Add the source-only security migration and

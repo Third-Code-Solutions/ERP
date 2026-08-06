@@ -4,6 +4,24 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.122 source anonymous-grant and policy hardening (2026-08-06)
+
+Added source migration `20260806160000_security_role_baseline.sql`. It
+revokes direct `anon` table and sequence privileges, sets matching default
+privileges for future public objects, and changes legacy tenant policies whose
+only role was `public` to `authenticated`. Policies already scoped to
+`authenticated` or `service_role` are left unchanged. Public-portal flows
+remain server-mediated; no anonymous table authority was added.
+
+The repository verifier now requires the migration and checks the source
+contract statically plus the disposable catalog. On the running disposable
+PostgreSQL 17.10 lane, the 97-migration ledger, RLS/policy catalog, service
+ledgers, and new zero-anon/zero-public-policy checks pass. Database tests pass
+51 files/324 tests with zero skips. Full Turbo tests/build, typecheck,
+TS-only lint, Gitleaks, Actionlint, and migration-file checks pass. Hosted
+Supabase remains unchanged at 55/97; no Vercel/Railway build, deployment,
+Storage, SQL, or tenant-data write occurred.
+
 ## M3.121 hosted Supabase security and parity refresh (2026-08-06)
 
 Read-only Supabase MCP and catalog queries confirm project
