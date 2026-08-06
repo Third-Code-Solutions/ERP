@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   InternalServerErrorException,
   Inject,
   Injectable,
@@ -12,6 +13,7 @@ import { ConfigService } from '@nestjs/config'
 import {
   projectCreateRequests,
   projects,
+  users,
   type Project,
 } from '@third-code-erp/database/schema'
 import {
@@ -29,7 +31,11 @@ import {
   type UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
 import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm'
-import type { ErpPrincipal } from '../auth/current-principal.decorator'
+import { roleHasCapability } from '../auth/capability.guard'
+import type {
+  ErpPrincipal,
+  ErpRole,
+} from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
 import {
   DatabaseService,
@@ -187,10 +193,24 @@ export class ProjectsService {
     const requestHash = commandHash(parsedCommand)
 
     return this.database.client.transaction(async (transaction) => {
-      await this.audit.stampActor(transaction, principal)
+      const membership = await this.lockMembership(transaction, principal)
+      if (
+        !membership ||
+        !roleHasCapability(membership.role, 'project.create')
+      ) {
+        throw new ForbiddenException()
+      }
+      const authorizedPrincipal: ErpPrincipal = {
+        userId: principal.userId,
+        tenantId: membership.tenantId,
+        role: membership.role,
+        email: membership.email,
+      }
+
+      await this.audit.stampActor(transaction, authorizedPrincipal)
       const request = await this.claimRequest(
         transaction,
-        principal,
+        authorizedPrincipal,
         idempotencyKey,
         requestHash
       )
@@ -204,8 +224,8 @@ export class ProjectsService {
       const [created] = await transaction
         .insert(projects)
         .values({
-          tenant_id: principal.tenantId,
-          created_by: principal.userId,
+          tenant_id: authorizedPrincipal.tenantId,
+          created_by: authorizedPrincipal.userId,
           name: parsedCommand.name,
           client: parsedCommand.client,
           status: parsedCommand.status,
@@ -220,8 +240,8 @@ export class ProjectsService {
       const result = this.creationResult(created)
       await this.completeRequest(transaction, request.id, result)
       await this.audit.writeSemantic(transaction, {
-        tenantId: principal.tenantId,
-        actorId: principal.userId,
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
         entityType: 'project',
         entityId: created.id,
         action: 'create',
@@ -233,6 +253,33 @@ export class ProjectsService {
       })
       return result
     })
+  }
+
+  private async lockMembership(
+    transaction: DatabaseTransaction,
+    principal: ErpPrincipal
+  ): Promise<{ tenantId: string; role: ErpRole; email: string } | undefined> {
+    const [membership] = await transaction
+      .select({
+        tenantId: users.tenant_id,
+        role: users.role,
+        email: users.email,
+      })
+      .from(users)
+      .where(
+        and(
+          eq(users.id, principal.userId),
+          eq(users.tenant_id, principal.tenantId)
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!membership) return undefined
+    return {
+      tenantId: membership.tenantId,
+      role: membership.role as ErpRole,
+      email: membership.email,
+    }
   }
 
   private async claimRequest(
