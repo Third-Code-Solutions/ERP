@@ -1,5 +1,13 @@
 # Target State
 
+## M3.113 security-scan provenance gate (2026-08-06)
+
+Repository secret scanning must remain green. Deterministic test-only
+idempotency values may be allowlisted only with exact value and path scope plus
+provenance; broad rules, production paths, and real secrets remain blocked.
+The clean scan does not waive hosted database, rollback, canary, identity, or
+spend gates.
+
 ## M3.112 managed replay and duplicate-data gate (2026-08-06)
 
 The release lane must retain a recoverable supplemental export plus a

@@ -1,5 +1,17 @@
 # Work Log
 
+## 2026-08-06 - M3.113 close historical secret-scan findings
+
+Added a narrowly scoped Gitleaks allowlist for three deterministic delivery
+idempotency values used only by unit tests. The allowlist is path-scoped,
+value-scoped, and explicitly documents that these literals are test keys, not
+credentials; no production secret or runtime behavior changed. The pinned
+repository scan now passes with 474 commits scanned and no leaks found.
+
+No database, Storage, provider setting, build, or deployment mutation
+occurred. Next action remains managed Supabase parity and owner-approved
+Purchase Order duplicate mapping.
+
 ## 2026-08-06 - M3.112 recoverable export and disposable suffix replay
 
 Verified the Supabase session pooler at `:5432` read-only and extracted a free
