@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-06 - M3.96 cash register replay parity evidence
+
+Added rollback-only API integration proof comparing direct cash register rows
+and aggregates with the Nest projection across two tenants and all workflow
+states. Covered exact cents, counterparty joins, direction/date filters, and
+cross-tenant exclusion. No browser/UI changes, hosted SQL, Vercel build, or
+AI/provider spend beyond one controlled Railway source build.
+
+Validation: isolated PostgreSQL 17/Redis 7.4.9 replay, 92/92 migrations,
+database 112 suites/318 tests, API integration 32 suites/23 tests, zero skips;
+schema before/after hash
+`36AC6C9CFB138589031C4BE6FF328748CA80AD45B07DAB40BAEE10C05E2F0B0B`; root
+shared 25/214, API 104/440, Web 87/558; typecheck, serial lint, build 80/80,
+spend guard, diff check. Source SHA
+`91ed37570ea57fa456b569d247802cfd996cb9c6` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`133e14b7-c879-4090-8ce1-26d9b42d93ca` is `SUCCESS`/running with image digest
+`sha256:9a4a8c982ea4e872254a4258a24b2982212bd5581f0888426561d2b007e19fdf`;
+live `/ready` 200, `/health` 200, cash register 401. Supabase remains
+read-only at 55/92 with one 12-record Purchase Order duplicate group; Vercel
+remains spend-guarded with no build/deploy.
+
 ## 2026-08-06 - M3.96 closed cash transaction register read projection
 
 Added the shared Finance Cash query/result contract, bounded filters and

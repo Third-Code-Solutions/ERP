@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-207 - Cash read canary requires disposable parity (2026-08-06)
+
+Decision: require rollback-only PostgreSQL 17 replay before selecting any
+tenant for `GET /v1/finance/cash-transactions`. The parity fixture compares the
+direct compatibility query with the Nest result across receipt/disbursement,
+draft/posted/reversed, exact-cent aggregates, filters, same-tenant joins, and
+an unrelated tenant. Local evidence cannot authorize hosted Supabase writes or
+a production canary; hosted catalog/data/RLS/audit, protected browser,
+rollback, and spend gates remain mandatory.
+
+Evidence: database 112/112 suites and 318/318 tests, API integration 32/32
+suites and 23/23 tests, zero skips; source SHA
+`91ed37570ea57fa456b569d247802cfd996cb9c6` is Railway deployment
+`133e14b7-c879-4090-8ce1-26d9b42d93ca` (`SUCCESS`/running); live readiness and
+health are 200 and unauthenticated cash register is 401. Supabase was not
+written and Vercel remained unchanged.
+
 ## D-206 - Cash register reads use a closed Nest contract (2026-08-06)
 
 Decision: expose cash transactions through `GET /v1/finance/cash-transactions`
