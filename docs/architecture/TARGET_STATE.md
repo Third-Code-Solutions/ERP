@@ -1,5 +1,13 @@
 # Target State
 
+## M3.119 public favicon identity (2026-08-06)
+
+All product entry points, including browser metadata assets, use the same
+Third Code ERP identity. The favicon must remain covered by the runtime
+branding test and must not reintroduce legacy single-letter or vendor marks.
+Release still requires the existing database, duplicate-data, audit, readiness,
+identity, security, and provider-spend gates.
+
 ## M3.118 Won-to-Project authority contract (2026-08-06)
 
 Won/closed-won conversion must be one NestJS/PostgreSQL transaction. The

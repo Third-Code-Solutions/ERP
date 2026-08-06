@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-06 - M3.119 public favicon identity
+
+Read-only browser sweep at 1440px and 390px confirmed Third Code ERP title,
+canonical URL, JSON-LD, responsive width, and zero forbidden runtime markers;
+console errors were zero. Source audit found `apps/web/src/app/icon.svg`
+still rendered `B`. Replaced it with an accessible `TC` mark and added a
+branding regression test. No hosted database, Storage, provider setting,
+deployment, or billing action occurred.
+
+The controlled release planner was rerun after the source change: status remains
+`review_required`; hosted ledger is 55/96, one duplicate Purchase Order group
+contains 12 records, `AUDIT_RECOVERY_TENANT_ID` is absent, Railway and Vercel
+readiness are HTTP 200, and the spend guard is clear. The served Vercel
+revision remains `31c04942a93d`; this feature branch was not deployed.
+
 ## 2026-08-06 - M3.118 Won-to-Project authority seam
 
 Implemented the shared empty-command/result contract, service-only forced-RLS

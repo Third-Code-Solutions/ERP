@@ -1,5 +1,16 @@
 # Migration Plan
 
+## M3.119 public favicon identity
+
+Completed source-only rebrand of the browser favicon from the legacy `B` mark
+to `TC`, with a runtime regression assertion. No migration, hosted setting,
+provider build, or tenant data changed.
+
+Evidence: branding-focused test and full local release gates. Next: keep the
+hosted release blockers explicit; do not promote this feature branch until
+managed migration parity, duplicate Purchase Order mapping, audit recovery
+tenant input, readiness, identity, security, and spend checks are green.
+
 ## M3.118 Won-to-Project authority seam (2026-08-06)
 
 Implemented the shared empty command/result contract, forced-RLS service-only

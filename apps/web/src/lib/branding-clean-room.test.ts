@@ -21,6 +21,7 @@ const sidebarSource = readFileSync(
   resolve(directory, '../components/nav/sidebar.tsx'),
   'utf8'
 )
+const faviconSource = readFileSync(resolve(directory, '../app/icon.svg'), 'utf8')
 const textExtensions = new Set([
   '.css',
   '.html',
@@ -47,6 +48,12 @@ function collectTextFiles(root: string): string[] {
 describe('Third Code ERP clean-room runtime branding', () => {
   it('uses Third Code identity in the authenticated shell mark', () => {
     expect(sidebarSource).toMatch(/sidebar-brand-mark[\s\S]*>\s*TC\s*</)
+  })
+
+  it('uses Third Code identity in the browser favicon', () => {
+    expect(faviconSource).toContain('aria-label="Third Code ERP"')
+    expect(faviconSource).toMatch(/>TC<\/text>/)
+    expect(faviconSource).not.toMatch(/>B<\/text>/)
   })
 
   it('contains no legacy vendor markers in runtime text', () => {

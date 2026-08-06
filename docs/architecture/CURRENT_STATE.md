@@ -4,6 +4,15 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.119 public favicon identity (2026-08-06)
+
+Read-only live inspection found product-facing copy and HTML free of forbidden
+vendor/provenance markers at desktop and mobile widths, but the source favicon
+still rendered a single `B` mark while the authenticated shell used `TC`.
+The favicon now carries the original Third Code `TC` mark and an explicit
+accessible label. A runtime branding regression test covers both shell and
+favicon identity. No hosted/provider state changed.
+
 ## M3.118 Won-to-Project authority seam (2026-08-06)
 
 The remaining high-impact `won` handoff now has an original NestJS command
