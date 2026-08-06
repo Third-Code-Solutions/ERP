@@ -35,6 +35,7 @@ import {
   getFinanceCashThroughCoreApi,
   getAssetsThroughCoreApi,
   getOpportunityThroughCoreApi,
+  convertOpportunityToProjectThroughCoreApi,
   projectWritesUseCoreApi,
   projectReadsUseCoreApi,
   projectListsUseCoreApi,
@@ -51,6 +52,7 @@ import {
   inventoryStockMovementCreateWritesUseCoreApi,
   inventoryStockMovementWorkflowUseCoreApi,
   opportunityReadsUseCoreApi,
+  opportunityConversionWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
   purchaseOrderBomGroupedWritesUseCoreApi,
@@ -1291,6 +1293,23 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_PROJECT_CREATE_WRITES_VIA_API_TENANT_IDS', '*')
     expect(projectCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
     expect(projectCreateWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Won-to-Project delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(opportunityConversionWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API', 'TRUE')
+    expect(opportunityConversionWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API_TENANT_IDS', '')
+    expect(opportunityConversionWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(opportunityConversionWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps cost entry creation delegation fail-closed unless its exact gate matches', () => {
@@ -3094,6 +3113,42 @@ describe('ERP Core client', () => {
           location: null,
           notes: null,
         }),
+      })
+    )
+  })
+
+  it('converts a won Opportunity through the Nest command boundary', async () => {
+    const result = {
+      ok: true as const,
+      opportunityId: '33333333-3333-4333-8333-333333333333',
+      projectId: PROJECT_ID,
+      checklistId: '55555555-5555-4555-8555-555555555555',
+      tenantId: RESULT.tenantId,
+      createdProject: true,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      convertOpportunityToProjectThroughCoreApi(
+        result.opportunityId,
+        'opportunity-convert-1'
+      )
+    ).resolves.toEqual({ ok: true, data: result, status: 200 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/crm/opportunities/${result.opportunityId}/convert-to-project`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'opportunity-convert-1',
+        }),
+        body: '{}',
       })
     )
   })

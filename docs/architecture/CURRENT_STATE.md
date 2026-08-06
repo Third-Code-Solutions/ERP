@@ -4,6 +4,24 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.118 Won-to-Project authority seam (2026-08-06)
+
+The remaining high-impact `won` handoff now has an original NestJS command
+boundary at `POST /v1/crm/opportunities/:opportunityId/convert-to-project`.
+The source-only migration adds a tenant-scoped, forced-RLS idempotency ledger;
+the transaction will own project creation/back-linking, signed-contract
+checks, checklist creation, in-app notification intent, and semantic audit.
+The Web action selects Core only for the exact flag plus UUID tenant allowlist;
+legacy conversion remains the compatibility default and no Core failure falls
+back to a browser write after a selected canary. All new flags are false/empty.
+Hosted Supabase, Storage, Vercel, Railway, and tenant data remain unchanged;
+the source migration ledger is now 96 files while the hosted ledger remains
+55. Focused shared/API/database/Web tests pass; full serial Turbo tests,
+typecheck, TS-only lint, production build, Gitleaks, Actionlint, and
+migration-file verification pass. The controlled release plan remains
+review-required for the three hosted blockers below. No hosted/provider write
+occurred.
+
 ## M3.117 Purchase Order mapping-template preflight (2026-08-06)
 
 The duplicate Purchase Order gate now has a read-only owner-review template

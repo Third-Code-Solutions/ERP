@@ -11,6 +11,7 @@ import {
   accountKycQueueResultSchema,
   accountDetailResultSchema,
   opportunityDetailResultSchema,
+  opportunityProjectConversionResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   projectCreationResultSchema,
@@ -78,6 +79,7 @@ import {
   type AccountKycQueueResult,
   type AccountDetailResult,
   type OpportunityDetailResult,
+  type OpportunityProjectConversionResult,
   type CreateProjectCommand,
   type ProjectCreationResult,
   type RfqCreationResult,
@@ -288,6 +290,16 @@ export function opportunityReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_OPPORTUNITY_READS_VIA_API,
     process.env.ERP_OPPORTUNITY_READS_VIA_API_TENANT_IDS
+  )
+}
+
+export function opportunityConversionWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API,
+    process.env.ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -2448,6 +2460,61 @@ export async function getOpportunityThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Opportunity detail was not read.',
+    }
+  }
+}
+
+export async function convertOpportunityToProjectThroughCoreApi(
+  opportunityId: string,
+  idempotencyKey: string
+): Promise<CoreResult<OpportunityProjectConversionResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/opportunities/${encodeURIComponent(
+        opportunityId
+      )}/convert-to-project`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify({}),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 503
+            ? 'Won-to-Project handoff is not enabled for this tenant.'
+            : response.status === 404
+              ? 'Opportunity not found.'
+              : 'Project handoff was not completed.'
+      return { ok: false, error: message, status: response.status }
+    }
+    const parsed = opportunityProjectConversionResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Project handoff result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No Project handoff was completed.',
     }
   }
 }

@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.118 Won-to-Project authority seam
+
+Validation is green: serial Turbo tests, `pnpm typecheck`, `pnpm lint`,
+production build, gitleaks, actionlint, and migration-file verification pass.
+The read-only controlled release planner still reports:
+source migration count is 96 versus hosted 55, duplicate Purchase Orders need
+owner mapping, and audit recovery tenant input is absent. Keep
+`ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED=false`, its tenant list empty, the Web
+Core selector false/empty, Vercel Git disconnected, and all provider builds
+closed. Push only the reviewed feature branch after green gates; do not apply
+the migration or enable a tenant canary.
+
 ## Exact next action after M3.117 Purchase Order mapping-template preflight
 
 Generate an owner-review skeleton only in an approved secure directory:

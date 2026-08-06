@@ -150,6 +150,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Won-to-Project handoff stays fail-closed until the atomic checklist,
+  // notification, idempotency, and tenant-canary replay are approved.
+  ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_OPPORTUNITY_CONVERT_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Manual project cost entry authority stays fail-closed until the
   // idempotency ledger, replay, and tenant canary are approved.
   ERP_COST_ENTRY_CREATE_WRITES_ENABLED: z

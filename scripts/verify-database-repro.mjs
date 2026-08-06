@@ -59,6 +59,7 @@ const requiredMigrations = [
   '20260806120000_delivery_in_transit_workflow.sql',
   '20260806130000_delivery_schedule_create_idempotency.sql',
   '20260806140000_togal_bom_commit_idempotency.sql',
+  '20260806150000_opportunity_project_conversion_idempotency.sql',
 ]
 
 const requiredTables = [
@@ -105,6 +106,7 @@ const requiredServerOnlyTables = [
   'stock_movement_workflow_requests',
   'delivery_schedule_create_requests',
   'togal_bom_commit_requests',
+  'opportunity_project_conversion_requests',
   'assets',
 ]
 
@@ -301,6 +303,8 @@ const requiredIndexes = [
   'ux_assets_tenant_serial',
   'idx_assets_tenant_status',
   'idx_assets_tenant_project',
+  'ux_opportunities_tenant_id_id',
+  'ux_pre_con_checklists_tenant_id_id',
 ]
 
 const requiredServerOnlyIndexes = [
@@ -316,6 +320,9 @@ const requiredServerOnlyIndexes = [
   'ux_togal_bom_commit_requests_tenant_id_id',
   'ux_togal_bom_commit_requests_tenant_key',
   'idx_togal_bom_commit_requests_tenant_state',
+  'ux_opportunity_project_conversion_requests_tenant_id_id',
+  'ux_opportunity_project_conversion_requests_tenant_key',
+  'idx_opportunity_project_conversion_requests_tenant_state',
 ]
 
 const requiredExpandedNodeTypes = [

@@ -1,4 +1,4 @@
-import { pgTable, uuid, bigint, integer, timestamp, index, check, text } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, bigint, integer, timestamp, index, check, text, uniqueIndex } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { opportunityStageEnum } from './enums'
 import { tenants } from './tenants'
@@ -38,6 +38,10 @@ export const opportunities = pgTable(
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex('ux_opportunities_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     tenantIdx: index('idx_opportunities_tenant_id').on(table.tenant_id),
     accountIdx: index('idx_opportunities_account_id').on(table.account_id),
     projectIdx: index('idx_opportunities_project_id').on(table.project_id),

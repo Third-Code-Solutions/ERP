@@ -21,6 +21,7 @@ export const ERP_CAPABILITIES = [
   'audit.read',
   'account.kyc_review',
   'opportunity.read',
+  'opportunity.convert',
   'project.read',
   'project.create',
   'project.update',
@@ -111,6 +112,15 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'safety',
     'cx',
     'viewer',
+  ],
+  'opportunity.convert': [
+    'owner',
+    'admin',
+    'sales',
+    'commercial',
+    'sd_pm_pe',
+    'pm',
+    'estimator',
   ],
   'project.read': [
     'owner',

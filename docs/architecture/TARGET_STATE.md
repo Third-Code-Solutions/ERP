@@ -1,5 +1,18 @@
 # Target State
 
+## M3.118 Won-to-Project authority contract (2026-08-06)
+
+Won/closed-won conversion must be one NestJS/PostgreSQL transaction. The
+browser may send only the opportunity path, an empty strict command, and an
+idempotency key. Nest derives tenant/actor membership, checks
+`opportunity.convert`, locks the opportunity/project, verifies signed-contract
+evidence for existing projects, creates or reuses the checklist, records
+notification intent, writes audit evidence, and replays the exact result. The
+service-only ledger is forced-RLS and service-role-only. Activation requires
+ordered hosted migration parity, disposable replay, duplicate-PO resolution,
+rollback, readiness, protected canary, and spend approval; compatibility and
+all flags remain closed until then.
+
 ## M3.115 provider spend gate (2026-08-06)
 
 Every controlled release must include a green, read-only provider spend
