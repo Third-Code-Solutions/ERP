@@ -55,6 +55,7 @@ const requiredMigrations = [
   '20260727194805_fix_finance_workflow_guards.sql',
   '20260728005112_fix_purchase_order_status_catalog.sql',
   '20260729233017_notification_outbox_foundation.sql',
+  '20260806110000_asset_register_foundation.sql',
 ]
 
 const requiredTables = [
@@ -92,12 +93,14 @@ const requiredTables = [
   'notification_deliveries',
 ]
 
-// Server-only command ledgers are intentionally excluded from the
-// authenticated tenant policy set above. They still require forced RLS and
-// explicit service-role authority in every clean replay and hosted clone.
+// Service-only command ledgers and the operational asset register are
+// intentionally excluded from the authenticated tenant policy set above.
+// They still require forced RLS and explicit service-role authority in every
+// clean replay and hosted clone.
 const requiredServerOnlyTables = [
   'stock_movement_create_requests',
   'stock_movement_workflow_requests',
+  'assets',
 ]
 
 const requiredPolicies = [
@@ -288,6 +291,11 @@ const requiredIndexes = [
   'ux_stock_ledger_entries_tenant_id_id',
   'ux_stock_ledger_movement_line_event_warehouse',
   'ux_stock_ledger_movement_reversal',
+  'ux_assets_tenant_id_id',
+  'ux_assets_tenant_tag',
+  'ux_assets_tenant_serial',
+  'idx_assets_tenant_status',
+  'idx_assets_tenant_project',
 ]
 
 const requiredServerOnlyIndexes = [
@@ -457,6 +465,7 @@ const requiredTriggers = [
   ['public.stock_movements', 'audit_stock_movements'],
   ['public.stock_movement_lines', 'audit_stock_movement_lines'],
   ['public.stock_movements', 'cortex_mirror_stock_movement'],
+  ['public.assets', 'audit_assets'],
 ]
 
 const requiredSecurityDefinerFunctions = [
@@ -717,7 +726,7 @@ try {
   )
 
   await query(
-    'server-only command ledgers are forced-RLS and service-role-only',
+    'service-only operational tables are forced-RLS and service-role-only',
     `select c.relname,
             c.relrowsecurity,
             c.relforcerowsecurity,
@@ -2224,5 +2233,5 @@ if (failures > 0) {
 }
 
 console.log(
-  `PASS database reproducibility verification (${migrationFiles.length} migrations, ${requiredTables.length} protected tables, ${requiredServerOnlyTables.length} server-only ledgers)`
+  `PASS database reproducibility verification (${migrationFiles.length} migrations, ${requiredTables.length} protected tables, ${requiredServerOnlyTables.length} service-only tables)`
 )
