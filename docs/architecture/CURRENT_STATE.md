@@ -4,6 +4,18 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.98 authenticated shell rebrand correction (2026-08-06)
+
+Replaced the authenticated dashboard sidebar's leftover single-letter `A`
+mark with an accessible `TC` Third Code ERP mark and tuned its compact
+typography. Added a clean-room test that locks the shell identity. Web gates:
+87 test files/559 tests, typecheck, TS-only lint, production build 80/80, and
+diff check pass. Source SHA
+`a719d2321410c09658faca30c20c6c374f502360` is pushed to both GitHub refs.
+This is source-only: Vercel Git remains disconnected, no Vercel build or
+release was started, and Railway was not touched. Live Vercel still requires
+an explicitly approved, spend-bounded manual release to display this fix.
+
 ## M3.97 hosted Supabase read-only parity snapshot (2026-08-06)
 
 Read-only inspection of project `aqqrtkmtcsfkbyyqxowv` confirms PostgreSQL

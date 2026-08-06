@@ -1,5 +1,13 @@
 # Target State
 
+## M3.98 shell identity gate (2026-08-06)
+
+Authenticated shell must show only Third Code ERP identity. Source now uses an
+accessible `TC` mark and a regression test; keep Vercel Git disconnected and
+do not infer live UI completion until one explicitly approved, spend-bounded
+manual deployment is captured. No backend, database, tenant, or permission
+behavior changed.
+
 ## M3.97 hosted parity gate (2026-08-06)
 
 Hosted Supabase is an evidence source only: PostgreSQL 17.6, 55/92 migrations,

@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.98 shell rebrand correction
+
+1. Keep Vercel Git disconnected and do not create a preview/production build
+   automatically. Source SHA `a719d2321410c09658faca30c20c6c374f502360` is
+   pushed to both target refs; live Vercel still runs its prior retained
+   revision.
+2. If live UI promotion is explicitly approved, use one manual deployment of
+   this exact SHA only after spend-limit review, then verify authenticated
+   sidebar `TC`, desktop/mobile rendering, console, and rollback target.
+3. Continue hosted Supabase parity gate separately: no migration apply, branch,
+   Storage write, or tenant canary until backup/export, duplicate PO mapping,
+   ordered 37-migration reconciliation, and security review clear.
+
 ## Exact next action after M3.97 hosted parity snapshot
 
 1. Keep `ERP_FINANCE_CASH_READS_ENABLED=false`,

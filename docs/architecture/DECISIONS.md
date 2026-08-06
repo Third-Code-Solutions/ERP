@@ -1,5 +1,16 @@
 # Architecture Decisions
 
+## D-209 - Shell rebrand fixes remain source-only until spend approval (2026-08-06)
+
+Decision: correct visible legacy shell identity in source, test it, and keep
+the Vercel Git/build boundary closed. A source pass is not a live UI claim;
+promotion requires the exact SHA, approved manual deployment, browser proof,
+and budget check. No database, API, tenant, or auth behavior changes for this
+fix.
+
+Evidence: `a719d2321410c09658faca30c20c6c374f502360`; web 87/559, typecheck,
+lint, build 80/80, clean-room test; no Vercel or Railway mutation.
+
 ## D-208 - Hosted Supabase remains read-only during parity reconciliation (2026-08-06)
 
 Decision: treat the connected Supabase project as a read-only evidence source
