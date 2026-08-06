@@ -18,6 +18,24 @@ controlled-release 5/5; provider-spend 4/4. No hosted state changed.
 Source checkpoint: `c702bd9edec41cb3a9efd8b490ae5e82a3a04ceb`, remote verified,
 worktree clean.
 
+## M3.141 Core-only manual Cost Entry creation
+
+Removed the Web create fallback and frontend
+`ERP_COST_ENTRY_CREATE_WRITES_VIA_API` selector. The action requires
+`cost.record`, submits exact integer cents plus idempotency key to
+`POST /v1/projects/:projectId/cost-entries`, checks returned tenant/Project
+identity, and revalidates only after a valid official result. Added focused
+coverage for Core routing, idempotency preservation/generation, Core failure,
+scope mismatch, and capability denial. Cost Entry deletion is not included;
+it needs its own Core transactional/idempotent contract. No hosted canary or
+provider mutation authorized.
+
+Validation passed: focused action 5/5; Core client 113/113; Web 91/591;
+shared 27/229; database 47/51 files with 183 passed/141 skipped; API 112/480;
+production build 81/81 routes; typecheck/lint; migration verifier;
+Actionlint; Gitleaks; controlled-release 5/5; provider-spend 4/4. No hosted
+state changed.
+
 ## M3.139 self-hosted Core authority evidence
 
 Ran `scripts/ci/run-wsl1-database-lane.ps1` and its cleanup script. The lane

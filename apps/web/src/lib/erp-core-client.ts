@@ -491,14 +491,6 @@ export function inventoryStockMovementWorkflowUseCoreApi(
   )
 }
 
-export function costEntryCreateWritesUseCoreApi(tenantId: string): boolean {
-  return tenantEnabledForCoreApi(
-    tenantId,
-    process.env.ERP_COST_ENTRY_CREATE_WRITES_VIA_API,
-    process.env.ERP_COST_ENTRY_CREATE_WRITES_VIA_API_TENANT_IDS
-  )
-}
-
 export function rfqQuoteWritesUseCoreApi(tenantId: string): boolean {
   return tenantEnabledForCoreApi(
     tenantId,

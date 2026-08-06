@@ -11,6 +11,16 @@ audit. Core/API unavailability or a mismatched tenant result fails closed.
 The API-side tenant canary gate stays disabled until managed parity,
 recovery, identity, audit, and spend evidence are approved.
 
+## M3.141 Core-only manual Cost Entry creation
+
+Manual Cost Entry creation must be a thin command client. Next validates form
+shape and converts money to integer cents, then calls NestJS; it must not
+query `projects`/`cost_codes` or insert `cost_entries`. NestJS owns
+membership authorization, active Cost Code/category validation, tenant scope,
+idempotency, official mutation, and audit. The action verifies returned
+tenant/Project identity and fails closed. Cost Entry deletion remains an
+explicit follow-up command boundary, not silently part of this slice.
+
 ## M3.139 repeatable Core authority evidence
 
 Every Core write slice must have a disposable PostgreSQL/Redis replay, no-skip

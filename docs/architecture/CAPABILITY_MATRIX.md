@@ -20,6 +20,23 @@ supplies no-skip evidence. No hosted state changed.
 Source checkpoint: `c702bd9edec41cb3a9efd8b490ae5e82a3a04ceb`; remote branch and
 clean worktree verified.
 
+## M3.141 Core-only manual Cost Entry creation (2026-08-07)
+
+The Web Project cost action requires `cost.record` and routes manual creation
+through typed NestJS Core. It sends integer cents and an idempotency key,
+checks returned tenant/Project identity, revalidates only after success, and
+does no direct `cost_entries` insert or duplicate create audit. Frontend
+create selector/allowlist removed. Cost Entry deletion remains legacy and is
+explicitly outside this slice; no hosted SQL, Vercel build, Railway deploy,
+or provider mutation occurred.
+
+Validation: focused action 5/5; Core client 113/113; Web 91/591; shared
+27/229; database 47/51 files with 183 passed/141 skipped; API 112/480;
+production build 81/81 routes; typecheck/lint, migration verifier, Actionlint,
+Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed. Database
+skips require `DATABASE_URL`; prior disposable replay supplies no-skip
+evidence. No hosted state changed.
+
 ## M3.139 self-hosted Core authority evidence (2026-08-07)
 
 The approved disposable WSL lane replayed all 98 repository migrations against

@@ -32,6 +32,28 @@ Unresolved risks: Core/API runtime availability, managed Supabase
 catalog/data/RLS parity, backup/PITR restore, Auth identity, audit recovery,
 and spend approval still block a protected canary.
 
+## 2026-08-07 - M3.141 Core-only manual Cost Entry creation
+
+Audited Project cost actions and found manual creation still had a direct
+`cost_entries` insert behind `ERP_COST_ENTRY_CREATE_WRITES_VIA_API`. Removed
+that fallback and frontend selector/allowlist. The action now requires
+`cost.record`, sends exact integer cents plus supplied/generated idempotency
+key to Core, checks tenant/Project scope, and fails closed on Core failure.
+Added five regressions. Cost Entry deletion remains direct and is tracked as a
+separate Core delete/idempotency milestone.
+
+Changed files: `apps/web/src/app/(dashboard)/projects/[id]/cost/actions.ts`,
+new focused action test, Core client/test, Web env example, and M3.141
+architecture/operations records. No hosted SQL, provider environment,
+Vercel build, Railway deploy, or tenant data changed.
+
+Validation: action 5/5; Core client 113/113; Web 91 files/591 tests; shared
+27/229; database 47/51 files with 183 passed/141 skipped; API 112/480;
+production build 81/81 routes; typecheck/lint, migration verifier, Actionlint,
+Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed. Database
+skips require `DATABASE_URL`; prior disposable replay supplies no-skip
+evidence.
+
 ## 2026-08-07 - M3.139 self-hosted Core authority evidence
 
 Ran the approved disposable WSL lane and cleanup. PostgreSQL 17 and Redis
