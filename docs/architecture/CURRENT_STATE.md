@@ -5,6 +5,29 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.143 Core-only Cost Entry deletion action (2026-08-07)
+
+The Project cost Server Action now delegates deletion to the typed NestJS
+Core DELETE boundary. It keeps the existing `(entryId, projectId)` caller
+contract, supplies a bounded default correction reason and generated
+idempotency key, and accepts explicit reason/key values for future command
+surfaces. The action verifies the returned tenant, Project, entry, manual
+source, and `voided` state before revalidation. Core errors, invalid payloads,
+and unavailable sessions fail closed; there is no direct `cost_entries`
+delete or duplicate Web audit fallback. The existing Cost Table UI was not
+changed. The server-side delete gate remains false with an empty tenant
+allowlist; the void migration is source-only and hosted state is unchanged.
+
+Local validation is green: focused Web deletion action/client 14/14; Web 92
+files/600 tests; shared 27/230; database 48/52 files with 186 passed/141
+skipped; API 114/489; serial Turbo workspace tests; production build 81/81
+routes; typecheck/lint, migration verifier (99 files), Actionlint, Gitleaks,
+controlled-release 5/5, and provider-spend 4/4. Database skips require
+`DATABASE_URL`; the disposable replay remains the no-skip path. No hosted
+Supabase SQL, Vercel build, Railway deploy, provider variable, or tenant data
+changed. Source checkpoint will be recorded after the reviewed commit and
+remote verification.
+
 ## M3.140 Core-only Project creation (2026-08-07)
 
 The `/projects/new` Server Action now requires the local `project.create`

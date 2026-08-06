@@ -1,5 +1,23 @@
 # Third Code ERP capability matrix
 
+## M3.143 Core-only Cost Entry deletion action (2026-08-07)
+
+The Web Project cost action now routes deletion through the typed NestJS Core
+DELETE command. It preserves the existing Cost Table caller, sends a bounded
+reason and idempotency key, verifies tenant/Project/entry/manual-void scope,
+and revalidates only after a valid result. Direct database deletion and
+duplicate Web audit are removed. The API gate remains false/empty; the source
+void migration is not applied to hosted Supabase and no Vercel/Railway/provider
+mutation occurred.
+
+Validation: focused Web deletion action/client 14/14; Web 92/600; shared
+27/230; database 48/52 files with 186 passed/141 skipped; API 114/489; serial
+Turbo workspace tests; production build 81/81 routes; typecheck/lint,
+migration verifier, Actionlint, Gitleaks, controlled-release 5/5, and
+provider-spend 4/4 passed. Database skips require `DATABASE_URL`; disposable
+replay remains the no-skip evidence. Source checkpoint is recorded after
+commit and remote verification.
+
 ## M3.140 Core-only Project creation (2026-08-07)
 
 The Web `/projects/new` action requires `project.create` and calls the typed

@@ -191,6 +191,8 @@ import {
   type CreateCostEntryCommand,
   costEntryCreationResultSchema,
   type CostEntryCreationResult,
+  costEntryDeletionResultSchema,
+  type CostEntryDeletionResult,
   cortexSearchResultSchema,
   type CortexSearchResult,
 } from '@third-code-erp/shared-types'
@@ -2857,6 +2859,63 @@ export async function createCostEntryThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No cost entry was created.',
+    }
+  }
+}
+
+export async function deleteCostEntryThroughCoreApi(
+  projectId: string,
+  costEntryId: string,
+  reason: string,
+  idempotencyKey: string
+): Promise<CoreResult<CostEntryDeletionResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/projects/${encodeURIComponent(projectId)}/cost-entries/${encodeURIComponent(costEntryId)}`,
+      {
+        method: 'DELETE',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify({ reason }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 503
+            ? 'Cost entry deletion is not enabled for this tenant.'
+            : response.status === 409
+              ? 'Cost entry could not be voided.'
+              : 'Cost entry was not voided.'
+      return { ok: false, error: message, status: response.status }
+    }
+
+    const parsed = costEntryDeletionResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid cost entry deletion result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No cost entry was changed.',
     }
   }
 }

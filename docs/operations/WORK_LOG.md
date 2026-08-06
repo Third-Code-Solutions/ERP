@@ -1,5 +1,35 @@
 # Work Log
 
+## 2026-08-07 - M3.143 Core-only Cost Entry deletion action
+
+Removed the legacy Project cost Server Action's direct `cost_entries` delete
+and duplicate Web audit. The action now calls the typed NestJS Core DELETE
+adapter with a bounded default or supplied reason/idempotency key, verifies
+tenant, Project, entry, manual source, and `voided` state, and revalidates the
+same existing paths. Core errors and invalid responses fail closed; the Cost
+Table caller and visible UI copy remain unchanged. The API gate stays
+false/empty, and the source void migration was not applied to hosted
+Supabase.
+
+Changed files: the Project cost action/tests, the Web Core client, its focused
+delete-client test, and the M3.143 architecture/operations records. No
+hosted SQL, provider environment, Vercel build, Railway deploy, or tenant data
+changed.
+
+Validation: focused Web deletion action/client 14/14; Web 92/600; shared
+27/230; database 48/52 files with 186 passed/141 skipped; API 114/489; serial
+Turbo workspace tests; production build 81/81 routes; typecheck/lint,
+migration verifier (99 files), Actionlint, Gitleaks, controlled-release 5/5,
+and provider-spend 4/4 passed. The first parallel workspace run hit three
+pre-existing Nest controller timeouts; the same API suite passed under the
+serial package gate. Database skips require `DATABASE_URL`; disposable replay
+remains no-skip evidence.
+
+Source checkpoint: pending reviewed commit and remote SHA verification.
+Unresolved risks: hosted Supabase migration/catalog/RLS/data parity,
+backup/PITR restore, Auth identity, audit recovery, and spend approval still
+block a Core delete canary.
+
 ## 2026-08-07 - M3.140 Core-only Project creation
 
 Audited the Project creation path and found a browser-side direct `projects`
