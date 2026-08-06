@@ -1,5 +1,14 @@
 # Next Actions
 
+## Exact next action after M3.120 dashboard incident revalidation
+
+Do not deploy a retest. Keep production spend closed and continue the planned
+release blockers: hosted migration parity is 55/96, one tenant Purchase Order
+number group has 12 duplicate records requiring owner mapping, and
+`AUDIT_RECOVERY_TENANT_ID` is missing. If an authenticated dashboard failure
+recurs, capture its deployment SHA and Vercel runtime cluster before editing;
+the current anonymous route and runtime evidence are green.
+
 ## Exact next action after M3.119 public favicon identity
 
 Run focused branding tests, then the normal serial Turbo test, typecheck,
