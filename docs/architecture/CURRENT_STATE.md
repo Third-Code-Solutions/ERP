@@ -4,6 +4,16 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.129 self-hosted free database lane (2026-08-07)
+
+The approved WSL self-hosted lane completed against PostgreSQL 17.10 and Redis
+7.4.9: all 97 ordered migrations, deterministic seed, verifier, 51/51 database
+test files (324/324 tests, zero skips), Nest transaction integration, and the
+schema-before/schema-after hash check. Artifacts are retained under
+`tmp/self-hosted-ci/` for this local run. The pinned Supabase CLI `2.109.1`
+diff was also retried but still requires the unavailable Docker Desktop Linux
+engine to provision its shadow database. No hosted or provider state changed.
+
 ## M3.128 cache-safe runtime test gate (2026-08-06)
 
 Turbo's root `test` task now includes the database, Redis, and integration

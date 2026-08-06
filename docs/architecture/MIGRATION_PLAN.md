@@ -1,5 +1,19 @@
 # Migration Plan
 
+## M3.129 self-hosted free database lane
+
+Ran `scripts/ci/run-wsl1-database-lane.ps1` on the existing `ThirdCodeERP-Test`
+WSL distribution. The lane rebuilt `erp_self_hosted_ci` from the system
+bootstrap, applied all 97 migrations plus seed, passed the verifier and
+zero-skip database tests, exercised Nest integration with Redis, and compared
+schema dumps before/after the tests. The lane was cleaned with
+`stop-wsl1-database-lane.ps1`.
+
+The pinned Supabase CLI `2.109.1` direct `--db-url` diff was attempted while
+the disposable database was live; it stopped before inspection because the
+CLI requires Docker Desktop's Linux engine for its shadow database. This is a
+known open CI artifact gate, not a reason to touch hosted Supabase.
+
 ## M3.128 cache-safe runtime test gate
 
 Updated `turbo.json` so the root `test` task hashes 14 runtime inputs covering

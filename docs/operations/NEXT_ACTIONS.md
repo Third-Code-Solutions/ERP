@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.129 self-hosted free database lane
+
+Use the approved GitHub self-hosted/Docker CI lane to capture the pinned
+Supabase CLI `2.109.1` schema-diff artifact. Keep the CLI gate open when the
+Docker Linux engine is unavailable. Then repeat the read-only controlled
+planner; do not apply hosted SQL, create a Vercel build, manually redeploy
+Railway, or enable an ERP canary while migration parity, catalog security,
+duplicate Purchase Orders, audit recovery, rollback, identity, and spend
+evidence remain open.
+
 ## Exact next action after M3.128 cache-safe runtime test gate
 
 Push the reviewed branch after source gates pass. In the next release lane,

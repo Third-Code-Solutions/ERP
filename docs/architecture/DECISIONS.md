@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-237 - Keep the free self-hosted replay lane separate from CLI diff proof (2026-08-07)
+
+Decision: use the WSL PostgreSQL/Redis lane for repeatable source replay and
+transaction evidence, while retaining the pinned Supabase CLI shadow-database
+diff as a separate Docker/CI gate.
+
+Rationale: the replay can run without a paid provider or Docker Desktop and
+proves source behavior, but it cannot prove the CLI's migration diff semantics.
+Conflating the two would make a bill-safe local pass look like managed release
+approval.
+
+Evidence: 97/97 migrations, 51/51 database files, 324/324 tests, zero skips,
+Nest integration, and identical schema dump hashes in the self-hosted lane;
+CLI `2.109.1` still reports the unavailable `dockerDesktopLinuxEngine`.
+
 ## D-236 - Hash runtime test inputs in Turbo (2026-08-06)
 
 Decision: the Turbo `test` task must include database, Redis, and integration
