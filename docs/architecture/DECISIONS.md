@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-247 - Require disposable replay before hosted Core canary (2026-08-07)
+
+Decision: retain the self-hosted PostgreSQL/Redis replay, no-skip database
+gate, Nest integration, and schema-before/after hash as mandatory source
+evidence for every Core write slice. Do not promote that evidence to hosted
+readiness or apply provider changes without managed parity, recovery, identity,
+audit, and spend proof.
+
+Rationale: a local transaction pass catches source drift without consuming
+Vercel/Railway/Supabase budget, but cannot reveal hosted catalog, RLS, data,
+backup, or identity differences. Separating the evidence classes keeps the
+release decision honest.
+
+Evidence: 98-migration PostgreSQL 17/Redis 7.4.9 replay, database no-skip,
+Nest integration, and identical schema SHA256. Provider state unchanged.
+
 ## D-246 - Retire the Project update feature flag (2026-08-07)
 
 Decision: delete the unused Web Project update selector and its env-example

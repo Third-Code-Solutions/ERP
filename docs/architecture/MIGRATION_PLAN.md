@@ -1,5 +1,15 @@
 # Migration Plan
 
+## M3.139 self-hosted Core authority evidence
+
+Ran `scripts/ci/run-wsl1-database-lane.ps1` and its cleanup script. The lane
+replayed all 98 migrations on PostgreSQL 17 with Redis 7.4.9, passed the
+database no-skip gate, ran the Nest API integration suite, and compared schema
+before/after with identical SHA256
+`6E1CA120B357614D2A9C4CF06F1E306E08210CFB7B11F340A5E2A286D42D1B71`.
+No source or schema change was introduced. This evidence is local-only and
+does not authorize hosted SQL, Vercel, Railway, or ERP canaries.
+
 ## M3.138 retire Project update flag surface
 
 Deleted the unused `projectWritesUseCoreApi` function and its branch tests,

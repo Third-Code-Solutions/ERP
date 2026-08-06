@@ -5,6 +5,16 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.139 self-hosted Core authority evidence (2026-08-07)
+
+The disposable WSL lane replayed 98 migrations on PostgreSQL 17 with Redis
+7.4.9, passed the database no-skip and Nest API integration gates, and kept
+schema-before/schema-after SHA256 identical at
+`6E1CA120B357614D2A9C4CF06F1E306E08210CFB7B11F340A5E2A286D42D1B71`.
+The lane was cleaned up. This is local evidence only; managed provider
+parity, backup/rollback, identity, audit recovery, and spend gates remain
+open. No hosted state changed.
+
 ## M3.138 retire Project update flag surface (2026-08-07)
 
 The obsolete Project update selector and env-example entries are removed.

@@ -1,5 +1,12 @@
 # Target State
 
+## M3.139 repeatable Core authority evidence
+
+Every Core write slice must have a disposable PostgreSQL/Redis replay, no-skip
+database evidence, Nest integration proof, and unchanged schema hash before a
+managed-provider action is considered. Local replay is necessary source proof,
+never a substitute for hosted catalog/data parity or backup/rollback evidence.
+
 ## M3.138 one configuration vocabulary for Project updates
 
 Project update routing must not have a dormant legacy selector or operator

@@ -1,5 +1,23 @@
 # Work Log
 
+## 2026-08-07 - M3.139 self-hosted Core authority evidence
+
+Ran the approved disposable WSL lane and cleanup. PostgreSQL 17 and Redis
+7.4.9 replayed all 98 migrations; the database no-skip gate and Nest API
+integration suite passed; schema-before/schema-after SHA256 matched at
+`6E1CA120B357614D2A9C4CF06F1E306E08210CFB7B11F340A5E2A286D42D1B71`.
+Disposable services/database were stopped. No source, hosted SQL, provider
+environment, Vercel build, Railway deploy, or tenant data changed.
+
+Changed files: milestone records in `docs/architecture/`,
+`docs/operations/`, and
+`docs/changesets/2026-08-07-m3-139-self-hosted-core-evidence.md`.
+
+Unresolved risks: managed Supabase schema/catalog/RLS/data parity, supported
+backup/PITR restore, duplicate mapping, Auth identity, audit recovery,
+provider readiness, and spend authorization remain open. Local replay is not
+production proof.
+
 ## 2026-08-07 - M3.138 retire Project update flag surface
 
 Removed the dead `projectWritesUseCoreApi` selector and its branch tests,
