@@ -1,5 +1,12 @@
 # Target State
 
+## M3.127 pinned CLI diff evidence (2026-08-06)
+
+The release artifact must include a pinned Supabase CLI or self-hosted CI
+schema diff in addition to direct PostgreSQL replay verification. If the local
+Docker engine is unavailable, the gate stays open and no hosted action is
+allowed; do not substitute an HTTP readiness check.
+
 ## M3.126 disposable replay evidence (2026-08-06)
 
 The source ledger must recreate the schema from a disposable PostgreSQL 17

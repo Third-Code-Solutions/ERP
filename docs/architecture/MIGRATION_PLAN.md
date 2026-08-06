@@ -1,5 +1,17 @@
 # Migration Plan
 
+## M3.127 pinned Supabase CLI schema-diff attempt
+
+Attempted `npm exec --yes supabase@2.109.1 -- db diff` against the named
+disposable replay, including direct `--from/--to` mode. Both read-only attempts
+stopped before database inspection because the Docker Desktop Linux engine pipe
+was unavailable while the CLI provisioned its shadow database.
+
+No schema or provider state changed. Next: run the pinned diff in the approved
+self-hosted CI/Docker lane, capture the artifact, and keep hosted SQL/deploys
+closed until the remaining backup, data, rollback, identity, security, and
+spend gates are green.
+
 ## M3.126 clean disposable PostgreSQL replay
 
 Replayed the source from zero into local disposable PostgreSQL 17.10 database

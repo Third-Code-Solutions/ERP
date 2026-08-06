@@ -1,5 +1,18 @@
 # Architecture Decisions
 
+## D-235 - Do not waive the CLI schema-diff gate when Docker is unavailable (2026-08-06)
+
+Decision: a failed pinned Supabase CLI schema-diff remains `review_required`;
+direct PostgreSQL replay and tests cannot silently replace the requested
+shadow-database/CI artifact.
+
+Rationale: the CLI diff verifies the migration representation used by the
+project tooling. Treating a missing Docker engine as green would hide a release
+environment defect and could allow an unreviewed schema mismatch.
+
+Evidence: Supabase CLI `2.109.1` failed before inspection with
+`dockerDesktopLinuxEngine` unavailable; no SQL or provider mutation.
+
 ## D-234 - Treat disposable replay as source evidence, not hosted approval (2026-08-06)
 
 Decision: accept a fresh PostgreSQL 17.10 ordered replay and zero-skip database

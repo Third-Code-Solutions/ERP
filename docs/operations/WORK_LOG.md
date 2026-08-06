@@ -1,5 +1,15 @@
 # Work Log
 
+## 2026-08-06 - M3.127 pinned CLI diff boundary
+
+Tried the pinned Supabase CLI `2.109.1` schema diff against
+`erp_clean_head_20260806_m3125` in read-only direct and migration modes. Both
+attempts stopped before inspecting the replay because Docker Desktop's Linux
+engine pipe was unavailable for the CLI shadow database.
+
+No database, provider, flag, or deployment state changed. Keep the CLI/CI diff
+gate open and use the approved self-hosted Docker lane for the next attempt.
+
 ## 2026-08-06 - M3.126 clean disposable PostgreSQL replay
 
 Created disposable PostgreSQL 17.10 database `erp_clean_head_20260806_m3125`

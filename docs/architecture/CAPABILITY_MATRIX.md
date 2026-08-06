@@ -25,6 +25,11 @@ deterministic seed. The verifier passes and database Vitest is 51/51 files,
 55/97 ledger, catalog blockers, duplicate Purchase Orders, audit recovery,
 rollback, identity, and spend gates remain open.
 
+M3.127 validation update: pinned Supabase CLI `2.109.1` schema-diff attempts
+against the disposable replay stopped before inspection because Docker Desktop
+Linux engine is unavailable. The CLI gate remains open; no hosted or local
+database state was changed by the failed read-only attempts.
+
 M3.109 update: protected dashboard render failures now receive a responsive,
 branded recovery boundary with retry/navigation and digest-only support
 reference. No ERP authority or transaction path changed. Web evidence is

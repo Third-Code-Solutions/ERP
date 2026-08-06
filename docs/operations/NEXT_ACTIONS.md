@@ -1,5 +1,13 @@
 # Next Actions
 
+## Exact next action after M3.127 pinned CLI diff boundary
+
+Run Supabase CLI `2.109.1` schema diff in the approved self-hosted CI/Docker
+lane and retain the artifact. Do not start Docker Desktop opportunistically or
+waive this gate; keep hosted Supabase, Vercel, Railway, and ERP canaries
+unchanged while the CLI/backup/catalog/data/rollback/identity/security/spend
+evidence is incomplete.
+
 ## Exact next action after M3.126 clean disposable PostgreSQL replay
 
 Capture a pinned Supabase CLI schema-diff or self-hosted CI artifact for the
