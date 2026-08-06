@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.114 Purchase Order duplicate-mapping preflight (2026-08-06)
+
+Added `scripts/plan-purchase-order-mapping.mjs` and a pure validator. The
+command reads a versioned mapping outside Git, compares it to duplicate and
+tenant-scoped rows in one repeatable-read transaction, rejects stale,
+cross-tenant, incomplete, unknown, and occupied-target mappings, and prints
+only opaque conflict evidence. It never writes SQL or edits hosted data.
+Pure mapping tests pass 4/4; no owner mapping exists yet.
+
+## Next gate
+
+Obtain the database owner's mapping file and run the preflight. If ready,
+repeat supported managed backup/catalog/data/audit/auth/storage/grants/vector
+parity and ordered disposable replay. Keep hosted SQL and provider builds
+closed until all release gates pass.
+
 ## M3.113 close historical secret-scan findings (2026-08-06)
 
 Confirmed six historical Gitleaks hits as deterministic unit-test delivery

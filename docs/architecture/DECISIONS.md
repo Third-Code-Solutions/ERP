@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-226 - Validate duplicate mapping before any repair (2026-08-06)
+
+Decision: require a versioned mapping outside Git and a read-only,
+repeatable-read validator before any Purchase Order uniqueness repair or
+migration replay. Emit only counts, SHA-256, and opaque conflict references.
+
+Rationale: duplicate Purchase Orders are business records, not disposable
+fixtures. Snapshot freshness, tenant ownership, complete coverage, and target
+availability must be proven without leaking numbers or enabling an accidental
+hosted write.
+
+Evidence: pure validator tests 4/4; no mapping supplied; Supabase remains
+unchanged at the existing review-required ledger.
+
 ## D-225 - Allowlist only proven test idempotency values (2026-08-06)
 
 Decision: close the six historical Gitleaks findings with one exact

@@ -4,6 +4,15 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.114 Purchase Order mapping preflight (2026-08-06)
+
+The repository now has a read-only mapping validator and runbook for the
+hosted duplicate Purchase Order gate. Mapping files stay outside Git; the
+validator checks exact UUIDs, tenant ownership, current-number freshness,
+complete duplicate coverage, and replacement collisions inside one
+repeatable-read transaction. Output is redacted to counts, SHA-256, and opaque
+conflict references. No mapping file was supplied and no hosted state changed.
+
 ## M3.113 historical secret-scan findings closed (2026-08-06)
 
 The six historical Gitleaks findings were confirmed as deterministic delivery

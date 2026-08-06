@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.114 mapping preflight
+
+Obtain database-owner mapping JSON outside Git for every row in the
+tenant-scoped duplicate `PO-0002` group. Run
+`pnpm plan:purchase-order-mapping -- --mapping-file="<external path>"` with
+the approved environment. If status is `ready`, repeat managed Supabase
+backup/catalog/data/audit/auth/storage/grants/vector parity and ordered clone
+replay. Keep hosted SQL, Vercel, and Railway unchanged until rollback,
+protected canary, exact identity, readiness, security-advisor, and spend-cap
+gates pass.
+
 ## Exact next action after M3.113 security-scan cleanup
 
 Keep `.gitleaks.toml` allowlist exact and review all new findings as possible
