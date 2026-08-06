@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  costEntryDeletionResultSchema,
   costEntryCreationResultSchema,
+  deleteCostEntryBodySchema,
   createCostEntryCommandSchema,
 } from './cost-entries'
 
@@ -52,5 +54,22 @@ describe('Cost entry API contracts', () => {
         createdAt: '2026-08-05T00:00:00.000Z',
       }).costSource
     ).toBe('manual')
+  })
+
+  it('requires a bounded void reason and marks the result restorable', () => {
+    expect(deleteCostEntryBodySchema.safeParse({ reason: '  ' }).success).toBe(
+      false
+    )
+    expect(
+      costEntryDeletionResultSchema.parse({
+        costEntryId: UUID,
+        tenantId: UUID,
+        projectId: UUID,
+        costSource: 'manual',
+        status: 'voided',
+        voidedAt: '2026-08-07T00:00:00.000Z',
+        restorable: true,
+      })
+    ).toMatchObject({ status: 'voided', restorable: true })
   })
 })

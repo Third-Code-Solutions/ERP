@@ -39,6 +39,21 @@ evidence. No hosted state changed. Source checkpoint:
 `f9770a015e0c8769010cf08cb4f31f7c26b6f656`; remote branch and clean worktree
 verified.
 
+## M3.142 Core Cost Entry void boundary (2026-08-07)
+
+Added a closed-by-default Core DELETE boundary that voids manual entries in a
+tenant/project transaction, records actor/audit evidence, and persists a
+tenant-scoped idempotency result plus restore snapshot. Cost Entry active
+reads exclude `voided_at` rows. Direct Web deletion remains legacy and is not
+declared migrated. The source migration is not applied to hosted Supabase;
+Vercel/Railway/provider state is unchanged.
+
+Validation: focused API deletion 8/8; shared 3/3; database migration/schema
+3/3; Web 91/591; shared 27/230; database 48/52 files with 186 passed/141
+skipped; API 114/489; production build 81/81 routes; typecheck/lint,
+migration verifier, Actionlint, Gitleaks, controlled-release 5/5, and
+provider-spend 4/4 passed. Database skips require `DATABASE_URL`.
+
 ## M3.139 self-hosted Core authority evidence (2026-08-07)
 
 The approved disposable WSL lane replayed all 98 repository migrations against

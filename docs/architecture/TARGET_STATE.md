@@ -21,6 +21,16 @@ idempotency, official mutation, and audit. The action verifies returned
 tenant/Project identity and fails closed. Cost Entry deletion remains an
 explicit follow-up command boundary, not silently part of this slice.
 
+## M3.142 Core Cost Entry void boundary
+
+Cost Entry correction must be a reversible void, not a physical delete. The
+Core command locks tenant membership and the target Project/entry, requires
+`cost.record`, accepts manual entries only, records an idempotency result and
+pre-void snapshot, updates `voided_at`/actor/reason in the same transaction,
+and writes one audit event. Every active-cost read excludes voided rows. The
+delete canary and Web compatibility cutover remain closed until restore proof,
+read parity, and a real-tenant recovery review pass.
+
 ## M3.139 repeatable Core authority evidence
 
 Every Core write slice must have a disposable PostgreSQL/Redis replay, no-skip

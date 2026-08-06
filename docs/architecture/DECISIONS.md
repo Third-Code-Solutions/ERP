@@ -43,6 +43,25 @@ typecheck/lint, production build, migration/security, controlled-release, and
 provider-spend gates passed; hosted state unchanged. Source checkpoint:
 `f9770a015e0c8769010cf08cb4f31f7c26b6f656`, remote SHA verified.
 
+## D-250 - Void Cost Entries instead of physical deletion (2026-08-07)
+
+Decision: implement the Core deletion boundary as a reversible void. Add
+tenant-scoped void metadata and a service-only idempotency ledger that stores
+the pre-void state; require a locked `cost.record` membership check, manual
+source, tenant/project identity, one transaction, and one audit event. Keep
+the canary disabled and leave the Web delete action on its compatibility path
+until the Web adapter, restore operation, read parity, and recovery evidence
+are complete.
+
+Rationale: the existing create-idempotency FK makes physical deletion of
+Core-created rows unsafe, while hard deletion would destroy audit/recovery
+context. A soft void keeps the official record and supports rollback without
+changing money or source fields.
+
+Evidence: focused deletion service/controller 8/8; shared cost contract 3/3;
+database migration/schema 3/3; Web/API/full package gates green; no hosted
+state changed.
+
 ## D-247 - Require disposable replay before hosted Core canary (2026-08-07)
 
 Decision: retain the self-hosted PostgreSQL/Redis replay, no-skip database

@@ -56,6 +56,30 @@ evidence. Source SHA `f9770a015e0c8769010cf08cb4f31f7c26b6f656` is pushed to
 `origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
 verified.
 
+## 2026-08-07 - M3.142 Core Cost Entry void boundary
+
+The create-idempotency foreign key exposed why physical deletion is not a safe
+rollback for Core-created Cost Entries. Added reversible void metadata,
+tenant-safe FK/checks/indexes, a service-only deletion idempotency ledger with
+snapshot evidence, and a closed NestJS DELETE command. The command locks
+membership, requires `cost.record`, rejects non-manual sources, verifies
+Project/tenant scope, voids transactionally, audits bounded evidence, and
+replays exact results. Active Web cost page/dashboard/budget reads now exclude
+voided rows; the legacy Web delete action remains untouched for a later adapter
+cutover. Authenticated direct cost insert/update/delete privileges are revoked
+by the new source migration. No hosted SQL, provider environment, deployment,
+or tenant data changed.
+
+Changed files: Core project module/config/controller/pipe/service/tests;
+shared cost contracts/tests; database enum/schema/index/SQL/migration/static
+test; Web active-cost read filters; root env example; architecture records.
+
+Validation: focused deletion API 8/8; shared 3/3; database 3/3; Web 91/591;
+shared 27/230; database 48/52 files with 186 passed/141 skipped; API 114/489;
+production build 81/81 routes; typecheck/lint, migration verifier (99 files),
+Actionlint, Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed.
+Database skips require `DATABASE_URL`; disposable replay remains no-skip proof.
+
 ## 2026-08-07 - M3.139 self-hosted Core authority evidence
 
 Ran the approved disposable WSL lane and cleanup. PostgreSQL 17 and Redis

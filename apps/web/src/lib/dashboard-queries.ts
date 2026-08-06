@@ -1,6 +1,6 @@
 import { db } from '@third-code-erp/database'
 import { boms, costEntries, dailyTasks, invoices, opportunities, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
-import { eq, and, inArray, lt, gt, gte, lte, sum, count, sql, asc, desc } from 'drizzle-orm'
+import { eq, and, inArray, lt, gt, gte, lte, sum, count, sql, asc, desc, isNull } from 'drizzle-orm'
 import { computeProjectCostSnapshot } from '@third-code-erp/shared-types/cost'
 import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 import { manilaBoundaries } from '@/lib/operations/cadence-engine'
@@ -511,7 +511,13 @@ export async function getAlerts(tenantId: string): Promise<Alert[]> {
     const [costSum] = await db
       .select({ total: sum(costEntries.amount_cents) })
       .from(costEntries)
-      .where(and(eq(costEntries.tenant_id, tenantId), eq(costEntries.project_id, projectId)))
+      .where(
+        and(
+          eq(costEntries.tenant_id, tenantId),
+          eq(costEntries.project_id, projectId),
+          isNull(costEntries.voided_at)
+        )
+      )
     const actual = Number(costSum?.total ?? 0)
 
     // PO committed overrun vs BOM budget (commitment-side signal).

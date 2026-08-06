@@ -40,7 +40,38 @@ export const costEntryCreationResultSchema = z.object({
   createdAt: z.string().datetime({ offset: true }),
 })
 
+export const deleteCostEntryBodySchema = z
+  .object({
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict()
+
+export const deleteCostEntryCommandSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    costEntryId: z.string().uuid(),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict()
+
+export const costEntryDeletionResultSchema = z
+  .object({
+    costEntryId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    costSource: z.literal('manual'),
+    status: z.literal('voided'),
+    voidedAt: z.string().datetime({ offset: true }),
+    restorable: z.literal(true),
+  })
+  .strict()
+
 export type CreateCostEntryCommand = z.infer<typeof createCostEntryCommandSchema>
 export type CostEntryCreationResult = z.infer<
   typeof costEntryCreationResultSchema
+>
+export type DeleteCostEntryBody = z.infer<typeof deleteCostEntryBodySchema>
+export type DeleteCostEntryCommand = z.infer<typeof deleteCostEntryCommandSchema>
+export type CostEntryDeletionResult = z.infer<
+  typeof costEntryDeletionResultSchema
 >

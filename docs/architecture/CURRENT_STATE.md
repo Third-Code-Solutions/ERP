@@ -47,6 +47,26 @@ checkpoint: `f9770a015e0c8769010cf08cb4f31f7c26b6f656`, pushed to
 `origin/agent-02/third-code-erp-landing` with the `kurtgav` identity; worktree
 is clean.
 
+## M3.142 Core Cost Entry void boundary (2026-08-07)
+
+Physical Cost Entry deletion is unsafe because Core-created entries are
+referenced by the create-idempotency ledger. Source now models a reversible
+void: `voided_at`, tenant-scoped `voided_by`, and a bounded `void_reason`, plus
+the service-only `cost_entry_delete_requests` replay/snapshot ledger. NestJS
+`DELETE /v1/projects/:projectId/cost-entries/:costEntryId` locks membership,
+requires `cost.record`, checks tenant/project scope and manual-only source,
+voids inside a transaction, audits bounded evidence, and replays by
+idempotency key. The API gate is disabled and unscoped by default. Web cost
+reads exclude voided rows; the legacy Web delete writer remains separate and
+is not cut over. Migration `20260807110000_cost_entry_delete_workflow.sql` is
+source-only; no hosted state changed.
+
+Local validation is green: Web 91 files/591 tests, shared 27/230, database
+48/52 files with 186 passed/141 skipped, API 114/489, production build
+81/81 routes, typecheck/lint, migration verifier (99 files), Actionlint,
+Gitleaks, controlled-release 5/5, and provider-spend 4/4. Database skips
+require `DATABASE_URL`; the disposable replay remains the no-skip path.
+
 ## M3.139 self-hosted Core authority evidence (2026-08-07)
 
 The disposable WSL lane replayed 98 migrations on PostgreSQL 17 with Redis
