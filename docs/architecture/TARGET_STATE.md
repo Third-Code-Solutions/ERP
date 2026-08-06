@@ -1,5 +1,16 @@
 # Target State
 
+## M3.99 Asset Register Web cutover gate (2026-08-06)
+
+The Asset Register Web route must remain a read-only, tenant-derived surface
+over the typed Nest `GET /v1/assets` projection. Keep
+`ERP_ASSET_READS_VIA_API=false` and its allowlist empty until the source asset
+migrations are replayed on disposable PostgreSQL 17, hosted schema/data/RLS/
+audit parity is reviewed, and a protected browser canary plus rollback and
+spend evidence pass. The route must never regain a direct browser database
+fallback. Asset creation, assignment, maintenance, depreciation, and
+accounting remain separate Nest-authorized workflows; Python/AI stays advisory.
+
 ## M3.98 shell identity gate (2026-08-06)
 
 Authenticated shell must show only Third Code ERP identity. Source now uses an

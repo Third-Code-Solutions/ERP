@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-210 - Asset Register Web reads remain closed and Core-only (2026-08-06)
+
+Decision: expose the existing operational asset projection in Next only as a
+typed adapter/page over Nest `GET /v1/assets`. Require `asset.read`, exact
+lowercase boolean plus tenant UUID allowlist, strict result parsing, and
+fail-closed errors. The page may not query Supabase directly and has no write
+controls. Keep both Web and API selectors disabled until disposable replay,
+hosted migration/RLS/audit parity, protected browser proof, rollback, and
+spend gates clear.
+
+Evidence: source SHA
+`b7f274ad078965239a9138545a96bd6468b4dcda`; Web 87/561, typecheck, lint,
+build 81/81, focused adapter/navigation 2/122, and spend guard pass. No
+provider/database mutation or production tenant selection.
+
 ## D-209 - Shell rebrand fixes remain source-only until spend approval (2026-08-06)
 
 Decision: correct visible legacy shell identity in source, test it, and keep
