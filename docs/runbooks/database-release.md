@@ -1,5 +1,24 @@
 # Hosted Database Release
 
+## Current verified release state (2026-08-06)
+
+- Target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17.6 with 55/94 source
+  migrations applied through `20260729233017`; 39 ordered files are pending.
+- The session pooler on port 5432 is reachable read-only. A supplemental
+  PostgreSQL 17.10 roles/public pre-data/data/post-data export exists only in
+  the OS temp directory with a hash manifest; it excludes Supabase-managed
+  auth/storage internals and is not the supported managed backup gate.
+- Exact disposable replay stops at the first pending migration because the
+  hosted data contains one tenant-scoped 12-record Purchase Order-number
+  duplicate group. A clone-only synthetic rename allowed all 39 files to
+  apply, with 29/29 new tables and RLS present. This proves dependency/syntax
+  only; local auth trigger, vector HNSW, provider grants, and full catalog
+  parity remain unverified.
+- No hosted SQL/data/Storage/branch write, Vercel deployment, or Railway
+  manual build occurred. Release status is blocked on owner mapping, managed
+  backup/clone parity, security review, rollback, canary, exact identity, and
+  spend gates.
+
 ## Export preflight (required)
 
 Before using any backup/export command, run the read-only guard:

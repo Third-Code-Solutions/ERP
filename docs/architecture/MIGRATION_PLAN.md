@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.112 recoverable export and ordered disposable replay (2026-08-06)
+
+Verified the session pooler on port 5432 with a read-only PostgreSQL 17.6
+query. Created a supplemental four-file public/roles safety export outside
+Git using a free PostgreSQL 17.10 client; artifacts were hashed in a temp
+manifest. Restored the hosted snapshot to an isolated local PostgreSQL 17.10
+clone. The exact first suffix migration stopped on its intended 12-record
+duplicate Purchase Order guard. After synthetic, clone-only duplicate renames,
+all 39 pending migrations applied 39/39; 29/29 migration-created tables were
+present with RLS and the delivery workflow enum values expanded. This is
+dependency/syntax evidence only: the local clone omits Supabase-managed auth,
+vector HNSW, and provider grants, so the full verifier is not release-green.
+
+## Next gate
+
+Keep Supabase unchanged. Obtain the owner-approved canonical mapping for the
+12 duplicate Purchase Orders and a supported managed backup/catalog/data/audit
+export or an explicitly approved disposable managed clone. Repeat the replay
+with managed auth/storage/grants/vector parity, run zero-skipped database and
+protected-flow checks, then review rollback, exact provider identity, and
+spend caps. Do not call `supabase_apply_migration` or trigger Vercel/Railway.
+
 ## M3.111 read-only Supabase export preflight (2026-08-06)
 
 Added a pure export planner and CLI report. It validates connection-string

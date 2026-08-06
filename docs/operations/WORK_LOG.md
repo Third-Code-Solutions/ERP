@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-06 - M3.112 recoverable export and disposable suffix replay
+
+Verified the Supabase session pooler at `:5432` read-only and extracted a free
+PostgreSQL 17.10 client into OS temp only. Created roles-without-passwords,
+public pre-data, public data, and public post-data safety artifacts outside
+Git; recorded SHA-256 hashes in a temp manifest. Restored the hosted public
+snapshot into an isolated local PostgreSQL 17.10 cluster. The exact first
+pending migration failed on the intended one-tenant/12-record duplicate
+Purchase Order guard, with no hosted row changed. Synthetic duplicate-number
+renames were then made only in that disposable clone; all 39 pending
+migrations applied successfully, 29/29 new tables were present with RLS, and
+delivery workflow enum values were present. The full repository verifier is
+not marked green because this local lane lacks Supabase-managed auth trigger,
+vector HNSW, and provider grants. No Supabase, Storage, Railway, or Vercel
+write/build occurred.
+
+Next action: obtain owner-approved duplicate mapping and managed backup/clone
+parity evidence; keep hosted SQL, feature flags, and provider builds closed.
+
 ## 2026-08-06 - M3.111 read-only Supabase export preflight
 
 Added `scripts/plan-database-export.mjs` and its pure planner/test. The

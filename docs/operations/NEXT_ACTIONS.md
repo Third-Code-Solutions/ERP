@@ -1,5 +1,22 @@
 # Next Actions
 
+## Exact next action after M3.112 disposable replay
+
+Keep Supabase `aqqrtkmtcsfkbyyqxowv` unchanged. Do not call
+`supabase_apply_migration`, edit migration history, repair the duplicate
+Purchase Orders, create a paid managed branch, or trigger Vercel/Railway.
+Obtain the database owner's canonical mapping for the one tenant-scoped
+12-record `PO-0002` group. Obtain a supported Supabase-managed backup/PITR and
+managed auth/storage/roles/grants/vector catalog evidence (or explicit owner
+approval for the managed branch cost) and repeat the ordered 39-file replay
+with zero-skipped database/protected-flow checks. Only after rollback,
+readiness, exact SHA/provider identity, security-advisor, and spend-cap gates
+pass may one bounded hosted migration and one provider action be scheduled.
+
+The raw PostgreSQL 17.10 public/roles export and synthetic clone replay are
+retained only as local safety/dependency evidence outside Git; they do not
+prove hosted parity.
+
 ## Exact next action after M3.111 read-only Supabase export preflight
 
 Do not run a dump through the current transaction-pooler URL or install a
