@@ -1,5 +1,18 @@
 # Migration Plan
 
+## M3.128 cache-safe runtime test gate
+
+Updated `turbo.json` so the root `test` task hashes 14 runtime inputs covering
+`DATABASE_URL`, database expectation flags, Redis, and Nest integration gates.
+Added `scripts/verify-turbo-test-cache.mjs`, a regression test, and the CI
+preflight command `pnpm test:turbo-test-cache`.
+
+Validation: the filtered Turbo database task reported a cache miss with the
+disposable PostgreSQL replay and passed 51/51 files, 324/324 tests, zero skips.
+Typecheck, TS-only lint, production build (2/2), migration verifier,
+Gitleaks, Actionlint, controlled-release (5/5), spend guard (4/4), and the
+cache-contract tests pass. No hosted SQL or provider action occurred.
+
 ## M3.127 pinned Supabase CLI schema-diff attempt
 
 Attempted `npm exec --yes supabase@2.109.1 -- db diff` against the named

@@ -65,6 +65,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm test:turbo-test-cache
       - run: pnpm turbo test
       - run: pnpm test:database-release-plan
       - run: pnpm test:project-cutover-plan

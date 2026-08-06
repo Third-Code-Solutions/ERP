@@ -4,6 +4,15 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.128 cache-safe runtime test gate (2026-08-06)
+
+Turbo's root `test` task now includes the database, Redis, and integration
+expectation environment inputs in its cache key. This closes a verified
+release-integrity gap where a cached no-database test log could hide skipped
+runtime suites. `scripts/verify-turbo-test-cache.mjs` and its two-test contract
+pass; the filtered Turbo database task cache-misses with the disposable DB and
+passes 51/51 files, 324/324 tests, zero skips. No hosted/provider state changed.
+
 ## M3.127 pinned CLI diff boundary (2026-08-06)
 
 Pinned Supabase CLI `2.109.1` read-only schema-diff attempts against the clean

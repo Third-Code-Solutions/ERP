@@ -1,5 +1,12 @@
 # Target State
 
+## M3.128 cache-safe test evidence (2026-08-06)
+
+Runtime test results must be invalidated when database, Redis, or integration
+expectation inputs change. A cached result from a no-database lane is not valid
+evidence for a database-backed release. The CI gate must verify this contract
+before executing the test task.
+
 ## M3.127 pinned CLI diff evidence (2026-08-06)
 
 The release artifact must include a pinned Supabase CLI or self-hosted CI

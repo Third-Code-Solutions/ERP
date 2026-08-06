@@ -30,6 +30,12 @@ against the disposable replay stopped before inspection because Docker Desktop
 Linux engine is unavailable. The CLI gate remains open; no hosted or local
 database state was changed by the failed read-only attempts.
 
+M3.128 release-integrity update: the Turbo `test` task now hashes the database,
+Redis, and integration expectation environment inputs. A regression contract
+prevents cached no-database logs from masquerading as zero-skip coverage.
+This changes validation behavior only; no ERP transaction path or provider
+state changed.
+
 M3.109 update: protected dashboard render failures now receive a responsive,
 branded recovery boundary with retry/navigation and digest-only support
 reference. No ERP authority or transaction path changed. Web evidence is
