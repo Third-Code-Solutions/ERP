@@ -1,5 +1,16 @@
 # Target State
 
+## M3.108 hosted parity release gate (2026-08-06)
+
+Treat the hosted target as not promotable while its 55-migration prefix is
+missing 39 ordered source migrations, source-only tables are absent, the
+tenant-scoped 12-record Purchase Order duplicate group lacks owner mapping,
+and security advisories remain unresolved. Required evidence is a supported
+backup/catalog/data/audit export, ordered disposable replay and clone diff,
+owner-approved duplicate mapping, security review, protected canary,
+rollback, readiness, exact release identity, and spend cap. A clean Vercel
+runtime-error query or Railway readiness check does not substitute for parity.
+
 ## M3.107 inventory UOM maintenance gate (2026-08-06)
 
 UOM maintenance must remain permission-checked and tenant-scoped through the

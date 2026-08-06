@@ -5,6 +5,15 @@ Source checkpoint: `ead54aac876ed6a52f1b693c7fe6fec8f2026f8b` (M3.107 inventory
 UOM maintenance authority slice)
 Scope: clean-room construction ERP capability planning and incremental delivery
 
+M3.108 update: refreshed hosted parity read-only. Supabase remains PostgreSQL
+17.6 at 55/94 migrations with 88 RLS-enabled public tables, 22 forced-RLS
+tables, 303 policies, 2 tenants, 13 users, 13 Purchase Orders, 4 invoices,
+662 audit rows, 385 Cortex nodes, and 454 Cortex edges. Source-only Asset
+Register and delivery-schedule ledger tables are absent. One tenant-scoped
+12-record Purchase Order duplicate group and 11 security warnings remain.
+Vercel runtime errors/500 logs for `/dashboard` are empty; no provider or
+hosted mutation occurred.
+
 M3.107 update: Inventory now has an authenticated UOM editor for display name
 and active state. Nest owns the fail-closed, tenant-scoped PATCH authority with
 membership/capability recheck, row locks, immutable code/decimal precision, and
