@@ -40,7 +40,7 @@ Actionlint, Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed.
 The parallel Turbo test runner hit seven Windows 5-second HTTP timeouts under
 cross-package load; no M3.132 assertion failed, and the serial run is the
 retained evidence. Code commit: `be760ed`. Code/docs are pushed by `kurtgav`
-to `origin/agent-02/third-code-erp-landing`; remote tip verified at `2b8968f`.
+to `origin/agent-02/third-code-erp-landing`; remote tip verified at `b4a4a11`.
 
 ## 2026-08-07 - M3.131 asset maintenance history
 
