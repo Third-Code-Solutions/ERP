@@ -1,5 +1,26 @@
 # Target State
 
+## M3.103 delivery schedule creation authority gate (2026-08-06)
+
+Delivery scheduling must commit through Nest under `delivery.receive`,
+tenant-derived membership, an issued-PO row lock, the
+`delivery_schedule_create_requests` tenant/idempotency ledger, atomic schedule
+creation, in-app recipient notifications, and semantic audit. The compatibility
+Web action may select this route only for exact-`true` plus UUID tenant
+allowlist and must fail closed after a selected Core error. Keep
+`ERP_DELIVERY_SCHEDULE_CREATE_WRITES_ENABLED=false`,
+`ERP_DELIVERY_SCHEDULE_CREATE_WRITES_TENANT_IDS` empty,
+`ERP_DELIVERY_SCHEDULE_CREATE_WRITES_VIA_API=false`, and its allowlist empty
+until hosted migration/RLS parity, protected canary, rollback, and spend gates
+clear. Python/AI remains advisory and cannot create or approve ERP records.
+
+Local evidence now includes source migration 94/94, service-only table/RLS/
+privilege checks, a rollback-only schedule replay/isolation/audit/notification
+integration, API 104/449, Web 87/567, and an isolated Nest/Next 81/81 build.
+This does not authorize hosted SQL or provider promotion while Supabase remains
+at 55/94 and required backup, duplicate-PO, security, canary, rollback, and
+spend gates remain open.
+
 ## M3.102 delivery in-transit authority gate (2026-08-06)
 
 The delivery state machine must commit `site_ready -> in_transit` through Nest

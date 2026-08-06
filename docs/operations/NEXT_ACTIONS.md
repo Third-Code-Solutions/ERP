@@ -1,5 +1,37 @@
 # Next Actions
 
+## Exact next action after M3.103 delivery schedule creation authority slice
+
+Source commit `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is local and fully
+validated. Keep Vercel Git disconnected, do not create a Vercel build, and do
+not manually repeat Railway deployment. Keep
+`ERP_DELIVERY_SCHEDULE_CREATE_WRITES_ENABLED=false`,
+`ERP_DELIVERY_SCHEDULE_CREATE_WRITES_TENANT_IDS` empty,
+`ERP_DELIVERY_SCHEDULE_CREATE_WRITES_VIA_API=false`, and its allowlist empty.
+
+1. Obtain supported Supabase backup/catalog/data/audit export for
+   `aqqrtkmtcsfkbyyqxowv`; reconcile all source migrations after hosted
+   `20260729233017` in order, including
+   `20260806130000_delivery_schedule_create_idempotency.sql`. Verify the
+   delivery schedule create ledger,
+   composite foreign keys, forced RLS, service-role grants, audit, and
+   migration ledger.
+2. Resolve the owner-approved tenant-scoped 12-record Purchase Order duplicate
+   mapping and review the 11 security warnings before any hosted apply or
+   canary.
+3. If hosted parity clears, push the exact source commit once to the target
+   GitHub refs and allow only the single watched Railway backend promotion;
+   do not deploy Vercel. Verify Railway `/ready`, `/health`, deployed SHA,
+   protected 401 behavior, and spend guard.
+4. Only after readiness, run one protected scheduling browser canary covering
+   issued-PO creation, duplicate retry, cross-tenant denial, notifications,
+   audit, rollback, and disabled-flag behavior. Python/AI stays advisory-only.
+
+Local evidence is green: API 104/449, Web 87/567, database 94/94 source
+reproducibility plus 49/318 tests, full API integration rerun 24/24 executed
+tests with 2 conditional skips, and production build 81/81 routes. These are
+not hosted authorization.
+
 ## Exact next action after M3.102 delivery in-transit authority slice
 
 The single Git-triggered Railway backend deployment for `dcf7b04c` is green;
