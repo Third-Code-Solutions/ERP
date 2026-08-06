@@ -228,6 +228,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Cost-entry restores stay fail-closed until snapshot/replay and recovery
+  // evidence are approved independently from voids.
+  ERP_COST_ENTRY_RESTORE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_COST_ENTRY_RESTORE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   RESEND_API_KEY: z.string().min(20).optional(),
   EMAIL_FROM: z.string().min(3).max(320).optional(),
   ERP_WEB_BASE_URL: optionalHttpUrl,

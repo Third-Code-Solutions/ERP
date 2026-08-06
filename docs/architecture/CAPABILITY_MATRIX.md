@@ -1,5 +1,22 @@
 # Third Code ERP capability matrix
 
+## M3.144 Core Cost Entry restore boundary (2026-08-07)
+
+Added a closed-by-default Core restore command and separate tenant-scoped
+restore replay ledger. NestJS requires `cost.record`, locks membership and a
+voided manual entry, validates its prior void snapshot, clears void metadata,
+writes audit evidence, and returns an exact terminal restore result. No Web
+restore UI or hosted SQL/provider mutation occurred; restore flags and
+allowlists remain false/empty.
+
+Validation: shared 27/231; database 49/53 files with 188 passed/141 skipped;
+API 114/496; Web 92/600; serial Turbo workspace tests; production build
+81/81 routes; typecheck/lint, migration verifier (100 files), Actionlint,
+Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed. Database
+skips require `DATABASE_URL`; the new migration has not received disposable
+replay evidence. Source checkpoint is recorded after commit and remote
+verification.
+
 ## M3.143 Core-only Cost Entry deletion action (2026-08-07)
 
 The Web Project cost action now routes deletion through the typed NestJS Core

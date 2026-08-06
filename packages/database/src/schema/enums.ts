@@ -337,6 +337,11 @@ export const costEntryDeleteRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const costEntryRestoreRequestStateEnum = pgEnum(
+  'cost_entry_restore_request_state',
+  ['processing', 'succeeded']
+)
+
 // Accounting ledger foundation.
 export const fiscalPeriodStatusEnum = pgEnum('fiscal_period_status', [
   'open',

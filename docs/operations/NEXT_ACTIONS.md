@@ -42,12 +42,26 @@ to `origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree are
 verified. Keep
 `ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false` and its tenant allowlist empty;
 do not apply `20260807110000_cost_entry_delete_workflow.sql`, change hosted
-Supabase, trigger Vercel, or deploy Railway. Next source slice: implement a
-permissioned, idempotent Core restore command against the pre-void snapshot,
-prove active-read and restore replay parity on the disposable PostgreSQL/
-Redis lane, and then seek managed catalog/RLS, backup/PITR, Auth identity,
-audit recovery, and spend evidence. No production canary is authorized until
-those gates and explicit release approval are complete.
+Supabase, trigger Vercel, or deploy Railway. The Core restore command is now
+implemented in M3.144. Next source action: run the disposable PostgreSQL/
+Redis lane with the new migration and prove void/restore active-read, replay,
+snapshot-mismatch, and rollback parity. No production canary is authorized
+until disposable replay, managed catalog/RLS, backup/PITR, Auth identity,
+audit recovery, spend evidence, and explicit release approval are complete.
+
+## Exact next action after M3.144 Core Cost Entry restore boundary
+
+M3.144 source validation is green, but the reviewed commit and remote SHA
+verification remain to be recorded. Keep
+`ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false`,
+`ERP_COST_ENTRY_RESTORE_WRITES_ENABLED=false`, and both tenant allowlists
+empty. Do not apply the void or restore migrations to hosted Supabase,
+change provider variables, trigger Vercel, or deploy Railway. Run the
+disposable PostgreSQL/Redis replay with all 100 migrations, exercise void then
+restore plus idempotent retries and mismatched snapshot failure, compare
+schema hashes, and capture rollback/active-read evidence. Managed parity,
+backup/PITR, Auth identity, audit recovery, and spend gates still block any
+hosted canary.
 
 ## Exact next action after M3.139 self-hosted Core authority evidence
 

@@ -12,6 +12,7 @@ import { CostEntryCreationService } from './cost-entry-creation.service'
 import { CostEntryDeletionController } from './cost-entry-deletion.controller'
 import { CostEntryDeletionService } from './cost-entry-deletion.service'
 import { DeleteCostEntryPipe } from './delete-cost-entry.pipe'
+import { RestoreCostEntryPipe } from './restore-cost-entry.pipe'
 
 @Module({
   imports: [AuditModule],
@@ -25,6 +26,7 @@ import { DeleteCostEntryPipe } from './delete-cost-entry.pipe'
     CostEntryCreationService,
     CostEntryDeletionService,
     DeleteCostEntryPipe,
+    RestoreCostEntryPipe,
   ],
 })
 export class ProjectsModule implements NestModule {

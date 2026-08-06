@@ -5,6 +5,29 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.144 Core Cost Entry restore boundary (2026-08-07)
+
+Core now exposes a separate, closed-by-default
+`POST /v1/projects/:projectId/cost-entries/:costEntryId/restore` command.
+NestJS locks membership and the target entry in one transaction, requires
+`cost.record`, accepts manual entries only, validates the prior void snapshot,
+clears void metadata, writes bounded audit evidence, and records an exact
+tenant-scoped idempotency result. A separate service-only restore replay
+ledger prevents key reuse and keeps recovery semantics distinct from voids.
+The restore result is terminal (`restored`, `restorable: false`); no Web UI
+surface or hosted provider state changed. Both restore flags are false with
+empty allowlists.
+
+Local validation is green: shared 27/231; database 49/53 files with 188
+passed/141 skipped; API 114/496; Web 92/600; serial Turbo workspace tests;
+production build 81/81 routes; typecheck/lint; migration verifier (100
+files); Actionlint; Gitleaks; controlled-release 5/5; and provider-spend
+4/4. Database skips require `DATABASE_URL`; disposable PostgreSQL/Redis
+replay remains required before any canary. No hosted Supabase SQL, Vercel
+build, Railway deploy, provider variable, or tenant data changed. Source
+checkpoint will be recorded after the reviewed commit and remote
+verification.
+
 ## M3.143 Core-only Cost Entry deletion action (2026-08-07)
 
 The Project cost Server Action now delegates deletion to the typed NestJS

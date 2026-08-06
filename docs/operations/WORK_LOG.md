@@ -1,5 +1,33 @@
 # Work Log
 
+## 2026-08-07 - M3.144 Core Cost Entry restore boundary
+
+Added the source restore migration and tenant-scoped Drizzle replay ledger.
+NestJS now exposes a separate closed-by-default restore command with locked
+membership/entry authorization, manual-only and matching-snapshot checks,
+transactional void-metadata clearing, bounded `update` audit evidence, and
+exact idempotent replay. Added shared contracts, restore pipe/controller,
+config flags, focused service/controller/environment tests, and database
+static coverage. No Web UI restore surface or hosted provider state changed.
+
+Changed files: shared cost contracts/tests; database enum/schema/index,
+migration, and static test; API environment, restore pipe/controller/module,
+service/tests, and the M3.144 architecture/operations records. No hosted SQL,
+provider environment, Vercel build, Railway deploy, or tenant data changed.
+
+Validation: focused restore boundary (shared 4, database 2, API service/
+controller plus environment 64); serial workspace tests shared 27/231,
+database 49/53 with 188 passed/141 skipped, API 114/496, Web 92/600;
+production build 81/81 routes; typecheck/lint, migration verifier (100
+files), Actionlint, Gitleaks, controlled-release 5/5, and provider-spend 4/4
+passed. Database skips require `DATABASE_URL`; disposable replay for the new
+migration remains open.
+
+Source checkpoint: pending reviewed commit and remote SHA verification.
+Unresolved risks: the restore migration has no disposable replay yet;
+managed Supabase catalog/RLS/data parity, backup/PITR restore, Auth identity,
+audit recovery, and spend approval still block any restore canary.
+
 ## 2026-08-07 - M3.143 Core-only Cost Entry deletion action
 
 Removed the legacy Project cost Server Action's direct `cost_entries` delete

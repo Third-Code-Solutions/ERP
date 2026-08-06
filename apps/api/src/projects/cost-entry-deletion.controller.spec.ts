@@ -21,10 +21,15 @@ describe('Cost entry deletion HTTP contract', () => {
     close = undefined
   })
 
-  async function appFor(remove = vi.fn()) {
+  async function appFor(remove = vi.fn(), restore = vi.fn()) {
     const moduleRef = await Test.createTestingModule({
       controllers: [CostEntryDeletionController],
-      providers: [{ provide: CostEntryDeletionService, useValue: { delete: remove } }],
+      providers: [
+        {
+          provide: CostEntryDeletionService,
+          useValue: { delete: remove, restore },
+        },
+      ],
     }).compile()
     const app = moduleRef.createNestApplication()
     app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -97,6 +102,52 @@ describe('Cost entry deletion HTTP contract', () => {
       'Duplicate manual entry',
       expect.objectContaining({ tenantId: TENANT_ID, role: 'pm' }),
       'cost-delete-1'
+    )
+  })
+
+  it('requires an idempotency key for restore before the command boundary', async () => {
+    const restore = vi.fn()
+    const app = await appFor(vi.fn(), restore)
+
+    await request(app.getHttpServer())
+      .post(`/v1/projects/${PROJECT_ID}/cost-entries/${ENTRY_ID}/restore`)
+      .send({ reason: 'Corrected' })
+      .expect(400)
+
+    expect(restore).not.toHaveBeenCalled()
+  })
+
+  it('rejects browser identity fields and forwards the restore command', async () => {
+    const restore = vi.fn().mockResolvedValue({
+      costEntryId: ENTRY_ID,
+      tenantId: TENANT_ID,
+      projectId: PROJECT_ID,
+      costSource: 'manual',
+      status: 'restored',
+      restoredAt: '2026-08-07T00:00:00.000Z',
+      restorable: false,
+    })
+    const app = await appFor(vi.fn(), restore)
+
+    await request(app.getHttpServer())
+      .post(`/v1/projects/${PROJECT_ID}/cost-entries/${ENTRY_ID}/restore`)
+      .set('Idempotency-Key', 'cost-restore-1')
+      .send({ reason: ' Corrected source entry ', tenantId: TENANT_ID })
+      .expect(400)
+    expect(restore).not.toHaveBeenCalled()
+
+    await request(app.getHttpServer())
+      .post(`/v1/projects/${PROJECT_ID}/cost-entries/${ENTRY_ID}/restore`)
+      .set('Idempotency-Key', 'cost-restore-1')
+      .send({ reason: ' Corrected source entry ' })
+      .expect(200)
+
+    expect(restore).toHaveBeenCalledWith(
+      PROJECT_ID,
+      ENTRY_ID,
+      'Corrected source entry',
+      expect.objectContaining({ tenantId: TENANT_ID, role: 'pm' }),
+      'cost-restore-1'
     )
   })
 })

@@ -47,13 +47,23 @@ const RESULT = {
   voidedAt: VOIDED.voidedAt.toISOString(),
   restorable: true as const,
 }
+const RESTORED = {
+  costEntryId: ENTRY_ID,
+  tenantId: PRINCIPAL.tenantId,
+  projectId: PROJECT_ID,
+  costSource: 'manual' as const,
+  status: 'restored' as const,
+  restoredAt: '2026-08-07T00:01:00.000Z',
+  restorable: false as const,
+}
 
 function selectQuery(rows: unknown[]) {
   const rowLock = vi.fn().mockResolvedValue(rows)
   const limit = vi.fn().mockReturnValue({ for: rowLock })
-  const where = vi.fn().mockReturnValue({ limit, for: rowLock })
+  const orderBy = vi.fn().mockReturnValue({ limit })
+  const where = vi.fn().mockReturnValue({ limit, for: rowLock, orderBy })
   const from = vi.fn().mockReturnValue({ where })
-  return { from, where, limit, rowLock }
+  return { from, where, limit, orderBy, rowLock }
 }
 
 function enabledService(
@@ -62,7 +72,8 @@ function enabledService(
 ) {
   const config = {
     get: vi.fn((key: string) =>
-      key === 'ERP_COST_ENTRY_DELETE_WRITES_ENABLED'
+      key === 'ERP_COST_ENTRY_DELETE_WRITES_ENABLED' ||
+      key === 'ERP_COST_ENTRY_RESTORE_WRITES_ENABLED'
         ? true
         : [PRINCIPAL.tenantId]
     ),
@@ -80,6 +91,10 @@ function enabledService(
 
 function command(reason = 'Duplicate manual entry') {
   return [PROJECT_ID, ENTRY_ID, reason, PRINCIPAL, 'cost-delete-1'] as const
+}
+
+function restoreCommand(reason = 'Corrected the source entry') {
+  return [PROJECT_ID, ENTRY_ID, reason, PRINCIPAL, 'cost-restore-1'] as const
 }
 
 describe('CostEntryDeletionService', () => {
@@ -270,6 +285,200 @@ describe('CostEntryDeletionService', () => {
     const { service } = enabledService(transactionClient)
 
     await expect(service.delete(...command())).rejects.toBeInstanceOf(
+      ConflictException
+    )
+    expect(transactionClient.update).not.toHaveBeenCalled()
+  })
+
+  it('fails closed before opening a transaction when restore is disabled', async () => {
+    const transaction = vi.fn()
+    const service = new CostEntryDeletionService(
+      { get: vi.fn((_key: string, fallback: unknown) => fallback) } as never,
+      { client: { transaction } } as unknown as DatabaseService,
+      {} as AuditService
+    )
+
+    await expect(service.restore(...restoreCommand())).rejects.toBeInstanceOf(
+      ServiceUnavailableException
+    )
+    expect(transaction).not.toHaveBeenCalled()
+  })
+
+  it('replays a committed restore without a second mutation or audit', async () => {
+    const membership = selectQuery([
+      {
+        tenantId: PRINCIPAL.tenantId,
+        role: PRINCIPAL.role,
+        email: PRINCIPAL.email,
+      },
+    ])
+    const request = {
+      id: '66666666-6666-4666-8666-666666666666',
+      projectId: PROJECT_ID,
+      costEntryId: ENTRY_ID,
+      requestHash: '',
+      state: 'succeeded',
+      result: RESTORED,
+      snapshot: { costEntryId: ENTRY_ID },
+    }
+    const requestQuery = selectQuery([request])
+    const insertValues = vi.fn().mockImplementation((values) => {
+      request.requestHash = values.request_hash
+      return { onConflictDoNothing: vi.fn() }
+    })
+    const transactionClient = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce({ from: requestQuery.from }),
+      insert: vi.fn().mockReturnValue({ values: insertValues }),
+      update: vi.fn(),
+    }
+    const { service, transaction, audit } = enabledService(transactionClient)
+
+    await expect(service.restore(...restoreCommand())).resolves.toEqual(RESTORED)
+    expect(transaction).toHaveBeenCalledOnce()
+    expect(transactionClient.update).not.toHaveBeenCalled()
+    expect(audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
+  it('restores a voided manual entry with bounded audit and replay evidence', async () => {
+    const membership = selectQuery([
+      {
+        tenantId: PRINCIPAL.tenantId,
+        role: PRINCIPAL.role,
+        email: PRINCIPAL.email,
+      },
+    ])
+    const request = {
+      id: '77777777-7777-4777-8777-777777777777',
+      projectId: PROJECT_ID,
+      costEntryId: ENTRY_ID,
+      requestHash: '',
+      state: 'processing',
+      result: null,
+      snapshot: null,
+    }
+    const requestQuery = selectQuery([request])
+    const entryQuery = selectQuery([
+      {
+        ...VOIDED,
+        voidedBy: PRINCIPAL.userId,
+        voidReason: 'Duplicate manual entry',
+      },
+    ])
+    const voidRequestQuery = selectQuery([
+      {
+        snapshot: {
+          costEntryId: ENTRY_ID,
+          projectId: PROJECT_ID,
+          costSource: 'manual',
+          voidedAt: null,
+          voidedBy: null,
+          voidReason: null,
+        },
+      },
+    ])
+    const insertValues = vi.fn().mockImplementation((values) => {
+      request.requestHash = values.request_hash
+      return { onConflictDoNothing: vi.fn() }
+    })
+    const restoreUpdate = vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([
+          {
+            id: ENTRY_ID,
+            tenantId: PRINCIPAL.tenantId,
+            projectId: PROJECT_ID,
+            costSource: 'manual' as const,
+          },
+        ]),
+      }),
+    })
+    const completeUpdate = vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: request.id }]),
+      }),
+    })
+    const transactionClient = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce({ from: requestQuery.from })
+        .mockReturnValueOnce({ from: entryQuery.from })
+        .mockReturnValueOnce({ from: voidRequestQuery.from }),
+      insert: vi.fn().mockReturnValue({ values: insertValues }),
+      update: vi
+        .fn()
+        .mockReturnValueOnce({ set: restoreUpdate })
+        .mockReturnValueOnce({ set: completeUpdate }),
+    }
+    const { service, audit } = enabledService(transactionClient)
+
+    await expect(service.restore(...restoreCommand())).resolves.toMatchObject({
+      ...RESTORED,
+      restoredAt: expect.any(String),
+    })
+    expect(restoreUpdate).toHaveBeenCalledWith({
+      voided_at: null,
+      voided_by: null,
+      void_reason: null,
+      updated_at: expect.any(Date),
+    })
+    expect(completeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'succeeded',
+        result: expect.objectContaining({ status: 'restored' }),
+        snapshot: expect.objectContaining({
+          costEntryId: ENTRY_ID,
+          voidedBy: PRINCIPAL.userId,
+        }),
+      })
+    )
+    expect(audit.writeSemantic).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'update',
+        diff: expect.objectContaining({ status: 'restored' }),
+      })
+    )
+  })
+
+  it('rejects an active entry without mutating it', async () => {
+    const membership = selectQuery([
+      {
+        tenantId: PRINCIPAL.tenantId,
+        role: PRINCIPAL.role,
+        email: PRINCIPAL.email,
+      },
+    ])
+    const request = {
+      id: '88888888-8888-4888-8888-888888888888',
+      projectId: PROJECT_ID,
+      costEntryId: ENTRY_ID,
+      requestHash: '',
+      state: 'processing',
+      result: null,
+      snapshot: null,
+    }
+    const requestQuery = selectQuery([request])
+    const entryQuery = selectQuery([ENTRY])
+    const insertValues = vi.fn().mockImplementation((values) => {
+      request.requestHash = values.request_hash
+      return { onConflictDoNothing: vi.fn() }
+    })
+    const transactionClient = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce({ from: requestQuery.from })
+        .mockReturnValueOnce({ from: entryQuery.from }),
+      insert: vi.fn().mockReturnValue({ values: insertValues }),
+      update: vi.fn(),
+    }
+    const { service } = enabledService(transactionClient)
+
+    await expect(service.restore(...restoreCommand())).rejects.toBeInstanceOf(
       ConflictException
     )
     expect(transactionClient.update).not.toHaveBeenCalled()
