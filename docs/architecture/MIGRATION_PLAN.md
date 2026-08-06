@@ -15,6 +15,8 @@ Validation passed: Web 90 files/587 tests; shared 27/229; database 47/51
 files with 183 passed/141 skipped; API 112/480; production build 81/81
 routes; typecheck/lint; migration verifier; Actionlint; Gitleaks;
 controlled-release 5/5; provider-spend 4/4. No hosted state changed.
+Source checkpoint: `c702bd9edec41cb3a9efd8b490ae5e82a3a04ceb`, remote verified,
+worktree clean.
 
 ## M3.139 self-hosted Core authority evidence
 

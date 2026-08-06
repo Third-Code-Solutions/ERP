@@ -31,3 +31,6 @@ Typecheck/lint, migration verifier, Actionlint, Gitleaks, controlled-release
 5/5, and provider-spend 4/4 passed. The database skips require
 `DATABASE_URL`; the prior disposable replay covers no-skip database/API
 integration evidence. Hosted providers and ERP canaries remain closed.
+
+Source checkpoint: `c702bd9edec41cb3a9efd8b490ae5e82a3a04ceb`, pushed to the
+reviewed remote branch with a clean worktree.

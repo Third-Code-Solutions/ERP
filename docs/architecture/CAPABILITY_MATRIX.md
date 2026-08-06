@@ -17,6 +17,8 @@ typecheck/lint, migration verifier, Actionlint, Gitleaks, controlled-release
 5/5, and provider-spend 4/4 passed. The four database files/141 tests are
 the documented `DATABASE_URL`-dependent skips; the prior disposable replay
 supplies no-skip evidence. No hosted state changed.
+Source checkpoint: `c702bd9edec41cb3a9efd8b490ae5e82a3a04ceb`; remote branch and
+clean worktree verified.
 
 ## M3.139 self-hosted Core authority evidence (2026-08-07)
 
