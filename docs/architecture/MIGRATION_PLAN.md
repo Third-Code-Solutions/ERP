@@ -1,5 +1,20 @@
 # Migration Plan
 
+## M3.110 public landing UX and SEO smoke audit (2026-08-06)
+
+Performed a read-only browser pass at 1440px and 390px. Verified the hosted
+title, canonical, description, OG image, JSON-LD, H1, responsive width, and
+zero console errors. No code or provider change was needed; the audit only
+records the currently hosted landing page and does not validate the branch's
+dashboard recovery boundary.
+
+## Next gate
+
+Do not trigger a build for this evidence slice. Obtain supported Supabase
+backup/catalog/data/audit export, reconcile the 39 migration suffix in an
+isolated PostgreSQL 17 replay, obtain owner mapping for the duplicate PO group,
+and review security warnings before canary or promotion.
+
 ## M3.109 dashboard render recovery boundary (2026-08-06)
 
 Added a route-group error boundary for protected dashboard render failures.

@@ -4,6 +4,16 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.110 public landing UX and SEO smoke audit (2026-08-06)
+
+Read-only Playwright checks against the public alias confirmed the current
+landing page title, canonical URL, description, OG image, JSON-LD presence, and
+Third Code ERP H1. Desktop at 1440px and mobile at 390px produced no console
+errors; mobile document width was 375px, so no horizontal overflow was
+observed. This is hosted-page evidence only: it does not mean feature-branch
+dashboard recovery code is deployed. No provider, database, or Storage write
+occurred.
+
 ## M3.109 dashboard render recovery boundary (2026-08-06)
 
 The protected dashboard route group now has a branded Next error boundary for
