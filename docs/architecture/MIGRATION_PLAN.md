@@ -17,7 +17,8 @@ Validation: shared delivery 16/16; API controller/service 47/47; Web action
 RLS, privilege, and catalog verification 94/94 with 4 service-only tables;
 database 49/318; API 104/449; Web 87/567; typechecks/lint; and production
 build 2/2 with 81/81 routes. Source SHA
-`b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is local only. No hosted SQL,
+`b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is pushed to the feature branch;
+`origin/main` remains unchanged. No hosted SQL,
 Storage write, Vercel build, Railway build, or tenant canary occurred.
 
 ## Next gate
