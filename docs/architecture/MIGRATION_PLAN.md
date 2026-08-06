@@ -1,5 +1,19 @@
 # Migration Plan
 
+## M3.113 close historical secret-scan findings (2026-08-06)
+
+Confirmed six historical Gitleaks hits as deterministic unit-test delivery
+idempotency values. Added exact path/value-scoped provenance allowlisting in
+`.gitleaks.toml`; no runtime or production secret changed. Pinned scan passes
+with 474 commits scanned and zero leaks.
+
+## Next gate
+
+Keep allowlist scope exact and review any future scan finding as a possible
+credential. Continue managed Supabase backup/catalog/data/audit parity and
+owner-approved duplicate Purchase Order mapping. Do not trigger provider
+builds or hosted SQL.
+
 ## M3.112 recoverable export and ordered disposable replay (2026-08-06)
 
 Verified the session pooler on port 5432 with a read-only PostgreSQL 17.6

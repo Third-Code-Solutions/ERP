@@ -6,3 +6,17 @@ description = "Deterministic pg_dump schema delimiter; not a credential"
 paths = ['''^scripts/ci/run-wsl1-database-lane\.ps1$''']
 regexTarget = "match"
 regexes = ['''--restrict-key=0123456789abcdef0123456789abcdef''']
+
+[[allowlists]]
+description = "Deterministic delivery idempotency keys in unit tests; not credentials"
+paths = [
+  '''^apps/api/src/procurement/delivery-workflow\.controller\.spec\.ts$''',
+  '''^apps/web/src/app/\(dashboard\)/procurement/deliveries/actions\.test\.ts$''',
+  '''^apps/web/src/lib/erp-core-client\.test\.ts$''',
+]
+regexTarget = "match"
+regexes = [
+  '''delivery-schedule-1''',
+  '''delivery-schedule-2''',
+  '''delivery-in-transit-1''',
+]

@@ -2,6 +2,9 @@
 
 ## Current verified release state (2026-08-06)
 
+- Repository security gate: pinned Gitleaks 8.30.1 scanned 474 commits with
+  zero findings after exact provenance allowlisting of deterministic test-only
+  idempotency values. This does not change hosted release gates.
 - Target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17.6 with 55/94 source
   migrations applied through `20260729233017`; 39 ordered files are pending.
 - The session pooler on port 5432 is reachable read-only. A supplemental

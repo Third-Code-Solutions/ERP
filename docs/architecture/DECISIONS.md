@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-225 - Allowlist only proven test idempotency values (2026-08-06)
+
+Decision: close the six historical Gitleaks findings with one exact
+path-scoped/value-scoped allowlist for deterministic delivery idempotency
+values used in unit tests. Do not rewrite history or weaken generic secret
+detection globally.
+
+Rationale: the findings are fixed test fixtures, not credentials, and current
+history cannot be safely rewritten on a shared remote. Exact scope preserves
+secret detection for all other files and values while restoring a green
+security gate.
+
+Evidence: pinned Gitleaks 8.30.1 scanned 474 commits and reported no leaks;
+no runtime, database, Storage, provider, build, or deployment mutation.
+
 ## D-224 - Synthetic replay cannot authorize a hosted data repair (2026-08-06)
 
 Decision: use the exact clone failure on the duplicate Purchase Order guard as

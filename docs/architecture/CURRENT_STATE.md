@@ -4,6 +4,14 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.113 historical secret-scan findings closed (2026-08-06)
+
+The six historical Gitleaks findings were confirmed as deterministic delivery
+idempotency values in unit tests, not credentials. A path- and value-scoped
+allowlist in `.gitleaks.toml` records that provenance. The pinned scan passes
+with 474 commits scanned and no leaks found. No production code, database,
+Storage object, provider setting, build, or deployment changed.
+
 ## M3.112 recoverable export and disposable suffix replay (2026-08-06)
 
 The session pooler on port 5432 was independently verified read-only. A free

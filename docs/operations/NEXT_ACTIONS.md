@@ -1,5 +1,14 @@
 # Next Actions
 
+## Exact next action after M3.113 security-scan cleanup
+
+Keep `.gitleaks.toml` allowlist exact and review all new findings as possible
+credentials. Keep Supabase `aqqrtkmtcsfkbyyqxowv` unchanged; obtain the
+owner-approved mapping for the one tenant-scoped 12-record `PO-0002` group and
+managed backup/catalog/data/audit/auth/storage/grants/vector parity. Do not
+trigger Vercel/Railway builds or hosted SQL until rollback, protected canary,
+exact identity, readiness, security-advisor, and spend-cap gates pass.
+
 ## Exact next action after M3.112 disposable replay
 
 Keep Supabase `aqqrtkmtcsfkbyyqxowv` unchanged. Do not call
