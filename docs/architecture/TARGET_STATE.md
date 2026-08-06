@@ -1,5 +1,13 @@
 # Target State
 
+## M3.114 duplicate-data mapping gate (2026-08-06)
+
+Before any uniqueness migration, owner mapping must be versioned, external to
+Git, snapshot-fresh, tenant-correct, complete across all duplicate rows, and
+collision-free. A read-only repeatable-read validator must pass before clone
+replay or hosted repair. Mapping validation never substitutes for managed
+backup, parity, rollback, canary, identity, or spend evidence.
+
 ## M3.113 security-scan provenance gate (2026-08-06)
 
 Repository secret scanning must remain green. Deterministic test-only

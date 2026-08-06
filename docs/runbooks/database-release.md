@@ -2,6 +2,9 @@
 
 ## Current verified release state (2026-08-06)
 
+- Purchase Order duplicate mapping now has a read-only preflight and external
+  mapping-file runbook. No owner mapping has been supplied; the hosted
+  uniqueness gate remains closed.
 - Repository security gate: pinned Gitleaks 8.30.1 scanned 474 commits with
   zero findings after exact provenance allowlisting of deterministic test-only
   idempotency values. This does not change hosted release gates.

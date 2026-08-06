@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-06 - M3.114 Purchase Order mapping preflight
+
+Added a read-only owner-mapping validator for the duplicate Purchase Order
+gate. It requires a versioned JSON mapping outside Git, validates exact UUID,
+tenant, current-number, duplicate-coverage, replacement-collision, and stale
+snapshot invariants, and emits only counts plus opaque conflict references.
+The CLI runs one repeatable-read transaction and never executes SQL writes.
+Pure tests pass 4/4. No mapping was supplied, so hosted duplicate data remains
+unchanged and release remains blocked.
+
+Next action: database owner supplies the mapping file, then managed Supabase
+backup/catalog parity is repeated before any hosted action.
+
 ## 2026-08-06 - M3.113 close historical secret-scan findings
 
 Added a narrowly scoped Gitleaks allowlist for three deterministic delivery
