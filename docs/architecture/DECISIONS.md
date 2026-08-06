@@ -13,8 +13,9 @@ capability checks, current API behavior, and compatibility-default rollout
 while avoiding a schema change or browser-direct sensitive write.
 
 Evidence: focused inventory/Core tests 125/125, Web suite 87/567, typecheck,
-and production build 81/81 routes. No Supabase, Vercel, Railway, Storage, or
-tenant-data mutation occurred.
+and production build 81/81 routes. Source commit `7570cda` is pushed to the
+feature branch; `origin/main` remains unchanged. No Supabase, Vercel, Railway,
+Storage, or tenant-data mutation occurred.
 
 ## D-217 - Reuse guarded Warehouse authority for the first edit surface (2026-08-06)
 

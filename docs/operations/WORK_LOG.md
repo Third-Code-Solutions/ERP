@@ -10,8 +10,9 @@ disables inactive UOM choices except the current value. No schema, hosted SQL,
 Vercel build, Railway build, Storage write, or tenant data changed.
 
 Evidence: Web typecheck, focused inventory/Core tests 125/125, full Web suite
-87/567, Next production build 81/81 routes, and diff check. Source is pending
-review and push on the feature branch.
+87/567, Next production build 81/81 routes, and diff check. Source commit
+`7570cda` is pushed to the feature branch by `kurtgav`; `origin/main` remains
+unchanged. No provider build or hosted mutation occurred.
 
 ## 2026-08-06 - M3.105 inventory warehouse control surface
 
