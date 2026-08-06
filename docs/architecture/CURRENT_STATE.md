@@ -4,6 +4,14 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.127 pinned CLI diff boundary (2026-08-06)
+
+Pinned Supabase CLI `2.109.1` read-only schema-diff attempts against the clean
+replay failed before inspection because the Docker Desktop Linux engine pipe is
+unavailable. This does not invalidate the direct PostgreSQL verifier or the
+zero-skip database tests, but it leaves the CLI/CI schema-diff artifact open.
+No local schema, hosted database, provider, or deployment state changed.
+
 ## M3.126 clean disposable PostgreSQL replay (2026-08-06)
 
 Created disposable database `erp_clean_head_20260806_m3125` on PostgreSQL
