@@ -7,7 +7,7 @@
  * remain disabled and that repository automation does not contain a deploy
  * command that could bypass that protection.
  */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -35,23 +35,47 @@ export function buildVercelSpendGuardReport({ config, automationText }) {
   }
 }
 
+function collectAutomationFiles(root) {
+  const files = []
+  const ignoredDirectories = new Set([
+    '.git',
+    '.next',
+    'coverage',
+    'node_modules',
+    'tmp',
+  ])
+
+  function visit(directory) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (!ignoredDirectories.has(entry.name)) {
+          visit(resolve(directory, entry.name))
+        }
+        continue
+      }
+
+      const absolutePath = resolve(directory, entry.name)
+      const relativePath = absolutePath
+        .slice(root.length + 1)
+        .replaceAll('\\', '/')
+      const isPackageManifest = entry.name === 'package.json'
+      const isWorkflow =
+        relativePath.startsWith('.github/workflows/') &&
+        (entry.name.endsWith('.yml') || entry.name.endsWith('.yaml'))
+
+      if (isPackageManifest || isWorkflow) files.push(absolutePath)
+    }
+  }
+
+  visit(root)
+  return files
+}
+
 export function verifyVercelSpendGuard(root = repoRoot) {
   const configPath = resolve(root, 'apps/web/vercel.json')
   const config = JSON.parse(readFileSync(configPath, 'utf8'))
-  const automationFiles = [
-    'package.json',
-    'apps/web/package.json',
-    '.github/workflows/ci.yml',
-    '.github/workflows/ci-self-hosted.yml',
-  ]
-  const automationText = automationFiles
-    .map((file) => {
-      try {
-        return readFileSync(resolve(root, file), 'utf8')
-      } catch {
-        return ''
-      }
-    })
+  const automationText = collectAutomationFiles(root)
+    .map((file) => readFileSync(file, 'utf8'))
     .join('\n')
   return buildVercelSpendGuardReport({ config, automationText })
 }

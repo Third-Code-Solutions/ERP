@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-216 - Fail closed on hidden Vercel deploy automation (2026-08-06)
+
+Decision: make the Vercel spend guard discover every workspace `package.json`
+and GitHub workflow YAML, while retaining the hard requirement that
+`apps/web/vercel.json` has `git.deploymentEnabled=false`. Keep Vercel Git
+disconnected and do not create preview/build artifacts by default.
+
+Rationale: the prior guard listed only known manifests/workflows and could miss
+a later automation file that starts a paid build. Static repository evidence
+cannot enforce provider billing caps, so every provider promotion still needs
+an explicit operator approval, exact deployment identity, and spend evidence.
+
+Evidence: guard tests 3/3; `Vercel spend guard: clear`; no deployment for the
+current feature SHA; Supabase/Railway/Vercel/Storage/tenant data unchanged.
+
 ## D-215 - Route delivery schedule creation through Nest (2026-08-06)
 
 Decision: add a dedicated `delivery_schedule_create_requests` server-only

@@ -4,6 +4,16 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.104 provider spend guard audit (2026-08-06)
+
+The repository spend guard now scans every workspace package manifest and GitHub
+workflow YAML for Vercel deploy commands; it passes 3/3 tests and reports
+`clear`. Vercel Git remains disabled, and the current feature SHA created no
+new deployment. Railway `/ready` and `/health` remain 200 on the prior
+deployment. Supabase read-only parity remains 55 hosted migrations; the new
+delivery-schedule ledger and Asset Register table are absent. No provider,
+database, Storage, branch, or tenant-data mutation occurred.
+
 ## M3.103 closed Nest delivery schedule creation (2026-08-06)
 
 Added the smallest next delivery authority slice: scheduling a delivery for an
