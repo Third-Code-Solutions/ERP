@@ -60,6 +60,7 @@ const requiredMigrations = [
   '20260806130000_delivery_schedule_create_idempotency.sql',
   '20260806140000_togal_bom_commit_idempotency.sql',
   '20260806150000_opportunity_project_conversion_idempotency.sql',
+  '20260806160000_security_role_baseline.sql',
 ]
 
 const requiredTables = [
@@ -641,6 +642,32 @@ for (const migration of requiredMigrations) {
   assert(
     `required migration ${migration}`,
     existsSync(migrationPath) && statSync(migrationPath).size > 0
+  )
+}
+
+const securityBaselineMigration = join(
+  migrationDirectory,
+  '20260806160000_security_role_baseline.sql'
+)
+if (existsSync(securityBaselineMigration)) {
+  const securityBaseline = readFileSync(securityBaselineMigration, 'utf8')
+  assert(
+    'security baseline revokes anonymous table privileges',
+    /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+FROM\s+anon/i.test(
+      securityBaseline
+    )
+  )
+  assert(
+    'security baseline revokes anonymous sequence privileges',
+    /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+ALL\s+SEQUENCES\s+IN\s+SCHEMA\s+public\s+FROM\s+anon/i.test(
+      securityBaseline
+    )
+  )
+  assert(
+    'security baseline normalizes public policies',
+    /ALTER\s+POLICY\s+%I\s+ON\s+%I\.%I\s+TO\s+authenticated/i.test(
+      securityBaseline
+    )
   )
 }
 
@@ -1553,6 +1580,33 @@ try {
       where has_table_privilege('anon', 'public.' || quote_ident(table_name), privilege)`,
     (rows) => rows.length === 0,
     (rows) => rows.map((row) => `${row.table_name}:${row.privilege}`).join(', ')
+  )
+
+  await query(
+    'anon has no direct privileges on public ERP tables',
+    `select c.relname as table_name, privilege
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as privilege
+      where n.nspname = 'public'
+        and c.relkind in ('r', 'p')
+        and has_table_privilege(
+          'anon',
+          format('public.%I', c.relname),
+          privilege
+        )`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => `${row.table_name}:${row.privilege}`).join(', ')
+  )
+
+  await query(
+    'public ERP policies are not assigned to PUBLIC',
+    `select tablename, policyname
+       from pg_policies
+      where schemaname = 'public'
+        and roles = ARRAY['public']::name[]`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => `${row.tablename}:${row.policyname}`).join(', ')
   )
 
   await query(

@@ -1,5 +1,14 @@
 # Target State
 
+## M3.122 anonymous authority baseline (2026-08-06)
+
+The source ledger now carries an explicit least-privilege migration: no direct
+`anon` table or sequence privileges, no legacy tenant policy assigned only to
+`PUBLIC`, and no change to explicit authenticated or service-role grants. The
+database verifier must prove this on PostgreSQL 17 before the migration can be
+applied to a hosted project. A clean replay is still required; the current
+evidence is a disposable suffix replay plus full catalog verification.
+
 ## M3.121 hosted role and policy baseline (2026-08-06)
 
 Every public ERP table must remain RLS-enabled and have no direct `anon`
