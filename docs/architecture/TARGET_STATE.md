@@ -1,5 +1,19 @@
 # Target State
 
+## M3.102 delivery in-transit authority gate (2026-08-06)
+
+The delivery state machine must commit `site_ready -> in_transit` through Nest
+under `delivery.receive`, tenant-derived membership, a row lock/optimistic
+status predicate, durable tenant/idempotency-key replay, and semantic audit.
+Next may retain the current action surface, but it must select the Core route
+only for exact-`true` plus UUID tenant allowlist and must fail closed after a
+selected Core error. Keep
+`ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_ENABLED=false`,
+`ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_TENANT_IDS` empty,
+`ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API=false`, and its allowlist empty
+until the ordered hosted migration suffix, protected canary, rollback, and
+spend gates clear. Python/AI remains advisory and cannot commit the transition.
+
 ## M3.101 hosted Asset Register parity gate (2026-08-06)
 
 Hosted Supabase must contain the ordered asset migration and match the

@@ -1,5 +1,34 @@
 # Migration Plan
 
+## M3.102 closed delivery in-transit transition (2026-08-06)
+
+Added `20260806120000_delivery_in_transit_workflow.sql`, extending the
+existing server-only `delivery_workflow_action` enum with `mark_in_transit`.
+Added strict shared contracts, a Nest pipe/controller/service command, exact
+config gates, a Next Core adapter, and rollback-only database evidence. The
+transaction rechecks `delivery.receive`, derives tenant/actor membership,
+locks the same-tenant `site_ready` schedule, claims the tenant/idempotency
+ledger, updates only when the status predicate still matches, stores the
+strict result, and writes semantic audit in one transaction. The selected Web
+path never falls back to a browser write after a Core error.
+
+Validation: shared 14/14; API delivery service/controller 43/43; Web delivery
+adapter/actions 131/131; rollback-only PostgreSQL 17 delivery integrations
+2/2; full reproducibility verifier 93/93 migrations, 32 protected tables,
+3 service-only tables; shared/database/API/Web typechecks pass. Source SHA
+`db786f2` is pushed to both GitHub refs. No hosted migration apply, Vercel
+build, Railway build, Storage write, or tenant canary occurred.
+
+## Next gate
+
+Keep all delivery selectors, including the new in-transit pair, false/empty.
+Reconcile the source suffix after hosted `20260729233017` in order on a
+supported backup/replay lane before applying anything to Supabase. Confirm the
+new enum value and existing delivery ledger/RLS/audit metadata, resolve the
+owner-approved 12-record PO duplicate mapping, review the 11 security
+warnings, then run one protected delivery browser canary with rollback and
+spend evidence. Do not trigger an automatic Vercel build or Railway rebuild.
+
 ## M3.101 hosted Supabase Asset Register parity snapshot (2026-08-06)
 
 Read-only project inspection confirms `ACTIVE_HEALTHY`, PostgreSQL 17.6.1,

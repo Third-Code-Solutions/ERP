@@ -1,5 +1,23 @@
 # Work Log
 
+## 2026-08-06 - M3.102 closed delivery in-transit authority slice
+
+Added the strict `mark_in_transit` delivery command/result, enum migration,
+Nest route/service/pipe, exact API gates, Next Core adapter, and compatibility
+action branch. Nest rechecks tenant membership/capability, claims the shared
+idempotency ledger, locks `site_ready`, commits `in_transit` with an optimistic
+predicate, stores replay output, and writes semantic audit. Selected Core
+errors fail closed; selectors remain false/empty.
+
+Validation: shared delivery 14/14; focused API controller/service 43/43;
+focused Web adapter/actions 131/131; rollback-only PostgreSQL 17 delivery
+integration 2/2; full reproducibility verifier 93/93 migrations, 32 protected
+tables, 3 service-only tables; shared/database/API/Web typechecks. Source SHA
+`db786f2` pushed to GitHub `main` and `agent-02/third-code-erp-landing`.
+Hosted Supabase remains read-only at 55/93; no Supabase, Storage, Vercel,
+Railway, or tenant-canary mutation. Next action is ordered hosted suffix
+reconciliation/backup/export, not deployment.
+
 ## 2026-08-06 - M3.101 hosted Supabase Asset Register parity snapshot
 
 Read-only Supabase MCP inspection confirmed project `aqqrtkmtcsfkbyyqxowv` is
