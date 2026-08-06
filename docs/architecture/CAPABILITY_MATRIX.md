@@ -9,8 +9,9 @@ authority route with tenant/idempotency replay and semantic audit. The Web
 action remains compatibility-default with the new exact flag/allowlist empty;
 hosted source-suffix reconciliation and canary evidence are still pending.
 Local release gates now pass: API 104/445, Web 87/565, reproducibility 93/93,
-and isolated Nest/Next production build 2/2 with 81/81 routes. No hosted
-migration or provider build occurred.
+and isolated Nest/Next production build 2/2 with 81/81 routes. Railway then
+performed one automatic backend deployment for the exact pushed commit;
+readiness and health are green. No hosted migration or Vercel build occurred.
 
 M3.101 hosted update: Supabase project `aqqrtkmtcsfkbyyqxowv` is healthy on
 PostgreSQL 17.6.1 but remains at 55/92 migrations. Source asset migration

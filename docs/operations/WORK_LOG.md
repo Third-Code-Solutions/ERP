@@ -10,10 +10,13 @@ protected tables and 3 service-only tables, and `pnpm turbo build
 source change was raising the inventory UOM controller test-app startup budget
 to 15 seconds after a full-suite resource-pressure timeout; no runtime code or
 API behavior changed. `node scripts/verify-vercel-spend-guard.mjs` remains
-clear. No hosted migration, Vercel/Railway build, Storage write, or tenant
-canary occurred. Promotion remains blocked by Supabase backup/export and
-ordered suffix reconciliation plus duplicate-PO, security, canary, rollback,
-and spend gates.
+clear. Railway's Git integration performed one automatic backend deployment
+from `main`: `27591050-3977-4755-92ae-941a6894ac77` is `SUCCESS` for commit
+`dcf7b04c`, with `/ready` and `/health` 200 and unauthenticated `/v1/assets`
+401. No hosted migration, Vercel build, Storage write, or tenant canary
+occurred. Frontend/database promotion remains blocked by Supabase
+backup/export and ordered suffix reconciliation plus duplicate-PO, security,
+canary, rollback, and spend gates.
 
 ## 2026-08-06 - M3.102 closed delivery in-transit authority slice
 

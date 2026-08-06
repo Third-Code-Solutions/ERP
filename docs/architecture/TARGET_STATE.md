@@ -21,6 +21,11 @@ promotion while Supabase remains at 55/93 and the required backup, catalog,
 data/audit, duplicate-PO, security, canary, rollback, and spend gates remain
 open.
 
+The backend is currently running the pushed source on Railway deployment
+`27591050-3977-4755-92ae-941a6894ac77` (`SUCCESS`); this does not authorize a
+database migration, tenant canary, or Vercel promotion. Keep the delivery
+flags closed until hosted parity and spend gates clear.
+
 ## M3.101 hosted Asset Register parity gate (2026-08-06)
 
 Hosted Supabase must contain the ordered asset migration and match the
