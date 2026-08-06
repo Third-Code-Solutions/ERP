@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-214 - Release gates rerun in an isolated local lane (2026-08-06)
+
+Decision: count the M3.102 source slice as locally build/test green only after
+the full serial API suite, Web suite, database reproducibility verifier, and
+Nest/Next production build complete in a clean single-worker lane. Raise the
+inventory UOM HTTP contract test-app startup budget from 5 to 15 seconds to
+avoid a resource-pressure false negative; no production code or HTTP contract
+changed. This evidence still cannot authorize a hosted migration or paid
+provider promotion while Supabase parity and operational gates are open.
+
+Evidence: broad API 104 files/445 tests, Web 87 files/565 tests, database
+93/93 migrations with 32 protected and 3 service-only tables, and Turbo build
+2/2 (Nest webpack, Next 81/81 routes). No Supabase, Vercel, Railway, Storage,
+or tenant-canary mutation.
+
 ## D-213 - Route delivery in-transit through the existing Nest ledger (2026-08-06)
 
 Decision: add a dedicated `mark_in_transit` value to the existing

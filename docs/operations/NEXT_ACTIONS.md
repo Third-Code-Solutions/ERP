@@ -17,9 +17,10 @@
 4. After parity, run one protected delivery browser canary covering
    `site_ready -> in_transit`, duplicate retry, cross-tenant denial, audit,
    rollback, readiness, and spend. Keep Python/AI advisory-only.
-5. Before any provider promotion, rerun the broad API suite and both local
-   production builds in a clean, isolated process lane; the bounded Windows
-   attempt was incomplete and is not release evidence.
+5. Local release gates are now green: broad API 104/445, Web 87/565,
+   database reproducibility 93/93, and isolated Nest/Next production build
+   2/2 with 81/81 routes. Do not treat this as provider authorization; obtain
+   the hosted backup/export and ordered suffix reconciliation first.
 
 ## Exact next action after M3.101 hosted Asset Register parity snapshot
 

@@ -8,7 +8,9 @@ M3.102 update: delivery `site_ready -> in_transit` now has a closed NestJS
 authority route with tenant/idempotency replay and semantic audit. The Web
 action remains compatibility-default with the new exact flag/allowlist empty;
 hosted source-suffix reconciliation and canary evidence are still pending.
-No hosted migration or provider build occurred.
+Local release gates now pass: API 104/445, Web 87/565, reproducibility 93/93,
+and isolated Nest/Next production build 2/2 with 81/81 routes. No hosted
+migration or provider build occurred.
 
 M3.101 hosted update: Supabase project `aqqrtkmtcsfkbyyqxowv` is healthy on
 PostgreSQL 17.6.1 but remains at 55/92 migrations. Source asset migration

@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-06 - M3.102 local release gates rerun
+
+Reran the previously incomplete gates in a clean single-worker lane. The
+serial API suite is green at 104 files/445 tests, the Web suite is green at 87
+files/565 tests, database reproducibility remains 93/93 migrations with 32
+protected tables and 3 service-only tables, and `pnpm turbo build
+--concurrency=1` succeeds for Nest webpack and Next 81/81 routes. The only
+source change was raising the inventory UOM controller test-app startup budget
+to 15 seconds after a full-suite resource-pressure timeout; no runtime code or
+API behavior changed. `node scripts/verify-vercel-spend-guard.mjs` remains
+clear. No hosted migration, Vercel/Railway build, Storage write, or tenant
+canary occurred. Promotion remains blocked by Supabase backup/export and
+ordered suffix reconciliation plus duplicate-PO, security, canary, rollback,
+and spend gates.
+
 ## 2026-08-06 - M3.102 closed delivery in-transit authority slice
 
 Added the strict `mark_in_transit` delivery command/result, enum migration,
