@@ -6,16 +6,9 @@ import { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
 import { requireUserProfile, requireCapability } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import {
-  costCodes,
-  costEntries,
-  projects,
-} from '@third-code-erp/database/schema'
+import { costEntries } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import {
-  costEntryCreateWritesUseCoreApi,
-  createCostEntryThroughCoreApi,
-} from '@/lib/erp-core-client'
+import { createCostEntryThroughCoreApi } from '@/lib/erp-core-client'
 
 const createSchema = z.object({
   project_id: z.string().uuid(),
@@ -66,95 +59,36 @@ export async function createCostEntry(formData: FormData): Promise<Result> {
     const d = parsed.data
     const amountCents = Math.round(d.amount_php * 100)
 
-    if (costEntryCreateWritesUseCoreApi(profile.tenantId)) {
-      const result = await createCostEntryThroughCoreApi(
-        d.project_id,
-        {
-          costCodeId: d.cost_code_id,
-          costCategory: d.cost_category,
-          description: d.description,
-          amountCents,
-          quantity: d.quantity,
-          unit: d.unit ?? null,
-          incurredAt: d.incurred_at
-            ? new Date(`${d.incurred_at}T00:00:00.000Z`).toISOString()
-            : null,
-          referenceNumber: d.reference_number ?? null,
-          notes: d.notes ?? null,
-        },
-        d.idempotency_key ?? randomUUID()
-      )
-      if (!result.ok || !result.data) {
-        return { error: result.error ?? 'Could not record the cost entry.' }
-      }
-      revalidatePath(`/projects/${d.project_id}/cost`)
-      revalidatePath(`/projects/${d.project_id}`)
-      revalidatePath('/reports')
-      return { id: result.data.id }
-    }
-
-    // Verify the project belongs to the caller's tenant. The Drizzle client runs
-    // as the postgres owner (RLS-bypassed), so the action is the sole authz gate.
-    const [proj] = await db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(and(eq(projects.id, d.project_id), eq(projects.tenant_id, profile.tenantId)))
-    if (!proj) return { error: 'Project not found.' }
-
-    const [costCode] = await db
-      .select({ id: costCodes.id, category: costCodes.category })
-      .from(costCodes)
-      .where(
-        and(
-          eq(costCodes.id, d.cost_code_id),
-          eq(costCodes.tenant_id, profile.tenantId),
-          eq(costCodes.is_active, true)
-        )
-      )
-      .limit(1)
-    if (!costCode) return { error: 'Select an active Cost Code.' }
-    if (costCode.category !== d.cost_category) {
-      return { error: 'Cost category must match the selected Cost Code.' }
-    }
-
-    const [row] = await db
-      .insert(costEntries)
-      .values({
-        tenant_id: profile.tenantId,
-        project_id: d.project_id,
-        cost_code_id: d.cost_code_id,
-        created_by: profile.user.id,
-        cost_category: d.cost_category,
-        cost_source: 'manual',
+    const result = await createCostEntryThroughCoreApi(
+      d.project_id,
+      {
+        costCodeId: d.cost_code_id,
+        costCategory: d.cost_category,
         description: d.description,
-        amount_cents: amountCents,
+        amountCents,
         quantity: d.quantity,
-        unit: d.unit,
-        incurred_at: d.incurred_at ? new Date(d.incurred_at) : new Date(),
-        reference_number: d.reference_number,
-        notes: d.notes,
-      })
-      .returning({ id: costEntries.id })
-
-    if (!row) return { error: 'Could not record the cost entry.' }
-
-    try {
-      await writeAuditLog({
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'cost_entry',
-        entityId: row.id,
-        action: 'create',
-        diff: { project_id: d.project_id, category: d.cost_category, amount_cents: amountCents },
-      })
-    } catch (err) {
-      console.error('[cost/createCostEntry] audit failed:', err)
+        unit: d.unit ?? null,
+        incurredAt: d.incurred_at
+          ? new Date(`${d.incurred_at}T00:00:00.000Z`).toISOString()
+          : null,
+        referenceNumber: d.reference_number ?? null,
+        notes: d.notes ?? null,
+      },
+      d.idempotency_key ?? randomUUID()
+    )
+    if (!result.ok || !result.data) {
+      return { error: result.error ?? 'Could not record the cost entry.' }
     }
-
+    if (
+      result.data.tenantId !== profile.tenantId ||
+      result.data.projectId !== d.project_id
+    ) {
+      return { error: 'Cost entry creation returned an invalid tenant scope.' }
+    }
     revalidatePath(`/projects/${d.project_id}/cost`)
     revalidatePath(`/projects/${d.project_id}`)
     revalidatePath('/reports')
-    return { id: row.id }
+    return { id: result.data.id }
   } catch (err) {
     return { error: safeMessage(err) }
   }

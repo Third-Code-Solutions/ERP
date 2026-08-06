@@ -26,6 +26,25 @@ require `DATABASE_URL` and remain covered by the prior disposable replay.
 Source checkpoint: `c702bd9edec41cb3a9efd8b490ae5e82a3a04ceb`, pushed to
 `origin/agent-02/third-code-erp-landing` with the `kurtgav` identity.
 
+## M3.141 Core-only manual Cost Entry creation (2026-08-07)
+
+The Project cost Server Action now requires `cost.record` and delegates every
+manual Cost Entry creation to NestJS `POST /v1/projects/:projectId/cost-entries`.
+The browser no longer validates/inserts `cost_entries` or writes a duplicate
+create audit. The action preserves or generates an idempotency key, sends
+integer cents, verifies Core-returned tenant and Project scope, and fails
+closed on Core errors. The frontend create selector/allowlist was removed.
+Cost Entry deletion remains a separate legacy path until Core has a
+transactional, idempotent delete contract. No migration or hosted state
+changed.
+
+Local validation is green: Web 91 files/591 tests, shared 27/229, database
+47/51 files with 183 passed/141 skipped, API 112/480, production build
+81/81 routes, typecheck/lint, migration verifier, Actionlint, Gitleaks,
+controlled-release 5/5, and provider-spend 4/4. Database skips require
+`DATABASE_URL`; prior disposable replay supplies no-skip evidence. Source
+checkpoint is recorded after the reviewed commit is pushed.
+
 ## M3.139 self-hosted Core authority evidence (2026-08-07)
 
 The disposable WSL lane replayed 98 migrations on PostgreSQL 17 with Redis

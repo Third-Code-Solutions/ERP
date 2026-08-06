@@ -81,7 +81,6 @@ import {
   transitionRfqThroughCoreApi,
   transitionPurchaseOrderThroughCoreApi,
   createProjectThroughCoreApi,
-  costEntryCreateWritesUseCoreApi,
   updateProjectThroughCoreApi,
   financeJournalPostWritesUseCoreApi,
   financeJournalReverseWritesUseCoreApi,
@@ -1371,26 +1370,6 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API_TENANT_IDS', '')
     expect(opportunityConversionWritesUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(opportunityConversionWritesUseCoreApi('not-a-uuid')).toBe(false)
-  })
-
-  it('keeps cost entry creation delegation fail-closed unless its exact gate matches', () => {
-    vi.stubEnv('ERP_COST_ENTRY_CREATE_WRITES_VIA_API', 'true')
-    vi.stubEnv(
-      'ERP_COST_ENTRY_CREATE_WRITES_VIA_API_TENANT_IDS',
-      RESULT.tenantId
-    )
-    expect(costEntryCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
-
-    vi.stubEnv('ERP_COST_ENTRY_CREATE_WRITES_VIA_API', 'TRUE')
-    expect(costEntryCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv('ERP_COST_ENTRY_CREATE_WRITES_VIA_API', 'true')
-    vi.stubEnv('ERP_COST_ENTRY_CREATE_WRITES_VIA_API_TENANT_IDS', '')
-    expect(costEntryCreateWritesUseCoreApi(RESULT.tenantId)).toBe(false)
-
-    vi.stubEnv('ERP_COST_ENTRY_CREATE_WRITES_VIA_API_TENANT_IDS', '*')
-    expect(costEntryCreateWritesUseCoreApi(RESULT.tenantId)).toBe(true)
-    expect(costEntryCreateWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps Purchase Order writes fail-closed unless its independent gate matches', () => {

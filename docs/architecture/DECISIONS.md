@@ -23,6 +23,24 @@ identity, audit, and spend evidence.
 Source checkpoint: `c702bd9edec41cb3a9efd8b490ae5e82a3a04ceb`, remote SHA verified
 on `origin/agent-02/third-code-erp-landing`.
 
+## D-249 - Make NestJS the only manual Cost Entry creation writer (2026-08-07)
+
+Decision: remove the Web Server Action's direct Cost Entry insert and its
+frontend selector. The action may require `cost.record`, parse money into
+integer cents, send a typed Core command with an idempotency key, verify
+tenant/Project scope, and fail closed on Core errors. NestJS remains the
+authority for locked membership, active Cost Code/category validation,
+transaction, idempotency, and audit. Do not claim Cost Entry delete parity;
+track it as a separate command migration.
+
+Rationale: browser-side validation and owner-connection writes could diverge
+from Core's exact-money, tenant, replay, and audit guarantees. Splitting
+create from delete keeps this slice small while making its remaining direct
+writer visible instead of masking it.
+
+Evidence: focused Web action 5/5, Core client 113/113, Web typecheck passed;
+hosted state unchanged.
+
 ## D-247 - Require disposable replay before hosted Core canary (2026-08-07)
 
 Decision: retain the self-hosted PostgreSQL/Redis replay, no-skip database
