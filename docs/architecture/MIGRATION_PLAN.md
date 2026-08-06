@@ -1,5 +1,20 @@
 # Migration Plan
 
+## M3.115 provider spend gate (2026-08-06)
+
+Integrated the static provider spend guard into the controlled release planner.
+It now fails closed when Vercel Git deployment is enabled, when workspace
+automation contains a Vercel/Railway deploy command, or when the spend report
+is missing. Added pure tests for the Railway command and missing-gate cases.
+No provider or hosted state changed.
+
+## Next gate
+
+Keep the spend guard green and Vercel Git disconnected. Do not create a preview
+or production build. Obtain the owner mapping, managed Supabase backup/parity,
+audit evidence, rollback proof, and explicit spend approval before any single
+provider promotion.
+
 ## M3.114 Purchase Order duplicate-mapping preflight (2026-08-06)
 
 Added `scripts/plan-purchase-order-mapping.mjs` and a pure validator. The

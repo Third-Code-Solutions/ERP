@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Static billing guard for the hosted web project.
+ * Static billing guard for the hosted web/API projects.
  *
  * This is intentionally read-only. It verifies that Vercel Git deployments
- * remain disabled and that repository automation does not contain a deploy
- * command that could bypass that protection.
+ * remain disabled and that repository automation does not contain a Vercel or
+ * Railway deploy command that could bypass the controlled-release process.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -26,6 +26,14 @@ export function buildVercelSpendGuardReport({ config, automationText }) {
   if (deployCommandPattern.test(automationText)) {
     blockers.push(
       'repository automation contains a Vercel deploy command; remove it'
+    )
+  }
+
+  const railwayDeployPattern =
+    /(?:^|[\s"'`])(?:npx\s+)?railway(?:\s+[^\r\n"'`;&|]*)?\s+(?:up|deploy|redeploy)(?:\s|$)/im
+  if (railwayDeployPattern.test(automationText)) {
+    blockers.push(
+      'repository automation contains a Railway deploy command; remove it'
     )
   }
 

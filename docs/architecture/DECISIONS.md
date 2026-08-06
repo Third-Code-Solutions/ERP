@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-227 - Spend guard is a required release component (2026-08-06)
+
+Decision: make the static provider spend guard a mandatory component of the
+read-only controlled release plan. Keep Vercel Git deployment disabled and
+reject Vercel or Railway deploy commands in repository automation. A readiness
+response cannot override a missing or failed spend report.
+
+Rationale: the current Vercel account has already incurred on-demand usage.
+The cheapest safe default is no automatic build/deploy path, with one explicit
+reviewed provider action only after database, data, security, rollback, and
+spend evidence clear. The guard is a source control, not a billing API or a
+numeric budget claim.
+
+Evidence: provider spend guard tests 4/4, controlled release tests 5/5, live
+readiness 200 for Railway/Vercel, spend status clear, and no provider mutation.
+
 ## D-226 - Validate duplicate mapping before any repair (2026-08-06)
 
 Decision: require a versioned mapping outside Git and a read-only,

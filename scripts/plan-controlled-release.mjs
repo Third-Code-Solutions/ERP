@@ -13,6 +13,7 @@ import { promisify } from 'node:util'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildControlledReleasePlan } from './lib/controlled-release-plan.mjs'
+import { verifyVercelSpendGuard } from './verify-vercel-spend-guard.mjs'
 
 const execFileAsync = promisify(execFile)
 const scriptDirectory = fileURLToPath(new URL('.', import.meta.url))
@@ -148,6 +149,8 @@ const providers = skipProviders
       ])
     )
 
+const spendReport = verifyVercelSpendGuard(repoRoot)
+
 const report = buildControlledReleasePlan({
   database: {
     status:
@@ -175,6 +178,7 @@ const report = buildControlledReleasePlan({
     blockers: auditReport.blockers,
   },
   providers,
+  spend: spendReport,
 })
 
 const output = {
@@ -203,4 +207,3 @@ if (jsonOutput) {
 }
 
 if (requireClear && output.status !== 'clear') process.exitCode = 2
-

@@ -19,6 +19,7 @@ export function buildControlledReleasePlan({
   duplicates,
   audit,
   providers,
+  spend,
 }) {
   const blockers = []
 
@@ -65,6 +66,15 @@ export function buildControlledReleasePlan({
     }
   }
 
+  const spendStatus = componentStatus(spend?.status)
+  if (spendStatus !== 'clear') {
+    blockers.push(
+      ...(spend?.blockers?.length
+        ? spend.blockers.map((blocker) => `spend: ${blocker}`)
+        : ['spend: provider spend guard is not clear'])
+    )
+  }
+
   const duplicateGroups = asNonNegativeInteger(duplicates?.groups)
   const duplicateRecords = asNonNegativeInteger(duplicates?.records)
   const auditRows = asNonNegativeInteger(audit?.rows)
@@ -98,7 +108,9 @@ export function buildControlledReleasePlan({
           revision: provider?.revision ?? null,
         }])
       ),
+      spend: {
+        status: spendStatus,
+      },
     },
   }
 }
-

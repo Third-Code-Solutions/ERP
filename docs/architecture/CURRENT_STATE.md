@@ -4,6 +4,16 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.115 provider spend gate (2026-08-06)
+
+The read-only controlled release planner now requires the repository provider
+spend guard in addition to database, duplicate, audit, and readiness gates.
+The guard keeps Vercel Git deployment disabled and rejects Vercel or Railway
+deploy commands in workspace manifests and workflows. Current checks are
+clear; no build, deploy, provider setting, database, Storage, or tenant-data
+mutation occurred. Hosted release remains review-required for the existing
+database, duplicate Purchase Order, and audit gates.
+
 ## M3.114 Purchase Order mapping preflight (2026-08-06)
 
 The repository now has a read-only mapping validator and runbook for the

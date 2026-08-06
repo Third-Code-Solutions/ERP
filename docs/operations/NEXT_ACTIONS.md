@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.115 provider spend gate
+
+Keep `apps/web/vercel.json` Git deployment disabled and keep repository
+automation free of Vercel/Railway deploy commands. Run the controlled
+read-only planner before any release; it must include a clear spend component.
+Do not create a Vercel preview/production build or manually redeploy Railway.
+Obtain the database-owner mapping for the tenant-scoped 12-record Purchase
+Order group, supported managed Supabase backup/catalog/data/audit/auth/storage/
+grants/vector parity, rollback proof, protected canary evidence, exact
+provider identity, and explicit spend approval before one bounded promotion.
+
 ## Exact next action after M3.114 mapping preflight
 
 Obtain database-owner mapping JSON outside Git for every row in the
