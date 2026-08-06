@@ -5,6 +5,16 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.134 project-update authority hardening (2026-08-07)
+
+The Core `PATCH /v1/projects/:projectId` authority now locks the caller's
+tenant membership inside its transaction, rechecks `project.update` against
+the stored role, and derives a fresh authorized principal before locking the
+Project row. Tenant predicates, actor context, and semantic audit use that
+principal. The regression suite proves a forged admin-shaped principal cannot
+update through a locked viewer membership. No migration or hosted/provider
+action occurred. Source commit: `5534046`.
+
 ## M3.133 project-create authority hardening (2026-08-07)
 
 The Core `POST /v1/projects` authority now locks the caller's tenant
