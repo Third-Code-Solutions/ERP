@@ -32,6 +32,23 @@ the same snapshot so stale or cross-tenant edits fail closed.
 
 ## Read-only preflight
 
+If the owner needs a review skeleton from the current snapshot, create it in
+an approved secure directory first. The command refuses repository/build
+paths, refuses to overwrite an existing file, and exits `2` while duplicate
+rows remain unresolved:
+
+```powershell
+node --env-file=apps/web/.env.local scripts/plan-purchase-order-mapping-template.mjs `
+  --template-file="C:\secure\thirdcode-po-mapping-template.json"
+```
+
+The generated file contains the exact tenant IDs, Purchase Order IDs, and
+current numbers from one repeatable-read snapshot. Every
+`replacementNumber` is intentionally blank; the command never guesses a
+canonical row or renumbers a record. Treat the file as sensitive, keep it
+outside Git/public build output, and have the database owner fill and approve
+it before running the validator below.
+
 ```powershell
 node --env-file=apps/web/.env.local scripts/plan-purchase-order-mapping.mjs `
   --mapping-file="C:\secure\thirdcode-po-mapping.json"

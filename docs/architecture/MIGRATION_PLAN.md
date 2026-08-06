@@ -1,5 +1,20 @@
 # Migration Plan
 
+## M3.117 Purchase Order mapping-template preflight
+
+Completed a read-only owner-review artifact generator for the existing
+tenant-scoped duplicate Purchase Order gate. It takes one repeatable-read
+snapshot, refuses repository/build/public paths and overwrite, and emits a
+schema-compatible skeleton with blank replacement numbers. It never repairs
+rows, changes migration history, applies hosted SQL, or authorizes release.
+
+Evidence: focused template tests 3/3 and existing mapping tests 4/4. The
+hosted mapping file is still missing; no provider or database action is
+authorized.
+
+Next: database owner fills and approves the external mapping, then rerun the
+read-only validator and managed Supabase parity gate.
+
 ## M3.116 Togal BOM commit authority seam (2026-08-06)
 
 Added strict shared command/result contracts, a service-only

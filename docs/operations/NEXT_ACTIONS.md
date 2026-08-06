@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.117 Purchase Order mapping-template preflight
+
+Generate an owner-review skeleton only in an approved secure directory:
+
+```powershell
+node --env-file=apps/web/.env.local scripts/plan-purchase-order-mapping-template.mjs `
+  --template-file="C:\secure\thirdcode-po-mapping-template.json"
+```
+
+The generated replacement values are intentionally blank. The database owner
+must fill every row, approve the canonical numbering, and keep the mapping
+outside Git/public output. Run `pnpm plan:purchase-order-mapping` against that
+file. Keep Supabase, Vercel, Railway, and all ERP canary flags unchanged until
+the mapping, managed backup/catalog parity, rollback, readiness, identity,
+security, and spend gates are green.
+
 ## Exact next action after M3.116 Togal BOM authority seam
 
 Push the reviewed feature branch with the new migration included in the
