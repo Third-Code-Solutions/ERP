@@ -6,6 +6,7 @@ import {
   projectListResultSchema,
   projectReadResultSchema,
 } from './projects'
+import { isProjectStatusTransitionAllowed } from '../projects'
 
 describe('project core API contract', () => {
   it('normalizes bounded project list query defaults', () => {
@@ -115,5 +116,14 @@ describe('project core API contract', () => {
     })
 
     expect(result.success).toBe(true)
+  })
+
+  it('enforces explicit Project status transitions and terminal states', () => {
+    expect(isProjectStatusTransitionAllowed('lead', 'active')).toBe(true)
+    expect(isProjectStatusTransitionAllowed('active', 'completed')).toBe(true)
+    expect(isProjectStatusTransitionAllowed('on_hold', 'active')).toBe(true)
+    expect(isProjectStatusTransitionAllowed('completed', 'completed')).toBe(true)
+    expect(isProjectStatusTransitionAllowed('cancelled', 'active')).toBe(false)
+    expect(isProjectStatusTransitionAllowed('completed', 'lead')).toBe(false)
   })
 })

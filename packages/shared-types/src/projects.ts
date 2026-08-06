@@ -6,6 +6,26 @@ export const projectTypeValues = ['mep', 'fit_out', 'interior', 'mixed'] as cons
 export type ProjectStatus = typeof projectStatusValues[number]
 export type ProjectType = typeof projectTypeValues[number]
 
+// Project status is a workflow, not an unrestricted label. Terminal states
+// remain terminal; reopening requires an explicit future workflow command.
+export const projectStatusTransitions: Record<
+  ProjectStatus,
+  readonly ProjectStatus[]
+> = {
+  lead: ['lead', 'active', 'on_hold', 'cancelled'],
+  active: ['active', 'on_hold', 'completed', 'cancelled'],
+  on_hold: ['on_hold', 'active', 'cancelled'],
+  completed: ['completed'],
+  cancelled: ['cancelled'],
+}
+
+export function isProjectStatusTransitionAllowed(
+  from: ProjectStatus,
+  to: ProjectStatus
+): boolean {
+  return projectStatusTransitions[from].includes(to)
+}
+
 export const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
   client: z.string().min(1).max(255),
