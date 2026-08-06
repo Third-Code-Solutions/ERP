@@ -1,10 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser } from '@third-code-erp/auth'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { projects, users } from '@third-code-erp/database/schema'
+import { projects } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
+import { isProjectStatusTransitionAllowed } from '@third-code-erp/shared-types'
 import { writeAuditLog, computeDiff } from '@/lib/audit'
 import {
   projectWritesUseCoreApi,
@@ -18,16 +19,14 @@ export async function updateProject(
   projectId: string,
   formData: FormData
 ): Promise<{ error?: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  const profile = await requireUserProfile()
+  const user = profile.user
+  requireCapability(profile, 'project.update')
 
   const [existing] = await db
     .select()
     .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
 
   if (!existing) return { error: 'Project not found' }
 
@@ -42,10 +41,17 @@ export async function updateProject(
   const location = str(formData.get('location'))
   const notes = str(formData.get('notes'))
 
+  const nextStatus = status ?? existing.status
+  if (!isProjectStatusTransitionAllowed(existing.status, nextStatus)) {
+    return {
+      error: `Project status cannot change from ${existing.status} to ${nextStatus}`,
+    }
+  }
+
   const updates = {
     name,
     client,
-    status: status ?? existing.status,
+    status: nextStatus,
     project_type: project_type ?? null,
     total_sqm: total_sqm ?? null,
     location: location ?? null,
@@ -53,7 +59,7 @@ export async function updateProject(
     updated_at: new Date(),
   }
 
-  if (projectWritesUseCoreApi(userRow.tenant_id)) {
+  if (projectWritesUseCoreApi(profile.tenantId)) {
     const result = await updateProjectThroughCoreApi(projectId, {
       name,
       client,
@@ -74,10 +80,10 @@ export async function updateProject(
   await db
     .update(projects)
     .set(updates)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
 
   await writeAuditLog({
-    tenantId: userRow.tenant_id,
+    tenantId: profile.tenantId,
     actorId: user.id,
     entityType: 'project',
     entityId: projectId,
