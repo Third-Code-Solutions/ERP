@@ -28,3 +28,12 @@ test('guard blocks deploy commands in repository automation', () => {
   assert.equal(report.status, 'review_required')
   assert.match(report.blockers.join('\n'), /deploy command/)
 })
+
+test('guard blocks Railway deploy commands in repository automation', () => {
+  const report = buildVercelSpendGuardReport({
+    config: { git: { deploymentEnabled: false } },
+    automationText: 'railway up --service api',
+  })
+  assert.equal(report.status, 'review_required')
+  assert.match(report.blockers.join('\n'), /Railway deploy command/)
+})

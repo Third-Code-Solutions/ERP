@@ -1,5 +1,13 @@
 # Target State
 
+## M3.115 provider spend gate (2026-08-06)
+
+Every controlled release must include a green, read-only provider spend
+report. Vercel Git deployment stays disabled, repository automation cannot
+invoke Vercel or Railway deploy commands, and readiness alone cannot authorize
+a paid provider action. A failed or missing spend report blocks the release;
+the gate does not create a build or infer a numeric billing allowance.
+
 ## M3.114 duplicate-data mapping gate (2026-08-06)
 
 Before any uniqueness migration, owner mapping must be versioned, external to

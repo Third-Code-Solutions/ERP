@@ -1,5 +1,19 @@
 # Work Log
 
+## 2026-08-06 - M3.115 provider spend gate
+
+Integrated the existing Vercel Git/deploy-command guard into the controlled
+release planner and expanded it to reject Railway deploy commands in workspace
+manifests/workflows. A missing or failed spend report now blocks the aggregate
+release even when provider readiness is green. Focused tests pass 4/4 for the
+guard and 5/5 for the release planner; the live read-only planner reports
+Railway/Vercel readiness 200 and spend `clear`, while database, duplicate-PO,
+and audit gates remain review-required. No Vercel/Railway build, provider
+setting, hosted SQL, Storage, or tenant-data mutation occurred.
+
+Next action: obtain the owner-approved duplicate mapping and managed Supabase
+backup/parity evidence; keep spend guard and all ERP flags closed.
+
 ## 2026-08-06 - M3.114 Purchase Order mapping preflight
 
 Added a read-only owner-mapping validator for the duplicate Purchase Order

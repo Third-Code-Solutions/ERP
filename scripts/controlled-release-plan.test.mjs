@@ -35,6 +35,7 @@ function clearInputs() {
         blockers: [],
       },
     },
+    spend: { status: 'clear', blockers: [] },
   }
 }
 
@@ -100,3 +101,12 @@ test('blocks provider readiness failures without hiding the endpoint identity', 
   assert.match(report.blockers[0] ?? '', /^vercel:/)
 })
 
+test('blocks a missing spend guard instead of treating readiness as approval', () => {
+  const input = clearInputs()
+  input.spend = { status: 'review_required', blockers: [] }
+
+  const report = buildControlledReleasePlan(input)
+  assert.equal(report.status, 'review_required')
+  assert.deepEqual(report.components.spend, { status: 'review_required' })
+  assert.match(report.blockers.join('\n'), /spend: provider spend guard/)
+})
