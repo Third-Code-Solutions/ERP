@@ -2,6 +2,7 @@ import 'reflect-metadata'
 
 import {
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
 import type {
@@ -9,7 +10,7 @@ import type {
   ProjectListQuery,
   UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
-import { projectCreateRequests } from '@third-code-erp/database/schema'
+import { projectCreateRequests, users } from '@third-code-erp/database/schema'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -59,7 +60,17 @@ const COMMAND: UpdateProjectCommand = {
   expectedUpdatedAt: UPDATED_AT.toISOString(),
 }
 
-function harness(existingRows = [EXISTING], createEnabled = true) {
+function harness(
+  existingRows = [EXISTING],
+  createEnabled = true,
+  membershipRows = [
+    {
+      tenantId: PRINCIPAL.tenantId,
+      role: PRINCIPAL.role,
+      email: PRINCIPAL.email,
+    },
+  ]
+) {
   const requestRecord = {
     id: '44444444-4444-4444-8444-444444444444',
     requestHash: '',
@@ -72,8 +83,16 @@ function harness(existingRows = [EXISTING], createEnabled = true) {
   const requestForUpdate = vi.fn().mockResolvedValue([requestRecord])
   const requestLimit = vi.fn().mockReturnValue({ for: requestForUpdate })
   const requestWhere = vi.fn().mockReturnValue({ limit: requestLimit })
+  const membershipForUpdate = vi.fn().mockResolvedValue(membershipRows)
+  const membershipLimit = vi.fn().mockReturnValue({ for: membershipForUpdate })
+  const membershipWhere = vi.fn().mockReturnValue({ limit: membershipLimit })
   const from = vi.fn((table: unknown) => ({
-    where: table === projectCreateRequests ? requestWhere : whereSelect,
+    where:
+      table === projectCreateRequests
+        ? requestWhere
+        : table === users
+          ? membershipWhere
+          : whereSelect,
   }))
   const select = vi.fn().mockReturnValue({ from })
 
@@ -150,6 +169,7 @@ function harness(existingRows = [EXISTING], createEnabled = true) {
     values,
     insert,
     requestRecord,
+    membershipForUpdate,
   }
 }
 
@@ -316,6 +336,32 @@ describe('ProjectsService', () => {
       probe.service.create(command, PRINCIPAL, IDEMPOTENCY_KEY)
     ).rejects.toMatchObject({ status: 503 })
     expect(probe.transaction).not.toHaveBeenCalled()
+  })
+
+  it('rechecks the locked membership before project creation', async () => {
+    const probe = harness([EXISTING], true, [
+      {
+        tenantId: PRINCIPAL.tenantId,
+        role: 'viewer',
+        email: PRINCIPAL.email,
+      },
+    ])
+    const command: CreateProjectCommand = {
+      name: 'New Project',
+      client: 'New Client',
+      status: 'lead',
+      projectType: null,
+      totalSqm: null,
+      location: null,
+      notes: null,
+    }
+
+    await expect(
+      probe.service.create(command, PRINCIPAL, IDEMPOTENCY_KEY)
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(probe.membershipForUpdate).toHaveBeenCalledOnce()
+    expect(probe.insert).not.toHaveBeenCalled()
+    expect(probe.audit.stampActor).not.toHaveBeenCalled()
   })
 
   it('creates tenant-scoped Project evidence inside one transaction', async () => {
