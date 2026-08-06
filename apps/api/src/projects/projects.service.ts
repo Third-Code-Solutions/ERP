@@ -29,6 +29,7 @@ import {
   type ProjectReadResult,
   type ProjectUpdateResult,
   type UpdateProjectCommand,
+  isProjectStatusTransitionAllowed,
 } from '@third-code-erp/shared-types'
 import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
@@ -395,6 +396,11 @@ export class ProjectsService {
         .for('update')
 
       if (!existing) throw new NotFoundException('Project not found')
+      if (!isProjectStatusTransitionAllowed(existing.status, command.status)) {
+        throw new ConflictException(
+          `Project status cannot change from ${existing.status} to ${command.status}`
+        )
+      }
       if (
         existing.updated_at.toISOString() !==
         new Date(command.expectedUpdatedAt).toISOString()

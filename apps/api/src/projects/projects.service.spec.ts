@@ -8,6 +8,7 @@ import {
 import type {
   CreateProjectCommand,
   ProjectListQuery,
+  ProjectStatus,
   UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
 import { projectCreateRequests, users } from '@third-code-erp/database/schema'
@@ -35,7 +36,7 @@ const EXISTING = {
   client: 'Old Client',
   location: null,
   project_type: 'mep' as const,
-  status: 'active' as const,
+  status: 'active' as ProjectStatus,
   total_sqm: 100,
   notes: null,
   created_by: PRINCIPAL.userId,
@@ -533,6 +534,20 @@ describe('ProjectsService', () => {
     expect(probe.membershipForUpdate).toHaveBeenCalledOnce()
     expect(probe.transactionClient.update).not.toHaveBeenCalled()
     expect(probe.audit.stampActor).not.toHaveBeenCalled()
+  })
+
+  it('rejects reopening a terminal Project status', async () => {
+    const probe = harness([
+      {
+        ...EXISTING,
+        status: 'completed',
+      },
+    ])
+
+    await expect(
+      probe.service.update(EXISTING.id, COMMAND, PRINCIPAL)
+    ).rejects.toMatchObject({ status: 409 })
+    expect(probe.transactionClient.update).not.toHaveBeenCalled()
   })
 
   it('rejects a Project outside the caller tenant scope', async () => {
