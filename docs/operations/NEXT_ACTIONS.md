@@ -15,11 +15,11 @@ redeploying Railway.
 
 ## Exact next action after M3.141 Core-only manual Cost Entry creation
 
-Run focused/full local gates, then push reviewed M3.141 source/docs to
-`origin/agent-02/third-code-erp-landing` and verify remote SHA/clean worktree.
-Keep hosted Supabase, Vercel, Railway, provider variables, and ERP canaries
-closed. Next source slice: design Core Cost Entry deletion with locked
-membership, manual-only guard, tenant scope, idempotency, audit, and a
+M3.141 is pushed as source SHA
+`f9770a015e0c8769010cf08cb4f31f7c26b6f656`; remote SHA and clean worktree
+verified. Keep hosted Supabase, Vercel, Railway, provider variables, and ERP
+canaries closed. Next source slice: design Core Cost Entry deletion with
+locked membership, manual-only guard, tenant scope, idempotency, audit, and a
 recoverable rollback contract; do not remove legacy delete until that boundary
 has tests and local replay evidence. Managed parity/recovery/identity/audit/
 spend evidence still blocks hosted canaries.

@@ -52,7 +52,9 @@ Validation: action 5/5; Core client 113/113; Web 91 files/591 tests; shared
 production build 81/81 routes; typecheck/lint, migration verifier, Actionlint,
 Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed. Database
 skips require `DATABASE_URL`; prior disposable replay supplies no-skip
-evidence.
+evidence. Source SHA `f9770a015e0c8769010cf08cb4f31f7c26b6f656` is pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified.
 
 ## 2026-08-07 - M3.139 self-hosted Core authority evidence
 

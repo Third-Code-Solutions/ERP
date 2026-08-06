@@ -38,8 +38,10 @@ from Core's exact-money, tenant, replay, and audit guarantees. Splitting
 create from delete keeps this slice small while making its remaining direct
 writer visible instead of masking it.
 
-Evidence: focused Web action 5/5, Core client 113/113, Web typecheck passed;
-hosted state unchanged.
+Evidence: focused Web action 5/5, Core client 113/113, Web 91/591,
+typecheck/lint, production build, migration/security, controlled-release, and
+provider-spend gates passed; hosted state unchanged. Source checkpoint:
+`f9770a015e0c8769010cf08cb4f31f7c26b6f656`, remote SHA verified.
 
 ## D-247 - Require disposable replay before hosted Core canary (2026-08-07)
 
