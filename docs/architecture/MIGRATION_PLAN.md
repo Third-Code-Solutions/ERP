@@ -1,5 +1,20 @@
 # Migration Plan
 
+## M3.130 dashboard fault isolation
+
+Extended `loadDashboardForRole` with an optional executive-failure fallback.
+The dashboard passes its existing Today loader as the fallback, renders a
+plain-language status notice, and preserves the existing route error boundary
+if the scoped fallback also fails. No fake analytics defaults or direct browser
+database writes were added.
+
+Validation: dashboard-access tests 17/17, Web tests 89 files/579 tests,
+serial typecheck, TS-only lint, production build 81/81 routes, migration-file
+verification, Actionlint, Gitleaks, controlled-release (5/5), and spend guard
+(4/4) pass. The first parallel gate attempt was discarded because build and
+typecheck raced on shared `.next` generated types; the ordered rerun passed.
+No hosted or provider mutation occurred.
+
 ## M3.129 self-hosted free database lane
 
 Ran `scripts/ci/run-wsl1-database-lane.ps1` on the existing `ThirdCodeERP-Test`

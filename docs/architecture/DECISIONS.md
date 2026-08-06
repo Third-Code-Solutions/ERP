@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-238 - Preserve a truthful Today view when executive analytics fail (2026-08-07)
+
+Decision: executive dashboard queries may fall back only to the existing
+tenant/assignee-scoped Today view. The UI must disclose degraded analytics and
+must not manufacture zero-valued KPIs or broaden access.
+
+Rationale: the dashboard currently aggregates several tables during an
+incremental migration. A stale optional table should not make authorized work
+unavailable, but silently showing incomplete portfolio metrics would be worse
+than a clear degraded state.
+
+Evidence: `dashboard-access` fallback tests pass; Web production build emits
+81/81 routes. No transaction, schema, provider, or tenant-data path changed.
+
 ## D-237 - Keep the free self-hosted replay lane separate from CLI diff proof (2026-08-07)
 
 Decision: use the WSL PostgreSQL/Redis lane for repeatable source replay and

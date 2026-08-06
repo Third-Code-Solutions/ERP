@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-07 - M3.130 dashboard fault isolation
+
+The executive `/dashboard` path used an all-or-nothing `Promise.all` across
+portfolio analytics and the authorized Today view. Added an explicit degraded
+mode to `loadDashboardForRole`: executive failures fall back to the existing
+tenant/assignee-scoped Today view and show a status notice; no fake KPI values
+or broader query scope are introduced. Added two regression tests.
+
+Validation passed in ordered mode: Web 89 files/579 tests, typecheck, lint,
+81/81 production routes, migration verifier, Actionlint, Gitleaks,
+controlled-release 5/5, and spend guard 4/4. A parallel attempt was discarded
+after the known shared `.next` build/typecheck race. No hosted/provider action.
+
 ## 2026-08-07 - M3.129 self-hosted free database lane
 
 Ran the approved WSL lane on `ThirdCodeERP-Test`. PostgreSQL 17.10 and Redis

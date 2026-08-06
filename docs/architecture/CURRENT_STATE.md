@@ -4,6 +4,16 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.130 dashboard fault isolation (2026-08-07)
+
+Executive dashboard loading now has a fail-closed degraded path. If the
+portfolio analytics bundle fails during an incremental schema rollout, the
+page renders the existing tenant- and assignee-scoped Today view with an
+explicit notice instead of showing invented zero KPIs or blanking the whole
+Server Component. The fallback is covered by dashboard-access tests and does
+not change any write or authorization path. Serial build/typecheck validation
+passed; no hosted/provider state changed.
+
 ## M3.129 self-hosted free database lane (2026-08-07)
 
 The approved WSL self-hosted lane completed against PostgreSQL 17.10 and Redis
