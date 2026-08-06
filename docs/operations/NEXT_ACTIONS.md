@@ -1,5 +1,14 @@
 # Next Actions
 
+## Exact next action after M3.126 clean disposable PostgreSQL replay
+
+Capture a pinned Supabase CLI schema-diff or self-hosted CI artifact for the
+same 97-file replay. Then obtain supported managed backup/catalog/data parity,
+owner-approved duplicate Purchase Order mapping, `AUDIT_RECOVERY_TENANT_ID`,
+rollback proof, exact `kurtgav` provider identity, and explicit spend approval.
+Keep Supabase, Vercel, Railway, and ERP canary flags unchanged; the disposable
+replay does not authorize SQL, deploy, or data repair.
+
 ## Exact next action after M3.125 capability evidence boundary refresh
 
 Run `git diff --check`, the clean-room/branding test, and the normal serial

@@ -1,5 +1,22 @@
 # Work Log
 
+## 2026-08-06 - M3.126 clean disposable PostgreSQL replay
+
+Created disposable PostgreSQL 17.10 database `erp_clean_head_20260806_m3125`
+in `ThirdCodeERP-Test`, applied the Supabase system bootstrap, all 97 ordered
+migrations, and `supabase/seed.sql`. The verifier passed every catalog and
+security invariant. Database Vitest passed 51/51 files and 324/324 tests with
+zero skips using the hardening, accounting, reconciliation, cash, budget,
+receivables, inventory, stock-movement, and payables expectation flags.
+
+This is source-only replay evidence. Hosted Supabase, Vercel, Railway, flags,
+and tenant data were unchanged. The first test pass exposed a missing seeded
+Cost Code; applying the deterministic seed corrected it and the rerun passed.
+
+Next action: capture the pinned Supabase CLI schema-diff/CI artifact and keep
+hosted release closed until backup, duplicate-PO mapping, audit recovery,
+rollback, identity, security, and spend gates are green.
+
 ## 2026-08-06 - M3.125 capability evidence boundary refresh
 
 Updated the capability matrix and architecture memory to source SHA

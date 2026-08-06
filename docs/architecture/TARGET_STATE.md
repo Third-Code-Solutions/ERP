@@ -1,5 +1,13 @@
 # Target State
 
+## M3.126 disposable replay evidence (2026-08-06)
+
+The source ledger must recreate the schema from a disposable PostgreSQL 17
+baseline, load the deterministic seed, satisfy the catalog verifier, and run
+all database tests without skips. This proves source correctness only. Hosted
+parity still requires a supported managed backup/export, catalog/data diff,
+rollback rehearsal, and explicit release authorization.
+
 ## M3.125 capability evidence boundary (2026-08-06)
 
 Capability status must name the exact source checkpoint and distinguish local

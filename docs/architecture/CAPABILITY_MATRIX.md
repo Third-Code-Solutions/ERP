@@ -18,6 +18,13 @@ tenant/flag selectors and compatibility paths where the Core slice is not
 enabled; Python/Cortex stays advisory and cannot finalize ERP transactions.
 No provider or hosted database state changed for this refresh.
 
+M3.126 replay update: a fresh disposable PostgreSQL 17.10 database was
+bootstrapped and replayed from the 97-file source ledger, then loaded with the
+deterministic seed. The verifier passes and database Vitest is 51/51 files,
+324/324 tests, zero skips. This is source replay evidence only; the hosted
+55/97 ledger, catalog blockers, duplicate Purchase Orders, audit recovery,
+rollback, identity, and spend gates remain open.
+
 M3.109 update: protected dashboard render failures now receive a responsive,
 branded recovery boundary with retry/navigation and digest-only support
 reference. No ERP authority or transaction path changed. Web evidence is
