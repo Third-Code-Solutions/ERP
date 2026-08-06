@@ -1,8 +1,14 @@
 # Third Code ERP capability matrix
 
 Status date: 2026-08-06
-Source checkpoint: `91ed375` (M3.96 cash register replay parity evidence)
+Source checkpoint: `db786f2` (M3.102 delivery in-transit authority slice)
 Scope: clean-room construction ERP capability planning and incremental delivery
+
+M3.102 update: delivery `site_ready -> in_transit` now has a closed NestJS
+authority route with tenant/idempotency replay and semantic audit. The Web
+action remains compatibility-default with the new exact flag/allowlist empty;
+hosted source-suffix reconciliation and canary evidence are still pending.
+No hosted migration or provider build occurred.
 
 M3.101 hosted update: Supabase project `aqqrtkmtcsfkbyyqxowv` is healthy on
 PostgreSQL 17.6.1 but remains at 55/92 migrations. Source asset migration
@@ -202,7 +208,7 @@ provider, and canary gates are complete.
 | Compare suppliers and dispatch RFQs | RFQ routes, quote workflow, BullMQ/outbox | Live | Nest adapter plus durable outbox |
 | Approve and issue Purchase Orders | PO creation and three-step workflow | Adapter | Nest route is closed by tenant flag; legacy path remains for unselected tenants |
 | Confirm a supplier response to an issued PO | M3.28 Nest public route, M3.29 protected SCM session minting, M3.30 gated email-link reconstruction, M3.49 read/decision portal | Source-gated | Public token authority, least-privilege read model, session scope/expiry checks, server transaction, explicit decision state |
-| Schedule deliveries and prepare a site | Delivery routes and state machine | Local | Nest transition slices, tenant-scoped idempotency |
+| Schedule deliveries and prepare a site | Delivery routes and state machine | Local | Nest transition slices, including closed `site_ready -> in_transit`, with tenant-scoped idempotency |
 | Inspect and accept/reject delivery | Inspection routes and evidence | Local | Nest transition slices, audit and guarded status changes |
 | Receive, transfer, consume, and count stock | Inventory control center and ledger schema | Local | PostgreSQL ledger constraints; Core posting/reversal slices |
 | Control budget, commitments, claims, and cost-to-complete | Budget, cost-code, claim, and report routes | Local | Tenant-scoped accounting and project controls |
@@ -221,7 +227,7 @@ provider, and canary gates are complete.
 | Receivables | Invoice, tax/retention, receipt, reconciliation, reversal | Local finance slices exist | Hosted parity and exact-cent integration canary |
 | Compliance and audit | Tenant isolation, capability checks, immutable audit, evidence lineage | Implemented across current slices | Audit-chain recovery with owner-approved tenant input |
 | People and work management | Role-aware tasks, approvals, workload, site cadence | Tasks and permissions exist | Keep HR/payroll out of the construction transaction path until discovery |
-| Assets and maintenance | Track equipment, warranties, service history, and cost | Operational asset register plus closed Nest read projection; no Web adapter, maintenance history, or accounting lifecycle | Disposable replay, then protected tenant read canary; defer maintenance/history/accounting authority |
+| Assets and maintenance | Track equipment, warranties, service history, and cost | Operational asset register plus closed Nest/Web read projection; no maintenance history or accounting lifecycle | Hosted parity, then protected tenant read canary; defer maintenance/history/accounting authority |
 | Service and customer success | Portal, issues, warranty, satisfaction, communications | Warranty portal and CNPS are live | Add supplier/customer response loops only after token threat model |
 | Reporting and planning | Role-specific Today views, scheduled reports, exports, forecasts | Dashboard, reports, and Cortex context exist | Measure decision latency and data freshness before adding breadth |
 

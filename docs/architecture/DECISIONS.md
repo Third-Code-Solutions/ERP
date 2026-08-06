@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-213 - Route delivery in-transit through the existing Nest ledger (2026-08-06)
+
+Decision: add a dedicated `mark_in_transit` value to the existing
+`delivery_workflow_action` enum and expose
+`POST /v1/procurement/deliveries/:deliveryScheduleId/in-transit`. Nest
+rechecks the verified tenant membership and `delivery.receive`, preflights and
+locks the same-tenant schedule, permits only `site_ready`, claims the durable
+tenant/idempotency-key request, commits `in_transit` with an optimistic status
+predicate, stores a strict replay result, and audits the transition. Next
+selects this authority only for exact-`true` plus UUID tenant allowlist and
+never falls back after a selected Core error. Keep every selector closed until
+hosted suffix reconciliation, protected canary, rollback, and spend gates.
+
+Rationale: the legacy `markInTransit` Server Action directly mutates a
+sensitive delivery table. This slice removes one official state transition
+from the browser authority boundary without rewriting scheduling, receipt,
+inspection, or cancellation behavior. Python/AI has no transaction authority.
+
+Evidence: source `db786f2`; focused API 43/43, Web 131/131, rollback-only
+delivery integration 2/2, full reproducibility 93/93 migrations. Supabase,
+Vercel, Railway, Storage, and tenant canaries were not mutated.
+
 ## D-212 - Hosted Asset Register remains unapplied (2026-08-06)
 
 Decision: do not apply the source asset migration to Supabase from this

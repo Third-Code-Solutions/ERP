@@ -1,5 +1,23 @@
 # Next Actions
 
+## Exact next action after M3.102 delivery in-transit authority slice
+
+1. Keep `ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_ENABLED=false`,
+   `ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_TENANT_IDS` empty,
+   `ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_VIA_API=false`, and its allowlist
+   empty. Do not trigger Vercel/Railway builds or apply hosted SQL.
+2. Obtain supported Supabase backup/catalog/data/audit export for
+   `aqqrtkmtcsfkbyyqxowv`; reconcile all source migrations after hosted
+   `20260729233017` in order, now including
+   `20260806120000_delivery_in_transit_workflow.sql`. Confirm the delivery
+   enum, ledger, RLS, grants, indexes, triggers, and audit behavior.
+3. Resolve the owner-approved tenant-scoped 12-record Purchase Order
+   duplicate mapping and review the 11 security warnings before any hosted
+   apply or canary.
+4. After parity, run one protected delivery browser canary covering
+   `site_ready -> in_transit`, duplicate retry, cross-tenant denial, audit,
+   rollback, readiness, and spend. Keep Python/AI advisory-only.
+
 ## Exact next action after M3.101 hosted Asset Register parity snapshot
 
 1. Keep `ERP_ASSET_READS_ENABLED=false`, `ERP_ASSET_READS_TENANT_IDS` empty,

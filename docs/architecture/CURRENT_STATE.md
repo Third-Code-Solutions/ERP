@@ -4,6 +4,25 @@ Verified from the repository and the configured Supabase target on 2026-08-06.
 Application deployments are reported separately and are never inferred from a
 successful build.
 
+## M3.102 closed Nest delivery in-transit transition (2026-08-06)
+
+Added the smallest next delivery authority slice: `site_ready -> in_transit`.
+The strict shared command/result, Nest `POST /v1/procurement/deliveries/:id/in-transit`
+route, `delivery.receive` recheck, tenant allowlist, durable replay ledger,
+optimistic status guard, and semantic audit event are all server-owned. The
+existing Web action is a compatibility adapter: it selects Core only for the
+exact boolean plus UUID tenant allowlist and never falls back after a selected
+Core failure. All new selectors remain false/empty.
+
+Validation: shared delivery contract 14/14; focused API controller/service
+43/43; focused Web adapter/delivery actions 2 files/131 tests; rollback-only
+PostgreSQL 17 integration 2 files/2 tests; full database reproducibility
+verification 93/93 migrations, 32 protected tables, and 3 service-only tables;
+shared/database/API/Web typechecks pass. Source SHA `db786f2` is pushed to
+GitHub `main` and `agent-02/third-code-erp-landing`. Hosted Supabase remains
+read-only at 55/93 migrations; no Supabase, Storage, Vercel, Railway, or
+tenant-canary mutation occurred.
+
 ## M3.101 hosted Supabase Asset Register parity snapshot (2026-08-06)
 
 Read-only MCP inspection of project `aqqrtkmtcsfkbyyqxowv` confirms the
