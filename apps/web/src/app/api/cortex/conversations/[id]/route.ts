@@ -9,6 +9,10 @@ import {
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
 import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
+import {
+  cortexConversationReadsUseCoreApi,
+  getCortexConversationThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 const storedCitationSchema = z.object({
   nodeId: z.string().uuid(),
@@ -44,6 +48,22 @@ export async function GET(
       { error: 'Invalid id' },
       { status: 400, headers: CORTEX_PRIVATE_HEADERS }
     )
+  }
+
+  if (cortexConversationReadsUseCoreApi(profile.tenantId)) {
+    const result = await getCortexConversationThroughCoreApi(parsed.data)
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          error:
+            result.status === 404
+              ? 'Not found'
+              : result.error ?? 'Cortex conversation service is unavailable.',
+        },
+        { status: result.status ?? 503, headers: CORTEX_PRIVATE_HEADERS }
+      )
+    }
+    return NextResponse.json(result.data, { headers: CORTEX_PRIVATE_HEADERS })
   }
 
   const conversation = await getCortexConversation(

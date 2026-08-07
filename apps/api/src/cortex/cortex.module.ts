@@ -13,6 +13,9 @@ import { CortexEntityService } from './cortex-entity.service'
 import { CortexGraphController } from './cortex-graph.controller'
 import { CortexGraphPipe } from './cortex-graph.pipe'
 import { CortexGraphService } from './cortex-graph.service'
+import { CortexConversationsController } from './cortex-conversations.controller'
+import { CortexConversationIdPipe } from './cortex-conversations.pipe'
+import { CortexConversationsService } from './cortex-conversations.service'
 import { CortexSearchController } from './cortex-search.controller'
 import { CortexSearchPipe } from './cortex-search.pipe'
 import { CortexSearchService } from './cortex-search.service'
@@ -32,12 +35,15 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     BullModule.registerQueue({ name: CORTEX_SEMANTIC_INDEX_QUEUE }),
   ],
   controllers: [
+    CortexConversationsController,
     CortexEntityController,
     CortexGraphController,
     CortexSearchController,
     CortexSemanticIndexController,
   ],
   providers: [
+    CortexConversationsService,
+    CortexConversationIdPipe,
     CortexEntityService,
     CortexEntityPipe,
     CortexGraphService,
@@ -58,6 +64,7 @@ export class CortexModule implements NestModule {
       .apply(RequestObservabilityMiddleware)
       .forRoutes(
         CortexEntityController,
+        CortexConversationsController,
         CortexGraphController,
         CortexSearchController,
         CortexSemanticIndexController

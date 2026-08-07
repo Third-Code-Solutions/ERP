@@ -1,5 +1,26 @@
 # Next Actions
 
+## Exact next action after M3.159 Core Cortex conversation reads
+
+Keep `ERP_CORTEX_CONVERSATION_READS_ENABLED=false`,
+`ERP_CORTEX_CONVERSATION_READS_VIA_API=false`, and both exact-tenant allowlists
+empty. Do not configure a wildcard. The source boundary is green, but no
+managed legacy/Core comparison or protected tenant canary was run.
+
+Database owner still must finish M3.152: approve the separate Purchase Order
+mapping and prove it on a complete managed backup/PITR restore. After that,
+compare legacy/Core conversation list/detail responses for two users and every
+production role in one exact tenant, including unscoped, authorized, revoked,
+foreign, malformed, corrupt-context, citation-revocation, and Core-unavailable
+cases. Rollback is both conversation flags false.
+
+Safe source-only continuation: specify and implement an idempotent, audited
+NestJS conversation-write command that atomically verifies ownership and
+appends a turn. Keep provider streaming separate and keep Python advisory-only.
+Do not reconnect Vercel Git, deploy/build Vercel or Railway, apply hosted SQL,
+mutate hosted Auth/Storage/data, create a paid branch, or call any AI/image
+provider without explicit cost and release approval.
+
 ## Exact next action after M3.158 protected Cortex route proof
 
 Keep every Cortex Core/indexing/legacy flag false, every tenant allowlist

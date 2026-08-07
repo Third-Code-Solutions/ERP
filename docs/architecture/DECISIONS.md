@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-268 - Move Cortex conversation reads before chat writes (2026-08-07)
+
+Decision: give saved conversation list/detail reads a separately canaried
+NestJS boundary before migrating streaming chat or memory mutations. Core owns
+tenant/user scope, current-role context authorization, and citation
+rehydration. Next remains a compatibility facade; exact-tenant Core selection
+fails closed and all gates default disabled.
+
+Rationale: conversation history is the durable AI-brain memory surface, but
+streaming/provider work has a wider failure and cost boundary. Moving the
+read-only slice first proves the identity, ownership, RBAC, response-contract,
+and rollback seams without changing data or spending a provider budget. Stored
+citation labels cannot be trusted because permissions and source records may
+change after a message is saved.
+
+Evidence: strict shared contracts; Nest/Supertest list/detail tests; service
+tests for disabled gates, tenant/user arguments, revoked context, foreign
+threads, and current citation projection; Next tests for compatibility and no
+fallback; full package tests and local production builds. No database or
+hosted runtime change occurred, so exact-tenant parity remains a release gate.
+
 ## D-267 - Bound root test package concurrency at two (2026-08-07)
 
 Decision: run the canonical root test command as
