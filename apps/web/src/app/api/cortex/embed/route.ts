@@ -12,6 +12,7 @@ import {
   consumeProviderQuota,
   providerQuotaBlockedResponse,
 } from '@/lib/provider-quota'
+import { tenantEnabledForCoreApi } from '@/lib/erp-core-client'
 
 const BATCH_SIZE = 64
 
@@ -39,6 +40,19 @@ export async function POST(_req: NextRequest) {
     return NextResponse.json(
       { error: 'Forbidden' },
       { status: 403, headers: CORTEX_PRIVATE_HEADERS }
+    )
+  }
+
+  if (
+    !tenantEnabledForCoreApi(
+      profile.tenantId,
+      process.env.ERP_CORTEX_LEGACY_EMBED_ENABLED,
+      process.env.ERP_CORTEX_LEGACY_EMBED_TENANT_IDS
+    )
+  ) {
+    return NextResponse.json(
+      { error: 'Legacy semantic indexing is disabled.' },
+      { status: 410, headers: CORTEX_PRIVATE_HEADERS }
     )
   }
 

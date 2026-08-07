@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-07 - M3.155 cost-bounded Cortex semantic indexing jobs
+
+Audited authenticated production `/cortex` read-only. The existing enabled
+`Build semantic index` control had no confirmation and source showed an
+80-batch browser loop over 64-record provider calls. At 390 x 844 it remained a
+44px target and production console errors were zero. The control and chat were
+not triggered.
+
+Implemented one original vertical slice. Shared types fix the request at 64
+records with explicit cost consent and identity-only queue envelopes. New
+PostgreSQL state enforces tenant/requester linkage, idempotency, one active job,
+three attempts, and one provider call. Nest revalidates role/capability, audits
+creation, reserves spend, and commits vectors/job success atomically. Recovery
+never retries a stale reserved call. BullMQ holds no tenant/actor payload.
+Python receives only bounded text. Web uses authenticated Core adapters, one
+POST, status polling, explicit confirmation, accessible 44px controls, and a
+paused fail-closed state. Legacy direct indexing defaults to `410`.
+
+Focused suites passed. Full local results: shared 243/243; API source 531/531;
+API e2e 14/14; Web 631/631; database 198 passed and 142 skipped because
+`DATABASE_URL` was absent. Final queue 3/3 and UI disclosure 2/2 tests passed.
+Workspace lint/typecheck and final local Nest/Next production builds passed.
+Docker service was stopped, so no disposable migration or RLS runtime claim is
+made.
+
+Source migration ledger is now 104 through `20260807160000`; managed Supabase
+remains last verified 55 through `20260729233017`, leaving 49 pending. Updated
+the machine parity manifest without applying it. No hosted SQL, database row,
+Storage object, provider request, variable, canary, Vercel/Railway build, Git
+connection, or deployment changed.
+
 ## 2026-08-07 - M3.154 Core Cortex entity-context read authority
 
 Audited live `/cortex` read-only. Authenticated production displayed 384

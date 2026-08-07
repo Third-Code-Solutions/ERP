@@ -11,6 +11,7 @@ import { canonicalRole } from '@/lib/operations/nav-config'
 import { presentCortexBrief } from '@/lib/cortex/brief-presentation'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
+import { cortexSemanticIndexJobsUseCoreApi } from '@/lib/erp-core-client'
 
 export const metadata: Metadata = { title: 'Cortex — AI Brain' }
 
@@ -78,7 +79,11 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
             linked into one permissioned, source-cited knowledge graph.
           </p>
         </div>
-        {canonicalRole(profile.role) === 'admin' && <CortexIndexButton />}
+        {canonicalRole(profile.role) === 'admin' && (
+          <CortexIndexButton
+            enabled={cortexSemanticIndexJobsUseCoreApi(profile.tenantId)}
+          />
+        )}
       </header>
 
       <div className="cortex-kpis">

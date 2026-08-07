@@ -3830,8 +3830,43 @@ a { color: inherit; }
 }
 
 /* Cortex — build semantic index control */
-.cortex-index-ctl { display: flex; align-items: center; gap: 8px; }
-.cortex-index-ctl__err { font-size: 0.6875rem; color: var(--color-danger); }
+.cortex-index-ctl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cortex-index-ctl__status { font-size: 0.6875rem; color: var(--color-danger); }
+.cortex-index-dialog {
+  width: min(30rem, calc(100vw - 3rem));
+  padding: 0;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 14px;
+  color: var(--color-navy-900);
+  background: white;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 22%);
+}
+.cortex-index-dialog::backdrop { background: rgb(15 23 42 / 48%); }
+.cortex-index-dialog__body { padding: 24px; }
+.cortex-index-dialog__eyebrow {
+  margin: 0 0 8px;
+  color: var(--color-neutral-500);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cortex-index-dialog h2 { margin: 0; font-size: 1.25rem; line-height: 1.3; }
+.cortex-index-dialog p:not(.cortex-index-dialog__eyebrow) {
+  margin: 12px 0 0;
+  color: var(--color-neutral-600);
+  line-height: 1.55;
+}
+.cortex-index-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+@media (max-width: 480px) {
+  .cortex-index-dialog__actions { flex-direction: column-reverse; }
+  .cortex-index-dialog__actions .cortex-tool-btn { width: 100%; min-height: 44px; }
+}
 
 /* =========================================================================
    Phase 3 — Cost Tracking (project Cost tab)

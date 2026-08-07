@@ -67,6 +67,7 @@ export * from './cost-entry-restore-requests'
 export * from './user-role-assignment-requests'
 // Cortex AI Brain — graph substrate (THIRD_CODE_ERP_IMPLEMENTATION_PROMPT §5, Appendix B)
 export * from './cortex'
+export * from './cortex-semantic-index-jobs'
 // Cortex AI Brain — agent memory (persisted conversations)
 export * from './cortex-chat'
 // Accounting ledger foundation

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
@@ -53,6 +53,19 @@ describe('Cortex embedding response privacy', () => {
     })
     mocks.canonicalRole.mockReturnValue('admin')
     mocks.getUnembeddedCortexNodes.mockResolvedValue([])
+    vi.stubEnv('ERP_CORTEX_LEGACY_EMBED_ENABLED', 'true')
+    vi.stubEnv('ERP_CORTEX_LEGACY_EMBED_TENANT_IDS', TENANT_ID)
+  })
+
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('defaults the legacy provider-spending route closed', async () => {
+    vi.stubEnv('ERP_CORTEX_LEGACY_EMBED_ENABLED', 'false')
+    const response = await request()
+    expect(response.status).toBe(410)
+    expectPrivate(response)
+    expect(mocks.getUnembeddedCortexNodes).not.toHaveBeenCalled()
+    expect(mocks.embedBatch).not.toHaveBeenCalled()
   })
 
   it('keeps an authorized empty-batch response private', async () => {

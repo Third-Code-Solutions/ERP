@@ -38,6 +38,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.105.4
         version: 2.105.4
+      '@third-code-erp/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@third-code-erp/database':
         specifier: workspace:*
         version: link:../../packages/database

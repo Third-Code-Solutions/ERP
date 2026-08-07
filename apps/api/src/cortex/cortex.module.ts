@@ -4,6 +4,9 @@ import {
   type NestModule,
 } from '@nestjs/common'
 import { RequestObservabilityMiddleware } from '../observability/request-observability.middleware'
+import { AuditModule } from '../audit/audit.module'
+import { BullModule } from '@nestjs/bullmq'
+import { ProviderQuotaModule } from '../observability/provider-quota.module'
 import { CortexEntityController } from './cortex-entity.controller'
 import { CortexEntityPipe } from './cortex-entity.pipe'
 import { CortexEntityService } from './cortex-entity.service'
@@ -13,12 +16,26 @@ import { CortexGraphService } from './cortex-graph.service'
 import { CortexSearchController } from './cortex-search.controller'
 import { CortexSearchPipe } from './cortex-search.pipe'
 import { CortexSearchService } from './cortex-search.service'
+import { CORTEX_SEMANTIC_INDEX_QUEUE } from './cortex-semantic-index.constants'
+import { CortexSemanticIndexController } from './cortex-semantic-index.controller'
+import { CortexSemanticIndexPipe } from './cortex-semantic-index.pipe'
+import { CortexSemanticIndexProcessor } from './cortex-semantic-index.processor'
+import { CortexSemanticIndexJobQueue } from './cortex-semantic-index.queue'
+import { CortexSemanticIndexService } from './cortex-semantic-index.service'
+import { CortexSemanticIndexStateService } from './cortex-semantic-index.state'
+import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
 
 @Module({
+  imports: [
+    AuditModule,
+    ProviderQuotaModule,
+    BullModule.registerQueue({ name: CORTEX_SEMANTIC_INDEX_QUEUE }),
+  ],
   controllers: [
     CortexEntityController,
     CortexGraphController,
     CortexSearchController,
+    CortexSemanticIndexController,
   ],
   providers: [
     CortexEntityService,
@@ -27,6 +44,12 @@ import { CortexSearchService } from './cortex-search.service'
     CortexGraphPipe,
     CortexSearchService,
     CortexSearchPipe,
+    CortexSemanticIndexPipe,
+    CortexSemanticIndexProcessor,
+    CortexSemanticIndexJobQueue,
+    CortexSemanticIndexService,
+    CortexSemanticIndexStateService,
+    CortexSemanticIndexWorkerClient,
   ],
 })
 export class CortexModule implements NestModule {
@@ -36,7 +59,8 @@ export class CortexModule implements NestModule {
       .forRoutes(
         CortexEntityController,
         CortexGraphController,
-        CortexSearchController
+        CortexSearchController,
+        CortexSemanticIndexController
       )
   }
 }
