@@ -1,5 +1,38 @@
 # Migration Plan
 
+## M3.165 Cortex provider budget authority (completed)
+
+1. Added strict shared reserve, dispatch, settle, release, state, and exact
+   integer-micros contracts. Attempt number remains bounded by the existing
+   three-attempt generation policy.
+2. Added disabled-by-default tenant/provider/model policies and immutable
+   provider-attempt reservations. Both tables are forced-RLS, service-only, and
+   tenant constrained. Policies have a database audit trigger; supported
+   attempt transitions use Nest semantic audit. No policy rows are seeded.
+3. Added a Nest internal service, not a public endpoint. It locks the current
+   generation job and exact policy, enforces request/daily ceilings, provides
+   exact replay, and audits transitions without prompt content.
+4. Kept terminal settle/release available after a gate closes, while reserve
+   and dispatch require the global gate, exact tenant allowlist, and enabled
+   policy. No provider adapter or worker was activated.
+5. Added unit, migration-structure, rollback-local database integration, and
+   clean-replay coverage for budget caps, replay conflicts, tenant isolation,
+   transition guards, policy closure, actual-cost release, and audit.
+
+Evidence: shared 260; API 589; Web 676; Python 8; lint/typecheck; local Nest/
+Next production build with 82 pages; 108/108 clean disposable migration replay;
+database 354/354 zero-skip; full API integration; identical reproducibility
+hash `ED239E894DF4109848F2EFC991F041217DE955880C4CF6092ECF029CEB966E74`;
+spend 4/4; release 5/5; Actionlint; pinned actions; Gitleaks across 548 commits;
+diff hygiene.
+
+Rollback: leave `ERP_CORTEX_ASSISTANT_PROVIDER_BUDGET_ENABLED=false` and the
+tenant allowlist empty. Do not seed a policy or down-migrate. If source rollback
+is required before managed application, revert this milestone as one unit. If
+already applied later, preserve the ledger and stop reserve/dispatch while Core
+terminalizes open reservations. The next safe source-only slice is a fake
+provider orchestration/recovery proof; it must use no credential or paid call.
+
 ## M3.164 protected full-stack Cortex browser certification (completed)
 
 1. Added a loopback-only Playwright lifecycle that provisions six disposable

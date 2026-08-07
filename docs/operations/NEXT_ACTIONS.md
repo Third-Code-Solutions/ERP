@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.165 provider budget authority
+
+Keep every Cortex provider/Core/Web/worker/recovery gate false, every exact-
+tenant allowlist empty, every policy absent or disabled, provider credentials
+unset, and Vercel Git disconnected. Do not query or mutate managed Supabase,
+deploy/build Vercel or Railway, call an AI/image provider, or create a paid
+resource under the current cost lock.
+
+The next safe source-only milestone is M3.166: add a fake-provider Nest
+orchestration and recovery proof around the new reservation state machine. It
+must demonstrate reserve-before-dispatch, exact retry replay, cancellation and
+failure release, dispatched-attempt settlement, stale-worker fencing, and
+reconciliation of non-terminal reservations without network/provider access.
+Redis may transport opaque work only. Python remains advisory and cannot
+reserve, approve, settle, release, or commit official ERP state.
+
+Before any real provider canary, complete M3.152 backup/PITR and an isolated
+complete-clone replay of all 108 migrations. Then separately approve one exact
+tenant, one disabled-to-enabled policy with low request/daily micros ceilings,
+one credential-scoped provider adapter, observability/alerts, one release SHA,
+and a rollback drill. M3.165 is budget infrastructure, not activation approval.
+
 ## Exact next action after M3.164 protected browser certification
 
 Keep all M3.160-M3.163 Core/Web/worker/recovery gates false, exact-tenant
