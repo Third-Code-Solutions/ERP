@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.148 tenant identity RPC hardening (2026-08-07)
+
+Anonymous callers no longer have EXECUTE on `public.auth_tenant_id()` in
+source. `authenticated` retains the helper solely for current tenant RLS;
+`service_role` retains trusted Core execution. No ERP business capability,
+browser table mutation, provider variable, or hosted canary was enabled.
+
+Validation: 102/102 disposable migrations; database 334/334; API integration
+27/27; Redis recovery; stable schema hash; serial workspace tests;
+typecheck/lint; build 81/81 routes; Actionlint; Gitleaks; controlled-release
+5/5; provider-spend 4/4. Source checkpoint
+`9c2b64b81b64b91de013d470e3147c3817dab27b` is pushed. Managed Supabase is
+still 47 migrations behind source and remains closed.
+
 ## M3.147 managed Supabase parity audit (2026-08-07)
 
 Managed project `aqqrtkmtcsfkbyyqxowv` is healthy on PostgreSQL 17, but its

@@ -5,6 +5,34 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.148 anonymous tenant-identity RPC hardening (2026-08-07)
+
+Source now revokes `anon` and implicit `public` execution of
+`public.auth_tenant_id()` while preserving execution for `authenticated` and
+`service_role`. The helper remains in `public` because current tenant RLS
+policies depend on it; this closes the unnecessary anonymous RPC surface
+without changing policy semantics or the server-mediated public portal
+boundary. Static and runtime tests plus the reproducibility verifier enforce
+the privilege contract.
+
+Fresh disposable PostgreSQL 17/Redis 7.4.9 replay applied 102/102 migrations;
+database tests passed 334/334 without skips; API integration passed 20 files
+and 27 tests; Redis restart/reconnect and pending recovery passed; schema
+hashes before/after matched
+`278B8F024CED178A943B9E22FB14B9CD3BC7AEC3E339269E9DD20969B4B20843`.
+Workspace serial tests, typecheck, lint, production build (81/81 routes),
+Actionlint, Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed.
+Source checkpoint `9c2b64b81b64b91de013d470e3147c3817dab27b` is pushed to
+`origin/agent-02/third-code-erp-landing`.
+
+The existing landing page was also exercised locally at 1440x1000 and
+390x844: responsive layout, Cortex query state, capability accordion, image
+loading, and auth-route prefetch passed with zero console errors and no failed
+dynamic requests. No UI source changed. Managed Supabase remains at the
+M3.147 read-only snapshot: 55 migrations versus 102 in source, now a
+47-migration gap. Vercel, Railway, Supabase SQL, provider variables, and
+tenant data remain unchanged.
+
 ## M3.147 managed Supabase parity audit (read-only, 2026-08-07)
 
 The connected project `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY`, PostgreSQL

@@ -1,5 +1,35 @@
 # Work Log
 
+## 2026-08-07 - M3.148 anonymous tenant-identity RPC hardening
+
+Reconciled the M3.147 security-advisor findings against source. The three
+RLS-without-policy tables are intentionally service-only and forced-RLS; the
+authenticated `SECURITY DEFINER` helpers remain required RLS predicates. One
+real source gap remained: `public.auth_tenant_id()` was executable by `anon`.
+Added migration `20260807140000_revoke_anon_tenant_identity_rpc.sql`, static
+and runtime tests, and verifier coverage. Anonymous/public EXECUTE is revoked;
+authenticated/service execution is preserved.
+
+Validation: focused database tests; files-only verifier (102 migrations);
+serial workspace tests; typecheck/lint; production build 81/81 routes;
+Actionlint; Gitleaks; controlled-release 5/5; provider-spend 4/4. Fresh WSL
+PostgreSQL 17/Redis 7.4.9 replay passed 102/102 migrations, database 334/334,
+API integration 20 files/27 tests, Redis restart/reconnect/pending recovery,
+and identical before/after schema SHA256
+`278B8F024CED178A943B9E22FB14B9CD3BC7AEC3E339269E9DD20969B4B20843`.
+Disposable services were stopped and cleaned.
+
+Local-only browser QA exercised the existing landing page at 1440x1000 and
+390x844. Cortex answers and pressed states changed correctly; the capability
+accordion changed active state; no body overflow, undersized visible mobile
+click targets, console errors, or failed dynamic requests were observed. No
+UI edit or hosted request was required.
+
+Changed source: migration, database hardening test, and reproducibility
+verifier. Source checkpoint `9c2b64b81b64b91de013d470e3147c3817dab27b`
+is pushed to `origin/agent-02/third-code-erp-landing`. No Supabase SQL,
+Vercel/Railway deployment, provider variable, or tenant-data mutation.
+
 ## 2026-08-07 - M3.147 managed Supabase parity audit (read-only)
 
 Queried the connected Supabase ERP project without SQL execution or
