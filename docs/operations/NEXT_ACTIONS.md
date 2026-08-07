@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.150 managed Supabase parity plan
+
+Remain read-only. Database owner must supply two items: an approved external
+mapping covering all 12 records in the duplicate Purchase Order group, and a
+supported session-pooler/direct export path with PostgreSQL 17 or Supabase CLI
+dump tooling. Run mapping and export preflights until both report `ready`.
+Then restore into isolated PostgreSQL 17, apply the approved mapping only to
+the clone, and replay the exact 48-file manifest with no skipped database/API,
+identity, audit, RLS, Storage, Redis, or browser gates. Do not create the
+`$0.01344/hour` managed branch, execute hosted SQL, enable canaries, or deploy
+Vercel/Railway without free local evidence plus explicit cost/release approval.
+
 ## Exact next action after M3.149 Core user-role assignment authority
 
 Keep `ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_ENABLED=false`,

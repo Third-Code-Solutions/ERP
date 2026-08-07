@@ -1,5 +1,35 @@
 # Work Log
 
+## 2026-08-07 - M3.150 managed Supabase parity plan
+
+Refreshed managed project `aqqrtkmtcsfkbyyqxowv` read-only. Project is
+`ACTIVE_HEALTHY`, PostgreSQL 17.6, with 55 applied migrations through
+`20260729233017` versus 103 source migrations through `20260807150000`.
+History is one exact linear prefix: 48 missing, zero unexpected, zero applied
+after the first gap. Tables remain RLS-enabled in the compact catalog.
+
+Read-only release planner found 213 anonymous table-privilege rows and 209
+`PUBLIC` policies. Duplicate planner still found one tenant Purchase Order
+number group with 12 records; migration `20260801090000` intentionally refuses
+to proceed. Advisors returned 14 security and 253 performance notices.
+Default provider branch reports `MIGRATIONS_FAILED`; current branch/Auth logs
+returned no 24-hour entries. Export preflight remains `review_required`
+because the app uses transaction-pooler port 6543 and no supported dump tool
+is available. Audit recovery cannot be planned without an approved tenant ID.
+
+Queried current managed-branch cost: `$0.01344/hour`. Did not request cost
+confirmation or create a branch. Added a 48-file JSON manifest grouped into
+six source-ordered review batches, a drift verifier/library with four tests,
+and a cost-bounded parity/runbook update. Focused parity 4/4, database release
+9/9, and duplicate plan 4/4 passed. Full workspace tests, lint, typecheck,
+Nest/Next production build, Actionlint, Gitleaks, workflow-action verification,
+controlled-release 5/5, provider-spend 4/4, 103-file migration verification,
+and diff checks passed.
+
+No hosted SQL, migration ledger row, business data, Storage object, branch,
+provider variable, feature flag, Vercel deployment, or Railway deployment was
+created or changed.
+
 ## 2026-08-07 - M3.149 Core user-role assignment authority
 
 Moved the sensitive admin user-role change behind a typed NestJS command

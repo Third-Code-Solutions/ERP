@@ -1,5 +1,17 @@
 # Target State
 
+## M3.150 managed database parity evidence
+
+Managed release must use one machine-checked linear migration manifest tied to
+the exact target project and source head. Every missing version must appear
+once, in repository order. Review batches may organize evidence but must not
+imply that a partial production suffix is safe. Before any hosted apply, an
+owner-approved duplicate Purchase Order mapping, supported managed backup/PITR
+restore drill, separate Storage-object recovery, Auth/public-user identity
+proof, RLS/privilege closure, semantic-audit recovery, exact-SHA readiness,
+rollback, one-tenant canary, and explicit spend ceiling must pass. Free local
+replay precedes any hourly managed branch.
+
 ## M3.149 Core-owned user-role assignment
 
 Official user-role changes must be authorized and committed only by NestJS

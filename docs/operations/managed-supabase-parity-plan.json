@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "snapshot": {
+    "capturedOn": "2026-08-07",
+    "projectRef": "aqqrtkmtcsfkbyyqxowv",
+    "postgresMajor": 17,
+    "appliedCount": 55,
+    "sourceCount": 103,
+    "pendingCount": 48,
+    "appliedHead": "20260729233017",
+    "sourceHead": "20260807150000",
+    "ledgerStatus": "review_required"
+  },
+  "policy": {
+    "reviewBatchesOnly": true,
+    "preserveSourceOrder": true,
+    "productionPartialApplyIsRollbackFailure": true,
+    "hostedApplyApproved": false
+  },
+  "batches": [
+    {
+      "id": "01-purchase-order-uniqueness-gate",
+      "purpose": "Fail-closed duplicate remediation boundary before any suffix apply.",
+      "migrations": [
+        "20260801090000_purchase_order_create_idempotency.sql"
+      ]
+    },
+    {
+      "id": "02-procurement-and-document-authority",
+      "purpose": "Purchase Order, stock receipt, CAD, document processing, and change-request command foundations.",
+      "migrations": [
+        "20260801100000_purchase_order_workflow_idempotency.sql",
+        "20260801110000_purchase_order_workflow_notifications.sql",
+        "20260801120000_stock_receipt_create_idempotency.sql",
+        "20260801130000_cad_evidence_commit_idempotency.sql",
+        "20260801140000_document_processing_jobs.sql",
+        "20260801150000_document_processing_evidence.sql",
+        "20260802090000_change_request_create_idempotency.sql",
+        "20260802100000_purchase_order_workflow_scm_rejection.sql",
+        "20260802110000_purchase_order_supplier_issuance.sql"
+      ]
+    },
+    {
+      "id": "03-finance-delivery-and-invoice-workflows",
+      "purpose": "Journal, receipt, delivery, supplier-bill, cash, and customer-invoice state machines.",
+      "migrations": [
+        "20260802120000_finance_journal_post_idempotency.sql",
+        "20260802130000_stock_receipt_workflow_idempotency.sql",
+        "20260802140000_delivery_receipt_workflow_idempotency.sql",
+        "20260802150000_finance_journal_reverse_idempotency.sql",
+        "20260802160000_delivery_inspection_start_workflow.sql",
+        "20260802170000_delivery_inspection_complete_workflow.sql",
+        "20260802180000_delivery_cancel_workflow.sql",
+        "20260802190000_delivery_site_preparation_start_workflow.sql",
+        "20260802200000_delivery_site_preparation_complete_workflow.sql",
+        "20260802210000_supplier_bill_post_workflow.sql",
+        "20260802220000_supplier_bill_reverse_workflow.sql",
+        "20260802230000_cash_transaction_workflow_idempotency.sql",
+        "20260803090000_customer_invoice_issue_workflow.sql",
+        "20260803100000_customer_invoice_reverse_workflow.sql",
+        "20260803110000_customer_invoice_cancel_workflow.sql"
+      ]
+    },
+    {
+      "id": "04-cash-document-and-external-session-workflows",
+      "purpose": "Cash drafts, document deletion, public signing, and vendor confirmation session boundaries.",
+      "migrations": [
+        "20260803120000_cash_transaction_draft_workflow.sql",
+        "20260803130000_document_delete_workflow.sql",
+        "20260803140000_public_signing_workflow.sql",
+        "20260803150000_vendor_confirmation_workflow.sql",
+        "20260803160000_vendor_confirmation_session_minting.sql",
+        "20260803170000_purchase_order_supplier_session_payload.sql"
+      ]
+    },
+    {
+      "id": "05-project-inventory-cost-asset-and-security-foundations",
+      "purpose": "Project, inventory, Cost Entry, asset, delivery, BOM, conversion, and browser-authority baselines.",
+      "migrations": [
+        "20260804090000_project_create_idempotency.sql",
+        "20260805100000_inventory_warehouse_deactivation_guard.sql",
+        "20260805110000_stock_movement_create_idempotency.sql",
+        "20260805120000_stock_movement_workflow_idempotency.sql",
+        "20260806100000_cost_entry_create_idempotency.sql",
+        "20260806110000_asset_register_foundation.sql",
+        "20260806120000_delivery_in_transit_workflow.sql",
+        "20260806130000_delivery_schedule_create_idempotency.sql",
+        "20260806140000_togal_bom_commit_idempotency.sql",
+        "20260806150000_opportunity_project_conversion_idempotency.sql",
+        "20260806160000_security_role_baseline.sql"
+      ]
+    },
+    {
+      "id": "06-latest-authority-and-security-hardening",
+      "purpose": "Maintenance history, Cost Entry recovery, invoice draft, tenant identity, and user-role authority.",
+      "migrations": [
+        "20260807100000_asset_maintenance_history.sql",
+        "20260807110000_cost_entry_delete_workflow.sql",
+        "20260807120000_cost_entry_restore_workflow.sql",
+        "20260807130000_customer_invoice_draft_create_workflow.sql",
+        "20260807140000_revoke_anon_tenant_identity_rpc.sql",
+        "20260807150000_user_role_assignment_authority.sql"
+      ]
+    }
+  ]
+}

@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-258 - Make managed parity plans machine-checkable and cost-bounded (2026-08-07)
+
+Decision: record the current managed migration boundary in a machine-readable
+manifest and fail verification when source count/head, applied boundary,
+pending count, batch uniqueness, or strict order drifts. Treat manifest
+batches as review checkpoints only. Use free local PostgreSQL 17 restore/replay
+before considering a managed branch, and require explicit hourly-cost
+confirmation before branch creation.
+
+Rationale: a 48-file suffix is too large for an unverified prose checklist.
+The target is a linear prefix, but duplicate business data, broad browser
+authority, backup/export gaps, Auth/Storage recovery, and a failed branch
+status still make blind application unsafe. Machine coverage prevents silent
+omission or reorder; cost policy prevents another speculative provider build.
+
+Evidence: live read-only project/ledger/branch/table/log/advisor/cost checks;
+read-only database and duplicate planners; exact 55/103 manifest verification;
+and focused 4/4, 9/9, and 4/4 planner tests. No hosted state changed.
+
 ## D-257 - Make user-role assignment a Core transaction (2026-08-07)
 
 Decision: expose user-role assignment through the typed NestJS endpoint

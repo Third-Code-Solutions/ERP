@@ -1,5 +1,20 @@
 # Third Code ERP capability matrix
 
+## M3.150 managed parity planning (2026-08-07)
+
+No hosted ERP capability was enabled. Managed project is healthy PostgreSQL
+17.6 but remains at 55/103 migrations. The exact 48-file suffix now has a
+machine-verified six-batch review manifest. Current release blockers: one
+12-row Purchase Order duplicate group; 213 anonymous privilege rows; 209
+`PUBLIC` policies; 14 security and 253 performance notices; blocked supported
+export; unproved `MIGRATIONS_FAILED` branch state; and missing identity,
+recovery, canary, rollback, and spend evidence.
+
+Focused parity verifier 4/4, release-plan 9/9, and duplicate-plan 4/4 tests
+passed. Managed branch cost was read as `$0.01344/hour`; no confirmation or
+branch creation occurred. No SQL, deployment, variable, flag, or tenant-data
+mutation.
+
 ## M3.149 Core user-role assignment authority (2026-08-07)
 
 Owner/admin role assignment is available in source through a typed NestJS
