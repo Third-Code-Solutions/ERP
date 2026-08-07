@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-260 - Separate duplicate recommendations from owner approval (2026-08-07)
+
+Decision: generate deterministic Purchase Order duplicate recommendations in
+one repeatable-read, read-only transaction and write them only to an explicit
+non-repository artifact. Recommend the earliest-created row, then lexical UUID,
+as canonical and allocate collision-free `-Rnn` numbers within the existing
+50-character limit. Keep the proposal structurally incompatible with the
+version-1 owner mapping and mark owner approval `pending`.
+
+Rationale: the managed demo dataset has one 12-record duplicate group, but a
+blank template leaves the database owner to perform repetitive allocation and
+collision checks. Recommendations reduce review work without turning an
+algorithm into business authority. A separate mapping, existing preflight,
+backup clone, and explicit approval remain mandatory before any repair.
+
+Evidence: four fresh pure tests plus existing mapping/template tests passed.
+The live read-only run produced one group, 12 recommendations, one canonical
+keep, and 11 renumbers. The 4,220-byte external proposal has SHA-256
+`803a25ec80b501ff86154e42777af0ea7ca2ed90d4e21bde4dcf2b749db99510`;
+overwrite was refused and the mapping validator rejected it. No SQL write,
+provider action, or deployment occurred.
+
 ## D-259 - Separate suffix replay proof from full managed parity (2026-08-07)
 
 Decision: support a zero-cost export lane using an explicit session/direct

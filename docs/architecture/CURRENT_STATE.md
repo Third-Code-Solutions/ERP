@@ -5,6 +5,34 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.152 Purchase Order owner-review proposal (2026-08-07)
+
+The managed duplicate blocker now has a deterministic recommendation artifact
+without granting repair authority. A new planner reads one repeatable-read,
+read-only snapshot, recommends the earliest-created row (then lexical UUID) as
+the canonical record, and suggests collision-free `-Rnn` replacements within
+the 50-character database limit. It writes only to an explicit path outside
+Git, uses atomic no-overwrite creation, prints counts and hash only, and never
+issues SQL writes.
+
+Current managed evidence remains one tenant-number group with 12 records. The
+external 4,220-byte proposal contains one keep and 11 renumber recommendations,
+has SHA-256
+`803a25ec80b501ff86154e42777af0ea7ca2ed90d4e21bde4dcf2b749db99510`,
+and remains `ownerApproval.status: pending`. Runtime checks proved unique
+records, unique target numbers, and valid target lengths. Existing-file
+overwrite was refused without hash change, and the version-1 mapping validator
+rejected the proposal by design.
+
+Fresh focused tests passed 11/11 across proposal, mapping, and template suites.
+Workspace tests, lint, typecheck, and the single local Nest/Next production
+build also passed; unchanged package work was served from local Turbo cache.
+Actionlint, pinned workflow references, controlled-release 5/5, provider-spend
+4/4, the 103-file migration verifier, and clean-room runtime scan passed.
+No hosted SQL, migration, Purchase Order update, branch, flag, variable,
+Vercel/Railway build, or deployment occurred. Managed parity remains 55/103;
+the proposal is not approval and does not clear release.
+
 ## M3.151 free local managed-suffix replay (2026-08-07)
 
 The supported export-tool blocker is cleared without a paid provider branch.

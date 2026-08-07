@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.152 Purchase Order owner-review proposal
+
+Keep Supabase, Vercel, Railway, flags, and tenant allowlists unchanged. Database
+owner must review the external 12-row recommendation artifact, choose every
+canonical/replacement value, record approver and approval time, and create a
+separate complete version-1 mapping. Run the read-only mapping preflight against
+a fresh managed snapshot until it reports `ready`. Then restore a complete
+managed backup/PITR copy with Auth, Storage, vector, roles, grants, and provider
+catalog; apply only the approved mapping to that isolated clone and run all
+zero-skip M3.151 gates. Proposal status `pending` is not approval. Do not create
+the `$0.01344/hour` branch, apply hosted SQL, deploy, or reconnect Vercel Git
+without explicit cost and release approval.
+
 ## Exact next action after M3.151 free local managed-suffix replay
 
 Keep Supabase, Vercel, Railway, flags, and tenant allowlists unchanged. Export

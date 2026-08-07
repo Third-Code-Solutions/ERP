@@ -1,5 +1,31 @@
 # Work Log
 
+## 2026-08-07 - M3.152 Purchase Order owner-review proposal
+
+Inspected the existing duplicate planner, blank template generator, mapping
+validator, PO-number schema limit, and Core number allocation. Added a separate
+proposal builder and CLI so deterministic recommendations can be reviewed
+without pretending to be owner approval. Policy keeps the earliest-created
+record, breaks ties by lexical UUID, and assigns the first free `-Rnn` number
+within 50 characters. The read uses one connection and one repeatable-read,
+read-only transaction; output uses atomic create outside Git and redacted logs.
+
+Fresh managed read produced one group, 12 records, one keep, and 11 renumber
+recommendations. Stable artifact size is 4,220 bytes; SHA-256 is
+`803a25ec80b501ff86154e42777af0ea7ca2ed90d4e21bde4dcf2b749db99510`.
+Runtime checks confirmed pending owner approval, unique records, unique target
+numbers, and valid lengths. Existing-file retry returned exit 2 with unchanged
+hash; mapping preflight returned exit 2 because the proposal is not version 1.
+
+Proposal/mapping/template tests passed 11/11. Workspace tests, lint, typecheck,
+and one local cached Nest/Next production build passed. Prettier was not run
+because the repository has no Prettier executable; Node syntax checks and
+`git diff --check` passed. Actionlint 1.7.12, pinned workflow references,
+controlled-release 5/5, provider-spend 4/4, 103-file migration verification,
+and clean-room runtime scanning also passed. No managed SQL, PO update,
+migration, branch, Storage action, Vercel/Railway build, deployment, flag, or
+variable changed.
+
 ## 2026-08-07 - M3.151 free local managed-suffix replay
 
 Verified a free export path using an explicit Supavisor session endpoint on
