@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   getCortexNodeByRef: vi.fn(),
   getCortexContextPack: vi.fn(),
   describeContextPack: vi.fn(),
+  cortexEntityReadsUseCoreApi: vi.fn(),
+  getCortexEntityThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -16,6 +18,11 @@ vi.mock('@third-code-erp/database', () => ({
   getCortexNodeByRef: mocks.getCortexNodeByRef,
   getCortexContextPack: mocks.getCortexContextPack,
   describeContextPack: mocks.describeContextPack,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  cortexEntityReadsUseCoreApi: mocks.cortexEntityReadsUseCoreApi,
+  getCortexEntityThroughCoreApi: mocks.getCortexEntityThroughCoreApi,
 }))
 
 import { GET } from './route'
@@ -56,6 +63,7 @@ describe('Cortex entity lookup registry boundary', () => {
       citations: [],
     })
     mocks.describeContextPack.mockReturnValue('Journal entry context')
+    mocks.cortexEntityReadsUseCoreApi.mockReturnValue(false)
   })
 
   it('supports registered finance sources and applies the role scope', async () => {
@@ -124,5 +132,59 @@ describe('Cortex entity lookup registry boundary', () => {
     expect(response.status).toBe(404)
     expectPrivate(response)
     expect(mocks.getCortexContextPack).not.toHaveBeenCalled()
+  })
+
+  it('uses the authenticated Core path for an enabled tenant', async () => {
+    mocks.cortexEntityReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexEntityThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        found: true,
+        summary: 'Core journal context',
+        citations: [],
+        relationships: [],
+        evidence: [],
+      },
+    })
+
+    const response = await request('journal_entries')
+
+    expect(response.status).toBe(200)
+    expectPrivate(response)
+    await expect(response.json()).resolves.toMatchObject({
+      found: true,
+      summary: 'Core journal context',
+    })
+    expect(mocks.getCortexEntityThroughCoreApi).toHaveBeenCalledWith({
+      refTable: 'journal_entries',
+      refId: REF_ID,
+    })
+    expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
+  })
+
+  it('fails closed and preserves the non-enumerating Core 404', async () => {
+    mocks.cortexEntityReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexEntityThroughCoreApi.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: 'Cortex entity service is unavailable.',
+    })
+
+    const unavailable = await request('journal_entries')
+    expect(unavailable.status).toBe(503)
+    expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
+
+    mocks.getCortexEntityThroughCoreApi.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      error: 'Cortex entity not found.',
+    })
+    const missing = await request('journal_entries')
+    expect(missing.status).toBe(404)
+    await expect(missing.json()).resolves.toEqual({
+      found: false,
+      summary: '',
+      citations: [],
+    })
   })
 })

@@ -114,6 +114,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Entity context, relationship, citation, and evidence reads are canaried
+  // independently from the whole graph so rollback remains one flag change.
+  ERP_CORTEX_ENTITY_READS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CORTEX_ENTITY_READS_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // General-ledger reads stay fail-closed until the hosted finance schema,
   // disposable replay, and a protected tenant canary are approved.
   ERP_FINANCE_LEDGER_READS_ENABLED: z

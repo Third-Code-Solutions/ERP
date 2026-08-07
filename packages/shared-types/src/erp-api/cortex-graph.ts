@@ -69,7 +69,7 @@ export function cortexGraphRefTableMatchesType(
   return CORTEX_GRAPH_REF_TABLE_NODE_TYPES[refTable] === nodeType
 }
 
-const cortexGraphRefTableSchema = z
+export const cortexGraphRefTableSchema = z
   .string()
   .refine(isCortexGraphRefTable, 'Unsupported Cortex reference table')
   .transform((value) => value as CortexGraphRefTable)

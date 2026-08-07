@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.154 Core Cortex entity-context read authority
+
+Added a shared entity parameter/response contract and safe relationship/evidence
+projection, Nest pipe/controller/service, independent environment gates,
+authenticated Web Core adapter, and fail-closed route selector. Core requires
+`cortex.search`, derives tenant and role scope, validates source/type ownership,
+limits the context pack to 12 neighbors and six provenance events, and emits at
+most 13 citations. The direct Next/database path stays active by default.
+
+Keep `ERP_CORTEX_ENTITY_READS_ENABLED=false`,
+`ERP_CORTEX_ENTITY_READS_VIA_API=false`, and both tenant allowlists empty.
+After M3.152 owner approval and reviewed managed 103/103 parity, compare legacy
+and Core responses for allowed, forbidden, missing, mismatched, malformed, and
+Core-unavailable cases in one protected tenant. Prove every relationship and
+citation resolves under the caller's role, then capture browser and rollback
+evidence. No AI-provider or frontend deployment is needed.
+
+Validation passed: focused 199/199; full API/Web/shared package suites in
+single-worker mode; workspace lint/typecheck; one local 81-route production
+build; Actionlint; Gitleaks across 537 commits; pinned workflow refs;
+controlled-release 5/5; provider-spend 4/4; and diff checks. Live production
+inspection was read-only and did not exercise this undeployed source path. No
+database or provider state changed.
+
 ## M3.153 Core Cortex graph read authority
 
 Added the original shared graph query/response contract, registered source-to-

@@ -5,6 +5,32 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.154 Core Cortex entity-context read authority (2026-08-07)
+
+The citation-backed Cortex entity panel now has an original, typed NestJS read
+boundary without changing the active application path. A shared contract owns
+the 45 registered source references and the bounded public response: summary,
+13 citations, 12 relationships, and six redacted evidence events. Nest derives
+tenant and role scope from the authenticated principal, verifies source/type
+ownership, conceals absent or forbidden records, and exposes no provenance
+hashes, actor IDs, tenant IDs, or origin references.
+
+The existing Next.js/database route remains the default. Independent Core and
+Web flags must both select an exact tenant. After selection, Core errors are
+terminal and never fall back to direct database access; a Core 404 preserves
+the existing non-enumerating Web response. All four new settings are false or
+empty by default. No React, landing-page, schema, migration, or hosted state
+changed.
+
+Read-only live inspection found the current production Cortex at 384 records,
+454 connections, 14 populated record types, and zero desktop/mobile console
+errors; no index build or AI chat was triggered. Focused tests passed 199/199.
+Full API, Web, and shared-type package suites passed single-worker; shared
+reported 240/240 and API is 529/529 by the prior 523 baseline plus six new
+tests. Workspace lint/typecheck, Gitleaks across 537 commits, Actionlint,
+pinned actions, release 5/5, spend 4/4, and one 81-route Nest/Next production
+build passed. This is local source proof, not a deployment.
+
 ## M3.153 Core Cortex graph read authority (2026-08-07)
 
 Interactive Cortex graph retrieval now has a typed, tenant-scoped NestJS read

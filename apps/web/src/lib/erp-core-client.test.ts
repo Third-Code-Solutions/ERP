@@ -115,6 +115,8 @@ import {
   searchCortexThroughCoreApi,
   cortexGraphReadsUseCoreApi,
   getCortexGraphThroughCoreApi,
+  cortexEntityReadsUseCoreApi,
+  getCortexEntityThroughCoreApi,
   financeLedgerReadsUseCoreApi,
   getFinanceLedgerThroughCoreApi,
 } from './erp-core-client'
@@ -859,6 +861,23 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_CORTEX_GRAPH_READS_VIA_API_TENANT_IDS', '')
     expect(cortexGraphReadsUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(cortexGraphReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Cortex entity reads on the legacy route unless the exact tenant gate matches', () => {
+    vi.stubEnv('ERP_CORTEX_ENTITY_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_CORTEX_ENTITY_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(cortexEntityReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_CORTEX_ENTITY_READS_VIA_API', 'TRUE')
+    expect(cortexEntityReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_CORTEX_ENTITY_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_CORTEX_ENTITY_READS_VIA_API_TENANT_IDS', '')
+    expect(cortexEntityReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(cortexEntityReadsUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps user role assignment on the server path unless the exact tenant gate matches', () => {
@@ -2159,6 +2178,72 @@ describe('ERP Core client', () => {
       ok: false,
       status: 503,
       error: 'ERP Core API returned an invalid Cortex graph result.',
+    })
+  })
+
+  it('calls the authenticated Core Cortex entity read and validates the response', async () => {
+    const refId = '44444444-4444-4444-8444-444444444444'
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          found: true,
+          summary: 'Journal context',
+          citations: [],
+          relationships: [],
+          evidence: [],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getCortexEntityThroughCoreApi({
+        refTable: 'journal_entries',
+        refId,
+      })
+    ).resolves.toEqual({
+      ok: true,
+      data: expect.objectContaining({ summary: 'Journal context' }),
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/cortex/entity/journal_entries/${refId}`,
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('rejects an invalid Cortex entity success payload', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            found: false,
+            summary: '',
+            citations: [],
+            relationships: [],
+            evidence: [],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    )
+
+    await expect(
+      getCortexEntityThroughCoreApi({
+        refTable: 'journal_entries',
+        refId: '44444444-4444-4444-8444-444444444444',
+      })
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API returned an invalid Cortex entity result.',
     })
   })
 
