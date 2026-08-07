@@ -5,6 +5,37 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.156 disposable Cortex semantic-index runtime proof (2026-08-07)
+
+M3.155 now has zero-cost runtime evidence against the isolated
+`erp_self_hosted_ci` PostgreSQL 17.10 database and local Redis 7.4.9. All 104
+source migrations replayed in order. The database suite passed 341/341 with
+zero skips, and the complete API integration lane passed 31/31 tests across
+44 suites with zero failures or pending tests. The resulting schema SHA-256
+was `4DDF4B3D24906CA2328790342E6406636080BE5475AA0138DF8E7431D615E9F6`.
+Final local gates also passed: API 546/546, ordinary no-database tests 198
+passed with 143 expected environment-gated skips, workspace lint/typecheck,
+NestJS and Next.js production build with 82 static pages, provider-spend 4/4,
+controlled-release 5/5, Actionlint, Gitleaks across 539 commits, pinned workflow
+references, diff checks, and the clean-room runtime scan.
+
+Runtime coverage proves that an authenticated browser role cannot read or
+insert semantic-index jobs directly; owner/admin creation is tenant-scoped;
+current-role revocation fails closed; idempotent replay does not duplicate
+work; one tenant has at most one active job; a batch processes at most 64
+nodes with one reserved worker call; an empty backlog makes zero calls; Redis
+loss before reservation can be recovered; uncertainty after reservation is
+terminal; vector and terminal job updates commit atomically; cross-tenant
+status is concealed; and create/terminal audit records retain hash linkage.
+The embedding worker was deterministic and local, so no AI-provider request or
+spend occurred.
+
+Protected desktop/mobile browser proof was not run because the existing E2E
+authentication helper mutates hosted Supabase Auth. Feature flags and tenant
+allowlists remain closed. Managed Supabase remains last verified at 55/104;
+no hosted SQL, Auth row, Storage object, provider configuration, Vercel or
+Railway build, deployment, or paid resource changed.
+
 ## M3.155 cost-bounded Cortex semantic indexing jobs (2026-08-07)
 
 The browser no longer owns an automatic 80-request semantic-index loop. An

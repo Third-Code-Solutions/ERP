@@ -1,5 +1,35 @@
 # Migration Plan
 
+## M3.156 disposable Cortex semantic-index runtime proof
+
+Added always-rollback PostgreSQL and BullMQ integration coverage for M3.155.
+The database test executes as `authenticated` and proves that the browser role
+cannot select or insert server-owned jobs. The API integration uses nested
+savepoints and a deterministic fake embedding worker to exercise authorization,
+tenant concealment, idempotency, active-job locking, the 64-node/one-call
+ceiling, empty backlog, Redis-loss reconstruction, terminal unknown outcome,
+atomic vector/job commit, and semantic-audit linkage without external spend.
+
+Validation: 104/104 migrations on PostgreSQL 17.10; database 341/341 with zero
+skips; full API integration 31/31 across 44 suites with zero failures or
+pending tests; schema SHA-256
+`4DDF4B3D24906CA2328790342E6406636080BE5475AA0138DF8E7431D615E9F6`;
+focused API 3/3; focused database runtime/static 4/4; API and database
+typecheck. Final gates passed: API 546/546; ordinary no-database tests 198
+passed with 143 expected environment-gated skips; workspace lint/typecheck;
+NestJS/Next.js production build with 82 static pages; provider-spend 4/4;
+controlled-release 5/5; Actionlint; Gitleaks across 539 commits; pinned workflow
+references; diff checks; and clean-room scan. The disposable database and
+Redis process were removed afterward.
+
+Keep all indexing flags false, tenant allowlists empty, and AI worker/provider
+configuration absent. Do not repeat this lane unless indexing source or the
+migration ledger changes. Remaining gates are M3.152 owner-approved duplicate
+remediation on a complete managed backup/PITR restore and protected
+desktop/mobile confirmation/status proof in an auth-safe isolated environment.
+Only then may an owner approve one exact-tenant canary with a written spend
+ceiling and rollback owner. No hosted mutation or deployment occurred.
+
 ## M3.155 cost-bounded Cortex semantic indexing jobs
 
 Added a strict shared command/status/queue contract, server-only job table and

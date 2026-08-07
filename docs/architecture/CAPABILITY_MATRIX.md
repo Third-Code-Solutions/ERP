@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.156 disposable semantic-index runtime proof (2026-08-07)
+
+Source-only semantic indexing now has disposable runtime evidence: 104/104
+migrations, database 341/341, and API integration 31/31 with zero skips or
+pending tests. The local fake-worker lane proves direct browser-table denial,
+tenant/permission scope, idempotency, one active job, the 64-node/one-call
+ceiling, empty-work zero call, Redis-loss recovery, terminal uncertainty after
+reservation, atomic commit, and audit linkage.
+
+Capability remains disabled. Protected browser evidence, managed 104/104
+parity, backup/PITR restoration, M3.152 owner mapping, exact-tenant approval,
+and a written provider-spend ceiling are unresolved. No hosted database,
+provider, build, or deployment was used.
+
 ## M3.155 cost-bounded Cortex semantic indexing (2026-08-07)
 
 Source now contains an owner/admin-only `cortex.index.manage` workflow. One

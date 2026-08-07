@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getTableConfig } from 'drizzle-orm/pg-core'
+import postgres from 'postgres'
 import { describe, expect, it } from 'vitest'
 import { cortexSemanticIndexJobs } from '../schema'
 
@@ -13,6 +15,7 @@ const migrationSql = readFileSync(
   ),
   'utf8'
 ).toLowerCase()
+const runtimeIt = process.env.DATABASE_URL ? it : it.skip
 
 describe('Cortex semantic index job foundation', () => {
   it('enforces one active tenant job and immutable spend ceilings', () => {
@@ -52,4 +55,140 @@ describe('Cortex semantic index job foundation', () => {
       'cortex_semantic_index_jobs_requested_by_tenant_fk'
     )
   })
+
+  runtimeIt(
+    'denies direct authenticated reads and writes at runtime',
+    async () => {
+      const sql = postgres(process.env.DATABASE_URL as string, {
+        prepare: false,
+        max: 1,
+        idle_timeout: 5,
+        connect_timeout: 15,
+      })
+      const rollback = Symbol('rollback')
+      let selectDenied = false
+      let insertDenied = false
+
+      try {
+        await sql.begin(async (transaction) => {
+          const tenantId = randomUUID()
+          const userId = randomUUID()
+          const jobId = randomUUID()
+          const suffix = randomUUID().slice(0, 12)
+
+          await transaction`
+            insert into public.tenants (id, name, slug)
+            values (
+              ${tenantId}::uuid,
+              'Cortex browser denial probe',
+              ${`cortex-browser-denial-${suffix}`}
+            )
+          `
+          await transaction`
+            insert into public.users (
+              id,
+              tenant_id,
+              email,
+              full_name,
+              role
+            ) values (
+              ${userId}::uuid,
+              ${tenantId}::uuid,
+              ${`cortex-browser-denial-${suffix}@integration.test`},
+              'Cortex browser denial',
+              'admin'
+            )
+          `
+          await transaction`
+            insert into public.cortex_semantic_index_jobs (
+              id,
+              tenant_id,
+              requested_by,
+              idempotency_key,
+              request_hash,
+              backlog_at_request
+            ) values (
+              ${jobId}::uuid,
+              ${tenantId}::uuid,
+              ${userId}::uuid,
+              'browser-denial-probe',
+              ${'a'.repeat(64)},
+              1
+            )
+          `
+
+          const browserOperationDenied = async (
+            operation: () => Promise<unknown>
+          ): Promise<boolean> => {
+            await transaction.unsafe('savepoint cortex_browser_denial')
+            await transaction`
+              select pg_catalog.set_config(
+                'request.jwt.claims',
+                pg_catalog.json_build_object(
+                  'sub',
+                  ${userId}::uuid,
+                  'role',
+                  'authenticated'
+                )::text,
+                true
+              )
+            `
+            await transaction.unsafe('set local role authenticated')
+            let denied = false
+            try {
+              await operation()
+            } catch (error) {
+              denied =
+                typeof error === 'object' &&
+                error !== null &&
+                'code' in error &&
+                (error as { code?: unknown }).code === '42501'
+            } finally {
+              await transaction.unsafe(
+                'rollback to savepoint cortex_browser_denial'
+              )
+              await transaction.unsafe(
+                'release savepoint cortex_browser_denial'
+              )
+            }
+            return denied
+          }
+
+          selectDenied = await browserOperationDenied(() =>
+            transaction`
+              select id
+              from public.cortex_semantic_index_jobs
+              where id = ${jobId}::uuid
+            `
+          )
+          insertDenied = await browserOperationDenied(() =>
+            transaction`
+              insert into public.cortex_semantic_index_jobs (
+                tenant_id,
+                requested_by,
+                idempotency_key,
+                request_hash,
+                backlog_at_request
+              ) values (
+                ${tenantId}::uuid,
+                ${userId}::uuid,
+                'browser-forgery-probe',
+                ${'b'.repeat(64)},
+                1
+              )
+            `
+          )
+          throw rollback
+        })
+      } catch (error) {
+        if (error !== rollback) throw error
+      } finally {
+        await sql.end({ timeout: 5 })
+      }
+
+      expect(selectDenied).toBe(true)
+      expect(insertDenied).toBe(true)
+    },
+    30_000
+  )
 })
