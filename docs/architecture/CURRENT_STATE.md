@@ -5,6 +5,52 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.162 provider-free Cortex generation jobs (2026-08-08)
+
+Cortex can now move one selected assistant response through an original NestJS
+modular-monolith workflow without a provider call. A signed `start_job` command
+creates one tenant/user/request-bound PostgreSQL job; authenticated owners can
+read or cancel it. BullMQ carries only schema version and opaque job ID. Nest
+relocks membership, capability, conversation context, official user-turn
+provenance, and current graph scope before selecting at most 12 records. Common
+email, phone, and tax identifiers are redacted before analysis leaves Core.
+
+The private Python endpoint `POST /v1/cortex/grounded-answer` accepts only a
+bounded redacted question and evidence set. It performs deterministic,
+provider-free analysis and returns advisory text plus citation node IDs. Python
+has no database, tenant, approval, or commit authority. Nest validates the
+response, reauthorizes every citation, fences the claim hash, and atomically
+commits the official assistant message, request/job state, and raw-content-free
+audit. PostgreSQL owns queued/processing/succeeded/failed/cancelled state and
+three-attempt bounds; Redis is replaceable delivery. Cancellation, terminal
+failure, stale-lease recovery, and retry release the correct fenced request
+without disturbing a newer claim.
+
+Next preserves the existing text and citation response for exact selected
+tenants: it starts the job, polls for at most four seconds with bounded backoff,
+cancels on request abort, and replays the Core-owned assistant turn after
+success. It performs no retrieval, embedding, quota, or model call on this
+path. Legacy behavior is unchanged when the flag is false. Intake, worker,
+recovery, and Web selection use separate exact-tenant gates; wildcard Web
+selection is rejected; every gate defaults closed.
+
+Validation passed: shared 33 files / 254 tests; API 135 / 585; Web 97 / 666;
+Python 8/8; ordinary database 206 passed / 143 environment-gated skips;
+workspace lint/typecheck; canonical bounded root tests; local Nest/Next
+production builds with 82 static pages; spend 4/4; controlled release 5/5;
+Actionlint; pinned actions; Gitleaks across 545 commits; and diff hygiene. The
+disposable PostgreSQL 17.10 + Redis 7.4.9 lane applied 107/107 migrations,
+verified 32 protected and 8 service-only tables, passed database 349/349 with
+zero skips and the full Nest integration suite including the new transaction
+test. Before/after schema SHA-256 matched
+`CCB354956CE037BA5D27FF8AD6668E28209ADD62930C8DC7881620FA1748B3D6`.
+Only the known local Redis `vm.overcommit_memory` warning remained.
+
+Managed Supabase was not queried or changed and remains last verified at 55
+migrations versus 107 source migrations. No hosted SQL/Auth/Storage/data
+mutation, AI/image/provider call, Vercel/Railway build or deployment, paid
+resource, or Git integration change occurred.
+
 ## M3.161 trusted Cortex assistant-generation authority (2026-08-08)
 
 Official assistant memory now has two original NestJS service-to-service

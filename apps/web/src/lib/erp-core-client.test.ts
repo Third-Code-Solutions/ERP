@@ -130,6 +130,10 @@ import {
   appendCortexConversationUserTurnThroughCoreApi,
   claimCortexConversationAssistantTurnThroughCoreApi,
   completeCortexConversationAssistantTurnThroughCoreApi,
+  cortexAssistantGenerationJobsUseCoreApi,
+  startCortexAssistantGenerationJobThroughCoreApi,
+  getCortexAssistantGenerationJobThroughCoreApi,
+  cancelCortexAssistantGenerationJobThroughCoreApi,
   cortexAssistantTurnIdempotencyKey,
   cortexSemanticIndexJobsUseCoreApi,
   createCortexSemanticIndexJobThroughCoreApi,
@@ -1182,6 +1186,108 @@ describe('ERP Core client', () => {
     expect(cortexSemanticIndexJobsUseCoreApi(RESULT.tenantId)).toBe(false)
     vi.stubEnv('ERP_CORTEX_SEMANTIC_INDEX_JOBS_VIA_API', 'TRUE')
     expect(cortexSemanticIndexJobsUseCoreApi(RESULT.tenantId)).toBe(false)
+  })
+
+  it('keeps provider-free generation jobs closed without one exact tenant', () => {
+    vi.stubEnv('ERP_CORTEX_ASSISTANT_GENERATION_JOBS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_CORTEX_ASSISTANT_GENERATION_JOBS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(cortexAssistantGenerationJobsUseCoreApi(RESULT.tenantId)).toBe(true)
+    vi.stubEnv(
+      'ERP_CORTEX_ASSISTANT_GENERATION_JOBS_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(cortexAssistantGenerationJobsUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_CORTEX_ASSISTANT_GENERATION_JOBS_VIA_API', 'TRUE')
+    expect(cortexAssistantGenerationJobsUseCoreApi(RESULT.tenantId)).toBe(false)
+  })
+
+  it('starts, reads, and cancels one assistant generation job through Core', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111'
+    const command = {
+      requestId: '55555555-5555-4555-8555-555555555555',
+      claimToken: '66666666-6666-4666-8666-666666666666',
+    }
+    const jobId = '77777777-7777-4777-8777-777777777777'
+    const status = {
+      jobId,
+      requestId: command.requestId,
+      status: 'queued' as const,
+      attemptCount: 0,
+      failureCode: null,
+      retryable: false,
+      createdAt: '2026-08-08T00:00:00.000Z',
+      updatedAt: '2026-08-08T00:00:00.000Z',
+    }
+    vi.stubEnv(
+      'ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET',
+      'assistant-turn-test-secret-32-bytes-minimum'
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(status), {
+          status: 202,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(status), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ...status,
+            status: 'cancelled',
+            failureCode: 'cancelled_by_user',
+            updatedAt: '2026-08-08T00:00:01.000Z',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      startCortexAssistantGenerationJobThroughCoreApi(
+        command,
+        'assistant-job-one',
+        { tenantId: RESULT.tenantId, userId }
+      )
+    ).resolves.toEqual({ ok: true, data: status, status: 202 })
+    await expect(
+      getCortexAssistantGenerationJobThroughCoreApi(jobId)
+    ).resolves.toEqual({ ok: true, data: status, status: 200 })
+    await expect(
+      cancelCortexAssistantGenerationJobThroughCoreApi(
+        jobId,
+        'assistant-job-one:cancel'
+      )
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { status: 'cancelled', failureCode: 'cancelled_by_user' },
+    })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://erp-api.example.test/v1/cortex/conversations/assistant-turns/jobs'
+    )
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'X-Third-Code-Cortex-Signature': expect.stringMatching(
+            /^v1=[0-9a-f]{64}$/
+          ),
+        }),
+      })
+    )
+    expect(fetchMock.mock.calls[1]?.[0]).toContain(`/${jobId}`)
+    expect(fetchMock.mock.calls[2]?.[0]).toContain(`/${jobId}/cancel`)
   })
 
   it('keeps user role assignment on the server path unless the exact tenant gate matches', () => {

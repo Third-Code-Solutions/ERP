@@ -154,7 +154,7 @@ export const CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION = 'v1' as const
 export const CORTEX_ASSISTANT_TURN_SIGNATURE_MAX_AGE_SECONDS = 60
 
 export function cortexConversationAssistantTurnSignaturePayload(input: {
-  operation: 'claim' | 'complete'
+  operation: 'claim' | 'complete' | 'start_job'
   timestamp: string
   tenantId: string
   userId: string

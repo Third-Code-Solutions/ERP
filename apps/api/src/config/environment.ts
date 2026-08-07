@@ -179,6 +179,50 @@ const environmentSchema = z.object({
     )
     .pipe(z.array(z.string().uuid())),
   ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET: z.string().min(32).optional(),
+  // Provider-free grounded analysis jobs are independently scoped for intake,
+  // execution, and stale-job recovery. All gates default closed.
+  ERP_CORTEX_ASSISTANT_GENERATION_JOBS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CORTEX_ASSISTANT_GENERATION_JOBS_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  ERP_CORTEX_ASSISTANT_GENERATION_WORKER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CORTEX_ASSISTANT_GENERATION_WORKER_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  ERP_CORTEX_ASSISTANT_GENERATION_RECOVERY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CORTEX_ASSISTANT_GENERATION_RECOVERY_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Semantic indexing can spend an external provider call. Intake, worker,
   // and recovery are independently closed and exact-tenant scoped.
   ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED: z

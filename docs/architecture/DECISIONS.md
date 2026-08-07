@@ -1,5 +1,29 @@
 # Architecture Decisions
 
+## D-271 - Keep Cortex generation authority in Core (2026-08-08)
+
+Decision: move deterministic grounded assistant execution through a
+PostgreSQL-authoritative NestJS/BullMQ/Python workflow. Redis receives only an
+opaque job ID. Nest authorizes and redacts evidence, owns retry/cancel/recovery
+state, reauthorizes returned citations, and atomically commits official memory
+and audit. Python receives no tenant credential or database authority and may
+return analysis only. All independently scoped flags default closed.
+
+Rationale: running retrieval and inference in the Next request couples Vercel
+duration, provider spend, and transaction authority. A durable Core job avoids
+duplicate work, survives Redis loss, gives cancellation/recovery explicit
+states, and prevents Python or the browser from finalizing an ERP record. The
+provider-free first slice proves the boundary without creating AI cost.
+
+Evidence: strict wire-contract and closed-gate tests; BullMQ identity-only and
+retry tests; Python authentication, bounds, no-echo, and deterministic-grounding
+tests; Web no-provider compatibility tests; forced-RLS migration assertions;
+and rollback-only PostgreSQL integration proving scoped/redacted evidence,
+fencing, one commit, duplicate denial, cancellation, terminal-failure reclaim,
+and schema stability. A fresh 107-migration replay, zero-skip 349-test database
+lane, full Nest integration, package suites, production builds, spend guard,
+and secret scan passed. No hosted or provider action occurred.
+
 ## D-270 - Fence provider work before trusted assistant completion (2026-08-08)
 
 Decision: split assistant authority into a signed durable claim and a fenced

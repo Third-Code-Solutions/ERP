@@ -4,6 +4,7 @@ import {
   embedBatchWithPythonWorker,
   clearEmbeddingCache,
   isEmbeddingProviderConfigured,
+  generateGroundedAnswerWithPythonWorker,
 } from '@third-code-erp/ai'
 
 const ENV_KEYS = [
@@ -101,5 +102,61 @@ describe('Python AI worker boundary', () => {
 
     await expect(embedBatch(['Copper pipe'])).resolves.toEqual([[0.1, 0.2]])
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepts only grounded citations supplied by Nest', async () => {
+    process.env.AI_WORKER_URL = 'https://ai-worker.example.test'
+    process.env.AI_WORKER_SHARED_SECRET = 's'.repeat(32)
+    const nodeId = '11111111-1111-4111-8111-111111111111'
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          schema_version: 1,
+          model: 'deterministic-grounded-v1',
+          content: 'Grounded answer',
+          citation_node_ids: [nodeId],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      generateGroundedAnswerWithPythonWorker('What changed?', [
+        { nodeId, nodeType: 'project', title: 'Tower', summary: null },
+      ])
+    ).resolves.toEqual({
+      content: 'Grounded answer',
+      citationNodeIds: [nodeId],
+      model: 'deterministic-grounded-v1',
+    })
+  })
+
+  it('rejects grounded citations not supplied by Nest', async () => {
+    process.env.AI_WORKER_URL = 'https://ai-worker.example.test'
+    process.env.AI_WORKER_SHARED_SECRET = 's'.repeat(32)
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          schema_version: 1,
+          model: 'deterministic-grounded-v1',
+          content: 'Unsafe answer',
+          citation_node_ids: ['22222222-2222-4222-8222-222222222222'],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      generateGroundedAnswerWithPythonWorker('What changed?', [
+        {
+          nodeId: '11111111-1111-4111-8111-111111111111',
+          nodeType: 'project',
+          title: 'Tower',
+          summary: null,
+        },
+      ])
+    ).rejects.toThrow('invalid grounded response')
   })
 })

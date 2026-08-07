@@ -68,6 +68,9 @@ export const cortexAssistantTurnRequests = pgTable(
     tenantUserKeyUniqueIdx: uniqueIndex(
       'ux_cortex_assistant_turn_requests_tenant_user_key'
     ).on(table.tenant_id, table.user_id, table.idempotency_key),
+    tenantIdUniqueIdx: uniqueIndex(
+      'ux_cortex_assistant_turn_requests_tenant_id_id'
+    ).on(table.tenant_id, table.id),
     tenantUserMessageUniqueIdx: uniqueIndex(
       'ux_cortex_assistant_turn_requests_tenant_user_message'
     ).on(table.tenant_id, table.user_message_id),
