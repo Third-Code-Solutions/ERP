@@ -1,5 +1,15 @@
 # Target State
 
+## M3.148 authenticated-only tenant identity helper
+
+`public.auth_tenant_id()` must remain executable only by the roles that need
+it for tenant RLS and trusted service work: `authenticated` and
+`service_role`. Anonymous users must not invoke the helper directly. Public
+portal flows stay behind server-mediated boundaries; no critical ERP table
+write is granted to the browser. The privilege rule must be source-tested,
+runtime-replayed, and included in the reproducibility verifier before managed
+application.
+
 ## M3.147 managed Supabase parity gate
 
 Managed Supabase must be proven to match the repository migration ledger and

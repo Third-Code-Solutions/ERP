@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.148 anonymous tenant-identity RPC hardening
+
+Added one additive source migration that revokes `public`/`anon` EXECUTE on
+`public.auth_tenant_id()` and explicitly preserves `authenticated` and
+`service_role`. Added static/runtime database coverage and updated the
+reproducibility verifier. Source checkpoint
+`9c2b64b81b64b91de013d470e3147c3817dab27b` is pushed to
+`origin/agent-02/third-code-erp-landing`.
+
+Validation passed: focused database tests; 102-file migration verifier;
+serial workspace tests; typecheck/lint; production build 81/81 routes;
+Actionlint; Gitleaks; controlled-release 5/5; provider-spend 4/4; and fresh
+PostgreSQL 17/Redis 7.4.9 replay with 102/102 migrations, database 334/334,
+API integration 27/27, Redis recovery, and identical schema hash
+`278B8F024CED178A943B9E22FB14B9CD3BC7AEC3E339269E9DD20969B4B20843`.
+Local desktop/mobile landing QA also passed without UI changes.
+
+Next: keep the managed project and all hosted canaries closed. Reconcile the
+now 47-migration managed gap, duplicate Purchase Order data, advisor findings,
+backup/PITR, Auth identity, audit recovery, rollback, and spend limits on a
+disposable or branch database before proposing any ordered managed apply.
+
 ## M3.147 managed Supabase parity audit (read-only)
 
 Inspected the connected `ERP` project without executing SQL or applying a

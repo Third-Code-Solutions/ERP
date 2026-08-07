@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.148 tenant identity RPC hardening
+
+Keep Vercel/Railway deployments, Supabase SQL, ERP write flags, and tenant
+allowlists closed. Managed Supabase is now 47 source migrations behind. Do
+not apply that batch. First produce an ordered disposable/branch parity plan
+covering duplicate Purchase Orders, advisor findings, backup/PITR restore,
+Auth identity, audit recovery, rollback, and a bounded provider-spend
+envelope. Obtain explicit approval before one reviewed managed batch or one
+tenant canary. Do not create a deployment merely to re-prove green local
+source.
+
 ## Exact next action after M3.147 managed Supabase parity audit
 
 Keep all ERP write flags false, tenant allowlists empty, and hosted Vercel/

@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-256 - Remove anonymous execution of the tenant identity helper (2026-08-07)
+
+Decision: revoke implicit `public` and explicit `anon` EXECUTE on
+`public.auth_tenant_id()`. Preserve EXECUTE for `authenticated` because tenant
+RLS policies call the helper, and for `service_role` because trusted Core
+operations require it. Do not move or rename the helper in this small slice.
+
+Rationale: anonymous ERP table access is already denied and public portal
+flows are server-mediated, so anonymous RPC execution adds attack surface
+without a supported use case. Preserving the current authenticated helper
+avoids a broad RLS rewrite and keeps the migration independently reversible.
+
+Evidence: source privilege assertions, runtime PostgreSQL privilege checks,
+fresh 102-migration replay, no-skip database/API integration, identical
+schema hashes, workspace/build/security/release/spend gates, and local
+desktop/mobile landing QA passed. Source checkpoint
+`9c2b64b81b64b91de013d470e3147c3817dab27b` is pushed; hosted state is
+unchanged.
+
 ## D-255 - Treat managed Supabase parity as a hard release gate (2026-08-07)
 
 Decision: do not apply the repository's 46 unapplied migrations to the
