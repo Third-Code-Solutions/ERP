@@ -1,5 +1,18 @@
 # Third Code ERP capability matrix
 
+## M3.152 Purchase Order mapping recommendations (2026-08-07)
+
+No hosted ERP capability was enabled. Source now provides a deterministic,
+read-only owner-review proposal for duplicate Purchase Orders. Current managed
+evidence yields one canonical keep and 11 collision-free renumber suggestions
+for the 12 demo records. Proposal remains outside Git, approval is pending,
+and version-1 mapping preflight rejects it.
+
+Validation: proposal 4/4, existing mapping 4/4, template 3/3, plus overwrite
+and live artifact integrity checks; workspace test/lint/typecheck/build passed.
+Managed database remains 55/103 migrations. No SQL, repair, branch, canary,
+Vercel/Railway build, provider variable, or deployment was created.
+
 ## M3.151 free local managed-suffix replay (2026-08-07)
 
 No hosted ERP capability was enabled. The repository now has a cost-free,

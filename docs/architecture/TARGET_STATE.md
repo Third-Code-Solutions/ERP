@@ -1,5 +1,15 @@
 # Target State
 
+## M3.152 owner-governed duplicate remediation
+
+Duplicate remediation planning must be deterministic, collision-aware, and
+read-only, but business approval stays human-owned. A recommendation artifact
+must live outside source control, expose no identifiers in console output,
+refuse overwrite, and remain incompatible with the executable version-1
+mapping. Only an owner-reviewed mapping validated against a fresh snapshot may
+be applied, and only to an isolated complete managed restore before production.
+Proposal generation can never enable a canary, apply SQL, or certify parity.
+
 ## M3.151 managed-snapshot replay evidence boundary
 
 Database release evidence must distinguish an ordered source-suffix replay

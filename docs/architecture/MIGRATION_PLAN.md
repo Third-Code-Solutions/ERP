@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.152 Purchase Order owner-review proposal
+
+Added a pure proposal builder and read-only managed planner. The planner
+queries duplicate and tenant-scoped number sets inside one repeatable-read,
+read-only transaction, recommends the earliest-created/lexical-ID row as
+canonical, and allocates the first free `-Rnn` target without exceeding the
+existing 50-character limit. It writes atomically outside Git, refuses
+overwrite, and produces a proposal that cannot pass the version-1 mapping
+preflight.
+
+Managed proof produced one duplicate group, 12 recommendations, one keep, and
+11 renumbers. The stable external artifact is 4,220 bytes with SHA-256
+`803a25ec80b501ff86154e42777af0ea7ca2ed90d4e21bde4dcf2b749db99510`.
+Runtime uniqueness/length checks passed; overwrite and mapping-preflight gates
+failed closed. Focused 11/11, workspace tests, lint, typecheck, and one local
+production build passed. No hosted state or provider deployment changed.
+
+Next: database owner reviews the recommendations, records approver/time, and
+creates a separate complete version-1 mapping. Validate it against a fresh
+managed snapshot. Then obtain a complete managed backup/PITR clone containing
+Auth, Storage, vector, roles, grants, and provider catalog; apply only the
+approved mapping to that clone and run the zero-skip M3.151 parity gates. Keep
+hosted SQL, paid branch, canaries, Vercel, and Railway closed.
+
 ## M3.151 free local managed-suffix replay
 
 Cleared the tooling half of the M3.150 export blocker without creating a paid
