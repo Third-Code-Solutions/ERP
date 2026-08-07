@@ -500,6 +500,33 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_CORTEX_ASSISTANT_PROVIDER_BUDGET_TENANT_IDS')
   })
 
+  it('keeps assistant provider execution independently closed and UUID-scoped', () => {
+    const defaults = validateEnvironment(REQUIRED)
+    expect(defaults.ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_ENABLED).toBe(false)
+    expect(defaults.ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_TENANT_IDS).toEqual(
+      []
+    )
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_ENABLED: 'true',
+        ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_ENABLED: true,
+      ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_TENANT_IDS: '*',
+      })
+    ).toThrow('ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_TENANT_IDS')
+  })
+
   it('keeps notification recovery polling disabled by default', () => {
     expect(
       validateEnvironment(REQUIRED)

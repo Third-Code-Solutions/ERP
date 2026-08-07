@@ -189,12 +189,21 @@ suite('Cortex assistant provider budget database integration', () => {
     await alwaysRollback(async (transaction) => {
       const tenant = await seedTenant(transaction, 'authority')
       const jobs = await Promise.all(
-        ['one', 'two', 'three', 'four', 'five'].map((label) =>
+        ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'].map((label) =>
           seedProcessingJob(transaction, tenant, label)
         )
       )
-      const [one, two, three, four, five] = jobs
-      if (!one || !two || !three || !four || !five) {
+      const [one, two, three, four, five, six, seven, eight] = jobs
+      if (
+        !one ||
+        !two ||
+        !three ||
+        !four ||
+        !five ||
+        !six ||
+        !seven ||
+        !eight
+      ) {
         throw new Error('Provider budget job fixture missing')
       }
       await seedPolicy(transaction, tenant.tenantId, 400, 1_000)
@@ -292,6 +301,55 @@ suite('Cortex assistant provider budget database integration', () => {
           outcomeCode: 'gate_closed_before_dispatch',
         })
       ).resolves.toMatchObject({ status: 'released' })
+
+      const failedBeforeDispatch = await service.reserve(
+        reservation(six.jobId, '100')
+      )
+      await expect(
+        service.reconcileAttempt(
+          failedBeforeDispatch.reservationId,
+          'execution_failed'
+        )
+      ).resolves.toBe(1)
+      await expect(
+        service.release({
+          reservationId: failedBeforeDispatch.reservationId,
+          outcomeCode: 'execution_failed_before_dispatch',
+        })
+      ).resolves.toMatchObject({ status: 'released', replayed: true })
+
+      const replayedDispatch = await service.reserve(
+        reservation(seven.jobId, '100')
+      )
+      await service.markDispatched({
+        reservationId: replayedDispatch.reservationId,
+      })
+      await expect(
+        service.reconcileAttempt(replayedDispatch.reservationId, 'replayed')
+      ).resolves.toBe(1)
+      await expect(
+        service.settle({
+          reservationId: replayedDispatch.reservationId,
+          consumedCostMicros: '100',
+          outcomeCode: 'replayed_outcome_unknown',
+        })
+      ).resolves.toMatchObject({ status: 'settled', replayed: true })
+
+      const superseded = await service.reserve(reservation(eight.jobId, '100'))
+      await transaction
+        .update(cortexAssistantGenerationJobs)
+        .set({ attempt_count: 2, updated_at: new Date() })
+        .where(eq(cortexAssistantGenerationJobs.id, eight.jobId))
+      await expect(
+        service.reconcileSupersededAttempts(eight.jobId, 2)
+      ).resolves.toBe(1)
+      await expect(
+        service.release({
+          reservationId: superseded.reservationId,
+          outcomeCode: 'superseded_before_dispatch',
+        })
+      ).resolves.toMatchObject({ status: 'released', replayed: true })
+
       const fifthReservation = await service.reserve(
         reservation(five.jobId, '400')
       )

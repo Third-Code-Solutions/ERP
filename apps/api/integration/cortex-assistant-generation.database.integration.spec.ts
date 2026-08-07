@@ -4,6 +4,8 @@ import { createHash, createHmac, randomUUID } from 'node:crypto'
 import { ConfigService } from '@nestjs/config'
 import {
   cortexAssistantGenerationJobs,
+  cortexAssistantProviderAttempts,
+  cortexAssistantProviderPolicies,
   cortexConversationTurnRequests,
   cortexConversations,
   cortexMessages,
@@ -13,7 +15,7 @@ import {
   users,
   type Database,
 } from '@third-code-erp/database'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import {
   CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION,
   cortexConversationAssistantTurnSignaturePayload,
@@ -23,6 +25,7 @@ import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { AuditService } from '../src/audit/audit.service'
 import { CortexAssistantGenerationStateService } from '../src/cortex/cortex-assistant-generation.state'
 import { CortexAssistantGenerationService } from '../src/cortex/cortex-assistant-generation.service'
+import { CortexAssistantProviderBudgetService } from '../src/cortex/cortex-assistant-provider-budget.service'
 import { CortexAssistantTurnsService } from '../src/cortex/cortex-assistant-turns.service'
 import type { CortexAssistantTurnSignatureHeaders } from '../src/cortex/cortex-assistant-turns.service'
 import {
@@ -143,18 +146,29 @@ suite('Cortex assistant generation database integration', () => {
       const database = transactionBoundDatabase(transaction)
       const audit = new AuditService()
       const config = new ConfigService({
-          ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_ENABLED: true,
-          ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS: [tenantId],
-          ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET: 's'.repeat(32),
-          ERP_CORTEX_ASSISTANT_GENERATION_JOBS_ENABLED: true,
-          ERP_CORTEX_ASSISTANT_GENERATION_JOBS_TENANT_IDS: [tenantId],
-        })
+        ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_ENABLED: true,
+        ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS: [tenantId],
+        ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET: 's'.repeat(32),
+        ERP_CORTEX_ASSISTANT_GENERATION_JOBS_ENABLED: true,
+        ERP_CORTEX_ASSISTANT_GENERATION_JOBS_TENANT_IDS: [tenantId],
+        ERP_CORTEX_ASSISTANT_PROVIDER_BUDGET_ENABLED: true,
+        ERP_CORTEX_ASSISTANT_PROVIDER_BUDGET_TENANT_IDS: [tenantId],
+      })
       const assistantTurns = new CortexAssistantTurnsService(
         config,
         database,
         audit
       )
-      const state = new CortexAssistantGenerationStateService(database, audit)
+      const providerBudget = new CortexAssistantProviderBudgetService(
+        config,
+        database,
+        audit
+      )
+      const state = new CortexAssistantGenerationStateService(
+        database,
+        audit,
+        providerBudget
+      )
       const generation = new CortexAssistantGenerationService(
         config,
         assistantTurns,
@@ -294,11 +308,41 @@ suite('Cortex assistant generation database integration', () => {
         principal,
         'generation-assistant-turn-cancel'
       )
+      await transaction.insert(cortexAssistantProviderPolicies).values({
+        tenant_id: tenantId,
+        provider: 'fake',
+        model: 'deterministic-grounded-v1',
+        enabled: true,
+        request_limit_micros: 400,
+        daily_limit_micros: 1_000,
+      })
+      const cancelWorkerClaim = await state.claim(cancelStarted.status.jobId)
+      if (!cancelWorkerClaim) throw new Error('Cancel worker claim missing')
+      const cancelReservation = await providerBudget.reserve({
+        jobId: cancelWorkerClaim.jobId,
+        attemptNumber: cancelWorkerClaim.attemptNumber,
+        provider: 'fake',
+        model: 'deterministic-grounded-v1',
+        maxCostMicros: '400',
+      })
       await expect(
         state.cancel(cancelStarted.status.jobId, principal)
       ).resolves.toMatchObject({
         status: 'cancelled',
         failureCode: 'cancelled_by_user',
+      })
+      const [releasedOnCancel] = await transaction
+        .select({
+          status: cortexAssistantProviderAttempts.status,
+          consumed: cortexAssistantProviderAttempts.consumed_cost_micros,
+          outcome: cortexAssistantProviderAttempts.outcome_code,
+        })
+        .from(cortexAssistantProviderAttempts)
+        .where(eq(cortexAssistantProviderAttempts.id, cancelReservation.reservationId))
+      expect(releasedOnCancel).toEqual({
+        status: 'released',
+        consumed: 0,
+        outcome: 'cancelled_before_dispatch',
       })
       await expect(state.claim(cancelStarted.status.jobId)).resolves.toBeNull()
 
@@ -325,8 +369,52 @@ suite('Cortex assistant generation database integration', () => {
         principal,
         'generation-assistant-turn-cancel'
       )
+      const recoveredWorkerClaim = await state.claim(restarted.status.jobId)
+      if (!recoveredWorkerClaim) throw new Error('Recovery worker claim missing')
+      const recoveryReservation = await providerBudget.reserve({
+        jobId: recoveredWorkerClaim.jobId,
+        attemptNumber: recoveredWorkerClaim.attemptNumber,
+        provider: 'fake',
+        model: 'deterministic-grounded-v1',
+        maxCostMicros: '400',
+      })
+      await providerBudget.markDispatched({
+        reservationId: recoveryReservation.reservationId,
+      })
+      await expect(
+        state.recoverableJobIds(new Date(Date.now() + 1_000), [tenantId])
+      ).resolves.toContain(recoveredWorkerClaim.jobId)
+      const [settledOnRecovery] = await transaction
+        .select({
+          status: cortexAssistantProviderAttempts.status,
+          consumed: cortexAssistantProviderAttempts.consumed_cost_micros,
+          outcome: cortexAssistantProviderAttempts.outcome_code,
+        })
+        .from(cortexAssistantProviderAttempts)
+        .where(
+          and(
+            eq(cortexAssistantProviderAttempts.job_id, recoveredWorkerClaim.jobId),
+            eq(
+              cortexAssistantProviderAttempts.attempt_number,
+              recoveredWorkerClaim.attemptNumber
+            )
+          )
+        )
+      expect(settledOnRecovery).toEqual({
+        status: 'settled',
+        consumed: 400,
+        outcome: 'recovered_outcome_unknown',
+      })
+
       const failedWorkerClaim = await state.claim(restarted.status.jobId)
       if (!failedWorkerClaim) throw new Error('Failure worker claim missing')
+      const failureReservation = await providerBudget.reserve({
+        jobId: failedWorkerClaim.jobId,
+        attemptNumber: failedWorkerClaim.attemptNumber,
+        provider: 'fake',
+        model: 'deterministic-grounded-v1',
+        maxCostMicros: '400',
+      })
       await state.failTerminal(
         failedWorkerClaim.jobId,
         failedWorkerClaim.claimTokenHash,
@@ -335,6 +423,19 @@ suite('Cortex assistant generation database integration', () => {
       await expect(state.status(failedWorkerClaim.jobId, principal)).resolves.toMatchObject({
         status: 'failed',
         failureCode: 'worker_disabled',
+      })
+      const [releasedOnFailure] = await transaction
+        .select({
+          status: cortexAssistantProviderAttempts.status,
+          consumed: cortexAssistantProviderAttempts.consumed_cost_micros,
+          outcome: cortexAssistantProviderAttempts.outcome_code,
+        })
+        .from(cortexAssistantProviderAttempts)
+        .where(eq(cortexAssistantProviderAttempts.id, failureReservation.reservationId))
+      expect(releasedOnFailure).toEqual({
+        status: 'released',
+        consumed: 0,
+        outcome: 'failed_before_dispatch',
       })
       await expect(
         assistantTurns.claim(

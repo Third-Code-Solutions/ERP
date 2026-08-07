@@ -18,6 +18,10 @@ import {
   CortexAssistantGenerationWorkerClient,
   CortexAssistantGenerationWorkerError,
 } from './cortex-assistant-generation.worker'
+import {
+  CortexAssistantProviderExecutionError,
+  CortexAssistantProviderExecutionService,
+} from './cortex-assistant-provider-execution.service'
 import { CortexAssistantTurnsService } from './cortex-assistant-turns.service'
 
 export interface CortexAssistantGenerationProcessorResult {
@@ -35,6 +39,8 @@ export class CortexAssistantGenerationProcessor extends WorkerHost {
     private readonly state: CortexAssistantGenerationStateService,
     @Inject(CortexAssistantGenerationWorkerClient)
     private readonly workerClient: CortexAssistantGenerationWorkerClient,
+    @Inject(CortexAssistantProviderExecutionService)
+    private readonly providerExecution: CortexAssistantProviderExecutionService,
     @Inject(CortexAssistantTurnsService)
     private readonly assistantTurns: CortexAssistantTurnsService,
     @Inject(CortexAssistantGenerationJobQueue)
@@ -74,7 +80,10 @@ export class CortexAssistantGenerationProcessor extends WorkerHost {
 
     const claimed = await this.state.claim(parsed.data.jobId)
     if (!claimed) return { status: 'ignored', jobId: parsed.data.jobId }
-    if (!this.workerAllowed(claimed.tenantId)) {
+    const providerEnabled = this.providerExecution.enabledForTenant(
+      claimed.tenantId
+    )
+    if (!providerEnabled && !this.workerAllowed(claimed.tenantId)) {
       await this.state.failTerminal(
         claimed.jobId,
         claimed.claimTokenHash,
@@ -84,10 +93,9 @@ export class CortexAssistantGenerationProcessor extends WorkerHost {
     }
 
     try {
-      const output = await this.workerClient.generate(
-        claimed.question,
-        claimed.evidence
-      )
+      const output = providerEnabled
+        ? await this.providerExecution.generate(claimed)
+        : await this.workerClient.generate(claimed.question, claimed.evidence)
       const completed = await this.assistantTurns.completeFromWorker({
         jobId: claimed.jobId,
         requestId: claimed.requestId,
@@ -107,14 +115,26 @@ export class CortexAssistantGenerationProcessor extends WorkerHost {
       return { status: 'succeeded', jobId: claimed.jobId }
     } catch (error) {
       const code =
+        error instanceof CortexAssistantProviderExecutionError ||
         error instanceof CortexAssistantGenerationWorkerError
           ? error.code
           : 'assistant_generation_failed'
-      await this.state.retryOrFail(
-        claimed.jobId,
-        claimed.claimTokenHash,
-        code
-      )
+      if (
+        error instanceof CortexAssistantProviderExecutionError &&
+        !error.retryable
+      ) {
+        await this.state.failTerminal(
+          claimed.jobId,
+          claimed.claimTokenHash,
+          code
+        )
+      } else {
+        await this.state.retryOrFail(
+          claimed.jobId,
+          claimed.claimTokenHash,
+          code
+        )
+      }
       throw error
     }
   }

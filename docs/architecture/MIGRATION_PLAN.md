@@ -1,5 +1,39 @@
 # Migration Plan
 
+## M3.166 Cortex fake-provider orchestration and recovery (completed)
+
+1. Added independent, disabled-by-default provider-execution flags with exact
+   UUID tenant allowlists. Execution also requires the existing generation and
+   provider-budget gates for the same tenant.
+2. Added a provider-neutral Nest adapter seam. Its production implementation is
+   intentionally unavailable; unit tests inject an in-memory fake and perform
+   no external call.
+3. Added reserve-before-dispatch orchestration, authorized-citation validation,
+   actual-cost settlement, dispatched replay refusal, and reuse of the existing
+   fenced Nest completion authority.
+4. Added transaction-bound reconciliation for cancellation, retry, terminal
+   failure, claim failure, stale recovery, superseded attempts, execution
+   failure, and replay. Reserved work releases at zero; dispatched uncertainty
+   settles at the reserved maximum.
+5. Decoupled the exact-tenant recovery scope from intake/worker gates so stale
+   work can drain after execution is closed. This recovery gate cannot authorize
+   a provider call.
+
+Evidence: shared 260; API 599; Web 676; Python 8; lint/typecheck; Nest/Next
+production build with 82 pages; 108/108 clean disposable migration replay;
+database 354/354 zero-skip; full API integration; unchanged schema hash
+`ED239E894DF4109848F2EFC991F041217DE955880C4CF6092ECF029CEB966E74`;
+spend 4/4; release 5/5; Actionlint; pinned actions; Gitleaks across 549 commits;
+diff hygiene.
+
+Rollback: keep generation, provider-execution, and provider-budget gates false
+and all allowlists empty. Recovery may be enabled only for an explicitly
+approved exact tenant to drain stale local/managed work. Before reverting
+source after any future activation, reconcile every open attempt; do not
+down-migrate or delete the ledger. No migration was added in this milestone.
+The next safe source-only slice is M3.167: bind a provider-grounded completion
+to exactly one settled current provider attempt, still without a real adapter.
+
 ## M3.165 Cortex provider budget authority (completed)
 
 1. Added strict shared reserve, dispatch, settle, release, state, and exact

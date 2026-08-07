@@ -18,7 +18,7 @@ import {
   type CortexAssistantProviderReservationCommand,
   type CortexAssistantProviderSettlementCommand,
 } from '@third-code-erp/shared-types'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { AuditService } from '../audit/audit.service'
 import {
   DatabaseService,
@@ -61,6 +61,49 @@ interface ProviderAttemptRow {
   userId: string
   jobStatus: string
   jobAttemptCount: number
+}
+
+export type CortexAssistantProviderReconciliationReason =
+  | 'cancelled'
+  | 'retry'
+  | 'failed'
+  | 'recovered'
+  | 'superseded'
+  | 'execution_failed'
+  | 'replayed'
+
+const RECONCILIATION_OUTCOMES: Record<
+  CortexAssistantProviderReconciliationReason,
+  { reserved: string; dispatched: string }
+> = {
+  cancelled: {
+    reserved: 'cancelled_before_dispatch',
+    dispatched: 'cancelled_outcome_unknown',
+  },
+  retry: {
+    reserved: 'retry_before_dispatch',
+    dispatched: 'retry_outcome_unknown',
+  },
+  failed: {
+    reserved: 'failed_before_dispatch',
+    dispatched: 'failed_outcome_unknown',
+  },
+  recovered: {
+    reserved: 'recovered_before_dispatch',
+    dispatched: 'recovered_outcome_unknown',
+  },
+  superseded: {
+    reserved: 'superseded_before_dispatch',
+    dispatched: 'superseded_outcome_unknown',
+  },
+  execution_failed: {
+    reserved: 'execution_failed_before_dispatch',
+    dispatched: 'execution_failed_outcome_unknown',
+  },
+  replayed: {
+    reserved: 'replayed_before_dispatch',
+    dispatched: 'replayed_outcome_unknown',
+  },
 }
 
 export function cortexAssistantProviderReservationHash(
@@ -384,6 +427,72 @@ export class CortexAssistantProviderBudgetService {
     })
   }
 
+  async reconcileAttempt(
+    reservationId: string,
+    reason: 'execution_failed' | 'replayed'
+  ): Promise<number> {
+    const command = cortexAssistantProviderDispatchCommandSchema.parse({
+      reservationId,
+    })
+    return this.database.client.transaction(async (transaction) => {
+      const [identity] = await transaction
+        .select({ jobId: cortexAssistantProviderAttempts.job_id })
+        .from(cortexAssistantProviderAttempts)
+        .where(eq(cortexAssistantProviderAttempts.id, command.reservationId))
+        .limit(1)
+      if (!identity) return 0
+      const [job] = await transaction
+        .select({ id: cortexAssistantGenerationJobs.id })
+        .from(cortexAssistantGenerationJobs)
+        .where(eq(cortexAssistantGenerationJobs.id, identity.jobId))
+        .limit(1)
+        .for('update')
+      if (!job) return 0
+      return this.reconcileOpenAttemptsWithin(transaction, job.id, reason, {
+        reservationId: command.reservationId,
+      })
+    })
+  }
+
+  async reconcileSupersededAttempts(
+    jobId: string,
+    currentAttemptNumber: number
+  ): Promise<number> {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        jobId
+      ) ||
+      !Number.isInteger(currentAttemptNumber) ||
+      currentAttemptNumber < 1 ||
+      currentAttemptNumber > 3
+    ) {
+      throw new Error('Invalid provider reconciliation scope')
+    }
+    return this.database.client.transaction(async (transaction) => {
+      const [job] = await transaction
+        .select({ id: cortexAssistantGenerationJobs.id })
+        .from(cortexAssistantGenerationJobs)
+        .where(eq(cortexAssistantGenerationJobs.id, jobId))
+        .limit(1)
+        .for('update')
+      if (!job) return 0
+      return this.reconcileOpenAttemptsWithin(
+        transaction,
+        job.id,
+        'superseded',
+        { maxAttemptExclusive: currentAttemptNumber }
+      )
+    })
+  }
+
+  async reconcileGenerationJobWithin(
+    transaction: DatabaseTransaction,
+    jobId: string,
+    reason: 'cancelled' | 'retry' | 'failed' | 'recovered'
+  ): Promise<number> {
+    return this.reconcileOpenAttemptsWithin(transaction, jobId, reason)
+  }
+
   private async findAttempt(
     transaction: DatabaseTransaction,
     reservationId: string
@@ -483,6 +592,106 @@ export class CortexAssistantProviderBudgetService {
       jobStatus: cortexAssistantGenerationJobs.status,
       jobAttemptCount: cortexAssistantGenerationJobs.attempt_count,
     }
+  }
+
+  private async reconcileOpenAttemptsWithin(
+    transaction: DatabaseTransaction,
+    jobId: string,
+    reason: CortexAssistantProviderReconciliationReason,
+    scope: {
+      reservationId?: string
+      maxAttemptExclusive?: number
+    } = {}
+  ): Promise<number> {
+    const conditions = [
+      eq(cortexAssistantProviderAttempts.job_id, jobId),
+      inArray(cortexAssistantProviderAttempts.status, [
+        'reserved',
+        'dispatched',
+      ]),
+    ]
+    if (scope.reservationId) {
+      conditions.push(
+        eq(cortexAssistantProviderAttempts.id, scope.reservationId)
+      )
+    }
+    if (scope.maxAttemptExclusive !== undefined) {
+      conditions.push(
+        lt(
+          cortexAssistantProviderAttempts.attempt_number,
+          scope.maxAttemptExclusive
+        )
+      )
+    }
+    const attempts = await transaction
+      .select(this.attemptSelection())
+      .from(cortexAssistantProviderAttempts)
+      .innerJoin(
+        cortexAssistantProviderPolicies,
+        and(
+          eq(
+            cortexAssistantProviderPolicies.id,
+            cortexAssistantProviderAttempts.policy_id
+          ),
+          eq(
+            cortexAssistantProviderPolicies.tenant_id,
+            cortexAssistantProviderAttempts.tenant_id
+          )
+        )
+      )
+      .innerJoin(
+        cortexAssistantGenerationJobs,
+        and(
+          eq(
+            cortexAssistantGenerationJobs.id,
+            cortexAssistantProviderAttempts.job_id
+          ),
+          eq(
+            cortexAssistantGenerationJobs.tenant_id,
+            cortexAssistantProviderAttempts.tenant_id
+          )
+        )
+      )
+      .where(and(...conditions))
+      .orderBy(cortexAssistantProviderAttempts.attempt_number)
+      .for('update', { of: cortexAssistantProviderAttempts })
+
+    let reconciled = 0
+    for (const attempt of attempts) {
+      const now = new Date()
+      const outcome = RECONCILIATION_OUTCOMES[reason][
+        attempt.status as 'reserved' | 'dispatched'
+      ]
+      const targetState = attempt.status === 'reserved' ? 'released' : 'settled'
+      const consumedMicros =
+        attempt.status === 'reserved' ? 0 : attempt.reservedCostMicros
+      const [updated] = await transaction
+        .update(cortexAssistantProviderAttempts)
+        .set({
+          status: targetState,
+          consumed_cost_micros: consumedMicros,
+          outcome_code: outcome,
+          terminal_at: now,
+          updated_at: now,
+        })
+        .where(
+          and(
+            eq(cortexAssistantProviderAttempts.id, attempt.id),
+            eq(cortexAssistantProviderAttempts.status, attempt.status)
+          )
+        )
+        .returning({ id: cortexAssistantProviderAttempts.id })
+      if (!updated) continue
+      const terminal = {
+        ...attempt,
+        status: targetState,
+        consumedCostMicros: consumedMicros,
+        outcomeCode: outcome,
+      }
+      await this.writeStateAudit(transaction, terminal, targetState)
+      reconciled += 1
+    }
+    return reconciled
   }
 
   private toResult(

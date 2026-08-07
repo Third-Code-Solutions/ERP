@@ -5,6 +5,44 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.166 Cortex fake-provider orchestration and recovery (2026-08-08)
+
+Nest now contains a provider-neutral execution seam around the M3.165 budget
+authority. The production adapter is deliberately unavailable and performs no
+network work. Tests inject an in-memory fake only. Execution requires the
+generation, provider-execution, and provider-budget global gates plus an exact
+tenant match in all three allowlists. Every new flag defaults false and every
+allowlist defaults empty.
+
+For an eligible claimed job, Nest reconciles older attempts, reserves the
+current attempt, marks it dispatched, validates the bounded completion and
+authorized citation set, settles actual fake cost, and only then asks the
+existing Nest completion authority to commit the official assistant turn. A
+replayed dispatched attempt never invokes the adapter again. Reserved attempts
+are released at zero on cancellation, retry, terminal failure, recovery, or
+pre-dispatch execution failure. Dispatched attempts with an unknown outcome
+are conservatively settled at the reserved maximum. State reconciliation and
+job mutation share the same PostgreSQL transaction.
+
+Recovery has its own closed exact-tenant gate so operators can drain and
+reconcile stale jobs after intake or execution is closed. This does not grant
+provider execution: dispatch still requires all execution gates. No database
+schema, public API, Web UI, Python behavior, credential, provider package, or
+real provider call was added. The current completion contract is still the
+provider-free deterministic contract, so a real provider remains blocked.
+
+Validation passed: shared 260/260; API 599/599; Web 676/676; Python 8/8;
+lint/typecheck; Nest/Next production build with 82 generated pages; spend 4/4;
+controlled release 5/5; Actionlint; pinned workflow actions; Gitleaks across
+549 commits; and diff hygiene. The clean PostgreSQL 17 + Redis 7.4.9 lane
+replayed 108/108 migrations, passed database 354/354 with zero skips and the
+full API integration suite, and retained schema hash
+`ED239E894DF4109848F2EFC991F041217DE955880C4CF6092ECF029CEB966E74`.
+
+No hosted Supabase query/write, Auth/Storage/data mutation, Vercel/Railway
+build or deployment, AI/image/provider call, paid resource, or Vercel Git
+change occurred. Managed Supabase remains last verified at 55/108.
+
 ## M3.165 Cortex provider budget authority (2026-08-08)
 
 Nest now owns a source-only provider-attempt budget contract. PostgreSQL stores

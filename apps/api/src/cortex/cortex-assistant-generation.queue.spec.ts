@@ -38,23 +38,22 @@ describe('CortexAssistantGenerationJobQueue', () => {
     )
   })
 
-  it('intersects recovery, intake, and worker tenant scopes', () => {
+  it('keeps recovery exact and independently drainable', () => {
     const producer = new CortexAssistantGenerationJobQueue(
       {} as Queue,
       {} as CortexAssistantGenerationStateService,
       config({
         ERP_CORTEX_ASSISTANT_GENERATION_RECOVERY_ENABLED: true,
-        ERP_CORTEX_ASSISTANT_GENERATION_JOBS_ENABLED: true,
-        ERP_CORTEX_ASSISTANT_GENERATION_WORKER_ENABLED: true,
         ERP_CORTEX_ASSISTANT_GENERATION_RECOVERY_TENANT_IDS: [
           TENANT_ID,
           '33333333-3333-4333-8333-333333333333',
         ],
-        ERP_CORTEX_ASSISTANT_GENERATION_JOBS_TENANT_IDS: [TENANT_ID],
-        ERP_CORTEX_ASSISTANT_GENERATION_WORKER_TENANT_IDS: [TENANT_ID],
       })
     )
-    expect(producer.scopedRecoveryTenantIds()).toEqual([TENANT_ID])
+    expect(producer.scopedRecoveryTenantIds()).toEqual([
+      TENANT_ID,
+      '33333333-3333-4333-8333-333333333333',
+    ])
   })
 
   it('replaces only terminal Redis envelopes for a PostgreSQL retry', async () => {

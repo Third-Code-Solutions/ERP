@@ -1,5 +1,35 @@
 # Architecture Decisions
 
+## D-275 - Reconcile cost before retrying or closing provider work (2026-08-08)
+
+Decision: Nest owns provider orchestration and recovery. It must reserve the
+current claimed attempt before dispatch, refuse a second dispatch after a
+replayed dispatched state, validate citations against the evidence selected by
+Core, settle cost, and then use the existing fenced completion authority. The
+production adapter remains unavailable until a separately approved milestone.
+
+Every cancellation, retry, failure, and stale recovery reconciles open attempts
+inside the same PostgreSQL transaction as the job mutation. A reserved attempt
+is released with zero consumption. A dispatched attempt with an unprovable
+external outcome is settled at its reserved maximum. Recovery uses an
+independent false-by-default exact-tenant gate so operators can drain work after
+intake/execution close without granting new dispatch authority.
+
+Rationale: provider failures and process crashes occur between reservation,
+dispatch, settlement, and official commit. Retrying without durable
+reconciliation can double-spend; releasing dispatched work can undercount;
+requiring intake to stay open prevents safe shutdown. Conservative terminal
+accounting and one-dispatch replay behavior bound cost while preserving a
+fail-closed operational drain path.
+
+Evidence: fake-only orchestration tests prove gate intersection, no reservation
+when the adapter is absent, reserve-before-dispatch ordering, actual settlement,
+replay refusal, citation rejection, stale completion fencing, and failure
+reconciliation. PostgreSQL integration proves cancellation release, terminal
+failure release, recovery settlement at maximum, superseded attempt cleanup,
+and schema stability. All release, build, test, and security gates passed. No
+provider or hosted action occurred.
+
 ## D-274 - Reserve provider money before dispatch (2026-08-08)
 
 Decision: Nest must durably reserve bounded integer micros against an enabled

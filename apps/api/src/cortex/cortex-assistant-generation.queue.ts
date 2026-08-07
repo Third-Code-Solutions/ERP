@@ -111,14 +111,6 @@ export class CortexAssistantGenerationJobQueue
       this.config.get<boolean>(
         'ERP_CORTEX_ASSISTANT_GENERATION_RECOVERY_ENABLED',
         false
-      ) !== true ||
-      this.config.get<boolean>(
-        'ERP_CORTEX_ASSISTANT_GENERATION_JOBS_ENABLED',
-        false
-      ) !== true ||
-      this.config.get<boolean>(
-        'ERP_CORTEX_ASSISTANT_GENERATION_WORKER_ENABLED',
-        false
       ) !== true
     ) {
       return []
@@ -127,20 +119,6 @@ export class CortexAssistantGenerationJobQueue
       'ERP_CORTEX_ASSISTANT_GENERATION_RECOVERY_TENANT_IDS',
       []
     )
-    const jobs = new Set(
-      this.config.get<string[]>(
-        'ERP_CORTEX_ASSISTANT_GENERATION_JOBS_TENANT_IDS',
-        []
-      )
-    )
-    const workers = new Set(
-      this.config.get<string[]>(
-        'ERP_CORTEX_ASSISTANT_GENERATION_WORKER_TENANT_IDS',
-        []
-      )
-    )
-    return [...new Set(recovery)].filter(
-      (tenantId) => jobs.has(tenantId) && workers.has(tenantId)
-    )
+    return [...new Set(recovery)]
   }
 }

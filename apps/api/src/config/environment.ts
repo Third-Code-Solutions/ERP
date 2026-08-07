@@ -239,6 +239,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Provider execution is a second, independent exact-tenant gate. Source
+  // provides only an unavailable adapter; no provider can be called yet.
+  ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Semantic indexing can spend an external provider call. Intake, worker,
   // and recovery are independently closed and exact-tenant scoped.
   ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED: z

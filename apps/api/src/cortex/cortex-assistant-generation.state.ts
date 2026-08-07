@@ -48,6 +48,7 @@ import {
   CORTEX_ASSISTANT_GENERATION_LEASE_MS,
   CORTEX_ASSISTANT_GENERATION_RECOVERY_BATCH_SIZE,
 } from './cortex-assistant-generation.constants'
+import { CortexAssistantProviderBudgetService } from './cortex-assistant-provider-budget.service'
 import { cortexSearchNodeTypeScope } from './cortex-search-scope'
 
 interface GenerationJobRow {
@@ -63,6 +64,7 @@ interface GenerationJobRow {
 export interface ClaimedCortexAssistantGenerationJob {
   jobId: string
   requestId: string
+  attemptNumber: number
   tenantId: string
   userId: string
   claimTokenHash: string
@@ -120,7 +122,9 @@ export class CortexAssistantGenerationStateService {
     @Inject(DatabaseService)
     private readonly database: DatabaseService,
     @Inject(AuditService)
-    private readonly audit: AuditService
+    private readonly audit: AuditService,
+    @Inject(CortexAssistantProviderBudgetService)
+    private readonly providerBudget: CortexAssistantProviderBudgetService
   ) {}
 
   async start(
@@ -317,6 +321,11 @@ export class CortexAssistantGenerationStateService {
               )
             )
           )
+        await this.providerBudget.reconcileGenerationJobWithin(
+          transaction,
+          job.id,
+          'cancelled'
+        )
         await this.audit.writeSemantic(transaction, {
           tenantId: authorizedPrincipal.tenantId,
           actorId: authorizedPrincipal.userId,
@@ -561,6 +570,7 @@ export class CortexAssistantGenerationStateService {
       return {
         jobId: row.jobId,
         requestId: row.requestId,
+        attemptNumber: row.attempts + 1,
         tenantId: row.tenantId,
         userId: row.userId,
         claimTokenHash: row.jobClaimTokenHash,
@@ -604,6 +614,11 @@ export class CortexAssistantGenerationStateService {
       if (!job) return
       const terminal =
         job.attemptCount >= CORTEX_ASSISTANT_GENERATION_MAX_ATTEMPTS
+      await this.providerBudget.reconcileGenerationJobWithin(
+        transaction,
+        jobId,
+        terminal ? 'failed' : 'retry'
+      )
       const now = new Date()
       await transaction
         .update(cortexAssistantGenerationJobs)
@@ -661,6 +676,11 @@ export class CortexAssistantGenerationStateService {
           claimTokenHash: cortexAssistantGenerationJobs.claim_token_hash,
         })
       if (!failed) return
+      await this.providerBudget.reconcileGenerationJobWithin(
+        transaction,
+        jobId,
+        'failed'
+      )
       await this.expireRequestLeaseWithin(
         transaction,
         failed.requestId,
@@ -702,6 +722,11 @@ export class CortexAssistantGenerationStateService {
         .for('update', { skipLocked: true })
       const recoverable: string[] = []
       for (const row of rows) {
+        await this.providerBudget.reconcileGenerationJobWithin(
+          transaction,
+          row.id,
+          'recovered'
+        )
         if (row.attempts >= CORTEX_ASSISTANT_GENERATION_MAX_ATTEMPTS) {
           await this.failWithin(transaction, row.id, 'attempt_limit')
           continue
@@ -783,6 +808,11 @@ export class CortexAssistantGenerationStateService {
         claimTokenHash: cortexAssistantGenerationJobs.claim_token_hash,
       })
     if (!failed) return
+    await this.providerBudget.reconcileGenerationJobWithin(
+      transaction,
+      jobId,
+      'failed'
+    )
     await this.expireRequestLeaseWithin(
       transaction,
       failed.requestId,

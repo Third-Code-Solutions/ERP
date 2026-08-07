@@ -1,5 +1,34 @@
 # Work Log
 
+## 2026-08-08 - M3.166 Cortex fake-provider orchestration and recovery
+
+Implemented the smallest schema-free slice around M3.165. Added closed
+provider-execution gates, a deliberately unavailable production adapter, and a
+Nest orchestration service. In-memory fake tests prove reserve, dispatch,
+bounded output/citation validation, actual-cost settlement, replay refusal,
+failure reconciliation, and the existing official completion fence. No real
+provider implementation or network path exists.
+
+Connected provider-attempt reconciliation to job cancellation, retry, terminal
+failure, claim failure, and stale recovery in the same transaction. Reserved
+attempts release at zero. Dispatched attempts with unknown outcomes settle at
+the reserved maximum. Recovery now has an independent exact-tenant drain gate;
+generation and provider gates still control dispatch.
+
+Validation: API 599/599, shared 260/260, Web 676/676, Python 8/8, lint,
+typecheck, Nest/Next production build with 82 pages, spend 4/4, controlled
+release 5/5, Actionlint, pinned workflow actions, Gitleaks over 549 commits, and
+diff hygiene. The clean PostgreSQL 17/Redis 7.4.9 lane passed 108/108
+migrations, database 354/354 with zero skips, full API integration, and equal
+before/after schema hash
+`ED239E894DF4109848F2EFC991F041217DE955880C4CF6092ECF029CEB966E74`.
+
+Release boundary: all new/existing provider and generation flags remain false,
+allowlists empty, no policy or credential was created, and the production
+adapter is unavailable. No hosted Supabase access/mutation, Vercel/Railway
+build/deploy, provider/AI/image call, paid resource, or Vercel Git change
+occurred. Disposable database services were stopped.
+
 ## 2026-08-08 - M3.165 Cortex provider budget authority
 
 Implemented a disabled, source-only cost authority before any paid Cortex
