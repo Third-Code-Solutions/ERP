@@ -1,5 +1,28 @@
 # Architecture Decisions
 
+## D-257 - Make user-role assignment a Core transaction (2026-08-07)
+
+Decision: expose user-role assignment through the typed NestJS endpoint
+`PATCH /v1/admin/users/:userId/role`, backed by a service-only tenant-scoped
+idempotency ledger. Core locks and rechecks actor membership and target,
+enforces `admin.users` plus owner/admin hierarchy, requires the expected prior
+role, and commits the role and semantic audit atomically. Revoke authenticated
+direct mutations of `public.users`; preserve tenant-scoped reads and the
+closed-by-default Web compatibility adapter.
+
+Rationale: a role update changes future authorization. Browser table writes
+or component-owned logic cannot safely bind membership, hierarchy, stale
+state, retry, and audit into one official decision. A small command seam
+preserves current callers while moving the critical transaction into Core.
+The actor/target user identifiers are intentionally not foreign-keyed from
+the replay ledger so deletion cannot erase or invalidate decision evidence.
+
+Evidence: static privilege tests, Core unit/controller/RBAC tests, Web adapter
+and action tests, 103-migration disposable replay, database 337/337, API
+integration 21/21 files, workspace/build/security/release/spend gates, and
+local production protected-route browser proof passed. Hosted state and
+deployments are unchanged; all canary flags remain false/empty.
+
 ## D-256 - Remove anonymous execution of the tenant identity helper (2026-08-07)
 
 Decision: revoke implicit `public` and explicit `anon` EXECUTE on

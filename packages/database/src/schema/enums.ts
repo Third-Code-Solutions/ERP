@@ -337,6 +337,11 @@ export const costEntryCreateRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const userRoleAssignmentRequestStateEnum = pgEnum(
+  'user_role_assignment_request_state',
+  ['processing', 'succeeded']
+)
+
 export const costEntryDeleteRequestStateEnum = pgEnum(
   'cost_entry_delete_request_state',
   ['processing', 'succeeded']

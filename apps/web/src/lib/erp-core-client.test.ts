@@ -82,6 +82,8 @@ import {
   transitionPurchaseOrderThroughCoreApi,
   createProjectThroughCoreApi,
   updateProjectThroughCoreApi,
+  adminUserRoleAssignmentWritesUseCoreApi,
+  assignUserRoleThroughCoreApi,
   financeJournalPostWritesUseCoreApi,
   financeJournalReverseWritesUseCoreApi,
   financeSupplierBillPostWritesUseCoreApi,
@@ -841,6 +843,68 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS', '')
     expect(cortexSearchUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(cortexSearchUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps user role assignment on the server path unless the exact tenant gate matches', () => {
+    vi.stubEnv('ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(
+      adminUserRoleAssignmentWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(true)
+
+    vi.stubEnv('ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API', 'TRUE')
+    expect(
+      adminUserRoleAssignmentWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(false)
+    vi.stubEnv('ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API_TENANT_IDS',
+      ''
+    )
+    expect(
+      adminUserRoleAssignmentWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(false)
+  })
+
+  it('assigns a user role through Core with idempotency and validates scope', async () => {
+    const userId = '77777777-7777-4777-8777-777777777777'
+    const result = {
+      userId,
+      tenantId: RESULT.tenantId,
+      previousRole: 'viewer' as const,
+      role: 'pm' as const,
+      status: 'updated' as const,
+      updatedAt: '2026-08-07T00:00:00.000Z',
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      assignUserRoleThroughCoreApi(
+        userId,
+        { expectedRole: 'viewer', role: 'pm' },
+        'role-assignment-1'
+      )
+    ).resolves.toEqual({ ok: true, data: result })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/admin/users/${userId}/role`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ expectedRole: 'viewer', role: 'pm' }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'role-assignment-1',
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
   })
 
   it('calls the authenticated Core Cortex read and validates the response', async () => {

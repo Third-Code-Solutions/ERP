@@ -5,6 +5,40 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.149 Core user-role assignment authority (2026-08-07)
+
+User-role assignment now has a typed, closed-by-default NestJS command at
+`PATCH /v1/admin/users/:userId/role`. Core re-derives tenant and actor from
+the authenticated principal, requires `admin.users`, locks actor membership
+and the target user, enforces owner/admin hierarchy and self-demotion rules,
+checks the expected prior role, commits the role plus bounded semantic audit
+in one transaction, and returns exact idempotent replay data. A separate
+service-only tenant/idempotency ledger preserves retry evidence.
+
+Migration `20260807150000_user_role_assignment_authority.sql` removes
+authenticated INSERT/UPDATE/DELETE access and legacy write policies from
+`public.users` while preserving tenant-scoped reads. The existing admin
+Server Action remains caller-compatible: exact-`true` plus UUID allowlisting
+selects Core, selected failures fail closed, and the legacy server-only path
+remains available for unselected tenants. Adjacent create, password-reset,
+and delete actions now reject admin attempts against owners. All four role
+assignment flags remain false/empty.
+
+Fresh disposable PostgreSQL 17/Redis 7.4.9 replay applied 103/103 migrations;
+database tests passed 337/337 without skips; API integration passed 21/21
+files including the real role-assignment transaction. Workspace tests passed
+(shared 28 files/234 tests, API 118/516, Web 93/610), plus typecheck, lint,
+Nest/Next production build (81/81 routes), Actionlint, Gitleaks,
+controlled-release 5/5, provider-spend 4/4, and schema stability. Local
+production browser proof showed `/admin/users` redirecting `307` to the
+`200` sign-in page with zero console warnings/errors and no failed requests.
+No credentials or hosted writes were used.
+
+Managed Supabase was not refreshed: its last verified ledger remains 55
+migrations, so the 103-file source ledger implies a 48-migration gap. No
+Supabase SQL, tenant-data mutation, provider-variable change, Vercel deploy,
+or Railway deploy occurred.
+
 ## M3.148 anonymous tenant-identity RPC hardening (2026-08-07)
 
 Source now revokes `anon` and implicit `public` execution of

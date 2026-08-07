@@ -139,6 +139,27 @@ When enabled, failed Nest/Redis quota calls fail closed before external AI
 work. Edge limiter remains separate per-instance burst guard. This is not a
 global budget until every provider instance uses shared accounting.
 
+## User role assignment (NestJS, disabled by default)
+
+The privileged role command derives actor and tenant scope from the verified
+Nest principal. It locks actor membership and target user, enforces owner
+hierarchy and expected-role concurrency, commits the role and semantic audit
+in one transaction, and replays by idempotency key. The Next server path stays
+the compatibility default. Once the web selector is enabled, Core failures
+never fall back to a direct write.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_ENABLED` | no | Railway API | Exact `true` enables `PATCH /v1/admin/users/:userId/role`; default `false` |
+| `ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_TENANT_IDS` | no | Railway API | Strict UUID allowlist; default empty |
+| `ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API` | no | Next server | Selects the authenticated Core adapter; exact `true` only |
+| `ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
+Keep all four values closed until the migration suffix, disposable replay,
+protected owner/admin tests, rollback review, and hosted parity checks pass.
+The database migration removes direct `public.users` DML from browser roles;
+do not restore browser grants as a rollout shortcut.
+
 ## Operational asset register reads (NestJS, disabled by default)
 
 The asset register read projection is intentionally closed until the ordered

@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { and, eq, ne, sql } from 'drizzle-orm'
@@ -12,6 +13,10 @@ import {
 import { db } from '@third-code-erp/database'
 import { users as usersTable } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  adminUserRoleAssignmentWritesUseCoreApi,
+  assignUserRoleThroughCoreApi,
+} from '@/lib/erp-core-client'
 import { ASSIGNABLE_ROLES } from './roles'
 
 const createUserSchema = z.object({
@@ -79,6 +84,9 @@ export async function createUser(
       }
     }
     const input = parsed.data
+    if (input.role === 'owner' && profile.role !== 'owner') {
+      return { error: 'Only an owner can create another owner.' }
+    }
 
     // Reject duplicate emails within this tenant (Supabase Auth rejects
     // globally too, but we want a clean error before hitting the admin API).
@@ -186,10 +194,54 @@ export async function updateUserRole(
     if (!existing) return { error: 'User not found in this workspace.' }
     if (existing.role === role) return {}
 
+    if (
+      user_id === profile.user.id &&
+      existing.role === 'owner' &&
+      role !== 'owner'
+    ) {
+      return { error: 'An owner cannot remove their own owner role.' }
+    }
+
+    if (
+      profile.role !== 'owner' &&
+      (existing.role === 'owner' || role === 'owner')
+    ) {
+      return { error: 'Only an owner can assign or change the owner role.' }
+    }
+
+    if (adminUserRoleAssignmentWritesUseCoreApi(profile.tenantId)) {
+      const result = await assignUserRoleThroughCoreApi(
+        user_id,
+        { expectedRole: existing.role, role },
+        randomUUID()
+      )
+      if (!result.ok || !result.data) {
+        return {
+          error: result.error ?? 'User role assignment was not committed.',
+        }
+      }
+      if (
+        result.data.userId !== user_id ||
+        result.data.tenantId !== profile.tenantId ||
+        result.data.role !== role
+      ) {
+        return { error: 'User role assignment returned an invalid tenant scope.' }
+      }
+
+      revalidatePath('/admin/users')
+      revalidatePath(`/admin/users/${user_id}`)
+      return {}
+    }
+
     await db
       .update(usersTable)
       .set({ role, updated_at: new Date() })
-      .where(eq(usersTable.id, user_id))
+      .where(
+        and(
+          eq(usersTable.id, user_id),
+          eq(usersTable.tenant_id, profile.tenantId)
+        )
+      )
 
     try {
       await writeAuditLog({
@@ -236,11 +288,18 @@ export async function resetUserPassword(
 
     // Tenant-scope guard.
     const [target] = await db
-      .select({ id: usersTable.id, email: usersTable.email })
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        role: usersTable.role,
+      })
       .from(usersTable)
       .where(and(eq(usersTable.id, user_id), eq(usersTable.tenant_id, profile.tenantId)))
       .limit(1)
     if (!target) return { error: 'User not found in this workspace.' }
+    if (target.role === 'owner' && profile.role !== 'owner') {
+      return { error: 'Only an owner can reset another owner password.' }
+    }
 
     const admin = createSupabaseAdminClient()
     const { error } = await admin.auth.admin.updateUserById(user_id, { password })
@@ -292,6 +351,9 @@ export async function deleteUser(
       .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
       .limit(1)
     if (!target) return { error: 'User not found in this workspace.' }
+    if (target.role === 'owner' && profile.role !== 'owner') {
+      return { error: 'Only an owner can delete another owner.' }
+    }
 
     // Protect the last admin/owner — count the remaining admins/owners
     // in this tenant (excluding the target).

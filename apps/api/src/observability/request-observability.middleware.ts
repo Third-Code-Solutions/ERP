@@ -80,6 +80,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
         : ''
     if (
       request.method === 'PATCH' &&
+      routePath.endsWith('/v1/admin/users/:userId/role')
+    ) {
+      return 'admin.user_role_assignment'
+    }
+    if (
+      request.method === 'PATCH' &&
       routePath.endsWith('/v1/projects/:projectId')
     ) {
       return 'project.update'

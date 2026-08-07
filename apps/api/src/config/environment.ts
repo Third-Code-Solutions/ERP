@@ -180,6 +180,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // User role assignment is a privileged command. It stays fail-closed until
+  // browser DML revocation, replay, audit, and one protected tenant canary pass.
+  ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Won-to-Project handoff stays fail-closed until the atomic checklist,
   // notification, idempotency, and tenant-canary replay are approved.
   ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED: z

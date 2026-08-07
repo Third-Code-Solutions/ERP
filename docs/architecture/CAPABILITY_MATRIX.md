@@ -1,5 +1,22 @@
 # Third Code ERP capability matrix
 
+## M3.149 Core user-role assignment authority (2026-08-07)
+
+Owner/admin role assignment is available in source through a typed NestJS
+command. Core owns tenant and actor derivation, `admin.users`, hierarchy,
+expected-role concurrency, idempotency, transaction commit, and semantic
+audit. Authenticated clients retain tenant-scoped `users` reads but have no
+table- or column-level INSERT/UPDATE/DELETE privileges. Web selection requires
+exact-`true` plus UUID allowlisting; all four flags are false/empty.
+
+Validation: 103/103 disposable migrations; database 337/337; API integration
+21/21 files; shared 28/234; API 118/516; Web 93/610; typecheck/lint; build
+81/81 routes; Actionlint; Gitleaks; controlled-release 5/5; provider-spend
+4/4; stable schema; and local production redirect/render proof with no
+console or network failure. Managed Supabase was not refreshed or mutated;
+its last verified 55 migrations imply a 48-migration gap. No hosted
+capability or deployment is approved.
+
 ## M3.148 tenant identity RPC hardening (2026-08-07)
 
 Anonymous callers no longer have EXECUTE on `public.auth_tenant_id()` in

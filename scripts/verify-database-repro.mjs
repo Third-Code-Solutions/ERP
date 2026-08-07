@@ -63,6 +63,7 @@ const requiredMigrations = [
   '20260806160000_security_role_baseline.sql',
   '20260807130000_customer_invoice_draft_create_workflow.sql',
   '20260807140000_revoke_anon_tenant_identity_rpc.sql',
+  '20260807150000_user_role_assignment_authority.sql',
 ]
 
 const requiredTables = [
@@ -112,6 +113,7 @@ const requiredServerOnlyTables = [
   'opportunity_project_conversion_requests',
   'assets',
   'customer_invoice_draft_create_requests',
+  'user_role_assignment_requests',
 ]
 
 const requiredPolicies = [
@@ -694,6 +696,32 @@ if (existsSync(tenantIdentityHardeningMigration)) {
     'tenant identity helper preserves authenticated and service execution',
     /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+public\.auth_tenant_id\(\)\s+TO\s+authenticated,\s*service_role/i.test(
       tenantIdentityHardening
+    )
+  )
+}
+
+const userRoleAuthorityMigration = join(
+  migrationDirectory,
+  '20260807150000_user_role_assignment_authority.sql'
+)
+if (existsSync(userRoleAuthorityMigration)) {
+  const userRoleAuthority = readFileSync(userRoleAuthorityMigration, 'utf8')
+  assert(
+    'user role authority removes browser user DML policies',
+    /DROP\s+POLICY\s+IF\s+EXISTS\s+users_tenant_write\s+ON\s+public\.users[\s\S]*DROP\s+POLICY\s+IF\s+EXISTS\s+users_tenant_update\s+ON\s+public\.users/i.test(
+      userRoleAuthority
+    )
+  )
+  assert(
+    'user role authority revokes browser user DML privileges',
+    /REVOKE\s+INSERT,\s*UPDATE,\s*DELETE\s+ON\s+TABLE\s+public\.users\s+FROM\s+public,\s*anon,\s*authenticated/i.test(
+      userRoleAuthority
+    )
+  )
+  assert(
+    'user role assignment ledger is service-only',
+    /ALTER\s+TABLE\s+public\.user_role_assignment_requests\s+FORCE\s+ROW\s+LEVEL\s+SECURITY[\s\S]*REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE\s+public\.user_role_assignment_requests\s+FROM\s+public,\s*anon,\s*authenticated[\s\S]*GRANT\s+ALL\s+PRIVILEGES\s+ON\s+TABLE\s+public\.user_role_assignment_requests\s+TO\s+service_role/i.test(
+      userRoleAuthority
     )
   )
 }
@@ -1661,6 +1689,47 @@ try {
       )`,
     (rows) => rows.length === 0,
     (rows) => rows.map((row) => row.privilege).join(', ')
+  )
+
+  await query(
+    'authenticated can read but cannot mutate tenant user rows',
+    `select privilege,
+            has_table_privilege(
+              'authenticated',
+              'public.users',
+              privilege
+            ) as allowed
+       from unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as privilege`,
+    (rows) => {
+      const grants = new Map(rows.map((row) => [row.privilege, row.allowed]))
+      return grants.get('SELECT') === true
+        && grants.get('INSERT') === false
+        && grants.get('UPDATE') === false
+        && grants.get('DELETE') === false
+    },
+    (rows) => JSON.stringify(rows)
+  )
+
+  await query(
+    'authenticated has no user-column mutation grants',
+    `select a.attname as column_name, privilege
+       from pg_attribute a
+       join pg_class c on c.oid = a.attrelid
+       join pg_namespace n on n.oid = c.relnamespace
+       cross join unnest(array['INSERT', 'UPDATE']) as privilege
+      where n.nspname = 'public'
+        and c.relname = 'users'
+        and a.attnum > 0
+        and not a.attisdropped
+        and has_column_privilege(
+          'authenticated',
+          c.oid,
+          a.attnum,
+          privilege
+        )`,
+    (rows) => rows.length === 0,
+    (rows) =>
+      rows.map((row) => `${row.column_name}:${row.privilege}`).join(', ')
   )
 
   const authenticatedReadableTables = requiredTables.filter(

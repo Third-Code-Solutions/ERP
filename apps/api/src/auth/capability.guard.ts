@@ -14,6 +14,7 @@ import {
 import { PUBLIC_ROUTE } from './supabase-jwt.guard'
 
 export const ERP_CAPABILITIES = [
+  'admin.users',
   'asset.read',
   'asset.maintenance.manage',
   'cortex.search',
@@ -49,6 +50,7 @@ export const ERP_CAPABILITIES = [
 export type ErpCapability = (typeof ERP_CAPABILITIES)[number]
 
 const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
+  'admin.users': ['owner', 'admin'],
   'asset.read': [
     'owner',
     'estimator',

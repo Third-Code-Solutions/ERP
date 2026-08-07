@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.149 Core user-role assignment authority
+
+Added strict shared command/result contracts, a service-only replay ledger,
+database privilege/RLS hardening, and the closed-by-default NestJS admin
+command. The existing Web Server Action selects Core only for exact-`true`
+plus UUID allowlisting and fails closed after selection. The unselected
+server-only compatibility path remains in place; its update is now explicitly
+tenant-scoped. Adjacent owner hierarchy checks were added without changing
+visible UI or route contracts.
+
+Validation passed: focused and full workspace suites; Web 93 files/610 tests;
+typecheck/lint; Nest/Next production build with 81/81 routes; 103-file
+migration verifier; Actionlint; Gitleaks; controlled-release 5/5;
+provider-spend 4/4; local protected-route browser proof; and fresh disposable
+PostgreSQL 17/Redis 7.4.9 replay with 103/103 migrations, database 337/337,
+API integration 21/21 files, and stable schema hashes. No provider deployment
+or hosted database write occurred.
+
+Next: keep all four role-assignment flags false/empty and reconcile the
+48-migration inferred managed gap on a disposable or branch database. Produce
+duplicate-data remediation, privilege/RLS diff, backup/PITR restore, Auth
+identity, audit recovery, rollback, and bounded-spend evidence before asking
+for one reviewed managed batch or one-tenant canary.
+
 ## M3.148 anonymous tenant-identity RPC hardening
 
 Added one additive source migration that revokes `public`/`anon` EXECUTE on
