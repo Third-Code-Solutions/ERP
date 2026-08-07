@@ -1,5 +1,30 @@
 # Architecture Decisions
 
+## D-273 - Cancel Cortex jobs before browser teardown (2026-08-08)
+
+Decision: omit an absent new-chat `conversationId` rather than serializing
+`null`. For accepted asynchronous jobs, create one once-only cancellation
+closure and share it across polling failure/timeout, explicit new chat, React
+unmount, and `pagehide`. `pagehide` starts the same keepalive DELETE before a
+hard document replacement; duplicate cancellation triggers reuse the original
+promise. PostgreSQL terminal state, not visibility of the unloading page's
+response object, proves completion.
+
+Rationale: strict optional UUID contracts correctly reject `null`. React
+cleanup alone is also not guaranteed to finish before a browser destroys the
+old document, which can leave paid or CPU work running after the user leaves.
+A pre-teardown signal plus one idempotent canceller closes that cost leak
+without adding global state, weakening Core authorization, or duplicating a
+cancellation request.
+
+Evidence: the local browser path first reproduced `400 Invalid chat request`
+with `conversationId: null`, then reproduced a hard-navigation job left in
+`processing`. The corrected five-case suite passed accepted/pending/final,
+current revocation, foreign concealment, new-chat/unmount exactly-once DELETE,
+ten-poll timeout, responsive/accessibility, and zero-console assertions through
+real local Next/Nest/Redis/Python/PostgreSQL. Full source, build, database,
+security, release, and spend gates passed. No hosted/provider action occurred.
+
 ## D-272 - Return Cortex jobs early and reauthorize final reads (2026-08-08)
 
 Decision: selected provider-free chat returns `202 Accepted` immediately.

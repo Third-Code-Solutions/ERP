@@ -1,5 +1,42 @@
 # Work Log
 
+## 2026-08-08 - M3.164 protected full-stack Cortex browser certification
+
+Implemented the local-only browser gate required by M3.163. Added an isolated
+Playwright harness for real local Next, built Nest, Redis/BullMQ, provider-free
+Python, PostgreSQL, loopback Auth, six users, role/node revocation controls,
+worker-delay fixtures, and credential/egress evidence. No cloud service was
+used.
+
+Observed defects and corrections:
+
+- First new-chat POST returned `400` because the client sent
+  `conversationId: null`; the field is now omitted until a UUID exists.
+- Hard document navigation could destroy deferred abort cleanup before DELETE;
+  polling and lifecycle teardown now share a once-only canceller, and
+  `pagehide` starts it before document destruction.
+- The test harness was hardened for cold Next route compilation, consumed
+  browser responses, unloading-document response loss, durable terminal-state
+  polling, and the Next route-announcer's separate alert role. Assertions were
+  preserved rather than relaxed.
+
+Validation:
+
+- Playwright full-stack browser: 5/5.
+- Disposable PostgreSQL 17.10/Redis 7.4.9: 107/107 migrations; database
+  349/349 with zero skips; full API integration passed.
+- Shared 256/256; API 586/586; Web 676/676; Python 8/8.
+- Workspace lint/typecheck and local production build passed; Next generated
+  82 routes and Nest compiled.
+- Spend 4/4; controlled release 5/5; Actionlint; pinned workflow actions;
+  Gitleaks across 547 commits; diff hygiene.
+- Known local warning only: Redis recommends `vm.overcommit_memory=1`.
+
+Release boundary: all Cortex flags remain false/empty. Vercel Git remains
+disconnected. No hosted Supabase read/write, Auth/Storage/data mutation,
+Vercel/Railway build or deployment, AI/image/provider call, or paid resource
+occurred. Disposable services/database were removed. This is source-only.
+
 ## 2026-08-08 - M3.163 cost-bounded asynchronous Cortex handoff
 
 Removed the selected Core generation path's four-second Next polling loop.

@@ -1,5 +1,26 @@
 # Target State
 
+## M3.164 protected browser and cancellation reliability
+
+Every asynchronous Cortex release must have a reproducible protected-browser
+proof through Next, Nest, BullMQ/Redis, the advisory Python worker, and
+PostgreSQL. The proof must use local identities and endpoints, remove inherited
+hosted/provider credentials, block foreign egress, and exercise success,
+pending, terminal failure, authorization revocation, cancellation, responsive
+layout, accessibility, and console health. Compilation alone is insufficient.
+
+An absent conversation identity is omitted, never encoded as `null` against an
+optional UUID contract. One job owns one idempotent browser canceller shared by
+poll failure, explicit new chat, React unmount, and `pagehide`. Browser teardown
+must start cancellation before document destruction; duplicate triggers must
+coalesce to one DELETE. PostgreSQL remains terminal truth if the response from
+an unloading document cannot be observed.
+
+This local browser gate is now satisfied for M3.163. It does not authorize a
+managed canary or paid model. All Cortex flags stay closed until complete-clone
+replay, backup/PITR evidence, exact-tenant approval, and explicit spend limits
+are complete.
+
 ## M3.163 cost-bounded asynchronous Cortex handoff
 
 Long-running assistant work must not occupy a Next server invocation. The Web

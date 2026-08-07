@@ -23,7 +23,11 @@ import {
   type CortexAgentContext,
 } from '@/lib/cortex/agent-context'
 import { consumeCortexDraft } from '@/lib/cortex/draft-handoff'
-import { resolveCortexChatResponse } from '@/lib/cortex/chat-job-polling'
+import {
+  createCortexJobCanceller,
+  resolveCortexChatResponse,
+  type CortexJobCanceller,
+} from '@/lib/cortex/chat-job-polling'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -36,6 +40,11 @@ interface Conversation {
   created_at: string
   updated_at: string
   context: CortexAgentContext | null
+}
+interface ActiveChat {
+  controller: AbortController
+  jobPath: string | null
+  cancel: CortexJobCanceller
 }
 
 const COMPANY_SUGGESTIONS = [
@@ -95,7 +104,15 @@ export function CortexAgent({
   const initialDraftRef = useRef<string | null>(null)
   const restoreRequestRef = useRef(0)
   const chatRequestRef = useRef(0)
-  const activeChatAbortRef = useRef<AbortController | null>(null)
+  const activeChatRef = useRef<ActiveChat | null>(null)
+
+  const cancelActiveChat = useCallback(() => {
+    const activeChat = activeChatRef.current
+    if (!activeChat) return
+    activeChatRef.current = null
+    activeChat.controller.abort()
+    if (activeChat.jobPath) void activeChat.cancel(activeChat.jobPath)
+  }, [])
 
   const syncConversationUrl = useCallback(
     (id: string | null) => {
@@ -133,8 +150,7 @@ export function CortexAgent({
 
   const restoreConversation = useCallback(async (id: string) => {
     chatRequestRef.current += 1
-    activeChatAbortRef.current?.abort()
-    activeChatAbortRef.current = null
+    cancelActiveChat()
     setIsStreaming(false)
     const requestId = ++restoreRequestRef.current
     setError('')
@@ -173,7 +189,7 @@ export function CortexAgent({
     } finally {
       if (requestId === restoreRequestRef.current) setIsRestoring(false)
     }
-  }, [initialContext, syncConversationUrl])
+  }, [cancelActiveChat, initialContext, syncConversationUrl])
 
   function loadConversation(conversation: Conversation) {
     setError('')
@@ -210,8 +226,7 @@ export function CortexAgent({
 
   function newChat() {
     chatRequestRef.current += 1
-    activeChatAbortRef.current?.abort()
-    activeChatAbortRef.current = null
+    cancelActiveChat()
     restoreRequestRef.current += 1
     setIsRestoring(false)
     setIsStreaming(false)
@@ -233,7 +248,12 @@ export function CortexAgent({
     setIsStreaming(true)
     const requestId = ++chatRequestRef.current
     const controller = new AbortController()
-    activeChatAbortRef.current = controller
+    const activeChat: ActiveChat = {
+      controller,
+      jobPath: null,
+      cancel: createCortexJobCanceller(),
+    }
+    activeChatRef.current = activeChat
 
     try {
       const initialResponse = await fetch('/api/cortex/chat', {
@@ -244,7 +264,7 @@ export function CortexAgent({
         },
         body: JSON.stringify({
           messages: next,
-          conversationId,
+          ...(conversationId ? { conversationId } : {}),
           context: initialContext
             ? {
                 refTable: initialContext.refTable,
@@ -256,6 +276,10 @@ export function CortexAgent({
       })
       const res = await resolveCortexChatResponse(initialResponse, {
         signal: controller.signal,
+        canceller: activeChat.cancel,
+        onAccepted: (jobPath) => {
+          activeChat.jobPath = jobPath
+        },
       })
       if (requestId !== chatRequestRef.current) return
       if (!res.ok) {
@@ -293,19 +317,20 @@ export function CortexAgent({
       setMessages(next)
     } finally {
       if (requestId === chatRequestRef.current) {
-        activeChatAbortRef.current = null
+        if (activeChatRef.current === activeChat) activeChatRef.current = null
         setIsStreaming(false)
       }
     }
   }
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    window.addEventListener('pagehide', cancelActiveChat)
+    return () => {
+      window.removeEventListener('pagehide', cancelActiveChat)
       chatRequestRef.current += 1
-      activeChatAbortRef.current?.abort()
-    },
-    []
-  )
+      cancelActiveChat()
+    }
+  }, [cancelActiveChat])
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {

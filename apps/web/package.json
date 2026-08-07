@@ -17,6 +17,7 @@
     "test:e2e": "playwright test",
     "test:e2e:cortex-index-local": "playwright test --config=playwright.cortex-index.config.ts",
     "test:e2e:cortex-route-local": "playwright test --config=playwright.cortex-route.config.ts",
+    "test:e2e:cortex-generation-local": "pnpm --filter @third-code-erp/api build && playwright test --config=playwright.cortex-generation.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report"
   },

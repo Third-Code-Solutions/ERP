@@ -2,6 +2,7 @@ import { cortexAssistantGenerationAcceptedSchema } from '@third-code-erp/shared-
 
 type Fetcher = typeof fetch
 type Waiter = (milliseconds: number, signal: AbortSignal) => Promise<void>
+export type CortexJobCanceller = (location: string) => Promise<void>
 
 const DEFAULT_MAX_POLLS = 10
 
@@ -41,6 +42,16 @@ async function cancel(fetcher: Fetcher, location: string): Promise<void> {
   }
 }
 
+export function createCortexJobCanceller(
+  fetcher: Fetcher = fetch
+): CortexJobCanceller {
+  let cancellation: Promise<void> | null = null
+  return (location) => {
+    cancellation ??= cancel(fetcher, location)
+    return cancellation
+  }
+}
+
 export async function resolveCortexChatResponse(
   initialResponse: Response,
   options: {
@@ -48,6 +59,8 @@ export async function resolveCortexChatResponse(
     fetcher?: Fetcher
     waiter?: Waiter
     maxPolls?: number
+    canceller?: CortexJobCanceller
+    onAccepted?: (location: string) => void
   }
 ): Promise<Response> {
   if (initialResponse.status !== 202) return initialResponse
@@ -63,8 +76,10 @@ export async function resolveCortexChatResponse(
   if (location !== expectedLocation) {
     throw new Error('Cortex returned an invalid generation location.')
   }
+  options.onAccepted?.(location)
 
   const fetcher = options.fetcher ?? fetch
+  const cancelJob = options.canceller ?? createCortexJobCanceller(fetcher)
   const waiter = options.waiter ?? wait
   const maxPolls = Math.max(
     1,
@@ -82,10 +97,10 @@ export async function resolveCortexChatResponse(
       delay = retryAfterMs(response, delay)
     }
   } catch (error) {
-    await cancel(fetcher, location)
+    await cancelJob(location)
     throw error
   }
 
-  await cancel(fetcher, location)
+  await cancelJob(location)
   throw new Error('Cortex response generation timed out. Try again.')
 }

@@ -1,5 +1,35 @@
 # Migration Plan
 
+## M3.164 protected full-stack Cortex browser certification (completed)
+
+1. Added a loopback-only Playwright lifecycle that provisions six disposable
+   identities and starts local Next, built Nest, Redis/BullMQ, provider-free
+   Python, and PostgreSQL. Hosted/provider credentials are scrubbed and foreign
+   browser egress is blocked.
+2. Proved immediate `202`, protected pending/final reads, same-origin job
+   location, private/no-store caching, text/citations, current citation/role/
+   context authorization, and foreign-user concealment.
+3. Proved desktop/mobile layout, keyboard submission, minimum control size,
+   zero console/page errors, exactly-once new-chat/unmount cancellation, and a
+   bounded ten-poll timeout with durable cancellation.
+4. Corrected the observed new-chat contract defect by omitting absent
+   `conversationId`; no endpoint accepts or normalizes an invalid null UUID.
+5. Added a shared once-only job canceller and `pagehide` handling so hard
+   navigation starts one keepalive DELETE before document teardown while the
+   polling abort path safely deduplicates the same cancellation.
+
+Evidence: browser 5/5; shared 256; API 586; Web 676; Python 8; lint/typecheck;
+Nest/Next production builds with 82 routes; 107/107 clean disposable migration
+replay; database 349/349 zero-skip; full API integration; spend 4/4; release
+5/5; Actionlint; pinned actions; Gitleaks across 547 commits; diff hygiene.
+
+Rollback: keep all M3.160-M3.163 rollout gates false/empty. Revert the Web
+request/cancellation helper and local harness together if needed; no database
+rollback exists because M3.164 adds no migration. Before any canary, complete
+M3.152 backup/PITR and isolated full-clone evidence. The next safe source-only
+slice is a PostgreSQL-authoritative provider-attempt budget/reservation contract
+in Nest; it must add no credential, provider call, deployment, or enabled gate.
+
 ## M3.163 cost-bounded asynchronous Cortex result handoff
 
 1. Exported the strict successful assistant-turn contract and added strict
