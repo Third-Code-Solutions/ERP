@@ -510,3 +510,8 @@ export const assetMaintenanceCreateRequestStateEnum = pgEnum(
   'asset_maintenance_create_request_state',
   ['processing', 'succeeded']
 )
+
+export const cortexConversationTurnRequestStateEnum = pgEnum(
+  'cortex_conversation_turn_request_state',
+  ['processing', 'succeeded']
+)

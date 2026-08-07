@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import { getUserProfile } from '@third-code-erp/auth'
 import {
   searchCortexNodes,
@@ -12,6 +13,7 @@ import {
   cortexDescribeEntity,
 } from '@third-code-erp/database'
 import { getOpenAI, embedText } from '@third-code-erp/ai'
+import { cortexGraphRefTableSchema } from '@third-code-erp/shared-types'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
@@ -31,6 +33,10 @@ import {
   consumeProviderQuota,
   providerQuotaBlockedResponse,
 } from '@/lib/provider-quota'
+import {
+  appendCortexConversationUserTurnThroughCoreApi,
+  cortexConversationUserTurnWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -85,6 +91,8 @@ export async function POST(req: NextRequest) {
   } = parsed.data
 
   const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+  const userTurnIdempotencyKey =
+    req.headers.get('idempotency-key')?.trim() || randomUUID()
   const redactedUserMessage = redactCortexText(lastUserMessage)
   const redactedMessages = redactCortexMessages(messages)
 
@@ -174,31 +182,74 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  try {
-    if (!conversationId) {
-      conversationId = await createCortexConversation(
-        profile.tenantId,
-        profile.user.id,
-        redactCortexText(lastUserMessage.slice(0, 80)) || 'New conversation',
-        authorizedContext
+  if (cortexConversationUserTurnWritesUseCoreApi(profile.tenantId)) {
+    if (!lastUserMessage) {
+      return new Response('Invalid chat request', {
+        status: 400,
+        headers: CORTEX_PRIVATE_HEADERS,
+      })
+    }
+    const coreRefTable = incomingContext
+      ? cortexGraphRefTableSchema.safeParse(incomingContext.refTable)
+      : null
+    if (coreRefTable && !coreRefTable.success) {
+      return new Response('Focused record not found', {
+        status: 404,
+        headers: CORTEX_PRIVATE_HEADERS,
+      })
+    }
+    const persisted = await appendCortexConversationUserTurnThroughCoreApi(
+      {
+        ...(conversationId ? { conversationId } : {}),
+        ...(incomingContext && coreRefTable?.success
           ? {
-              refTable: authorizedContext.refTable,
-              refId: authorizedContext.refId,
+              context: {
+                refTable: coreRefTable.data,
+                refId: incomingContext.refId,
+              },
             }
-          : null
+          : {}),
+        content: lastUserMessage,
+      },
+      userTurnIdempotencyKey
+    )
+    if (!persisted.ok || !persisted.data) {
+      return new Response(
+        persisted.error ?? 'Cortex user-turn service is unavailable.',
+        {
+          status: persisted.status ?? 503,
+          headers: CORTEX_PRIVATE_HEADERS,
+        }
       )
     }
-    if (lastUserMessage) {
-      await appendCortexMessage(
-        profile.tenantId,
-        profile.user.id,
-        conversationId,
-        'user',
-        lastUserMessage
-      )
+    conversationId = persisted.data.conversationId
+  } else {
+    try {
+      if (!conversationId) {
+        conversationId = await createCortexConversation(
+          profile.tenantId,
+          profile.user.id,
+          redactCortexText(lastUserMessage.slice(0, 80)) || 'New conversation',
+          authorizedContext
+            ? {
+                refTable: authorizedContext.refTable,
+                refId: authorizedContext.refId,
+              }
+            : null
+        )
+      }
+      if (lastUserMessage) {
+        await appendCortexMessage(
+          profile.tenantId,
+          profile.user.id,
+          conversationId,
+          'user',
+          lastUserMessage
+        )
+      }
+    } catch (err) {
+      console.error('[cortex/chat] persist user turn failed:', err)
     }
-  } catch (err) {
-    console.error('[cortex/chat] persist user turn failed:', err)
   }
 
   // RBAC: Cortex obeys the SAME role permissions as the human. `scope` is the

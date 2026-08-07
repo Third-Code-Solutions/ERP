@@ -224,7 +224,10 @@ export function CortexAgent({
     try {
       const res = await fetch('/api/cortex/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
+        },
         body: JSON.stringify({
           messages: next,
           conversationId,

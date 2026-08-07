@@ -206,8 +206,11 @@ import {
   type CortexEntityParams,
   cortexConversationListResponseSchema,
   cortexConversationDetailResponseSchema,
+  cortexConversationUserTurnResultSchema,
   type CortexConversationListResponse,
   type CortexConversationDetailResponse,
+  type CortexConversationUserTurnCommand,
+  type CortexConversationUserTurnResult,
   cortexSemanticIndexAcceptedSchema,
   cortexSemanticIndexStatusSchema,
   type CortexSemanticIndexAccepted,
@@ -416,6 +419,17 @@ export function cortexConversationReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_CORTEX_CONVERSATION_READS_VIA_API,
     process.env.ERP_CORTEX_CONVERSATION_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** User-authored Cortex memory moves separately from assistant/provider writes. */
+export function cortexConversationUserTurnWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API,
+    process.env.ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -1206,6 +1220,64 @@ export async function getCortexConversationThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex conversation service is unavailable.',
+    }
+  }
+}
+
+/**
+ * Writes exactly one authenticated user's turn. Selected tenants fail closed;
+ * browser-supplied assistant roles are not part of this contract.
+ */
+export async function appendCortexConversationUserTurnThroughCoreApi(
+  command: CortexConversationUserTurnCommand,
+  idempotencyKey: string
+): Promise<CoreResult<CortexConversationUserTurnResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/conversations/user-turns`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex user turn was not stored.',
+      }
+    }
+
+    const parsed = cortexConversationUserTurnResultSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid Cortex user-turn result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex user-turn service is unavailable.',
     }
   }
 }

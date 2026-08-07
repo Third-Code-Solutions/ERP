@@ -16,6 +16,8 @@ import { CortexGraphService } from './cortex-graph.service'
 import { CortexConversationsController } from './cortex-conversations.controller'
 import { CortexConversationIdPipe } from './cortex-conversations.pipe'
 import { CortexConversationsService } from './cortex-conversations.service'
+import { CortexConversationTurnPipe } from './cortex-conversation-turn.pipe'
+import { CortexConversationTurnsService } from './cortex-conversation-turns.service'
 import { CortexSearchController } from './cortex-search.controller'
 import { CortexSearchPipe } from './cortex-search.pipe'
 import { CortexSearchService } from './cortex-search.service'
@@ -44,6 +46,8 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
   providers: [
     CortexConversationsService,
     CortexConversationIdPipe,
+    CortexConversationTurnPipe,
+    CortexConversationTurnsService,
     CortexEntityService,
     CortexEntityPipe,
     CortexGraphService,

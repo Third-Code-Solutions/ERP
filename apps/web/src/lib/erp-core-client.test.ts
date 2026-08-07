@@ -118,8 +118,10 @@ import {
   cortexEntityReadsUseCoreApi,
   getCortexEntityThroughCoreApi,
   cortexConversationReadsUseCoreApi,
+  cortexConversationUserTurnWritesUseCoreApi,
   listCortexConversationsThroughCoreApi,
   getCortexConversationThroughCoreApi,
+  appendCortexConversationUserTurnThroughCoreApi,
   cortexSemanticIndexJobsUseCoreApi,
   createCortexSemanticIndexJobThroughCoreApi,
   getCortexSemanticIndexJobThroughCoreApi,
@@ -901,6 +903,70 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_CORTEX_CONVERSATION_READS_VIA_API_TENANT_IDS', '')
     expect(cortexConversationReadsUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(cortexConversationReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Cortex user-turn writes on the legacy route unless the exact tenant gate matches', () => {
+    vi.stubEnv('ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(
+      cortexConversationUserTurnWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(true)
+
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API',
+      'TRUE'
+    )
+    expect(
+      cortexConversationUserTurnWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(false)
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API',
+      'true'
+    )
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API_TENANT_IDS',
+      ''
+    )
+    expect(
+      cortexConversationUserTurnWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(false)
+  })
+
+  it('writes one user turn through Core with idempotency', async () => {
+    const result = {
+      conversationId: '33333333-3333-4333-8333-333333333333',
+      messageId: '44444444-4444-4444-8444-444444444444',
+      status: 'created' as const,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      appendCortexConversationUserTurnThroughCoreApi(
+        { content: 'What changed?' },
+        'turn-1'
+      )
+    ).resolves.toEqual({ ok: true, data: result, status: 201 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/cortex/conversations/user-turns',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ content: 'What changed?' }),
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'Idempotency-Key': 'turn-1',
+        }),
+      })
+    )
   })
 
   it('keeps provider-spending Cortex jobs closed without one exact tenant', () => {

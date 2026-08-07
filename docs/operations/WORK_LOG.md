@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-07 - M3.160 Core Cortex user-turn write authority
+
+Implemented the smallest safe chat-write migration: only the authenticated
+human turn. Added strict shared contracts, a forced-RLS service-only PostgreSQL
+idempotency ledger, composite tenant constraints, and a transactional NestJS
+command. Core rechecks current membership/capability/record visibility, locks
+retries and owned conversations, hard-codes role `user`, redacts generated
+titles, and writes a chained audit with hashes/counts instead of raw content.
+
+Wired Next behind separate closed exact-tenant flags. Existing chat requests
+now carry one idempotency key; selected Core errors never fall back. Legacy
+behavior remains default, and assistant/provider persistence stays server-side
+in the compatibility path. A first focused Web run exposed an incomplete module
+mock for the existing provider-quota adapter, and initial typecheck exposed a
+record-table narrowing issue; both were corrected without changing the public
+API.
+
+Results: shared 32 files / 247; API 130 / 564; Web 97 / 650; ordinary database
+58 files / 200 passed / 143 expected skips; forced bounded root suite;
+workspace lint/typecheck; Nest and Next production builds with 82 static pages;
+spend guard 4/4; controlled release 5/5; Actionlint; pinned actions; pre-commit
+Gitleaks 543 commits; diff hygiene. Disposable PostgreSQL 17.10 + Redis 7.4.9
+applied 105/105 migrations, verified the release head and RLS inventory, passed
+database 343/343 with zero skips, passed the full API integration lane and the
+focused new real-transaction suite 1/1, and retained the exact schema hash after
+rollback tests. The disposable runtime and database were removed.
+
+No hosted Supabase read/write, Auth/Storage/data mutation, AI/image/provider
+call, Vercel/Railway build or deployment, Git integration change, or paid
+resource occurred. Managed Supabase remains last verified at 55/105.
+
 ## 2026-08-07 - M3.159 Core Cortex conversation read authority
 
 Audited the public landing and saved Cortex memory paths. The landing already

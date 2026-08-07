@@ -1,5 +1,34 @@
 # Next Actions
 
+## Exact next action after M3.160 Core Cortex user-turn writes
+
+Keep these flags closed and every allowlist empty:
+
+```text
+ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_ENABLED=false
+ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_TENANT_IDS=
+ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API=false
+ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API_TENANT_IDS=
+```
+
+Also keep the M3.159 conversation-read flags closed. Managed Supabase was not
+refreshed; its last verified ledger is 55 versus 105 source migrations. The
+database owner must finish M3.152: approve the Purchase Order mapping and prove
+it on a complete backup/PITR restore. Apply/replay all 105 migrations only in an
+isolated complete clone, then compare legacy/Core user-turn creation and append
+for two users and every role in one exact tenant. Cover exact replay, changed-
+command conflict, context revocation, ownership concealment, role revocation,
+and Core failure. Rollback is both user-turn flags false; do not down-migrate or
+drop the inert ledger.
+
+Safe source-only continuation: specify a trusted service-to-service assistant-
+turn command tied idempotently to the accepted user message/provider result, or
+move the complete server chat orchestration into NestJS. Never let the browser
+select an assistant role. Do not reconnect Vercel Git, deploy/build Vercel or
+Railway, apply hosted SQL, mutate hosted Auth/Storage/data, create paid
+resources, or call AI/image providers without explicit cost and release
+approval.
+
 ## Exact next action after M3.159 Core Cortex conversation reads
 
 Keep `ERP_CORTEX_CONVERSATION_READS_ENABLED=false`,

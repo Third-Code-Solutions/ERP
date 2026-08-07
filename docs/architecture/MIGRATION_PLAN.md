@@ -1,5 +1,40 @@
 # Migration Plan
 
+## M3.160 Core Cortex user-turn write authority
+
+1. Added strict shared user-turn command/result contracts. Caller-controlled
+   tenant, actor, role, capability, and assistant role are rejected.
+2. Added migration `20260807170000`: service-only forced-RLS idempotency ledger,
+   exact tenant foreign keys, and composite conversation/message identity.
+3. Added the NestJS user-turn command. Membership, `cortex.search`, ownership,
+   immutable context, and record visibility are rechecked in one transaction;
+   exact retries replay and changed-command retries conflict; audit excludes raw
+   content.
+4. Added independent Core/Web exact-tenant flags. Next preserves the existing
+   chat API and fails closed after selected Core failure. The client now sends
+   one idempotency key per chat request.
+5. Preserved all legacy behavior by default. Assistant/provider persistence was
+   intentionally not exposed through the browser-facing command.
+
+Validation: shared 247/247; API 564/564; Web 650/650; ordinary database 200
+passed / 143 expected environment skips; forced bounded root tests; workspace
+lint/typecheck; local Nest/Next builds with 82 static pages; provider-spend 4/4;
+controlled-release 5/5; Actionlint; pinned actions; pre-commit Gitleaks across
+543 commits; and diff hygiene. The disposable PostgreSQL 17.10 + Redis 7.4.9
+lane applied 105/105 migrations, passed database 343/343 with zero skips, the
+full API integration lane, and the focused new real-transaction test 1/1; its
+schema hash was unchanged after tests.
+
+Keep `ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_ENABLED=false`,
+`ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API=false`, and both allowlists
+empty. Before any canary, finish M3.152 owner-approved backup/PITR proof, apply
+all 105 migrations to an isolated complete clone, then compare legacy/Core
+creation, append, replay, conflict, revoked-role, revoked-context, and Core-
+unavailable behavior for one exact tenant. Rollback is both flags false; leave
+the inert ledger migration in place. Safe source-only next increment: define a
+trusted service-to-service assistant-turn boundary, never a browser-selected
+assistant role.
+
 ## M3.159 Core Cortex conversation read authority
 
 1. Added strict shared list/detail projections for saved conversation summaries,
