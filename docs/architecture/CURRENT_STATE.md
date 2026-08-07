@@ -5,6 +5,45 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.164 protected full-stack Cortex browser certification (2026-08-08)
+
+The M3.163 asynchronous handoff is now certified through a local protected
+browser path. A loopback-only harness provisions disposable test identities,
+starts the real Next app, built Nest modular monolith, Redis/BullMQ,
+provider-free Python worker, and PostgreSQL 17 database, and rejects unexpected
+Auth/REST/worker contracts. Child environments remove inherited hosted and AI
+credentials before applying local endpoints. Browser routing blocks foreign
+egress; the existing Fontshare request is fulfilled locally during proof.
+
+The proof found and corrected two product defects. New chats serialized
+`conversationId: null`, which the strict request contract rejects; the client
+now omits the field until an owned UUID exists. Hard document replacement was
+also able to destroy the React cleanup microtask before job cancellation
+started. One shared once-only canceller now serves polling, new-chat, unmount,
+and `pagehide`, so browser teardown starts one keepalive DELETE without a
+duplicate when the polling promise catches the same abort.
+
+Five Playwright cases pass against the real local stack: accepted/pending/final
+handoff; private/no-store headers; grounded text/citations; citation, role, and
+focused-context revocation; foreign-user concealment; exactly-once new-chat and
+unmount cancellation; ten-poll timeout and honest error; desktop/mobile
+overflow and 44-pixel control checks; and zero console/page errors. PostgreSQL
+remained official state and Python remained advisory.
+
+Validation passed: browser 5/5; shared 256/256; API 586/586; Web 676/676;
+Python 8/8; workspace lint/typecheck; local Nest/Next production build with 82
+routes; spend 4/4; controlled release 5/5; Actionlint; pinned actions; Gitleaks
+across 547 commits; and diff hygiene. A clean disposable PostgreSQL 17.10 +
+Redis 7.4.9 lane replayed 107/107 migrations, passed database 349/349 with
+zero skips, and passed the full API integration lane. The only infrastructure
+warning was the known local Redis `vm.overcommit_memory` setting. Disposable
+services and `erp_self_hosted_ci` were stopped and removed after validation.
+
+No schema or public API was changed. All rollout gates remain false/empty.
+No hosted Supabase query/write, Auth/Storage/data mutation, AI/image/provider
+call, Vercel/Railway build or deployment, paid resource, or Vercel Git change
+occurred. Managed Supabase remains last verified at 55/107.
+
 ## M3.163 cost-bounded asynchronous Cortex result handoff (2026-08-08)
 
 Selected provider-free Cortex requests no longer keep a Next server invocation

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { resolveCortexChatResponse } from './chat-job-polling'
+import {
+  createCortexJobCanceller,
+  resolveCortexChatResponse,
+} from './chat-job-polling'
 
 const JOB_ID = '11111111-1111-4111-8111-111111111111'
 const CONVERSATION_ID = '22222222-2222-4222-8222-222222222222'
@@ -88,12 +91,17 @@ describe('Cortex browser job polling', () => {
 
   it('requests best-effort cancellation when the caller aborts', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+    const canceller = createCortexJobCanceller(fetcher)
     const controller = new AbortController()
     controller.abort()
     await expect(
       resolveCortexChatResponse(accepted(), {
         signal: controller.signal,
         fetcher,
+        canceller,
+        onAccepted: (location) => {
+          void canceller(location)
+        },
         waiter: vi
           .fn()
           .mockRejectedValue(new DOMException('Aborted', 'AbortError')),
@@ -103,5 +111,6 @@ describe('Cortex browser job polling', () => {
       LOCATION,
       expect.objectContaining({ method: 'DELETE', keepalive: true })
     )
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 })

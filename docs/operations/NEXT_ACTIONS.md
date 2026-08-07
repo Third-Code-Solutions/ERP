@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.164 protected browser certification
+
+Keep all M3.160-M3.163 Core/Web/worker/recovery gates false, exact-tenant
+allowlists empty, worker/provider secrets unset, and Vercel Git disconnected.
+Do not query or mutate managed Supabase, deploy/build Vercel or Railway, call an
+AI/image provider, or create a paid resource under the current cost lock.
+
+The next safe source-only milestone is M3.165: define the Nest-owned provider
+attempt budget/reservation contract without calling a provider. PostgreSQL must
+record tenant/job/attempt idempotency, exact reserved/consumed cost units,
+bounded daily/request ceilings, terminal release/settlement, and audit. Nest
+must reserve before dispatch and refuse over-budget work. Redis transports only
+opaque job identity; Python may return bounded analysis but cannot reserve,
+approve, settle, or commit ERP state. Every new flag defaults false and every
+allowlist empty.
+
+Before any managed Cortex canary, the owner must separately complete M3.152
+backup/PITR proof and an isolated complete-clone replay of all 107 migrations,
+then approve one exact tenant, one low spend ceiling, one release action, exact
+SHA verification, live RBAC/cancellation checks, observability, and rollback.
+The M3.164 local proof does not waive those gates.
+
 ## Exact next action after M3.163 asynchronous Cortex handoff
 
 Keep all M3.160-M3.163 Core/Web/worker/recovery gates false, exact-tenant
