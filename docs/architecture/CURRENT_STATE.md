@@ -5,6 +5,29 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.147 managed Supabase parity audit (read-only, 2026-08-07)
+
+The connected project `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY`, PostgreSQL
+17.6.1.121, region `ap-northeast-2`, under the PAVI Pro organization. The
+managed ledger contains 55 migrations through
+`20260729233017_notification_outbox_foundation`; the repository contains 101
+migrations. The 46 later local migrations are not applied remotely, including
+`20260807130000_customer_invoice_draft_create_workflow.sql`. The managed
+catalog has 88 public tables, but no
+`customer_invoice_draft_create_requests`; `invoices` (4 rows) and
+`cost_entries` (0 rows) have RLS enabled.
+
+Read-only advisors returned 14 security notices: three RLS-enabled tables
+without policies, the `vector` extension in `public`, one anon-executable and
+eight authenticated-executable `SECURITY DEFINER` authorization functions,
+and leaked-password protection disabled. Performance advisors returned 253
+notices: 148 unindexed foreign keys, 103 unused indexes, one duplicate tenant
+slug index, and an absolute Auth connection setting. A sample of 53 Postgres
+logs contained eight error rows, including five duplicate Purchase Order
+uniqueness failures, two `objacl` column errors, and one missing FROM-clause
+error; the sampled API log rows were healthy. No SQL, provider variable,
+deployment, or tenant data was changed. The gap blocks any hosted canary.
+
 ## M3.146 Core-only customer invoice draft creation (2026-08-07)
 
 Customer invoice draft creation is now a single typed NestJS Core command:

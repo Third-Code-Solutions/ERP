@@ -1,5 +1,31 @@
 # Work Log
 
+## 2026-08-07 - M3.147 managed Supabase parity audit (read-only)
+
+Queried the connected Supabase ERP project without SQL execution or
+migration/deployment mutation. Project is `ACTIVE_HEALTHY`, PostgreSQL
+17.6.1.121, `ap-northeast-2`, PAVI Pro. Managed migrations: 55 through
+`20260729233017_notification_outbox_foundation`; source migrations: 101. The
+46 later local migrations are not applied, including the invoice draft
+workflow. Managed catalog: 88 public tables; no
+`customer_invoice_draft_create_requests`; `invoices` and `cost_entries` have
+RLS enabled.
+
+Read-only security advisors: 14 notices, including three RLS tables without
+policies, public `vector`, exposed anon/authenticated `SECURITY DEFINER`
+authorization functions, and leaked-password protection disabled.
+Performance advisors: 253 notices, including 148 unindexed foreign keys,
+103 unused indexes, one duplicate index, and an absolute Auth connection
+setting. Sampled Postgres logs: 53 rows, 8 errors (five duplicate Purchase
+Order uniqueness failures, two `objacl` errors, one missing FROM-clause);
+sampled API logs had no error rows. No provider state or spend mutation.
+
+Unresolved risks: managed/source parity, duplicate-data remediation,
+backup/PITR, identity, audit recovery, security-advisor remediation, and
+bounded spend approval. Do not apply the 46 migrations, enable ERP writes,
+trigger Vercel, or deploy Railway until a reviewed branch/disposable replay
+and rollback plan are approved.
+
 ## 2026-08-07 - M3.146 Core-only customer invoice draft creation
 
 Moved both existing invoice-draft writers behind the typed NestJS Core

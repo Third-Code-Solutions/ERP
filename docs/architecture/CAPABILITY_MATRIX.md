@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.147 managed Supabase parity audit (2026-08-07)
+
+Managed project `aqqrtkmtcsfkbyyqxowv` is healthy on PostgreSQL 17, but its
+55-migration ledger stops at `20260729233017`; source has 101 migrations and
+the Core customer-invoice draft replay table is absent. Managed public tables
+are RLS-enabled, but advisors report three RLS tables without policies and
+exposed `SECURITY DEFINER` authorization functions. Performance and Postgres
+log findings remain open. No hosted write capability is approved.
+
+Evidence is read-only: project/migration/catalog/advisor/log checks passed;
+no SQL, provider variable, deployment, or tenant data changed. The capability
+matrix remains closed for managed invoice-draft canary until parity,
+recovery, identity, audit, and spend gates pass.
+
 ## M3.146 Core-only customer invoice draft creation (2026-08-07)
 
 Billing and Procurement invoice-draft callers now use the typed NestJS Core

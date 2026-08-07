@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-255 - Treat managed Supabase parity as a hard release gate (2026-08-07)
+
+Decision: do not apply the repository's 46 unapplied migrations to the
+managed ERP project from this audit. Keep Core write flags and provider
+deployments closed until the managed ledger, catalog, RLS/privileges, data
+duplicates, backup/PITR, identity, audit, and spend envelope are reviewed.
+
+Rationale: the project is healthy but materially behind source, the new
+customer-invoice replay table is absent, and recent logs show repeated
+Purchase Order uniqueness failures plus SQL inspection errors. Blindly
+applying a large ordered set could create irreversible data/availability
+risk and unnecessary provider spend. Branch/disposable replay and an
+explicit rollback plan are cheaper and safer.
+
+Evidence: read-only project, migration, table, advisor, and log checks on
+`aqqrtkmtcsfkbyyqxowv`; no SQL, variables, deployment, or tenant data changed.
+
 ## D-254 - Make customer invoice draft creation Core-only (2026-08-07)
 
 Decision: route the existing Billing and Procurement invoice-draft commands

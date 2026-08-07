@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.147 managed Supabase parity audit (read-only)
+
+Inspected the connected `ERP` project without executing SQL or applying a
+migration. Project health is `ACTIVE_HEALTHY` on PostgreSQL 17.6.1.121, but
+the managed migration ledger stops at 55 migrations
+(`20260729233017_notification_outbox_foundation`) while source has 101. The
+46 later local migrations, including the customer-invoice draft workflow,
+remain unapplied. The managed catalog has 88 public RLS-enabled tables and
+does not contain `customer_invoice_draft_create_requests`.
+
+Security/performance advisors and recent logs were captured read-only. Open
+findings include missing policies on three RLS tables, exposed
+`SECURITY DEFINER` authorization RPCs, public `vector`, leaked-password
+protection disabled, 148 unindexed foreign keys, 103 unused indexes, a
+duplicate tenant slug index, and recurring duplicate Purchase Order
+uniqueness errors. No provider mutation occurred and no billable deploy was
+started.
+
+Next: reconcile migration/data/privilege differences on a disposable or
+branch database first; produce duplicate-row remediation, backup/PITR,
+identity, audit, and bounded-spend evidence; obtain explicit approval before
+any ordered managed apply. Keep all ERP write canaries closed.
+
 ## M3.146 Core-only customer invoice draft creation
 
 Implemented the smallest compatible migration: added shared invoice-draft

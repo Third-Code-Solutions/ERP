@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.147 managed Supabase parity audit
+
+Keep all ERP write flags false, tenant allowlists empty, and hosted Vercel/
+Railway deploys closed. Do not apply the 46 source migrations to managed
+Supabase. First build a disposable/branch replay and ordered parity report
+covering duplicate Purchase Orders, RLS/privileges, the missing invoice-draft
+ledger, backup/PITR restore, Auth identity, audit recovery, and rollback. Run
+the security/performance advisor remediation plan and define a bounded spend
+envelope. Only after that evidence and explicit approval may one managed
+migration batch or one-tenant canary be proposed.
+
 ## Exact next action after M3.146 Core-only customer invoice draft creation
 
 Keep `ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED=false`,

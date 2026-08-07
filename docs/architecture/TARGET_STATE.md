@@ -1,5 +1,15 @@
 # Target State
 
+## M3.147 managed Supabase parity gate
+
+Managed Supabase must be proven to match the repository migration ledger and
+Core-owned privilege/RLS contract before any hosted canary. The current
+project is healthy but 46 local migrations behind; the invoice draft replay
+ledger is absent remotely. The target gate requires an ordered, reviewed
+migration plan with duplicate-data remediation, backup/PITR evidence, a
+security-advisor remediation plan, and a rollback rehearsal. Do not apply the
+pending set or enable invoice writes from a read-only parity check.
+
 ## M3.146 Core-only customer invoice draft creation
 
 Customer invoice drafts must be committed only by NestJS Core through the
