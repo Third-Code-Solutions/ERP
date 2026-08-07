@@ -1,5 +1,43 @@
 # Architecture Decisions
 
+## D-267 - Bound root test package concurrency at two (2026-08-07)
+
+Decision: run the canonical root test command as
+`turbo test --concurrency=2`. Preserve existing per-test timeouts and assertions.
+
+Rationale: unrestricted package parallelism saturated the workstation while
+four Vitest suites ran, causing six unrelated Nest controller setup tests to
+cross their fixed 5-second timeout. The API suite passed 546/546 in isolation.
+A forced cache-bypass run with two package tasks passed every test-bearing
+package, so bounding peak work removes false failures without hiding hangs or
+lengthening assertion timeouts.
+
+Evidence: unrestricted root run had 121/127 API files green and six timeout-
+only failures; isolated API passed 127/127 files and 546/546 tests; forced
+two-package root execution passed with zero failures. This changes local/CI
+test scheduling only.
+
+## D-266 - Prove protected route wiring with a rejecting loopback Auth contract (2026-08-07)
+
+Decision: use a test-only loopback server for the exact Supabase `getUser` and
+single-row server profile contracts consumed by `/cortex`, backed by the full
+local PostgreSQL migration/seed replay. Reject every unexpected Auth/REST
+endpoint, mock only local Realtime transport, block foreign browser egress,
+and keep the harness outside production routes and builds.
+
+Rationale: the prior protected E2E mints and globally revokes a hosted magic-
+link identity. That is unnecessary and violates the no-hosted-mutation cost
+boundary. A narrow rejecting contract proves middleware, session cookie,
+server profile authority, route RBAC, RSC rendering, direct tenant-scoped ERP
+reads, and client APIs without pretending to be a full Supabase installation.
+
+Evidence: 104/104 local migrations, signed-cookie route `200`, unauthenticated
+redirect/API denial, tenant graph and conversation responses, desktop/mobile
+fit, zero console/page errors, zero semantic-index requests, and no provider
+egress. Production CSP remains closed; the loopback HTTP/WS exception exists
+only in development. Full GoTrue/PostgREST and managed Auth parity remain a
+separate release gate.
+
 ## D-265 - Prove spend UX without hosted authentication (2026-08-07)
 
 Decision: test provider-spending Cortex interactions in a localhost-only Vite

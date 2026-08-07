@@ -12,7 +12,7 @@
     "dev": "turbo dev --parallel",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "test": "turbo test",
+    "test": "turbo test --concurrency=2",
     "test:database-export": "node --test scripts/plan-database-export.test.mjs",
     "test:database-release-plan": "node --test scripts/plan-database-release.test.mjs",
     "test:project-cutover-plan": "node --test scripts/plan-project-cutover.test.mjs",

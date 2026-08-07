@@ -5,7 +5,9 @@
   },
   "include": [
     "../playwright.cortex-index.config.ts",
+    "../playwright.cortex-route.config.ts",
     "./cortex-semantic-index-local.spec.ts",
+    "./cortex-route-loopback.spec.ts",
     "./component-gallery/**/*.ts",
     "./component-gallery/**/*.tsx"
   ],

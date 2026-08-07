@@ -1,5 +1,25 @@
 # Target State
 
+## M3.158 protected Cortex route evidence boundary
+
+Protected Cortex integration must be reproducible without minting, revoking,
+or reading a hosted identity. A loopback contract may exercise the exact
+`getUser` and server-owned profile projection used by Web while PostgreSQL
+remains the official ERP read source. The harness must reject unexpected
+Auth/REST calls, keep all canaries and provider credentials closed, block
+foreign browser egress, and prove unauthenticated denial, tenant-scoped graph
+reads, conversation isolation, responsive behavior, and zero spend commands.
+
+The page must open at its header; chat-follow behavior may scroll only the
+agent's internal message log. Development CSP may admit an explicitly
+configured loopback Auth/Realtime origin, but production CSP cannot inherit
+that exception. Root tests should use bounded package concurrency so strict
+timeouts measure behavior instead of workstation saturation.
+
+This route-wiring boundary is now satisfied. Full GoTrue/PostgREST behavior,
+managed Auth recovery, exact-tenant parity, backup/PITR, and production release
+authorization remain separate gates.
+
 ## M3.157 auth-safe cost-control browser evidence
 
 Provider-spending UI must be testable without minting or revoking a hosted

@@ -67,4 +67,29 @@ describe('middleware Supabase session recovery', () => {
 
     await expect(middleware(request)).rejects.toThrow('supabase unavailable')
   })
+
+  it('allows only loopback Supabase HTTP and WebSocket origins in development', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:4328')
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+    const request = new NextRequest('http://127.0.0.1:4327/auth/login')
+
+    const response = await middleware(request)
+    const csp = response.headers.get('content-security-policy') ?? ''
+
+    expect(csp).toContain('http://127.0.0.1:4328')
+    expect(csp).toContain('ws://127.0.0.1:4328')
+  })
+
+  it('does not add loopback sources to the production CSP', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:4328')
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+    const request = new NextRequest('https://erp.example/auth/login')
+
+    const response = await middleware(request)
+    const csp = response.headers.get('content-security-policy') ?? ''
+
+    expect(csp).not.toContain('http://127.0.0.1:4328')
+    expect(csp).not.toContain('ws://127.0.0.1:4328')
+  })
 })
