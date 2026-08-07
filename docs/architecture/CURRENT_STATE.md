@@ -5,6 +5,46 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.158 loopback-authenticated Cortex route proof (2026-08-07)
+
+The full protected `/cortex` Next.js route now has a zero-hosted-cost browser
+proof. A test-only loopback service implements only the two Supabase contracts
+the route actually consumes: authenticated `GET /auth/v1/user` and the exact
+single-row `GET /rest/v1/users` profile projection. It rejects every other
+Auth/REST request. The Web application reads official Cortex records from the
+disposable `erp_self_hosted_ci` PostgreSQL 17 database after all 104 source
+migrations and the deterministic seed replay successfully.
+
+Installed Chrome proved the unauthenticated redirect and graph `401`, signed
+session-cookie hydration, dashboard layout authorization, complete RSC page,
+31-node/29-edge tenant graph, empty user conversation history, notifications,
+local Realtime handshake, and desktop/mobile rendering. The semantic-index
+control remained visible but disabled, and no semantic-index request occurred.
+One external Fontshare stylesheet was fulfilled locally by the test harness;
+no foreign browser request reached a provider. Console/page errors and
+horizontal overflow were zero.
+
+Visual inspection exposed an initial-load jump: the agent used
+`scrollIntoView`, scrolling the document to the chat. It now scrolls only its
+internal log, and the browser asserts `window.scrollY === 0`. Development CSP
+admits only a configured loopback Supabase HTTP/WebSocket origin; production
+CSP remains unchanged and has explicit negative coverage.
+
+Validation passed: loopback Playwright 1/1; Web 97 files / 639 tests; shared
+31 / 243; API 127 / 546; ordinary database 198 passed with 143 intentional
+environment skips; workspace lint/typecheck; forced root tests with caches
+bypassed; PostgreSQL release verification at 104/104; provider-spend 4/4; and
+NestJS/Next.js production build with 82 static pages. Turbo package-test
+concurrency is capped at two after the unrestricted root run produced six
+resource-contention timeouts; all six passed in isolation and in the forced
+bounded run without increasing the 5-second test timeout.
+
+This proves protected route integration against a strict local contract; it
+does not claim full GoTrue/PostgREST protocol parity or managed production Auth
+readiness. Managed Supabase remains last verified at 55/104. All canary/spend
+flags remain closed. No hosted SQL/Auth/Storage/data mutation, AI call, cloud
+build, Vercel/Railway deployment, or Git integration occurred.
+
 ## M3.157 auth-safe Cortex indexing browser proof (2026-08-07)
 
 The provider-spending Cortex control now has a server-owned, testable access

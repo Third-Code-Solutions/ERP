@@ -87,7 +87,7 @@ export function CortexAgent({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyQuery, setHistoryQuery] = useState('')
   const [isRestoring, setIsRestoring] = useState(false)
-  const endRef = useRef<HTMLDivElement>(null)
+  const logRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const historySearchRef = useRef<HTMLInputElement>(null)
   const initialRestoreRef = useRef<string | null>(null)
@@ -119,7 +119,9 @@ export function CortexAgent({
   }, [loadHistory])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const log = logRef.current
+    if (!log) return
+    log.scrollTo({ top: log.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
   useEffect(() => {
@@ -426,7 +428,12 @@ export function CortexAgent({
           </ul>
         </div>
       ) : (
-        <div className="cortex-agent__log" role="log" aria-live="polite">
+        <div
+          ref={logRef}
+          className="cortex-agent__log"
+          role="log"
+          aria-live="polite"
+        >
           {messages.length === 0 && (
             <div className="cortex-agent__empty">
               <p>
@@ -479,7 +486,6 @@ export function CortexAgent({
               {error}
             </p>
           )}
-          <div ref={endRef} />
         </div>
       )}
 

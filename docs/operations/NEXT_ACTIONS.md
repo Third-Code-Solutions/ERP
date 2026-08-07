@@ -1,5 +1,24 @@
 # Next Actions
 
+## Exact next action after M3.158 protected Cortex route proof
+
+Keep every Cortex Core/indexing/legacy flag false, every tenant allowlist
+empty, and all AI worker/provider credentials absent. The full protected Next
+route now has local middleware/profile/PostgreSQL/browser evidence. Do not
+mislabel the narrow rejecting Auth/profile contract as complete GoTrue,
+PostgREST, managed Auth recovery, or production canary evidence.
+
+Database owner must finish M3.152: approve the separate Purchase Order mapping
+and prove it on a complete managed backup/PITR restore. Only if provider-level
+Auth parity is specifically required should a complete isolated Auth/REST
+stack be added; it must remain loopback-only and must not mint/revoke hosted
+users.
+
+Do not reconnect Vercel Git, deploy/build Vercel or Railway, apply hosted
+Supabase SQL, mutate hosted Auth/Storage/tenant data, create a paid branch, or
+call an AI provider. Any later canary still requires one exact tenant, written
+spend ceiling, backup/rollback proof, and named owner approval.
+
 ## Exact next action after M3.157 auth-safe Cortex indexing browser proof
 
 Keep every semantic-index intake, worker, recovery, Web, and legacy flag false;

@@ -51,6 +51,26 @@ function buildCSP(nonce: string): string {
   const scriptSrc = isDev
     ? `script-src 'self' 'unsafe-eval' 'unsafe-inline' 'nonce-${nonce}'`
     : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: 'unsafe-inline'`
+  let localSupabaseConnectSrc = ''
+  if (isDev) {
+    try {
+      const supabaseUrl = new URL(
+        process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+      )
+      if (
+        supabaseUrl.hostname === '127.0.0.1' ||
+        supabaseUrl.hostname === 'localhost' ||
+        supabaseUrl.hostname === '[::1]'
+      ) {
+        const websocketProtocol =
+          supabaseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+        localSupabaseConnectSrc =
+          ` ${supabaseUrl.origin} ${websocketProtocol}//${supabaseUrl.host}`
+      }
+    } catch {
+      // Invalid/missing local URL: retain the closed production-oriented CSP.
+    }
+  }
 
   return [
     "default-src 'self'",
@@ -61,7 +81,7 @@ function buildCSP(nonce: string): string {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com https://cdn.fontshare.com",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://api.openai.com https://vitals.vercel-insights.com",
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://api.openai.com https://vitals.vercel-insights.com${localSupabaseConnectSrc}`,
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",

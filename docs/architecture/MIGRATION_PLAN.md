@@ -1,5 +1,35 @@
 # Migration Plan
 
+## M3.158 loopback-authenticated Cortex route proof
+
+1. Mapped middleware, Server Component, profile, direct PostgreSQL, graph,
+   conversations, notifications, Realtime, and semantic-index dependencies.
+2. Added a loopback-only Supabase contract harness for the exact Auth user and
+   server profile calls. It exposes deterministic local session material,
+   rejects unsupported endpoints, launches Next with provider/core flags
+   closed, and never enters the production route tree.
+3. Replayed 104/104 migrations plus deterministic seed into disposable
+   PostgreSQL 17. Proved unauthenticated denial and authenticated full-route
+   rendering in installed Chrome at desktop/mobile, with a local WebSocket and
+   locally fulfilled Fontshare CSS.
+4. Replaced document-wide agent auto-scroll with internal-log scrolling and
+   added a zero-initial-scroll browser assertion. Allowed configured loopback
+   Auth/Realtime origins in development CSP only; production remains closed.
+5. Capped root Turbo tests at two packages after unrestricted concurrency
+   caused six 5-second Nest setup timeouts. Forced cache-bypass validation then
+   passed without weakening timeouts.
+
+Validation: Playwright 1/1; Web 639/639; shared 243/243; API 546/546; ordinary
+database 198 passed / 143 environment-gated skips; forced bounded root suite;
+workspace lint/typecheck; PostgreSQL release verifier 104/104; provider-spend
+4/4; and Nest/Next production build with 82 static pages.
+
+Keep every Cortex Core/indexing flag false, allowlists empty, and AI/provider
+credentials absent. Treat this as route-contract evidence, not complete
+GoTrue/PostgREST or managed Auth parity. Next release work remains M3.152 owner
+approval and proof of the Purchase Order mapping on a complete managed
+backup/PITR restore. No hosted mutation or deployment is authorized.
+
 ## M3.157 auth-safe Cortex indexing browser proof
 
 Extracted the Cortex page's control decision into one server-owned projection:

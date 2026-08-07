@@ -1,5 +1,37 @@
 # Work Log
 
+## 2026-08-07 - M3.158 loopback-authenticated Cortex route proof
+
+Mapped the complete protected Cortex load path. Middleware and both dashboard
+Server Components call Supabase `getUser`; profile authority is one service-
+role `public.users` lookup; Cortex brief/graph/conversation/notification reads
+come from direct PostgreSQL; the topbar also starts Realtime. Built a rejecting
+loopback Auth/profile contract and launched the real Next route against the
+disposable PostgreSQL 17 database after a 104-migration replay and seed.
+
+Browser iteration found and corrected four harness mismatches: unsupported
+Next `--webpack`, absolute redirect location, a non-exact heading locator, and
+development CSP blocking loopback Realtime. Fontshare CSS is fulfilled locally
+and Phoenix WebSocket join/heartbeat is mocked locally. The harness records
+only paths/query shapes and never logs credentials.
+
+Visual QA then exposed a production UX issue: Cortex Agent's initial
+`scrollIntoView` moved the whole page down. It now scrolls only the internal
+message log. Final desktop/mobile screenshots start at the page header;
+horizontal overflow and `window.scrollY` are zero.
+
+Final evidence: Playwright 1/1 with no console/page errors, provider egress, or
+semantic-index requests; Web 97 files / 639 tests; shared 31 / 243; API 127 /
+546; database 198 passed / 143 environment-gated skips; workspace lint and
+typecheck; forced cache-bypass root tests; PostgreSQL release verifier 104/104;
+provider-spend 4/4; and production build 82/82 static pages. Unrestricted root
+testing initially caused six Nest setup timeouts under four-package load; each
+passed alone, and all passed after the canonical Turbo cap was set to two.
+
+No hosted Supabase/Auth/Storage/data change, AI/provider request, Railway or
+Vercel build/deploy, Vercel Git reconnection, or paid branch occurred. The
+contract harness is not full GoTrue/PostgREST parity.
+
 ## 2026-08-07 - M3.157 auth-safe Cortex indexing browser proof
 
 Inspected the protected Cortex E2E and found that it calls Supabase Admin
