@@ -1,5 +1,23 @@
 # Next Actions
 
+## Exact next action after M3.157 auth-safe Cortex indexing browser proof
+
+Keep every semantic-index intake, worker, recovery, Web, and legacy flag false;
+keep tenant allowlists empty and AI worker/provider variables absent. Local
+database/Redis proof and real component desktop/mobile proof are complete. Do
+not rerun them unless indexing source, migrations, or control behavior changes.
+
+Database owner must now finish M3.152: approve the Purchase Order mapping and
+prove it on a complete managed backup/PITR restore. If full authenticated
+`/cortex` route evidence is required before canary, run it only against a
+complete isolated Auth/REST/database stack; do not mint or revoke hosted users.
+Before any real provider call, owner approval must name one exact tenant, a
+written spend ceiling, and a rollback owner.
+
+Do not reconnect Vercel Git, build or deploy Vercel/Railway, apply hosted
+Supabase SQL, mutate hosted Auth/Storage/tenant data, create a paid branch, or
+call an AI provider without explicit cost and release approval.
+
 ## Exact next action after M3.156 disposable Cortex indexing proof
 
 Keep every `ERP_CORTEX_SEMANTIC_INDEX_*` flag false, every exact-tenant

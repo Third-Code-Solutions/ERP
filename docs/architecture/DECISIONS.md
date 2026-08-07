@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-265 - Prove spend UX without hosted authentication (2026-08-07)
+
+Decision: test provider-spending Cortex interactions in a localhost-only Vite
+gallery that imports the real production component and styles. Keep role and
+tenant-canary selection in a separate server-owned projection. Bind the gallery
+to loopback, use installed Chrome, intercept only local API requests, and keep
+it outside the Next.js route tree.
+
+Rationale: the existing protected browser helper creates and globally revokes
+a hosted Supabase magic-link session. That side effect violates the no-hosted-
+mutation cost boundary and is unnecessary for proving confirmation, request
+shape, polling, failure, and responsive behavior. A component gallery provides
+real DOM, layout, dialog, timer, network, and console evidence while production
+auth and routing remain untouched.
+
+Evidence: role/canary tests 4/4, disclosure tests 2/2, Playwright desktop/mobile
+5/5, Web 637/637, workspace lint/typecheck/build, spend/release guards,
+Actionlint, Gitleaks, pinned actions, diff and clean-room checks. This does not
+claim a full authenticated `/cortex` route canary. No hosted or provider action
+occurred.
+
 ## D-264 - Require disposable proof before semantic-index spend (2026-08-07)
 
 Decision: require a zero-skip disposable PostgreSQL/Redis integration lane and

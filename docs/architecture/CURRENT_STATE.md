@@ -5,6 +5,36 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.157 auth-safe Cortex indexing browser proof (2026-08-07)
+
+The provider-spending Cortex control now has a server-owned, testable access
+projection. Non-admin roles never receive the control. Owner/admin users see a
+paused control by default, and it becomes enabled only when the exact tenant
+Web canary is selected; wildcard selection remains closed.
+
+A localhost-only Vite gallery imports the real production
+`CortexIndexButton` and global styles without starting Next.js, Supabase,
+PostgreSQL, Redis, or any provider. Playwright uses installed Chrome and
+intercepts only loopback API requests. Five browser tests passed at 1440 x 1000
+and 390 x 844: closed rollout makes zero requests; Cancel makes zero requests;
+confirmation discloses 64 records and one provider call; approval sends one
+fixed command with one UUID idempotency key; queued, processing, succeeded, and
+terminal failed states render correctly; terminal failure does not resubmit;
+mobile actions are at least 44px; the dialog fits; horizontal overflow is at
+most 1px; and browser console, page errors, and foreign requests are zero.
+
+Focused access/component tests passed 6/6 and the full Web suite passed
+637/637. Workspace lint/typecheck, the local NestJS/Next.js production build
+with 82 static pages, provider-spend 4/4, controlled-release 5/5, Actionlint,
+Gitleaks across 540 commits, pinned workflow references, diff checks, and the
+clean-room runtime scan passed.
+
+This is server access-projection plus real component-browser evidence, not a
+full authenticated `/cortex` route canary. Production Supabase session
+integration was not exercised. All flags and allowlists remain closed; no
+hosted Auth/SQL/Storage mutation, provider call, cloud build, or deployment
+occurred.
+
 ## M3.156 disposable Cortex semantic-index runtime proof (2026-08-07)
 
 M3.155 now has zero-cost runtime evidence against the isolated

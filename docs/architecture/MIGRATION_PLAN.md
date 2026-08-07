@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.157 auth-safe Cortex indexing browser proof
+
+Extracted the Cortex page's control decision into one server-owned projection:
+only canonical admin/owner roles may see it, and only an exact enabled tenant
+may use it. Added a test-only Vite gallery, dedicated Playwright configuration,
+installed-Chrome fallback, narrow TypeScript configuration, and a local script.
+The gallery imports production component/CSS and never enters the Next.js route
+tree.
+
+Validation: focused 6/6; localhost Playwright 5/5 across desktop/mobile; Web
+637/637; workspace lint/typecheck; local NestJS/Next.js production build with
+82 static pages; provider-spend 4/4; controlled-release 5/5; Actionlint;
+Gitleaks across 540 commits; pinned workflow references; diff checks; and
+clean-room scan. Tests observed zero external requests and made no Supabase,
+database, queue, or provider call.
+
+Keep all semantic-index flags false and allowlists empty. Do not treat the
+gallery as authenticated route or release evidence. Remaining release work is
+M3.152 owner-approved duplicate remediation on a complete managed backup/PITR
+restore, plus full `/cortex` session integration in a complete isolated Auth
+stack if route-level canary proof is required. Owner approval must still name
+the exact tenant, spend ceiling, and rollback owner before any provider call.
+
 ## M3.156 disposable Cortex semantic-index runtime proof
 
 Added always-rollback PostgreSQL and BullMQ integration coverage for M3.155.
