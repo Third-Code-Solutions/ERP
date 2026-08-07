@@ -19,6 +19,8 @@ import { CustomerInvoiceReverseController } from './customer-invoice-reverse.con
 import { CustomerInvoiceReverseService } from './customer-invoice-reverse.service'
 import { CustomerInvoiceCancelController } from './customer-invoice-cancel.controller'
 import { CustomerInvoiceCancelService } from './customer-invoice-cancel.service'
+import { CustomerInvoiceDraftCreateController } from './customer-invoice-draft-create.controller'
+import { CustomerInvoiceDraftCreateService } from './customer-invoice-draft-create.service'
 import { FinanceLedgerController } from './finance-ledger.controller'
 import { FinanceLedgerService } from './finance-ledger.service'
 import { FinanceReceivablesController } from './finance-receivables.controller'
@@ -40,6 +42,7 @@ import { FinanceCashService } from './finance-cash.service'
     CustomerInvoiceIssueController,
     CustomerInvoiceReverseController,
     CustomerInvoiceCancelController,
+    CustomerInvoiceDraftCreateController,
     FinanceLedgerController,
     FinanceReceivablesController,
     FinancePayablesController,
@@ -55,6 +58,7 @@ import { FinanceCashService } from './finance-cash.service'
     CustomerInvoiceIssueService,
     CustomerInvoiceReverseService,
     CustomerInvoiceCancelService,
+    CustomerInvoiceDraftCreateService,
     FinanceLedgerService,
     FinanceReceivablesService,
     FinancePayablesService,
@@ -75,6 +79,7 @@ export class FinanceModule implements NestModule {
         CustomerInvoiceIssueController,
         CustomerInvoiceReverseController,
         CustomerInvoiceCancelController,
+        CustomerInvoiceDraftCreateController,
         FinanceLedgerController,
         FinanceReceivablesController,
         FinancePayablesController,

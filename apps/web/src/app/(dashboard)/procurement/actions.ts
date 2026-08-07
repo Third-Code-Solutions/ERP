@@ -8,7 +8,6 @@ import {
   bomLineItems,
   boms,
   costCodes,
-  invoices,
   materialItems,
   poLineItems,
   projectBudgetLines,
@@ -24,6 +23,7 @@ import {
   createPurchaseOrderFromBomThroughCoreApi,
   createPurchaseOrdersGroupedFromBomThroughCoreApi,
   createPurchaseOrderThroughCoreApi,
+  createCustomerInvoiceDraftThroughCoreApi,
   purchaseOrderBomWritesUseCoreApi,
   purchaseOrderBomGroupedWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
@@ -35,12 +35,6 @@ import type {
   CreatePurchaseOrderCommand,
   PurchaseOrderWorkflowAction,
 } from '@third-code-erp/shared-types'
-import {
-  computeEWT,
-  computeRetention,
-  computeVAT,
-  progressBillingAmount,
-} from '@third-code-erp/shared-types/bom'
 
 type PoCapability = 'po.create' | 'po.approve' | 'po.issue' | 'po.receive'
 
@@ -830,116 +824,34 @@ export async function createInvoice(
     return { error: 'Billing percentage must be between 0.01% and 100%' }
   }
 
-  const [project] = await db
-    .select({ id: projects.id, account_id: projects.account_id })
-    .from(projects)
-    .where(
-      and(
-        eq(projects.id, projectId),
-        eq(projects.tenant_id, profile.tenantId)
-      )
-    )
-    .limit(1)
-  if (!project) return { error: 'Project not found' }
-
-  const [bom] = await db
-    .select({
-      tcv_cents: boms.tcv_cents,
-      status: boms.status,
-      project_id: boms.project_id,
-    })
-    .from(boms)
-    .where(and(eq(boms.id, bomId), eq(boms.tenant_id, profile.tenantId)))
-
-  if (!bom) return { error: 'BOM not found' }
-  if (bom.project_id !== projectId) {
-    return { error: 'BOM belongs to a different project' }
-  }
-  if (bom.status === 'draft') return { error: 'BOM must be approved before billing' }
-
-  const retentionBps = 1_000
-  const subtotalCents = progressBillingAmount(
-    bom.tcv_cents,
-    billingPercentBps
-  )
-  const retentionCents = computeRetention(subtotalCents, retentionBps)
-  const taxableBaseCents = subtotalCents - retentionCents
-  const vatCents = computeVAT(taxableBaseCents)
-  const withholdingTaxCents = computeEWT(taxableBaseCents)
-  const netAmountCents =
-    taxableBaseCents + vatCents - withholdingTaxCents
-  const now = new Date()
-  const prefix = `INV-${now.getFullYear()}${String(
-    now.getMonth() + 1
-  ).padStart(2, '0')}-`
-  const allocationLockKey =
-    `invoice-number:${profile.tenantId}:${prefix}`
-
-  const inserted = await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${allocationLockKey}))`
-    )
-    const [lastInvoice] = await tx
-      .select({ invoice_number: invoices.invoice_number })
-      .from(invoices)
-      .where(
-        and(
-          eq(invoices.tenant_id, profile.tenantId),
-          sql`${invoices.invoice_number} like ${prefix + '%'}`
-        )
-      )
-      .orderBy(desc(invoices.invoice_number))
-      .limit(1)
-
-    const previous = Number.parseInt(
-      lastInvoice?.invoice_number.split('-').at(-1) ?? '0',
-      10
-    )
-    const next = Number.isFinite(previous) ? previous + 1 : 1
-    const invoiceNumber = `${prefix}${String(next).padStart(3, '0')}`
-    const [invoice] = await tx
-      .insert(invoices)
-      .values({
-        tenant_id: profile.tenantId,
-        project_id: projectId,
-        account_id: project.account_id,
-        created_by: profile.user.id,
-        invoice_number: invoiceNumber,
-        status: 'draft',
-        billing_percent_bps: billingPercentBps,
-        retention_bps: retentionBps,
-        subtotal_cents: subtotalCents,
-        retention_cents: retentionCents,
-        vat_cents: vatCents,
-        withholding_tax_cents: withholdingTaxCents,
-        net_amount_cents: netAmountCents,
-        due_date: dueDate ? new Date(dueDate) : undefined,
-      })
-      .returning({ id: invoices.id })
-    if (!invoice) throw new Error('Failed to create invoice')
-    return { id: invoice.id, invoiceNumber }
-  })
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'invoice',
-    entityId: inserted.id,
-    action: 'create',
-    diff: {
-      invoice_number: inserted.invoiceNumber,
-      billing_percent_bps: billingPercentBps,
-      subtotal_cents: subtotalCents,
-      retention_cents: retentionCents,
-      vat_cents: vatCents,
-      withholding_tax_cents: withholdingTaxCents,
-      net_amount_cents: netAmountCents,
+  const result = await createCustomerInvoiceDraftThroughCoreApi(
+    projectId,
+    {
+      billingPercentBps,
+      bomId,
+      dueDate: dueDate || null,
+      notes: null,
     },
-  })
+    randomUUID()
+  )
+  if (!result.ok || !result.data) {
+    return {
+      error:
+        result.error ??
+        'Customer invoice draft was not created. No financial record was saved.',
+    }
+  }
+  if (
+    result.data.tenantId !== profile.tenantId ||
+    result.data.projectId !== projectId ||
+    result.data.status !== 'draft'
+  ) {
+    return { error: 'Customer invoice draft returned an invalid tenant scope.' }
+  }
 
   revalidatePath(`/projects/${projectId}/billing`)
   revalidatePath('/invoices')
-  return { id: inserted.id }
+  return { id: result.data.invoiceId }
 }
 
 // ── Three-step PO approval (REFACTOR.md US-Pre-003) ──────────────────────────

@@ -3,9 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   requireCapability: vi.fn(),
-  select: vi.fn(),
-  transaction: vi.fn(),
-  writeAuditLog: vi.fn(),
+  createCustomerInvoiceDraftThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
 }))
 
@@ -14,15 +12,9 @@ vi.mock('@third-code-erp/auth', () => ({
   requireCapability: mocks.requireCapability,
 }))
 
-vi.mock('@third-code-erp/database', () => ({
-  db: {
-    select: mocks.select,
-    transaction: mocks.transaction,
-  },
-}))
-
-vi.mock('@/lib/audit', () => ({
-  writeAuditLog: mocks.writeAuditLog,
+vi.mock('@/lib/erp-core-client', () => ({
+  createCustomerInvoiceDraftThroughCoreApi:
+    mocks.createCustomerInvoiceDraftThroughCoreApi,
 }))
 
 vi.mock('next/cache', () => ({
@@ -39,20 +31,8 @@ const PROFILE = {
   fullName: 'Finance User',
 }
 
-function limitedQuery<T>(rows: T[]) {
-  const limit = vi.fn().mockResolvedValue(rows)
-  const where = vi.fn().mockReturnValue({ limit })
-  const from = vi.fn().mockReturnValue({ where })
-  return { from, where, limit }
-}
-
-function orderedQuery<T>(rows: T[]) {
-  const limit = vi.fn().mockResolvedValue(rows)
-  const orderBy = vi.fn().mockReturnValue({ limit })
-  const where = vi.fn().mockReturnValue({ orderBy })
-  const from = vi.fn().mockReturnValue({ where })
-  return { from, where, orderBy, limit }
-}
+const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+const INVOICE_ID = '44444444-4444-4444-8444-444444444444'
 
 function invoiceForm() {
   const formData = new FormData()
@@ -65,93 +45,76 @@ function invoiceForm() {
 describe('createInvoice', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-07-27T04:00:00.000Z'))
     mocks.getUserProfile.mockResolvedValue(PROFILE)
     mocks.requireCapability.mockImplementation(() => undefined)
   })
 
-  it('requires the existing finance-domain capability before database access', async () => {
+  it('requires the existing finance capability before opening the Core boundary', async () => {
     mocks.requireCapability.mockImplementation(() => {
       throw new Error('Forbidden: finance capability required')
     })
 
-    const result = await createInvoice('33333333-3333-4333-8333-333333333333', invoiceForm())
+    const result = await createInvoice(PROJECT_ID, invoiceForm())
 
     expect(result).toEqual({ error: 'Forbidden: finance capability required' })
     expect(mocks.requireCapability).toHaveBeenCalledWith(
       PROFILE,
       'finance.issue_invoice'
     )
-    expect(mocks.select).not.toHaveBeenCalled()
-    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.createCustomerInvoiceDraftThroughCoreApi).not.toHaveBeenCalled()
   })
 
-  it('rejects a project outside the caller tenant before reading billing data', async () => {
-    const projectQuery = limitedQuery([])
-    mocks.select.mockReturnValueOnce({ from: projectQuery.from })
-
-    const result = await createInvoice('33333333-3333-4333-8333-333333333333', invoiceForm())
-
-    expect(result).toEqual({ error: 'Project not found' })
-    expect(mocks.select).toHaveBeenCalledTimes(1)
-    expect(mocks.transaction).not.toHaveBeenCalled()
-  })
-
-  it('allocates the next tenant-month number under a transaction-scoped database lock', async () => {
-    const projectQuery = limitedQuery([
-      {
-        id: '33333333-3333-4333-8333-333333333333',
-        account_id: '55555555-5555-4555-8555-555555555555',
-      },
-    ])
-    const bomQuery = orderedQuery([{ tcv_cents: 1_000_000 }])
-    mocks.select
-      .mockReturnValueOnce({ from: projectQuery.from })
-      .mockReturnValueOnce({ from: bomQuery.from })
-
-    const execute = vi.fn().mockResolvedValue(undefined)
-    const invoiceQuery = orderedQuery([{ invoice_number: 'INV-202607-009' }])
-    const returning = vi.fn().mockResolvedValue([{ id: '44444444-4444-4444-8444-444444444444' }])
-    const values = vi.fn().mockReturnValue({ returning })
-    const insert = vi.fn().mockReturnValue({ values })
-    const tx = {
-      execute,
-      select: vi.fn().mockReturnValue({ from: invoiceQuery.from }),
-      insert,
-    }
-    mocks.transaction.mockImplementation(async (callback) => callback(tx))
-
-    const result = await createInvoice('33333333-3333-4333-8333-333333333333', invoiceForm())
-
-    expect(result).toEqual({ invoiceId: '44444444-4444-4444-8444-444444444444' })
-    expect(mocks.transaction).toHaveBeenCalledWith(
-      expect.any(Function),
-      expect.objectContaining({
-        isolationLevel: 'read committed',
-        accessMode: 'read write',
-      })
-    )
-    expect(execute).toHaveBeenCalledOnce()
-    expect(execute.mock.invocationCallOrder[0]).toBeLessThan(
-      tx.select.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER
-    )
-    expect(values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenant_id: PROFILE.tenantId,
-        project_id: '33333333-3333-4333-8333-333333333333',
-        account_id: '55555555-5555-4555-8555-555555555555',
-        created_by: PROFILE.user.id,
-        invoice_number: 'INV-202607-010',
-      })
-    )
-    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
+  it('sends only browser input to Core and preserves the tenant-scoped result', async () => {
+    mocks.createCustomerInvoiceDraftThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        invoiceId: INVOICE_ID,
         tenantId: PROFILE.tenantId,
-        actorId: PROFILE.user.id,
-        entityId: '44444444-4444-4444-8444-444444444444',
-        diff: expect.objectContaining({ invoice_number: 'INV-202607-010' }),
-      })
+        projectId: PROJECT_ID,
+        status: 'draft',
+      },
+    })
+
+    const result = await createInvoice(PROJECT_ID, invoiceForm())
+
+    expect(result).toEqual({ invoiceId: INVOICE_ID })
+    expect(mocks.createCustomerInvoiceDraftThroughCoreApi).toHaveBeenCalledWith(
+      PROJECT_ID,
+      {
+        billingPercentBps: 2500,
+        bomId: null,
+        dueDate: '2026-08-15',
+        notes: 'Progress billing',
+      },
+      expect.any(String)
     )
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(
+      `/projects/${PROJECT_ID}/billing`
+    )
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/invoices')
+  })
+
+  it('fails closed when Core is unavailable or returns another tenant', async () => {
+    mocks.createCustomerInvoiceDraftThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable.',
+    })
+    await expect(createInvoice(PROJECT_ID, invoiceForm())).resolves.toEqual({
+      error: 'ERP Core API is unavailable.',
+    })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
+
+    mocks.createCustomerInvoiceDraftThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        invoiceId: INVOICE_ID,
+        tenantId: '99999999-9999-4999-8999-999999999999',
+        projectId: PROJECT_ID,
+        status: 'draft',
+      },
+    })
+    await expect(createInvoice(PROJECT_ID, invoiceForm())).resolves.toEqual({
+      error: 'Customer invoice draft returned an invalid tenant scope.',
+    })
   })
 })

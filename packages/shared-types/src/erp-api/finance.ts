@@ -338,6 +338,66 @@ export type CustomerInvoiceIssueResult = z.infer<
   typeof customerInvoiceIssueResultSchema
 >
 
+/**
+ * Browser input for a customer-invoice draft. The project and tenant remain
+ * URL/server-owned; all money and invoice numbering are calculated in Core.
+ */
+export const customerInvoiceDraftCreateBodySchema = z
+  .object({
+    billingPercentBps: z.number().int().min(1).max(10_000),
+    bomId: z.string().uuid().nullable().default(null),
+    dueDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Due date requires YYYY-MM-DD')
+      .nullable()
+      .default(null),
+    notes: z.string().trim().max(2_000).nullable().default(null),
+  })
+  .strict()
+
+export const customerInvoiceDraftCreateCommandSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    billingPercentBps: z.number().int().min(1).max(10_000),
+    bomId: z.string().uuid().nullable().default(null),
+    dueDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Due date requires YYYY-MM-DD')
+      .nullable()
+      .default(null),
+    notes: z.string().trim().max(2_000).nullable().default(null),
+  })
+  .strict()
+
+export const customerInvoiceDraftCreateResultSchema = z
+  .object({
+    invoiceId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    status: z.literal('draft'),
+    invoiceNumber: z.string().trim().min(1).max(50),
+    billingPercentBps: z.number().int().min(1).max(10_000),
+    retentionBps: z.number().int().min(0).max(10_000),
+    subtotalCents: z.number().int().nonnegative(),
+    retentionCents: z.number().int().nonnegative(),
+    vatCents: z.number().int().nonnegative(),
+    withholdingTaxCents: z.number().int().nonnegative(),
+    netAmountCents: z.number().int().nonnegative(),
+    dueDate: z.string().datetime({ offset: true }).nullable(),
+    notes: z.string().nullable(),
+  })
+  .strict()
+
+export type CustomerInvoiceDraftCreateBody = z.infer<
+  typeof customerInvoiceDraftCreateBodySchema
+>
+export type CustomerInvoiceDraftCreateCommand = z.infer<
+  typeof customerInvoiceDraftCreateCommandSchema
+>
+export type CustomerInvoiceDraftCreateResult = z.infer<
+  typeof customerInvoiceDraftCreateResultSchema
+>
+
 export const customerInvoiceReverseBodySchema = z
   .object({
     reason: z.string().trim().min(3).max(500),

@@ -61,6 +61,7 @@ const requiredMigrations = [
   '20260806140000_togal_bom_commit_idempotency.sql',
   '20260806150000_opportunity_project_conversion_idempotency.sql',
   '20260806160000_security_role_baseline.sql',
+  '20260807130000_customer_invoice_draft_create_workflow.sql',
 ]
 
 const requiredTables = [
@@ -109,6 +110,7 @@ const requiredServerOnlyTables = [
   'togal_bom_commit_requests',
   'opportunity_project_conversion_requests',
   'assets',
+  'customer_invoice_draft_create_requests',
 ]
 
 const requiredPolicies = [
@@ -139,8 +141,6 @@ const requiredPolicies = [
   ['journal_lines', 'journal_lines_finance_update'],
   ['journal_lines', 'journal_lines_finance_delete'],
   ['invoices', 'invoices_finance_read'],
-  ['invoices', 'invoices_finance_insert'],
-  ['invoices', 'invoices_finance_update'],
   ['supplier_bills', 'supplier_bills_finance_read'],
   ['supplier_bills', 'supplier_bills_finance_insert'],
   ['supplier_bills', 'supplier_bills_finance_update'],
@@ -324,6 +324,9 @@ const requiredServerOnlyIndexes = [
   'ux_opportunity_project_conversion_requests_tenant_id_id',
   'ux_opportunity_project_conversion_requests_tenant_key',
   'idx_opportunity_project_conversion_requests_tenant_state',
+  'ux_customer_invoice_draft_create_requests_tenant_id_id',
+  'ux_customer_invoice_draft_create_requests_tenant_key',
+  'idx_customer_invoice_draft_create_requests_tenant_state',
 ]
 
 const requiredExpandedNodeTypes = [
@@ -1727,18 +1730,6 @@ try {
     ['journal_lines', 'credit_cents', 'UPDATE'],
     ['journal_lines', 'business_account_id', 'UPDATE'],
     ['journal_lines', 'vendor_id', 'UPDATE'],
-    ['invoices', 'tenant_id', 'INSERT'],
-    ['invoices', 'project_id', 'INSERT'],
-    ['invoices', 'account_id', 'INSERT'],
-    ['invoices', 'created_by', 'INSERT'],
-    ['invoices', 'invoice_number', 'INSERT'],
-    ['invoices', 'status', 'INSERT'],
-    ['invoices', 'subtotal_cents', 'INSERT'],
-    ['invoices', 'net_amount_cents', 'INSERT'],
-    ['invoices', 'project_id', 'UPDATE'],
-    ['invoices', 'account_id', 'UPDATE'],
-    ['invoices', 'subtotal_cents', 'UPDATE'],
-    ['invoices', 'net_amount_cents', 'UPDATE'],
     ['supplier_bills', 'tenant_id', 'INSERT'],
     ['supplier_bills', 'purchase_order_id', 'INSERT'],
     ['supplier_bills', 'project_id', 'INSERT'],
@@ -2053,6 +2044,19 @@ try {
             `${row.table_name}.${row.column_name}:${row.privilege}`
         )
         .join(', ')
+  )
+
+  await query(
+    'authenticated cannot mutate Core-owned customer invoices',
+    `select privilege
+       from unnest(array['INSERT', 'UPDATE', 'DELETE']) as privilege
+      where has_table_privilege(
+        'authenticated',
+        'public.invoices',
+        privilege
+      )`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => `invoices:${row.privilege}`).join(', ')
   )
 
   await query(
