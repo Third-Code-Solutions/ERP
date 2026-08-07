@@ -1,5 +1,52 @@
 # Work Log
 
+## 2026-08-08 - M3.167 Cortex provider-grounded completion authority
+
+Implemented the smallest safe provenance slice around M3.166. Added one
+nullable tenant-composite link from official assistant completion to the
+settled provider attempt, one-completion-per-attempt uniqueness, strict state
+constraints, and a service-only PostgreSQL trigger that validates inserts and
+link changes and freezes linked completion identity/provenance.
+
+The provider executor now returns its exact settled attempt ID. The processor
+uses an internal deterministic/provider discriminated contract. Signed and
+external completion input cannot claim `provider_grounded`; the public result
+can report it after Core commits. Nest verifies current claim fencing, tenant,
+job, current attempt number, settled successful outcome, cost bound, model,
+RBAC, context, and citations in the same transaction that stores the official
+message, request, job state, and raw-content-free audit.
+
+Validation:
+
+- Shared 261/261; API 599/599; Web 676/676; Python 8/8.
+- Lint, typecheck, Nest/Next production build with 82 pages, spend 4/4,
+  controlled release 5/5, Actionlint, pinned actions, Gitleaks across 550
+  commits, and diff hygiene passed.
+- Clean PostgreSQL 17 + Redis replay applied 109/109 migrations, passed
+  database 358/358 with zero skips and the full API integration suite.
+  Before/after schema hashes matched at
+  `00D5475628D1ADB9042FE0CBCEDB914875121B8460B6850F8FBFA92D68D62FE5`.
+- Disposable services were stopped. The only infrastructure note remained the
+  known local Redis `vm.overcommit_memory` recommendation.
+
+Release boundary and unresolved risk:
+
+- Production provider adapter remains unavailable; there is no provider-neutral
+  production request/response protocol, credential, real call, activation
+  endpoint, or provider observability/canary.
+- No hosted Supabase query/write, Auth/Storage/data mutation, Vercel/Railway
+  build or deployment, AI/image/provider call, paid resource, or Vercel Git
+  change occurred. Managed Supabase is still last verified at 55/109.
+- All rollout gates stay false/empty. Rollback closes gates and preserves the
+  nullable link and settled ledger; linked provenance is never deleted or
+  repointed.
+
+Exact next action: M3.168 source-only provider-neutral request/response
+boundary. Nest builds one bounded redacted envelope and deterministic dispatch
+identity; record only an opaque receipt and bounded outcome taxonomy; prove
+timeout/retry/cancellation with a fake. Do not add credentials, network calls,
+hosted writes, builds, deployments, or paid resources.
+
 ## 2026-08-08 - M3.166 Cortex fake-provider orchestration and recovery
 
 Implemented the smallest schema-free slice around M3.165. Added closed

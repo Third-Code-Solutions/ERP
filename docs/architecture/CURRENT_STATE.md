@@ -5,6 +5,41 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.167 Cortex provider-grounded completion authority (2026-08-08)
+
+Official assistant completion can now prove which paid attempt produced it.
+`cortex_assistant_turn_requests` has a nullable, tenant-composite
+`provider_attempt_id`; one provider attempt can back at most one completion.
+The database permits the link only for `provider_grounded` success and keeps
+deterministic completions unlinked. A service-only PostgreSQL trigger validates
+the same tenant, generation job, current attempt number, settled
+`provider_succeeded` outcome, bounded consumed cost, and exact policy model on
+insert or link change. Once linked, completion identity, provenance, hash,
+outcome, and model are immutable.
+
+The provider execution seam returns the exact settled attempt identifier. The
+processor carries it through an internal discriminated completion contract;
+the public result may report `provider_grounded`, but the signed/external
+completion input cannot select that outcome. Before the one official
+transaction commits the assistant message, request, job, and audit, Nest
+relocks and verifies the current claim fence, tenant/job/attempt identity,
+settled state, success outcome, model, cost, RBAC, context, and citations.
+Audit stores only the attempt identifier, never prompts or provider payloads.
+
+Validation passed: shared 261/261; API 599/599; Web 676/676; Python 8/8;
+workspace lint/typecheck; Nest/Next production build with 82 generated pages;
+spend 4/4; controlled release 5/5; Actionlint; pinned workflow actions;
+Gitleaks across 550 commits; and diff hygiene. A clean PostgreSQL 17 + Redis
+lane replayed 109/109 migrations, passed database 358/358 with zero skips and
+the full API integration suite, and produced equal before/after schema hashes
+`00D5475628D1ADB9042FE0CBCEDB914875121B8460B6850F8FBFA92D68D62FE5`.
+
+The production provider adapter remains unavailable. No credential, provider
+network call, public activation endpoint, UI change, hosted Supabase query or
+write, Auth/Storage/data mutation, Vercel/Railway build or deployment, paid
+resource, or Vercel Git change occurred. All rollout gates remain false/empty.
+Managed Supabase remains last verified at 55 migrations versus 109 in source.
+
 ## M3.166 Cortex fake-provider orchestration and recovery (2026-08-08)
 
 Nest now contains a provider-neutral execution seam around the M3.165 budget

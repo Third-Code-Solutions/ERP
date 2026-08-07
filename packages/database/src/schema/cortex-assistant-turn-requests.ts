@@ -36,6 +36,7 @@ export const cortexAssistantTurnRequests = pgTable(
     claim_token_hash: char('claim_token_hash', { length: 64 }),
     lease_expires_at: timestamp('lease_expires_at', { withTimezone: true }),
     assistant_message_id: uuid('assistant_message_id'),
+    provider_attempt_id: uuid('provider_attempt_id'),
     outcome: varchar('outcome', { length: 64 }),
     model: varchar('model', { length: 100 }),
     result: jsonb('result'),
@@ -80,6 +81,9 @@ export const cortexAssistantTurnRequests = pgTable(
     tenantAssistantMessageIdx: index(
       'idx_cortex_assistant_turn_requests_tenant_assistant_message'
     ).on(table.tenant_id, table.assistant_message_id),
+    tenantProviderAttemptUniqueIdx: uniqueIndex(
+      'ux_cortex_asst_turn_requests_provider_attempt'
+    ).on(table.tenant_id, table.provider_attempt_id),
     keyCheck: check(
       'cortex_assistant_turn_requests_key_nonempty',
       sql`${table.idempotency_key} = btrim(${table.idempotency_key})
@@ -109,7 +113,8 @@ export const cortexAssistantTurnRequests = pgTable(
         'model',
         'model_stream_failed_partial',
         'model_failed_grounded_fallback',
-        'deterministic_grounded'
+        'deterministic_grounded',
+        'provider_grounded'
       )`
     ),
     modelCheck: check(
@@ -127,6 +132,7 @@ export const cortexAssistantTurnRequests = pgTable(
           and ${table.claim_token_hash} is not null
           and ${table.lease_expires_at} is not null
           and ${table.assistant_message_id} is null
+          and ${table.provider_attempt_id} is null
           and ${table.outcome} is null
           and ${table.model} is null
           and ${table.result} is null
@@ -137,6 +143,13 @@ export const cortexAssistantTurnRequests = pgTable(
           and ${table.claim_token_hash} is null
           and ${table.lease_expires_at} is null
           and ${table.assistant_message_id} is not null
+          and (
+            (${table.outcome} = 'provider_grounded'
+              and ${table.provider_attempt_id} is not null)
+            or
+            (${table.outcome} <> 'provider_grounded'
+              and ${table.provider_attempt_id} is null)
+          )
           and ${table.outcome} is not null
           and ${table.model} is not null
           and ${table.result} is not null

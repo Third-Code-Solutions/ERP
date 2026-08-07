@@ -76,6 +76,16 @@ export const cortexConversationAssistantTurnOutcomeSchema = z.enum([
   'model_stream_failed_partial',
   'model_failed_grounded_fallback',
   'deterministic_grounded',
+  'provider_grounded',
+])
+
+// Signed external completion remains unable to claim provider authority.
+// Provider-grounded commits use the internal generation completion contract.
+export const cortexConversationAssistantTurnExternalOutcomeSchema = z.enum([
+  'model',
+  'model_stream_failed_partial',
+  'model_failed_grounded_fallback',
+  'deterministic_grounded',
 ])
 
 export const cortexConversationAssistantTurnClaimCommandSchema = z
@@ -132,7 +142,7 @@ export const cortexConversationAssistantTurnCompleteCommandSchema = z
       .max(100_000)
       .refine((value) => value.trim().length > 0, 'Content is required'),
     citationNodeIds: z.array(z.string().uuid()).max(12),
-    outcome: cortexConversationAssistantTurnOutcomeSchema,
+    outcome: cortexConversationAssistantTurnExternalOutcomeSchema,
     model: z.string().trim().min(1).max(100),
   })
   .strict()

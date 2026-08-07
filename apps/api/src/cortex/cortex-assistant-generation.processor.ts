@@ -93,16 +93,30 @@ export class CortexAssistantGenerationProcessor extends WorkerHost {
     }
 
     try {
-      const output = providerEnabled
+      const providerOutput = providerEnabled
         ? await this.providerExecution.generate(claimed)
-        : await this.workerClient.generate(claimed.question, claimed.evidence)
+        : null
+      const output =
+        providerOutput ??
+        (await this.workerClient.generate(claimed.question, claimed.evidence))
       const completed = await this.assistantTurns.completeFromWorker({
         jobId: claimed.jobId,
         requestId: claimed.requestId,
         claimTokenHash: claimed.claimTokenHash,
-        content: output.content,
-        citationNodeIds: output.citationNodeIds,
-        model: output.model,
+        completion: providerOutput
+          ? {
+              outcome: 'provider_grounded',
+              providerAttemptId: providerOutput.providerAttemptId,
+              content: providerOutput.content,
+              citationNodeIds: providerOutput.citationNodeIds,
+              model: providerOutput.model,
+            }
+          : {
+              outcome: 'deterministic_grounded',
+              content: output.content,
+              citationNodeIds: output.citationNodeIds,
+              model: output.model,
+            },
       })
       if (!completed) {
         await this.state.failTerminal(

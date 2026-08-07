@@ -1,5 +1,29 @@
 # Next Actions
 
+## Exact next action after M3.167 provider completion authority
+
+Keep every Cortex generation, worker, provider-execution, provider-budget,
+recovery, Web, and Core gate false; every exact-tenant allowlist empty; every
+provider policy absent or disabled; credentials unset; and Vercel Git
+disconnected. Do not query or mutate managed Supabase, deploy/build Vercel or
+Railway, call an AI/image/provider, or create a paid resource under the current
+cost lock.
+
+The next safe source-only milestone is M3.168: define a provider-neutral
+request/response boundary without a production network adapter. Nest must build
+one bounded redacted evidence envelope, derive deterministic dispatch
+idempotency from the immutable reservation, accept only bounded output and an
+opaque provider receipt, classify timeout/retryable/terminal outcomes, and
+prove that retries do not dispatch an attempt twice. Audit and logs must never
+contain prompts or raw provider payloads. Use an in-memory fake only.
+
+Before any real provider canary, complete M3.152 backup/PITR and an isolated
+complete-clone replay of all 109 migrations. Separately approve one exact
+tenant, one low request/daily micros policy, credential scope, spend/latency/
+error observability and alerts, one reviewed release SHA, live RBAC and
+cancellation checks, and a rollback drill. M3.167 proves completion
+provenance only; it is not activation approval.
+
 ## Exact next action after M3.166 provider orchestration proof
 
 Keep every Cortex generation, worker, provider-execution, provider-budget, Web,

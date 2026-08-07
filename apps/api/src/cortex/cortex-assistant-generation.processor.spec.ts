@@ -23,6 +23,7 @@ const REQUEST_ID = '22222222-2222-4222-8222-222222222222'
 const TENANT_ID = '33333333-3333-4333-8333-333333333333'
 const USER_ID = '44444444-4444-4444-8444-444444444444'
 const NODE_ID = '55555555-5555-4555-8555-555555555555'
+const PROVIDER_ATTEMPT_ID = '66666666-6666-4666-8666-666666666666'
 
 function transportJob(overrides: Partial<Job> = {}): Job {
   return {
@@ -70,6 +71,7 @@ function harness() {
   const providerExecution = {
     enabledForTenant: vi.fn().mockReturnValue(false),
     generate: vi.fn().mockResolvedValue({
+      providerAttemptId: PROVIDER_ATTEMPT_ID,
       content: 'Provider-grounded answer',
       citationNodeIds: [NODE_ID],
       model: 'deterministic-grounded-v1',
@@ -114,7 +116,12 @@ describe('CortexAssistantGenerationProcessor', () => {
       expect.objectContaining({
         jobId: JOB_ID,
         requestId: REQUEST_ID,
-        content: 'Grounded answer',
+        completion: {
+          outcome: 'deterministic_grounded',
+          content: 'Grounded answer',
+          citationNodeIds: [NODE_ID],
+          model: 'deterministic-grounded-v1',
+        },
       })
     )
   })
@@ -148,6 +155,17 @@ describe('CortexAssistantGenerationProcessor', () => {
       expect.objectContaining({ jobId: JOB_ID, attemptNumber: 1 })
     )
     expect(probe.worker.generate).not.toHaveBeenCalled()
+    expect(probe.assistantTurns.completeFromWorker).toHaveBeenCalledWith(
+      expect.objectContaining({
+        completion: {
+          outcome: 'provider_grounded',
+          providerAttemptId: PROVIDER_ATTEMPT_ID,
+          content: 'Provider-grounded answer',
+          citationNodeIds: [NODE_ID],
+          model: 'deterministic-grounded-v1',
+        },
+      })
+    )
   })
 
   it('keeps a provider result fenced when the official completion changed', async () => {

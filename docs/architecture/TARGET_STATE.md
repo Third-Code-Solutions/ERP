@@ -1,5 +1,28 @@
 # Target State
 
+## M3.167 provider-grounded completion provenance
+
+An official provider-grounded assistant turn must be inseparable from exactly
+one settled provider attempt. The durable link is tenant-composite, unique per
+attempt, and immutable after commit. PostgreSQL must reject any completion
+whose attempt belongs to another tenant or job, is not the job's current
+attempt, is unsettled, did not succeed, exceeds its reservation, or used a
+different policy model. Deterministic completions remain explicitly unlinked.
+
+Only trusted Nest orchestration may construct the provider-grounded completion
+variant. External and signed callers cannot claim that outcome or provide an
+attempt identity. Nest must reauthorize claim fencing, RBAC, context, and
+citations and atomically commit the official message, completion provenance,
+job state, and semantic audit. Redis and Python remain unable to approve or
+finalize the transaction; prompts and provider payloads remain outside audit.
+
+This provenance boundary is source-complete and locally replayed. It does not
+authorize credentials or a real adapter. Provider activation still requires a
+provider-neutral request/response contract, deterministic dispatch identity,
+bounded timeout/error handling, observability and alerts, complete-clone
+migration replay, backup/PITR evidence, one exact tenant, low spend limits, a
+reviewed release SHA, live RBAC/cancellation proof, and an approved rollback.
+
 ## M3.166 provider execution and recovery safety
 
 Provider orchestration must remain Nest-owned and fail closed. A model call may

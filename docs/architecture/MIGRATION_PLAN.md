@@ -1,5 +1,41 @@
 # Migration Plan
 
+## M3.167 Cortex provider-grounded completion authority (completed)
+
+1. Add a nullable tenant-composite provider-attempt link to the official
+   assistant completion ledger. Enforce one completion per attempt and keep
+   deterministic outcomes unlinked.
+2. Make the provider executor return the exact identifier only after successful
+   settlement. Carry it through an internal discriminated completion contract;
+   do not expose provider-grounded selection to signed/external callers.
+3. In the existing Nest completion transaction, lock and verify the current
+   claim, tenant, job, attempt number, settlement, provider success, cost,
+   policy model, context, RBAC, and citations before committing the assistant
+   message, request, job, and audit.
+4. Enforce the same invariant in PostgreSQL for inserts and link changes, then
+   freeze linked completion identity/provenance. Prove pre-settlement denial,
+   model mismatch denial, valid commit, single-use linkage, immutability, and
+   migration reproducibility.
+
+Evidence: shared 261/261; API 599/599; Web 676/676; Python 8/8; database
+358/358 with zero skips; 109/109 clean migrations; full API integration;
+lint/typecheck; Nest/Next production build with 82 pages; spend 4/4;
+controlled release 5/5; Actionlint; pinned workflow actions; Gitleaks across
+550 commits; and diff hygiene. Clean replay produced identical schema hashes
+`00D5475628D1ADB9042FE0CBCEDB914875121B8460B6850F8FBFA92D68D62FE5`.
+
+Release gate: keep all Cortex provider, budget, generation, worker, recovery,
+Core, and Web gates false/empty; policies absent or disabled; credentials
+unset; and Vercel Git disconnected. Do not apply hosted SQL or deploy/call a
+provider under the cost lock. Rollback is forward-only: close the gates and
+stop dispatch. Preserve the nullable column, provider ledger, and any linked
+completion; never down-migrate, delete, or repoint settled provenance.
+
+Next source-only slice: M3.168 provider-neutral request/response boundary with
+a Nest-built bounded redacted envelope, deterministic dispatch idempotency,
+opaque request receipt, timeout/error taxonomy, and fake contract tests. Keep
+the production adapter unavailable and perform no network/provider call.
+
 ## M3.166 Cortex fake-provider orchestration and recovery (completed)
 
 1. Added independent, disabled-by-default provider-execution flags with exact

@@ -1,5 +1,31 @@
 # Architecture Decisions
 
+## D-276 - Bind official provider completion to settled spend (2026-08-08)
+
+Decision: a `provider_grounded` assistant completion must carry the exact
+provider-attempt UUID returned after settlement. Nest verifies that the attempt
+belongs to the same tenant and generation job, matches the current job attempt
+and policy model, is settled with `provider_succeeded`, and consumed no more
+than reserved. It then commits message, request, job, provenance, and audit in
+one transaction. PostgreSQL repeats the invariant through a tenant-composite
+foreign key, one-completion-per-attempt index, state constraint, and
+service-only insert/update trigger. Linked completion identity and provenance
+cannot later change. External completion input cannot select this outcome.
+
+Rationale: successful orchestration and settled spend are insufficient if the
+official answer can be committed without proving which attempt created it, or
+if a direct database writer can relink provenance later. The explicit internal
+variant makes authority visible in TypeScript; the database is the final
+integrity boundary. Keeping deterministic completions unlinked preserves
+existing behavior and allows an incremental rollout.
+
+Validation and release boundary: all focused/full suites, clean migration
+replay, schema-hash equality, lint, typecheck, production build, spend/release
+guards, workflow validation, secret scan, and diff checks passed locally. No
+real provider, credential, hosted mutation, provider call, build, or deploy was
+used. Rollback closes gates and preserves the forward-only ledger/link; a
+linked completion is never deleted or repointed.
+
 ## D-275 - Reconcile cost before retrying or closing provider work (2026-08-08)
 
 Decision: Nest owns provider orchestration and recovery. It must reserve the

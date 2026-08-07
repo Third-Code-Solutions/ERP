@@ -115,6 +115,7 @@ describe('CortexAssistantProviderExecutionService', () => {
   it('reconciles old attempts, reserves, dispatches once, and settles actual cost', async () => {
     const probe = harness()
     await expect(probe.service.generate(CLAIMED)).resolves.toEqual({
+      providerAttemptId: RESERVATION_ID,
       content: 'Grounded fake result',
       citationNodeIds: [NODE_ID],
       model: 'deterministic-grounded-v1',

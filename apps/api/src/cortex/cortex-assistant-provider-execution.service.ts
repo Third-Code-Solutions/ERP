@@ -38,6 +38,11 @@ export class CortexAssistantProviderExecutionError extends Error {
   }
 }
 
+export interface CortexAssistantProviderExecutionResult
+  extends GroundedAnswerResult {
+  providerAttemptId: string
+}
+
 /**
  * Provider-neutral orchestration. Default adapter cannot dispatch. Tests use
  * an in-memory fake to prove cost and fencing behavior without network access.
@@ -90,7 +95,7 @@ export class CortexAssistantProviderExecutionService {
 
   async generate(
     claimed: ClaimedCortexAssistantGenerationJob
-  ): Promise<GroundedAnswerResult> {
+  ): Promise<CortexAssistantProviderExecutionResult> {
     if (!this.enabledForTenant(claimed.tenantId)) {
       throw new CortexAssistantProviderExecutionError(
         'provider_execution_disabled',
@@ -163,7 +168,10 @@ export class CortexAssistantProviderExecutionService {
         outcomeCode: 'provider_succeeded',
       })
       await this.budget.settle(settlement)
-      return completion
+      return {
+        ...completion,
+        providerAttemptId: reservation.reservationId,
+      }
     } catch (error) {
       if (
         error instanceof CortexAssistantProviderExecutionError &&

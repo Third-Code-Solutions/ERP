@@ -104,6 +104,9 @@ export const cortexAssistantProviderAttempts = pgTable(
     terminal_at: timestamp('terminal_at', { withTimezone: true }),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex(
+      'ux_cortex_asst_provider_attempt_tenant_id'
+    ).on(table.tenant_id, table.id),
     jobAttemptUniqueIdx: uniqueIndex(
       'ux_cortex_asst_provider_attempt_job_attempt'
     ).on(table.tenant_id, table.job_id, table.attempt_number),
