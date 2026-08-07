@@ -174,6 +174,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     }
     if (
       request.method === 'POST' &&
+      routePath.endsWith('/v1/projects/:projectId/customer-invoices')
+    ) {
+      return 'finance.customer_invoice_draft_create'
+    }
+    if (
+      request.method === 'POST' &&
       routePath.endsWith('/v1/finance/customer-invoices/:invoiceId/reverse')
     ) {
       return 'finance.customer_invoice_reverse'

@@ -30,6 +30,7 @@ import {
   cashTransactionDraftResultSchema,
   cashTransactionDraftDeleteResultSchema,
   customerInvoiceIssueResultSchema,
+  customerInvoiceDraftCreateResultSchema,
   customerInvoiceReverseResultSchema,
   customerInvoiceCancelResultSchema,
   documentDeleteResultSchema,
@@ -118,6 +119,8 @@ import {
   type CashTransactionDraftDeleteResult,
   type CustomerInvoiceIssueCommand,
   type CustomerInvoiceIssueResult,
+  type CustomerInvoiceDraftCreateBody,
+  type CustomerInvoiceDraftCreateResult,
   type CustomerInvoiceReverseBody,
   type CustomerInvoiceReverseResult,
   type CustomerInvoiceCancelBody,
@@ -656,6 +659,16 @@ export function financeCustomerInvoiceIssueWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API,
     process.env.ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function financeCustomerInvoiceDraftCreateWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_VIA_API,
+    process.env.ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -4681,6 +4694,64 @@ export async function issueCustomerInvoiceThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. No customer invoice issuance was committed.',
+    }
+  }
+}
+
+export async function createCustomerInvoiceDraftThroughCoreApi(
+  projectId: string,
+  command: CustomerInvoiceDraftCreateBody,
+  idempotencyKey: string
+): Promise<CoreResult<CustomerInvoiceDraftCreateResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/projects/${encodeURIComponent(
+        projectId
+      )}/customer-invoices`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Customer invoice draft conflicts with the current project or BOM.'
+            : response.status === 404
+              ? 'Project or BOM was not found.'
+              : 'Customer invoice draft was not created.'
+      return { ok: false, error: message }
+    }
+    const parsed = customerInvoiceDraftCreateResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error:
+          'ERP Core API returned an invalid customer invoice draft result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No customer invoice draft was created.',
     }
   }
 }

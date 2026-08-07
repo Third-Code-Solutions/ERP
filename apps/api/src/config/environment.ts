@@ -606,6 +606,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Customer invoice draft creation stays fail-closed until the Core
+  // transaction, idempotency ledger, audit proof, and tenant canary pass.
+  ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Customer invoice reversal stays fail-closed until its ordered migration,
   // disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED: z

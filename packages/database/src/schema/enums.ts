@@ -259,6 +259,11 @@ export const customerInvoiceCancelRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const customerInvoiceDraftCreateRequestStateEnum = pgEnum(
+  'customer_invoice_draft_create_request_state',
+  ['processing', 'succeeded']
+)
+
 export const stockReceiptWorkflowActionEnum = pgEnum(
   'stock_receipt_workflow_action',
   ['post', 'reverse']
