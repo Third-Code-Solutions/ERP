@@ -62,6 +62,7 @@ const requiredMigrations = [
   '20260806150000_opportunity_project_conversion_idempotency.sql',
   '20260806160000_security_role_baseline.sql',
   '20260807130000_customer_invoice_draft_create_workflow.sql',
+  '20260807140000_revoke_anon_tenant_identity_rpc.sql',
 ]
 
 const requiredTables = [
@@ -670,6 +671,29 @@ if (existsSync(securityBaselineMigration)) {
     'security baseline normalizes public policies',
     /ALTER\s+POLICY\s+%I\s+ON\s+%I\.%I\s+TO\s+authenticated/i.test(
       securityBaseline
+    )
+  )
+}
+
+const tenantIdentityHardeningMigration = join(
+  migrationDirectory,
+  '20260807140000_revoke_anon_tenant_identity_rpc.sql'
+)
+if (existsSync(tenantIdentityHardeningMigration)) {
+  const tenantIdentityHardening = readFileSync(
+    tenantIdentityHardeningMigration,
+    'utf8'
+  )
+  assert(
+    'tenant identity helper rejects anonymous RPC execution',
+    /REVOKE\s+EXECUTE\s+ON\s+FUNCTION\s+public\.auth_tenant_id\(\)\s+FROM\s+public,\s*anon/i.test(
+      tenantIdentityHardening
+    )
+  )
+  assert(
+    'tenant identity helper preserves authenticated and service execution',
+    /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+public\.auth_tenant_id\(\)\s+TO\s+authenticated,\s*service_role/i.test(
+      tenantIdentityHardening
     )
   )
 }
@@ -1284,7 +1308,7 @@ try {
   )
 
   await query(
-    'client roles can execute the tenant identity helper used by RLS',
+    'tenant identity helper is authenticated-only for client roles',
     `select
        has_function_privilege(
          'authenticated',
@@ -1298,7 +1322,7 @@ try {
        ) as anon_execute`,
     (rows) =>
       rows[0]?.authenticated_execute === true
-      && rows[0]?.anon_execute === true,
+      && rows[0]?.anon_execute === false,
     (rows) => JSON.stringify(rows[0] ?? {})
   )
 
