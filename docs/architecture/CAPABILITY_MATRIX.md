@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.151 free local managed-suffix replay (2026-08-07)
+
+No hosted ERP capability was enabled. The repository now has a cost-free,
+machine-checked path for an explicit session/direct URL plus PostgreSQL 17
+dump tooling and a localhost-only restored-snapshot verifier. The existing
+public snapshot's isolated clone reached 103/103 migration history, proving
+the exact 48-file source suffix can apply after synthetic clone-only duplicate
+cleanup.
+
+This does not clear production. Owner mapping remains absent; the public-only
+snapshot lacks managed Auth, Storage, vector, and provider catalog surfaces;
+and injected integration recorded 218 pass, 11 fail, 108 skip. Verifier output
+is permanently explicit: `fullManagedParity: false` and
+`releaseReady: false`. Standard source tests, lint, typecheck, and local build
+passed. No SQL, hosted dump, deployment, flag, variable, or tenant mutation.
+
 ## M3.150 managed parity planning (2026-08-07)
 
 No hosted ERP capability was enabled. Managed project is healthy PostgreSQL

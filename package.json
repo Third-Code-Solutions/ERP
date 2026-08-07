@@ -24,6 +24,7 @@
     "test:controlled-release-plan": "node --test scripts/controlled-release-plan.test.mjs",
     "test:provider-spend-guard": "node --test scripts/verify-vercel-spend-guard.test.mjs",
     "test:managed-supabase-parity-plan": "node --test scripts/verify-managed-supabase-parity-plan.test.mjs",
+    "test:managed-supabase-parity-replay": "node --test scripts/verify-managed-supabase-parity-replay.test.mjs",
     "test:turbo-test-cache": "node scripts/verify-turbo-test-cache.mjs",
     "ci:actionlint": "node scripts/run-actionlint.mjs",
     "ci:gitleaks": "node scripts/run-gitleaks.mjs",
@@ -38,6 +39,7 @@
     "verify:audit-hash-profiles": "node scripts/verify-audit-hash-profiles.mjs",
     "verify:workflow-action-refs": "node scripts/verify-workflow-action-refs.mjs",
     "verify:managed-supabase-parity-plan": "node scripts/verify-managed-supabase-parity-plan.mjs",
+    "verify:managed-supabase-parity-replay": "node scripts/verify-managed-supabase-parity-replay.mjs",
     "clean": "turbo clean && find . -name 'node_modules' -type d -not -path './.git/*' -exec rm -rf {} + 2>/dev/null; find . -name '.next' -type d -exec rm -rf {} + 2>/dev/null; true"
   },
   "devDependencies": {

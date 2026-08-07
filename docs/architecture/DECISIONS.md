@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-259 - Separate suffix replay proof from full managed parity (2026-08-07)
+
+Decision: support a zero-cost export lane using an explicit session/direct
+database URL and approved PostgreSQL 17 client tools. Verify restored suffixes
+only against localhost. Label synthetic duplicate remediation, missing managed
+schemas, and owner approval explicitly; never let a current migration ledger
+alone imply release readiness.
+
+Rationale: the existing public snapshot can prove that all 48 source
+migrations apply in order, but it cannot reproduce managed Auth, Storage,
+pgvector, provider grants, or owner-approved business data. Conflating those
+claims would turn partial evidence into a dangerous release signal. Local-only
+verification removes paid-branch pressure while preserving hard production
+gates.
+
+Evidence: session-port and PostgreSQL 17.10 tool preflight reported `ready`;
+the hash-valid public snapshot clone advanced from 94 to 103 migrations and
+the verifier confirmed the exact 55-to-103 suffix. Injected database tests
+also exposed the expected managed-surface/catalog gaps. No hosted dump, SQL,
+branch, deployment, or provider-variable change occurred.
+
 ## D-258 - Make managed parity plans machine-checkable and cost-bounded (2026-08-07)
 
 Decision: record the current managed migration boundary in a machine-readable

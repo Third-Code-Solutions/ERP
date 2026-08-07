@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.151 free local managed-suffix replay
+
+Keep Supabase, Vercel, Railway, flags, and tenant allowlists unchanged. Export
+tooling and the exact 48-file suffix are locally proven; do not repeat either
+unless source or managed head changes. Database owner must now supply the
+external 12-row Purchase Order mapping. Obtain a fresh, complete managed
+backup/PITR restore that includes Auth, Storage metadata, vector, roles,
+grants, and provider-owned catalog behavior. Apply only the approved mapping
+to that isolated clone, then run zero-skip database/API/Redis, identity, audit,
+RLS, Storage-object, financial, schema-diff, and browser gates. Do not create
+the `$0.01344/hour` branch, apply hosted SQL, or deploy without explicit cost
+and release approval.
+
 ## Exact next action after M3.150 managed Supabase parity plan
 
 Remain read-only. Database owner must supply two items: an approved external

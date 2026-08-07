@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 function describeDatabaseUrl(databaseUrl) {
   if (typeof databaseUrl !== 'string' || databaseUrl.trim() === '') {
@@ -55,22 +57,54 @@ export function planDatabaseExport({ databaseUrl, availableCommands = {} }) {
 
   const hasSupabaseCli = availableCommands.supabase === true
   const hasPgDump = availableCommands.pg_dump === true
+  const hasPgDumpAll = availableCommands.pg_dumpall === true
   const hasDocker = availableCommands.docker === true
+  const pgDumpMajor = Number(availableCommands.pgDumpMajor ?? 0)
   let method = 'unavailable'
 
   if (hasSupabaseCli && hasDocker) {
     method = 'supabase-cli'
-  } else if (hasPgDump) {
+  } else if (hasPgDump && hasPgDumpAll && pgDumpMajor === 17) {
     method = 'pg_dump'
   } else if (hasSupabaseCli && !hasDocker) {
     blockers.push(
       'Supabase CLI is present but Docker is unavailable; supabase db dump cannot run'
+    )
+  } else if (hasPgDump && !hasPgDumpAll) {
+    blockers.push(
+      'pg_dump is present but pg_dumpall is missing; role export cannot be completed'
+    )
+  } else if (hasPgDump && pgDumpMajor !== 17) {
+    blockers.push(
+      `pg_dump major ${pgDumpMajor || 'unknown'} does not match required PostgreSQL 17`
     )
   } else {
     blockers.push(
       'No supported database dump tool is available; install Supabase CLI with Docker or PostgreSQL 17 client tools'
     )
   }
+
+  const commands =
+    method === 'pg_dump'
+      ? {
+          roles:
+            'pg_dumpall --database="<SESSION_POOLER_DATABASE_URL>" --roles-only --no-role-passwords --file=roles.sql',
+          schema:
+            'pg_dump --dbname="<SESSION_POOLER_DATABASE_URL>" --schema=public --section=pre-data --no-owner --file=schema.sql',
+          data:
+            'pg_dump --dbname="<SESSION_POOLER_DATABASE_URL>" --schema=public --data-only --no-owner --file=data.sql',
+          postData:
+            'pg_dump --dbname="<SESSION_POOLER_DATABASE_URL>" --schema=public --section=post-data --no-owner --file=post-data.sql',
+        }
+      : {
+          roles:
+            'supabase db dump --db-url "<SESSION_POOLER_DATABASE_URL>" -f roles.sql --role-only',
+          schema:
+            'supabase db dump --db-url "<SESSION_POOLER_DATABASE_URL>" -f schema.sql',
+          data:
+            'supabase db dump --db-url "<SESSION_POOLER_DATABASE_URL>" -f data.sql --use-copy --data-only',
+          postData: null,
+        }
 
   return {
     status: blockers.length === 0 ? 'ready' : 'review_required',
@@ -87,14 +121,10 @@ export function planDatabaseExport({ databaseUrl, availableCommands = {} }) {
       recommendedPort: connection.recommendedPort ?? null,
     },
     blockers,
-    commands: {
-      roles:
-        'supabase db dump --db-url "<SESSION_POOLER_DATABASE_URL>" -f roles.sql --role-only',
-      schema:
-        'supabase db dump --db-url "<SESSION_POOLER_DATABASE_URL>" -f schema.sql',
-      data:
-        'supabase db dump --db-url "<SESSION_POOLER_DATABASE_URL>" -f data.sql --use-copy --data-only',
+    tool: {
+      postgresMajor: method === 'pg_dump' ? pgDumpMajor : null,
     },
+    commands,
     safety: [
       'Keep roles.sql, schema.sql, and data.sql outside git and outside public build artifacts',
       'Scrub auth users, secrets, tokens, and personal data before sharing or committing any fixture',
@@ -104,18 +134,45 @@ export function planDatabaseExport({ databaseUrl, availableCommands = {} }) {
 }
 
 function commandExists(command) {
+  if (command.includes('/') || command.includes('\\')) {
+    return existsSync(command)
+  }
   const lookup = process.platform === 'win32' ? 'where.exe' : 'which'
   return spawnSync(lookup, [command], { stdio: 'ignore' }).status === 0
 }
 
+function commandMajor(command) {
+  const result = spawnSync(command, ['--version'], {
+    encoding: 'utf8',
+    windowsHide: true,
+  })
+  if (result.status !== 0) return null
+  const match = `${result.stdout ?? ''} ${result.stderr ?? ''}`.match(
+    /PostgreSQL\)?\s+(\d+)/i
+  )
+  return match ? Number(match[1]) : null
+}
+
 export function inspectDatabaseExportPrerequisites({
-  databaseUrl = process.env.DATABASE_URL,
+  databaseUrl = process.env.DATABASE_EXPORT_URL ?? process.env.DATABASE_URL,
+  pgDumpPath = process.env.PG_DUMP_PATH ?? 'pg_dump',
+  pgDumpAllPath =
+    process.env.PG_DUMPALL_PATH ??
+    (process.env.PG_DUMP_PATH
+      ? join(
+          dirname(process.env.PG_DUMP_PATH),
+          process.platform === 'win32' ? 'pg_dumpall.exe' : 'pg_dumpall'
+        )
+      : 'pg_dumpall'),
 } = {}) {
+  const hasPgDump = commandExists(pgDumpPath)
   return planDatabaseExport({
     databaseUrl,
     availableCommands: {
       supabase: commandExists('supabase'),
-      pg_dump: commandExists('pg_dump'),
+      pg_dump: hasPgDump,
+      pg_dumpall: commandExists(pgDumpAllPath),
+      pgDumpMajor: hasPgDump ? commandMajor(pgDumpPath) : null,
       docker: commandExists('docker'),
     },
   })

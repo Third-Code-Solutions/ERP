@@ -1,5 +1,39 @@
 # Work Log
 
+## 2026-08-07 - M3.151 free local managed-suffix replay
+
+Verified a free export path using an explicit Supavisor session endpoint on
+port 5432 plus portable PostgreSQL 17.10 `pg_dump` and `pg_dumpall`. Enhanced
+the preflight to accept a separate export URL and portable binary, require
+PostgreSQL major 17 and role-export support, reject the app's transaction
+pooler, and emit commands matching the selected tool. Six focused export
+planner tests pass.
+
+Rechecked all four hashes in the 2026-08-06 public snapshot manifest. Started
+its isolated PostgreSQL 17.10 clone on localhost, captured a 1,379,381-byte
+rollback dump outside Git, then applied the nine migrations after its prior
+94-migration head. Added a localhost-only read verifier with four pure tests.
+Runtime verification reports 103 migrations through `20260807150000`, exact
+48-file suffix coverage from managed boundary 55, zero synthetic-clone
+duplicate groups, tenant-table RLS, and revoked anonymous tenant-helper
+execution.
+
+The verifier does not certify release. It reports synthetic mapping,
+`ownerMappingApproved: false`, `fullManagedParity: false`, and
+`releaseReady: false`. The public snapshot lacks `auth.users`,
+`storage.objects`, and pgvector. Injected database tests recorded 52 passing
+and four failing files; 218 tests passed, 11 failed, and 108 skipped. Failures
+also expose role/search-path catalog differences and a legacy Cost Entry
+fixture incompatible with the current Cost Code invariant. Standard workspace
+tests, lint, typecheck, and local production build passed. Local PostgreSQL
+was stopped afterward. Actionlint 1.7.12, Gitleaks 8.30.1, pinned workflow
+references, controlled-release 5/5, provider-spend 4/4, and 103-file static
+migration verification also passed.
+
+No fresh hosted dump, SQL, migration row, Purchase Order update, Supabase
+branch, Storage action, Vercel/Railway deployment, provider variable, feature
+flag, or canary was created.
+
 ## 2026-08-07 - M3.150 managed Supabase parity plan
 
 Refreshed managed project `aqqrtkmtcsfkbyyqxowv` read-only. Project is

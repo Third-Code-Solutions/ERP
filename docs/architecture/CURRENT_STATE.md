@@ -5,6 +5,34 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.151 free local managed-suffix replay (2026-08-07)
+
+The supported export-tool blocker is cleared without a paid provider branch.
+An explicit Supavisor session endpoint on port 5432 and portable PostgreSQL
+17.10 `pg_dump`/`pg_dumpall` tools make the read-only export preflight report
+`ready`. The application keeps its transaction-pooler URL; the export path is
+supplied separately and never printed or committed.
+
+The hash-valid 2026-08-06 public-schema snapshot was reused instead of creating
+another managed dump. Its isolated PostgreSQL 17 clone already contained the
+first 39 pending migrations with synthetic duplicate-number cleanup. A local
+rollback dump was captured, then the remaining nine migrations were applied.
+The new localhost-only verifier proves one exact 55-to-103 ledger, all 48
+source-suffix versions in order, latest authority tables present, tenant-table
+RLS enabled, zero duplicate Purchase Order groups in the synthetic clone, and
+anonymous `auth_tenant_id()` execution revoked.
+
+This is suffix evidence, not managed parity. `auth.users`, `storage.objects`,
+and pgvector are absent from the public-only snapshot. The injected database
+suite therefore recorded 52 passing/4 failing files and 218 passing/11
+failing/108 skipped tests; failures include missing managed schemas/vector,
+role/search-path catalog differences, and one legacy Cost Entry fixture that
+violates the current Cost Code invariant. The verifier always reports
+`releaseReady: false`, `ownerMappingApproved: false`, and these missing
+surfaces. Standard workspace tests, lint, typecheck, and the local Nest/Next
+production build passed. No hosted SQL, dump, branch, deployment, provider
+variable, feature flag, or tenant record changed.
+
 ## M3.150 managed Supabase parity plan (read-only, 2026-08-07)
 
 Managed project `aqqrtkmtcsfkbyyqxowv` was refreshed through read-only
