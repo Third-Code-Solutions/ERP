@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   getCortexGraph: vi.fn(),
   getCortexFocusedGraph: vi.fn(),
   getCortexNodeByRef: vi.fn(),
+  cortexGraphReadsUseCoreApi: vi.fn(),
+  getCortexGraphThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -16,6 +18,11 @@ vi.mock('@third-code-erp/database', () => ({
   getCortexGraph: mocks.getCortexGraph,
   getCortexFocusedGraph: mocks.getCortexFocusedGraph,
   getCortexNodeByRef: mocks.getCortexNodeByRef,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  cortexGraphReadsUseCoreApi: mocks.cortexGraphReadsUseCoreApi,
+  getCortexGraphThroughCoreApi: mocks.getCortexGraphThroughCoreApi,
 }))
 
 import { GET } from './route'
@@ -52,6 +59,7 @@ describe('Cortex focused graph authorization', () => {
       nodes: [{ id: NODE_ID }],
       links: [],
     })
+    mocks.cortexGraphReadsUseCoreApi.mockReturnValue(false)
   })
 
   it('requires an authenticated profile', async () => {
@@ -143,5 +151,54 @@ describe('Cortex focused graph authorization', () => {
     expect(response.status).toBe(404)
     expectPrivate(response)
     expect(mocks.getCortexFocusedGraph).not.toHaveBeenCalled()
+  })
+
+  it('uses the closed Core adapter for an explicit tenant canary', async () => {
+    mocks.cortexGraphReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexGraphThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        focusNodeId: NODE_ID,
+        nodes: [
+          {
+            id: NODE_ID,
+            type: 'journal_entry',
+            title: 'Journal 1042',
+            refTable: 'journal_entries',
+            refId: REF_ID,
+            projectId: null,
+          },
+        ],
+        links: [],
+      },
+    })
+
+    const response = await request(
+      `?refTable=journal_entries&refId=${REF_ID}`
+    )
+
+    expect(response.status).toBe(200)
+    expectPrivate(response)
+    expect(mocks.getCortexGraphThroughCoreApi).toHaveBeenCalledWith({
+      refTable: 'journal_entries',
+      refId: REF_ID,
+    })
+    expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back when selected Core graph authority is unavailable', async () => {
+    mocks.cortexGraphReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexGraphThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'Cortex graph service is unavailable.',
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(503)
+    expectPrivate(response)
+    expect(mocks.getCortexGraph).not.toHaveBeenCalled()
+    expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
   })
 })

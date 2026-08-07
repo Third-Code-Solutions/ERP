@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-261 - Separate Cortex graph authority from search authority (2026-08-07)
+
+Decision: expose `GET /v1/cortex/graph` through a dedicated NestJS service and
+independent Core/Web tenant gates. Keep keyword search and graph browsing on
+separate switches. Accept no tenant or role input. For focused retrieval,
+require a registered source table plus UUID, verify that the derived node type
+owns that source and is visible to the principal's server-owned role scope,
+then return only a bounded one-hop neighborhood. Keep the existing Next path as
+the default and fail closed if a selected Core canary is unavailable.
+
+Rationale: graph browsing is a deterministic ERP read, not an AI-provider
+operation. Independent gates give it a small rollback boundary and prevent a
+search canary from silently widening graph access. A shared 45-source contract
+and exact UI-registry equality test prevent the Core and frontend permission
+models from drifting.
+
+Evidence: focused contract/Core/Web suites passed; API 523/523 passed in a
+single-worker lane; lint, typecheck, 81-route production build, release/spend,
+workflow, secret, and clean-room gates passed. All new flags remain false and
+allowlists empty. No database or hosted provider state changed.
+
 ## D-260 - Separate duplicate recommendations from owner approval (2026-08-07)
 
 Decision: generate deterministic Purchase Order duplicate recommendations in

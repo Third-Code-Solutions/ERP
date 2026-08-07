@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.153 Core Cortex graph read authority
+
+Added the original shared graph query/response contract, registered source-to-
+node ownership map, Nest graph pipe/controller/service, independent environment
+gates, authenticated Web Core adapter, and fail-closed Next route selector.
+Whole graph reads are tenant-scoped and capped at 1,500 nodes/12,000 links.
+Focused reads require one complete registered source identity, verify source
+ownership plus role scope, and cap the one-hop neighborhood at 40.
+
+Current behavior is unchanged because
+`ERP_CORTEX_GRAPH_READS_ENABLED=false`,
+`ERP_CORTEX_GRAPH_READS_VIA_API=false`, and both tenant allowlists are empty.
+Do not enable them while managed Supabase remains 55/103 or before graph-table,
+role-by-role, protected browser, and rollback evidence. Next migration step:
+after the database owner clears M3.152 and managed parity is restored, run a
+read-only one-tenant legacy/Core graph parity canary; never couple that canary
+to an AI-provider or hosted frontend deployment.
+
+Validation passed: affected contracts/routes/services/adapters; API 523/523 in
+a single-worker lane; workspace lint/typecheck; one local 81-route Nest/Next
+production build; Actionlint; Gitleaks; pinned workflow refs; controlled-release
+5/5; provider-spend 4/4; and clean-room runtime scanning. The parallel workspace
+test attempt hit three unrelated five-second controller timeouts under machine
+contention; each passed alone and the complete API suite then passed. No hosted
+state changed.
+
 ## M3.152 Purchase Order owner-review proposal
 
 Added a pure proposal builder and read-only managed planner. The planner

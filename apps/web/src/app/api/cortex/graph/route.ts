@@ -1,29 +1,25 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { z } from 'zod'
 import { getUserProfile } from '@third-code-erp/auth'
 import {
   getCortexFocusedGraph,
   getCortexGraph,
   getCortexNodeByRef,
 } from '@third-code-erp/database'
-import {
-  cortexEntityDefinition,
-  isCortexRefTable,
-} from '@/lib/cortex/entity-registry'
+import { cortexGraphQuerySchema } from '@third-code-erp/shared-types'
+import { cortexEntityDefinition } from '@/lib/cortex/entity-registry'
 import { cortexCanSeeType, cortexNodeTypeScope } from '@/lib/cortex/rbac'
 import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
+import {
+  cortexGraphReadsUseCoreApi,
+  getCortexGraphThroughCoreApi,
+} from '@/lib/erp-core-client'
 
-const focusSchema = z
-  .object({
-    refTable: z.string().refine(isCortexRefTable).optional(),
-    refId: z.string().uuid().optional(),
+function response(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: CORTEX_PRIVATE_HEADERS,
   })
-  .refine(
-    ({ refTable, refId }) =>
-      (refTable === undefined && refId === undefined) ||
-      (refTable !== undefined && refId !== undefined),
-    'refTable and refId must be supplied together'
-  )
+}
 
 /**
  * GET /api/cortex/graph
@@ -34,21 +30,26 @@ const focusSchema = z
 export async function GET(req: NextRequest) {
   const profile = await getUserProfile()
   if (!profile) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: CORTEX_PRIVATE_HEADERS }
-    )
+    return response({ error: 'Unauthorized' }, 401)
   }
 
-  const parsed = focusSchema.safeParse({
+  const parsed = cortexGraphQuerySchema.safeParse({
     refTable: req.nextUrl.searchParams.get('refTable') ?? undefined,
     refId: req.nextUrl.searchParams.get('refId') ?? undefined,
   })
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: 'Invalid graph focus' },
-      { status: 400, headers: CORTEX_PRIVATE_HEADERS }
-    )
+    return response({ error: 'Invalid graph focus' }, 400)
+  }
+
+  if (cortexGraphReadsUseCoreApi(profile.tenantId)) {
+    const result = await getCortexGraphThroughCoreApi(parsed.data)
+    if (!result.ok || !result.data) {
+      return response(
+        { error: result.error ?? 'Cortex graph service is unavailable.' },
+        result.status ?? 503
+      )
+    }
+    return response(result.data)
   }
 
   const scope = cortexNodeTypeScope(profile.role)
@@ -64,10 +65,7 @@ export async function GET(req: NextRequest) {
       !definition.refTables.includes(refTable) ||
       !cortexCanSeeType(profile.role, node.node_type)
     ) {
-      return NextResponse.json(
-        { error: 'Focused record not found' },
-        { status: 404, headers: CORTEX_PRIVATE_HEADERS }
-      )
+      return response({ error: 'Focused record not found' }, 404)
     }
 
     const graph = await getCortexFocusedGraph(
@@ -77,15 +75,12 @@ export async function GET(req: NextRequest) {
       scope
     )
     if (!graph) {
-      return NextResponse.json(
-        { error: 'Focused record not found' },
-        { status: 404, headers: CORTEX_PRIVATE_HEADERS }
-      )
+      return response({ error: 'Focused record not found' }, 404)
     }
-    return NextResponse.json(graph, { headers: CORTEX_PRIVATE_HEADERS })
+    return response(graph)
   }
 
   // RBAC: only the node types this role may see (admin/owner = unrestricted).
   const graph = await getCortexGraph(profile.tenantId, 1500, scope)
-  return NextResponse.json(graph, { headers: CORTEX_PRIVATE_HEADERS })
+  return response(graph)
 }

@@ -1,4 +1,5 @@
 import { cortexNodeTypeEnum } from '@third-code-erp/database/schema'
+import { CORTEX_GRAPH_REF_TABLE_NODE_TYPES } from '@third-code-erp/shared-types'
 import { describe, expect, it } from 'vitest'
 import {
   CORTEX_ENTITY_REGISTRY,
@@ -40,6 +41,19 @@ describe('Cortex entity registry', () => {
       expect(isCortexRefTable(refTable)).toBe(true)
     }
     expect(isCortexRefTable('unregistered_records')).toBe(false)
+  })
+
+  it('keeps UI registry sources aligned with the Core graph contract', () => {
+    const uiSources = Object.fromEntries(
+      CORTEX_ENTITY_TYPES.flatMap((type) =>
+        CORTEX_ENTITY_REGISTRY[type].refTables.map((refTable) => [
+          refTable,
+          type,
+        ])
+      )
+    )
+
+    expect(uiSources).toEqual(CORTEX_GRAPH_REF_TABLE_NODE_TYPES)
   })
 
   it('does not invent sources for enum values without a mirrored UUID table', () => {

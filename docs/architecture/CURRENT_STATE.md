@@ -5,6 +5,32 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.153 Core Cortex graph read authority (2026-08-07)
+
+Interactive Cortex graph retrieval now has a typed, tenant-scoped NestJS read
+boundary without changing the active production path. Shared contracts bind 45
+registered source tables to their canonical graph node types, reject partial or
+caller-scoped focus input, and bound whole/focused graph payloads. Nest derives
+tenant and role scope from the verified principal, conceals unauthorized or
+inconsistent focus records as not found, and remains closed behind independent
+Core and Web tenant allowlists.
+
+The existing Next route remains the default. An explicitly selected tenant can
+use the authenticated Core adapter; Core failure is terminal for that canary
+and never restores direct database authority. UI registry and Core source maps
+are now contract-tested for exact equality. Both graph flags are false and both
+allowlists are empty by default.
+
+Focused suites passed 203 assertions before the final shape check and 141 Web
+assertions after it. The full API suite passed 523/523 in a single-worker lane;
+three unrelated controller tests that timed out only under cross-package CPU
+contention passed 6/6 alone. Workspace lint, typecheck, one local Nest/Next
+production build (81 routes), Actionlint, Gitleaks, pinned workflow references,
+controlled-release 5/5, provider-spend 4/4, and clean-room runtime tests passed.
+No SQL, migration, tenant data, provider variable, canary, hosted build, or
+deployment changed. Managed parity remains 55/103 and M3.152 owner approval is
+still required.
+
 ## M3.152 Purchase Order owner-review proposal (2026-08-07)
 
 The managed duplicate blocker now has a deterministic recommendation artifact

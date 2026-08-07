@@ -113,6 +113,8 @@ import {
   getDocumentProcessingStatusThroughCoreApi,
   cortexSearchUseCoreApi,
   searchCortexThroughCoreApi,
+  cortexGraphReadsUseCoreApi,
+  getCortexGraphThroughCoreApi,
   financeLedgerReadsUseCoreApi,
   getFinanceLedgerThroughCoreApi,
 } from './erp-core-client'
@@ -843,6 +845,20 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS', '')
     expect(cortexSearchUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(cortexSearchUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Cortex graph reads on the legacy route unless the exact tenant gate matches', () => {
+    vi.stubEnv('ERP_CORTEX_GRAPH_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_CORTEX_GRAPH_READS_VIA_API_TENANT_IDS', RESULT.tenantId)
+    expect(cortexGraphReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_CORTEX_GRAPH_READS_VIA_API', 'TRUE')
+    expect(cortexGraphReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_CORTEX_GRAPH_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_CORTEX_GRAPH_READS_VIA_API_TENANT_IDS', '')
+    expect(cortexGraphReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(cortexGraphReadsUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps user role assignment on the server path unless the exact tenant gate matches', () => {
@@ -2077,6 +2093,72 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       error: 'ERP Core API returned an invalid Stock Receipt result.',
+    })
+  })
+
+  it('calls the authenticated Core Cortex graph read and validates the response', async () => {
+    const nodeId = '33333333-3333-4333-8333-333333333333'
+    const refId = '44444444-4444-4444-8444-444444444444'
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          focusNodeId: nodeId,
+          nodes: [
+            {
+              id: nodeId,
+              type: 'journal_entry',
+              title: 'Journal 1042',
+              refTable: 'journal_entries',
+              refId,
+              projectId: null,
+            },
+          ],
+          links: [],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getCortexGraphThroughCoreApi({
+        refTable: 'journal_entries',
+        refId,
+      })
+    ).resolves.toEqual({
+      ok: true,
+      data: expect.objectContaining({ focusNodeId: nodeId }),
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/cortex/graph?refTable=journal_entries&refId=${refId}`,
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('rejects a Cortex graph response with the wrong focus shape', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ nodes: [], links: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getCortexGraphThroughCoreApi({
+        refTable: 'journal_entries',
+        refId: '44444444-4444-4444-8444-444444444444',
+      })
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API returned an invalid Cortex graph result.',
     })
   })
 
