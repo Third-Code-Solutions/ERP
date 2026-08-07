@@ -1,9 +1,57 @@
 # Current State
 
-Verified from the repository and local replay evidence on 2026-08-07.
+Verified from the repository and local replay evidence on 2026-08-08.
 Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
+
+## M3.161 trusted Cortex assistant-generation authority (2026-08-08)
+
+Official assistant memory now has two original NestJS service-to-service
+commands: `POST /v1/cortex/conversations/assistant-turns/claims` and
+`POST /v1/cortex/conversations/assistant-turns/complete`. Both require the
+authenticated user principal, exact-tenant rollout, idempotency, and a fresh
+HMAC that binds operation, timestamp, tenant, user, key, and command digest.
+The browser cannot mint that signature or select message role `assistant`.
+
+Migration `20260807190000` adds a forced-RLS, service-only PostgreSQL state
+machine. One official M3.160 user message can own one generation. A 60-second
+lease and hashed fencing token prevent concurrent provider work; an expired
+lease can be reclaimed, stale completion conflicts, exact completion replays,
+and changed completion conflicts. Core rechecks current membership,
+`cortex.search`, conversation ownership, immutable context, official user-turn
+provenance, and citation visibility inside the transaction. It hard-codes the
+assistant role, stores citation IDs only, and atomically writes claim/completion
+audits without raw content, keys, or tokens. Replay rehydrates citations with
+the current PostgreSQL-locked role, not stale token claims.
+
+Next keeps the public streaming response. For a selected tenant it first
+persists/replays the official user turn, then claims generation before quota,
+retrieval, embedding, or model work. Active retries return `409` plus
+`Retry-After`; completed retries return stored content and current citations
+without provider spend. Provider-quota denial uses the existing free grounded
+answer and completes the lease. Selected completion never falls back to direct
+database assistant/audit writes. Legacy behavior remains default.
+
+Validation passed: shared 32 files / 251 tests; API 131 / 573; Web 97 / 661;
+ordinary database 59 files / 203 passed / 143 environment-gated skips;
+cache-bypassed bounded root tests; workspace lint/typecheck; spend 4/4;
+controlled release 5/5; Actionlint; pinned actions; and local Nest/Next
+production builds with 82 static pages. The disposable PostgreSQL 17.10 +
+Redis 7.4.9 lane applied 106/106 migrations and passed database 346/346 with
+zero skips. Its first full API run hit one existing semantic-index Redis
+connection-close race; the isolated suite then passed 3/3 and the full lane
+passed 24 files / 33 tests. The new rollback-only authority suite passed 1/1,
+and schema SHA-256 remained
+`03A9CB2032B8ED0F998792D3618E70DDC71AF3BF25BFBC5FE7BAF2CF2B2EF51A`.
+One filtered Web recount transiently reported one unidentified failure; the
+canonical root run and two immediate complete recounts passed 661/661.
+
+All new flags remain closed and the HMAC secret is unset. Managed Supabase was
+not queried or changed and remains last verified at 55 migrations versus 106
+source migrations. No hosted SQL/Auth/Storage/data mutation, AI/image/provider
+call, Vercel/Railway build or deployment, paid resource, or Git integration
+change occurred.
 
 ## M3.160 Core Cortex user-turn write authority (2026-08-07)
 

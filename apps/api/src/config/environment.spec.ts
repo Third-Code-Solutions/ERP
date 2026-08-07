@@ -354,6 +354,46 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_TENANT_IDS')
   })
 
+  it('keeps signed assistant-turn writes disabled and tenant-scoped by default', () => {
+    const defaults = validateEnvironment(REQUIRED)
+    expect(
+      defaults.ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      defaults.ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS
+    ).toEqual([])
+    expect(defaults.ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET).toBeUndefined()
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_ENABLED: 'true',
+        ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+        ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET: 's'.repeat(32),
+      })
+    ).toMatchObject({
+      ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_ENABLED: true,
+      ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+      ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET: 's'.repeat(32),
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS:
+          'not-a-tenant',
+      })
+    ).toThrow('ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET: 'short',
+      })
+    ).toThrow('ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET')
+  })
+
   it('keeps every semantic index spend gate disabled and UUID-scoped', () => {
     const defaults = validateEnvironment(REQUIRED)
     expect(defaults.ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED).toBe(false)

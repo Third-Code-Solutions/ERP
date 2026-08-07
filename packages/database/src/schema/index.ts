@@ -71,6 +71,7 @@ export * from './cortex-semantic-index-jobs'
 // Cortex AI Brain — agent memory (persisted conversations)
 export * from './cortex-chat'
 export * from './cortex-conversation-turn-requests'
+export * from './cortex-assistant-turn-requests'
 // Accounting ledger foundation
 export * from './accounting'
 // Supplier payables foundation

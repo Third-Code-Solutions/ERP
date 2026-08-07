@@ -13,7 +13,11 @@ import {
   cortexDescribeEntity,
 } from '@third-code-erp/database'
 import { getOpenAI, embedText } from '@third-code-erp/ai'
-import { cortexGraphRefTableSchema } from '@third-code-erp/shared-types'
+import {
+  cortexGraphRefTableSchema,
+  type CortexConversationAssistantTurnClaimResult,
+  type CortexConversationAssistantTurnOutcome,
+} from '@third-code-erp/shared-types'
 import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
@@ -35,6 +39,10 @@ import {
 } from '@/lib/provider-quota'
 import {
   appendCortexConversationUserTurnThroughCoreApi,
+  claimCortexConversationAssistantTurnThroughCoreApi,
+  completeCortexConversationAssistantTurnThroughCoreApi,
+  cortexAssistantTurnIdempotencyKey,
+  cortexConversationAssistantTurnWritesUseCoreApi,
   cortexConversationUserTurnWritesUseCoreApi,
 } from '@/lib/erp-core-client'
 
@@ -96,9 +104,9 @@ export async function POST(req: NextRequest) {
   const redactedUserMessage = redactCortexText(lastUserMessage)
   const redactedMessages = redactCortexMessages(messages)
 
-  // Persist into the user's DB (the agent's memory). Resolve/create the thread,
-  // store the incoming user turn now; the assistant turn is stored once the
-  // stream completes. Best-effort — never block the chat on a write.
+  // Resolve the owned thread and persist the incoming user turn. Selected
+  // tenants fail closed through ERP Core; legacy tenants retain the existing
+  // best-effort direct-write path during the incremental migration.
   let conversationId = incomingConvId ?? null
   let authorizedContext: Awaited<
     ReturnType<typeof authorizeCortexRecordContext>
@@ -170,9 +178,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Shared Redis quota is optional per tenant. When enabled, fail closed
-  // before any external model/embedding work if NestJS cannot account it.
-  if (process.env.OPENAI_API_KEY) {
+  const useCoreUserTurn =
+    cortexConversationUserTurnWritesUseCoreApi(profile.tenantId)
+  const useCoreAssistantTurn =
+    cortexConversationAssistantTurnWritesUseCoreApi(profile.tenantId)
+  let providerEnabled = Boolean(process.env.OPENAI_API_KEY)
+  if (useCoreAssistantTurn && !useCoreUserTurn) {
+    return new Response(
+      'Cortex assistant authority requires Core user-turn authority.',
+      { status: 503, headers: CORTEX_PRIVATE_HEADERS }
+    )
+  }
+
+  // Preserve compatibility ordering. Selected Core assistant generation uses
+  // its durable claim first so completed/concurrent retries spend no provider
+  // quota and make no duplicate model call.
+  if (providerEnabled && !useCoreAssistantTurn) {
     const quota = await consumeProviderQuota(
       'provider-chat',
       profile.tenantId
@@ -182,7 +203,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (cortexConversationUserTurnWritesUseCoreApi(profile.tenantId)) {
+  let userMessageId: string | null = null
+  if (useCoreUserTurn) {
     if (!lastUserMessage) {
       return new Response('Invalid chat request', {
         status: 400,
@@ -223,6 +245,7 @@ export async function POST(req: NextRequest) {
       )
     }
     conversationId = persisted.data.conversationId
+    userMessageId = persisted.data.messageId
   } else {
     try {
       if (!conversationId) {
@@ -249,6 +272,71 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       console.error('[cortex/chat] persist user turn failed:', err)
+    }
+  }
+
+  type ClaimedAssistantTurn = Extract<
+    CortexConversationAssistantTurnClaimResult,
+    { status: 'claimed' }
+  >
+  let assistantClaim: ClaimedAssistantTurn | null = null
+  const assistantIdempotencyKey = cortexAssistantTurnIdempotencyKey(
+    userTurnIdempotencyKey
+  )
+  if (useCoreAssistantTurn) {
+    if (!conversationId || !userMessageId) {
+      return new Response('Official Cortex user turn was not stored.', {
+        status: 503,
+        headers: CORTEX_PRIVATE_HEADERS,
+      })
+    }
+    const claimed = await claimCortexConversationAssistantTurnThroughCoreApi(
+      { conversationId, userMessageId },
+      assistantIdempotencyKey,
+      { tenantId: profile.tenantId, userId: profile.user.id }
+    )
+    if (!claimed.ok || !claimed.data) {
+      return new Response(
+        claimed.error ?? 'Cortex assistant generation is unavailable.',
+        {
+          status: claimed.status ?? 503,
+          headers: CORTEX_PRIVATE_HEADERS,
+        }
+      )
+    }
+    if (claimed.data.status === 'in_progress') {
+      return new Response('Cortex response generation is already in progress.', {
+        status: 409,
+        headers: {
+          ...CORTEX_PRIVATE_HEADERS,
+          'Retry-After': String(claimed.data.retryAfterSeconds),
+        },
+      })
+    }
+    if (claimed.data.status === 'succeeded') {
+      const replayHeaders: Record<string, string> = {
+        ...CORTEX_PRIVATE_HEADERS,
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Conversation-Id': claimed.data.conversationId,
+      }
+      const replayCitationHeader = encodeCortexCitationHeader(
+        claimed.data.citations
+      )
+      if (replayCitationHeader) {
+        replayHeaders[CORTEX_CITATIONS_HEADER] = replayCitationHeader
+      }
+      return new Response(claimed.data.content, { headers: replayHeaders })
+    }
+    assistantClaim = claimed.data
+  }
+
+  if (providerEnabled && useCoreAssistantTurn) {
+    const quota = await consumeProviderQuota(
+      'provider-chat',
+      profile.tenantId
+    )
+    if (!quota.ok) {
+      providerEnabled = false
     }
   }
 
@@ -324,35 +412,37 @@ ${relevant || '(none matched by keyword)'}
 MOST RECENTLY UPDATED RECORDS (newest first):
 ${records || '(no records visible)'}`
 
-  // Audit every AI query (PRD §11 / F4). Store only a redacted preview plus a
-  // stable hash; raw user text must not be copied into the audit chain.
-  const model = process.env.OPENAI_API_KEY
+  // Legacy tenants keep the redacted Next audit. For selected tenants, the
+  // authoritative claim and completion audits commit atomically in ERP Core.
+  const model = providerEnabled
     ? 'gpt-4o-mini'
     : 'deterministic-grounded'
   const promptHash = hashCortexText(
     `${systemPrompt}\n${JSON.stringify(redactedMessages)}`
   )
-  try {
-    await writeAuditLog({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'cortex_chat',
-      entityId: profile.user.id,
-      action: 'query',
-      diff: {
-        phase: 'started',
-        model,
-        prompt_hash: promptHash,
-        prompt_char_count: systemPrompt.length,
-        message_count: messages.length,
-        graph_records_in_context: recent.length,
-        prompt_preview: redactedUserMessage.slice(0, 1000),
-        context_ref_table: authorizedContext?.refTable ?? null,
-        context_ref_id: authorizedContext?.refId ?? null,
-      },
-    })
-  } catch (err) {
-    console.error('[cortex/chat] audit log failed:', err)
+  if (!useCoreAssistantTurn) {
+    try {
+      await writeAuditLog({
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'cortex_chat',
+        entityId: profile.user.id,
+        action: 'query',
+        diff: {
+          phase: 'started',
+          model,
+          prompt_hash: promptHash,
+          prompt_char_count: systemPrompt.length,
+          message_count: messages.length,
+          graph_records_in_context: recent.length,
+          prompt_preview: redactedUserMessage.slice(0, 1000),
+          context_ref_table: authorizedContext?.refTable ?? null,
+          context_ref_id: authorizedContext?.refId ?? null,
+        },
+      })
+    } catch (err) {
+      console.error('[cortex/chat] audit log failed:', err)
+    }
   }
 
   // Deterministic, always-available grounded answer (keyword match over the
@@ -374,7 +464,7 @@ ${records || '(no records visible)'}`
   type ChatChunk = { choices: { delta?: { content?: string | null } }[] }
   let llmStream: AsyncIterable<ChatChunk> | null = null
   let llmFailed = false
-  if (process.env.OPENAI_API_KEY) {
+  if (providerEnabled) {
     try {
       const openai = getOpenAI()
       llmStream = (await openai.chat.completions.create({
@@ -398,11 +488,13 @@ ${records || '(no records visible)'}`
   const readable = new ReadableStream({
     async start(controller) {
       let assistant = ''
+      let modelStreamProducedText = false
       if (llmStream) {
         try {
           for await (const chunk of llmStream) {
             const text = chunk.choices[0]?.delta?.content ?? ''
             if (text) {
+              modelStreamProducedText = true
               assistant += text
               controller.enqueue(encoder.encode(text))
             }
@@ -417,46 +509,75 @@ ${records || '(no records visible)'}`
         assistant = grounded.answer
         controller.enqueue(encoder.encode(assistant))
       }
-      try {
-        await writeAuditLog({
-          tenantId: profile.tenantId,
-          actorId: profile.user.id,
-          entityType: 'cortex_chat',
-          entityId: profile.user.id,
-          action: 'query',
-          diff: {
-            phase: 'completed',
-            model,
-            outcome: llmFailed
-              ? 'model_failed_grounded_fallback'
-              : llmStream
-                ? 'model'
-                : 'deterministic_grounded',
-            prompt_hash: promptHash,
-            response_hash: hashCortexText(assistant),
-            response_preview: redactCortexText(assistant).slice(0, 1000),
-            citation_count: grounded.citations.length,
-          },
-        })
-      } catch (err) {
-        console.error('[cortex/chat] completion audit failed:', err)
-      }
-      controller.close()
-      // Store the assistant turn + the records it cited into the agent's memory.
-      if (assistant && convId) {
+      const responseOutcome: CortexConversationAssistantTurnOutcome = llmFailed
+        ? modelStreamProducedText
+          ? 'model_stream_failed_partial'
+          : 'model_failed_grounded_fallback'
+        : llmStream
+          ? 'model'
+          : 'deterministic_grounded'
+      if (!assistantClaim) {
         try {
-          await appendCortexMessage(
-            profile.tenantId,
-            profile.user.id,
-            convId,
-            'assistant',
-            assistant,
-            grounded.citations
-          )
+          await writeAuditLog({
+            tenantId: profile.tenantId,
+            actorId: profile.user.id,
+            entityType: 'cortex_chat',
+            entityId: profile.user.id,
+            action: 'query',
+            diff: {
+              phase: 'completed',
+              model,
+              outcome: responseOutcome,
+              prompt_hash: promptHash,
+              response_hash: hashCortexText(assistant),
+              response_preview: redactCortexText(assistant).slice(0, 1000),
+              citation_count: grounded.citations.length,
+            },
+          })
         } catch (err) {
-          console.error('[cortex/chat] persist assistant turn failed:', err)
+          console.error('[cortex/chat] completion audit failed:', err)
         }
       }
+      // Store the assistant turn + the records it cited into the agent's memory.
+      if (assistant && convId) {
+        if (assistantClaim) {
+          const completed =
+            await completeCortexConversationAssistantTurnThroughCoreApi(
+              {
+                requestId: assistantClaim.requestId,
+                claimToken: assistantClaim.claimToken,
+                content: assistant,
+                citationNodeIds: grounded.citations.map(
+                  (citation) => citation.nodeId
+                ),
+                outcome: responseOutcome,
+                model,
+              },
+              assistantIdempotencyKey,
+              { tenantId: profile.tenantId, userId: profile.user.id }
+            )
+          if (!completed.ok) {
+            console.error(
+              '[cortex/chat] Core assistant completion failed:',
+              completed.error
+            )
+          }
+        } else {
+          try {
+            await appendCortexMessage(
+              profile.tenantId,
+              profile.user.id,
+              convId,
+              'assistant',
+              assistant,
+              grounded.citations
+            )
+          } catch (err) {
+            console.error('[cortex/chat] persist assistant turn failed:', err)
+          }
+        }
+      }
+      controller.close()
     },
   })
 

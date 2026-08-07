@@ -9,10 +9,14 @@ import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 import { CortexConversationsController } from './cortex-conversations.controller'
 import { CortexConversationsService } from './cortex-conversations.service'
 import { CortexConversationTurnsService } from './cortex-conversation-turns.service'
+import { CortexAssistantTurnsService } from './cortex-assistant-turns.service'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const CONVERSATION_ID = '33333333-3333-4333-8333-333333333333'
+const USER_MESSAGE_ID = '44444444-4444-4444-8444-444444444444'
+const REQUEST_ID = '55555555-5555-4555-8555-555555555555'
+const CLAIM_TOKEN = '66666666-6666-4666-8666-666666666666'
 
 describe('Cortex conversation HTTP contract', () => {
   let close: (() => Promise<void>) | undefined
@@ -25,7 +29,9 @@ describe('Cortex conversation HTTP contract', () => {
   async function appFor(
     list = vi.fn(),
     read = vi.fn(),
-    appendUserTurn = vi.fn()
+    appendUserTurn = vi.fn(),
+    claim = vi.fn(),
+    complete = vi.fn()
   ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [CortexConversationsController],
@@ -37,6 +43,10 @@ describe('Cortex conversation HTTP contract', () => {
         {
           provide: CortexConversationTurnsService,
           useValue: { appendUserTurn },
+        },
+        {
+          provide: CortexAssistantTurnsService,
+          useValue: { claim, complete },
         },
       ],
     }).compile()
@@ -140,5 +150,71 @@ describe('Cortex conversation HTTP contract', () => {
       })
       .expect(400)
     expect(appendUserTurn).not.toHaveBeenCalled()
+  })
+
+  it('forwards signed assistant claim headers and principal', async () => {
+    const claim = vi.fn().mockResolvedValue({
+      status: 'claimed',
+      conversationId: CONVERSATION_ID,
+      userMessageId: USER_MESSAGE_ID,
+      requestId: REQUEST_ID,
+      claimToken: CLAIM_TOKEN,
+      leaseExpiresAt: '2026-08-07T00:01:00.000Z',
+    })
+    const app = await appFor(vi.fn(), vi.fn(), vi.fn(), claim)
+
+    await request(app.getHttpServer())
+      .post('/v1/cortex/conversations/assistant-turns/claims')
+      .set('Idempotency-Key', 'assistant-1')
+      .set('X-Third-Code-Timestamp', '1786120000')
+      .set('X-Third-Code-Cortex-Signature', `v1=${'a'.repeat(64)}`)
+      .send({
+        conversationId: CONVERSATION_ID,
+        userMessageId: USER_MESSAGE_ID,
+      })
+      .expect(201)
+
+    expect(claim).toHaveBeenCalledWith(
+      {
+        conversationId: CONVERSATION_ID,
+        userMessageId: USER_MESSAGE_ID,
+      },
+      expect.objectContaining({ tenantId: TENANT_ID, userId: USER_ID }),
+      'assistant-1',
+      {
+        timestamp: '1786120000',
+        signature: `v1=${'a'.repeat(64)}`,
+      }
+    )
+  })
+
+  it('rejects caller-selected authority before assistant completion', async () => {
+    const complete = vi.fn()
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      complete
+    )
+
+    await request(app.getHttpServer())
+      .post('/v1/cortex/conversations/assistant-turns/complete')
+      .set('Idempotency-Key', 'assistant-1')
+      .set('X-Third-Code-Timestamp', '1786120000')
+      .set('X-Third-Code-Cortex-Signature', `v1=${'a'.repeat(64)}`)
+      .send({
+        requestId: REQUEST_ID,
+        claimToken: CLAIM_TOKEN,
+        content: 'Fabricated answer',
+        citationNodeIds: [],
+        outcome: 'deterministic_grounded',
+        model: 'deterministic-grounded',
+        tenantId: TENANT_ID,
+        role: 'assistant',
+      })
+      .expect(400)
+
+    expect(complete).not.toHaveBeenCalled()
   })
 })

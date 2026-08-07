@@ -1,5 +1,41 @@
 # Next Actions
 
+## Exact next action after M3.161 trusted Cortex assistant authority
+
+Keep these flags closed, allowlists empty, and secret unset:
+
+```text
+ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_ENABLED=false
+ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_TENANT_IDS=
+ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API=false
+ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API_TENANT_IDS=
+ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_ENABLED=false
+ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS=
+ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API=false
+ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API_TENANT_IDS=
+ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET=
+```
+
+Managed Supabase was not refreshed; its last verified ledger is 55 versus 106
+source migrations. The database owner must finish M3.152 backup/PITR proof.
+Then replay all 106 migrations on an isolated complete clone and compare
+legacy/Core assistant behavior for two users and every role in one exact
+tenant: deterministic/model success, active and completed retry, stale lease,
+changed command/completion, quota denial, stream failure, context/citation/role
+revocation, Core failure, and no direct-write fallback. Configure one newly
+generated 32+ character secret only in Web/Core server runtimes. Rollback is
+both assistant flags false; do not down-migrate or drop the inert ledger.
+
+Safe source-only continuation: move chat retrieval and model execution behind
+a bounded NestJS + BullMQ + Python analysis contract. Nest must own job
+authorization, quota reservation, official completion, and audit; Python may
+return analysis/evidence only. Preserve streaming/API compatibility and add
+explicit retry/cancellation semantics before any canary.
+
+Do not reconnect Vercel Git, deploy/build Vercel or Railway, apply hosted SQL,
+mutate hosted Auth/Storage/data, create paid resources, or call AI/image
+providers without explicit cost and release approval.
+
 ## Exact next action after M3.160 Core Cortex user-turn writes
 
 Keep these flags closed and every allowlist empty:
