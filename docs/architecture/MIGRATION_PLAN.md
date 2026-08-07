@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.150 managed Supabase parity plan (read-only)
+
+Refreshed the exact managed boundary without executing SQL: PostgreSQL 17.6,
+55/103 migrations, one linear 48-file suffix, no unexpected or out-of-order
+history. Current hard blockers are one tenant-scoped 12-row Purchase Order
+duplicate group, 213 anonymous table-privilege rows, 209 `PUBLIC` policies,
+blocked supported export, unproved `MIGRATIONS_FAILED` default-branch state,
+missing Auth/audit/Storage recovery evidence, and unresolved provider spend
+approval. Advisors remain 14 security and 253 performance notices.
+
+Added `managed-supabase-parity-plan.json`, a six-batch review runbook, and a
+pure verifier that rejects missing, duplicated, reordered, or stale migration
+plans. Focused verifier 4/4, database release 9/9, and Purchase Order duplicate
+4/4 tests passed. Full workspace tests, lint, typecheck, production build,
+Actionlint, Gitleaks, workflow-action verification, controlled-release 5/5,
+provider-spend 4/4, and migration/diff checks passed. No provider mutation
+occurred.
+
+Next: database owner supplies the sensitive external 12-row mapping and a
+supported session-pooler/direct export path. Validate both read-only, restore
+into isolated PostgreSQL 17, apply the owner-approved mapping only to the
+clone, and replay all 48 files. Do not create a paid branch or apply hosted SQL
+until free local evidence and explicit cost approval pass.
+
 ## M3.149 Core user-role assignment authority
 
 Added strict shared command/result contracts, a service-only replay ledger,

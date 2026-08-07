@@ -1,29 +1,27 @@
 # Hosted Database Release
 
-## Current verified release state (2026-08-06)
+## Current verified release state (2026-08-07)
 
-- Purchase Order duplicate mapping now has a read-only preflight and external
-  mapping-file runbook. No owner mapping has been supplied; the hosted
-  uniqueness gate remains closed.
-- Repository security gate: pinned Gitleaks 8.30.1 scanned 474 commits with
-  zero findings after exact provenance allowlisting of deterministic test-only
-  idempotency values. This does not change hosted release gates.
-- Target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17.6 with 55/94 source
-  migrations applied through `20260729233017`; 39 ordered files are pending.
-- The session pooler on port 5432 is reachable read-only. A supplemental
-  PostgreSQL 17.10 roles/public pre-data/data/post-data export exists only in
-  the OS temp directory with a hash manifest; it excludes Supabase-managed
-  auth/storage internals and is not the supported managed backup gate.
-- Exact disposable replay stops at the first pending migration because the
-  hosted data contains one tenant-scoped 12-record Purchase Order-number
-  duplicate group. A clone-only synthetic rename allowed all 39 files to
-  apply, with 29/29 new tables and RLS present. This proves dependency/syntax
-  only; local auth trigger, vector HNSW, provider grants, and full catalog
-  parity remain unverified.
-- No hosted SQL/data/Storage/branch write, Vercel deployment, or Railway
-  manual build occurred. Release status is blocked on owner mapping, managed
-  backup/clone parity, security review, rollback, canary, exact identity, and
-  spend gates.
+- Target `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY` PostgreSQL 17.6 with
+  55/103 source migrations applied through `20260729233017`; the exact linear
+  suffix contains 48 files through `20260807150000`.
+- Current Purchase Order planner still reports one tenant duplicate-number
+  group with 12 records. The first missing migration intentionally aborts
+  while that group exists. No owner mapping has been supplied.
+- Release planner reports 213 anonymous table-privilege rows and 209 policies
+  assigned to `PUBLIC`. Current advisors report 14 security and 253
+  performance notices.
+- Default Supabase branch status is `MIGRATIONS_FAILED`; current 24-hour branch
+  and Auth logs are empty, so it is not valid rehearsal or recovery evidence.
+- Current export preflight is blocked: configured `DATABASE_URL` uses the
+  transaction pooler on port 6543 and no supported dump tool is available.
+- Creating a new Supabase branch currently costs `$0.01344/hour`; none was
+  created or confirmed. Free local replay remains first choice.
+- Exact batches, gates, abort criteria, and cost ceiling are in
+  [`MANAGED_SUPABASE_PARITY_PLAN.md`](../operations/MANAGED_SUPABASE_PARITY_PLAN.md)
+  and its machine-checked JSON manifest.
+- No hosted SQL/data/Storage/branch write, Vercel deployment, Railway deploy,
+  provider-variable change, or feature-flag enablement occurred.
 
 ## Export preflight (required)
 
@@ -159,7 +157,8 @@ restore; replication slots other than Realtime may require manual recreation.
 
 ## Phase 3 — Build a reconciliation migration
 
-Because the target history is non-linear:
+The current target history is a linear 55-migration prefix. Catalog/data drift
+may still require a reconciliation migration after restoring the target:
 
 1. Rebuild the repository from zero in disposable PostgreSQL 17. This is the
    desired catalog.

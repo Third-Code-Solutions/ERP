@@ -1,9 +1,39 @@
 # Current State
 
 Verified from the repository and local replay evidence on 2026-08-07.
-Managed-provider state is intentionally not refreshed or mutated for this
-milestone. Application deployments are reported separately and are never
-inferred from a successful build.
+Managed-provider state is refreshed only through explicitly recorded read-only
+checks. Application deployments are reported separately and are never inferred
+from a successful build.
+
+## M3.150 managed Supabase parity plan (read-only, 2026-08-07)
+
+Managed project `aqqrtkmtcsfkbyyqxowv` was refreshed through read-only
+provider metadata, ledger, branch, table, log, advisor, and cost calls plus
+the repository's read-only PostgreSQL planners. It is `ACTIVE_HEALTHY` on
+PostgreSQL 17.6. The managed ledger is an exact 55-migration prefix through
+`20260729233017`; source contains 103 through `20260807150000`. All 48 missing
+versions form one ordered suffix, with zero unexpected versions and zero
+versions applied after the gap.
+
+Release remains blocked. The first missing migration refuses to enforce
+tenant Purchase Order number uniqueness while the current one-group/12-row
+duplicate exists. The hosted release planner also reports 213 anonymous
+table-privilege rows and 209 `PUBLIC` policies. Current advisors report 14
+security and 253 performance notices. The default Supabase branch reports
+`MIGRATIONS_FAILED`, while 24-hour branch/Auth logs are empty. Export preflight
+is blocked by the transaction pooler on port 6543 and absence of a supported
+dump tool. A new managed branch currently costs `$0.01344/hour`; none was
+created or confirmed.
+
+Added a six-batch machine manifest and verifier covering every pending file
+exactly once in source order. Batches are review checkpoints, not independent
+production deployments. Focused manifest, database-release, and duplicate-plan
+tests passed. Full workspace tests, lint, typecheck, Nest/Next production
+build, Actionlint, Gitleaks, workflow-action verification, controlled-release
+5/5, provider-spend 4/4, 103-file migration verification, and diff checks also
+passed. No SQL, branch, migration history, tenant data, Storage object,
+provider variable, feature flag, Vercel deployment, or Railway deployment was
+changed.
 
 ## M3.149 Core user-role assignment authority (2026-08-07)
 
