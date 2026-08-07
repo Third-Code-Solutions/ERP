@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-08 - M3.163 cost-bounded asynchronous Cortex handoff
+
+Removed the selected Core generation path's four-second Next polling loop.
+Chat now returns strict `202` handoff metadata immediately. The unchanged
+Cortex UI polls one exact same-origin job URL, fills the existing assistant
+bubble on success, and caps work at ten polls. New chat, restore, unmount, and
+timeout cancel the durable job with a three-second best-effort request bound.
+Legacy streaming remains untouched.
+
+Added a combined Nest job/result read and private authenticated Next GET/DELETE
+proxy. Final content is reauthorized against current PostgreSQL membership,
+tenant/user ownership, conversation context, official user turn, and graph
+scope. Citation IDs are hydrated in the same transaction and stale/revoked
+citations are omitted. Pending jobs cannot include results. All rollout flags
+remain false/empty.
+
+Results: shared 256/256; API 586/586; Web 676/676; Python 8/8; ordinary DB
+206 passed / 143 expected skips; workspace lint/typecheck; serial forced root
+suite; local Next/Nest build with 82 static pages; spend 4/4; controlled release
+5/5; Actionlint; pinned actions; Gitleaks 546 commits; diff hygiene. Disposable
+PostgreSQL 17.10 + Redis 7.4.9 replayed 107/107 migrations, passed DB 349/349
+zero-skip and all API integration suites, including rollback-local citation
+results and role revocation. Schema remained unchanged; the database, Redis,
+and generated evidence were removed. A first root run found and fixed one test
+mock ordering error. A second concurrency-two run hit four existing Nest setup
+timeouts; the full serial run passed without timeout or unrelated source edits.
+
+No hosted Supabase query/write, Auth/Storage/data mutation, AI/image/provider
+call, Vercel/Railway build or deploy, paid resource, or Git integration change
+occurred. Managed Supabase remains last verified at 55/107.
+
 ## 2026-08-08 - M3.162 provider-free Cortex generation jobs
 
 Implemented the next smallest safe chat slice without a rewrite or provider

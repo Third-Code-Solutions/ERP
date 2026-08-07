@@ -13,6 +13,7 @@ import {
   Res,
 } from '@nestjs/common'
 import type {
+  CortexAssistantGenerationResult,
   CortexAssistantGenerationStartCommand,
   CortexAssistantGenerationStatus,
 } from '@third-code-erp/shared-types'
@@ -67,6 +68,16 @@ export class CortexAssistantGenerationController {
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<CortexAssistantGenerationStatus> {
     return this.generation.status(jobId, principal)
+  }
+
+  @Get(':jobId/result')
+  @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('cortex.search')
+  result(
+    @Param('jobId', new ParseUUIDPipe({ version: '4' })) jobId: string,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<CortexAssistantGenerationResult> {
+    return this.generation.result(jobId, principal)
   }
 
   @Post(':jobId/cancel')

@@ -85,7 +85,7 @@ export const cortexConversationAssistantTurnClaimCommandSchema = z
   })
   .strict()
 
-const cortexConversationAssistantTurnSucceededSchema = z
+export const cortexConversationAssistantTurnSucceededSchema = z
   .object({
     status: z.literal('succeeded'),
     conversationId: cortexConversationIdSchema,
@@ -198,6 +198,9 @@ export type CortexConversationAssistantTurnClaimCommand = z.infer<
 >
 export type CortexConversationAssistantTurnClaimResult = z.infer<
   typeof cortexConversationAssistantTurnClaimResultSchema
+>
+export type CortexConversationAssistantTurnSucceeded = z.infer<
+  typeof cortexConversationAssistantTurnSucceededSchema
 >
 export type CortexConversationAssistantTurnCompleteCommand = z.infer<
   typeof cortexConversationAssistantTurnCompleteCommandSchema

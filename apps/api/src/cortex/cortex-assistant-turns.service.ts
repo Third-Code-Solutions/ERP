@@ -31,6 +31,7 @@ import {
   CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION,
   cortexConversationAssistantTurnClaimCommandSchema,
   cortexConversationAssistantTurnClaimResultSchema,
+  cortexConversationAssistantTurnSucceededSchema,
   cortexConversationAssistantTurnCompleteCommandSchema,
   cortexConversationAssistantTurnCompleteResultSchema,
   cortexConversationAssistantTurnSignaturePayload,
@@ -38,6 +39,7 @@ import {
   isCortexGraphRefTable,
   type CortexConversationAssistantTurnClaimCommand,
   type CortexConversationAssistantTurnClaimResult,
+  type CortexConversationAssistantTurnSucceeded,
   type CortexConversationAssistantTurnCompleteCommand,
   type CortexConversationAssistantTurnCompleteResult,
   type CortexConversationAssistantTurnOutcome,
@@ -46,7 +48,7 @@ import {
   cortexAssistantGenerationWorkerCompletionSchema,
   type CortexGraphRefTable,
 } from '@third-code-erp/shared-types'
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type {
   ErpPrincipal,
@@ -234,6 +236,86 @@ export class CortexAssistantTurnsService {
       citations,
       outcome: internal.outcome,
       model: internal.model,
+    })
+  }
+
+  async resultForRequest(
+    requestId: string,
+    principal: ErpPrincipal
+  ): Promise<CortexConversationAssistantTurnSucceeded> {
+    return this.database.client.transaction(async (transaction) => {
+      const authorizedPrincipal = await this.lockAuthorizedPrincipal(
+        transaction,
+        principal
+      )
+      const [request] = await transaction
+        .select({
+          state: cortexAssistantTurnRequests.state,
+          conversationId: cortexAssistantTurnRequests.conversation_id,
+          userMessageId: cortexAssistantTurnRequests.user_message_id,
+          assistantMessageId: cortexAssistantTurnRequests.assistant_message_id,
+          outcome: cortexAssistantTurnRequests.outcome,
+          model: cortexAssistantTurnRequests.model,
+        })
+        .from(cortexAssistantTurnRequests)
+        .where(
+          and(
+            eq(cortexAssistantTurnRequests.id, requestId),
+            eq(
+              cortexAssistantTurnRequests.tenant_id,
+              authorizedPrincipal.tenantId
+            ),
+            eq(
+              cortexAssistantTurnRequests.user_id,
+              authorizedPrincipal.userId
+            )
+          )
+        )
+        .limit(1)
+        .for('share')
+      if (!request) {
+        throw new NotFoundException('Assistant generation result not found')
+      }
+      if (request.state !== 'succeeded') {
+        throw new ConflictException('Assistant generation result is not ready')
+      }
+
+      const conversation = await this.lockConversation(
+        transaction,
+        authorizedPrincipal,
+        request.conversationId
+      )
+      await this.authorizeStoredContext(
+        transaction,
+        authorizedPrincipal,
+        conversation
+      )
+      await this.lockOfficialUserTurn(
+        transaction,
+        authorizedPrincipal,
+        request.conversationId,
+        request.userMessageId
+      )
+      const succeeded = await this.loadSucceededRequest(
+        transaction,
+        request,
+        authorizedPrincipal
+      )
+      const citations = await this.loadAuthorizedCitations(
+        transaction,
+        authorizedPrincipal,
+        succeeded.citationNodeIds
+      )
+      return cortexConversationAssistantTurnSucceededSchema.parse({
+        status: succeeded.status,
+        conversationId: succeeded.conversationId,
+        userMessageId: succeeded.userMessageId,
+        messageId: succeeded.messageId,
+        content: succeeded.content,
+        citations,
+        outcome: succeeded.outcome,
+        model: succeeded.model,
+      })
     })
   }
 
@@ -1095,5 +1177,41 @@ export class CortexAssistantTurnsService {
     if (nodeIds.some((nodeId) => !allowedIds.has(nodeId))) {
       throw new NotFoundException('Cortex citation not found')
     }
+  }
+
+  private async loadAuthorizedCitations(
+    transaction: DatabaseTransaction,
+    principal: ErpPrincipal,
+    nodeIds: string[]
+  ) {
+    if (nodeIds.length === 0) return []
+    const nodes = await transaction
+      .select({
+        nodeId: cortexNodes.id,
+        nodeType: cortexNodes.node_type,
+        refTable: cortexNodes.ref_table,
+        refId: cortexNodes.ref_id,
+        title: cortexNodes.title,
+        projectId: sql<string | null>`${cortexNodes.attributes} ->> 'project_id'`,
+      })
+      .from(cortexNodes)
+      .where(
+        and(
+          eq(cortexNodes.tenant_id, principal.tenantId),
+          inArray(cortexNodes.id, nodeIds),
+          isNull(cortexNodes.valid_to)
+        )
+      )
+      .for('share')
+    const scope = cortexSearchNodeTypeScope(principal.role)
+    const visible = new Map(
+      nodes
+        .filter((node) => scope === null || scope.includes(node.nodeType))
+        .map((node) => [node.nodeId, node])
+    )
+    return nodeIds.flatMap((nodeId) => {
+      const node = visible.get(nodeId)
+      return node ? [node] : []
+    })
   }
 }

@@ -589,15 +589,7 @@ describe('Cortex chat conversation ownership', () => {
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
-  it('uses the provider-free Core job path without Next retrieval or provider spend', async () => {
-    const citation = {
-      nodeId: NODE_ID,
-      nodeType: 'project',
-      refTable: 'projects',
-      refId: REF_ID,
-      title: 'Metro MEP Retrofit',
-      projectId: REF_ID,
-    }
+  it('hands provider-free Core work to bounded browser polling without waiting', async () => {
     mocks.cortexConversationUserTurnWritesUseCoreApi.mockReturnValue(true)
     mocks.cortexConversationAssistantTurnWritesUseCoreApi.mockReturnValue(true)
     mocks.cortexAssistantGenerationJobsUseCoreApi.mockReturnValue(true)
@@ -607,41 +599,14 @@ describe('Cortex chat conversation ownership', () => {
       data: {
         jobId: GENERATION_JOB_ID,
         requestId: ASSISTANT_REQUEST_ID,
-        status: 'succeeded',
-        attemptCount: 1,
+        status: 'queued',
+        attemptCount: 0,
         failureCode: null,
         retryable: false,
         createdAt: '2026-08-08T00:00:00.000Z',
         updatedAt: '2026-08-08T00:00:01.000Z',
       },
     })
-    mocks.claimCortexConversationAssistantTurnThroughCoreApi
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        data: {
-          status: 'claimed',
-          conversationId: CONVERSATION_ID,
-          userMessageId: USER_MESSAGE_ID,
-          requestId: ASSISTANT_REQUEST_ID,
-          claimToken: ASSISTANT_CLAIM_TOKEN,
-          leaseExpiresAt: '2026-08-08T00:01:00.000Z',
-        },
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        data: {
-          status: 'succeeded',
-          conversationId: CONVERSATION_ID,
-          userMessageId: USER_MESSAGE_ID,
-          messageId: ASSISTANT_MESSAGE_ID,
-          content: 'Worker grounded answer',
-          citations: [citation],
-          outcome: 'deterministic_grounded',
-          model: 'deterministic-grounded-v1',
-        },
-      })
     vi.stubEnv('OPENAI_API_KEY', 'must-not-be-used')
     const request = new NextRequest('http://localhost/api/cortex/chat', {
       method: 'POST',
@@ -656,8 +621,19 @@ describe('Cortex chat conversation ownership', () => {
 
     const response = await POST(request)
 
-    expect(response.status).toBe(200)
-    await expect(response.text()).resolves.toBe('Worker grounded answer')
+    expect(response.status).toBe(202)
+    expect(response.headers.get('location')).toBe(
+      `/api/cortex/chat/jobs/${GENERATION_JOB_ID}`
+    )
+    expect(response.headers.get('retry-after')).toBe('1')
+    expect(response.headers.get('X-Conversation-Id')).toBe(CONVERSATION_ID)
+    expectPrivate(response)
+    await expect(response.json()).resolves.toEqual({
+      status: 'accepted',
+      jobId: GENERATION_JOB_ID,
+      conversationId: CONVERSATION_ID,
+      retryAfterMs: 1_000,
+    })
     expect(
       mocks.startCortexAssistantGenerationJobThroughCoreApi
     ).toHaveBeenCalledWith(
@@ -675,8 +651,8 @@ describe('Cortex chat conversation ownership', () => {
       mocks.completeCortexConversationAssistantTurnThroughCoreApi
     ).not.toHaveBeenCalled()
     expect(
-      decodeCortexCitationHeader(response.headers.get(CORTEX_CITATIONS_HEADER))
-    ).toEqual([citation])
+      mocks.claimCortexConversationAssistantTurnThroughCoreApi
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('does not fall back to a direct assistant write when Core completion fails', async () => {

@@ -22,6 +22,7 @@ import { describe, expect, it } from 'vitest'
 import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { AuditService } from '../src/audit/audit.service'
 import { CortexAssistantGenerationStateService } from '../src/cortex/cortex-assistant-generation.state'
+import { CortexAssistantGenerationService } from '../src/cortex/cortex-assistant-generation.service'
 import { CortexAssistantTurnsService } from '../src/cortex/cortex-assistant-turns.service'
 import type { CortexAssistantTurnSignatureHeaders } from '../src/cortex/cortex-assistant-turns.service'
 import {
@@ -141,16 +142,24 @@ suite('Cortex assistant generation database integration', () => {
       }
       const database = transactionBoundDatabase(transaction)
       const audit = new AuditService()
-      const assistantTurns = new CortexAssistantTurnsService(
-        new ConfigService({
+      const config = new ConfigService({
           ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_ENABLED: true,
           ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS: [tenantId],
           ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET: 's'.repeat(32),
-        }),
+          ERP_CORTEX_ASSISTANT_GENERATION_JOBS_ENABLED: true,
+          ERP_CORTEX_ASSISTANT_GENERATION_JOBS_TENANT_IDS: [tenantId],
+        })
+      const assistantTurns = new CortexAssistantTurnsService(
+        config,
         database,
         audit
       )
       const state = new CortexAssistantGenerationStateService(database, audit)
+      const generation = new CortexAssistantGenerationService(
+        config,
+        assistantTurns,
+        state
+      )
       const claim = await assistantTurns.claim(
         { conversationId, userMessageId },
         principal,
@@ -209,6 +218,20 @@ suite('Cortex assistant generation database integration', () => {
         attemptCount: 1,
         failureCode: null,
         retryable: false,
+      })
+      await expect(
+        generation.result(workerClaim.jobId, principal)
+      ).resolves.toMatchObject({
+        job: { status: 'succeeded' },
+        result: {
+          status: 'succeeded',
+          conversationId,
+          userMessageId,
+          content: 'The copper package is linked to the Tower project.',
+          citations: [{ nodeId: node.id, refId: projectRef }],
+          outcome: 'deterministic_grounded',
+          model: 'deterministic-grounded-v1',
+        },
       })
       await expect(
         assistantTurns.completeFromWorker({
@@ -326,6 +349,14 @@ suite('Cortex assistant generation database integration', () => {
           )
         )
       ).resolves.toMatchObject({ status: 'claimed' })
+
+      await transaction
+        .update(users)
+        .set({ role: 'viewer' })
+        .where(eq(users.id, userId))
+      await expect(
+        generation.result(workerClaim.jobId, principal)
+      ).rejects.toThrow('Conversation not found')
     })
   })
 })

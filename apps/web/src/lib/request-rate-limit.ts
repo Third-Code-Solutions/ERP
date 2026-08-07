@@ -30,7 +30,8 @@ export function requestRateLimitPolicy(
   const limit = authenticated ? 1_000 : 100
 
   if (
-    pathname === '/api/cortex/chat' ||
+    (pathname === '/api/cortex/chat' ||
+      pathname.startsWith('/api/cortex/chat/jobs/')) ||
     pathname === '/api/ai/chat' ||
     pathname === '/api/ai/similar-items'
   ) {

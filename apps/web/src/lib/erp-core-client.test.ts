@@ -133,6 +133,7 @@ import {
   cortexAssistantGenerationJobsUseCoreApi,
   startCortexAssistantGenerationJobThroughCoreApi,
   getCortexAssistantGenerationJobThroughCoreApi,
+  getCortexAssistantGenerationResultThroughCoreApi,
   cancelCortexAssistantGenerationJobThroughCoreApi,
   cortexAssistantTurnIdempotencyKey,
   cortexSemanticIndexJobsUseCoreApi,
@@ -1221,6 +1222,25 @@ describe('ERP Core client', () => {
       createdAt: '2026-08-08T00:00:00.000Z',
       updatedAt: '2026-08-08T00:00:00.000Z',
     }
+    const succeeded = {
+      ...status,
+      status: 'succeeded' as const,
+      attemptCount: 1,
+      updatedAt: '2026-08-08T00:00:01.000Z',
+    }
+    const generationResult = {
+      job: succeeded,
+      result: {
+        status: 'succeeded' as const,
+        conversationId: '88888888-8888-4888-8888-888888888888',
+        userMessageId: '99999999-9999-4999-8999-999999999999',
+        messageId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        content: 'Grounded answer',
+        citations: [],
+        outcome: 'deterministic_grounded' as const,
+        model: 'deterministic-grounded-v1',
+      },
+    }
     vi.stubEnv(
       'ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET',
       'assistant-turn-test-secret-32-bytes-minimum'
@@ -1235,6 +1255,12 @@ describe('ERP Core client', () => {
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify(status), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(generationResult), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         })
@@ -1263,6 +1289,9 @@ describe('ERP Core client', () => {
       getCortexAssistantGenerationJobThroughCoreApi(jobId)
     ).resolves.toEqual({ ok: true, data: status, status: 200 })
     await expect(
+      getCortexAssistantGenerationResultThroughCoreApi(jobId)
+    ).resolves.toEqual({ ok: true, data: generationResult, status: 200 })
+    await expect(
       cancelCortexAssistantGenerationJobThroughCoreApi(
         jobId,
         'assistant-job-one:cancel'
@@ -1287,7 +1316,8 @@ describe('ERP Core client', () => {
       })
     )
     expect(fetchMock.mock.calls[1]?.[0]).toContain(`/${jobId}`)
-    expect(fetchMock.mock.calls[2]?.[0]).toContain(`/${jobId}/cancel`)
+    expect(fetchMock.mock.calls[2]?.[0]).toContain(`/${jobId}/result`)
+    expect(fetchMock.mock.calls[3]?.[0]).toContain(`/${jobId}/cancel`)
   })
 
   it('keeps user role assignment on the server path unless the exact tenant gate matches', () => {
