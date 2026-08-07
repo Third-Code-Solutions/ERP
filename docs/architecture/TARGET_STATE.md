@@ -1,5 +1,17 @@
 # Target State
 
+## M3.151 managed-snapshot replay evidence boundary
+
+Database release evidence must distinguish an ordered source-suffix replay
+from full managed-project parity. Export preflight accepts only an explicit
+session/direct PostgreSQL URL plus PostgreSQL 17 tooling. Snapshot replay
+verification is localhost-only, read-only, and fails on missing/reordered
+migrations, duplicate Purchase Order groups, tenant tables without RLS, or
+anonymous tenant-helper execution. A synthetic clone mapping can prove
+migration dependencies but can never become owner approval or production
+remediation evidence. Auth, Storage, vector, provider grants, zero-skip
+integration, backup/PITR, and object recovery remain separate hard gates.
+
 ## M3.150 managed database parity evidence
 
 Managed release must use one machine-checked linear migration manifest tied to

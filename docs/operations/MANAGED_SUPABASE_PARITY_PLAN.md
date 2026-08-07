@@ -22,9 +22,13 @@
 - Advisors: 14 security notices and 253 performance notices.
 - Default Supabase branch reports `MIGRATIONS_FAILED`; current 24-hour branch
   and Auth logs are empty, so the failure cause and age remain unproved.
-- Supported export preflight is blocked: application `DATABASE_URL` uses the
-  transaction pooler on port 6543 and no supported dump tool is currently
-  available.
+- Supported export tooling is now available without changing the application
+  URL: an explicit session endpoint on port 5432 plus portable PostgreSQL
+  17.10 `pg_dump`/`pg_dumpall` makes the preflight report `ready`.
+- The hash-valid 2026-08-06 public snapshot clone has replayed the exact
+  48-file suffix to 103/103. This is partial evidence only: its duplicate
+  mapping is synthetic and it lacks managed Auth, Storage, vector, and
+  provider catalog surfaces.
 - A new Supabase development branch currently prices at `$0.01344/hour` for
   this organization. No branch was created or confirmed.
 
@@ -33,6 +37,16 @@ Machine source: `managed-supabase-parity-plan.json`. Run:
 ```powershell
 pnpm verify:managed-supabase-parity-plan
 ```
+
+After restoring a localhost clone, verify suffix evidence separately:
+
+```powershell
+$env:ERP_PARITY_REPLAY_MAPPING_MODE = 'synthetic_clone_only'
+pnpm verify:managed-supabase-parity-replay
+```
+
+The replay verifier rejects remote database hosts and always reports owner
+mapping and full managed parity as unresolved for a synthetic public clone.
 
 The verifier fails if source count/head changes, the hosted boundary is absent
 from source, a migration is missing/duplicated/reordered, or batch totals no
@@ -63,9 +77,9 @@ Exact filenames live in the machine manifest and are checked against
    Railway unchanged.
 2. Obtain database-owner approval for a Purchase Order mapping stored outside
    Git. Run the existing mapping preflight until it reports `ready`.
-3. Restore a supported managed backup/export into isolated PostgreSQL 17.
-   Current export preflight must become `ready`; the previous supplemental
-   public-schema dump is not enough for Auth, Storage objects, roles, grants,
+3. Restore a fresh, complete managed backup/PITR artifact into isolated
+   PostgreSQL 17. Export tooling is ready, but the supplemental public-schema
+   dump remains insufficient for Auth, Storage objects, vector, roles, grants,
    or managed schemas.
 4. Apply the owner-approved mapping only to the isolated clone. Never use a
    synthetic rename as production evidence.
@@ -120,7 +134,8 @@ readiness failure, or spend ceiling breach.
 
 ## Exact next action
 
-Database owner supplies the external 12-row Purchase Order mapping and a
-supported session-pooler/direct export path. Until both exist, remain
-read-only. Do not apply migration `20260801090000`, create a paid branch, or
-deploy an application.
+Database owner supplies the external 12-row Purchase Order mapping. Restore a
+fresh complete managed backup/PITR artifact with Auth, Storage, vector, roles,
+grants, and provider catalog surfaces, then run the zero-skip clone gates.
+Until both exist, remain read-only. Do not apply migration `20260801090000`,
+create a paid branch, or deploy an application.

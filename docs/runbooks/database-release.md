@@ -13,8 +13,11 @@
   performance notices.
 - Default Supabase branch status is `MIGRATIONS_FAILED`; current 24-hour branch
   and Auth logs are empty, so it is not valid rehearsal or recovery evidence.
-- Current export preflight is blocked: configured `DATABASE_URL` uses the
-  transaction pooler on port 6543 and no supported dump tool is available.
+- Export tooling is ready when a separate session/direct URL and the approved
+  portable PostgreSQL 17.10 client are supplied. The application URL remains
+  on transaction-pooler port 6543 and is still rejected for dumps.
+- The prior public-only snapshot has replayed the 48-file suffix locally, but
+  lacks managed Auth, Storage, vector, provider grants, and zero-skip proof.
 - Creating a new Supabase branch currently costs `$0.01344/hour`; none was
   created or confirmed. Free local replay remains first choice.
 - Exact batches, gates, abort criteria, and cost ceiling are in
@@ -28,14 +31,30 @@
 Before using any backup/export command, run the read-only guard:
 
 ```powershell
-node --env-file=apps/web/.env.local scripts/plan-database-export.mjs
+# Approved secret manager injects DATABASE_EXPORT_URL.
+# Operator environment injects PG_DUMP_PATH; do not paste database secrets.
+pnpm plan:database-export
 ```
 
 The guard must report `status: "ready"`. It rejects the transaction pooler
 (`:6543`) used by the application because supported Supabase logical dumps
 require a session pooler/direct connection on `:5432`. It also rejects missing
-Supabase CLI/Docker or PostgreSQL 17 client tooling. Never print or commit the
-connection string, roles dump, schema dump, or data dump.
+Supabase CLI/Docker or PostgreSQL 17 client tooling. Portable clients must also
+include `pg_dumpall` beside `pg_dump` so roles can be exported. Never print or
+commit the connection string, roles dump, schema dump, or data dump. Current
+Supabase guidance identifies direct or session mode on port 5432 for native
+PostgreSQL tools; transaction mode on 6543 remains application traffic only.
+
+For a restored local clone, run the separate read-only verifier:
+
+```powershell
+$env:DATABASE_URL = 'postgresql://postgres@127.0.0.1:<port>/postgres'
+$env:ERP_PARITY_REPLAY_MAPPING_MODE = 'synthetic_clone_only'
+pnpm verify:managed-supabase-parity-replay
+```
+
+It rejects remote hosts. A passing suffix result does not prove managed Auth,
+Storage, vector, provider grants, owner mapping, or release readiness.
 
 ## Purpose
 

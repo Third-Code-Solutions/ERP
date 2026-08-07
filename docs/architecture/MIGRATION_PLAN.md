@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.151 free local managed-suffix replay
+
+Cleared the tooling half of the M3.150 export blocker without creating a paid
+Supabase branch. Export preflight now accepts a separate
+`DATABASE_EXPORT_URL`, supports an approved portable PostgreSQL 17
+`PG_DUMP_PATH`, requires `pg_dumpall` for role export, rejects wrong client
+majors, and emits method-correct pre-data/data/post-data commands.
+
+Reused the hash-verified 2026-08-06 public snapshot and its isolated clone.
+After a local rollback dump, applied the nine migrations after the clone's
+94-migration head. The localhost-only verifier reports an exact 103-migration
+ledger and a 48-file suffix from managed boundary 55. It also reports
+`releaseReady: false`: mapping is synthetic clone-only, owner approval is
+absent, and managed Auth, Storage, and vector surfaces are missing. Injected
+database proof recorded 218 pass, 11 fail, and 108 skip; standard source tests,
+lint, typecheck, and production build passed. No hosted state changed.
+
+Next: obtain the database owner's external 12-row mapping and a complete,
+fresh managed backup/PITR restore containing Auth/Storage/provider catalog
+surfaces. Rehearse the approved mapping on that clone, then run zero-skip
+database/API/Redis/browser and reconciliation gates. Keep paid branches,
+hosted SQL, canaries, Vercel, and Railway closed.
+
 ## M3.150 managed Supabase parity plan (read-only)
 
 Refreshed the exact managed boundary without executing SQL: PostgreSQL 17.6,
