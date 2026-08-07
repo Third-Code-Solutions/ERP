@@ -1,5 +1,20 @@
 # Target State
 
+## M3.153 Cortex graph read authority
+
+Interactive graph retrieval belongs to the NestJS modular monolith. Request
+input may contain only an optional complete registered record focus; tenant,
+role, and node-type scope always come from the authenticated principal. The
+contract bounds nodes and links, binds each source table to one canonical node
+type, rejects malformed or inconsistent payloads, and conceals unauthorized
+focus records without enumeration.
+
+The Next compatibility route remains the default until two exact tenant gates
+select Core. Once selected, Core unavailability is terminal rather than a
+reason to regain direct database access. Core and Web flags remain independently
+closed until managed graph parity, protected role-by-role browser evidence, and
+rollback approval are complete. No AI provider call is part of graph browsing.
+
 ## M3.152 owner-governed duplicate remediation
 
 Duplicate remediation planning must be deterministic, collision-aware, and

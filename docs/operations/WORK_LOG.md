@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-07 - M3.153 Core Cortex graph read authority
+
+Verified the live landing read-only at 1440x1000, 768x1024, and 390x844. It had
+zero horizontal overflow, zero console warnings/errors, one H1/main/nav,
+working Cortex/FAQ interactions, a loaded 768x512 responsive hero asset, and
+valid Organization/SoftwareApplication/FAQ structured data. The previously
+reported `/dashboard` Server Component exception was not reproducible: the
+authenticated dashboard rendered current demo metrics with zero console
+warnings/errors. No browser form or write action was used.
+
+Moved the interactive Cortex graph read toward NestJS without changing the
+active path. Added a shared bounded graph contract and 45-table source/type
+registry; a principal-derived, role-scoped Nest pipe/controller/service; an
+independent closed tenant canary; an authenticated Web adapter; and a Next
+selector that never falls back after Core selection. Focused requests require
+one complete registered source identity and conceal mismatched, absent, or
+role-hidden records as not found. UI and Core source maps must match exactly.
+
+Focused checks passed. Full parallel workspace testing produced three unrelated
+five-second controller timeouts under CPU contention; those files passed 6/6
+alone and the complete API package passed 120 files/523 tests in one worker.
+Lint and typecheck passed. One local production build compiled Nest and all 81
+Next routes. Actionlint 1.7.12, Gitleaks 8.30.1 across 536 commits, pinned
+workflow references, controlled-release 5/5, provider-spend 4/4, 103-file
+migration count, and clean-room tests passed.
+
+No hosted SQL, migration, tenant record, Storage object, AI-provider call,
+environment variable, canary, Vercel/Railway build, or deployment occurred.
+Managed Supabase remains 55/103; the M3.152 owner mapping remains the release
+blocker.
+
 ## 2026-08-07 - M3.152 Purchase Order owner-review proposal
 
 Inspected the existing duplicate planner, blank template generator, mapping

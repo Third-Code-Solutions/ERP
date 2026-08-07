@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.153 Core Cortex graph read authority
+
+Keep `ERP_CORTEX_GRAPH_READS_ENABLED=false`,
+`ERP_CORTEX_GRAPH_READS_VIA_API=false`, and both graph tenant allowlists empty.
+Do not deploy merely to exercise the new endpoint. Database owner must still
+complete M3.152: review the external 12-row recommendation, create the separate
+approved version-1 mapping, and prove it on a complete managed backup clone.
+After managed Supabase reaches reviewed 103/103 parity, run a read-only
+one-tenant legacy/Core graph comparison for whole graph and authorized,
+unauthorized, absent, and mismatched focus cases; then capture protected
+role-by-role browser proof and rollback evidence before enabling a canary.
+
+No provider spend is required for that parity work. Do not reconnect Vercel
+Git, run a hosted build, deploy Railway/Vercel, call an AI provider, apply SQL,
+or change tenant data without explicit release/cost approval.
+
 ## Exact next action after M3.152 Purchase Order owner-review proposal
 
 Keep Supabase, Vercel, Railway, flags, and tenant allowlists unchanged. Database

@@ -198,6 +198,9 @@ import {
   type CostEntryDeletionResult,
   cortexSearchResultSchema,
   type CortexSearchResult,
+  cortexGraphResponseSchema,
+  type CortexGraphQuery,
+  type CortexGraphResponse,
   userRoleAssignmentResultSchema,
   type UserRoleAssignmentCommand,
   type UserRoleAssignmentResult,
@@ -374,6 +377,15 @@ export function cortexSearchUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_CORTEX_SEARCH_VIA_API,
     process.env.ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS
+  )
+}
+
+/** Interactive Cortex graph authority remains closed until a protected canary. */
+export function cortexGraphReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_GRAPH_READS_VIA_API,
+    process.env.ERP_CORTEX_GRAPH_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -930,6 +942,67 @@ export async function searchCortexThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex search service is unavailable.',
+    }
+  }
+}
+
+/**
+ * Read-only Cortex graph adapter. Selected tenants fail closed on Core errors;
+ * the route must never silently fall back to direct database authority.
+ */
+export async function getCortexGraphThroughCoreApi(
+  query: CortexGraphQuery
+): Promise<CoreResult<CortexGraphResponse>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  const params = new URLSearchParams()
+  if (query.refTable && query.refId) {
+    params.set('refTable', query.refTable)
+    params.set('refId', query.refId)
+  }
+  const suffix = params.size > 0 ? `?${params.toString()}` : ''
+
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/cortex/graph${suffix}`, {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'x-request-id': randomUUID(),
+      },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5_000),
+    })
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex graph service is unavailable.',
+      }
+    }
+
+    const parsed = cortexGraphResponseSchema.safeParse(rawBody)
+    const requestedFocus = Boolean(query.refTable && query.refId)
+    const receivedFocus =
+      parsed.success && Object.hasOwn(parsed.data, 'focusNodeId')
+    if (!parsed.success || requestedFocus !== receivedFocus) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid Cortex graph result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex graph service is unavailable.',
     }
   }
 }

@@ -1,5 +1,17 @@
 # Third Code ERP landing behavior audit
 
+## 2026-08-07 live production recheck
+
+- Browser proof at 1440x1000, 768x1024, and 390x844 found zero horizontal
+  overflow and zero console warnings/errors.
+- Cortex accordion and native FAQ disclosure changed state correctly.
+- Responsive hero sources loaded at 768x512 and 390x260; mobile CTAs remained
+  327x54 and the compact header CTA stayed visible.
+- Organization, SoftwareApplication, and five-question FAQ JSON-LD parsed.
+- The historical `/dashboard` Server Component exception was not reproduced;
+  the existing authenticated demo dashboard rendered without console findings.
+- Exact evidence: `docs/research/LIVE_LANDING_AUDIT_20260807.md`.
+
 ## 2026-08-06 M3.124 source recheck
 
 - Team-priority navigation is clamped to four states. At `1 / 4`, previous is
