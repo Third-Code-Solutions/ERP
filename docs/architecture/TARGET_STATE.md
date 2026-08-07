@@ -1,5 +1,28 @@
 # Target State
 
+## M3.166 provider execution and recovery safety
+
+Provider orchestration must remain Nest-owned and fail closed. A model call may
+start only after exact-tenant execution and budget gates pass and PostgreSQL has
+reserved the current claimed attempt. The same attempt may be dispatched at
+most once. Provider output is advisory until Nest validates its completion
+shape, restricts citations to the evidence selected under current tenant/RBAC
+scope, settles the cost, and commits through the existing fenced completion
+authority.
+
+Cancellation, retry, failure, and stale-job recovery must never strand an open
+reservation. A reserved attempt closes at zero; a dispatched attempt whose
+external outcome cannot be proven closes at its reserved maximum. Recovery is
+independently gated so stale work can be safely drained after intake and model
+execution close, without reopening dispatch. Redis transports identity only,
+PostgreSQL owns state and money, and Python cannot reserve, dispatch, settle,
+approve, or commit official ERP state.
+
+The fake-only seam now proves this lifecycle. A real adapter remains prohibited
+until the assistant completion contract records provider-grounded provenance
+and immutable linkage to exactly one settled current attempt, followed by
+separate credential, observability, canary, backup/PITR, and release approval.
+
 ## M3.165 provider-attempt budget authority
 
 No paid model dispatch may begin without a durable Nest reservation against an

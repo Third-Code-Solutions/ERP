@@ -12,6 +12,10 @@ import { CortexAssistantGenerationProcessor } from './cortex-assistant-generatio
 import type { CortexAssistantGenerationJobQueue } from './cortex-assistant-generation.queue'
 import type { CortexAssistantGenerationStateService } from './cortex-assistant-generation.state'
 import type { CortexAssistantGenerationWorkerClient } from './cortex-assistant-generation.worker'
+import {
+  CortexAssistantProviderExecutionError,
+  type CortexAssistantProviderExecutionService,
+} from './cortex-assistant-provider-execution.service'
 import type { CortexAssistantTurnsService } from './cortex-assistant-turns.service'
 
 const JOB_ID = '11111111-1111-4111-8111-111111111111'
@@ -44,6 +48,7 @@ function harness() {
     claim: vi.fn().mockResolvedValue({
       jobId: JOB_ID,
       requestId: REQUEST_ID,
+      attemptNumber: 1,
       tenantId: TENANT_ID,
       userId: USER_ID,
       claimTokenHash: 'a'.repeat(64),
@@ -62,6 +67,14 @@ function harness() {
       model: 'deterministic-grounded-v1',
     }),
   } as unknown as CortexAssistantGenerationWorkerClient
+  const providerExecution = {
+    enabledForTenant: vi.fn().mockReturnValue(false),
+    generate: vi.fn().mockResolvedValue({
+      content: 'Provider-grounded answer',
+      citationNodeIds: [NODE_ID],
+      model: 'deterministic-grounded-v1',
+    }),
+  } as unknown as CortexAssistantProviderExecutionService
   const assistantTurns = {
     completeFromWorker: vi.fn().mockResolvedValue(true),
   } as unknown as CortexAssistantTurnsService
@@ -74,11 +87,13 @@ function harness() {
       config,
       state,
       worker,
+      providerExecution,
       assistantTurns,
       queue
     ),
     state,
     worker,
+    providerExecution,
     assistantTurns,
     queue,
   }
@@ -118,6 +133,64 @@ describe('CortexAssistantGenerationProcessor', () => {
       'assistant_generation_failed'
     )
     expect(probe.assistantTurns.completeFromWorker).not.toHaveBeenCalled()
+  })
+
+  it('uses the budgeted provider seam without calling Python', async () => {
+    const probe = harness()
+    ;(
+      probe.providerExecution.enabledForTenant as ReturnType<typeof vi.fn>
+    ).mockReturnValue(true)
+    await expect(probe.processor.process(transportJob())).resolves.toEqual({
+      status: 'succeeded',
+      jobId: JOB_ID,
+    })
+    expect(probe.providerExecution.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: JOB_ID, attemptNumber: 1 })
+    )
+    expect(probe.worker.generate).not.toHaveBeenCalled()
+  })
+
+  it('keeps a provider result fenced when the official completion changed', async () => {
+    const probe = harness()
+    ;(
+      probe.providerExecution.enabledForTenant as ReturnType<typeof vi.fn>
+    ).mockReturnValue(true)
+    ;(
+      probe.assistantTurns.completeFromWorker as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(false)
+    await expect(probe.processor.process(transportJob())).resolves.toEqual({
+      status: 'ignored',
+      jobId: JOB_ID,
+    })
+    expect(probe.state.failTerminal).toHaveBeenCalledWith(
+      JOB_ID,
+      'a'.repeat(64),
+      'claim_fence_changed'
+    )
+  })
+
+  it('terminally records a non-retryable provider gate failure', async () => {
+    const probe = harness()
+    ;(
+      probe.providerExecution.enabledForTenant as ReturnType<typeof vi.fn>
+    ).mockReturnValue(true)
+    ;(
+      probe.providerExecution.generate as ReturnType<typeof vi.fn>
+    ).mockRejectedValue(
+      new CortexAssistantProviderExecutionError(
+        'provider_adapter_unavailable',
+        false
+      )
+    )
+    await expect(probe.processor.process(transportJob())).rejects.toThrow(
+      'provider_adapter_unavailable'
+    )
+    expect(probe.state.failTerminal).toHaveBeenCalledWith(
+      JOB_ID,
+      'a'.repeat(64),
+      'provider_adapter_unavailable'
+    )
+    expect(probe.state.retryOrFail).not.toHaveBeenCalled()
   })
 
   it('runs recovery only through the identity-only scheduler envelope', async () => {

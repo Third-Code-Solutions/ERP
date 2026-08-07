@@ -1,5 +1,28 @@
 # Next Actions
 
+## Exact next action after M3.166 provider orchestration proof
+
+Keep every Cortex generation, worker, provider-execution, provider-budget, Web,
+and Core gate false; every exact-tenant allowlist empty; every provider policy
+absent or disabled; credentials unset; and Vercel Git disconnected. Do not
+query or mutate managed Supabase, deploy/build Vercel or Railway, call an
+AI/image/provider, or create a paid resource under the current cost lock.
+
+The next safe source-only milestone is M3.167: define an explicit
+provider-grounded assistant completion contract and immutable linkage from the
+official completion to exactly one settled provider attempt for the current
+job attempt. Nest must atomically verify tenant/job/attempt identity, settled
+state, bounded cost, authorized citations, and the current claim fence before
+official commit. Keep the production adapter unavailable and add no credential,
+public activation endpoint, hosted write, or paid call.
+
+Before any real provider canary, complete M3.152 backup/PITR and an isolated
+complete-clone replay of all 108 migrations. Then separately approve one exact
+tenant, one low request/daily micros policy, a credential-scoped adapter,
+spend/latency/error observability with alerts, one reviewed release SHA, live
+RBAC/cancellation verification, and a rollback drill. M3.166 proves fake
+orchestration only; it is not activation approval.
+
 ## Exact next action after M3.165 provider budget authority
 
 Keep every Cortex provider/Core/Web/worker/recovery gate false, every exact-
