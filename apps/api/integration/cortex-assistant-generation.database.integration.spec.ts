@@ -6,6 +6,7 @@ import {
   cortexAssistantGenerationJobs,
   cortexAssistantProviderAttempts,
   cortexAssistantProviderPolicies,
+  cortexAssistantTurnRequests,
   cortexConversationTurnRequests,
   cortexConversations,
   cortexMessages,
@@ -222,9 +223,12 @@ suite('Cortex assistant generation database integration', () => {
           jobId: workerClaim.jobId,
           requestId: workerClaim.requestId,
           claimTokenHash: workerClaim.claimTokenHash,
-          content: 'The copper package is linked to the Tower project.',
-          citationNodeIds: [node.id],
-          model: 'deterministic-grounded-v1',
+          completion: {
+            outcome: 'deterministic_grounded',
+            content: 'The copper package is linked to the Tower project.',
+            citationNodeIds: [node.id],
+            model: 'deterministic-grounded-v1',
+          },
         })
       ).resolves.toBe(true)
       await expect(state.status(workerClaim.jobId, principal)).resolves.toMatchObject({
@@ -252,9 +256,12 @@ suite('Cortex assistant generation database integration', () => {
           jobId: workerClaim.jobId,
           requestId: workerClaim.requestId,
           claimTokenHash: workerClaim.claimTokenHash,
-          content: 'Duplicate',
-          citationNodeIds: [node.id],
-          model: 'deterministic-grounded-v1',
+          completion: {
+            outcome: 'deterministic_grounded',
+            content: 'Duplicate',
+            citationNodeIds: [node.id],
+            model: 'deterministic-grounded-v1',
+          },
         })
       ).resolves.toBe(false)
 
@@ -451,6 +458,154 @@ suite('Cortex assistant generation database integration', () => {
         )
       ).resolves.toMatchObject({ status: 'claimed' })
 
+      const providerConversationId = randomUUID()
+      const providerMessageId = randomUUID()
+      await transaction.insert(cortexConversations).values({
+        id: providerConversationId,
+        tenant_id: tenantId,
+        user_id: userId,
+        title: 'Provider completion fixture',
+      })
+      await transaction.insert(cortexMessages).values({
+        id: providerMessageId,
+        tenant_id: tenantId,
+        conversation_id: providerConversationId,
+        role: 'user',
+        content: 'Summarize provider-grounded evidence',
+      })
+      await transaction.insert(cortexConversationTurnRequests).values({
+        tenant_id: tenantId,
+        user_id: userId,
+        idempotency_key: 'generation-provider-user-turn',
+        request_hash: 'c'.repeat(64),
+        state: 'succeeded',
+        conversation_id: providerConversationId,
+        message_id: providerMessageId,
+        result: {
+          status: 'created',
+          conversationId: providerConversationId,
+          messageId: providerMessageId,
+        },
+        completed_at: completedAt,
+      })
+      const providerClaim = await assistantTurns.claim(
+        {
+          conversationId: providerConversationId,
+          userMessageId: providerMessageId,
+        },
+        principal,
+        'generation-provider-assistant-turn',
+        signedHeaders(
+          'claim',
+          {
+            conversationId: providerConversationId,
+            userMessageId: providerMessageId,
+          },
+          principal,
+          'generation-provider-assistant-turn'
+        )
+      )
+      if (providerClaim.status !== 'claimed') {
+        throw new Error('Provider completion claim missing')
+      }
+      const providerStarted = await state.start(
+        {
+          requestId: providerClaim.requestId,
+          claimToken: providerClaim.claimToken,
+        },
+        principal,
+        'generation-provider-assistant-turn'
+      )
+      const providerWorkerClaim = await state.claim(
+        providerStarted.status.jobId
+      )
+      if (!providerWorkerClaim) {
+        throw new Error('Provider completion worker claim missing')
+      }
+      const providerReservation = await providerBudget.reserve({
+        jobId: providerWorkerClaim.jobId,
+        attemptNumber: providerWorkerClaim.attemptNumber,
+        provider: 'fake',
+        model: 'deterministic-grounded-v1',
+        maxCostMicros: '400',
+      })
+      await providerBudget.markDispatched({
+        reservationId: providerReservation.reservationId,
+      })
+      await expect(
+        assistantTurns.completeFromWorker({
+          jobId: providerWorkerClaim.jobId,
+          requestId: providerWorkerClaim.requestId,
+          claimTokenHash: providerWorkerClaim.claimTokenHash,
+          completion: {
+            outcome: 'provider_grounded',
+            providerAttemptId: providerReservation.reservationId,
+            content: 'Unsettled provider result.',
+            citationNodeIds: [node.id],
+            model: 'deterministic-grounded-v1',
+          },
+        })
+      ).rejects.toThrow('Cortex provider completion authority is invalid')
+      await providerBudget.settle({
+        reservationId: providerReservation.reservationId,
+        consumedCostMicros: '125',
+        outcomeCode: 'provider_succeeded',
+      })
+      await expect(
+        assistantTurns.completeFromWorker({
+          jobId: providerWorkerClaim.jobId,
+          requestId: providerWorkerClaim.requestId,
+          claimTokenHash: providerWorkerClaim.claimTokenHash,
+          completion: {
+            outcome: 'provider_grounded',
+            providerAttemptId: providerReservation.reservationId,
+            content: 'Mismatched provider model.',
+            citationNodeIds: [node.id],
+            model: 'different-provider-model',
+          },
+        })
+      ).rejects.toThrow('Cortex provider completion authority is invalid')
+      await expect(
+        assistantTurns.completeFromWorker({
+          jobId: providerWorkerClaim.jobId,
+          requestId: providerWorkerClaim.requestId,
+          claimTokenHash: providerWorkerClaim.claimTokenHash,
+          completion: {
+            outcome: 'provider_grounded',
+            providerAttemptId: providerReservation.reservationId,
+            content: 'Provider-grounded project summary.',
+            citationNodeIds: [node.id],
+            model: 'deterministic-grounded-v1',
+          },
+        })
+      ).resolves.toBe(true)
+      const [providerCompletion] = await transaction
+        .select({
+          outcome: cortexAssistantTurnRequests.outcome,
+          providerAttemptId:
+            cortexAssistantTurnRequests.provider_attempt_id,
+          assistantMessageId:
+            cortexAssistantTurnRequests.assistant_message_id,
+        })
+        .from(cortexAssistantTurnRequests)
+        .where(eq(cortexAssistantTurnRequests.id, providerClaim.requestId))
+      expect(providerCompletion).toMatchObject({
+        outcome: 'provider_grounded',
+        providerAttemptId: providerReservation.reservationId,
+        assistantMessageId: expect.any(String),
+      })
+      await expect(
+        generation.result(providerWorkerClaim.jobId, principal)
+      ).resolves.toMatchObject({
+        job: { status: 'succeeded', attemptCount: 1 },
+        result: {
+          status: 'succeeded',
+          outcome: 'provider_grounded',
+          model: 'deterministic-grounded-v1',
+          content: 'Provider-grounded project summary.',
+        },
+      })
+
       await transaction
         .update(users)
         .set({ role: 'viewer' })
@@ -458,6 +613,12 @@ suite('Cortex assistant generation database integration', () => {
       await expect(
         generation.result(workerClaim.jobId, principal)
       ).rejects.toThrow('Conversation not found')
+      await expect(
+        transaction
+          .update(cortexAssistantTurnRequests)
+          .set({ provider_attempt_id: null })
+          .where(eq(cortexAssistantTurnRequests.id, providerClaim.requestId))
+      ).rejects.toThrow('provider completion authority is immutable')
     })
   })
 })

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cortexAssistantGenerationCommitCompletionSchema,
   cortexAssistantGenerationQueueJobSchema,
   cortexAssistantGenerationAcceptedSchema,
   cortexAssistantGenerationResultSchema,
@@ -12,6 +13,7 @@ const ID = '11111111-1111-4111-8111-111111111111'
 const TOKEN = '22222222-2222-4222-8222-222222222222'
 const CONVERSATION_ID = '33333333-3333-4333-8333-333333333333'
 const MESSAGE_ID = '44444444-4444-4444-8444-444444444444'
+const PROVIDER_ATTEMPT_ID = '55555555-5555-4555-8555-555555555555'
 
 describe('Cortex assistant generation contracts', () => {
   it('accepts bounded start and queue payloads', () => {
@@ -61,6 +63,38 @@ describe('Cortex assistant generation contracts', () => {
       cortexAssistantGenerationWorkerCompletionSchema.parse({
         content: 'Grounded answer',
         citationNodeIds: [ID, ID],
+        model: 'deterministic-grounded-v1',
+      })
+    ).toThrow()
+  })
+
+  it('discriminates deterministic and provider-grounded commit authority', () => {
+    expect(
+      cortexAssistantGenerationCommitCompletionSchema.parse({
+        outcome: 'provider_grounded',
+        providerAttemptId: PROVIDER_ATTEMPT_ID,
+        content: 'Provider-grounded answer',
+        citationNodeIds: [ID],
+        model: 'provider-model-v1',
+      })
+    ).toMatchObject({
+      outcome: 'provider_grounded',
+      providerAttemptId: PROVIDER_ATTEMPT_ID,
+    })
+    expect(() =>
+      cortexAssistantGenerationCommitCompletionSchema.parse({
+        outcome: 'provider_grounded',
+        content: 'Missing attempt authority',
+        citationNodeIds: [ID],
+        model: 'provider-model-v1',
+      })
+    ).toThrow()
+    expect(() =>
+      cortexAssistantGenerationCommitCompletionSchema.parse({
+        outcome: 'deterministic_grounded',
+        providerAttemptId: PROVIDER_ATTEMPT_ID,
+        content: 'Ambiguous authority',
+        citationNodeIds: [ID],
         model: 'deterministic-grounded-v1',
       })
     ).toThrow()

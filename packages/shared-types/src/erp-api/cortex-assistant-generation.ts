@@ -3,6 +3,21 @@ import { cortexConversationAssistantTurnSucceededSchema } from './cortex-convers
 
 export const CORTEX_ASSISTANT_GENERATION_MAX_ATTEMPTS = 3
 
+const completionContentSchema = z
+  .string()
+  .max(100_000)
+  .refine((value) => value.trim().length > 0, 'Content is required')
+const completionCitationNodeIdsSchema = z.array(z.string().uuid()).max(12)
+const providerModelSchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .regex(/^[a-z0-9][a-z0-9._:/-]*$/, 'Invalid provider model key')
+
+function citationsAreUnique(value: { citationNodeIds: string[] }): boolean {
+  return new Set(value.citationNodeIds).size === value.citationNodeIds.length
+}
+
 export const cortexAssistantGenerationStartCommandSchema = z
   .object({
     requestId: z.string().uuid(),
@@ -73,19 +88,41 @@ export const cortexAssistantGenerationRecoveryJobSchema = z
 
 export const cortexAssistantGenerationWorkerCompletionSchema = z
   .object({
-    content: z
-      .string()
-      .max(100_000)
-      .refine((value) => value.trim().length > 0, 'Content is required'),
-    citationNodeIds: z.array(z.string().uuid()).max(12),
+    content: completionContentSchema,
+    citationNodeIds: completionCitationNodeIdsSchema,
     model: z.literal('deterministic-grounded-v1'),
   })
   .strict()
-  .refine(
-    (value) =>
-      new Set(value.citationNodeIds).size === value.citationNodeIds.length,
-    { message: 'Citation node IDs must be unique', path: ['citationNodeIds'] }
-  )
+  .refine(citationsAreUnique, {
+    message: 'Citation node IDs must be unique',
+    path: ['citationNodeIds'],
+  })
+
+/** Internal Nest commit authority; never accepted from a browser/provider. */
+export const cortexAssistantGenerationCommitCompletionSchema = z
+  .discriminatedUnion('outcome', [
+    z
+      .object({
+        outcome: z.literal('deterministic_grounded'),
+        content: completionContentSchema,
+        citationNodeIds: completionCitationNodeIdsSchema,
+        model: z.literal('deterministic-grounded-v1'),
+      })
+      .strict(),
+    z
+      .object({
+        outcome: z.literal('provider_grounded'),
+        providerAttemptId: z.string().uuid(),
+        content: completionContentSchema,
+        citationNodeIds: completionCitationNodeIdsSchema,
+        model: providerModelSchema,
+      })
+      .strict(),
+  ])
+  .refine(citationsAreUnique, {
+    message: 'Citation node IDs must be unique',
+    path: ['citationNodeIds'],
+  })
 
 export type CortexAssistantGenerationStartCommand = z.infer<
   typeof cortexAssistantGenerationStartCommandSchema
@@ -107,4 +144,7 @@ export type CortexAssistantGenerationRecoveryJob = z.infer<
 >
 export type CortexAssistantGenerationWorkerCompletion = z.infer<
   typeof cortexAssistantGenerationWorkerCompletionSchema
+>
+export type CortexAssistantGenerationCommitCompletion = z.infer<
+  typeof cortexAssistantGenerationCommitCompletionSchema
 >

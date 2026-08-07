@@ -19,6 +19,8 @@ import { ConfigService } from '@nestjs/config'
 import {
   cortexAssistantTurnRequests,
   cortexAssistantGenerationJobs,
+  cortexAssistantProviderAttempts,
+  cortexAssistantProviderPolicies,
   cortexConversationTurnRequests,
   cortexConversations,
   cortexMessages,
@@ -44,8 +46,9 @@ import {
   type CortexConversationAssistantTurnCompleteResult,
   type CortexConversationAssistantTurnOutcome,
   cortexAssistantGenerationStartCommandSchema,
+  cortexAssistantGenerationCommitCompletionSchema,
   type CortexAssistantGenerationStartCommand,
-  cortexAssistantGenerationWorkerCompletionSchema,
+  type CortexAssistantGenerationCommitCompletion,
   type CortexGraphRefTable,
 } from '@third-code-erp/shared-types'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
@@ -504,29 +507,28 @@ export class CortexAssistantTurnsService {
     jobId: string
     requestId: string
     claimTokenHash: string
-    content: string
-    citationNodeIds: string[]
-    model: string
+    completion: CortexAssistantGenerationCommitCompletion
   }): Promise<boolean> {
     const parsedCompletion =
-      cortexAssistantGenerationWorkerCompletionSchema.parse({
-        content: input.content,
-        citationNodeIds: input.citationNodeIds,
-        model: input.model,
-      })
+      cortexAssistantGenerationCommitCompletionSchema.parse(input.completion)
     const completionHash = commandDigest({
       jobId: input.jobId,
       requestId: input.requestId,
       content: parsedCompletion.content,
       citationNodeIds: parsedCompletion.citationNodeIds,
-      outcome: 'deterministic_grounded',
+      outcome: parsedCompletion.outcome,
       model: parsedCompletion.model,
+      providerAttemptId:
+        parsedCompletion.outcome === 'provider_grounded'
+          ? parsedCompletion.providerAttemptId
+          : null,
     })
 
     return this.database.client.transaction(async (transaction) => {
       const [row] = await transaction
         .select({
           jobStatus: cortexAssistantGenerationJobs.status,
+          jobAttemptCount: cortexAssistantGenerationJobs.attempt_count,
           jobClaimTokenHash: cortexAssistantGenerationJobs.claim_token_hash,
           requestId: cortexAssistantTurnRequests.id,
           requestState: cortexAssistantTurnRequests.state,
@@ -574,6 +576,62 @@ export class CortexAssistantTurnsService {
         row.requestClaimTokenHash !== input.claimTokenHash
       ) {
         return false
+      }
+
+      if (parsedCompletion.outcome === 'provider_grounded') {
+        const [providerAttempt] = await transaction
+          .select({
+            id: cortexAssistantProviderAttempts.id,
+            attemptNumber: cortexAssistantProviderAttempts.attempt_number,
+            status: cortexAssistantProviderAttempts.status,
+            reservedCostMicros:
+              cortexAssistantProviderAttempts.reserved_cost_micros,
+            consumedCostMicros:
+              cortexAssistantProviderAttempts.consumed_cost_micros,
+            outcomeCode: cortexAssistantProviderAttempts.outcome_code,
+            model: cortexAssistantProviderPolicies.model,
+          })
+          .from(cortexAssistantProviderAttempts)
+          .innerJoin(
+            cortexAssistantProviderPolicies,
+            and(
+              eq(
+                cortexAssistantProviderPolicies.id,
+                cortexAssistantProviderAttempts.policy_id
+              ),
+              eq(
+                cortexAssistantProviderPolicies.tenant_id,
+                cortexAssistantProviderAttempts.tenant_id
+              )
+            )
+          )
+          .where(
+            and(
+              eq(
+                cortexAssistantProviderAttempts.id,
+                parsedCompletion.providerAttemptId
+              ),
+              eq(cortexAssistantProviderAttempts.tenant_id, row.tenantId),
+              eq(cortexAssistantProviderAttempts.job_id, input.jobId)
+            )
+          )
+          .limit(1)
+          .for('update', { of: cortexAssistantProviderAttempts })
+        if (
+          !providerAttempt ||
+          providerAttempt.attemptNumber !== row.jobAttemptCount ||
+          providerAttempt.status !== 'settled' ||
+          providerAttempt.outcomeCode !== 'provider_succeeded' ||
+          providerAttempt.consumedCostMicros === null ||
+          providerAttempt.consumedCostMicros < 0 ||
+          providerAttempt.consumedCostMicros >
+            providerAttempt.reservedCostMicros ||
+          providerAttempt.model !== parsedCompletion.model
+        ) {
+          throw new ConflictException(
+            'Cortex provider completion authority is invalid'
+          )
+        }
       }
 
       const authorizedPrincipal = await this.lockAuthorizedPrincipal(
@@ -657,7 +715,11 @@ export class CortexAssistantTurnsService {
           claim_token_hash: null,
           lease_expires_at: null,
           assistant_message_id: message.id,
-          outcome: 'deterministic_grounded',
+          provider_attempt_id:
+            parsedCompletion.outcome === 'provider_grounded'
+              ? parsedCompletion.providerAttemptId
+              : null,
+          outcome: parsedCompletion.outcome,
           model: parsedCompletion.model,
           result,
           completed_at: now,
@@ -718,8 +780,12 @@ export class CortexAssistantTurnsService {
           response_char_count: parsedCompletion.content.length,
           citation_node_ids: parsedCompletion.citationNodeIds,
           citation_count: parsedCompletion.citationNodeIds.length,
-          outcome: 'deterministic_grounded',
+          outcome: parsedCompletion.outcome,
           model: parsedCompletion.model,
+          provider_attempt_id:
+            parsedCompletion.outcome === 'provider_grounded'
+              ? parsedCompletion.providerAttemptId
+              : null,
         },
       })
       return true

@@ -146,6 +146,12 @@ describe('Cortex conversation API contracts', () => {
         tenantId: ID,
       })
     ).toThrow()
+    expect(() =>
+      cortexConversationAssistantTurnCompleteCommandSchema.parse({
+        ...command,
+        outcome: 'provider_grounded',
+      })
+    ).toThrow()
   })
 
   it('keeps assistant completion results and signatures deterministic', () => {
