@@ -5,10 +5,10 @@
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
     "postgresMajor": 17,
     "appliedCount": 55,
-    "sourceCount": 103,
-    "pendingCount": 48,
+    "sourceCount": 104,
+    "pendingCount": 49,
     "appliedHead": "20260729233017",
-    "sourceHead": "20260807150000",
+    "sourceHead": "20260807160000",
     "ledgerStatus": "review_required"
   },
   "policy": {
@@ -92,14 +92,15 @@
     },
     {
       "id": "06-latest-authority-and-security-hardening",
-      "purpose": "Maintenance history, Cost Entry recovery, invoice draft, tenant identity, and user-role authority.",
+      "purpose": "Maintenance history, Cost Entry recovery, invoice draft, tenant identity, user-role authority, and cost-bounded Cortex indexing.",
       "migrations": [
         "20260807100000_asset_maintenance_history.sql",
         "20260807110000_cost_entry_delete_workflow.sql",
         "20260807120000_cost_entry_restore_workflow.sql",
         "20260807130000_customer_invoice_draft_create_workflow.sql",
         "20260807140000_revoke_anon_tenant_identity_rpc.sql",
-        "20260807150000_user_role_assignment_authority.sql"
+        "20260807150000_user_role_assignment_authority.sql",
+        "20260807160000_cortex_semantic_index_jobs.sql"
       ]
     }
   ]

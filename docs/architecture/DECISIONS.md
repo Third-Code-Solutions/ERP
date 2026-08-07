@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-263 - Reserve one semantic-index provider call in PostgreSQL (2026-08-07)
+
+Decision: replace the client-owned 80-request embedding loop with one explicit,
+idempotent NestJS job capped at 64 nodes and one provider call. Store official
+state, attempt count, provider-call reservation, active-tenant lock, and
+terminal result in PostgreSQL. Use BullMQ for identity-only delivery/recovery
+and the Python worker for text-to-vector analysis only. If execution becomes
+uncertain after reserving the provider call, fail terminally instead of
+retrying. Keep all rollout seams closed and require a confirmation naming cost.
+
+Rationale: the previous control could request up to 5,120 embeddings per click
+and had no durable state, idempotency, recovery rule, or single-call ceiling.
+PostgreSQL reservation prevents retries and Redis loss from silently multiplying
+spend. Separating Python analysis from Nest transaction authority preserves the
+approved modular-monolith architecture and keeps the derived graph rebuildable.
+
+Evidence: live control reconnaissance without clicking; focused spend,
+contract, route, capability, worker, and migration tests; full shared/API/Web
+suites; database static suite; workspace lint/typecheck; local production build.
+Docker was stopped, so disposable migration/RLS runtime evidence remains a hard
+gate. No hosted mutation, provider call, or deployment occurred.
+
 ## D-262 - Make Cortex entity context a separately canaried Core read (2026-08-07)
 
 Decision: expose `GET /v1/cortex/entity/:refTable/:refId` through a dedicated

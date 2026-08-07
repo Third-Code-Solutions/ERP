@@ -130,6 +130,50 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Semantic indexing can spend an external provider call. Intake, worker,
+  // and recovery are independently closed and exact-tenant scoped.
+  ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CORTEX_SEMANTIC_INDEX_JOBS_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  ERP_CORTEX_SEMANTIC_INDEX_WORKER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CORTEX_SEMANTIC_INDEX_WORKER_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  ERP_CORTEX_SEMANTIC_INDEX_RECOVERY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CORTEX_SEMANTIC_INDEX_RECOVERY_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // General-ledger reads stay fail-closed until the hosted finance schema,
   // disposable replay, and a protected tenant canary are approved.
   ERP_FINANCE_LEDGER_READS_ENABLED: z
@@ -1037,6 +1081,14 @@ const environmentSchema = z.object({
     )
     .pipe(z.array(z.string().uuid())),
   ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL: optionalHttpsUrl,
+  AI_WORKER_URL: optionalHttpUrl,
+  AI_WORKER_SHARED_SECRET: z.string().min(20).optional(),
+  AI_WORKER_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(60_000)
+    .default(15_000),
   DXF_PARSER_URL: optionalHttpUrl,
   PARSER_SHARED_SECRET: z.string().min(20).optional(),
 })

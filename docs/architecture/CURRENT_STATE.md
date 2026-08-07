@@ -5,6 +5,42 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.155 cost-bounded Cortex semantic indexing jobs (2026-08-07)
+
+The browser no longer owns an automatic 80-request semantic-index loop. An
+admin/owner can now request one original durable job only after a confirmation
+that names the hard ceiling: 64 records and one external embedding-provider
+call. The Web path delegates to authenticated NestJS Core, polls one opaque job
+identity, and never writes graph or job tables directly. The legacy direct
+embedding endpoint returns `410` unless a separate exact-tenant compatibility
+gate is explicitly opened.
+
+PostgreSQL owns the `queued -> processing -> succeeded|failed` state machine,
+idempotency, one-active-job-per-tenant invariant, attempts, and provider-call
+reservation. BullMQ carries only `{schemaVersion, jobId}` and can reconstruct
+missing transport from database state. Recovery requeues a stale claim only
+when no provider call was reserved; a stale reserved call becomes terminal
+`provider_call_outcome_unknown` so retries cannot create uncertain duplicate
+spend. Nest revalidates the requester's current tenant membership and new
+`cortex.index.manage` capability. Python receives bounded text only and can
+return vectors, but cannot authorize or commit an ERP transaction.
+
+All Core, worker, recovery, Web, and legacy flags default false with empty UUID
+allowlists; Web rejects wildcard selection. The new migration is source-only,
+making the repository ledger 104 migrations through `20260807160000`; managed
+Supabase remains last verified at 55, so the gap is 49. Docker is stopped, so
+the new migration has static schema/SQL proof but no fresh disposable runtime
+replay or RLS proof. No hosted SQL, tenant data, provider request, environment
+variable, Vercel/Railway build, or deployment changed.
+
+Focused behavior suites passed. Full local suites passed: shared 243/243, API
+source 531/531 plus API e2e 14/14, Web 631/631, and database 198 passed with
+142 environment-gated skips. Workspace lint/typecheck and one local production
+build passed; the build generated 82 static pages and both new dynamic Web API
+routes. Final additive queue 3/3 and static UI disclosure 2/2 tests passed,
+followed by API/Web typecheck and final Nest/Next builds; no provider call was
+made.
+
 ## M3.154 Core Cortex entity-context read authority (2026-08-07)
 
 The citation-backed Cortex entity panel now has an original, typed NestJS read

@@ -1,5 +1,23 @@
 # Next Actions
 
+## Exact next action after M3.155 cost-bounded Cortex indexing jobs
+
+Keep intake, worker, recovery, Web cutover, and legacy flags false with empty
+exact-UUID allowlists. Do not configure `AI_WORKER_URL`/secret, call a provider,
+apply hosted SQL, reconnect Vercel Git, or deploy Railway/Vercel. First obtain
+M3.152 owner approval and restore a complete managed backup/PITR clone. Start a
+local PostgreSQL 17 and Redis test environment, replay all 104 migrations, and
+run the currently skipped database/RLS suites with a fake embedding worker.
+
+Required canary evidence: no browser table write; owner/admin allow and current
+role-revocation deny; one active job per tenant; idempotent replay; exactly one
+provider reservation/call for 64 or fewer nodes; zero call when backlog is
+empty; Redis-loss recovery before reservation; terminal
+`provider_call_outcome_unknown` after reservation; atomic vector/job commit;
+audit continuity; protected desktop/mobile confirmation and status behavior;
+and rollback by closing flags. Only after those pass may an owner approve one
+exact tenant and a written provider-spend ceiling.
+
 ## Exact next action after M3.154 Core Cortex entity-context read authority
 
 Keep `ERP_CORTEX_ENTITY_READS_ENABLED=false`,

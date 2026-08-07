@@ -295,6 +295,46 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_CORTEX_ENTITY_READS_TENANT_IDS')
   })
 
+  it('keeps every semantic index spend gate disabled and UUID-scoped', () => {
+    const defaults = validateEnvironment(REQUIRED)
+    expect(defaults.ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED).toBe(false)
+    expect(defaults.ERP_CORTEX_SEMANTIC_INDEX_JOBS_TENANT_IDS).toEqual([])
+    expect(defaults.ERP_CORTEX_SEMANTIC_INDEX_WORKER_ENABLED).toBe(false)
+    expect(defaults.ERP_CORTEX_SEMANTIC_INDEX_WORKER_TENANT_IDS).toEqual([])
+    expect(defaults.ERP_CORTEX_SEMANTIC_INDEX_RECOVERY_ENABLED).toBe(false)
+    expect(defaults.ERP_CORTEX_SEMANTIC_INDEX_RECOVERY_TENANT_IDS).toEqual([])
+    expect(defaults.AI_WORKER_TIMEOUT_MS).toBe(15_000)
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED: 'true',
+        ERP_CORTEX_SEMANTIC_INDEX_JOBS_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+        ERP_CORTEX_SEMANTIC_INDEX_WORKER_ENABLED: 'true',
+        ERP_CORTEX_SEMANTIC_INDEX_WORKER_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+        ERP_CORTEX_SEMANTIC_INDEX_RECOVERY_ENABLED: 'true',
+        ERP_CORTEX_SEMANTIC_INDEX_RECOVERY_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+        AI_WORKER_URL: 'https://ai-worker.example.test',
+        AI_WORKER_SHARED_SECRET: 'x'.repeat(20),
+        AI_WORKER_TIMEOUT_MS: '30000',
+      })
+    ).toMatchObject({
+      ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED: true,
+      ERP_CORTEX_SEMANTIC_INDEX_WORKER_ENABLED: true,
+      ERP_CORTEX_SEMANTIC_INDEX_RECOVERY_ENABLED: true,
+      AI_WORKER_TIMEOUT_MS: 30_000,
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_SEMANTIC_INDEX_WORKER_TENANT_IDS: '*',
+      })
+    ).toThrow('ERP_CORTEX_SEMANTIC_INDEX_WORKER_TENANT_IDS')
+  })
+
   it('keeps notification recovery polling disabled by default', () => {
     expect(
       validateEnvironment(REQUIRED)

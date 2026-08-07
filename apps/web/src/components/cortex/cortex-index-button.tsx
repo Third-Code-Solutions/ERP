@@ -1,67 +1,206 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import {
+  cortexSemanticIndexAcceptedSchema,
+  cortexSemanticIndexStatusSchema,
+  type CortexSemanticIndexStatus,
+} from '@third-code-erp/shared-types'
 
 type State =
   | { kind: 'idle' }
-  | { kind: 'running'; done: number }
-  | { kind: 'done'; done: number }
+  | { kind: 'submitting' }
+  | { kind: 'active'; jobId: string; status: 'queued' | 'processing' }
+  | { kind: 'done'; processed: number }
   | { kind: 'error'; message: string }
 
-const MAX_BATCHES = 80
+const POLL_INTERVAL_MS = 1_500
+const MAX_STATUS_POLLS = 120
 
-/**
- * Admin control: builds the semantic index by embedding the tenant's graph
- * nodes in batches via POST /api/cortex/embed (uses the server's OpenAI key).
- * Loops until the backlog is drained. Enables semantic search + smarter agent.
- */
-export function CortexIndexButton() {
+function waitForNextPoll(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      window.clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, POLL_INTERVAL_MS)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+export function CortexIndexButton({ enabled }: { enabled: boolean }) {
   const [state, setState] = useState<State>({ kind: 'idle' })
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
-  async function run() {
-    setState({ kind: 'running', done: 0 })
-    let done = 0
+  useEffect(() => () => abortRef.current?.abort(), [])
+
+  function openConfirmation() {
+    if (!enabled || state.kind === 'submitting' || state.kind === 'active') return
+    dialogRef.current?.showModal()
+  }
+
+  async function approve() {
+    dialogRef.current?.close()
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    setState({ kind: 'submitting' })
+
     try {
-      for (let i = 0; i < MAX_BATCHES; i++) {
-        const res = await fetch('/api/cortex/embed', { method: 'POST' })
-        if (res.status === 503) {
-          setState({ kind: 'error', message: 'AI key not configured on the server' })
-          return
-        }
-        if (!res.ok) {
-          setState({ kind: 'error', message: `Indexing failed (${res.status})` })
-          return
-        }
-        const data = (await res.json()) as { embedded: number; remaining: number }
-        done += data.embedded
-        setState({ kind: 'running', done })
-        if (data.remaining === 0 || data.embedded === 0) break
+      const response = await fetch('/api/cortex/semantic-index-jobs', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': crypto.randomUUID(),
+        },
+        body: JSON.stringify({ maxNodes: 64, costConsent: true }),
+        signal: controller.signal,
+      })
+      const payload: unknown = await response.json().catch(() => null)
+      if (!response.ok) {
+        const error = payload as { error?: unknown } | null
+        throw new Error(
+          typeof error?.error === 'string'
+            ? error.error
+            : `Indexing request failed (${response.status})`
+        )
       }
-      setState({ kind: 'done', done })
-    } catch {
-      setState({ kind: 'error', message: 'Could not reach the indexer' })
+
+      const accepted = cortexSemanticIndexAcceptedSchema.safeParse(payload)
+      if (accepted.success) {
+        setState({ kind: 'active', jobId: accepted.data.jobId, status: 'queued' })
+        await poll(accepted.data.jobId, controller)
+        return
+      }
+      const status = cortexSemanticIndexStatusSchema.safeParse(payload)
+      if (!status.success) throw new Error('Indexer returned an invalid job')
+      await applyStatus(status.data, controller)
+    } catch (error) {
+      if (controller.signal.aborted) return
+      setState({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Could not reach the indexer',
+      })
     }
   }
 
-  const label =
-    state.kind === 'running'
-      ? `Indexing… ${state.done}`
-      : state.kind === 'done'
-        ? `Indexed ${state.done} ✓`
-        : 'Build semantic index'
+  async function applyStatus(
+    status: CortexSemanticIndexStatus,
+    controller: AbortController
+  ) {
+    if (status.status === 'succeeded') {
+      setState({ kind: 'done', processed: status.processedNodes })
+      return
+    }
+    if (status.status === 'failed') {
+      setState({ kind: 'error', message: 'Semantic indexing did not complete.' })
+      return
+    }
+    setState({ kind: 'active', jobId: status.jobId, status: status.status })
+    await poll(status.jobId, controller)
+  }
+
+  async function poll(jobId: string, controller: AbortController) {
+    for (let pollNumber = 0; pollNumber < MAX_STATUS_POLLS; pollNumber += 1) {
+      await waitForNextPoll(controller.signal)
+      const response = await fetch(
+        `/api/cortex/semantic-index-jobs/${encodeURIComponent(jobId)}`,
+        { cache: 'no-store', signal: controller.signal }
+      )
+      const payload: unknown = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(`Index status failed (${response.status})`)
+      const parsed = cortexSemanticIndexStatusSchema.safeParse(payload)
+      if (!parsed.success) throw new Error('Indexer returned an invalid status')
+      if (parsed.data.status === 'succeeded') {
+        setState({ kind: 'done', processed: parsed.data.processedNodes })
+        return
+      }
+      if (parsed.data.status === 'failed') {
+        setState({ kind: 'error', message: 'Semantic indexing did not complete.' })
+        return
+      }
+      setState({
+        kind: 'active',
+        jobId: parsed.data.jobId,
+        status: parsed.data.status,
+      })
+    }
+    setState({
+      kind: 'error',
+      message: 'Indexing is still running. Refresh to check again.',
+    })
+  }
+
+  const busy = state.kind === 'submitting' || state.kind === 'active'
+  const label = !enabled
+    ? 'Semantic indexing paused'
+    : state.kind === 'submitting'
+      ? 'Creating index job…'
+      : state.kind === 'active'
+        ? state.status === 'queued'
+          ? 'Index queued'
+          : 'Indexing up to 64 records…'
+        : state.kind === 'done'
+          ? `Indexed ${state.processed} records`
+          : 'Index up to 64 records'
 
   return (
     <div className="cortex-index-ctl">
       <button
         type="button"
         className="cortex-tool-btn"
-        onClick={() => void run()}
-        disabled={state.kind === 'running'}
-        title="Embed records so the agent and search understand meaning, not just keywords"
+        onClick={openConfirmation}
+        disabled={!enabled || busy}
+        aria-disabled={!enabled || busy}
+        title={
+          enabled
+            ? 'Create one cost-bounded semantic indexing job'
+            : 'Semantic indexing rollout is paused'
+        }
       >
         {label}
       </button>
-      {state.kind === 'error' && <span className="cortex-index-ctl__err">{state.message}</span>}
+
+      <dialog
+        ref={dialogRef}
+        className="cortex-index-dialog"
+        role="alertdialog"
+        aria-labelledby="cortex-index-dialog-title"
+        aria-describedby="cortex-index-dialog-description"
+      >
+        <div className="cortex-index-dialog__body">
+          <p className="cortex-index-dialog__eyebrow">Cost-controlled action</p>
+          <h2 id="cortex-index-dialog-title">Build one semantic index batch?</h2>
+          <p id="cortex-index-dialog-description">
+            This indexes up to 64 records and permits at most one external
+            embedding-provider call. Another batch always needs another approval.
+          </p>
+          <div className="cortex-index-dialog__actions">
+            <button
+              type="button"
+              className="cortex-tool-btn"
+              onClick={() => dialogRef.current?.close()}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="cortex-tool-btn is-active"
+              onClick={() => void approve()}
+            >
+              Approve 1 provider call
+            </button>
+          </div>
+        </div>
+      </dialog>
+
+      <span className="cortex-index-ctl__status" aria-live="polite">
+        {state.kind === 'error' ? state.message : ''}
+      </span>
     </div>
   )
 }

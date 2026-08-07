@@ -26,6 +26,9 @@ class GuardFixtureController {
   @RequireCapabilities('cortex.search')
   cortexSearch(): void {}
 
+  @RequireCapabilities('cortex.index.manage')
+  cortexIndex(): void {}
+
   @RequireCapabilities('finance.read')
   financeLedgerRead(): void {}
 
@@ -304,6 +307,33 @@ describe('CapabilityGuard', () => {
         })
       )
     ).toBe(true)
+  })
+
+  it('limits provider-spending Cortex indexing to owners and admins', () => {
+    expect(
+      guard.canActivate(
+        contextFor('cortexIndex', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'admin',
+            email: 'admin@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+    expect(() =>
+      guard.canActivate(
+        contextFor('cortexIndex', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
   })
 
   it('allows ledger reads only for finance-authorized roles', () => {

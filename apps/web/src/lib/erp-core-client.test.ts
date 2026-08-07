@@ -117,6 +117,9 @@ import {
   getCortexGraphThroughCoreApi,
   cortexEntityReadsUseCoreApi,
   getCortexEntityThroughCoreApi,
+  cortexSemanticIndexJobsUseCoreApi,
+  createCortexSemanticIndexJobThroughCoreApi,
+  getCortexSemanticIndexJobThroughCoreApi,
   financeLedgerReadsUseCoreApi,
   getFinanceLedgerThroughCoreApi,
 } from './erp-core-client'
@@ -878,6 +881,25 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_CORTEX_ENTITY_READS_VIA_API_TENANT_IDS', '')
     expect(cortexEntityReadsUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(cortexEntityReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps provider-spending Cortex jobs closed without one exact tenant', () => {
+    vi.stubEnv('ERP_CORTEX_SEMANTIC_INDEX_JOBS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_CORTEX_SEMANTIC_INDEX_JOBS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(cortexSemanticIndexJobsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_CORTEX_SEMANTIC_INDEX_JOBS_VIA_API_TENANT_IDS', '*')
+    expect(cortexSemanticIndexJobsUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv(
+      'ERP_CORTEX_SEMANTIC_INDEX_JOBS_VIA_API_TENANT_IDS',
+      `*,${RESULT.tenantId}`
+    )
+    expect(cortexSemanticIndexJobsUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_CORTEX_SEMANTIC_INDEX_JOBS_VIA_API', 'TRUE')
+    expect(cortexSemanticIndexJobsUseCoreApi(RESULT.tenantId)).toBe(false)
   })
 
   it('keeps user role assignment on the server path unless the exact tenant gate matches', () => {
@@ -2244,6 +2266,107 @@ describe('ERP Core client', () => {
       ok: false,
       status: 503,
       error: 'ERP Core API returned an invalid Cortex entity result.',
+    })
+  })
+
+  it('creates one cost-consented Cortex index job through authenticated Core', async () => {
+    const jobId = '44444444-4444-4444-8444-444444444444'
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          jobId,
+          status: 'queued',
+          maxNodes: 64,
+          backlogAtRequest: 90,
+          createdAt: '2026-08-07T00:00:00.000Z',
+        }),
+        { status: 202, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createCortexSemanticIndexJobThroughCoreApi(
+        { maxNodes: 64, costConsent: true },
+        'index-1'
+      )
+    ).resolves.toEqual({
+      ok: true,
+      data: expect.objectContaining({ jobId, status: 'queued' }),
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/cortex/semantic-index-jobs',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ maxNodes: 64, costConsent: true }),
+        headers: expect.objectContaining({
+          'idempotency-key': 'index-1',
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('polls and validates one Cortex semantic index job', async () => {
+    const jobId = '44444444-4444-4444-8444-444444444444'
+    const payload = {
+      jobId,
+      status: 'succeeded',
+      maxNodes: 64,
+      backlogAtRequest: 64,
+      processedNodes: 64,
+      attempts: 1,
+      providerCalls: 1,
+      failureCode: null,
+      createdAt: '2026-08-07T00:00:00.000Z',
+      updatedAt: '2026-08-07T00:01:00.000Z',
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getCortexSemanticIndexJobThroughCoreApi(jobId)
+    ).resolves.toEqual({ ok: true, data: payload })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/cortex/semantic-index-jobs/${jobId}`,
+      expect.objectContaining({ method: 'GET', cache: 'no-store' })
+    )
+  })
+
+  it('rejects a Core semantic index state above the one-call ceiling', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            jobId: '44444444-4444-4444-8444-444444444444',
+            status: 'processing',
+            maxNodes: 64,
+            backlogAtRequest: 64,
+            processedNodes: 0,
+            attempts: 1,
+            providerCalls: 2,
+            failureCode: null,
+            createdAt: '2026-08-07T00:00:00.000Z',
+            updatedAt: '2026-08-07T00:01:00.000Z',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    )
+    await expect(
+      getCortexSemanticIndexJobThroughCoreApi(
+        '44444444-4444-4444-8444-444444444444'
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API returned an invalid semantic index status.',
     })
   })
 

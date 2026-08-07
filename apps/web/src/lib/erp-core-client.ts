@@ -204,6 +204,11 @@ import {
   cortexEntityFoundResponseSchema,
   type CortexEntityFoundResponse,
   type CortexEntityParams,
+  cortexSemanticIndexAcceptedSchema,
+  cortexSemanticIndexStatusSchema,
+  type CortexSemanticIndexAccepted,
+  type CortexSemanticIndexCommand,
+  type CortexSemanticIndexStatus,
   userRoleAssignmentResultSchema,
   type UserRoleAssignmentCommand,
   type UserRoleAssignmentResult,
@@ -398,6 +403,22 @@ export function cortexEntityReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_CORTEX_ENTITY_READS_VIA_API,
     process.env.ERP_CORTEX_ENTITY_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Provider-spending semantic indexing is never allowed outside an exact canary. */
+export function cortexSemanticIndexJobsUseCoreApi(tenantId: string): boolean {
+  if (
+    (process.env.ERP_CORTEX_SEMANTIC_INDEX_JOBS_VIA_API_TENANT_IDS ?? '')
+      .split(',')
+      .some((entry) => entry.trim() === '*')
+  ) {
+    return false
+  }
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_SEMANTIC_INDEX_JOBS_VIA_API,
+    process.env.ERP_CORTEX_SEMANTIC_INDEX_JOBS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1071,6 +1092,110 @@ export async function getCortexEntityThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex entity service is unavailable.',
+    }
+  }
+}
+
+export async function createCortexSemanticIndexJobThroughCoreApi(
+  command: CortexSemanticIndexCommand,
+  idempotencyKey: string
+): Promise<CoreResult<CortexSemanticIndexAccepted | CortexSemanticIndexStatus>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/semantic-index-jobs`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'idempotency-key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex semantic index service is unavailable.',
+      }
+    }
+    const accepted = cortexSemanticIndexAcceptedSchema.safeParse(rawBody)
+    if (accepted.success) return { ok: true, data: accepted.data }
+    const status = cortexSemanticIndexStatusSchema.safeParse(rawBody)
+    if (!status.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid semantic index job.',
+      }
+    }
+    return { ok: true, data: status.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex semantic index service is unavailable.',
+    }
+  }
+}
+
+export async function getCortexSemanticIndexJobThroughCoreApi(
+  jobId: string
+): Promise<CoreResult<CortexSemanticIndexStatus>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/semantic-index-jobs/${encodeURIComponent(jobId)}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex semantic index service is unavailable.',
+      }
+    }
+    const parsed = cortexSemanticIndexStatusSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid semantic index status.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex semantic index service is unavailable.',
     }
   }
 }

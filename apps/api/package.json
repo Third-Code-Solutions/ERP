@@ -19,6 +19,7 @@
     "@nestjs/core": "^11.1.28",
     "@nestjs/platform-express": "^11.1.28",
     "@supabase/supabase-js": "^2.105.4",
+    "@third-code-erp/ai": "workspace:*",
     "@third-code-erp/database": "workspace:*",
     "@third-code-erp/shared-types": "workspace:*",
     "bullmq": "^5.81.2",

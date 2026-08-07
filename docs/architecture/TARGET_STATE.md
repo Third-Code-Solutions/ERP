@@ -1,5 +1,23 @@
 # Target State
 
+## M3.155 cost-bounded semantic indexing authority
+
+Semantic indexing is a durable, explicit, cost-disclosed Core workflow. One
+human confirmation creates one tenant-scoped job for exactly one bounded batch:
+at most 64 current graph nodes and at most one provider call. PostgreSQL is the
+only job authority; Redis/BullMQ is recoverable transport; Python is the only
+embedding-provider boundary and receives no tenant, role, actor, or transaction
+authority. Derived vectors remain rebuildable and never become ERP source of
+truth.
+
+Only current owners/admins with `cortex.index.manage` may create or inspect a
+job. The browser never writes a sensitive table and never loops provider-spend
+commands. Idempotency, an active-job uniqueness constraint, exact tenant gates,
+provider quota, audit, and one-call reservation all fail closed. Any crash after
+reservation but before an acknowledged result becomes terminal rather than
+retrying uncertain spend. Intake, worker, recovery, Web cutover, and legacy
+compatibility are independently reversible and disabled by default.
+
 ## M3.154 Cortex entity-context read authority
 
 Entity context, relationships, citations, and evidence belong to the NestJS

@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.155 cost-bounded Cortex semantic indexing (2026-08-07)
+
+Source now contains an owner/admin-only `cortex.index.manage` workflow. One
+explicit confirmation creates one idempotent, tenant-scoped PostgreSQL job for
+at most 64 graph nodes and one Python-worker provider call. BullMQ transports
+only job identity; uncertain post-reservation recovery fails terminally. Web
+polls status and has no direct sensitive-table write. Legacy browser-driven
+embedding is closed by default.
+
+No hosted capability is enabled. Intake, worker, recovery, Web, and legacy
+flags are false/empty. Managed database remains last verified 55/104; the new
+job migration is source-only and lacks disposable runtime/RLS proof because
+Docker was stopped. Full shared/API/Web suites, database static/unit tests,
+workspace lint/typecheck, and local production build passed. No provider call,
+SQL apply, cloud build, or deployment occurred.
+
 ## M3.152 Purchase Order mapping recommendations (2026-08-07)
 
 No hosted ERP capability was enabled. Source now provides a deterministic,

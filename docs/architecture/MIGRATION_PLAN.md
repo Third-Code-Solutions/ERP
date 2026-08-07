@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.155 cost-bounded Cortex semantic indexing jobs
+
+Added a strict shared command/status/queue contract, server-only job table and
+migration, owner/admin capability, audited Nest intake, PostgreSQL state
+machine, BullMQ identity-only transport/recovery, Python-only embedding client,
+authenticated Web adapters/routes, and a confirmation-first Cortex control.
+The old browser 80-by-64 loop is removed. The compatibility embed route is
+closed by default.
+
+Keep every `ERP_CORTEX_SEMANTIC_INDEX_*` flag false, all tenant UUID allowlists
+empty, and `ERP_CORTEX_LEGACY_EMBED_ENABLED=false`. Do not add worker secrets,
+apply migration `20260807160000`, or deploy merely to exercise this slice.
+First obtain owner approval for M3.152, replay all 104 source migrations on a
+complete disposable managed restore, and prove job/RLS/privilege constraints,
+Redis loss recovery, current-role revocation, one-call crash boundaries, Python
+response dimensions, audit continuity, and protected browser behavior with a
+fake zero-cost embedding provider. Only then approve one exact-tenant canary
+with an explicit spend ceiling and rollback owner.
+
+Current validation: focused contract/database/Core/Web behavior passed; shared
+243/243, API source 531/531, API e2e 14/14, Web 631/631, database 198 passed
+with 142 runtime-gated skips; final queue 3/3 and UI disclosure 2/2 passed;
+workspace lint/typecheck and final local Nest/Next builds passed. Docker
+service was stopped, so migration execution and runtime
+RLS remain unresolved. Source is not deployed and no provider/hosted state
+changed. The managed manifest is now 55/104 with an exact 49-file pending
+suffix.
+
 ## M3.154 Core Cortex entity-context read authority
 
 Added a shared entity parameter/response contract and safe relationship/evidence
