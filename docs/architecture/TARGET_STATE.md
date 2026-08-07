@@ -1,5 +1,18 @@
 # Target State
 
+## M3.149 Core-owned user-role assignment
+
+Official user-role changes must be authorized and committed only by NestJS
+Core. The command must re-derive actor membership, require `admin.users`,
+lock actor and target rows, enforce owner/admin hierarchy and self-demotion
+invariants, reject stale expected-role commands, persist tenant-scoped
+idempotent replay, and write bounded semantic audit in the same PostgreSQL
+transaction. Authenticated browser sessions retain tenant-scoped user reads
+but no direct user-table mutations. Web remains a compatibility adapter;
+selected Core failures never fall back. The migration and four canary flags
+stay unapplied/disabled until managed parity, recovery, identity, audit,
+rollback, and bounded-spend gates pass.
+
 ## M3.148 authenticated-only tenant identity helper
 
 `public.auth_tenant_id()` must remain executable only by the roles that need

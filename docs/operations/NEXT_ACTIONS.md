@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.149 Core user-role assignment authority
+
+Keep `ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_ENABLED=false`,
+`ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API=false`, and both UUID tenant
+allowlists empty. Do not deploy Vercel/Railway or apply hosted SQL. The source
+ledger now has 103 migrations; managed Supabase was not refreshed and its
+last verified 55 imply a 48-migration gap. First produce an ordered
+disposable/branch parity plan covering duplicate Purchase Orders, user-table
+privileges/RLS, backup/PITR restore, Auth identity, audit recovery, rollback,
+and a strict provider-spend envelope. Obtain explicit approval before one
+reviewed managed batch or one-tenant role-assignment canary. Do not create a
+deployment merely to re-prove green local source.
+
 ## Exact next action after M3.148 tenant identity RPC hardening
 
 Keep Vercel/Railway deployments, Supabase SQL, ERP write flags, and tenant

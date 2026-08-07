@@ -1,5 +1,37 @@
 # Work Log
 
+## 2026-08-07 - M3.149 Core user-role assignment authority
+
+Moved the sensitive admin user-role change behind a typed NestJS command
+without rewriting the admin UI. Added shared contracts, a service-only replay
+ledger, migration, Core module/pipe/controller/service, capability mapping,
+observability, environment gates, Web client/adapter, and focused tests. Core
+now locks actor membership and target, enforces tenant scope, owner/admin
+hierarchy, expected-role concurrency, idempotent replay, atomic role update,
+and bounded audit. Authenticated direct writes to `public.users` are revoked;
+tenant-scoped reads remain. Admin create/reset/delete actions now reject owner
+targets, and owner self-demotion is blocked.
+
+Validation: focused suites and full serial workspace tests passed; shared
+28 files/234 tests, API 118/516, Web 93/610. Typecheck, lint, Nest/Next build
+(81/81 routes), 103-file verifier, Actionlint, Gitleaks, controlled-release
+5/5, and provider-spend 4/4 passed. Fresh disposable PostgreSQL 17/Redis 7.4.9
+replay passed 103/103 migrations, database 337/337 without skips, API
+integration 21/21 files, Redis checks, and schema stability. Services were
+stopped after verification.
+
+Local production browser proof requested `/admin/users`, observed the expected
+`307` redirect and `200` sign-in render, zero console warnings/errors, and no
+failed requests. No credentials were entered and no database write occurred.
+No UI source changed.
+
+Changed source: shared admin contracts; database enum/schema/index, migration,
+static tests, and verifier; API admin boundary/config/observability/tests; Web
+Core client/admin actions/tests/env; environment docs; M3.149 handoff and
+architecture/operations records. Hosted Supabase was not refreshed or
+mutated. Its last verified 55 migrations versus 103 source migrations imply
+a 48-migration gap. No Vercel/Railway deployment or provider-variable change.
+
 ## 2026-08-07 - M3.148 anonymous tenant-identity RPC hardening
 
 Reconciled the M3.147 security-advisor findings against source. The three

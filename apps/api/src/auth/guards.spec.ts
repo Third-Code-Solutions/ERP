@@ -17,6 +17,9 @@ import { Public, SupabaseJwtGuard } from './supabase-jwt.guard'
 import type { SupabaseIdentityService } from './supabase-identity.service'
 
 class GuardFixtureController {
+  @RequireCapabilities('admin.users')
+  userAdmin(): void {}
+
   @RequireCapabilities('asset.read')
   assetRead(): void {}
 
@@ -171,6 +174,33 @@ describe('CapabilityGuard', () => {
         })
       )
     ).toBe(true)
+  })
+
+  it('limits user administration to owners and admins', () => {
+    expect(
+      guard.canActivate(
+        contextFor('userAdmin', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'owner',
+            email: 'owner@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+    expect(() =>
+      guard.canActivate(
+        contextFor('userAdmin', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'pm',
+            email: 'pm@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
   })
 
   it('rejects an authenticated role without the capability', () => {

@@ -9,6 +9,35 @@ const REQUIRED = {
 }
 
 describe('ERP API environment', () => {
+  it('keeps user role assignment disabled and tenant-scoped by default', () => {
+    const defaults = validateEnvironment(REQUIRED)
+    expect(
+      defaults.ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      defaults.ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_TENANT_IDS
+    ).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_ENABLED: 'true',
+        ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_ENABLED: true,
+      ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_TENANT_IDS')
+  })
   it('keeps finance ledger reads disabled and tenant-scoped by default', () => {
     expect(
       validateEnvironment(REQUIRED).ERP_FINANCE_LEDGER_READS_ENABLED

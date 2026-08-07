@@ -198,6 +198,9 @@ import {
   type CostEntryDeletionResult,
   cortexSearchResultSchema,
   type CortexSearchResult,
+  userRoleAssignmentResultSchema,
+  type UserRoleAssignmentCommand,
+  type UserRoleAssignmentResult,
 } from '@third-code-erp/shared-types'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { z } from 'zod'
@@ -308,6 +311,16 @@ export function opportunityConversionWritesUseCoreApi(
     tenantId,
     process.env.ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API,
     process.env.ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function adminUserRoleAssignmentWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API,
+    process.env.ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -1177,6 +1190,60 @@ export async function updateProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project change was committed.',
+    }
+  }
+}
+
+export async function assignUserRoleThroughCoreApi(
+  userId: string,
+  command: UserRoleAssignmentCommand,
+  idempotencyKey: string
+): Promise<CoreResult<UserRoleAssignmentResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/admin/users/${encodeURIComponent(userId)}/role`,
+      {
+        method: 'PATCH',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'User role changed after this form was opened.'
+            : 'User role assignment was not committed.'
+      return { ok: false, error: message, status: response.status }
+    }
+
+    const parsed = userRoleAssignmentResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid user role result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No user role was changed.',
     }
   }
 }

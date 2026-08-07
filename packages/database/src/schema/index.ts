@@ -64,6 +64,7 @@ export * from './cost-entries'
 export * from './cost-entry-create-requests'
 export * from './cost-entry-delete-requests'
 export * from './cost-entry-restore-requests'
+export * from './user-role-assignment-requests'
 // Cortex AI Brain — graph substrate (THIRD_CODE_ERP_IMPLEMENTATION_PROMPT §5, Appendix B)
 export * from './cortex'
 // Cortex AI Brain — agent memory (persisted conversations)
