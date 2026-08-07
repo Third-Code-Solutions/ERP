@@ -31,6 +31,7 @@ import { CortexAssistantGenerationJobQueue } from './cortex-assistant-generation
 import { CortexAssistantGenerationService } from './cortex-assistant-generation.service'
 import { CortexAssistantGenerationStateService } from './cortex-assistant-generation.state'
 import { CortexAssistantGenerationWorkerClient } from './cortex-assistant-generation.worker'
+import { CortexAssistantProviderBudgetService } from './cortex-assistant-provider-budget.service'
 import { CortexSearchController } from './cortex-search.controller'
 import { CortexSearchPipe } from './cortex-search.pipe'
 import { CortexSearchService } from './cortex-search.service'
@@ -72,6 +73,7 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     CortexAssistantGenerationService,
     CortexAssistantGenerationStateService,
     CortexAssistantGenerationWorkerClient,
+    CortexAssistantProviderBudgetService,
     CortexEntityService,
     CortexEntityPipe,
     CortexGraphService,

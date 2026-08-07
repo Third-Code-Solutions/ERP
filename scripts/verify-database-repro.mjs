@@ -64,6 +64,7 @@ const requiredMigrations = [
   '20260807130000_customer_invoice_draft_create_workflow.sql',
   '20260807140000_revoke_anon_tenant_identity_rpc.sql',
   '20260807150000_user_role_assignment_authority.sql',
+  '20260808100000_cortex_assistant_provider_budget.sql',
 ]
 
 const requiredTables = [
@@ -114,6 +115,8 @@ const requiredServerOnlyTables = [
   'assets',
   'customer_invoice_draft_create_requests',
   'user_role_assignment_requests',
+  'cortex_assistant_provider_policies',
+  'cortex_assistant_provider_attempts',
 ]
 
 const requiredPolicies = [

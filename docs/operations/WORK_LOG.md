@@ -1,5 +1,28 @@
 # Work Log
 
+## 2026-08-08 - M3.165 Cortex provider budget authority
+
+Implemented a disabled, source-only cost authority before any paid Cortex
+provider work. Added strict integer-micros contracts, tenant/provider/model
+policy storage, immutable per-job-attempt reservations, database transition
+guards, forced RLS/service-only privileges, policy and semantic audit, and an
+internal Nest service for reserve, dispatch, settle, and release. No endpoint,
+provider adapter, credential, or seed policy was added.
+
+The final clean disposable lane exposed one nondeterministic audit assertion:
+all mutations in a transaction share a timestamp. The test now orders by the
+append-only audit ledger ID. The lane then passed 108/108 migrations, database
+354/354 with zero skips, full API integration, and equal before/after schema
+hashes. Shared 260/260, API 589/589, Web 676/676, Python 8/8, lint, typecheck,
+local production build, spend/release guards, Actionlint, pinned actions,
+Gitleaks, and diff hygiene also passed. The known disposable Redis
+`vm.overcommit_memory` warning remained non-fatal.
+
+Release boundary: flags remain false, allowlists empty, and policies absent.
+No hosted Supabase access or mutation, Vercel/Railway build or deployment,
+AI/image/provider call, or paid resource occurred. Disposable services were
+stopped. Vercel Git remains disconnected.
+
 ## 2026-08-08 - M3.164 protected full-stack Cortex browser certification
 
 Implemented the local-only browser gate required by M3.163. Added an isolated

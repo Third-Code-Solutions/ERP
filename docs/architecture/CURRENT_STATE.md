@@ -5,6 +5,38 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.165 Cortex provider budget authority (2026-08-08)
+
+Nest now owns a source-only provider-attempt budget contract. PostgreSQL stores
+disabled-by-default tenant/provider/model policies plus one immutable,
+idempotent reservation per generation job attempt. Money uses bounded integer
+micros. Request and UTC-day ceilings are enforced while the policy row is
+locked; open reservations count at their maximum and settled attempts count at
+actual cost.
+
+The explicit state machine is `reserved -> dispatched -> settled` or
+`reserved -> released`. Database triggers reject identity changes, same-state
+mutation, and every other transition. Nest rechecks the current processing job
+and attempt before reserve/dispatch, blocks dispatch when the gate or policy is
+closed, supports exact replay, and keeps settlement/release available so an
+already-reserved attempt can be safely terminalized after closure. Every policy
+and supported attempt mutation is audited without storing a prompt or request
+hash in the semantic audit payload.
+
+There is no controller, worker integration, credential, seed policy, provider
+call, or enabled tenant. Validation passed: shared 260/260; API 589/589; Web
+676/676; Python 8/8; lint/typecheck; local Nest/Next production build with 82
+generated pages; spend 4/4; controlled release 5/5; Actionlint; pinned workflow
+actions; Gitleaks across 548 commits; and diff hygiene. The final clean
+PostgreSQL 17 + Redis 7.4.9 lane replayed 108/108 migrations, passed database
+354/354 with zero skips and the full API integration suite, and produced equal
+before/after schema hashes
+`ED239E894DF4109848F2EFC991F041217DE955880C4CF6092ECF029CEB966E74`.
+
+No hosted Supabase query/write, Auth/Storage/data mutation, Vercel/Railway
+build or deployment, AI/image/provider call, paid resource, or Vercel Git
+change occurred. Managed Supabase remains last verified at 55/108.
+
 ## M3.164 protected full-stack Cortex browser certification (2026-08-08)
 
 The M3.163 asynchronous handoff is now certified through a local protected

@@ -1,5 +1,28 @@
 # Target State
 
+## M3.165 provider-attempt budget authority
+
+No paid model dispatch may begin without a durable Nest reservation against an
+enabled exact-tenant policy. PostgreSQL is the cost authority: bounded integer
+micros, request and UTC-day limits, immutable tenant/job/attempt identity,
+idempotent replay, serialized budget checks, and an explicit
+reserve-dispatch-settle or reserve-release state machine. Redis cannot grant a
+budget, and Python cannot reserve, dispatch, settle, release, approve, or commit
+official ERP state.
+
+Closing a rollout gate or policy must stop new reserve/dispatch work without
+stranding existing reservations; Core must retain terminal settlement/release
+authority. Open reservations consume their maximum cost until released or
+settled. Actual settlement cannot exceed the reservation. Policy and attempt
+changes must be permission-scoped and audited without raw prompts or provider
+payloads.
+
+The source contract is now present but intentionally inactive. No policy is
+seeded, no tenant is allowed, and no provider adapter calls a model. Activation
+still requires complete-clone managed replay, backup/PITR evidence, explicit
+tenant and micros limits, observability, cancellation/recovery proof, and one
+separately approved controlled release.
+
 ## M3.164 protected browser and cancellation reliability
 
 Every asynchronous Cortex release must have a reproducible protected-browser

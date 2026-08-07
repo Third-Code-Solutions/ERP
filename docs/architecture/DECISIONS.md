@@ -1,5 +1,31 @@
 # Architecture Decisions
 
+## D-274 - Reserve provider money before dispatch (2026-08-08)
+
+Decision: Nest must durably reserve bounded integer micros against an enabled
+exact-tenant provider/model policy before dispatch. PostgreSQL serializes the
+daily budget on the policy row and owns one immutable reservation for each
+generation job attempt. Allowed transitions are only
+`reserved -> dispatched -> settled` and `reserved -> released`; settlement
+cannot exceed the reservation. Open reservations count at maximum cost.
+
+Closing the global gate, tenant allowlist, or policy stops new reservations and
+dispatches. It does not remove Nest's authority to settle or release existing
+reservations. Redis remains transport/cache only. Python and any future model
+adapter cannot grant budget or commit ERP state. No default policy is seeded.
+
+Rationale: rate limits bound request frequency but do not prevent monetary
+overspend, concurrent budget races, retry double-spend, or orphaned holds. A
+durable reservation before external work makes the spend ceiling enforceable
+and auditable while preserving a safe shutdown path.
+
+Evidence: unit and rollback-local integration tests prove exact replay,
+request/daily caps, policy-row locking, actual-cost release,
+policy/gate closure, tenant isolation, transition guards, and audit. The full
+108-migration PostgreSQL replay, 354 database tests, API integration, source,
+build, security, spend, and release gates passed. No provider or hosted action
+occurred.
+
 ## D-273 - Cancel Cortex jobs before browser teardown (2026-08-08)
 
 Decision: omit an absent new-chat `conversationId` rather than serializing
