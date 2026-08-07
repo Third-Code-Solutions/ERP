@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.159 Core Cortex conversation read authority
+
+1. Added strict shared list/detail projections for saved conversation summaries,
+   immutable record context, messages, and current citation records.
+2. Added Nest list/detail controllers and service logic. Tenant/user ownership,
+   `cortex.search`, current-role node scope, context validation, and citation
+   rehydration are server-derived. Missing and forbidden records share 404.
+3. Added independent Core and Web exact-tenant gates, all false/empty by
+   default. Next keeps its current response shapes and fails closed when a
+   selected Core path is unavailable.
+4. Preserved the direct database route as the default compatibility path. No
+   database schema, migration, chat mutation, provider behavior, or UI changed.
+
+Validation: shared 245/245; API 555/555; Web 646/646; ordinary database 198
+passed / 143 expected environment skips; forced root tests; workspace
+lint/typecheck; local Nest and Next builds with 82 static pages; provider-spend
+4/4; controlled-release 5/5; Actionlint; pinned actions; Gitleaks across 542
+commits; diff and runtime clean-room scans. Full database replay was not
+repeated because no database source or migration changed.
+
+Keep `ERP_CORTEX_CONVERSATION_READS_ENABLED=false`,
+`ERP_CORTEX_CONVERSATION_READS_VIA_API=false`, and both allowlists empty.
+Before any canary, finish the M3.152 owner-approved managed backup/PITR proof,
+then compare legacy/Core list/detail behavior for two users and every role in
+one exact tenant. Source-only next increment: design an idempotent, audited
+Core conversation-write boundary without moving AI or transaction authority to
+Python.
+
 ## M3.158 loopback-authenticated Cortex route proof
 
 1. Mapped middleware, Server Component, profile, direct PostgreSQL, graph,

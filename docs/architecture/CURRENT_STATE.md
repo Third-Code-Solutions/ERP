@@ -5,6 +5,36 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.159 Core Cortex conversation read authority (2026-08-07)
+
+Saved Cortex conversation list and detail reads now have an original typed
+NestJS boundary at `GET /v1/cortex/conversations` and
+`GET /v1/cortex/conversations/:id`. Core derives tenant, user ownership, role,
+and capability from the authenticated principal. A caller cannot submit any of
+that scope. Foreign, missing, malformed, mismatched-context, and currently
+forbidden threads remain concealed. Stored citation metadata is reduced to
+node IDs and rehydrated from the current tenant/role graph projection before it
+can be returned.
+
+The existing Next endpoints preserve their public list/detail shapes. Two
+independent exact-tenant gates can select Core; both default false/empty. Once
+selected, Core unavailability fails closed and never restores direct database
+authority. No schema, migration, chat write, AI behavior, or UI changed.
+
+Validation passed: shared types 32 files / 245 tests; API 129 files / 555 tests,
+including real Nest/Supertest HTTP contracts; Web 97 files / 646 tests;
+ordinary database 198 passed / 143 environment-gated skips; forced bounded
+root tests; workspace lint/typecheck; provider-spend 4/4; controlled-release
+5/5; Actionlint; pinned workflow references; Gitleaks across 542 commits; and
+local NestJS/Next.js production builds with 82 static pages. Existing database
+helpers and migrations were unchanged, so the full PostgreSQL replay was not
+repeated. Exact-tenant legacy/Core comparison and managed canary evidence
+remain unproven.
+
+All new flags remain closed. No hosted Supabase operation, provider call,
+Vercel/Railway build or deployment, paid resource, or Git integration change
+occurred.
+
 ## M3.158 loopback-authenticated Cortex route proof (2026-08-07)
 
 The full protected `/cortex` Next.js route now has a zero-hosted-cost browser

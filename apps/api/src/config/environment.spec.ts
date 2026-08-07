@@ -295,6 +295,35 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_CORTEX_ENTITY_READS_TENANT_IDS')
   })
 
+  it('keeps Cortex conversation reads disabled and tenant-scoped by default', () => {
+    expect(
+      validateEnvironment(REQUIRED).ERP_CORTEX_CONVERSATION_READS_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED).ERP_CORTEX_CONVERSATION_READS_TENANT_IDS
+    ).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_CONVERSATION_READS_ENABLED: 'true',
+        ERP_CORTEX_CONVERSATION_READS_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_CORTEX_CONVERSATION_READS_ENABLED: true,
+      ERP_CORTEX_CONVERSATION_READS_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_CONVERSATION_READS_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_CORTEX_CONVERSATION_READS_TENANT_IDS')
+  })
+
   it('keeps every semantic index spend gate disabled and UUID-scoped', () => {
     const defaults = validateEnvironment(REQUIRED)
     expect(defaults.ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED).toBe(false)

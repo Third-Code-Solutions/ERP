@@ -117,6 +117,9 @@ import {
   getCortexGraphThroughCoreApi,
   cortexEntityReadsUseCoreApi,
   getCortexEntityThroughCoreApi,
+  cortexConversationReadsUseCoreApi,
+  listCortexConversationsThroughCoreApi,
+  getCortexConversationThroughCoreApi,
   cortexSemanticIndexJobsUseCoreApi,
   createCortexSemanticIndexJobThroughCoreApi,
   getCortexSemanticIndexJobThroughCoreApi,
@@ -881,6 +884,23 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_CORTEX_ENTITY_READS_VIA_API_TENANT_IDS', '')
     expect(cortexEntityReadsUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(cortexEntityReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('keeps Cortex conversation reads on the legacy route unless the exact tenant gate matches', () => {
+    vi.stubEnv('ERP_CORTEX_CONVERSATION_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(cortexConversationReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_CORTEX_CONVERSATION_READS_VIA_API', 'TRUE')
+    expect(cortexConversationReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_CORTEX_CONVERSATION_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_CORTEX_CONVERSATION_READS_VIA_API_TENANT_IDS', '')
+    expect(cortexConversationReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(cortexConversationReadsUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('keeps provider-spending Cortex jobs closed without one exact tenant', () => {
@@ -2238,6 +2258,85 @@ describe('ERP Core client', () => {
         }),
       })
     )
+  })
+
+  it('calls authenticated Core Cortex conversation list and detail reads', async () => {
+    const conversationId = '33333333-3333-4333-8333-333333333333'
+    const timestamp = '2026-08-07T00:00:00.000Z'
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            conversations: [
+              {
+                id: conversationId,
+                title: 'Finance thread',
+                created_at: timestamp,
+                updated_at: timestamp,
+                context: null,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ context: null, messages: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listCortexConversationsThroughCoreApi()).resolves.toEqual({
+      ok: true,
+      data: {
+        conversations: [
+          expect.objectContaining({ id: conversationId, context: null }),
+        ],
+      },
+    })
+    await expect(
+      getCortexConversationThroughCoreApi(conversationId)
+    ).resolves.toEqual({
+      ok: true,
+      data: { context: null, messages: [] },
+    })
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'https://erp-api.example.test/v1/cortex/conversations',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `https://erp-api.example.test/v1/cortex/conversations/${conversationId}`,
+      expect.objectContaining({ method: 'GET', cache: 'no-store' })
+    )
+  })
+
+  it('rejects an invalid Core Cortex conversation projection', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ conversations: [], tenantId: 'leak' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    )
+
+    await expect(listCortexConversationsThroughCoreApi()).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API returned an invalid Cortex conversation list.',
+    })
   })
 
   it('rejects an invalid Cortex entity success payload', async () => {

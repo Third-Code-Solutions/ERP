@@ -204,6 +204,10 @@ import {
   cortexEntityFoundResponseSchema,
   type CortexEntityFoundResponse,
   type CortexEntityParams,
+  cortexConversationListResponseSchema,
+  cortexConversationDetailResponseSchema,
+  type CortexConversationListResponse,
+  type CortexConversationDetailResponse,
   cortexSemanticIndexAcceptedSchema,
   cortexSemanticIndexStatusSchema,
   type CortexSemanticIndexAccepted,
@@ -403,6 +407,15 @@ export function cortexEntityReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_CORTEX_ENTITY_READS_VIA_API,
     process.env.ERP_CORTEX_ENTITY_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Saved Cortex memory reads remain on the legacy path until canaried. */
+export function cortexConversationReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_CONVERSATION_READS_VIA_API,
+    process.env.ERP_CORTEX_CONVERSATION_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1092,6 +1105,107 @@ export async function getCortexEntityThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex entity service is unavailable.',
+    }
+  }
+}
+
+/**
+ * Read-only saved-memory adapter. Selected tenants fail closed on Core errors
+ * so direct database authority cannot silently return during a canary.
+ */
+export async function listCortexConversationsThroughCoreApi(): Promise<
+  CoreResult<CortexConversationListResponse>
+> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/cortex/conversations`, {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'x-request-id': randomUUID(),
+      },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5_000),
+    })
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex conversation service is unavailable.',
+      }
+    }
+
+    const parsed = cortexConversationListResponseSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid Cortex conversation list.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex conversation service is unavailable.',
+    }
+  }
+}
+
+export async function getCortexConversationThroughCoreApi(
+  conversationId: string
+): Promise<CoreResult<CortexConversationDetailResponse>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/conversations/${encodeURIComponent(conversationId)}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex conversation service is unavailable.',
+      }
+    }
+
+    const parsed = cortexConversationDetailResponseSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid Cortex conversation.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex conversation service is unavailable.',
     }
   }
 }

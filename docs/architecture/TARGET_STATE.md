@@ -1,5 +1,21 @@
 # Target State
 
+## M3.159 Cortex conversation read authority
+
+Saved Cortex memory reads belong to the NestJS modular monolith. List and
+detail inputs expose no tenant, user, role, or node-type scope. Core derives all
+four from the authenticated principal, limits history, conceals foreign and
+revoked threads, validates immutable record context, and rehydrates stored
+citation IDs against the caller's current graph visibility. Stored titles and
+references are never presentation authority.
+
+Next remains a compatibility facade behind a separate, exact-tenant,
+closed-by-default read gate. A selected Core error must fail closed; it cannot
+fall back to direct database reads. PostgreSQL remains the source of truth and
+the derived Cortex graph remains rebuildable. Read migration cannot authorize
+chat writes, provider calls, or ERP transactions. Exact-tenant legacy/Core
+parity and protected browser evidence remain release gates.
+
 ## M3.158 protected Cortex route evidence boundary
 
 Protected Cortex integration must be reproducible without minting, revoking,

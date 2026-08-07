@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   listCortexConversations: vi.fn(),
   authorizeCortexRecordContext: vi.fn(),
+  cortexConversationReadsUseCoreApi: vi.fn(),
+  listCortexConversationsThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -17,6 +19,13 @@ vi.mock('@third-code-erp/database', () => ({
 
 vi.mock('@/lib/cortex/record-context', () => ({
   authorizeCortexRecordContext: mocks.authorizeCortexRecordContext,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  cortexConversationReadsUseCoreApi:
+    mocks.cortexConversationReadsUseCoreApi,
+  listCortexConversationsThroughCoreApi:
+    mocks.listCortexConversationsThroughCoreApi,
 }))
 
 import { GET } from './route'
@@ -41,6 +50,7 @@ describe('Cortex conversation history context authorization', () => {
       role: 'finance',
       user: { id: USER_ID },
     })
+    mocks.cortexConversationReadsUseCoreApi.mockReturnValue(false)
     mocks.listCortexConversations.mockResolvedValue([
       {
         id: '44444444-4444-4444-8444-444444444444',
@@ -105,6 +115,40 @@ describe('Cortex conversation history context authorization', () => {
     )
 
     expect(response.status).toBe(401)
+    expectPrivate(response)
+    expect(mocks.listCortexConversations).not.toHaveBeenCalled()
+  })
+
+  it('uses Core for a selected tenant without direct database fallback', async () => {
+    mocks.cortexConversationReadsUseCoreApi.mockReturnValue(true)
+    mocks.listCortexConversationsThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: { conversations: [] },
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost/api/cortex/conversations')
+    )
+
+    expect(response.status).toBe(200)
+    expectPrivate(response)
+    await expect(response.json()).resolves.toEqual({ conversations: [] })
+    expect(mocks.listCortexConversations).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when selected Core conversation reads are unavailable', async () => {
+    mocks.cortexConversationReadsUseCoreApi.mockReturnValue(true)
+    mocks.listCortexConversationsThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'Core unavailable',
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost/api/cortex/conversations')
+    )
+
+    expect(response.status).toBe(503)
     expectPrivate(response)
     expect(mocks.listCortexConversations).not.toHaveBeenCalled()
   })

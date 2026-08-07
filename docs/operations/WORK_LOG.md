@@ -1,5 +1,33 @@
 # Work Log
 
+## 2026-08-07 - M3.159 Core Cortex conversation read authority
+
+Audited the public landing and saved Cortex memory paths. The landing already
+has the requested original GSAP presentation, SEO/GEO metadata, clean-room
+branding, responsive proof, and no measured defect; no speculative redesign or
+image-provider spend was justified. The higher-value architecture gap was that
+conversation history remained direct Next-to-database authority.
+
+Implemented typed Nest list/detail reads. Core derives tenant, owner, role, and
+capability; validates immutable context against the registered graph mapping;
+hides revoked/foreign threads; discards stored citation labels; and rehydrates
+only currently visible citation IDs. Added closed exact-tenant Core/Web gates
+and Next adapters that preserve the existing API shapes and never fall back
+after selected Core failure. No migrations, mutations, chat provider logic, or
+UI changed.
+
+Results: shared 32 files / 245 tests; API 129 / 555; Web 97 / 646; ordinary
+database 198 passed / 143 expected skips; forced bounded root test 4/4 package
+tasks; lint/typecheck; Nest build; Next build with 82 static pages; spend guard
+4/4; controlled release 5/5; Actionlint; pinned workflow references; Gitleaks
+542 commits; diff and clean-room scans. The first combined command exceeded the
+tool's 120-second capture limit after reaching the local API build; its children
+exited, and every gate was rerun separately with attributable green output.
+
+No hosted Supabase/Auth/Storage/data access, AI/image/provider call, cloud
+build, Vercel/Railway deployment, paid branch, or Git integration change
+occurred.
+
 ## 2026-08-07 - M3.158 loopback-authenticated Cortex route proof
 
 Mapped the complete protected Cortex load path. Middleware and both dashboard

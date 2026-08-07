@@ -3,6 +3,10 @@ import { getUserProfile } from '@third-code-erp/auth'
 import { listCortexConversations } from '@third-code-erp/database'
 import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
 import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
+import {
+  cortexConversationReadsUseCoreApi,
+  listCortexConversationsThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 /**
  * GET /api/cortex/conversations — the signed-in user's Cortex conversation
@@ -15,6 +19,17 @@ export async function GET(_req: NextRequest) {
       { error: 'Unauthorized' },
       { status: 401, headers: CORTEX_PRIVATE_HEADERS }
     )
+  }
+
+  if (cortexConversationReadsUseCoreApi(profile.tenantId)) {
+    const result = await listCortexConversationsThroughCoreApi()
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error ?? 'Cortex conversation service is unavailable.' },
+        { status: result.status ?? 503, headers: CORTEX_PRIVATE_HEADERS }
+      )
+    }
+    return NextResponse.json(result.data, { headers: CORTEX_PRIVATE_HEADERS })
   }
 
   const stored = await listCortexConversations(
