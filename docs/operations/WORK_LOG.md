@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-07 - M3.154 Core Cortex entity-context read authority
+
+Audited live `/cortex` read-only. Authenticated production displayed 384
+records, 454 connections, 14 populated record types, and 1,090 provenance
+events with no console errors at desktop or 390px. Graph search was exercised;
+the index-build mutation and Cortex chat were not submitted.
+
+Moved one read seam only. Added a shared registered entity contract and public
+projection; Nest now owns an optional capability-checked, tenant/role-scoped
+entity endpoint; Web can select it through exact tenant flags. Selected Core
+errors fail closed. Existing direct behavior and concealed 404 remain default.
+No React or visual change was needed, so the landing page was untouched.
+
+Focused contract/Core/Web tests passed 199/199. Full API, Web, and shared suites
+passed single-worker; shared reported 240/240 and the API total is 529/529.
+Workspace lint/typecheck, Actionlint 1.7.12, Gitleaks 8.30.1 across 537 commits,
+pinned workflow refs, controlled-release 5/5, provider-spend 4/4, diff checks,
+and one local 81-route production build passed.
+
+No Supabase SQL, migration, tenant data, Storage object, environment variable,
+flag, AI-provider call, Vercel/Railway build, Git connection, or deployment
+changed. Managed parity remains 55/103 and owner approval for the 12-record
+Purchase Order mapping remains the release blocker.
+
 ## 2026-08-07 - M3.153 Core Cortex graph read authority
 
 Verified the live landing read-only at 1440x1000, 768x1024, and 390x844. It had

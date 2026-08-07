@@ -201,6 +201,9 @@ import {
   cortexGraphResponseSchema,
   type CortexGraphQuery,
   type CortexGraphResponse,
+  cortexEntityFoundResponseSchema,
+  type CortexEntityFoundResponse,
+  type CortexEntityParams,
   userRoleAssignmentResultSchema,
   type UserRoleAssignmentCommand,
   type UserRoleAssignmentResult,
@@ -386,6 +389,15 @@ export function cortexGraphReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_CORTEX_GRAPH_READS_VIA_API,
     process.env.ERP_CORTEX_GRAPH_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Citation-backed entity context stays on the legacy path until canaried. */
+export function cortexEntityReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_ENTITY_READS_VIA_API,
+    process.env.ERP_CORTEX_ENTITY_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1003,6 +1015,62 @@ export async function getCortexGraphThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex graph service is unavailable.',
+    }
+  }
+}
+
+/**
+ * Read-only Cortex entity adapter. Once selected, Core errors fail closed and
+ * never fall back to direct database authority.
+ */
+export async function getCortexEntityThroughCoreApi(
+  params: CortexEntityParams
+): Promise<CoreResult<CortexEntityFoundResponse>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  const refTable = encodeURIComponent(params.refTable)
+  const refId = encodeURIComponent(params.refId)
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/entity/${refTable}/${refId}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex entity service is unavailable.',
+      }
+    }
+
+    const parsed = cortexEntityFoundResponseSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid Cortex entity result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex entity service is unavailable.',
     }
   }
 }

@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.154 Core Cortex entity-context read authority
+
+Keep `ERP_CORTEX_ENTITY_READS_ENABLED=false`,
+`ERP_CORTEX_ENTITY_READS_VIA_API=false`, and both entity tenant allowlists
+empty. Do not deploy to exercise the endpoint. First complete M3.152 owner
+review and restore reviewed managed 103/103 parity. Then run a read-only,
+one-tenant legacy/Core comparison covering allowed, forbidden, absent,
+mismatched, malformed, and Core-unavailable entity references. Verify every
+citation/relationship under each production role and capture rollback proof.
+
+No provider spend is required. Do not reconnect Vercel Git, deploy Railway or
+Vercel, call an AI provider, apply hosted SQL, change tenant data, or create a
+paid branch without explicit release and cost approval.
+
 ## Exact next action after M3.153 Core Cortex graph read authority
 
 Keep `ERP_CORTEX_GRAPH_READS_ENABLED=false`,

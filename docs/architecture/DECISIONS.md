@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-262 - Make Cortex entity context a separately canaried Core read (2026-08-07)
+
+Decision: expose `GET /v1/cortex/entity/:refTable/:refId` through a dedicated
+NestJS boundary with its own Core/Web exact-tenant gates. Share one strict
+public contract for registered sources, citations, relationships, and redacted
+evidence. Keep the existing Next route as default; once selected, never regain
+direct database authority after Core failure. Preserve a concealed 404.
+
+Rationale: record context feeds project, finance, procurement, and Cortex
+surfaces. Central authority prevents each Web caller from independently
+deciding tenant, role, source ownership, or provenance disclosure. A separate
+gate keeps rollback smaller than coupling entity context to whole-graph or
+keyword-search rollout. Deterministic retrieval avoids provider spend.
+
+Evidence: read-only live Cortex audit; focused 199/199; full API/Web/shared
+single-worker suites; workspace lint/typecheck; 81-route production build;
+secret, workflow, release, and spend guards. Flags remain closed. No hosted
+state changed.
+
 ## D-261 - Separate Cortex graph authority from search authority (2026-08-07)
 
 Decision: expose `GET /v1/cortex/graph` through a dedicated NestJS service and

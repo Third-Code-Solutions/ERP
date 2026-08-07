@@ -1,5 +1,19 @@
 # Target State
 
+## M3.154 Cortex entity-context read authority
+
+Entity context, relationships, citations, and evidence belong to the NestJS
+modular monolith. Request input contains only one registered source table and
+UUID. Tenant, role, capability, and node-type scope come from the authenticated
+principal. Responses are bounded, schema-validated, and presentation-safe;
+internal provenance chain material never leaves Core.
+
+The Next compatibility route remains the default until independent exact-
+tenant Core/Web gates select the new path. A selected Core failure is terminal,
+while not-found behavior remains non-enumerating. The derived graph remains
+rebuildable and is never the ERP source of truth. Entity retrieval performs no
+AI-provider call and cannot approve or mutate an ERP transaction.
+
 ## M3.153 Cortex graph read authority
 
 Interactive graph retrieval belongs to the NestJS modular monolith. Request
