@@ -1,5 +1,35 @@
 # Next Actions
 
+## Exact next action after M3.163 asynchronous Cortex handoff
+
+Keep all M3.160-M3.163 Core/Web/worker/recovery gates false, exact-tenant
+allowlists empty, and the worker URL/secret unconfigured. Do not change managed
+state. Build a local-only protected-browser proof using the disposable
+PostgreSQL 17/Redis lane, rejecting loopback Auth contract, local Nest, local
+Next, and local provider-free Python worker.
+
+The proof must cover:
+
+- one `202` start followed by pending and final same-bubble text/citations;
+- private/no-store headers and exact same-origin opaque job location;
+- no browser direct database write or foreign/provider request;
+- no Next request held open for worker completion;
+- new-chat and unmount abort with one cancellation;
+- ten-poll timeout cancellation and honest error state;
+- foreign user/job concealment and current role/context/citation revocation;
+- responsive desktop/mobile behavior, keyboard flow, zero console/page errors,
+  and unchanged legacy stream behavior with the gate false.
+
+After proof, stop local services, drop only the disposable database, and remove
+generated artifacts. Managed Supabase remains last verified at 55/107. Before
+any exact-tenant canary, the owner must finish M3.152 backup/PITR proof and an
+isolated complete-clone replay. Rollback remains every Cortex rollout flag
+false; do not down-migrate.
+
+Do not reconnect Vercel Git, run Vercel/Railway builds or deployments, apply
+hosted SQL, mutate hosted Auth/Storage/data, create paid resources, or call
+AI/image providers without explicit cost and release approval.
+
 ## Exact next action after M3.162 provider-free Cortex generation jobs
 
 Keep these new gates closed and exact-tenant allowlists empty:

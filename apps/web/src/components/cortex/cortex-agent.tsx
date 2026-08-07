@@ -23,6 +23,7 @@ import {
   type CortexAgentContext,
 } from '@/lib/cortex/agent-context'
 import { consumeCortexDraft } from '@/lib/cortex/draft-handoff'
+import { resolveCortexChatResponse } from '@/lib/cortex/chat-job-polling'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -93,6 +94,8 @@ export function CortexAgent({
   const initialRestoreRef = useRef<string | null>(null)
   const initialDraftRef = useRef<string | null>(null)
   const restoreRequestRef = useRef(0)
+  const chatRequestRef = useRef(0)
+  const activeChatAbortRef = useRef<AbortController | null>(null)
 
   const syncConversationUrl = useCallback(
     (id: string | null) => {
@@ -129,6 +132,10 @@ export function CortexAgent({
   }, [historyOpen])
 
   const restoreConversation = useCallback(async (id: string) => {
+    chatRequestRef.current += 1
+    activeChatAbortRef.current?.abort()
+    activeChatAbortRef.current = null
+    setIsStreaming(false)
     const requestId = ++restoreRequestRef.current
     setError('')
     setIsRestoring(true)
@@ -202,8 +209,12 @@ export function CortexAgent({
   }, [contextUnavailable, initialDraftId])
 
   function newChat() {
+    chatRequestRef.current += 1
+    activeChatAbortRef.current?.abort()
+    activeChatAbortRef.current = null
     restoreRequestRef.current += 1
     setIsRestoring(false)
+    setIsStreaming(false)
     setMessages([])
     setConversationId(null)
     syncConversationUrl(null)
@@ -220,9 +231,12 @@ export function CortexAgent({
     setInput('')
     setError('')
     setIsStreaming(true)
+    const requestId = ++chatRequestRef.current
+    const controller = new AbortController()
+    activeChatAbortRef.current = controller
 
     try {
-      const res = await fetch('/api/cortex/chat', {
+      const initialResponse = await fetch('/api/cortex/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -238,7 +252,12 @@ export function CortexAgent({
               }
             : undefined,
         }),
+        signal: controller.signal,
       })
+      const res = await resolveCortexChatResponse(initialResponse, {
+        signal: controller.signal,
+      })
+      if (requestId !== chatRequestRef.current) return
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string }
         throw new Error(data.error ?? `Request failed (${res.status})`)
@@ -258,6 +277,7 @@ export function CortexAgent({
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
+        if (requestId !== chatRequestRef.current) return
         acc += decoder.decode(value, { stream: true })
         setMessages([
           ...next,
@@ -266,12 +286,26 @@ export function CortexAgent({
       }
       void loadHistory()
     } catch (err) {
+      if (controller.signal.aborted || requestId !== chatRequestRef.current) {
+        return
+      }
       setError(err instanceof Error ? err.message : 'Failed to reach Cortex')
       setMessages(next)
     } finally {
-      setIsStreaming(false)
+      if (requestId === chatRequestRef.current) {
+        activeChatAbortRef.current = null
+        setIsStreaming(false)
+      }
     }
   }
+
+  useEffect(
+    () => () => {
+      chatRequestRef.current += 1
+      activeChatAbortRef.current?.abort()
+    },
+    []
+  )
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {

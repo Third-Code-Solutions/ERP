@@ -1,9 +1,11 @@
 import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import type {
+  CortexAssistantGenerationResult,
   CortexAssistantGenerationStartCommand,
   CortexAssistantGenerationStatus,
 } from '@third-code-erp/shared-types'
+import { cortexAssistantGenerationResultSchema } from '@third-code-erp/shared-types'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { CortexAssistantTurnSignatureHeaders } from './cortex-assistant-turns.service'
 import { CortexAssistantTurnsService } from './cortex-assistant-turns.service'
@@ -42,6 +44,19 @@ export class CortexAssistantGenerationService {
   ): Promise<CortexAssistantGenerationStatus> {
     this.assertJobsEnabled(principal.tenantId)
     return this.state.status(jobId, principal)
+  }
+
+  async result(
+    jobId: string,
+    principal: ErpPrincipal
+  ): Promise<CortexAssistantGenerationResult> {
+    this.assertJobsEnabled(principal.tenantId)
+    const job = await this.state.status(jobId, principal)
+    const result =
+      job.status === 'succeeded'
+        ? await this.assistantTurns.resultForRequest(job.requestId, principal)
+        : null
+    return cortexAssistantGenerationResultSchema.parse({ job, result })
   }
 
   cancel(

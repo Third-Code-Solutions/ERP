@@ -5,6 +5,50 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.163 cost-bounded asynchronous Cortex result handoff (2026-08-08)
+
+Selected provider-free Cortex requests no longer keep a Next server invocation
+open while BullMQ/Python work runs. `POST /api/cortex/chat` now starts the
+durable Core job and immediately returns strict `202 Accepted` metadata,
+`Location`, `Retry-After`, and the owned conversation ID. The existing browser
+agent polls only that same-origin opaque job path, at most ten times, and fills
+the same assistant bubble with the final text/citation response. New chat,
+conversation restore, unmount, and timeout abort the request and issue a
+bounded best-effort cancellation. No visual layout, label, keyboard, citation,
+legacy stream, or saved-conversation contract changed.
+
+The private Next job route authenticates every GET/DELETE, requires the exact
+tenant gate, validates UUID identity, preserves private/no-store caching, and
+uses the existing provider-chat burst bucket. Nest now exposes a typed combined
+job/result read. Core rechecks current PostgreSQL membership, capability,
+tenant, owner, conversation context, official user-turn provenance, and graph
+scope before returning content. Citation IDs are hydrated inside the same
+authorization transaction, preserving stored order while discarding anything
+no longer visible. Failed/cancelled jobs return terminal errors; pending jobs
+contain no assistant result.
+
+This bounds selected Web work to one short start invocation plus at most ten
+short polls instead of one four-second server wait. It does not claim to reduce
+cloud build CPU; Vercel Git remains disconnected and repository spend guards
+remain the primary build-cost control. All rollout flags remain false/empty.
+
+Validation passed: shared 256/256; API 586/586; Web 676/676; Python 8/8;
+ordinary database 206 passed / 143 expected skips; workspace lint/typecheck;
+serial cache-bypassed root suite; local Next/Nest production builds with 82
+static pages; spend 4/4; controlled release 5/5; Actionlint; pinned actions;
+Gitleaks across 546 commits; and diff hygiene. Disposable PostgreSQL 17.10 +
+Redis 7.4.9 replayed 107/107 migrations, passed database 349/349 with zero
+skips and the full API integration lane, including rollback-local citation
+hydration and current-role revocation. Schema remained unchanged from M3.162.
+The disposable database/runtime and generated evidence were removed. One root
+run exposed a corrected mock-order fixture; a later concurrency-two run hit
+four unrelated Nest setup timeouts, while the complete serial run passed
+without changing timeouts or unrelated tests.
+
+No hosted Supabase query/write, Auth/Storage/data mutation, AI/image/provider
+call, Vercel/Railway build or deployment, paid resource, or Git integration
+change occurred. Managed Supabase remains last verified at 55/107.
+
 ## M3.162 provider-free Cortex generation jobs (2026-08-08)
 
 Cortex can now move one selected assistant response through an original NestJS

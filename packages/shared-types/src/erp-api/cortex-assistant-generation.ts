@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { cortexConversationAssistantTurnSucceededSchema } from './cortex-conversations'
 
 export const CORTEX_ASSISTANT_GENERATION_MAX_ATTEMPTS = 3
 
@@ -34,6 +35,31 @@ export const cortexAssistantGenerationStatusSchema = z
   })
   .strict()
 
+export const cortexAssistantGenerationAcceptedSchema = z
+  .object({
+    status: z.literal('accepted'),
+    jobId: z.string().uuid(),
+    conversationId: z.string().uuid(),
+    retryAfterMs: z.number().int().min(500).max(5_000),
+  })
+  .strict()
+
+export const cortexAssistantGenerationResultSchema = z
+  .object({
+    job: cortexAssistantGenerationStatusSchema,
+    result: cortexConversationAssistantTurnSucceededSchema.nullable(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if ((value.job.status === 'succeeded') !== (value.result !== null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Succeeded jobs require a result and other states forbid one',
+        path: ['result'],
+      })
+    }
+  })
+
 export const cortexAssistantGenerationQueueJobSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -66,6 +92,12 @@ export type CortexAssistantGenerationStartCommand = z.infer<
 >
 export type CortexAssistantGenerationStatus = z.infer<
   typeof cortexAssistantGenerationStatusSchema
+>
+export type CortexAssistantGenerationAccepted = z.infer<
+  typeof cortexAssistantGenerationAcceptedSchema
+>
+export type CortexAssistantGenerationResult = z.infer<
+  typeof cortexAssistantGenerationResultSchema
 >
 export type CortexAssistantGenerationQueueJob = z.infer<
   typeof cortexAssistantGenerationQueueJobSchema

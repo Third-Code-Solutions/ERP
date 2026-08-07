@@ -15,6 +15,7 @@ import {
 import { getOpenAI, embedText } from '@third-code-erp/ai'
 import {
   cortexGraphRefTableSchema,
+  cortexAssistantGenerationAcceptedSchema,
   type CortexConversationAssistantTurnClaimResult,
   type CortexConversationAssistantTurnOutcome,
 } from '@third-code-erp/shared-types'
@@ -42,8 +43,6 @@ import {
   claimCortexConversationAssistantTurnThroughCoreApi,
   completeCortexConversationAssistantTurnThroughCoreApi,
   startCortexAssistantGenerationJobThroughCoreApi,
-  getCortexAssistantGenerationJobThroughCoreApi,
-  cancelCortexAssistantGenerationJobThroughCoreApi,
   cortexAssistantGenerationJobsUseCoreApi,
   cortexAssistantTurnIdempotencyKey,
   cortexConversationAssistantTurnWritesUseCoreApi,
@@ -362,69 +361,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    let job = started.data
-    const pollDelays = [250, 500, 750, 1_000, 1_500]
-    for (const delay of pollDelays) {
-      if (
-        (job.status !== 'queued' && job.status !== 'processing') ||
-        req.signal.aborted
-      ) {
-        break
-      }
-      await new Promise((resolve) => setTimeout(resolve, delay))
-      const refreshed = await getCortexAssistantGenerationJobThroughCoreApi(
-        job.jobId
-      )
-      if (!refreshed.ok || !refreshed.data) {
-        return new Response(
-          refreshed.error ?? 'Cortex assistant generation status is unavailable.',
-          { status: refreshed.status ?? 503, headers: CORTEX_PRIVATE_HEADERS }
-        )
-      }
-      job = refreshed.data
-    }
-    if (req.signal.aborted) {
-      await cancelCortexAssistantGenerationJobThroughCoreApi(
-        job.jobId,
-        `${assistantIdempotencyKey}:cancel`
-      )
-      return new Response(null, { status: 499, headers: CORTEX_PRIVATE_HEADERS })
-    }
-    if (job.status === 'queued' || job.status === 'processing') {
-      return new Response('Cortex response generation is still in progress.', {
-        status: 409,
-        headers: { ...CORTEX_PRIVATE_HEADERS, 'Retry-After': '1' },
-      })
-    }
-    if (job.status !== 'succeeded') {
-      return new Response('Cortex response generation did not complete.', {
-        status: job.status === 'cancelled' ? 409 : 503,
-        headers: CORTEX_PRIVATE_HEADERS,
-      })
-    }
-
-    const replay = await claimCortexConversationAssistantTurnThroughCoreApi(
-      {
-        conversationId: assistantClaim.conversationId,
-        userMessageId: assistantClaim.userMessageId,
+    const accepted = cortexAssistantGenerationAcceptedSchema.parse({
+      status: 'accepted',
+      jobId: started.data.jobId,
+      conversationId: assistantClaim.conversationId,
+      retryAfterMs: 1_000,
+    })
+    const location = `/api/cortex/chat/jobs/${accepted.jobId}`
+    return new Response(JSON.stringify(accepted), {
+      status: 202,
+      headers: {
+        ...CORTEX_PRIVATE_HEADERS,
+        'Content-Type': 'application/json; charset=utf-8',
+        Location: location,
+        'Retry-After': '1',
+        'X-Conversation-Id': accepted.conversationId,
       },
-      assistantIdempotencyKey,
-      principal
-    )
-    if (!replay.ok || !replay.data || replay.data.status !== 'succeeded') {
-      return new Response('Cortex assistant result is unavailable.', {
-        status: 503,
-        headers: CORTEX_PRIVATE_HEADERS,
-      })
-    }
-    const headers: Record<string, string> = {
-      ...CORTEX_PRIVATE_HEADERS,
-      'Content-Type': 'text/plain; charset=utf-8',
-      'X-Conversation-Id': replay.data.conversationId,
-    }
-    const citationHeader = encodeCortexCitationHeader(replay.data.citations)
-    if (citationHeader) headers[CORTEX_CITATIONS_HEADER] = citationHeader
-    return new Response(replay.data.content, { headers })
+    })
   }
 
   if (providerEnabled && useCoreAssistantTurn) {

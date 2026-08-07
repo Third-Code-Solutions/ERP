@@ -213,6 +213,7 @@ import {
   cortexConversationAssistantTurnCompleteResultSchema,
   cortexAssistantGenerationStartCommandSchema,
   cortexAssistantGenerationStatusSchema,
+  cortexAssistantGenerationResultSchema,
   cortexConversationAssistantTurnSignaturePayload,
   CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION,
   type CortexConversationListResponse,
@@ -224,6 +225,7 @@ import {
   type CortexConversationAssistantTurnCompleteCommand,
   type CortexConversationAssistantTurnCompleteResult,
   type CortexAssistantGenerationStartCommand,
+  type CortexAssistantGenerationResult,
   type CortexAssistantGenerationStatus,
   cortexSemanticIndexAcceptedSchema,
   cortexSemanticIndexStatusSchema,
@@ -1622,6 +1624,52 @@ export async function getCortexAssistantGenerationJobThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Assistant generation job status is unavailable.',
+    }
+  }
+}
+
+export async function getCortexAssistantGenerationResultThroughCoreApi(
+  jobId: string
+): Promise<CoreResult<CortexAssistantGenerationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/conversations/assistant-turns/jobs/${encodeURIComponent(jobId)}/result`,
+      {
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Assistant generation result is unavailable.',
+      }
+    }
+    const parsed = cortexAssistantGenerationResultSchema.safeParse(rawBody)
+    return parsed.success
+      ? { ok: true, data: parsed.data, status: response.status }
+      : {
+          ok: false,
+          status: 503,
+          error: 'ERP Core API returned an invalid assistant generation result.',
+        }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Assistant generation result is unavailable.',
     }
   }
 }

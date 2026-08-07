@@ -36,6 +36,7 @@ describe('Cortex assistant generation job HTTP contract', () => {
   async function appFor() {
     const start = vi.fn().mockResolvedValue({ status: STATUS, enqueue: true })
     const status = vi.fn().mockResolvedValue(STATUS)
+    const result = vi.fn().mockResolvedValue({ job: STATUS, result: null })
     const cancel = vi.fn().mockResolvedValue({
       ...STATUS,
       status: 'cancelled',
@@ -47,7 +48,7 @@ describe('Cortex assistant generation job HTTP contract', () => {
       providers: [
         {
           provide: CortexAssistantGenerationService,
-          useValue: { start, status, cancel },
+          useValue: { start, status, result, cancel },
         },
         { provide: CortexAssistantGenerationJobQueue, useValue: { enqueue } },
       ],
@@ -64,7 +65,7 @@ describe('Cortex assistant generation job HTTP contract', () => {
     })
     await app.init()
     close = () => app.close()
-    return { app, start, status, cancel, enqueue }
+    return { app, start, status, result, cancel, enqueue }
   }
 
   it('forwards signed start identity and enqueues opaque job identity', async () => {
@@ -99,8 +100,26 @@ describe('Cortex assistant generation job HTTP contract', () => {
     await request(probe.app.getHttpServer())
       .get('/v1/cortex/conversations/assistant-turns/jobs/not-a-uuid')
       .expect(400)
+    await request(probe.app.getHttpServer())
+      .get('/v1/cortex/conversations/assistant-turns/jobs/not-a-uuid/result')
+      .expect(400)
     expect(probe.start).not.toHaveBeenCalled()
     expect(probe.status).not.toHaveBeenCalled()
+    expect(probe.result).not.toHaveBeenCalled()
+  }, 30_000)
+
+  it('returns the current-authority result contract', async () => {
+    const probe = await appFor()
+    await request(probe.app.getHttpServer())
+      .get(
+        `/v1/cortex/conversations/assistant-turns/jobs/${JOB_ID}/result`
+      )
+      .expect(200)
+      .expect(({ body }) => expect(body).toEqual({ job: STATUS, result: null }))
+    expect(probe.result).toHaveBeenCalledWith(
+      JOB_ID,
+      expect.objectContaining({ tenantId: TENANT_ID, userId: USER_ID })
+    )
   }, 30_000)
 
   it('requires idempotency for cancellation and forwards the principal', async () => {

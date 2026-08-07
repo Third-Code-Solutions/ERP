@@ -1,5 +1,27 @@
 # Target State
 
+## M3.163 cost-bounded asynchronous Cortex handoff
+
+Long-running assistant work must not occupy a Next server invocation. The Web
+facade may authenticate, start one durable Core job, and return `202`; the
+browser may poll only a same-origin, owner-scoped proxy with a fixed attempt
+cap, private caching, rate limiting, abort, and cancellation. Legacy response
+text, citations, conversation identity, accessibility, and visible interaction
+must remain compatible during exact-tenant rollout.
+
+Nest remains result authority. A job status alone cannot release stored
+assistant content. Core must reauthorize the current database principal,
+tenant/user ownership, conversation context, official source turn, and current
+citation visibility before each final read. Pending and terminal failures must
+never carry a result. PostgreSQL remains truth; Redis/Python cannot authorize
+or return official ERP memory directly to the browser.
+
+The handoff is a function-duration guard, not a cloud-build-cost claim. Vercel
+Git stays disconnected; deployment remains a separately approved, single,
+reviewed release after managed replay and canary evidence. All flags default
+closed. A local protected-browser proof of success, timeout, abort/cancel, and
+permission revocation is required before any canary.
+
 ## M3.162 provider-free Cortex generation jobs
 
 Assistant execution belongs to the NestJS modular monolith. PostgreSQL is the

@@ -1,5 +1,38 @@
 # Migration Plan
 
+## M3.163 cost-bounded asynchronous Cortex result handoff
+
+1. Exported the strict successful assistant-turn contract and added strict
+   accepted/result contracts that forbid a result unless the durable job
+   succeeded.
+2. Added a Nest result read over the existing job ledger. It rechecks current
+   membership, tenant/user ownership, capability, context, official user turn,
+   and citation scope; citation hydration stays in the same transaction.
+3. Added a server-only Core client and private authenticated Next GET/DELETE
+   job proxy with UUID validation, exact-tenant gating, no-store caching,
+   terminal error mapping, stable cancellation idempotency, and bounded rate
+   limiting.
+4. Replaced selected Next in-request sleeping/polling with immediate `202`,
+   `Location`, and one-second retry guidance. The legacy route remains intact.
+5. Added client polling capped at ten attempts, exact same-origin location
+   validation, abort/unmount/restore cancellation, and a three-second bound on
+   the best-effort cancel request. The existing UI is unchanged.
+6. Kept every rollout gate false/empty. No migration, provider, hosted data, or
+   deployment action occurred.
+
+Validation: shared 256/256; API 586/586; Web 676/676; Python 8/8; ordinary DB
+206 passed / 143 expected skips; lint/typecheck; serial cache-bypassed root
+suite; local Next/Nest builds with 82 static pages; spend 4/4; release 5/5;
+Actionlint; pinned actions; Gitleaks; diff hygiene. Disposable PostgreSQL/Redis
+replayed 107/107 migrations, passed database 349/349 zero-skip and full API
+integration, and proved rollback-local results plus current-role revocation.
+
+Rollback: keep all M3.160-M3.163 exact-tenant gates false; selected traffic
+then remains on the legacy path. Source rollback is one focused revert of the
+handoff/result contract; no down-migration exists or is needed. Next safe
+milestone: local protected-browser proof of `202 -> pending -> success`, abort,
+timeout cancellation, and revoked access with all provider egress blocked.
+
 ## M3.162 provider-free Cortex generation jobs
 
 1. Added strict shared start/status/queue/recovery/worker-completion contracts

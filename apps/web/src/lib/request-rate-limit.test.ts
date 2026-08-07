@@ -36,6 +36,16 @@ describe('request rate-limit identity', () => {
       limit: 20,
       windowMs: 60_000,
     })
+    expect(
+      requestRateLimitPolicy(
+        '/api/cortex/chat/jobs/22222222-2222-4222-8222-222222222222',
+        true
+      )
+    ).toEqual({
+      bucket: 'provider-chat',
+      limit: 20,
+      windowMs: 60_000,
+    })
     expect(requestRateLimitPolicy('/api/search', true)).toEqual({
       bucket: 'general',
       limit: 1_000,

@@ -1,5 +1,30 @@
 # Architecture Decisions
 
+## D-272 - Return Cortex jobs early and reauthorize final reads (2026-08-08)
+
+Decision: selected provider-free chat returns `202 Accepted` immediately.
+Browser polling is same-origin, private, rate-limited, abortable, and capped at
+ten attempts. A dedicated Nest result endpoint releases official content only
+after current PostgreSQL principal, owner, context, source-turn, and citation
+authorization. Abort or timeout requests Core cancellation. Legacy tenants
+retain the existing stream and every rollout flag remains closed.
+
+Rationale: sleeping inside a Next request charges function duration and can
+still end in an ambiguous `409`. Returning an opaque job identity separates
+Web request lifetime from durable work. Status authorization is insufficient
+for content release because roles and record visibility may change while the
+job runs; final-result authorization must be current. A strict poll cap limits
+invocation count and runaway retry behavior. This addresses runtime duration,
+not build CPU; disconnected Vercel Git and guarded releases remain mandatory.
+
+Evidence: shared consistency contracts; Nest controller and rollback-only
+PostgreSQL tests; current-role/context revocation; rollback-local citation
+hydration; Core-client and Next proxy tests; same-origin substitution denial;
+ten-attempt timeout and abort cancellation tests; 107/107 disposable replay;
+349/349 zero-skip DB tests; full API integration; 256 shared, 586 API, and 676
+Web tests; local production builds; spend/release/security gates. No hosted or
+provider action occurred.
+
 ## D-271 - Keep Cortex generation authority in Core (2026-08-08)
 
 Decision: move deterministic grounded assistant execution through a
