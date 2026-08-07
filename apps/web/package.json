@@ -10,23 +10,24 @@
     "demo:warm": "node scripts/warm-routes.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "echo 'lint: TS-only checks for now (next lint deprecated, eslint flat config not yet configured)' && tsc --noEmit",
-    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint: TS-only checks for now (next lint deprecated, eslint flat config not yet configured)' && tsc --noEmit && tsc --noEmit -p e2e/cortex-index.tsconfig.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e/cortex-index.tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:cortex-index-local": "playwright test --config=playwright.cortex-index.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
-    "@third-code-erp/ai": "workspace:*",
-    "@third-code-erp/auth": "workspace:*",
-    "@third-code-erp/database": "workspace:*",
-    "@third-code-erp/shared-types": "workspace:*",
     "@gsap/react": "^2.1.2",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.48.1",
     "@tailwindcss/postcss": "^4.3.0",
+    "@third-code-erp/ai": "workspace:*",
+    "@third-code-erp/auth": "workspace:*",
+    "@third-code-erp/database": "workspace:*",
+    "@third-code-erp/shared-types": "workspace:*",
     "@vercel/analytics": "^2.0.1",
     "ai": "^6.0.177",
     "d3-force": "^3.0.0",
@@ -47,13 +48,14 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@third-code-erp/config": "workspace:*",
     "@playwright/test": "^1.49.0",
+    "@third-code-erp/config": "workspace:*",
     "@types/d3-force": "^3.0.10",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.7.2",
+    "vite": "7.3.3",
     "vitest": "^3.2.4"
   }
 }

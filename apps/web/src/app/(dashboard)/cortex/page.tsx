@@ -7,11 +7,10 @@ import { CortexBriefPanel } from '@/components/cortex/cortex-brief-panel'
 import { CortexGraphView } from '@/components/cortex/cortex-graph-view'
 import { CortexAgent } from '@/components/cortex/cortex-agent'
 import { CortexIndexButton } from '@/components/cortex/cortex-index-button'
-import { canonicalRole } from '@/lib/operations/nav-config'
 import { presentCortexBrief } from '@/lib/cortex/brief-presentation'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 import { authorizeCortexRecordContext } from '@/lib/cortex/record-context'
-import { cortexSemanticIndexJobsUseCoreApi } from '@/lib/erp-core-client'
+import { cortexSemanticIndexControlAccess } from '@/lib/cortex/semantic-index-control'
 
 export const metadata: Metadata = { title: 'Cortex — AI Brain' }
 
@@ -59,6 +58,10 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
     8
   )
   const stats = brief.stats
+  const semanticIndexControl = cortexSemanticIndexControlAccess(
+    profile.role,
+    profile.tenantId
+  )
 
   const kpis = [
     { label: 'Records', value: stats.nodes },
@@ -79,9 +82,9 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
             linked into one permissioned, source-cited knowledge graph.
           </p>
         </div>
-        {canonicalRole(profile.role) === 'admin' && (
+        {semanticIndexControl.visible && (
           <CortexIndexButton
-            enabled={cortexSemanticIndexJobsUseCoreApi(profile.tenantId)}
+            enabled={semanticIndexControl.enabled}
           />
         )}
       </header>

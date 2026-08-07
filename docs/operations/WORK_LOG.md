@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-07 - M3.157 auth-safe Cortex indexing browser proof
+
+Inspected the protected Cortex E2E and found that it calls Supabase Admin
+`generate_link` and global logout. Replaced that requirement for spend-control
+UI proof with a dedicated localhost Vite gallery importing the production
+component and CSS. Added an exact server-side access projection so non-admin
+roles never receive the control, while owner/admin visibility remains distinct
+from the closed-by-default tenant enablement gate.
+
+The first browser attempt failed before execution because the Playwright-
+managed Chromium binary was absent. The configuration was corrected to use the
+already installed Chrome channel, avoiding a browser download. An initial
+typecheck change also surfaced unrelated legacy E2E errors; validation was
+narrowed to a dedicated Cortex harness tsconfig instead of changing unrelated
+tests.
+
+Final results: focused 6/6; Playwright 5/5 at desktop/mobile; Web 637/637;
+workspace lint/typecheck; local NestJS/Next.js build with 82 static pages;
+spend 4/4; release 5/5; Actionlint; Gitleaks across 540 commits; pinned workflow
+refs; diff and clean-room checks. Browser proof recorded zero console/page
+errors, foreign requests, or responsive overflow and verified 44px mobile
+actions. No Next server, Supabase/Auth, database, Redis, provider, cloud build,
+deployment, paid branch, or Vercel Git integration was used.
+
 ## 2026-08-07 - M3.156 disposable Cortex semantic-index runtime proof
 
 Replayed all 104 source migrations in the isolated `erp_self_hosted_ci`

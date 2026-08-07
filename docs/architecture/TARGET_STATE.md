@@ -1,5 +1,20 @@
 # Target State
 
+## M3.157 auth-safe cost-control browser evidence
+
+Provider-spending UI must be testable without minting or revoking a hosted
+identity. Server code owns whether the control is visible and enabled; the
+browser receives no tenant selector or permission override. A localhost-only
+gallery may render the real component for deterministic interaction testing,
+but it must connect to no hosted Auth, database, queue, or provider and must
+never become an application route.
+
+Browser evidence must cover closed rollout, cancellation, exact disclosure,
+one command, idempotency header, active states, success, terminal failure,
+responsive fit, touch targets, overflow, console errors, and foreign network
+requests. This evidence is now satisfied locally. Full production-route session
+integration and exact-tenant release approval remain separate gates.
+
 ## M3.156 semantic-index runtime proof boundary
 
 Every cost-bearing semantic-index workflow must first pass a disposable,

@@ -1,5 +1,18 @@
 # Third Code ERP capability matrix
 
+## M3.157 auth-safe semantic-index browser proof (2026-08-07)
+
+Source now has a server-owned access projection and localhost-only browser
+gallery for the real Cortex indexing control. Owner/admin visibility, exact-
+tenant enablement, closed/wildcard behavior, confirmation, cancellation,
+one-command submission, polling, success, terminal failure, desktop/mobile fit,
+touch targets, console cleanliness, and zero foreign requests are proven.
+
+Capability remains disabled and this is not a full authenticated route canary.
+Managed parity, M3.152 owner mapping, backup/PITR restoration, exact tenant,
+spend ceiling, rollback approval, and any required isolated full-session proof
+remain unresolved. No hosted provider, database, build, or deployment was used.
+
 ## M3.156 disposable semantic-index runtime proof (2026-08-07)
 
 Source-only semantic indexing now has disposable runtime evidence: 104/104
