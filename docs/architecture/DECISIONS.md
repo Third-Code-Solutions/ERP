@@ -1,5 +1,32 @@
 # Architecture Decisions
 
+## D-270 - Fence provider work before trusted assistant completion (2026-08-08)
+
+Decision: split assistant authority into a signed durable claim and a fenced
+completion tied to one official user turn. Persist the lease in PostgreSQL,
+store only the claim-token hash, authorize and audit each lease mutation in
+NestJS, and hard-code the completed message role. Claim must precede any
+provider quota, retrieval, embedding, or model call. Quota denial completes a
+free grounded answer. Selected traffic cannot fall back to direct Next
+assistant or audit writes.
+
+Rationale: user authentication alone cannot prove that an assistant message
+came from trusted server orchestration. Retried streams can also duplicate
+provider cost. A principal-bound HMAC blocks browser impersonation; a durable
+lease/fencing token blocks concurrent or stale workers; exact replay returns
+the first committed answer without spending again. PostgreSQL remains truth,
+while the future Python inference boundary stays advisory and unable to commit.
+
+Evidence: strict shared parsers and signature vector tests; controller/service
+tests for closed gates, operation binding, stale/tampered signatures, and
+current-role replay; Web tests for dependency gates, active/completed replay,
+claim-before-quota, free fallback, and no direct-write fallback; migration/RLS
+tests; and a rollback-only PostgreSQL test covering official provenance,
+reclaim, stale fencing, exact/changed completion, tenant isolation, role
+revocation, citation IDs, composite FKs, and raw-secret-free audit. Local
+106-migration replay and all production builds passed. No provider or hosted
+operation occurred.
+
 ## D-269 - Separate human and assistant Cortex write authority (2026-08-07)
 
 Decision: migrate only authenticated human user-turn persistence to the NestJS

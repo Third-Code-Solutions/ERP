@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-08 - M3.161 trusted Cortex assistant-generation authority
+
+Implemented the smallest safe assistant slice without moving model execution
+or rewriting chat. Added signed claim/completion contracts, a service-only
+PostgreSQL generation ledger, a 60-second fenced lease, exact replay, current
+RBAC/context/citation checks, hard-coded assistant role, and atomic semantic
+audits. The claim is bound to one official M3.160 user message. Plain claim
+tokens exist only in the trusted response and are stored as hashes.
+
+Wired the existing Next stream behind closed exact-tenant flags. Completed and
+concurrent retries avoid retrieval/model spend. Quota denial now completes a
+free deterministic grounded answer rather than stranding the lease. Selected
+traffic makes no direct assistant or audit database write and never falls back
+after Core completion failure. Review also corrected replay citation scope to
+use the current role locked from PostgreSQL rather than stale token claims.
+
+Results: shared 32/251; API 131/573; Web 97/661; ordinary database 203 passed /
+143 expected skips; cache-bypassed bounded root suite; lint/typecheck; local
+Nest/Next production build with 82 static pages; spend 4/4; release 5/5;
+Actionlint; pinned actions. Disposable PostgreSQL 17.10 + Redis 7.4.9 applied
+106/106 migrations, passed database 346/346 zero-skip, focused authority 1/1,
+and final API integration 24 files / 33 tests with identical schema hashes. The
+first full integration run hit one existing semantic-index Redis close race;
+isolated 3/3 and full retry 33/33 passed. A filtered Web recount had one
+transient unidentified red; the canonical run and two subsequent full recounts
+passed 661/661.
+
+No hosted Supabase read/write, Auth/Storage/data mutation, AI/image/provider
+call, Vercel/Railway build or deployment, Git integration change, or paid
+resource occurred. Managed Supabase remains last verified at 55/106.
+
 ## 2026-08-07 - M3.160 Core Cortex user-turn write authority
 
 Implemented the smallest safe chat-write migration: only the authenticated

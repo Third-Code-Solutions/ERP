@@ -17,7 +17,13 @@ const mocks = vi.hoisted(() => ({
   openaiCreate: vi.fn(),
   embedText: vi.fn(),
   cortexConversationUserTurnWritesUseCoreApi: vi.fn(),
+  cortexConversationAssistantTurnWritesUseCoreApi: vi.fn(),
   appendCortexConversationUserTurnThroughCoreApi: vi.fn(),
+  claimCortexConversationAssistantTurnThroughCoreApi: vi.fn(),
+  completeCortexConversationAssistantTurnThroughCoreApi: vi.fn(),
+  cortexAssistantTurnIdempotencyKey: vi.fn(
+    (userTurnKey: string) => `assistant-${userTurnKey}`
+  ),
   consumeProviderQuotaViaCoreApi: vi.fn(),
 }))
 
@@ -63,8 +69,16 @@ vi.mock('@/lib/operations/nav-config', () => ({
 vi.mock('@/lib/erp-core-client', () => ({
   cortexConversationUserTurnWritesUseCoreApi:
     mocks.cortexConversationUserTurnWritesUseCoreApi,
+  cortexConversationAssistantTurnWritesUseCoreApi:
+    mocks.cortexConversationAssistantTurnWritesUseCoreApi,
   appendCortexConversationUserTurnThroughCoreApi:
     mocks.appendCortexConversationUserTurnThroughCoreApi,
+  claimCortexConversationAssistantTurnThroughCoreApi:
+    mocks.claimCortexConversationAssistantTurnThroughCoreApi,
+  completeCortexConversationAssistantTurnThroughCoreApi:
+    mocks.completeCortexConversationAssistantTurnThroughCoreApi,
+  cortexAssistantTurnIdempotencyKey:
+    mocks.cortexAssistantTurnIdempotencyKey,
   consumeProviderQuotaViaCoreApi: mocks.consumeProviderQuotaViaCoreApi,
   providerQuotaUsesCoreApi: vi.fn(() => false),
 }))
@@ -78,6 +92,10 @@ import {
 const CONVERSATION_ID = '11111111-1111-4111-8111-111111111111'
 const NODE_ID = '22222222-2222-4222-8222-222222222222'
 const REF_ID = '33333333-3333-4333-8333-333333333333'
+const USER_MESSAGE_ID = '44444444-4444-4444-8444-444444444444'
+const ASSISTANT_MESSAGE_ID = '55555555-5555-4555-8555-555555555555'
+const ASSISTANT_REQUEST_ID = '66666666-6666-4666-8666-666666666666'
+const ASSISTANT_CLAIM_TOKEN = '77777777-7777-4777-8777-777777777777'
 
 function expectPrivate(response: Response) {
   expect(response.headers.get('cache-control')).toBe(
@@ -114,13 +132,36 @@ describe('Cortex chat conversation ownership', () => {
     mocks.authorizeCortexRecordContext.mockResolvedValue(null)
     mocks.writeAuditLog.mockResolvedValue(undefined)
     mocks.cortexConversationUserTurnWritesUseCoreApi.mockReturnValue(false)
+    mocks.cortexConversationAssistantTurnWritesUseCoreApi.mockReturnValue(false)
     mocks.appendCortexConversationUserTurnThroughCoreApi.mockResolvedValue({
       ok: true,
       status: 201,
       data: {
         conversationId: CONVERSATION_ID,
-        messageId: '44444444-4444-4444-8444-444444444444',
+        messageId: USER_MESSAGE_ID,
         status: 'created',
+      },
+    })
+    mocks.claimCortexConversationAssistantTurnThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: {
+        status: 'claimed',
+        conversationId: CONVERSATION_ID,
+        userMessageId: USER_MESSAGE_ID,
+        requestId: ASSISTANT_REQUEST_ID,
+        claimToken: ASSISTANT_CLAIM_TOKEN,
+        leaseExpiresAt: '2026-08-08T00:01:00.000Z',
+      },
+    })
+    mocks.completeCortexConversationAssistantTurnThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: {
+        status: 'created',
+        conversationId: CONVERSATION_ID,
+        userMessageId: USER_MESSAGE_ID,
+        messageId: ASSISTANT_MESSAGE_ID,
       },
     })
     mocks.consumeProviderQuotaViaCoreApi.mockResolvedValue({
@@ -375,6 +416,241 @@ describe('Cortex chat conversation ownership', () => {
       'Grounded answer',
       []
     )
+  })
+
+  it('fails closed when assistant authority is selected without Core user-turn authority', async () => {
+    mocks.cortexConversationAssistantTurnWritesUseCoreApi.mockReturnValue(true)
+    const request = new NextRequest('http://localhost/api/cortex/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Show active projects' }],
+      }),
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(503)
+    expectPrivate(response)
+    await expect(response.text()).resolves.toBe(
+      'Cortex assistant authority requires Core user-turn authority.'
+    )
+    expect(
+      mocks.appendCortexConversationUserTurnThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expect(
+      mocks.claimCortexConversationAssistantTurnThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expect(mocks.openaiCreate).not.toHaveBeenCalled()
+  })
+
+  it('returns retry guidance without retrieval or provider spend for an active claim', async () => {
+    mocks.cortexConversationUserTurnWritesUseCoreApi.mockReturnValue(true)
+    mocks.cortexConversationAssistantTurnWritesUseCoreApi.mockReturnValue(true)
+    mocks.claimCortexConversationAssistantTurnThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        status: 'in_progress',
+        conversationId: CONVERSATION_ID,
+        userMessageId: USER_MESSAGE_ID,
+        retryAfterSeconds: 17,
+      },
+    })
+    vi.stubEnv('OPENAI_API_KEY', 'test-key')
+    const request = new NextRequest('http://localhost/api/cortex/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'browser-turn-in-progress',
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Show active projects' }],
+      }),
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(409)
+    expect(response.headers.get('retry-after')).toBe('17')
+    expectPrivate(response)
+    expect(mocks.consumeProviderQuotaViaCoreApi).not.toHaveBeenCalled()
+    expect(mocks.searchCortexNodes).not.toHaveBeenCalled()
+    expect(mocks.openaiCreate).not.toHaveBeenCalled()
+    expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
+  })
+
+  it('replays a completed assistant turn without retrieval or provider spend', async () => {
+    const citation = {
+      nodeId: NODE_ID,
+      nodeType: 'project',
+      refTable: 'projects',
+      refId: REF_ID,
+      title: 'Metro MEP Retrofit',
+      projectId: REF_ID,
+    }
+    mocks.cortexConversationUserTurnWritesUseCoreApi.mockReturnValue(true)
+    mocks.cortexConversationAssistantTurnWritesUseCoreApi.mockReturnValue(true)
+    mocks.claimCortexConversationAssistantTurnThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        status: 'succeeded',
+        conversationId: CONVERSATION_ID,
+        userMessageId: USER_MESSAGE_ID,
+        messageId: ASSISTANT_MESSAGE_ID,
+        content: 'Stored grounded answer',
+        citations: [citation],
+        outcome: 'deterministic_grounded',
+        model: 'deterministic-grounded',
+      },
+    })
+    vi.stubEnv('OPENAI_API_KEY', 'test-key')
+    const request = new NextRequest('http://localhost/api/cortex/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'browser-turn-complete',
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Show active projects' }],
+      }),
+    })
+
+    const response = await POST(request)
+
+    await expect(response.text()).resolves.toBe('Stored grounded answer')
+    expect(response.headers.get('X-Conversation-Id')).toBe(CONVERSATION_ID)
+    expect(
+      decodeCortexCitationHeader(response.headers.get(CORTEX_CITATIONS_HEADER))
+    ).toEqual([citation])
+    expect(mocks.consumeProviderQuotaViaCoreApi).not.toHaveBeenCalled()
+    expect(mocks.searchCortexNodes).not.toHaveBeenCalled()
+    expect(mocks.openaiCreate).not.toHaveBeenCalled()
+    expect(
+      mocks.completeCortexConversationAssistantTurnThroughCoreApi
+    ).not.toHaveBeenCalled()
+    expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
+  })
+
+  it('completes a claimed assistant turn through Core before closing the stream', async () => {
+    mocks.cortexConversationUserTurnWritesUseCoreApi.mockReturnValue(true)
+    mocks.cortexConversationAssistantTurnWritesUseCoreApi.mockReturnValue(true)
+    const request = new NextRequest('http://localhost/api/cortex/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'browser-turn-claimed',
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Show active projects' }],
+      }),
+    })
+
+    const response = await POST(request)
+    await expect(response.text()).resolves.toBe('Grounded answer')
+
+    expect(
+      mocks.claimCortexConversationAssistantTurnThroughCoreApi
+    ).toHaveBeenCalledWith(
+      { conversationId: CONVERSATION_ID, userMessageId: USER_MESSAGE_ID },
+      'assistant-browser-turn-claimed',
+      { tenantId: 'tenant-a', userId: 'user-a' }
+    )
+    expect(
+      mocks.completeCortexConversationAssistantTurnThroughCoreApi
+    ).toHaveBeenCalledWith(
+      {
+        requestId: ASSISTANT_REQUEST_ID,
+        claimToken: ASSISTANT_CLAIM_TOKEN,
+        content: 'Grounded answer',
+        citationNodeIds: [],
+        outcome: 'deterministic_grounded',
+        model: 'deterministic-grounded',
+      },
+      'assistant-browser-turn-claimed',
+      { tenantId: 'tenant-a', userId: 'user-a' }
+    )
+    expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back to a direct assistant write when Core completion fails', async () => {
+    mocks.cortexConversationUserTurnWritesUseCoreApi.mockReturnValue(true)
+    mocks.cortexConversationAssistantTurnWritesUseCoreApi.mockReturnValue(true)
+    mocks.completeCortexConversationAssistantTurnThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'Core completion unavailable.',
+    })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const request = new NextRequest('http://localhost/api/cortex/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'browser-turn-core-failure',
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Show active projects' }],
+      }),
+    })
+
+    const response = await POST(request)
+    await expect(response.text()).resolves.toBe('Grounded answer')
+
+    expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[cortex/chat] Core assistant completion failed:',
+      'Core completion unavailable.'
+    )
+  })
+
+  it('claims before quota and completes a free grounded fallback when quota blocks', async () => {
+    mocks.cortexConversationUserTurnWritesUseCoreApi.mockReturnValue(true)
+    mocks.cortexConversationAssistantTurnWritesUseCoreApi.mockReturnValue(true)
+    mocks.consumeProviderQuotaViaCoreApi.mockResolvedValue({
+      ok: false,
+      status: 429,
+      error: 'Provider quota exhausted.',
+      retryAfterSeconds: 60,
+      limit: 10,
+      scope: 'tenant',
+    })
+    vi.stubEnv('OPENAI_API_KEY', 'test-key')
+    const request = new NextRequest('http://localhost/api/cortex/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'browser-turn-quota',
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Show active projects' }],
+      }),
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(200)
+    await expect(response.text()).resolves.toBe('Grounded answer')
+    expect(
+      mocks.claimCortexConversationAssistantTurnThroughCoreApi.mock
+        .invocationCallOrder[0]
+    ).toBeLessThan(
+      mocks.consumeProviderQuotaViaCoreApi.mock.invocationCallOrder[0] ?? 0
+    )
+    expect(mocks.openaiCreate).not.toHaveBeenCalled()
+    expect(
+      mocks.completeCortexConversationAssistantTurnThroughCoreApi
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Grounded answer',
+        outcome: 'deterministic_grounded',
+        model: 'deterministic-grounded',
+      }),
+      'assistant-browser-turn-quota',
+      { tenantId: 'tenant-a', userId: 'user-a' }
+    )
+    expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
   })
 
   it('fails closed when selected Core user-turn authority is unavailable', async () => {

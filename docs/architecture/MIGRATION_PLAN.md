@@ -1,5 +1,44 @@
 # Migration Plan
 
+## M3.161 trusted Cortex assistant-generation authority
+
+1. Added strict shared claim, completion, outcome, replay, and signature
+   contracts. Neither command accepts tenant, role, actor, or assistant role.
+2. Added migration `20260807190000`: a forced-RLS service-only request ledger,
+   explicit `processing -> succeeded` state machine, 60-second lease, hashed
+   fencing token, one-generation-per-user-turn uniqueness, and composite tenant
+   foreign keys.
+3. Added Nest claim/completion authority. Core verifies a fresh principal-bound
+   HMAC, locks current membership and owned context, requires an official
+   M3.160 user message, authorizes citation IDs, hard-codes `assistant`, and
+   commits message, ledger, timestamp, and semantic audit transactionally.
+4. Wired Next behind independent exact-tenant flags. Claim happens before
+   provider quota/retrieval/model work; active/completed retries spend nothing;
+   quota denial completes a deterministic grounded fallback; selected Core
+   failure never restores direct assistant or audit writes.
+5. Preserved all public response shapes and legacy behavior by default. No
+   provider, deployment, or hosted database was exercised.
+
+Validation: shared 251/251; API 573/573; Web 661/661 on the canonical run and
+two final recounts; ordinary database 203 passed / 143 expected skips; bounded
+cache-bypassed root tests; workspace lint/typecheck; local Nest/Next builds with
+82 static pages; spend 4/4; controlled release 5/5; Actionlint; and pinned
+actions. Disposable PostgreSQL/Redis applied 106/106 migrations, passed
+database 346/346 without skips, focused authority 1/1, and the final full API
+integration lane 33/33. A first full run exposed an existing transient Redis
+connection-close race; isolated semantic-index 3/3 and full retry 33/33 passed.
+The schema hash was unchanged after rollback-only tests.
+
+Keep all user-turn and assistant-turn Core/Web flags false, all allowlists
+empty, and `ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET` unset. Before canary, finish
+M3.152 owner-approved backup/PITR proof, replay all 106 migrations in an
+isolated complete clone, configure one shared random secret only in server
+runtimes, and compare legacy/Core deterministic/model/failure/replay paths for
+one exact tenant. Rollback is the assistant Web/Core flags false; leave the
+inert ledger migration in place. Safe source-only next increment: move
+retrieval/model execution behind a bounded Nest/BullMQ/Python contract while
+keeping final authority in NestJS.
+
 ## M3.160 Core Cortex user-turn write authority
 
 1. Added strict shared user-turn command/result contracts. Caller-controlled

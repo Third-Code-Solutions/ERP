@@ -71,6 +71,107 @@ export const cortexConversationUserTurnResultSchema = z
   })
   .strict()
 
+export const cortexConversationAssistantTurnOutcomeSchema = z.enum([
+  'model',
+  'model_stream_failed_partial',
+  'model_failed_grounded_fallback',
+  'deterministic_grounded',
+])
+
+export const cortexConversationAssistantTurnClaimCommandSchema = z
+  .object({
+    conversationId: cortexConversationIdSchema,
+    userMessageId: z.string().uuid(),
+  })
+  .strict()
+
+const cortexConversationAssistantTurnSucceededSchema = z
+  .object({
+    status: z.literal('succeeded'),
+    conversationId: cortexConversationIdSchema,
+    userMessageId: z.string().uuid(),
+    messageId: z.string().uuid(),
+    content: z.string().max(100_000),
+    citations: z.array(cortexCitationSchema).max(12),
+    outcome: cortexConversationAssistantTurnOutcomeSchema,
+    model: z.string().trim().min(1).max(100),
+  })
+  .strict()
+
+export const cortexConversationAssistantTurnClaimResultSchema = z.discriminatedUnion(
+  'status',
+  [
+    z
+      .object({
+        status: z.literal('claimed'),
+        conversationId: cortexConversationIdSchema,
+        userMessageId: z.string().uuid(),
+        requestId: z.string().uuid(),
+        claimToken: z.string().uuid(),
+        leaseExpiresAt: z.string().datetime({ offset: true }),
+      })
+      .strict(),
+    z
+      .object({
+        status: z.literal('in_progress'),
+        conversationId: cortexConversationIdSchema,
+        userMessageId: z.string().uuid(),
+        retryAfterSeconds: z.number().int().min(1).max(300),
+      })
+      .strict(),
+    cortexConversationAssistantTurnSucceededSchema,
+  ]
+)
+
+export const cortexConversationAssistantTurnCompleteCommandSchema = z
+  .object({
+    requestId: z.string().uuid(),
+    claimToken: z.string().uuid(),
+    content: z
+      .string()
+      .max(100_000)
+      .refine((value) => value.trim().length > 0, 'Content is required'),
+    citationNodeIds: z.array(z.string().uuid()).max(12),
+    outcome: cortexConversationAssistantTurnOutcomeSchema,
+    model: z.string().trim().min(1).max(100),
+  })
+  .strict()
+  .refine(
+    (value) => new Set(value.citationNodeIds).size === value.citationNodeIds.length,
+    { message: 'Citation node IDs must be unique', path: ['citationNodeIds'] }
+  )
+
+export const cortexConversationAssistantTurnCompleteResultSchema = z
+  .object({
+    status: z.literal('created'),
+    conversationId: cortexConversationIdSchema,
+    userMessageId: z.string().uuid(),
+    messageId: z.string().uuid(),
+  })
+  .strict()
+
+export const CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION = 'v1' as const
+export const CORTEX_ASSISTANT_TURN_SIGNATURE_MAX_AGE_SECONDS = 60
+
+export function cortexConversationAssistantTurnSignaturePayload(input: {
+  operation: 'claim' | 'complete'
+  timestamp: string
+  tenantId: string
+  userId: string
+  idempotencyKey: string
+  commandDigest: string
+}): string {
+  return JSON.stringify({
+    version: CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION,
+    operation: input.operation,
+    timestamp: input.timestamp,
+    tenantId: input.tenantId,
+    userId: input.userId,
+    idempotencyKey: input.idempotencyKey,
+    commandDigest: input.commandDigest,
+  })
+}
+
 export type CortexConversationContext = z.infer<
   typeof cortexConversationContextSchema
 >
@@ -88,4 +189,19 @@ export type CortexConversationUserTurnCommand = z.infer<
 >
 export type CortexConversationUserTurnResult = z.infer<
   typeof cortexConversationUserTurnResultSchema
+>
+export type CortexConversationAssistantTurnOutcome = z.infer<
+  typeof cortexConversationAssistantTurnOutcomeSchema
+>
+export type CortexConversationAssistantTurnClaimCommand = z.infer<
+  typeof cortexConversationAssistantTurnClaimCommandSchema
+>
+export type CortexConversationAssistantTurnClaimResult = z.infer<
+  typeof cortexConversationAssistantTurnClaimResultSchema
+>
+export type CortexConversationAssistantTurnCompleteCommand = z.infer<
+  typeof cortexConversationAssistantTurnCompleteCommandSchema
+>
+export type CortexConversationAssistantTurnCompleteResult = z.infer<
+  typeof cortexConversationAssistantTurnCompleteResultSchema
 >

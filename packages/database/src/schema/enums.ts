@@ -515,3 +515,8 @@ export const cortexConversationTurnRequestStateEnum = pgEnum(
   'cortex_conversation_turn_request_state',
   ['processing', 'succeeded']
 )
+
+export const cortexAssistantTurnRequestStateEnum = pgEnum(
+  'cortex_assistant_turn_request_state',
+  ['processing', 'succeeded']
+)

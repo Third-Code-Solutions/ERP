@@ -162,6 +162,23 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Assistant generations require both an authenticated principal and a
+  // server-only HMAC. Browser callers can never select the assistant role.
+  ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET: z.string().min(32).optional(),
   // Semantic indexing can spend an external provider call. Intake, worker,
   // and recovery are independently closed and exact-tenant scoped.
   ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED: z

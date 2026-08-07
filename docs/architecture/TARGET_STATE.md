@@ -1,5 +1,28 @@
 # Target State
 
+## M3.161 trusted Cortex assistant-generation authority
+
+Assistant generation is a trusted server workflow, never a browser-selected
+message role. NestJS owns permission checks, one-user-turn/one-generation
+identity, durable lease/fencing, official message commit, exact replay, current
+citation projection, and chained audit. PostgreSQL is transaction truth; Redis
+may coordinate later execution but cannot replace the ledger. A server-only
+HMAC binds the Next compatibility facade to the authenticated tenant/user and
+exact command.
+
+Provider work may start only after a durable claim. Concurrent or completed
+retries make no provider call. If paid quota is unavailable, the selected path
+must finish with a free grounded answer instead of abandoning a live lease.
+Python may later perform model inference, retrieval analytics, or document
+processing, but it cannot authorize, approve, or directly commit assistant or
+ERP records. Core must validate any returned evidence before completion.
+
+This source milestone moves claim/completion and memory authority only. The
+existing Next route still performs retrieval and optional model streaming.
+Moving that AI execution behind a bounded Nest/BullMQ/Python contract,
+managed-database replay, exact-tenant comparison, and protected canary evidence
+remain separate release gates. Every gate defaults closed.
+
 ## M3.160 Cortex user-turn write authority
 
 Official human-authored Cortex memory belongs to the NestJS modular monolith.

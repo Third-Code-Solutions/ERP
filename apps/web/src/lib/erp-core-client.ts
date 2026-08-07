@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { randomUUID } from 'node:crypto'
+import { createHash, createHmac, randomUUID } from 'node:crypto'
 import {
   rfqCreationResultSchema,
   rfqDispatchResultSchema,
@@ -207,10 +207,20 @@ import {
   cortexConversationListResponseSchema,
   cortexConversationDetailResponseSchema,
   cortexConversationUserTurnResultSchema,
+  cortexConversationAssistantTurnClaimCommandSchema,
+  cortexConversationAssistantTurnClaimResultSchema,
+  cortexConversationAssistantTurnCompleteCommandSchema,
+  cortexConversationAssistantTurnCompleteResultSchema,
+  cortexConversationAssistantTurnSignaturePayload,
+  CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION,
   type CortexConversationListResponse,
   type CortexConversationDetailResponse,
   type CortexConversationUserTurnCommand,
   type CortexConversationUserTurnResult,
+  type CortexConversationAssistantTurnClaimCommand,
+  type CortexConversationAssistantTurnClaimResult,
+  type CortexConversationAssistantTurnCompleteCommand,
+  type CortexConversationAssistantTurnCompleteResult,
   cortexSemanticIndexAcceptedSchema,
   cortexSemanticIndexStatusSchema,
   type CortexSemanticIndexAccepted,
@@ -430,6 +440,18 @@ export function cortexConversationUserTurnWritesUseCoreApi(
     tenantId,
     process.env.ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API,
     process.env.ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+/** Assistant generation is independent and requires a server-only signature. */
+export function cortexConversationAssistantTurnWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API,
+    process.env
+      .ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -1278,6 +1300,197 @@ export async function appendCortexConversationUserTurnThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex user-turn service is unavailable.',
+    }
+  }
+}
+
+interface CortexAssistantTurnPrincipalScope {
+  tenantId: string
+  userId: string
+}
+
+function cortexAssistantTurnHeaders(
+  operation: 'claim' | 'complete',
+  command: object,
+  idempotencyKey: string,
+  principal: CortexAssistantTurnPrincipalScope
+): CoreResult<Record<string, string>> {
+  const secret = process.env.ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET?.trim()
+  if (!secret || secret.length < 32) {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex assistant-turn signing is not configured.',
+    }
+  }
+  const timestamp = String(Math.floor(Date.now() / 1_000))
+  const commandDigest = createHash('sha256')
+    .update(JSON.stringify(command), 'utf8')
+    .digest('hex')
+  const payload = cortexConversationAssistantTurnSignaturePayload({
+    operation,
+    timestamp,
+    tenantId: principal.tenantId,
+    userId: principal.userId,
+    idempotencyKey,
+    commandDigest,
+  })
+  const signature = createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex')
+  return {
+    ok: true,
+    data: {
+      'Idempotency-Key': idempotencyKey,
+      'X-Third-Code-Timestamp': timestamp,
+      'X-Third-Code-Cortex-Signature':
+        `${CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION}=${signature}`,
+    },
+  }
+}
+
+export function cortexAssistantTurnIdempotencyKey(
+  userTurnIdempotencyKey: string
+): string {
+  return `assistant-${createHash('sha256')
+    .update(userTurnIdempotencyKey, 'utf8')
+    .digest('hex')}`
+}
+
+export async function claimCortexConversationAssistantTurnThroughCoreApi(
+  command: CortexConversationAssistantTurnClaimCommand,
+  idempotencyKey: string,
+  principal: CortexAssistantTurnPrincipalScope
+): Promise<CoreResult<CortexConversationAssistantTurnClaimResult>> {
+  const parsedCommand =
+    cortexConversationAssistantTurnClaimCommandSchema.safeParse(command)
+  if (!parsedCommand.success) {
+    return { ok: false, status: 400, error: 'Invalid assistant generation.' }
+  }
+  const signed = cortexAssistantTurnHeaders(
+    'claim',
+    parsedCommand.data,
+    idempotencyKey,
+    principal
+  )
+  if (!signed.ok || !signed.data) {
+    return { ok: false, status: signed.status, error: signed.error }
+  }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/conversations/assistant-turns/claims`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          ...signed.data,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Assistant generation was not claimed.',
+      }
+    }
+    const parsed =
+      cortexConversationAssistantTurnClaimResultSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid assistant generation claim.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex assistant generation service is unavailable.',
+    }
+  }
+}
+
+export async function completeCortexConversationAssistantTurnThroughCoreApi(
+  command: CortexConversationAssistantTurnCompleteCommand,
+  idempotencyKey: string,
+  principal: CortexAssistantTurnPrincipalScope
+): Promise<CoreResult<CortexConversationAssistantTurnCompleteResult>> {
+  const parsedCommand =
+    cortexConversationAssistantTurnCompleteCommandSchema.safeParse(command)
+  if (!parsedCommand.success) {
+    return { ok: false, status: 400, error: 'Invalid assistant completion.' }
+  }
+  const signed = cortexAssistantTurnHeaders(
+    'complete',
+    parsedCommand.data,
+    idempotencyKey,
+    principal
+  )
+  if (!signed.ok || !signed.data) {
+    return { ok: false, status: signed.status, error: signed.error }
+  }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/conversations/assistant-turns/complete`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          ...signed.data,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Assistant turn was not stored.',
+      }
+    }
+    const parsed =
+      cortexConversationAssistantTurnCompleteResultSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid assistant completion.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex assistant completion service is unavailable.',
     }
   }
 }

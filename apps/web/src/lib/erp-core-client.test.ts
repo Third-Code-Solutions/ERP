@@ -1,4 +1,9 @@
+import { createHash, createHmac } from 'node:crypto'
 import { createSupabaseServerClient } from '@third-code-erp/auth'
+import {
+  cortexConversationAssistantTurnSignaturePayload,
+  CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION,
+} from '@third-code-erp/shared-types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createRfqThroughCoreApi,
@@ -119,9 +124,13 @@ import {
   getCortexEntityThroughCoreApi,
   cortexConversationReadsUseCoreApi,
   cortexConversationUserTurnWritesUseCoreApi,
+  cortexConversationAssistantTurnWritesUseCoreApi,
   listCortexConversationsThroughCoreApi,
   getCortexConversationThroughCoreApi,
   appendCortexConversationUserTurnThroughCoreApi,
+  claimCortexConversationAssistantTurnThroughCoreApi,
+  completeCortexConversationAssistantTurnThroughCoreApi,
+  cortexAssistantTurnIdempotencyKey,
   cortexSemanticIndexJobsUseCoreApi,
   createCortexSemanticIndexJobThroughCoreApi,
   getCortexSemanticIndexJobThroughCoreApi,
@@ -823,6 +832,7 @@ const INVENTORY_STOCK_MOVEMENT_DETAIL_RESULT = {
 
 describe('ERP Core client', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.stubEnv('ERP_CORE_API_URL', 'https://erp-api.example.test')
     vi.mocked(createSupabaseServerClient).mockResolvedValue({
       auth: {
@@ -964,6 +974,192 @@ describe('ERP Core client', () => {
         headers: expect.objectContaining({
           authorization: 'Bearer never-log-or-return-this-token',
           'Idempotency-Key': 'turn-1',
+        }),
+      })
+    )
+  })
+
+  it('keeps assistant-turn authority closed unless the exact tenant gate matches', () => {
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API',
+      'true'
+    )
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(
+      cortexConversationAssistantTurnWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(true)
+
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API',
+      'TRUE'
+    )
+    expect(
+      cortexConversationAssistantTurnWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(false)
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API',
+      'true'
+    )
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API_TENANT_IDS',
+      ''
+    )
+    expect(
+      cortexConversationAssistantTurnWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(false)
+  })
+
+  it('derives one stable assistant idempotency key without exposing the user key', () => {
+    const key = cortexAssistantTurnIdempotencyKey('browser-turn-1')
+
+    expect(key).toMatch(/^assistant-[0-9a-f]{64}$/)
+    expect(key).toBe(cortexAssistantTurnIdempotencyKey('browser-turn-1'))
+    expect(key).not.toContain('browser-turn-1')
+    expect(key).not.toBe(cortexAssistantTurnIdempotencyKey('browser-turn-2'))
+  })
+
+  it('claims one assistant generation through signed authenticated Core', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111'
+    const command = {
+      conversationId: '33333333-3333-4333-8333-333333333333',
+      userMessageId: '44444444-4444-4444-8444-444444444444',
+    }
+    const result = {
+      status: 'claimed' as const,
+      conversationId: command.conversationId,
+      userMessageId: command.userMessageId,
+      requestId: '55555555-5555-4555-8555-555555555555',
+      claimToken: '66666666-6666-4666-8666-666666666666',
+      leaseExpiresAt: '2026-08-08T00:01:00.000Z',
+    }
+    const secret = 'assistant-turn-test-secret-32-bytes-minimum'
+    const idempotencyKey = 'assistant-test-claim'
+    const epochMilliseconds = Date.parse('2026-08-08T00:00:00.000Z')
+    vi.stubEnv('ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET', secret)
+    vi.spyOn(Date, 'now').mockReturnValue(epochMilliseconds)
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const timestamp = String(Math.floor(epochMilliseconds / 1_000))
+    const commandDigest = createHash('sha256')
+      .update(JSON.stringify(command), 'utf8')
+      .digest('hex')
+    const payload = cortexConversationAssistantTurnSignaturePayload({
+      operation: 'claim',
+      timestamp,
+      tenantId: RESULT.tenantId,
+      userId,
+      idempotencyKey,
+      commandDigest,
+    })
+    const signature = createHmac('sha256', secret)
+      .update(payload)
+      .digest('hex')
+
+    await expect(
+      claimCortexConversationAssistantTurnThroughCoreApi(
+        command,
+        idempotencyKey,
+        { tenantId: RESULT.tenantId, userId }
+      )
+    ).resolves.toEqual({ ok: true, data: result, status: 201 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/cortex/conversations/assistant-turns/claims',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'Idempotency-Key': idempotencyKey,
+          'X-Third-Code-Timestamp': timestamp,
+          'X-Third-Code-Cortex-Signature':
+            `${CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION}=${signature}`,
+        }),
+      })
+    )
+  })
+
+  it('fails assistant generation closed before auth or network when signing is absent', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      claimCortexConversationAssistantTurnThroughCoreApi(
+        {
+          conversationId: '33333333-3333-4333-8333-333333333333',
+          userMessageId: '44444444-4444-4444-8444-444444444444',
+        },
+        'assistant-test-missing-secret',
+        {
+          tenantId: RESULT.tenantId,
+          userId: '11111111-1111-4111-8111-111111111111',
+        }
+      )
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error: 'Cortex assistant-turn signing is not configured.',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(createSupabaseServerClient).not.toHaveBeenCalled()
+  })
+
+  it('completes a claimed assistant turn through signed authenticated Core', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111'
+    const command = {
+      requestId: '55555555-5555-4555-8555-555555555555',
+      claimToken: '66666666-6666-4666-8666-666666666666',
+      content: 'Grounded answer',
+      citationNodeIds: ['77777777-7777-4777-8777-777777777777'],
+      outcome: 'deterministic_grounded' as const,
+      model: 'deterministic-grounded',
+    }
+    const idempotencyKey = 'assistant-test-complete'
+    const result = {
+      status: 'created' as const,
+      conversationId: '33333333-3333-4333-8333-333333333333',
+      userMessageId: '44444444-4444-4444-8444-444444444444',
+      messageId: '88888888-8888-4888-8888-888888888888',
+    }
+    vi.stubEnv(
+      'ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET',
+      'assistant-turn-test-secret-32-bytes-minimum'
+    )
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      completeCortexConversationAssistantTurnThroughCoreApi(
+        command,
+        idempotencyKey,
+        { tenantId: RESULT.tenantId, userId }
+      )
+    ).resolves.toEqual({ ok: true, data: result, status: 201 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/cortex/conversations/assistant-turns/complete',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+          'Idempotency-Key': idempotencyKey,
+          'X-Third-Code-Cortex-Signature': expect.stringMatching(
+            /^v1=[0-9a-f]{64}$/
+          ),
         }),
       })
     )
