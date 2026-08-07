@@ -1,5 +1,23 @@
 # Next Actions
 
+## Exact next action after M3.156 disposable Cortex indexing proof
+
+Keep every `ERP_CORTEX_SEMANTIC_INDEX_*` flag false, every exact-tenant
+allowlist empty, legacy embedding disabled, and AI worker/provider variables
+absent. The 104-migration PostgreSQL/Redis runtime proof is complete; do not
+rerun it unless indexing source or migrations change.
+
+Next, the database owner must finish M3.152: approve the Purchase Order mapping
+and prove it on a complete managed backup/PITR restore. Separately capture
+protected desktop/mobile confirmation and status behavior in an isolated,
+auth-safe environment that does not mutate hosted Supabase Auth. Before any
+real worker call, an owner must approve the exact tenant, written spend ceiling,
+and rollback owner.
+
+Do not reconnect Vercel Git, build or deploy Vercel/Railway, apply hosted
+Supabase SQL, change hosted Auth/Storage/tenant data, create a paid branch, or
+call an AI provider without explicit cost and release approval.
+
 ## Exact next action after M3.155 cost-bounded Cortex indexing jobs
 
 Keep intake, worker, recovery, Web cutover, and legacy flags false with empty

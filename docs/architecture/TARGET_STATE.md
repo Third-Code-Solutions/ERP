@@ -1,5 +1,20 @@
 # Target State
 
+## M3.156 semantic-index runtime proof boundary
+
+Every cost-bearing semantic-index workflow must first pass a disposable,
+zero-skip PostgreSQL/Redis lane with a deterministic fake worker. The lane must
+prove browser-table denial, current permission enforcement, tenant isolation,
+idempotency, active-job uniqueness, batch and call ceilings, empty-work
+behavior, recovery on Redis loss, terminal handling after an uncertain
+provider reservation, atomic database commit, and audit-chain continuity.
+
+That local runtime boundary is now satisfied for M3.155. It does not authorize
+a hosted migration, protected tenant canary, real provider call, or release.
+Those remain separate owner-approved gates with an exact tenant, written spend
+ceiling, auth-safe browser evidence, managed backup/PITR proof, and rollback
+ownership.
+
 ## M3.155 cost-bounded semantic indexing authority
 
 Semantic indexing is a durable, explicit, cost-disclosed Core workflow. One

@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-264 - Require disposable proof before semantic-index spend (2026-08-07)
+
+Decision: require a zero-skip disposable PostgreSQL/Redis integration lane and
+deterministic fake worker before any semantic-index tenant or provider is
+enabled. Treat PostgreSQL provider-call reservation as the irreversible spend
+boundary: Redis loss before reservation may reconstruct delivery; stale or
+uncertain execution after reservation must terminate as
+`provider_call_outcome_unknown`, never retry automatically.
+
+Rationale: compilation and mocked unit tests cannot prove RLS denial,
+transaction rollback, queue reconstruction, tenant concealment, or one-call
+behavior. The fake-worker lane exercises those production boundaries without
+creating cloud cost or provider side effects. It separates correctness proof
+from release authorization and keeps the real spend decision human-owned.
+
+Evidence: 104/104 migrations; database 341/341 and API integration 31/31 with
+zero skips/pending; exact one-call and 64-node assertions; empty-backlog zero
+call; Redis-loss and post-reservation terminal paths; atomic rollback; audit
+hash linkage; disposable cleanup. Hosted auth browser proof and managed parity
+remain unresolved. No provider or hosted action occurred.
+
 ## D-263 - Reserve one semantic-index provider call in PostgreSQL (2026-08-07)
 
 Decision: replace the client-owned 80-request embedding loop with one explicit,

@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-07 - M3.156 disposable Cortex semantic-index runtime proof
+
+Replayed all 104 source migrations in the isolated `erp_self_hosted_ci`
+PostgreSQL 17.10 database with local Redis 7.4.9. Added an authenticated-role
+database test proving direct semantic-index job reads and inserts both fail
+with PostgreSQL `42501`. Added an always-rollback API integration suite using a
+deterministic fake worker and real local BullMQ transport.
+
+The API suite proves owner/admin creation, current permission revocation,
+tenant concealment, idempotency, one active job, at most 64 nodes and one
+worker/provider reservation, zero call for empty work, Redis-loss recovery,
+terminal uncertainty after reservation, atomic vector/job commit, and chained
+create/terminal audits. An initial fixture-cleanup approach reached all
+assertions but hit the audit foreign-key guard during tenant cascade; the
+harness was corrected to outer transaction rollback plus nested savepoints.
+Production source behavior was not changed.
+
+Results: database 341/341 with zero skips; API integration 31/31 across 44
+suites with zero failures or pending tests; focused database 4/4; focused API
+3/3; API/database typecheck; stable schema SHA-256
+`4DDF4B3D24906CA2328790342E6406636080BE5475AA0138DF8E7431D615E9F6`.
+Final local gates passed: API 546/546; ordinary no-database tests 198 passed
+with 143 expected environment-gated skips; workspace lint/typecheck;
+NestJS/Next.js production build with 82 static pages; spend 4/4; release 5/5;
+Actionlint; Gitleaks across 539 commits; pinned workflow refs; diff and
+clean-room checks.
+Cleanup stopped Redis and dropped only the disposable database. Protected
+browser E2E remains intentionally unrun because its helper mutates hosted
+Supabase Auth. No hosted SQL/Auth/Storage mutation, provider call, cloud build,
+deployment, paid branch, or Vercel Git integration occurred.
+
 ## 2026-08-07 - M3.155 cost-bounded Cortex semantic indexing jobs
 
 Audited authenticated production `/cortex` read-only. The existing enabled
