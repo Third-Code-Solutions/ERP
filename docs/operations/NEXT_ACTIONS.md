@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.146 Core-only customer invoice draft creation
+
+Keep `ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED=false`,
+`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_VIA_API=false`, and both
+invoice tenant allowlists empty. Source checkpoint
+`473eaf1d6a9ec468165520685e2718eeefea5124` is pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree are
+verified. Keep hosted Supabase, Vercel, Railway, provider variables, and ERP
+canaries closed. The disposable 101-migration PostgreSQL/Redis replay is
+green; repeat only after a migration changes. Next gate: managed
+Supabase catalog/RLS/data parity, supported backup/PITR recovery, Auth
+identity, audit recovery, duplicate-record/idempotency review, and bounded
+spend approval. Only then can a one-tenant invoice-draft canary be proposed;
+do not deploy or spend provider credits merely to validate source.
+
 ## Exact next action after M3.145 disposable replay hardening
 
 Keep `ERP_COST_ENTRY_DELETE_WRITES_ENABLED=false`,

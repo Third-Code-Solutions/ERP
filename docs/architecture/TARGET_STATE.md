@@ -1,5 +1,19 @@
 # Target State
 
+## M3.146 Core-only customer invoice draft creation
+
+Customer invoice drafts must be committed only by NestJS Core through the
+typed command boundary. Next.js Billing and Procurement callers may preserve
+their existing contracts, but must not perform invoice math, number
+allocation, direct `invoices` writes, or duplicate audit writes. Core must
+lock tenant membership and the Project/BOM, require `finance.issue_invoice`,
+use exact integer cents, allocate numbers transactionally, persist a
+tenant-scoped idempotency result, and emit bounded audit evidence. The
+service-only replay ledger and authenticated invoice mutation revokes must be
+replayed before any managed canary. API/Web write flags remain false and
+allowlists empty until managed parity, recovery, identity, audit, and spend
+evidence pass.
+
 ## M3.145 Core-only Cost Entry permissions and replay proof
 
 The reproducibility verifier must model the current authority boundary:

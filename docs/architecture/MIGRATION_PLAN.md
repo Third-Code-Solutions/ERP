@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.146 Core-only customer invoice draft creation
+
+Implemented the smallest compatible migration: added shared invoice-draft
+contracts; a service-only tenant/idempotency ledger and migration; NestJS
+pipe/controller/service/module/config/tests; Core client and observability
+mapping; and thin Billing/Procurement Server Actions. Revoked authenticated
+invoice mutation privileges and removed the legacy invoice write policies.
+Changed source is checkpoint `473eaf1d6a9ec468165520685e2718eeefea5124`,
+pushed to `origin/agent-02/third-code-erp-landing`.
+
+Validation passed: focused DB/API/Web/environment tests; serial workspace
+tests; typecheck/lint; production build (81/81 routes); migration verifier;
+Actionlint; Gitleaks; controlled-release 5/5; provider-spend 4/4; and
+disposable PostgreSQL 17/Redis 7.4.9 replay with 101/101 migrations,
+database 54/54 files and 332/332 tests, API 20/20 files and 27/27 tests,
+Redis recovery, and identical schema hash
+`278B8F024CED178A943B9E22FB14B9CD3BC7AEC3E339269E9DD20969B4B20843`.
+No hosted provider state changed.
+
+Next: keep invoice draft Core flags disabled and obtain managed Supabase
+catalog/RLS/data parity, supported backup/PITR recovery, Auth identity,
+audit recovery, and bounded spend approval before a one-tenant canary.
+
 ## M3.145 disposable replay hardening
 
 The first fresh replay after M3.144 stopped at the database verifier because

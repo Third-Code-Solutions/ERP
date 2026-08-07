@@ -1,5 +1,23 @@
 # Third Code ERP capability matrix
 
+## M3.146 Core-only customer invoice draft creation (2026-08-07)
+
+Billing and Procurement invoice-draft callers now use the typed NestJS Core
+command. Core owns `finance.issue_invoice`, tenant scope, exact-money
+calculation, invoice numbering, idempotency, commit, and audit. Authenticated
+clients retain tenant-scoped invoice reads but cannot INSERT/UPDATE/DELETE
+`invoices`; the draft endpoint and tenant allowlist remain disabled pending
+managed canary evidence.
+
+Validation: focused DB/API/Web tests; serial workspace tests; typecheck/lint;
+build 81/81 routes; migration verifier; Actionlint; Gitleaks;
+controlled-release 5/5; provider-spend 4/4; disposable PostgreSQL 17/Redis
+7.4.9 replay with 101/101 migrations, database 54/54 files and 332/332
+tests, API 20/20 files and 27/27 tests, Redis recovery, and identical schema
+hash `278B8F024CED178A943B9E22FB14B9CD3BC7AEC3E339269E9DD20969B4B20843`.
+Source checkpoint `473eaf1d6a9ec468165520685e2718eeefea5124` is pushed to
+`origin/agent-02/third-code-erp-landing`; no hosted provider mutation.
+
 ## M3.145 disposable replay hardening (2026-08-07)
 
 Updated the database reproducibility verifier and runtime hardening test to
