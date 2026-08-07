@@ -18,6 +18,7 @@ import {
 import { ConfigService } from '@nestjs/config'
 import {
   cortexAssistantTurnRequests,
+  cortexAssistantGenerationJobs,
   cortexConversationTurnRequests,
   cortexConversations,
   cortexMessages,
@@ -40,6 +41,9 @@ import {
   type CortexConversationAssistantTurnCompleteCommand,
   type CortexConversationAssistantTurnCompleteResult,
   type CortexConversationAssistantTurnOutcome,
+  cortexAssistantGenerationStartCommandSchema,
+  type CortexAssistantGenerationStartCommand,
+  cortexAssistantGenerationWorkerCompletionSchema,
   type CortexGraphRefTable,
 } from '@third-code-erp/shared-types'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
@@ -233,6 +237,26 @@ export class CortexAssistantTurnsService {
     })
   }
 
+  authorizeGenerationStart(
+    command: CortexAssistantGenerationStartCommand,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string | undefined,
+    headers: CortexAssistantTurnSignatureHeaders
+  ): string {
+    const parsedCommand =
+      cortexAssistantGenerationStartCommandSchema.parse(command)
+    const idempotencyKey = validateIdempotencyKey(rawIdempotencyKey)
+    this.assertWriteEnabled(principal)
+    this.verifySignature(
+      'start_job',
+      parsedCommand,
+      principal,
+      idempotencyKey,
+      headers
+    )
+    return idempotencyKey
+  }
+
   async complete(
     command: CortexConversationAssistantTurnCompleteCommand,
     principal: ErpPrincipal,
@@ -394,6 +418,232 @@ export class CortexAssistantTurnsService {
     })
   }
 
+  async completeFromWorker(input: {
+    jobId: string
+    requestId: string
+    claimTokenHash: string
+    content: string
+    citationNodeIds: string[]
+    model: string
+  }): Promise<boolean> {
+    const parsedCompletion =
+      cortexAssistantGenerationWorkerCompletionSchema.parse({
+        content: input.content,
+        citationNodeIds: input.citationNodeIds,
+        model: input.model,
+      })
+    const completionHash = commandDigest({
+      jobId: input.jobId,
+      requestId: input.requestId,
+      content: parsedCompletion.content,
+      citationNodeIds: parsedCompletion.citationNodeIds,
+      outcome: 'deterministic_grounded',
+      model: parsedCompletion.model,
+    })
+
+    return this.database.client.transaction(async (transaction) => {
+      const [row] = await transaction
+        .select({
+          jobStatus: cortexAssistantGenerationJobs.status,
+          jobClaimTokenHash: cortexAssistantGenerationJobs.claim_token_hash,
+          requestId: cortexAssistantTurnRequests.id,
+          requestState: cortexAssistantTurnRequests.state,
+          requestClaimTokenHash: cortexAssistantTurnRequests.claim_token_hash,
+          conversationId: cortexAssistantTurnRequests.conversation_id,
+          userMessageId: cortexAssistantTurnRequests.user_message_id,
+          tenantId: cortexAssistantTurnRequests.tenant_id,
+          userId: cortexAssistantTurnRequests.user_id,
+          role: users.role,
+          email: users.email,
+        })
+        .from(cortexAssistantGenerationJobs)
+        .innerJoin(
+          cortexAssistantTurnRequests,
+          and(
+            eq(
+              cortexAssistantTurnRequests.id,
+              cortexAssistantGenerationJobs.request_id
+            ),
+            eq(
+              cortexAssistantTurnRequests.tenant_id,
+              cortexAssistantGenerationJobs.tenant_id
+            )
+          )
+        )
+        .innerJoin(
+          users,
+          and(
+            eq(users.id, cortexAssistantGenerationJobs.user_id),
+            eq(users.tenant_id, cortexAssistantGenerationJobs.tenant_id)
+          )
+        )
+        .where(
+          and(
+            eq(cortexAssistantGenerationJobs.id, input.jobId),
+            eq(cortexAssistantGenerationJobs.request_id, input.requestId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!row || row.jobStatus !== 'processing') return false
+      if (
+        row.requestState !== 'processing' ||
+        row.jobClaimTokenHash !== input.claimTokenHash ||
+        row.requestClaimTokenHash !== input.claimTokenHash
+      ) {
+        return false
+      }
+
+      const authorizedPrincipal = await this.lockAuthorizedPrincipal(
+        transaction,
+        {
+          tenantId: row.tenantId,
+          userId: row.userId,
+          role: row.role as ErpRole,
+          email: row.email,
+        }
+      )
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+      const conversation = await this.lockConversation(
+        transaction,
+        authorizedPrincipal,
+        row.conversationId
+      )
+      await this.authorizeStoredContext(
+        transaction,
+        authorizedPrincipal,
+        conversation
+      )
+      await this.lockOfficialUserTurn(
+        transaction,
+        authorizedPrincipal,
+        row.conversationId,
+        row.userMessageId
+      )
+      await this.authorizeCitations(
+        transaction,
+        authorizedPrincipal,
+        parsedCompletion.citationNodeIds
+      )
+
+      const now = new Date()
+      const [message] = await transaction
+        .insert(cortexMessages)
+        .values({
+          tenant_id: authorizedPrincipal.tenantId,
+          conversation_id: row.conversationId,
+          role: 'assistant',
+          content: parsedCompletion.content,
+          citations: parsedCompletion.citationNodeIds.map((nodeId) => ({
+            nodeId,
+          })),
+        })
+        .returning({ id: cortexMessages.id })
+      if (!message) {
+        throw new InternalServerErrorException(
+          'Cortex assistant turn was not stored'
+        )
+      }
+      const [updatedConversation] = await transaction
+        .update(cortexConversations)
+        .set({ updated_at: now })
+        .where(
+          and(
+            eq(cortexConversations.id, row.conversationId),
+            eq(cortexConversations.tenant_id, authorizedPrincipal.tenantId),
+            eq(cortexConversations.user_id, authorizedPrincipal.userId)
+          )
+        )
+        .returning({ id: cortexConversations.id })
+      if (!updatedConversation) {
+        throw new InternalServerErrorException(
+          'Cortex conversation timestamp was not updated'
+        )
+      }
+
+      const result = cortexConversationAssistantTurnCompleteResultSchema.parse({
+        status: 'created',
+        conversationId: row.conversationId,
+        userMessageId: row.userMessageId,
+        messageId: message.id,
+      })
+      const [completedRequest] = await transaction
+        .update(cortexAssistantTurnRequests)
+        .set({
+          state: 'succeeded',
+          completion_hash: completionHash,
+          claim_token_hash: null,
+          lease_expires_at: null,
+          assistant_message_id: message.id,
+          outcome: 'deterministic_grounded',
+          model: parsedCompletion.model,
+          result,
+          completed_at: now,
+        })
+        .where(
+          and(
+            eq(cortexAssistantTurnRequests.id, row.requestId),
+            eq(cortexAssistantTurnRequests.state, 'processing'),
+            eq(
+              cortexAssistantTurnRequests.claim_token_hash,
+              input.claimTokenHash
+            )
+          )
+        )
+        .returning({ id: cortexAssistantTurnRequests.id })
+      if (!completedRequest) {
+        throw new InternalServerErrorException(
+          'Cortex assistant-turn request changed before completion'
+        )
+      }
+      const [completedJob] = await transaction
+        .update(cortexAssistantGenerationJobs)
+        .set({
+          status: 'succeeded',
+          failure_code: null,
+          completed_at: now,
+          updated_at: now,
+        })
+        .where(
+          and(
+            eq(cortexAssistantGenerationJobs.id, input.jobId),
+            eq(cortexAssistantGenerationJobs.status, 'processing'),
+            eq(
+              cortexAssistantGenerationJobs.claim_token_hash,
+              input.claimTokenHash
+            )
+          )
+        )
+        .returning({ id: cortexAssistantGenerationJobs.id })
+      if (!completedJob) {
+        throw new InternalServerErrorException(
+          'Cortex assistant generation job changed before completion'
+        )
+      }
+      await this.audit.writeSemantic(transaction, {
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
+        entityType: 'cortex_conversation',
+        entityId: row.conversationId,
+        action: 'update',
+        diff: {
+          turn_role: 'assistant',
+          user_message_id: row.userMessageId,
+          message_id: message.id,
+          assistant_generation_job_id: input.jobId,
+          assistant_generation_job_state: 'succeeded',
+          response_hash: sha256(parsedCompletion.content),
+          response_char_count: parsedCompletion.content.length,
+          citation_node_ids: parsedCompletion.citationNodeIds,
+          citation_count: parsedCompletion.citationNodeIds.length,
+          outcome: 'deterministic_grounded',
+          model: parsedCompletion.model,
+        },
+      })
+      return true
+    })
+  }
+
   private assertWriteEnabled(principal: ErpPrincipal): void {
     const enabled = this.config.get<boolean>(
       'ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_ENABLED',
@@ -411,7 +661,7 @@ export class CortexAssistantTurnsService {
   }
 
   private verifySignature(
-    operation: 'claim' | 'complete',
+    operation: 'claim' | 'complete' | 'start_job',
     command: object,
     principal: ErpPrincipal,
     idempotencyKey: string,

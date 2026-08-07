@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-08 - M3.162 provider-free Cortex generation jobs
+
+Implemented the next smallest safe chat slice without a rewrite or provider
+call. Added strict generation contracts, a forced-RLS service-only PostgreSQL
+job ledger, Nest start/status/cancel and transaction authority, identity-only
+BullMQ delivery with bounded retry/recovery, and a private deterministic Python
+grounding endpoint. Core alone selects redacted permission-scoped evidence,
+reauthorizes citations, fences completion, stores the official assistant turn,
+and writes the audit. Cancellation and terminal failures now release only the
+matching assistant lease for immediate safe reclaim.
+
+Wired exact selected Next traffic to start and briefly poll the Core job,
+cancel on abort, and replay the stored text/citations. It performs no provider,
+embedding, quota, or direct database work on this path. Legacy behavior remains
+default. Intake, worker, recovery, and Web gates are all false/empty.
+
+Results: shared 33/254; API 135/585; Web 97/666; Python 8/8; ordinary database
+206 passed / 143 expected skips; lint/typecheck; canonical bounded root suite;
+local Nest/Next build with 82 static pages; spend guard 4/4; controlled release
+5/5; Actionlint; pinned actions; Gitleaks 545 commits; diff hygiene. Disposable
+PostgreSQL 17.10 + Redis 7.4.9 applied 107/107 migrations, verified the protected
+catalog, passed database 349/349 with zero skips and all 25 Nest integration
+files, including the new rollback-only transaction test. Schema hashes matched
+at `CCB354956CE037BA5D27FF8AD6668E28209ADD62930C8DC7881620FA1748B3D6`.
+PostgreSQL/Redis and generated artifacts were removed afterward. The known
+local Redis memory-overcommit warning did not fail the lane.
+
+No hosted Supabase query/write, Auth/Storage/data mutation, AI/image/provider
+call, Vercel/Railway build or deployment, paid resource, or Git integration
+change occurred. Managed Supabase remains last verified at 55/107.
+
 ## 2026-08-08 - M3.161 trusted Cortex assistant-generation authority
 
 Implemented the smallest safe assistant slice without moving model execution

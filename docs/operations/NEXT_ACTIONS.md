@@ -1,5 +1,42 @@
 # Next Actions
 
+## Exact next action after M3.162 provider-free Cortex generation jobs
+
+Keep these new gates closed and exact-tenant allowlists empty:
+
+```text
+ERP_CORTEX_ASSISTANT_GENERATION_JOBS_ENABLED=false
+ERP_CORTEX_ASSISTANT_GENERATION_JOBS_TENANT_IDS=
+ERP_CORTEX_ASSISTANT_GENERATION_WORKER_ENABLED=false
+ERP_CORTEX_ASSISTANT_GENERATION_WORKER_TENANT_IDS=
+ERP_CORTEX_ASSISTANT_GENERATION_RECOVERY_ENABLED=false
+ERP_CORTEX_ASSISTANT_GENERATION_RECOVERY_TENANT_IDS=
+ERP_CORTEX_ASSISTANT_GENERATION_JOBS_VIA_API=false
+ERP_CORTEX_ASSISTANT_GENERATION_JOBS_VIA_API_TENANT_IDS=
+```
+
+Also keep the M3.160/M3.161 user-turn and assistant-turn gates closed. Managed
+Supabase was not refreshed; its last verified ledger is 55 versus 107 source
+migrations. The database owner must finish M3.152 backup/PITR proof. Then replay
+all 107 migrations on an isolated complete clone and run one exact-tenant,
+private-worker canary covering two users and every role: duplicate start,
+status concealment, cancel, retry exhaustion, Redis loss/recovery, role/context
+revocation, stale fencing, invalid worker output, citation reauthorization,
+and exact assistant replay. Rollback is every generation gate false; do not
+drop the inert ledger.
+
+Safe source-only continuation: define a separately gated provider-backed worker
+attempt contract. Nest must reserve and cap provider quota before dispatch,
+record attempt cost/idempotency in PostgreSQL, and own final commit. Python may
+invoke the model and return bounded analysis only. Do not enable or call a
+provider until an explicit low spend ceiling is approved. Prefer a short-lived
+202/status client handoff before canary so Next does not hold long server
+invocations.
+
+Do not reconnect Vercel Git, run Vercel/Railway builds or deployments, apply
+hosted SQL, mutate hosted Auth/Storage/data, create paid resources, or call
+AI/image providers without explicit cost and release approval.
+
 ## Exact next action after M3.161 trusted Cortex assistant authority
 
 Keep these flags closed, allowlists empty, and secret unset:

@@ -1,5 +1,27 @@
 # Target State
 
+## M3.162 provider-free Cortex generation jobs
+
+Assistant execution belongs to the NestJS modular monolith. PostgreSQL is the
+authoritative state machine and fencing ledger; BullMQ/Redis transports opaque
+job identity and provides bounded retry/recovery only. Core must recheck the
+current principal, tenant, capability, owned conversation, immutable context,
+official user turn, and graph scope before releasing redacted evidence. It must
+reauthorize worker citations and atomically commit official memory and audit.
+
+Python remains advisory. Its deterministic grounded endpoint receives no
+tenant credential or database access and cannot approve, finalize, or persist
+an ERP transaction. A future external model may be placed behind this same
+boundary only after Nest reserves an explicit provider budget and defines
+idempotent attempt accounting; provider credentials and decision authority
+must not move to browsers.
+
+Selected Next traffic keeps compatibility through an exact-tenant gate and
+never falls back to direct database or provider work after Core selection.
+Intake, worker, recovery, and Web gates remain independently closed by default.
+Managed replay, protected canary evidence, and a cost-approved release remain
+required before activation.
+
 ## M3.161 trusted Cortex assistant-generation authority
 
 Assistant generation is a trusted server workflow, never a browser-selected

@@ -23,6 +23,14 @@ import {
   CortexAssistantTurnCompletePipe,
 } from './cortex-assistant-turn.pipe'
 import { CortexAssistantTurnsService } from './cortex-assistant-turns.service'
+import { CORTEX_ASSISTANT_GENERATION_QUEUE } from './cortex-assistant-generation.constants'
+import { CortexAssistantGenerationController } from './cortex-assistant-generation.controller'
+import { CortexAssistantGenerationStartPipe } from './cortex-assistant-generation.pipe'
+import { CortexAssistantGenerationProcessor } from './cortex-assistant-generation.processor'
+import { CortexAssistantGenerationJobQueue } from './cortex-assistant-generation.queue'
+import { CortexAssistantGenerationService } from './cortex-assistant-generation.service'
+import { CortexAssistantGenerationStateService } from './cortex-assistant-generation.state'
+import { CortexAssistantGenerationWorkerClient } from './cortex-assistant-generation.worker'
 import { CortexSearchController } from './cortex-search.controller'
 import { CortexSearchPipe } from './cortex-search.pipe'
 import { CortexSearchService } from './cortex-search.service'
@@ -40,9 +48,11 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     AuditModule,
     ProviderQuotaModule,
     BullModule.registerQueue({ name: CORTEX_SEMANTIC_INDEX_QUEUE }),
+    BullModule.registerQueue({ name: CORTEX_ASSISTANT_GENERATION_QUEUE }),
   ],
   controllers: [
     CortexConversationsController,
+    CortexAssistantGenerationController,
     CortexEntityController,
     CortexGraphController,
     CortexSearchController,
@@ -56,6 +66,12 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     CortexAssistantTurnClaimPipe,
     CortexAssistantTurnCompletePipe,
     CortexAssistantTurnsService,
+    CortexAssistantGenerationStartPipe,
+    CortexAssistantGenerationProcessor,
+    CortexAssistantGenerationJobQueue,
+    CortexAssistantGenerationService,
+    CortexAssistantGenerationStateService,
+    CortexAssistantGenerationWorkerClient,
     CortexEntityService,
     CortexEntityPipe,
     CortexGraphService,
@@ -77,6 +93,7 @@ export class CortexModule implements NestModule {
       .forRoutes(
         CortexEntityController,
         CortexConversationsController,
+        CortexAssistantGenerationController,
         CortexGraphController,
         CortexSearchController,
         CortexSemanticIndexController

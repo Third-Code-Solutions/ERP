@@ -17,4 +17,7 @@ export {
   embedTextWithPythonWorker,
   isEmbeddingProviderConfigured,
   isPythonWorkerConfigured,
+  generateGroundedAnswerWithPythonWorker,
+  type GroundedAnswerEvidence,
+  type GroundedAnswerResult,
 } from './python-worker'

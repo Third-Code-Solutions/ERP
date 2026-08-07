@@ -211,6 +211,8 @@ import {
   cortexConversationAssistantTurnClaimResultSchema,
   cortexConversationAssistantTurnCompleteCommandSchema,
   cortexConversationAssistantTurnCompleteResultSchema,
+  cortexAssistantGenerationStartCommandSchema,
+  cortexAssistantGenerationStatusSchema,
   cortexConversationAssistantTurnSignaturePayload,
   CORTEX_ASSISTANT_TURN_SIGNATURE_VERSION,
   type CortexConversationListResponse,
@@ -221,6 +223,8 @@ import {
   type CortexConversationAssistantTurnClaimResult,
   type CortexConversationAssistantTurnCompleteCommand,
   type CortexConversationAssistantTurnCompleteResult,
+  type CortexAssistantGenerationStartCommand,
+  type CortexAssistantGenerationStatus,
   cortexSemanticIndexAcceptedSchema,
   cortexSemanticIndexStatusSchema,
   type CortexSemanticIndexAccepted,
@@ -452,6 +456,24 @@ export function cortexConversationAssistantTurnWritesUseCoreApi(
     process.env.ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API,
     process.env
       .ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+/** Provider-free generation jobs require an explicit exact-tenant canary. */
+export function cortexAssistantGenerationJobsUseCoreApi(
+  tenantId: string
+): boolean {
+  if (
+    (process.env.ERP_CORTEX_ASSISTANT_GENERATION_JOBS_VIA_API_TENANT_IDS ?? '')
+      .split(',')
+      .some((entry) => entry.trim() === '*')
+  ) {
+    return false
+  }
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_ASSISTANT_GENERATION_JOBS_VIA_API,
+    process.env.ERP_CORTEX_ASSISTANT_GENERATION_JOBS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1310,7 +1332,7 @@ interface CortexAssistantTurnPrincipalScope {
 }
 
 function cortexAssistantTurnHeaders(
-  operation: 'claim' | 'complete',
+  operation: 'claim' | 'complete' | 'start_job',
   command: object,
   idempotencyKey: string,
   principal: CortexAssistantTurnPrincipalScope
@@ -1491,6 +1513,154 @@ export async function completeCortexConversationAssistantTurnThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex assistant completion service is unavailable.',
+    }
+  }
+}
+
+export async function startCortexAssistantGenerationJobThroughCoreApi(
+  command: CortexAssistantGenerationStartCommand,
+  idempotencyKey: string,
+  principal: CortexAssistantTurnPrincipalScope
+): Promise<CoreResult<CortexAssistantGenerationStatus>> {
+  const parsedCommand =
+    cortexAssistantGenerationStartCommandSchema.safeParse(command)
+  if (!parsedCommand.success) {
+    return { ok: false, status: 400, error: 'Invalid assistant generation job.' }
+  }
+  const signed = cortexAssistantTurnHeaders(
+    'start_job',
+    parsedCommand.data,
+    idempotencyKey,
+    principal
+  )
+  if (!signed.ok || !signed.data) {
+    return { ok: false, status: signed.status, error: signed.error }
+  }
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/conversations/assistant-turns/jobs`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          ...signed.data,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Assistant generation job was not started.',
+      }
+    }
+    const parsed = cortexAssistantGenerationStatusSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid assistant generation job.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Assistant generation job service is unavailable.',
+    }
+  }
+}
+
+export async function getCortexAssistantGenerationJobThroughCoreApi(
+  jobId: string
+): Promise<CoreResult<CortexAssistantGenerationStatus>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/conversations/assistant-turns/jobs/${encodeURIComponent(jobId)}`,
+      {
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error: 'Assistant generation job status is unavailable.',
+      }
+    }
+    const parsed = cortexAssistantGenerationStatusSchema.safeParse(rawBody)
+    return parsed.success
+      ? { ok: true, data: parsed.data, status: response.status }
+      : {
+          ok: false,
+          status: 503,
+          error: 'ERP Core API returned an invalid assistant generation status.',
+        }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Assistant generation job status is unavailable.',
+    }
+  }
+}
+
+export async function cancelCortexAssistantGenerationJobThroughCoreApi(
+  jobId: string,
+  idempotencyKey: string
+): Promise<CoreResult<CortexAssistantGenerationStatus>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/conversations/assistant-turns/jobs/${encodeURIComponent(jobId)}/cancel`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    const parsed = cortexAssistantGenerationStatusSchema.safeParse(rawBody)
+    if (!response.ok || !parsed.success) {
+      return {
+        ok: false,
+        status: response.status || 503,
+        error: 'Assistant generation job was not cancelled.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Assistant generation cancellation is unavailable.',
     }
   }
 }

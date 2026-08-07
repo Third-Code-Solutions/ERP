@@ -67,7 +67,7 @@ async def test_validation_does_not_echo_input() -> None:
         json={"texts": ["x" * 41]},
     )
     assert response.status_code == 422
-    assert response.json() == {"error": "Invalid embedding request"}
+    assert response.json() == {"error": "Invalid AI worker request"}
     assert "x" * 41 not in response.text
 
 
@@ -107,3 +107,53 @@ async def test_invalid_provider_vector_fails_closed(monkeypatch: pytest.MonkeyPa
     )
     assert response.status_code == 503
     assert response.json() == {"detail": "AI provider is unavailable"}
+
+
+@pytest.mark.asyncio
+async def test_grounded_answer_is_provider_free_and_citation_bounded() -> None:
+    settings.provider_api_key = ""
+    response = await call(
+        "POST",
+        "/v1/cortex/grounded-answer",
+        json={
+            "question": "Which copper pipe changed?",
+            "evidence": [
+                {
+                    "node_id": "11111111-1111-4111-8111-111111111111",
+                    "node_type": "bom",
+                    "title": "Copper pipe package",
+                    "summary": "Updated today",
+                },
+                {
+                    "node_id": "22222222-2222-4222-8222-222222222222",
+                    "node_type": "account",
+                    "title": "Unrelated supplier",
+                    "summary": None,
+                },
+            ],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "schema_version": 1,
+        "model": "deterministic-grounded-v1",
+        "content": (
+            "Here's what I found in your knowledge graph:\n\n"
+            "• [bom] Copper pipe package — Updated today\n\n"
+            "Cited 1 record — open any from the graph to dig in."
+        ),
+        "citation_node_ids": ["11111111-1111-4111-8111-111111111111"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_grounded_answer_validation_does_not_echo_question() -> None:
+    secret_question = "q" * 20_001
+    response = await call(
+        "POST",
+        "/v1/cortex/grounded-answer",
+        json={"question": secret_question, "evidence": []},
+    )
+    assert response.status_code == 422
+    assert response.json() == {"error": "Invalid AI worker request"}
+    assert secret_question not in response.text

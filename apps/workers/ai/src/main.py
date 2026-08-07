@@ -8,13 +8,20 @@ from __future__ import annotations
 
 import hmac
 import math
+import re
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from src.config import settings
-from src.models import EmbeddingRequest, EmbeddingResponse
+from src.models import (
+    EmbeddingRequest,
+    EmbeddingResponse,
+    GroundedAnswerRequest,
+    GroundedAnswerResponse,
+    GroundedEvidence,
+)
 from src.provider import (
     ProviderNotConfigured,
     ProviderUnavailable,
@@ -31,7 +38,7 @@ async def validation_error_handler(
     # Do not echo submitted text in validation responses.
     return JSONResponse(
         status_code=422,
-        content={"error": "Invalid embedding request"},
+        content={"error": "Invalid AI worker request"},
     )
 
 
@@ -107,4 +114,65 @@ async def embeddings(
         model=settings.embedding_model,
         dimensions=settings.embedding_dimensions,
         embeddings=vectors,
+    )
+
+
+def _grounded_tokens(value: str) -> set[str]:
+    return {
+        token.lower()
+        for token in re.findall(r"[a-zA-Z0-9]+", value)
+        if len(token) >= 3
+    }
+
+
+def _matching_evidence(
+    question: str, evidence: list[GroundedEvidence]
+) -> tuple[list[GroundedEvidence], bool]:
+    question_tokens = _grounded_tokens(question)
+    matched = [
+        item
+        for item in evidence
+        if question_tokens
+        & _grounded_tokens(f"{item.node_type} {item.title or ''} {item.summary or ''}")
+    ]
+    return ((matched if matched else evidence)[:8], bool(matched))
+
+
+@app.post("/v1/cortex/grounded-answer", response_model=GroundedAnswerResponse)
+async def grounded_answer(
+    request: GroundedAnswerRequest,
+    authorization: str | None = Header(default=None),
+) -> GroundedAnswerResponse:
+    """Return deterministic evidence analysis only; never an ERP decision."""
+    _check_auth(authorization)
+    selected, matched = _matching_evidence(request.question, request.evidence)
+    if not selected:
+        return GroundedAnswerResponse(
+            content=(
+                "I don't have any permission-scoped records in the knowledge "
+                "graph to answer that yet."
+            ),
+            citation_node_ids=[],
+        )
+
+    lines = []
+    for item in selected:
+        title = item.title or "(untitled)"
+        summary = f" — {item.summary}" if item.summary else ""
+        lines.append(f"• [{item.node_type}] {title}{summary}")
+    intro = (
+        "Here's what I found in your knowledge graph:"
+        if matched
+        else "Here are the most recently updated records in your knowledge graph:"
+    )
+    count = len(selected)
+    content = (
+        f"{intro}\n\n"
+        + "\n".join(lines)
+        + f"\n\nCited {count} record{'s' if count != 1 else ''} — "
+        "open any from the graph to dig in."
+    )
+    return GroundedAnswerResponse(
+        content=content,
+        citation_node_ids=[item.node_id for item in selected],
     )

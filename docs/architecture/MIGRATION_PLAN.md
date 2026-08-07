@@ -1,5 +1,41 @@
 # Migration Plan
 
+## M3.162 provider-free Cortex generation jobs
+
+1. Added strict shared start/status/queue/recovery/worker-completion contracts
+   and centralized the existing Cortex direct-identifier redaction rules.
+2. Added migration `20260808090000`: one forced-RLS, service-only,
+   tenant/request-bound PostgreSQL job ledger with explicit states, exact claim
+   fencing, bounded attempts, terminal timestamps, and composite tenant FKs.
+3. Added Nest start/status/cancel, state, BullMQ transport/recovery, Python
+   client, and processor boundaries. Core selects permission-scoped evidence;
+   Python returns deterministic advice; Core reauthorizes citations and commits
+   message, request, job, and audit in one transaction.
+4. Added a private, authenticated, bounded, provider-free Python grounded
+   endpoint with no database or ERP authority.
+5. Wired Next behind a separate exact-tenant flag. Selected traffic starts and
+   polls the Core job, cancels on abort, and replays the stored text/citations;
+   the legacy path and public success shape remain unchanged by default.
+6. Kept every flag false/empty. No hosted database, provider, or deployment was
+   exercised.
+
+Validation: shared 254/254; API 585/585; Web 666/666; Python 8/8; ordinary
+database 206 passed / 143 expected skips; workspace lint/typecheck; bounded
+root suite; local Nest/Next builds with 82 static pages; spend 4/4; controlled
+release 5/5; Actionlint; pinned actions; Gitleaks; diff hygiene. Disposable
+PostgreSQL/Redis applied 107/107 migrations, passed database 349/349 without
+skips and the complete Nest integration suite, and retained an identical
+schema hash after rollback-only tests.
+
+Keep generation intake/worker/recovery Core flags and the Web flag false, all
+allowlists empty, and the worker URL/secret unconfigured for this path. Before
+canary, finish M3.152 backup/PITR proof, replay all 107 migrations in an
+isolated complete clone, configure one private worker and one exact tenant, and
+compare start/replay/cancel/retry/failure/recovery/RBAC/context/citation paths.
+Rollback is all generation flags false; leave the inert job ledger in place.
+External model execution remains deferred until Nest-owned quota reservation,
+attempt-cost accounting, and a separately approved spend ceiling exist.
+
 ## M3.161 trusted Cortex assistant-generation authority
 
 1. Added strict shared claim, completion, outcome, replay, and signature

@@ -41,6 +41,10 @@ import {
   appendCortexConversationUserTurnThroughCoreApi,
   claimCortexConversationAssistantTurnThroughCoreApi,
   completeCortexConversationAssistantTurnThroughCoreApi,
+  startCortexAssistantGenerationJobThroughCoreApi,
+  getCortexAssistantGenerationJobThroughCoreApi,
+  cancelCortexAssistantGenerationJobThroughCoreApi,
+  cortexAssistantGenerationJobsUseCoreApi,
   cortexAssistantTurnIdempotencyKey,
   cortexConversationAssistantTurnWritesUseCoreApi,
   cortexConversationUserTurnWritesUseCoreApi,
@@ -182,10 +186,18 @@ export async function POST(req: NextRequest) {
     cortexConversationUserTurnWritesUseCoreApi(profile.tenantId)
   const useCoreAssistantTurn =
     cortexConversationAssistantTurnWritesUseCoreApi(profile.tenantId)
+  const useCoreGenerationJob =
+    cortexAssistantGenerationJobsUseCoreApi(profile.tenantId)
   let providerEnabled = Boolean(process.env.OPENAI_API_KEY)
   if (useCoreAssistantTurn && !useCoreUserTurn) {
     return new Response(
       'Cortex assistant authority requires Core user-turn authority.',
+      { status: 503, headers: CORTEX_PRIVATE_HEADERS }
+    )
+  }
+  if (useCoreGenerationJob && (!useCoreAssistantTurn || !useCoreUserTurn)) {
+    return new Response(
+      'Cortex generation jobs require Core user-turn and assistant authority.',
       { status: 503, headers: CORTEX_PRIVATE_HEADERS }
     )
   }
@@ -328,6 +340,91 @@ export async function POST(req: NextRequest) {
       return new Response(claimed.data.content, { headers: replayHeaders })
     }
     assistantClaim = claimed.data
+  }
+
+  if (useCoreGenerationJob && assistantClaim) {
+    const principal = {
+      tenantId: profile.tenantId,
+      userId: profile.user.id,
+    }
+    const started = await startCortexAssistantGenerationJobThroughCoreApi(
+      {
+        requestId: assistantClaim.requestId,
+        claimToken: assistantClaim.claimToken,
+      },
+      assistantIdempotencyKey,
+      principal
+    )
+    if (!started.ok || !started.data) {
+      return new Response(
+        started.error ?? 'Cortex assistant generation job is unavailable.',
+        { status: started.status ?? 503, headers: CORTEX_PRIVATE_HEADERS }
+      )
+    }
+
+    let job = started.data
+    const pollDelays = [250, 500, 750, 1_000, 1_500]
+    for (const delay of pollDelays) {
+      if (
+        (job.status !== 'queued' && job.status !== 'processing') ||
+        req.signal.aborted
+      ) {
+        break
+      }
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      const refreshed = await getCortexAssistantGenerationJobThroughCoreApi(
+        job.jobId
+      )
+      if (!refreshed.ok || !refreshed.data) {
+        return new Response(
+          refreshed.error ?? 'Cortex assistant generation status is unavailable.',
+          { status: refreshed.status ?? 503, headers: CORTEX_PRIVATE_HEADERS }
+        )
+      }
+      job = refreshed.data
+    }
+    if (req.signal.aborted) {
+      await cancelCortexAssistantGenerationJobThroughCoreApi(
+        job.jobId,
+        `${assistantIdempotencyKey}:cancel`
+      )
+      return new Response(null, { status: 499, headers: CORTEX_PRIVATE_HEADERS })
+    }
+    if (job.status === 'queued' || job.status === 'processing') {
+      return new Response('Cortex response generation is still in progress.', {
+        status: 409,
+        headers: { ...CORTEX_PRIVATE_HEADERS, 'Retry-After': '1' },
+      })
+    }
+    if (job.status !== 'succeeded') {
+      return new Response('Cortex response generation did not complete.', {
+        status: job.status === 'cancelled' ? 409 : 503,
+        headers: CORTEX_PRIVATE_HEADERS,
+      })
+    }
+
+    const replay = await claimCortexConversationAssistantTurnThroughCoreApi(
+      {
+        conversationId: assistantClaim.conversationId,
+        userMessageId: assistantClaim.userMessageId,
+      },
+      assistantIdempotencyKey,
+      principal
+    )
+    if (!replay.ok || !replay.data || replay.data.status !== 'succeeded') {
+      return new Response('Cortex assistant result is unavailable.', {
+        status: 503,
+        headers: CORTEX_PRIVATE_HEADERS,
+      })
+    }
+    const headers: Record<string, string> = {
+      ...CORTEX_PRIVATE_HEADERS,
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Conversation-Id': replay.data.conversationId,
+    }
+    const citationHeader = encodeCortexCitationHeader(replay.data.citations)
+    if (citationHeader) headers[CORTEX_CITATIONS_HEADER] = citationHeader
+    return new Response(replay.data.content, { headers })
   }
 
   if (providerEnabled && useCoreAssistantTurn) {
