@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-254 - Make customer invoice draft creation Core-only (2026-08-07)
+
+Decision: route the existing Billing and Procurement invoice-draft commands
+through one NestJS Core endpoint and revoke authenticated direct mutation of
+`public.invoices`. Preserve the current Web caller surfaces, but move BOM
+selection, exact-money calculation, invoice numbering, transaction commit,
+tenant-scoped idempotency, authorization, and audit into Core. Use a separate
+service-only replay ledger for the draft command.
+
+Rationale: two browser-side invoice writers could diverge in retention,
+taxes, numbering, audit, and retry behavior. A single transaction-bound Core
+authority preserves compatibility while preventing sensitive direct writes.
+The migration is source-only until managed parity, recovery, identity, audit,
+and spend gates are approved.
+
+Evidence: focused boundary tests, serial workspace gates, production build,
+security/release/spend gates, and disposable 101-migration PostgreSQL/Redis
+replay passed with identical schema hashes. Source checkpoint
+`473eaf1d6a9ec468165520685e2718eeefea5124` is pushed; hosted state is
+unchanged.
+
 ## D-253 - Keep Cost Entry browser writes closed in replay/verifier (2026-08-07)
 
 Decision: align reproducibility expectations and runtime tests with the

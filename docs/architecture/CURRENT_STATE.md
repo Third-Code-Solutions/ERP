@@ -5,6 +5,37 @@ Managed-provider state is intentionally not refreshed or mutated for this
 milestone. Application deployments are reported separately and are never
 inferred from a successful build.
 
+## M3.146 Core-only customer invoice draft creation (2026-08-07)
+
+Customer invoice draft creation is now a single typed NestJS Core command:
+`POST /v1/projects/:projectId/customer-invoices`. Existing Billing and
+Procurement Server Actions remain caller-compatible but no longer calculate
+money, allocate invoice numbers, insert `invoices`, or write duplicate Web
+audit events. Core owns tenant membership, `finance.issue_invoice`, BOM
+selection, exact-cent money, retention/VAT/EWT calculation, invoice-number
+allocation, idempotency, transaction commit, and bounded audit evidence.
+
+Migration `20260807130000_customer_invoice_draft_create_workflow.sql` adds a
+tenant-scoped service-only replay ledger, removes authenticated invoice
+INSERT/UPDATE/DELETE privileges and legacy write policies, and keeps invoice
+reads tenant-scoped. API and Web canary flags remain false/unscoped. Static
+database coverage, Core controller/service coverage, Web action coverage,
+environment validation, observability mapping, and the migration verifier
+were updated.
+
+Disposable PostgreSQL 17/Redis 7.4.9 replay applied 101/101 migrations;
+database no-skip evidence passed 54/54 files and 332/332 tests; API
+integration passed 20/20 files and 27/27 tests; Redis restart/reconnect and
+pending recovery passed; schema hashes before/after matched
+`278B8F024CED178A943B9E22FB14B9CD3BC7AEC3E339269E9DD20969B4B20843`.
+Workspace serial tests, typecheck, lint, production build (81/81 routes),
+Actionlint, Gitleaks, controlled-release, and provider-spend gates passed.
+Source checkpoint `473eaf1d6a9ec468165520685e2718eeefea5124` is pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree were
+verified. Managed Supabase, Vercel, Railway, provider variables, and tenant
+data remain unchanged; hosted parity, recovery, identity, audit, and spend
+evidence are still open.
+
 ## M3.145 disposable replay hardening (2026-08-07)
 
 The first fresh replay of M3.144 exposed a stale reproducibility invariant:

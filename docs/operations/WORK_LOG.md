@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-07 - M3.146 Core-only customer invoice draft creation
+
+Moved both existing invoice-draft writers behind the typed NestJS Core
+command while preserving their Web caller contracts. Added shared request/
+result schemas, tenant-scoped service-only idempotency ledger, migration,
+Core pipe/controller/service/module/config/tests, Web adapter and focused
+action tests, observability mapping, and database verifier invariants.
+Core now performs locked membership/BOM validation, capability checks, exact
+cent money math, number allocation, transaction commit, replay, and bounded
+audit. Authenticated invoice mutation privileges and legacy write policies
+are revoked. No UI redesign or hosted provider mutation occurred.
+
+Changed files: shared finance contracts; database enum/schema/index,
+migration/static test/verifier; API finance boundary/config/observability and
+tests; Web Core client/env/Billing and Procurement actions/tests; environment
+documentation. Source checkpoint `473eaf1d6a9ec468165520685e2718eeefea5124`
+pushed to `origin/agent-02/third-code-erp-landing`; remote SHA and clean
+worktree verified.
+
+Validation: focused tests; serial workspace tests; typecheck/lint; production
+build 81/81 routes; migration verifier; Actionlint; Gitleaks;
+controlled-release 5/5; provider-spend 4/4; disposable PostgreSQL 17/Redis
+7.4.9 replay with 101/101 migrations, database 54/54 files and 332/332
+tests, API 20/20 files and 27/27 tests, Redis recovery, and identical schema
+hash `278B8F024CED178A943B9E22FB14B9CD3BC7AEC3E339269E9DD20969B4B20843`.
+
+Unresolved risks: no managed Supabase catalog/RLS/data parity, supported
+backup/PITR restore, Auth identity, audit recovery, invoice-specific runtime
+canary evidence, or approved spend envelope. Keep all invoice Core flags and
+tenant allowlists closed; do not trigger Vercel or Railway.
+
 ## 2026-08-07 - M3.145 disposable replay hardening
 
 Fresh replay first found a stale verifier/test contract: authenticated Cost
