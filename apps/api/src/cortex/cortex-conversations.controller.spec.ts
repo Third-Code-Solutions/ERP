@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 import { CortexConversationsController } from './cortex-conversations.controller'
 import { CortexConversationsService } from './cortex-conversations.service'
+import { CortexConversationTurnsService } from './cortex-conversation-turns.service'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const USER_ID = '11111111-1111-4111-8111-111111111111'
@@ -21,13 +22,21 @@ describe('Cortex conversation HTTP contract', () => {
     close = undefined
   })
 
-  async function appFor(list = vi.fn(), read = vi.fn()) {
+  async function appFor(
+    list = vi.fn(),
+    read = vi.fn(),
+    appendUserTurn = vi.fn()
+  ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [CortexConversationsController],
       providers: [
         {
           provide: CortexConversationsService,
           useValue: { list, read },
+        },
+        {
+          provide: CortexConversationTurnsService,
+          useValue: { appendUserTurn },
         },
       ],
     }).compile()
@@ -89,5 +98,47 @@ describe('Cortex conversation HTTP contract', () => {
       CONVERSATION_ID,
       expect.objectContaining({ tenantId: TENANT_ID, userId: USER_ID })
     )
+  })
+
+  it('requires idempotency and forwards only the verified principal', async () => {
+    const appendUserTurn = vi.fn().mockResolvedValue({
+      conversationId: CONVERSATION_ID,
+      messageId: '44444444-4444-4444-8444-444444444444',
+      status: 'created',
+    })
+    const app = await appFor(vi.fn(), vi.fn(), appendUserTurn)
+
+    await request(app.getHttpServer())
+      .post('/v1/cortex/conversations/user-turns')
+      .send({ content: 'What changed?' })
+      .expect(400)
+    expect(appendUserTurn).not.toHaveBeenCalled()
+
+    await request(app.getHttpServer())
+      .post('/v1/cortex/conversations/user-turns')
+      .set('Idempotency-Key', 'turn-1')
+      .send({ content: 'What changed?' })
+      .expect(201)
+    expect(appendUserTurn).toHaveBeenCalledWith(
+      { content: 'What changed?' },
+      expect.objectContaining({ tenantId: TENANT_ID, userId: USER_ID }),
+      'turn-1'
+    )
+  })
+
+  it('rejects browser-supplied identity and assistant roles', async () => {
+    const appendUserTurn = vi.fn()
+    const app = await appFor(vi.fn(), vi.fn(), appendUserTurn)
+
+    await request(app.getHttpServer())
+      .post('/v1/cortex/conversations/user-turns')
+      .set('Idempotency-Key', 'turn-2')
+      .send({
+        content: 'Fabricated answer',
+        tenantId: TENANT_ID,
+        role: 'assistant',
+      })
+      .expect(400)
+    expect(appendUserTurn).not.toHaveBeenCalled()
   })
 })

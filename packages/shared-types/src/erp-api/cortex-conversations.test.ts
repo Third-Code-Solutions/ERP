@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   cortexConversationDetailResponseSchema,
   cortexConversationListResponseSchema,
+  cortexConversationUserTurnCommandSchema,
+  cortexConversationUserTurnResultSchema,
 } from './cortex-conversations'
 
 const ID = '11111111-1111-4111-8111-111111111111'
@@ -45,5 +47,36 @@ describe('Cortex conversation API contracts', () => {
         ],
       })
     ).toThrow()
+  })
+
+  it('accepts only a user turn without caller-owned identity or role', () => {
+    expect(
+      cortexConversationUserTurnCommandSchema.parse({
+        content: 'What changed on this project?',
+        context: { refTable: 'projects', refId: ID },
+      })
+    ).toMatchObject({ content: 'What changed on this project?' })
+
+    expect(() =>
+      cortexConversationUserTurnCommandSchema.parse({
+        content: 'Hello',
+        tenantId: ID,
+      })
+    ).toThrow()
+    expect(() =>
+      cortexConversationUserTurnCommandSchema.parse({
+        content: '   ',
+      })
+    ).toThrow()
+  })
+
+  it('keeps the durable user-turn result bounded', () => {
+    expect(
+      cortexConversationUserTurnResultSchema.parse({
+        conversationId: ID,
+        messageId: '22222222-2222-4222-8222-222222222222',
+        status: 'created',
+      })
+    ).toMatchObject({ conversationId: ID, status: 'created' })
   })
 })

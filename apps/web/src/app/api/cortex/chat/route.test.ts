@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   writeAuditLog: vi.fn(),
   openaiCreate: vi.fn(),
   embedText: vi.fn(),
+  cortexConversationUserTurnWritesUseCoreApi: vi.fn(),
+  appendCortexConversationUserTurnThroughCoreApi: vi.fn(),
+  consumeProviderQuotaViaCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -55,6 +58,15 @@ vi.mock('@/lib/cortex/rbac', () => ({
 
 vi.mock('@/lib/operations/nav-config', () => ({
   roleLabel: vi.fn(() => 'Admin'),
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  cortexConversationUserTurnWritesUseCoreApi:
+    mocks.cortexConversationUserTurnWritesUseCoreApi,
+  appendCortexConversationUserTurnThroughCoreApi:
+    mocks.appendCortexConversationUserTurnThroughCoreApi,
+  consumeProviderQuotaViaCoreApi: mocks.consumeProviderQuotaViaCoreApi,
+  providerQuotaUsesCoreApi: vi.fn(() => false),
 }))
 
 import { POST } from './route'
@@ -101,6 +113,20 @@ describe('Cortex chat conversation ownership', () => {
     })
     mocks.authorizeCortexRecordContext.mockResolvedValue(null)
     mocks.writeAuditLog.mockResolvedValue(undefined)
+    mocks.cortexConversationUserTurnWritesUseCoreApi.mockReturnValue(false)
+    mocks.appendCortexConversationUserTurnThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: {
+        conversationId: CONVERSATION_ID,
+        messageId: '44444444-4444-4444-8444-444444444444',
+        status: 'created',
+      },
+    })
+    mocks.consumeProviderQuotaViaCoreApi.mockResolvedValue({
+      ok: true,
+      skipped: true,
+    })
   })
 
   afterEach(() => {
@@ -315,6 +341,70 @@ describe('Cortex chat conversation ownership', () => {
         response.headers.get(CORTEX_CITATIONS_HEADER)
       )
     ).toEqual([citation])
+  })
+
+  it('moves selected user-turn writes to Core without exposing assistant authority', async () => {
+    mocks.cortexConversationUserTurnWritesUseCoreApi.mockReturnValue(true)
+    const request = new NextRequest('http://localhost/api/cortex/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'browser-turn-1',
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Show active projects' }],
+      }),
+    })
+
+    const response = await POST(request)
+    await expect(response.text()).resolves.toBe('Grounded answer')
+
+    expect(
+      mocks.appendCortexConversationUserTurnThroughCoreApi
+    ).toHaveBeenCalledWith(
+      { content: 'Show active projects' },
+      'browser-turn-1'
+    )
+    expect(mocks.createCortexConversation).not.toHaveBeenCalled()
+    expect(mocks.appendCortexMessage).toHaveBeenCalledTimes(1)
+    expect(mocks.appendCortexMessage).toHaveBeenCalledWith(
+      'tenant-a',
+      'user-a',
+      CONVERSATION_ID,
+      'assistant',
+      'Grounded answer',
+      []
+    )
+  })
+
+  it('fails closed when selected Core user-turn authority is unavailable', async () => {
+    mocks.cortexConversationUserTurnWritesUseCoreApi.mockReturnValue(true)
+    mocks.appendCortexConversationUserTurnThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'Cortex user-turn service is unavailable.',
+    })
+    const request = new NextRequest('http://localhost/api/cortex/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'browser-turn-2',
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Show active projects' }],
+      }),
+    })
+
+    const response = await POST(request)
+
+    expect(response.status).toBe(503)
+    expectPrivate(response)
+    await expect(response.text()).resolves.toBe(
+      'Cortex user-turn service is unavailable.'
+    )
+    expect(mocks.createCortexConversation).not.toHaveBeenCalled()
+    expect(mocks.appendCortexMessage).not.toHaveBeenCalled()
+    expect(mocks.searchCortexNodes).not.toHaveBeenCalled()
   })
 
   it('redacts direct identifiers before embedding and external model calls', async () => {

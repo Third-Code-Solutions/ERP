@@ -5,6 +5,45 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.160 Core Cortex user-turn write authority (2026-08-07)
+
+Authenticated user-turn persistence now has an original typed NestJS command
+at `POST /v1/cortex/conversations/user-turns`. Core accepts only user content,
+optional immutable registered-record context, and an optional owned
+conversation ID. Tenant, actor, current role, capability, and message role are
+server-derived. Current membership and record visibility are rechecked inside
+the transaction; foreign, missing, and revoked context remains concealed.
+
+PostgreSQL migration `20260807170000` adds a forced-RLS, service-only
+idempotency ledger with exact replay, changed-command conflict, and composite
+tenant foreign keys. Conversation/message tenant identity is constrained by
+new composite unique indexes. The command locks its ledger and conversation,
+creates or appends exactly one `user` turn, updates the conversation timestamp,
+and emits a chained semantic audit containing hashes and counts but no raw
+content. The browser cannot submit an assistant turn.
+
+Next preserves the existing chat contract. Independent exact-tenant Core and
+Web flags default false/empty; selected Core failure fails closed. Legacy user
+and assistant persistence remains the default. Only user-turn persistence can
+move in this increment; assistant/provider persistence remains server-side in
+the compatibility path pending a distinct trusted service-to-service command.
+
+Validation passed: shared types 32 files / 247 tests; API 130 / 564; Web 97 /
+650; ordinary database 58 files / 200 passed / 143 environment-gated skips;
+forced bounded root tests; workspace lint/typecheck; provider-spend 4/4;
+controlled-release 5/5; Actionlint; pinned workflow references; and local
+NestJS/Next.js production builds with 82 static pages. A disposable PostgreSQL
+17.10 + Redis 7.4.9 lane applied 105/105 migrations, verified 32 protected and
+8 service-only tables, passed database 343/343 with zero skips, passed the full
+API integration lane, and proved the new real-transaction suite 1/1. Schema
+SHA-256 before/after matched
+`0603D08DB57B281230ED699BC72FE4D7DC946756E129421F40841CF12D400B94`.
+
+All new flags remain closed. Managed Supabase was not queried or changed and
+remains last verified at 55 migrations versus 105 source migrations. No hosted
+SQL/Auth/Storage/data mutation, AI/image/provider call, Vercel/Railway build or
+deployment, paid resource, or Git integration change occurred.
+
 ## M3.159 Core Cortex conversation read authority (2026-08-07)
 
 Saved Cortex conversation list and detail reads now have an original typed

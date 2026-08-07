@@ -1,5 +1,29 @@
 # Architecture Decisions
 
+## D-269 - Separate human and assistant Cortex write authority (2026-08-07)
+
+Decision: migrate only authenticated human user-turn persistence to the NestJS
+browser-facing command. Core hard-codes role `user`, derives all authority from
+the principal, and commits the message, durable idempotency result, conversation
+timestamp, and chained audit in one PostgreSQL transaction. Assistant/provider
+turns remain in the existing server compatibility path until a separate trusted
+service-to-service command exists.
+
+Rationale: allowing a browser request to select `assistant` would let a caller
+fabricate authoritative AI memory. Moving chat generation and streaming at the
+same time would also couple provider cost/failure behavior to the first write
+migration. Separating the authorities preserves the public chat contract,
+creates a small rollback seam, and proves tenant/RBAC/idempotency integrity
+without expanding AI spend or Python authority.
+
+Evidence: strict shared parsing; controller/service tests for missing keys,
+closed gates, replay, changed payloads, role revocation, ownership and context;
+Next compatibility/no-fallback tests; real rollback-only PostgreSQL integration
+for cross-tenant concealment, composite foreign keys, redacted titles, user-only
+roles, ledger state, and raw-content-free audit; 105/105 disposable migration
+replay and zero-skip database suite. No hosted mutation or provider call
+occurred.
+
 ## D-268 - Move Cortex conversation reads before chat writes (2026-08-07)
 
 Decision: give saved conversation list/detail reads a separately canaried

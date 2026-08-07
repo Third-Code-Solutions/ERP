@@ -1,5 +1,27 @@
 # Target State
 
+## M3.160 Cortex user-turn write authority
+
+Official human-authored Cortex memory belongs to the NestJS modular monolith.
+The browser may submit only content, optional registered-record context, an
+owned conversation ID, and an idempotency key. Core derives tenant, actor,
+role, capability, and the immutable `user` message role; rechecks current
+authorization in the same PostgreSQL transaction; enforces tenant identity
+with composite constraints; and writes a raw-content-free chained audit.
+
+Idempotency is durable PostgreSQL authority, not process memory or Redis. Exact
+replay returns the original result; reuse for a changed command conflicts.
+Redis/BullMQ may transport later work but cannot become transaction truth.
+Python and AI providers cannot approve, finalize, or directly persist official
+ERP memory.
+
+Assistant/provider turns require a separate trusted server-to-server authority
+that the browser cannot impersonate. Until that boundary exists, only the user
+turn may use Core and assistant persistence remains in the existing server
+compatibility path. Next remains a closed-by-default, exact-tenant facade and a
+selected Core error fails closed. Managed replay, exact-tenant parity, and
+protected canary evidence remain release gates.
+
 ## M3.159 Cortex conversation read authority
 
 Saved Cortex memory reads belong to the NestJS modular monolith. List and

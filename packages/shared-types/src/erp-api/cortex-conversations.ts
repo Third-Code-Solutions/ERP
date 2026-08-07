@@ -46,6 +46,31 @@ export const cortexConversationDetailResponseSchema = z
   })
   .strict()
 
+export const cortexConversationUserTurnCommandSchema = z
+  .object({
+    conversationId: cortexConversationIdSchema.optional(),
+    context: z
+      .object({
+        refTable: cortexGraphRefTableSchema,
+        refId: z.string().uuid(),
+      })
+      .strict()
+      .optional(),
+    content: z
+      .string()
+      .max(20_000)
+      .refine((value) => value.trim().length > 0, 'Content is required'),
+  })
+  .strict()
+
+export const cortexConversationUserTurnResultSchema = z
+  .object({
+    conversationId: cortexConversationIdSchema,
+    messageId: z.string().uuid(),
+    status: z.enum(['created', 'appended']),
+  })
+  .strict()
+
 export type CortexConversationContext = z.infer<
   typeof cortexConversationContextSchema
 >
@@ -57,4 +82,10 @@ export type CortexConversationListResponse = z.infer<
 >
 export type CortexConversationDetailResponse = z.infer<
   typeof cortexConversationDetailResponseSchema
+>
+export type CortexConversationUserTurnCommand = z.infer<
+  typeof cortexConversationUserTurnCommandSchema
+>
+export type CortexConversationUserTurnResult = z.infer<
+  typeof cortexConversationUserTurnResultSchema
 >

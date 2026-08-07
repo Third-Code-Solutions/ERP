@@ -324,6 +324,36 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_CORTEX_CONVERSATION_READS_TENANT_IDS')
   })
 
+  it('keeps Cortex user-turn writes disabled and tenant-scoped by default', () => {
+    const defaults = validateEnvironment(REQUIRED)
+    expect(
+      defaults.ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_ENABLED
+    ).toBe(false)
+    expect(
+      defaults.ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_TENANT_IDS
+    ).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_ENABLED: 'true',
+        ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_ENABLED: true,
+      ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_TENANT_IDS')
+  })
+
   it('keeps every semantic index spend gate disabled and UUID-scoped', () => {
     const defaults = validateEnvironment(REQUIRED)
     expect(defaults.ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED).toBe(false)
