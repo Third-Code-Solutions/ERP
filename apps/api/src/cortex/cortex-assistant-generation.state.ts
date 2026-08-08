@@ -104,6 +104,8 @@ const NON_RETRYABLE_FAILURES = new Set([
   'provider_request_failed',
   'provider_response_invalid',
   'provider_outcome_unknown',
+  'provider_circuit_open',
+  'provider_circuit_probe_in_progress',
 ])
 
 function sha256(value: string): string {

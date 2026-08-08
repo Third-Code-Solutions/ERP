@@ -19,6 +19,7 @@ export const ERP_CAPABILITIES = [
   'asset.maintenance.manage',
   'cortex.search',
   'cortex.index.manage',
+  'cortex.provider.health.read',
   'finance.read',
   'account.read',
   'audit.read',
@@ -90,6 +91,7 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'viewer',
   ],
   'cortex.index.manage': ['owner', 'admin'],
+  'cortex.provider.health.read': ['owner', 'admin', 'finance'],
   'finance.read': ['owner', 'admin', 'finance'],
   'account.read': [
     'owner',

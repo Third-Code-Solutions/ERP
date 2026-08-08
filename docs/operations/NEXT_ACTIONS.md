@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.169 provider health/circuit authority
+
+Keep every Cortex generation, worker, provider-execution, provider-budget,
+recovery, Web, and Core gate false; all exact-tenant allowlists empty; provider
+policies absent or disabled; credentials unset; and Vercel Git disconnected.
+Do not query or mutate managed Supabase, deploy/build Vercel or Railway, call
+an AI/image/provider, or create a paid resource under the cost lock.
+
+The next safe source-only milestone is M3.170: define durable circuit alert
+transitions and deduplication from aggregate provider evidence, with a local
+fake sink only. Prove one alert per open transition, one recovery event after a
+successful probe, exact tenant/provider/model scope, retry idempotency, and no
+prompt/response/credential or external network call. Do not add production
+paging credentials or activate a provider.
+
+Before any real provider canary, test-fire approved external alert routing,
+complete M3.152 backup/PITR and an isolated complete-clone replay of all 111
+migrations, then approve one exact tenant, one low request/daily micros policy,
+credential scope, one reviewed release SHA, live RBAC/cancellation checks, and
+a rollback drill. M3.169 proves local spend control only; it is not activation
+approval.
+
 ## Exact next action after M3.168 provider protocol
 
 Keep every Cortex generation, worker, provider-execution, provider-budget,

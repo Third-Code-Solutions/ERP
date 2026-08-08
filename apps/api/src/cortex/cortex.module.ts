@@ -34,6 +34,9 @@ import { CortexAssistantGenerationWorkerClient } from './cortex-assistant-genera
 import { CortexAssistantProviderAdapter } from './cortex-assistant-provider.adapter'
 import { CortexAssistantProviderBudgetService } from './cortex-assistant-provider-budget.service'
 import { CortexAssistantProviderExecutionService } from './cortex-assistant-provider-execution.service'
+import { CortexAssistantProviderHealthController } from './cortex-assistant-provider-health.controller'
+import { CortexAssistantProviderHealthPipe } from './cortex-assistant-provider-health.pipe'
+import { CortexAssistantProviderHealthService } from './cortex-assistant-provider-health.service'
 import { CortexSearchController } from './cortex-search.controller'
 import { CortexSearchPipe } from './cortex-search.pipe'
 import { CortexSearchService } from './cortex-search.service'
@@ -56,6 +59,7 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
   controllers: [
     CortexConversationsController,
     CortexAssistantGenerationController,
+    CortexAssistantProviderHealthController,
     CortexEntityController,
     CortexGraphController,
     CortexSearchController,
@@ -78,6 +82,8 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     CortexAssistantProviderAdapter,
     CortexAssistantProviderBudgetService,
     CortexAssistantProviderExecutionService,
+    CortexAssistantProviderHealthPipe,
+    CortexAssistantProviderHealthService,
     CortexEntityService,
     CortexEntityPipe,
     CortexGraphService,
@@ -100,6 +106,7 @@ export class CortexModule implements NestModule {
         CortexEntityController,
         CortexConversationsController,
         CortexAssistantGenerationController,
+        CortexAssistantProviderHealthController,
         CortexGraphController,
         CortexSearchController,
         CortexSemanticIndexController

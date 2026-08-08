@@ -235,7 +235,7 @@ describe('CortexAssistantProviderExecutionService', () => {
     )
     expect(probe.budget.reconcileAttempt).toHaveBeenCalledWith(
       RESERVATION_ID,
-      'execution_failed'
+      'provider_request_rejected'
     )
     expect(probe.budget.markDispatched).not.toHaveBeenCalled()
     expect(probe.adapter.dispatch).not.toHaveBeenCalled()
@@ -271,7 +271,7 @@ describe('CortexAssistantProviderExecutionService', () => {
     )
     expect(probe.budget.reconcileAttempt).toHaveBeenCalledWith(
       RESERVATION_ID,
-      'execution_failed'
+      'provider_rate_limited'
     )
     expect(probe.budget.settle).not.toHaveBeenCalled()
   })
@@ -304,7 +304,7 @@ describe('CortexAssistantProviderExecutionService', () => {
       expect(signal.aborted).toBe(true)
       expect(probe.budget.reconcileAttempt).toHaveBeenCalledWith(
         RESERVATION_ID,
-        'execution_failed'
+        'provider_request_timeout'
       )
     } finally {
       vi.useRealTimers()
@@ -327,7 +327,7 @@ describe('CortexAssistantProviderExecutionService', () => {
     })
     expect(probe.budget.reconcileAttempt).toHaveBeenCalledWith(
       RESERVATION_ID,
-      'execution_failed'
+      'provider_response_invalid'
     )
   })
 

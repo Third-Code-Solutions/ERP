@@ -1,5 +1,33 @@
 # Architecture Decisions
 
+## D-278 - Persist a tripped provider circuit until proven recovery (2026-08-08)
+
+Decision: provider health is computed from immutable tenant/policy attempt
+evidence. A configured number of consecutive failures must occur within the
+failure window to trip. Once tripped, the circuit remains open through cooldown
+and then half-open until a provider success; elapsed quiet time does not erase
+the trip. The locked provider-policy row serializes reservations, and only the
+first post-cooldown reservation may be the probe. Dispatch rechecks the circuit
+and accepts only that exact probe. A failed probe restarts cooldown.
+
+Nest exposes only aggregate UTC-day spend, outcome counts, unknown outcomes,
+latency percentiles, and circuit metadata to tenant owners, administrators, and
+finance users. Tenant scope comes from the verified principal. Prompts,
+responses, credentials, attempt/user identity, and provider receipts remain
+absent. Stable outcome codes preserve operational evidence without payloads.
+
+Rationale: a rolling recent-failure count can forget an outage before cooldown
+or admit multiple calls after a quiet period. Durable failure-burst evidence
+plus policy-row serialization bounds spend and concurrency without a mutable
+cache or a browser/Python reset path. PostgreSQL remains the authority; Redis
+remains transport/cache only.
+
+Validation and release boundary: all local suites, clean replay, schema-hash
+equality, build, spend/release guards, workflow checks, secret scan, and diff
+checks passed. External alerts, credentials, real provider calls, hosted SQL,
+and deployments remain prohibited. Rollback closes gates and preserves the
+forward-only ledger/configuration.
+
 ## D-277 - Bind provider I/O to one durable protocol attempt (2026-08-08)
 
 Decision: Nest alone constructs protocol-v1 provider requests after a durable

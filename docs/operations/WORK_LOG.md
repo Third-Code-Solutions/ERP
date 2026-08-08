@@ -1,5 +1,52 @@
 # Work Log
 
+## 2026-08-08 - M3.169 Cortex provider health and circuit authority
+
+Implemented the smallest source-only health/control slice around M3.168. Added
+one strict tenant-derived Nest read for aggregate UTC-day spend, attempts,
+unknown outcomes, p50/p95/p99 latency, policy state, and circuit state. Access
+is limited to owner/admin/finance. No prompt, response, receipt, attempt/user
+identity, credential, or caller-supplied tenant scope crosses the endpoint.
+
+Added bounded policy threshold/window/cooldown fields and terminal-attempt
+query support. A failure burst trips from immutable settled evidence and stays
+tripped until success. Cooldown denies reservations; half-open admits one probe
+under the policy lock; dispatch rechecks the exact probe. Stable outcome codes
+now distinguish provider timeout, rate limit, rejection/failure, invalid
+response, and unknown outcome. Added the privacy-safe circuit runbook; external
+paging remains deliberately absent.
+
+Validation:
+
+- Shared 266/266; API 610/610; Web 676/676; AI worker 8/8; DXF worker 11/11.
+- Clean PostgreSQL 17 + Redis replay: 111/111 migrations, database 365/365
+  zero-skip, 26 API integration files/37 tests, equal before/after schema hash
+  `0FA5E8A25E45C1869DE792B4B6C9B77653C4604475A01C8E4A9B015FB7191CF6`.
+- Lint, typecheck, Nest/Next production build with 82 pages, spend 4/4,
+  controlled release 5/5, Actionlint, pinned actions, Gitleaks, and diff hygiene
+  passed.
+- Review caught and fixed a rolling-window defect before commit: a tripped
+  outage can no longer disappear before cooldown or close merely from quiet
+  time. PostgreSQL integration proves persistent half-open behavior, one probe,
+  recovery on success, re-entry denial, sparse-failure non-tripping, and tenant
+  isolation.
+
+Release boundary and unresolved risk:
+
+- No credential, AI/image/provider call, hosted Supabase query/write,
+  Auth/Storage/data mutation, Vercel/Railway build/deploy, paid resource, or
+  Vercel Git change occurred. Managed Supabase is still last verified at
+  55/111.
+- All gates remain false/empty and the production adapter unavailable. External
+  alert delivery, complete-clone replay, backup/PITR, one low-budget tenant,
+  reviewed release identity, and live rollback proof remain activation gaps.
+- Rollback closes dispatch and reconciles attempts while preserving the
+  forward-only provider evidence and policy fields. Do not down-migrate.
+
+Exact next action: M3.170 source-only circuit-alert transition and
+deduplication with a local fake sink. Add no real pager credential, network
+call, hosted write, build/deploy, paid resource, or provider activation.
+
 ## 2026-08-08 - M3.168 Cortex provider request/response protocol
 
 Implemented the smallest source-only protocol slice around M3.167. Added strict

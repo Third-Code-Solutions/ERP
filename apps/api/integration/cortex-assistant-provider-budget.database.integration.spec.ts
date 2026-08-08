@@ -22,6 +22,7 @@ import {
   CortexAssistantProviderBudgetService,
 } from '../src/cortex/cortex-assistant-provider-budget.service'
 import { cortexAssistantProviderDispatchKey } from '../src/cortex/cortex-assistant-provider-protocol'
+import { CortexAssistantProviderHealthService } from '../src/cortex/cortex-assistant-provider-health.service'
 import {
   DatabaseService,
   type DatabaseTransaction,
@@ -148,15 +149,59 @@ async function seedPolicy(
   transaction: DatabaseTransaction,
   tenantId: string,
   requestLimitMicros: number,
-  dailyLimitMicros: number
+  dailyLimitMicros: number,
+  circuit: {
+    failureThreshold: number
+    failureWindowSeconds: number
+    cooldownSeconds: number
+  } = {
+    failureThreshold: 3,
+    failureWindowSeconds: 300,
+    cooldownSeconds: 900,
+  }
+): Promise<string> {
+  const [policy] = await transaction
+    .insert(cortexAssistantProviderPolicies)
+    .values({
+      tenant_id: tenantId,
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      enabled: true,
+      request_limit_micros: requestLimitMicros,
+      daily_limit_micros: dailyLimitMicros,
+      circuit_failure_threshold: circuit.failureThreshold,
+      circuit_failure_window_seconds: circuit.failureWindowSeconds,
+      circuit_cooldown_seconds: circuit.cooldownSeconds,
+    })
+    .returning({ id: cortexAssistantProviderPolicies.id })
+  if (!policy) throw new Error('Provider policy fixture missing')
+  return policy.id
+}
+
+async function seedSettledAttempt(
+  transaction: DatabaseTransaction,
+  job: JobFixture,
+  policyId: string,
+  outcomeCode: string,
+  terminalAt: Date,
+  durationMs = 1_000
 ): Promise<void> {
-  await transaction.insert(cortexAssistantProviderPolicies).values({
-    tenant_id: tenantId,
-    provider: 'openai',
-    model: 'gpt-4.1-mini',
-    enabled: true,
-    request_limit_micros: requestLimitMicros,
-    daily_limit_micros: dailyLimitMicros,
+  const dispatchedAt = new Date(terminalAt.getTime() - durationMs)
+  const createdAt = new Date(dispatchedAt.getTime() - 1_000)
+  await transaction.insert(cortexAssistantProviderAttempts).values({
+    tenant_id: job.tenantId,
+    policy_id: policyId,
+    job_id: job.jobId,
+    attempt_number: 1,
+    request_hash: '9'.repeat(64),
+    status: 'settled',
+    reserved_cost_micros: 100,
+    consumed_cost_micros: 100,
+    outcome_code: outcomeCode,
+    created_at: createdAt,
+    updated_at: terminalAt,
+    dispatched_at: dispatchedAt,
+    terminal_at: terminalAt,
   })
 }
 
@@ -489,6 +534,221 @@ suite('Cortex assistant provider budget database integration', () => {
         .from(cortexAssistantProviderAttempts)
       expect(rows.filter((row) => row.tenantId === tenantOne.tenantId)).toHaveLength(1)
       expect(rows.filter((row) => row.tenantId === tenantTwo.tenantId)).toHaveLength(1)
+    })
+  })
+
+  it('opens on failures, permits one cooldown probe, reports health, and closes on success', async () => {
+    await alwaysRollback(async (transaction) => {
+      const tenant = await seedTenant(transaction, 'circuit')
+      const jobs = await Promise.all(
+        [
+          'failure-one',
+          'failure-two',
+          'failure-three',
+          'probe',
+          'blocked-probe',
+        ].map((label) => seedProcessingJob(transaction, tenant, label))
+      )
+      const [failureOne, failureTwo, failureThree, probe, blockedProbe] = jobs
+      if (
+        !failureOne ||
+        !failureTwo ||
+        !failureThree ||
+        !probe ||
+        !blockedProbe
+      ) {
+        throw new Error('Provider circuit job fixture missing')
+      }
+      const policyId = await seedPolicy(transaction, tenant.tenantId, 500, 5_000, {
+        failureThreshold: 3,
+        failureWindowSeconds: 60,
+        cooldownSeconds: 60,
+      })
+      const now = Date.now()
+      await seedSettledAttempt(
+        transaction,
+        failureOne,
+        policyId,
+        'provider_error:request_failed',
+        new Date(now - 90_000),
+        500
+      )
+      await seedSettledAttempt(
+        transaction,
+        failureTwo,
+        policyId,
+        'provider_error:timeout',
+        new Date(now - 80_000),
+        1_000
+      )
+      await seedSettledAttempt(
+        transaction,
+        failureThree,
+        policyId,
+        'provider_error:outcome_unknown',
+        new Date(now - 70_000),
+        2_000
+      )
+
+      const service = budgetService(transaction, [tenant.tenantId])
+      const health = new CortexAssistantProviderHealthService(
+        transactionBoundDatabase(transaction)
+      )
+      await expect(
+        health.read(
+          { provider: 'openai', model: 'gpt-4.1-mini' },
+          { tenantId: tenant.tenantId }
+        )
+      ).resolves.toMatchObject({
+        spend: {
+          heldMicros: '0',
+          consumedMicros: '300',
+          remainingMicros: '4700',
+        },
+        attempts: {
+          reserved: 0,
+          dispatched: 0,
+          succeeded: 0,
+          failed: 3,
+          outcomeUnknown: 1,
+        },
+        latencyMs: { p50: 1_000, p95: 2_000, p99: 2_000 },
+        circuit: {
+          state: 'half_open',
+          failureCount: 3,
+          probeInFlight: false,
+        },
+      })
+
+      const probeReservation = await service.reserve(
+        reservation(probe.jobId, '100')
+      )
+      await expect(
+        service.reserve(reservation(blockedProbe.jobId, '100'))
+      ).rejects.toMatchObject({
+        code: 'provider_circuit_probe_in_progress',
+      })
+      await service.markDispatched(dispatch(probeReservation.reservationId))
+      await service.settle(settlement(probeReservation.reservationId, '50'))
+
+      await expect(
+        health.read(
+          { provider: 'openai', model: 'gpt-4.1-mini' },
+          { tenantId: tenant.tenantId }
+        )
+      ).resolves.toMatchObject({
+        attempts: { succeeded: 1, failed: 3 },
+        circuit: {
+          state: 'closed',
+          failureCount: 0,
+          retryAt: null,
+          probeInFlight: false,
+        },
+      })
+      await expect(
+        service.reserve(reservation(blockedProbe.jobId, '100'))
+      ).resolves.toMatchObject({ status: 'reserved' })
+
+      const recentTenant = await seedTenant(transaction, 'circuit-open')
+      const recentJobs = await Promise.all(
+        ['one', 'two', 'three', 'blocked'].map((label) =>
+          seedProcessingJob(transaction, recentTenant, label)
+        )
+      )
+      const [recentOne, recentTwo, recentThree, recentBlocked] = recentJobs
+      if (!recentOne || !recentTwo || !recentThree || !recentBlocked) {
+        throw new Error('Open circuit fixture missing')
+      }
+      const recentPolicyId = await seedPolicy(
+        transaction,
+        recentTenant.tenantId,
+        500,
+        5_000,
+        {
+          failureThreshold: 3,
+          failureWindowSeconds: 3_600,
+          cooldownSeconds: 600,
+        }
+      )
+      for (const [index, recentJob] of [
+        recentOne,
+        recentTwo,
+        recentThree,
+      ].entries()) {
+        await seedSettledAttempt(
+          transaction,
+          recentJob,
+          recentPolicyId,
+          'provider_error:timeout',
+          new Date(now - (index + 1) * 5_000)
+        )
+      }
+      await expect(
+        budgetService(transaction, [recentTenant.tenantId]).reserve(
+          reservation(recentBlocked.jobId, '100')
+        )
+      ).rejects.toMatchObject({ code: 'provider_circuit_open' })
+      await expect(
+        health.read(
+          { provider: 'openai', model: 'gpt-4.1-mini' },
+          { tenantId: recentTenant.tenantId }
+        )
+      ).resolves.toMatchObject({
+        spend: { consumedMicros: '300' },
+        circuit: { state: 'open', failureCount: 3 },
+      })
+      await expect(
+        health.read(
+          { provider: 'openai', model: 'gpt-4.1-mini' },
+          { tenantId: tenant.tenantId }
+        )
+      ).resolves.toMatchObject({ circuit: { state: 'closed' } })
+
+      const sparseTenant = await seedTenant(transaction, 'circuit-sparse')
+      const sparseJobs = await Promise.all(
+        ['one', 'two', 'three', 'allowed'].map((label) =>
+          seedProcessingJob(transaction, sparseTenant, label)
+        )
+      )
+      const [sparseOne, sparseTwo, sparseThree, sparseAllowed] = sparseJobs
+      if (!sparseOne || !sparseTwo || !sparseThree || !sparseAllowed) {
+        throw new Error('Sparse circuit fixture missing')
+      }
+      const sparsePolicyId = await seedPolicy(
+        transaction,
+        sparseTenant.tenantId,
+        500,
+        5_000,
+        {
+          failureThreshold: 3,
+          failureWindowSeconds: 60,
+          cooldownSeconds: 600,
+        }
+      )
+      for (const [sparseJob, secondsAgo] of [
+        [sparseOne, 180],
+        [sparseTwo, 100],
+        [sparseThree, 10],
+      ] as const) {
+        await seedSettledAttempt(
+          transaction,
+          sparseJob,
+          sparsePolicyId,
+          'provider_error:timeout',
+          new Date(now - secondsAgo * 1_000)
+        )
+      }
+      await expect(
+        health.read(
+          { provider: 'openai', model: 'gpt-4.1-mini' },
+          { tenantId: sparseTenant.tenantId }
+        )
+      ).resolves.toMatchObject({ circuit: { state: 'closed' } })
+      await expect(
+        budgetService(transaction, [sparseTenant.tenantId]).reserve(
+          reservation(sparseAllowed.jobId, '100')
+        )
+      ).resolves.toMatchObject({ status: 'reserved' })
     })
   })
 })

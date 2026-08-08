@@ -35,6 +35,17 @@ export const cortexAssistantProviderPolicies = pgTable(
     daily_limit_micros: bigint('daily_limit_micros', {
       mode: 'number',
     }).notNull(),
+    circuit_failure_threshold: smallint('circuit_failure_threshold')
+      .notNull()
+      .default(3),
+    circuit_failure_window_seconds: integer(
+      'circuit_failure_window_seconds'
+    )
+      .notNull()
+      .default(300),
+    circuit_cooldown_seconds: integer('circuit_cooldown_seconds')
+      .notNull()
+      .default(900),
     created_at: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -64,6 +75,12 @@ export const cortexAssistantProviderPolicies = pgTable(
       sql`${table.request_limit_micros} between 1 and 999999999999
         and ${table.daily_limit_micros} between ${table.request_limit_micros}
           and 999999999999`
+    ),
+    circuitCheck: check(
+      'cortex_asst_provider_policies_circuit_bounds',
+      sql`${table.circuit_failure_threshold} between 1 and 20
+        and ${table.circuit_failure_window_seconds} between 60 and 86400
+        and ${table.circuit_cooldown_seconds} between 60 and 86400`
     ),
     updatedAfterCreatedCheck: check(
       'cortex_asst_provider_policies_updated_after_created',
@@ -122,6 +139,12 @@ export const cortexAssistantProviderAttempts = pgTable(
       table.budget_date,
       table.status
     ),
+    terminalIdx: index('idx_cortex_asst_provider_attempt_terminal').on(
+      table.tenant_id,
+      table.policy_id,
+      table.terminal_at,
+      table.id
+    ).where(sql`${table.status} = 'settled'`),
     tenantJobFk: foreignKey({
       name: 'cortex_asst_provider_attempts_tenant_job_fk',
       columns: [table.tenant_id, table.job_id],
