@@ -5,6 +5,25 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.184 Dashboard server-component brief adapter seam (2026-08-09)
+
+The Cortex dashboard page now delegates its brief read to a server-only
+`readCortexBrief()` seam. An exact-tenant Core selection calls the Nest-backed
+adapter, normalizes the strict serialized projection, and never imports or
+calls the database helper; Core failure shows a visible notice and suppresses
+brief-derived KPI/graph metrics without a direct fallback. Unselected tenants
+retain the role-scoped database path. Chat, graph retrieval, and other direct
+reads remain separate authority surfaces.
+
+Focused: brief-read 3/3 plus presentation/panel 8/8. Full: API 641/641 across
+147 files; shared 277/277; Web 683/683 across 100 files; database 224 passed
+plus 143 credential-gated skips; typecheck, lint, Nest/Next 82-page build,
+spend/release/Actionlint/pinned-refs/Gitleaks/diff/clean-room gates. No SQL
+changed; no hosted write/deploy/provider/paid resource.
+
+Exact next safe slice: add deterministic dashboard parity fixtures and review
+evidence without enabling a tenant canary.
+
 ## M3.183 Cortex brief read contract and Nest authority (2026-08-09)
 
 Added a strict shared Cortex brief query/result contract, a fail-closed NestJS

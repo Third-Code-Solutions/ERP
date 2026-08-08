@@ -63,6 +63,14 @@ inputs are complete; it does not enable a route, exporter, sink, or deployment.
   and Core canaries are ERP data paths only; process metrics cannot become a
   dashboard KPI, graph node, citation, or assistant context.
 
+## M3.184 Dashboard brief consumption boundary
+
+The dashboard page consumes the server-only brief seam and never imports the
+database brief helper. The seam can select only the exact-tenant Core adapter,
+normalizes ERP projection fields, and returns an explicit failure without
+re-entering direct reads. Dashboard KPI/graph metrics remain ERP data, not
+process snapshot counters or exporter input.
+
 ## M3.183 Cortex brief read boundary
 
 The brief contract and Nest authority carry only the tenant-scoped ERP

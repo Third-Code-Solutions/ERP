@@ -1,11 +1,35 @@
-import type {
-  CortexBriefItem,
-  CortexOperationalBrief,
-} from '@third-code-erp/database'
 import {
   cortexEntityDefinition,
   cortexHref,
 } from './entity-registry'
+
+export interface CortexBriefSourceItem {
+  nodeId: string
+  nodeType: string
+  refTable: string
+  refId: string
+  title: string | null
+  summary: string | null
+  freshness: 'fresh' | 'stale' | 'unknown'
+  recordedAt: Date
+  projectId: string | null
+}
+
+export interface CortexBriefSource {
+  generatedAt: Date
+  stats: {
+    nodes: number
+    edges: number
+    provenance: number
+    byType: { nodeType: string; count: number }[]
+  }
+  freshness: {
+    fresh: number
+    stale: number
+    unknown: number
+  }
+  items: CortexBriefSourceItem[]
+}
 
 export interface CortexBriefViewItem {
   id: string
@@ -16,14 +40,14 @@ export interface CortexBriefViewItem {
   href: string
   refTable: string
   refId: string
-  freshness: CortexBriefItem['freshness']
+  freshness: CortexBriefSourceItem['freshness']
   recordedAt: string
 }
 
 export interface CortexBriefView {
   generatedAt: string
-  freshness: CortexOperationalBrief['freshness']
-  stats: CortexOperationalBrief['stats']
+  freshness: CortexBriefSource['freshness']
+  stats: CortexBriefSource['stats']
   items: CortexBriefViewItem[]
 }
 
@@ -32,7 +56,7 @@ export interface CortexBriefView {
  * allow-list: unknown graph sources never reach a clickable UI surface.
  */
 export function presentCortexBrief(
-  brief: CortexOperationalBrief,
+  brief: CortexBriefSource,
   maxItems = 6
 ): CortexBriefView {
   const boundedMaxItems = Number.isFinite(maxItems)
