@@ -1,5 +1,46 @@
 # Work Log
 
+## 2026-08-09 - M3.173 disabled-by-default BullMQ alert delivery seam
+
+Added the closed-by-default queue seam around the durable circuit-alert
+ledger. BullMQ carries only `{schemaVersion,eventKey}` with deterministic
+event-key identity, three bounded attempts, exponential backoff, terminal-job
+replacement, and a 60-second recovery scheduler. The processor reloads tenant
+scope from PostgreSQL, intersects queue/worker/route gates, claims exact event
+keys, and routes through the existing credential-free protocol-v1 boundary.
+
+Added stale-processing recovery with a durable three-attempt ceiling. Rows
+past that ceiling become `stale_attempt_limit`; route failures remain stable
+codes and raw adapter messages never persist. The external adapter token stays
+unbound; local-disabled fallback cannot call a network.
+
+Validation:
+
+- Shared 273/273 across 39 files; API 626/626 across 143 files; Web 676/676;
+  full unit lane passed.
+- Disposable PostgreSQL 17 + Redis 7.4.9 replay: 112/112 migrations,
+  database 367/367 zero-skip, 26 API integration files/40 tests, zero failed;
+  before/after schema hash equal
+  `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+- Local integration proved exact event-key retry, stale recovery, and terminal
+  attempt capping. Lint, typecheck, and serial production build with 82 pages
+  passed.
+
+Release boundary and unresolved risk:
+
+- No credential, AI/image/provider call, hosted Supabase query/write,
+  Auth/Storage/data mutation, Vercel/Railway build/deploy, paid resource, or
+  Vercel Git change occurred. Disposable PostgreSQL/Redis are stopped.
+- All gates remain false/empty. Post-commit enqueue wiring, external adapter,
+  complete-clone replay, backup/PITR, one low-budget tenant, reviewed release
+  identity, and live rollback proof remain activation gaps.
+- Rollback disables queue/worker/recovery/route gates while preserving
+  forward-only circuit/alert evidence. Do not down-migrate.
+
+Exact next action: M3.174 post-commit enqueue wiring with a transactional
+outbox boundary and local fake proof. Add no external network, credential,
+hosted write, deployment, paid resource, or provider activation.
+
 ## 2026-08-08 - M3.172 durable claim-to-route orchestration
 
 Connected durable circuit-alert claims to the protocol-v1 router through

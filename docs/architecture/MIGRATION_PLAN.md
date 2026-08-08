@@ -1,5 +1,40 @@
 # Migration Plan
 
+## M3.173 Disabled-by-default BullMQ alert delivery seam (completed)
+
+1. Added a strict shared queue contract containing only `schemaVersion` and the
+   durable `eventKey`, plus a scheduler envelope containing no authority.
+2. Added a Nest BullMQ producer/processor with deterministic event-key job IDs,
+   three bounded attempts, exponential backoff, terminal transport replacement,
+   and an exact intersection of queue, worker, route, and recovery gates.
+3. Added PostgreSQL-backed event-key reload, transactional claim-to-route
+   delivery, stale-processing recovery, and a durable `stale_attempt_limit`
+   ceiling. Route failures remain bounded codes and raw adapter messages never
+   persist.
+4. Added local fake conformance tests and a disposable database proof covering
+   exact event-key delivery, retry, stale recovery, and terminal ceiling.
+5. Added no migration, external adapter, credential, provider, hosted write,
+   deployment, or paid resource. The adapter token remains unbound and the
+   fallback is credential-free.
+
+Evidence: shared 273/273 across 39 files; API 626/626 across 143 files; Web
+676/676; 26 API integration files/40 tests; 112/112 clean migrations;
+database 367/367 zero-skip; equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; lint;
+typecheck; serial Nest/Next production build with 82 pages.
+
+Release gate: keep all Cortex queue, worker, recovery, route, provider,
+budget, generation, Core, and Web gates false or empty; credentials unset and
+Vercel Git disconnected. Do not apply hosted SQL, deploy, call a provider,
+connect a pager, or create a paid resource. Rollback disables queue/worker/
+recovery/route gates and preserves forward-only alert evidence. Do not
+down-migrate.
+
+Next source-only slice: M3.174 post-commit enqueue wiring from opened/recovered
+alert observations into the disabled queue, with an explicit transactional
+outbox boundary and local fake proof. No external network, credential, hosted
+write, deployment, or provider activation.
+
 ## M3.172 Durable claim-to-route orchestration (completed)
 
 1. Added `deliverPendingThroughRoute` to connect transactional alert claims to

@@ -1,5 +1,25 @@
 # Target State
 
+## M3.173 disabled-by-default BullMQ alert delivery seam
+
+The alert transport must carry only `{schemaVersion,eventKey}`. The job ID is
+deterministic from the durable event key, retries are capped at three attempts
+with bounded exponential backoff, and terminal BullMQ envelopes may be
+replaced only during a database-backed recovery pass. A worker reloads the
+tenant from PostgreSQL, rechecks the exact intersection of job/worker/route
+gates, claims the event transactionally, and routes the same protocol-v1
+envelope. It must never trust tenant data from the queue payload.
+
+Recovery runs only when all gates and exact tenant allowlists intersect. It
+re-enqueues pending, failed-under-ceiling, or stale-processing event keys and
+records `stale_attempt_limit` when a stale claim has exhausted its durable
+ceiling. The adapter token remains unbound to external credentials in this
+milestone; local fakes prove identity, retry, stale, and closed-gate behavior.
+
+Activation still requires a credential-isolated external adapter, complete-
+clone migration replay, backup/PITR evidence, one exact tenant, a low approved
+policy, one reviewed release SHA, live RBAC/cancellation proof, and rollback.
+
 ## M3.172 durable claim-to-route orchestration
 
 Durable alert claims must be the only source for adapter delivery. Nest must

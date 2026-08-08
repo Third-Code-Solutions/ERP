@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-282 - Keep alert BullMQ transport opaque and bounded (2026-08-09)
+
+Decision: BullMQ alert jobs carry only the durable circuit `eventKey`, with a
+deterministic job ID, three attempts, bounded exponential backoff, and a
+60-second recovery scheduler. Nest reloads tenant scope from PostgreSQL,
+rechecks exact queue/worker/route gates, claims the row transactionally, and
+routes through the existing protocol-v1 adapter. Terminal Redis jobs may be
+replaced only for database-recoverable state; stale claims past the durable
+ceiling become `stale_attempt_limit`.
+
+Rationale: queue payloads containing tenant or alert data can become a second,
+stale authority and make cross-tenant routing or retry storms possible. An
+opaque event key keeps PostgreSQL authoritative, while bounded attempts and
+closed-by-default gates protect spend and operational load. The route adapter
+token remains unbound; the local-disabled fallback cannot make a network call.
+
+Validation and release boundary: shared/API/full tests, disposable database
+and Redis replay, serial build, lint, typecheck, and clean-room review passed.
+No credential, external network, hosted mutation, provider call, pager, or
+deployment occurred. Rollback closes all queue/worker/recovery/route gates;
+never down-migrate.
+
 ## D-281 - Persist route outcomes through durable alert claims (2026-08-08)
 
 Decision: durable alert claims call the provider-neutral router through one
