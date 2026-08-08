@@ -5,6 +5,40 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.169 Cortex provider health and circuit authority (2026-08-08)
+
+Nest now exposes one tenant-derived aggregate provider-health read for owners,
+administrators, and finance users. It reports UTC-day held/consumed/remaining
+micros, attempt outcomes, unknown outcomes, bounded p50/p95/p99 dispatch
+latency, policy state, and circuit state. Strict query and response contracts
+exclude caller-supplied tenant scope, prompts, responses, credentials, attempt
+IDs, and user IDs. The runbook key is stable and maps to a local operator
+runbook.
+
+Each provider policy now owns bounded failure-threshold, failure-window, and
+cooldown configuration. PostgreSQL terminal-attempt evidence determines the
+consecutive failure streak. A threshold burst persists as tripped until a
+successful settled attempt; quiet time alone cannot close it. Nest denies
+reservations during cooldown, permits only one half-open reservation under the
+locked policy row, and permits dispatch only for that exact probe. A successful
+probe closes the circuit; another failure restarts cooldown. Stable failure
+outcomes distinguish timeout, rate limit, rejected/failed request, invalid
+response, and unknown outcome without storing provider payloads.
+
+Validation passed: shared 266/266; API 610/610; Web 676/676; AI worker 8/8;
+DXF worker 11/11; database 365/365 with zero skips; 26 API integration files
+and 37 tests; lint/typecheck; Nest/Next production build with 82 generated
+pages; spend 4/4; controlled release 5/5; Actionlint; pinned workflow actions;
+Gitleaks; and diff hygiene. A clean PostgreSQL 17 + Redis replay applied
+111/111 migrations and produced equal before/after schema hashes
+`0FA5E8A25E45C1869DE792B4B6C9B77653C4604475A01C8E4A9B015FB7191CF6`.
+
+The production provider adapter and external alert integration remain
+unavailable. No credential, provider/AI/image call, hosted Supabase query or
+write, Auth/Storage/data mutation, Vercel/Railway build or deployment, paid
+resource, or Vercel Git change occurred. All rollout gates remain false/empty.
+Managed Supabase remains last verified at 55 migrations versus 111 in source.
+
 ## M3.168 Cortex provider request/response protocol (2026-08-08)
 
 Provider execution now has a versioned, provider-neutral protocol without a

@@ -26,6 +26,7 @@ import {
   type DatabaseTransaction,
 } from '../database/database.service'
 import { cortexAssistantProviderDispatchKey } from './cortex-assistant-provider-protocol'
+import { readCortexAssistantProviderCircuit } from './cortex-assistant-provider-health.query'
 
 export type CortexAssistantProviderBudgetErrorCode =
   | 'provider_budget_disabled'
@@ -37,6 +38,8 @@ export type CortexAssistantProviderBudgetErrorCode =
   | 'provider_attempt_changed'
   | 'provider_attempt_state_conflict'
   | 'provider_settlement_budget_exceeded'
+  | 'provider_circuit_open'
+  | 'provider_circuit_probe_in_progress'
 
 export class CortexAssistantProviderBudgetError extends Error {
   constructor(readonly code: CortexAssistantProviderBudgetErrorCode) {
@@ -65,9 +68,24 @@ interface ProviderAttemptRow {
   provider: string
   model: string
   policyEnabled: boolean
+  circuitFailureThreshold: number
+  circuitFailureWindowSeconds: number
+  circuitCooldownSeconds: number
   userId: string
   jobStatus: string
   jobAttemptCount: number
+}
+
+interface ProviderClockRow extends Record<string, unknown> {
+  now: string
+}
+
+function parseProviderClock(value: string): Date {
+  const now = new Date(value)
+  if (!Number.isFinite(now.getTime())) {
+    throw new Error('Provider circuit clock is invalid')
+  }
+  return now
 }
 
 export type CortexAssistantProviderReconciliationReason =
@@ -78,6 +96,12 @@ export type CortexAssistantProviderReconciliationReason =
   | 'superseded'
   | 'execution_failed'
   | 'replayed'
+  | 'provider_request_rejected'
+  | 'provider_request_timeout'
+  | 'provider_rate_limited'
+  | 'provider_request_failed'
+  | 'provider_response_invalid'
+  | 'provider_outcome_unknown'
 
 const RECONCILIATION_OUTCOMES: Record<
   CortexAssistantProviderReconciliationReason,
@@ -110,6 +134,30 @@ const RECONCILIATION_OUTCOMES: Record<
   replayed: {
     reserved: 'replayed_before_dispatch',
     dispatched: 'replayed_outcome_unknown',
+  },
+  provider_request_rejected: {
+    reserved: 'provider_error:request_rejected_before_dispatch',
+    dispatched: 'provider_error:request_rejected',
+  },
+  provider_request_timeout: {
+    reserved: 'provider_error:timeout_before_dispatch',
+    dispatched: 'provider_error:timeout',
+  },
+  provider_rate_limited: {
+    reserved: 'provider_error:rate_limited_before_dispatch',
+    dispatched: 'provider_error:rate_limited',
+  },
+  provider_request_failed: {
+    reserved: 'provider_error:request_failed_before_dispatch',
+    dispatched: 'provider_error:request_failed',
+  },
+  provider_response_invalid: {
+    reserved: 'provider_error:response_invalid_before_dispatch',
+    dispatched: 'provider_error:response_invalid',
+  },
+  provider_outcome_unknown: {
+    reserved: 'provider_error:outcome_unknown_before_dispatch',
+    dispatched: 'provider_error:outcome_unknown',
   },
 }
 
@@ -196,6 +244,12 @@ export class CortexAssistantProviderBudgetService {
           requestLimitMicros:
             cortexAssistantProviderPolicies.request_limit_micros,
           dailyLimitMicros: cortexAssistantProviderPolicies.daily_limit_micros,
+          failureThreshold:
+            cortexAssistantProviderPolicies.circuit_failure_threshold,
+          failureWindowSeconds:
+            cortexAssistantProviderPolicies.circuit_failure_window_seconds,
+          cooldownSeconds:
+            cortexAssistantProviderPolicies.circuit_cooldown_seconds,
         })
         .from(cortexAssistantProviderPolicies)
         .where(
@@ -208,6 +262,19 @@ export class CortexAssistantProviderBudgetService {
         .limit(1)
         .for('update')
       if (!policy?.enabled) this.fail('provider_budget_policy_unavailable')
+      const [clock] = await transaction.execute<ProviderClockRow>(sql`
+        select transaction_timestamp()::text as now
+      `)
+      if (!clock?.now) throw new Error('Provider circuit clock unavailable')
+      const circuit = await readCortexAssistantProviderCircuit(
+        transaction,
+        { ...policy, tenantId: job.tenantId },
+        parseProviderClock(clock.now)
+      )
+      if (circuit.state === 'open') this.fail('provider_circuit_open')
+      if (circuit.state === 'half_open' && circuit.probeInFlight) {
+        this.fail('provider_circuit_probe_in_progress')
+      }
       if (requestedMicros > policy.requestLimitMicros) {
         this.fail('provider_request_budget_exceeded')
       }
@@ -328,6 +395,28 @@ export class CortexAssistantProviderBudgetService {
         attempt.jobAttemptCount !== attempt.attemptNumber
       ) {
         this.fail('provider_attempt_state_conflict')
+      }
+
+      const [clock] = await transaction.execute<ProviderClockRow>(sql`
+        select transaction_timestamp()::text as now
+      `)
+      if (!clock?.now) throw new Error('Provider circuit clock unavailable')
+      const circuit = await readCortexAssistantProviderCircuit(
+        transaction,
+        {
+          id: attempt.policyId,
+          tenantId: attempt.tenantId,
+          failureThreshold: attempt.circuitFailureThreshold,
+          failureWindowSeconds: attempt.circuitFailureWindowSeconds,
+          cooldownSeconds: attempt.circuitCooldownSeconds,
+        },
+        parseProviderClock(clock.now)
+      )
+      if (
+        circuit.state !== 'closed' &&
+        circuit.probeAttemptId !== attempt.id
+      ) {
+        this.fail('provider_circuit_open')
       }
 
       const now = new Date()
@@ -479,7 +568,7 @@ export class CortexAssistantProviderBudgetService {
 
   async reconcileAttempt(
     reservationId: string,
-    reason: 'execution_failed' | 'replayed'
+    reason: CortexAssistantProviderReconciliationReason
   ): Promise<number> {
     const command = cortexAssistantProviderAttemptIdentitySchema.parse({
       reservationId,
@@ -645,6 +734,12 @@ export class CortexAssistantProviderBudgetService {
       provider: cortexAssistantProviderPolicies.provider,
       model: cortexAssistantProviderPolicies.model,
       policyEnabled: cortexAssistantProviderPolicies.enabled,
+      circuitFailureThreshold:
+        cortexAssistantProviderPolicies.circuit_failure_threshold,
+      circuitFailureWindowSeconds:
+        cortexAssistantProviderPolicies.circuit_failure_window_seconds,
+      circuitCooldownSeconds:
+        cortexAssistantProviderPolicies.circuit_cooldown_seconds,
       userId: cortexAssistantGenerationJobs.user_id,
       jobStatus: cortexAssistantGenerationJobs.status,
       jobAttemptCount: cortexAssistantGenerationJobs.attempt_count,

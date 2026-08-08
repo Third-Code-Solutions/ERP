@@ -1,5 +1,27 @@
 # Target State
 
+## M3.169 provider health and automatic circuit breaking
+
+Provider execution must expose tenant-scoped operational truth without raw
+prompts, responses, credentials, attempt identity, or user identity. Authorized
+owners, administrators, and finance users need UTC-day held/consumed/remaining
+spend, bounded outcome counts, unknown outcomes, latency percentiles, current
+policy state, retry time, and probe state. Caller-supplied tenant scope is
+forbidden; Nest derives it from the verified principal.
+
+A configured failure burst must stop new reservations and dispatches. Circuit
+evidence remains durable until provider success, cooldown opens only one
+half-open probe, and policy-row locking prevents concurrent probes. Quiet time
+cannot silently close a tripped circuit. Stable outcome codes and the attempt
+ledger remain the evidence; Redis, Python, and the browser cannot reset,
+reserve, dispatch, settle, or finalize provider work.
+
+This source boundary is locally complete. It does not authorize credentials or
+a real provider. Production activation still requires tested external alert
+routing, complete-clone migration replay, backup/PITR evidence, one exact
+tenant, a low approved policy, one reviewed release SHA, live RBAC/cancellation
+proof, and an approved rollback.
+
 ## M3.168 provider protocol and spend-safe dispatch
 
 Every paid assistant dispatch must use a strict versioned contract constructed

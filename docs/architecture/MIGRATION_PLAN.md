@@ -1,5 +1,36 @@
 # Migration Plan
 
+## M3.169 Cortex provider health and circuit authority (completed)
+
+1. Added strict aggregate health query/result contracts and an owner/admin/
+   finance Nest endpoint whose tenant comes only from the verified principal.
+2. Added bounded circuit configuration and a tenant/policy terminal-attempt
+   index without enabling or seeding a provider policy.
+3. Derived durable circuit evidence from settled outcomes since the latest
+   provider success. A threshold burst remains tripped through cooldown and
+   admits one locked half-open probe; success closes it and failure reopens it.
+4. Persisted stable provider failure classifications while retaining the
+   existing conservative unknown-outcome spend settlement.
+5. Added aggregate spend/count/latency reporting and the privacy-safe
+   `cortex-provider-circuit` operator runbook. External paging remains absent.
+
+Evidence: shared 266/266; API 610/610; Web 676/676; AI worker 8/8; DXF worker
+11/11; database 365/365 zero-skip; 111/111 clean migrations; 26 integration
+files/37 tests; lint/typecheck; Nest/Next production build with 82 pages; spend
+4/4; controlled release 5/5; Actionlint; pinned workflow actions; Gitleaks;
+diff hygiene; and equal schema hashes
+`0FA5E8A25E45C1869DE792B4B6C9B77653C4604475A01C8E4A9B015FB7191CF6`.
+
+Release gate: keep every Cortex provider/budget/generation/worker/recovery/Core/
+Web gate false or empty, policies absent or disabled, credentials unset, and
+Vercel Git disconnected. Do not apply hosted SQL, deploy, or call a provider
+under the cost lock. Rollback closes dispatch, reconciles attempts, and
+preserves forward-only attempt/circuit evidence. Do not down-migrate.
+
+Next source-only slice: M3.170 durable circuit-alert transition/deduplication
+with a local fake sink only. Add no external paging credential, network call,
+hosted write, build, deployment, or paid resource.
+
 ## M3.168 Cortex provider request/response protocol (completed)
 
 1. Added strict provider plan, request, and response schemas with protocol v1,

@@ -29,6 +29,9 @@ class GuardFixtureController {
   @RequireCapabilities('cortex.index.manage')
   cortexIndex(): void {}
 
+  @RequireCapabilities('cortex.provider.health.read')
+  cortexProviderHealth(): void {}
+
   @RequireCapabilities('finance.read')
   financeLedgerRead(): void {}
 
@@ -307,6 +310,33 @@ describe('CapabilityGuard', () => {
         })
       )
     ).toBe(true)
+  })
+
+  it('limits provider health and spend evidence to operational roles', () => {
+    expect(
+      guard.canActivate(
+        contextFor('cortexProviderHealth', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'finance',
+            email: 'finance@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+    expect(() =>
+      guard.canActivate(
+        contextFor('cortexProviderHealth', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
   })
 
   it('limits provider-spending Cortex indexing to owners and admins', () => {

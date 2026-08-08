@@ -18,6 +18,7 @@ import {
   CortexAssistantProviderBudgetError,
   CortexAssistantProviderBudgetService,
   type CortexAssistantProviderBudgetErrorCode,
+  type CortexAssistantProviderReconciliationReason,
 } from './cortex-assistant-provider-budget.service'
 import {
   buildCortexAssistantProviderRequest,
@@ -175,7 +176,10 @@ export class CortexAssistantProviderExecutionService {
       })
       requestFingerprint = cortexAssistantProviderRequestFingerprint(request)
     } catch {
-      await this.reconcileAttempt(reservation.reservationId, 'execution_failed')
+      await this.reconcileAttempt(
+        reservation.reservationId,
+        'provider_request_rejected'
+      )
       throw new CortexAssistantProviderExecutionError(
         'provider_request_rejected',
         false
@@ -230,7 +234,16 @@ export class CortexAssistantProviderExecutionService {
       ) {
         throw error
       }
-      await this.reconcileAttempt(reservation.reservationId, 'execution_failed')
+      const reconciliationReason =
+        error instanceof CortexAssistantProviderAdapterError
+          ? this.providerFailureReason(error.code)
+          : error instanceof CortexAssistantProviderBudgetError
+            ? 'execution_failed'
+            : 'provider_outcome_unknown'
+      await this.reconcileAttempt(
+        reservation.reservationId,
+        reconciliationReason
+      )
       if (error instanceof CortexAssistantProviderAdapterError) {
         throw new CortexAssistantProviderExecutionError(
           error.code,
@@ -298,7 +311,7 @@ export class CortexAssistantProviderExecutionService {
 
   private async reconcileAttempt(
     reservationId: string,
-    reason: 'execution_failed' | 'replayed'
+    reason: CortexAssistantProviderReconciliationReason
   ): Promise<void> {
     try {
       await this.budget.reconcileAttempt(reservationId, reason)
@@ -307,6 +320,22 @@ export class CortexAssistantProviderExecutionService {
         'provider_reconciliation_failed',
         true
       )
+    }
+  }
+
+  private providerFailureReason(
+    code: CortexAssistantProviderAdapterError['code']
+  ): CortexAssistantProviderReconciliationReason {
+    switch (code) {
+      case 'provider_request_rejected':
+      case 'provider_request_timeout':
+      case 'provider_rate_limited':
+      case 'provider_request_failed':
+      case 'provider_response_invalid':
+      case 'provider_outcome_unknown':
+        return code
+      default:
+        return 'provider_outcome_unknown'
     }
   }
 
