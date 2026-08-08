@@ -70,7 +70,10 @@ The backend emits fixed-cardinality process-local metric records for
 `failed` outcomes. Use these records to distinguish disabled/duplicate intake
 from transport failure; they contain no tenant IDs, event keys, alert payloads,
 credentials, or raw error text. Metrics are not exported or exposed through a
-public route in this source-only slice.
+public route in this source-only slice. A typed operational snapshot exists
+only inside Nest for future review; it is process-scoped, immutable, and not a
+tenant-facing response. Do not bind it to an exporter or route without a new
+authorization and cost decision.
 `pending`, `processing`, `delivered`, and `failed` are database states; a
 failed sink may be retried by event key, and the drain stops after one failure
 to prevent a hot loop. BullMQ, when separately approved, carries only

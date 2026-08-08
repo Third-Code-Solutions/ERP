@@ -1,5 +1,12 @@
 # Target State
 
+## M3.176 backend-only operational snapshot seam
+
+Operational tooling may read one schema-versioned process snapshot from the
+Nest observability service. Snapshot values are immutable, fixed-cardinality,
+and explicitly process-scoped. No public controller or browser route may bind
+this seam; future export requires separate security and cost review.
+
 ## M3.175 local post-commit enqueue observability
 
 The closed-by-default alert handoff exposes a fixed-cardinality process-local

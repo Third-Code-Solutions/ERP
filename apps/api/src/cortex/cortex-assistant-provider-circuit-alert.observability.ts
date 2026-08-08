@@ -16,7 +16,17 @@ export type CortexAssistantProviderCircuitAlertMetricSnapshot = Readonly<
   Record<CortexAssistantProviderCircuitAlertMetricKey, number>
 >
 
-const METRIC_NAME = 'cortex_provider_circuit_alert_enqueue_total'
+export const CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_ENQUEUE_METRIC =
+  'cortex_provider_circuit_alert_enqueue_total'
+export const CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_OBSERVABILITY_SCHEMA_VERSION =
+  1
+
+export interface CortexAssistantProviderCircuitAlertOperationalSnapshot {
+  readonly schemaVersion: 1
+  readonly scope: 'process'
+  readonly metric: typeof CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_ENQUEUE_METRIC
+  readonly counters: CortexAssistantProviderCircuitAlertMetricSnapshot
+}
 
 /**
  * Process-local, fixed-cardinality enqueue metrics.
@@ -58,6 +68,20 @@ export class CortexAssistantProviderCircuitAlertObservability {
     return { ...this.counters }
   }
 
+  /**
+   * Backend-only read seam for a future reviewed operational exporter.
+   * Deliberately not exposed through a controller or browser route.
+   */
+  readOperationalSnapshot(): CortexAssistantProviderCircuitAlertOperationalSnapshot {
+    return Object.freeze({
+      schemaVersion:
+        CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_OBSERVABILITY_SCHEMA_VERSION,
+      scope: 'process',
+      metric: CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_ENQUEUE_METRIC,
+      counters: Object.freeze(this.snapshot()),
+    })
+  }
+
   private record(
     phase: CortexAssistantProviderCircuitAlertEnqueuePhase,
     outcome: CortexAssistantProviderCircuitAlertEnqueueOutcome
@@ -68,7 +92,7 @@ export class CortexAssistantProviderCircuitAlertObservability {
     this.logger.log(
       JSON.stringify({
         event: 'erp.cortex.provider_circuit_alert.enqueue_metric',
-        metric: METRIC_NAME,
+        metric: CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_ENQUEUE_METRIC,
         phase,
         outcome,
         value: 1,
