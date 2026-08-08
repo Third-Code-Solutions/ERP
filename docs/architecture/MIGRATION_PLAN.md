@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.191 Cortex chat retrieval parity fixture and review packet (completed, not approved)
+
+1. Added a deterministic service fixture that normalizes the current direct
+   chat retrieval sources and asserts structural equality with the strict Core
+   result, including dates, stats, node items, focused state, citations, and
+   semantic status.
+2. Added `CORTEX_CHAT_RETRIEVAL_REVIEW.md` with the exact application
+   candidate, closed API gate, contract/RBAC boundary, local evidence,
+   hosted/identity/spend blockers, and no-rebuild rollback.
+3. Kept `apps/web/src/app/api/cortex/chat/route.ts`, conversation ownership,
+   semantic retrieval, all allowlists, SQL, and hosted providers unchanged.
+
+Evidence: chat service 5/5 parity/service tests; shared contract 4/4; full
+root test (shared 281, API 649, database/Web lanes green), typecheck, lint,
+82-page production build, and security/spend gates passed. This fixture is not
+canary or hosted parity approval.
+
+Exact next action: M3.192 define an unconnected Web server seam for chat
+retrieval and conversation ownership/context parity; keep all gates closed.
+
 ## M3.190 Cortex chat retrieval contract and Nest authority (completed, not approved)
 
 1. Added a strict shared query/result contract with canonical focused refs,

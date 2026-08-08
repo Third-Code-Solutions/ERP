@@ -1,5 +1,24 @@
 # Next Actions
 
+## Exact next action after M3.191 chat retrieval parity fixture
+
+Keep `ERP_CORTEX_CHAT_RETRIEVAL_READS_ENABLED=false` and
+`ERP_CORTEX_CHAT_RETRIEVAL_READS_TENANT_IDS=[]`; keep Web chat direct and
+unconnected. Do not query/mutate managed Supabase, build/deploy Vercel or
+Railway, call AI/image/provider services, run semantic embeddings, or create
+paid resources. Keep every other Cortex flag/allowlist false/empty and Vercel
+Git disconnected.
+
+Next safe source-only milestone: M3.192 design an unconnected Web server seam
+for chat retrieval plus conversation ownership/context parity. It must select
+Core only for an exact tenant, fail closed with no direct fallback, preserve
+the current 404/409 owner/context behavior, and remain disabled until
+protected role/cross-tenant, rollback, release-identity, and spend evidence
+passes. Do not wire the route in that milestone.
+
+M3.191 parity is deterministic source evidence, not production or hosted
+activation approval.
+
 ## Exact next action after M3.190 Cortex chat retrieval contract
 
 Keep `ERP_CORTEX_CHAT_RETRIEVAL_READS_ENABLED=false` and

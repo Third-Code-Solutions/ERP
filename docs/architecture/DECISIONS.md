@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-300 - Require fixture parity before a Web chat read seam (2026-08-09)
+
+Decision: record deterministic equality between the existing direct retrieval
+shape and the Core projection before adding a Web adapter. The fixture covers
+bounded items, stats, focused citations, keyword answer, and semantic status;
+it does not authorize conversation-owner/context migration or a tenant
+canary.
+
+Rationale: a Core endpoint can serialize correctly while the chat route still
+authorizes a different conversation or focus. Separating projection parity
+from ownership/context parity prevents a write or read canary from silently
+changing the assistant's evidence source.
+
+Validation: chat service 5/5, shared contract 4/4, full root test/typecheck,
+lint, 82-page build, and spend/security gates. No SQL, hosted action, provider
+call, or paid resource. Rollback is documentation-only and flags remain
+closed.
+
 ## D-299 - Make Cortex chat retrieval a separate bounded Core contract (2026-08-09)
 
 Decision: add a read-only `GET /v1/cortex/chat-retrieval` contract instead of

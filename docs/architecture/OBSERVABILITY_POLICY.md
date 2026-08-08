@@ -79,6 +79,13 @@ provider circuit state, request IDs, or tenant-control metadata. Its API gate
 and allowlist are false/empty; no browser route or exporter consumes it. Any
 future Web cutover requires a separate parity and protected-flow review.
 
+## M3.191 Chat retrieval parity boundary
+
+The deterministic parity fixture compares only tenant ERP retrieval
+projections. It does not read, export, or authorize the process snapshot;
+process counters and provider circuit state remain excluded from the packet,
+the Core result, and any future Web seam.
+
 ## M3.188 Release identity boundary
 
 Local source and documented rollback metadata are evidence fields only. They do

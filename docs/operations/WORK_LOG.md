@@ -1,5 +1,21 @@
 # Work Log
 
+## 2026-08-09 - M3.191 Cortex chat retrieval parity fixture
+
+Added a deterministic fixture proving the current direct chat retrieval shape
+and strict Core projection are structurally equal for one tenant-shaped source
+set, including stats, bounded recent/match items, focused state, citations,
+and semantic status. Added the review-only chat retrieval packet with exact
+candidate, closed gate, blockers, and rollback. No Web route, SQL, hosted,
+provider, or paid action.
+
+Validation: chat service 5/5 and shared contract 4/4; full root test (shared
+281, API 649, database/Web lanes green), typecheck, lint, 82-page build,
+spend/release, Actionlint, pinned refs, Gitleaks, diff, and clean-room gates.
+
+Exact next action: M3.192 unconnected Web server seam design; keep all
+canaries closed.
+
 ## 2026-08-09 - M3.190 Cortex chat retrieval contract and Nest authority
 
 Added the shared strict Cortex chat retrieval projection and Nest

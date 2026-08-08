@@ -1,5 +1,16 @@
 # Cortex chat read authority audit
 
+## M3.191 parity evidence
+
+The API service test now compares a deterministic projection of the current
+direct Web retrieval sources with the strict Core result for one tenant-shaped
+fixture. Stats, recent/match limits, focused state, citations, dates, and
+`semanticStatus` are structurally equal. This does not exercise the Web route,
+conversation owner/context authorization, hosted identity, or provider.
+
+Review packet: `docs/operations/CORTEX_CHAT_RETRIEVAL_REVIEW.md`. The API gate
+and allowlist remain false/empty; no Web adapter or tenant canary is approved.
+
 Status: source audit only, 2026-08-09. No chat retrieval canary or hosted
 provider action is approved.
 
