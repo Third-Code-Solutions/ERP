@@ -63,6 +63,12 @@ inputs are complete; it does not enable a route, exporter, sink, or deployment.
   and Core canaries are ERP data paths only; process metrics cannot become a
   dashboard KPI, graph node, citation, or assistant context.
 
+## M3.187 Exact-tenant brief canary boundary
+
+The Web brief canary rejects wildcard tenant selection locally. This protects
+tenant scope but does not expose process counters, authorize an exporter, or
+replace hosted identity/rollback/spend evidence.
+
 ## M3.186 Cortex brief canary review boundary
 
 The review packet is evidence metadata only. It cannot authorize an exporter,

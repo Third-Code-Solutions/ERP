@@ -5,6 +5,18 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.187 Exact-tenant Cortex brief canary gate (2026-08-09)
+
+Closed a locally verifiable review gap: `cortexBriefReadsUseCoreApi()` now
+uses a strict exact-tenant helper that rejects `*`; generic legacy Core seams
+are unchanged. Focused Core client 139/139 plus brief-read 4/4 passed, Web
+typecheck and sequential 82-page build passed. API/Web flags and allowlists
+remain false/empty. No SQL, hosted write/deploy/provider call, or paid
+resource changed.
+
+Exact next safe slice: keep the canary closed and reconcile local release/
+rollback metadata; do not infer hosted identity or parity.
+
 ## M3.186 One-tenant Cortex brief canary review packet (2026-08-09)
 
 Added `docs/operations/CORTEX_BRIEF_CANARY_REVIEW.md` as a source-only approval

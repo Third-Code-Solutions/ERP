@@ -1,5 +1,20 @@
 # Migration Plan
 
+## M3.187 Exact-tenant Cortex brief canary gate (completed, not approved)
+
+1. Added a strict Web helper variant that rejects wildcard allowlists for the
+   brief canary only.
+2. Kept generic legacy Core seam behavior unchanged.
+3. Added a regression assertion for wildcard rejection and exact UUID success.
+4. Re-ran focused Core client 139/139 and brief-read 4/4, Web typecheck, and
+   sequential 82-page build; flags remain closed.
+
+No SQL, hosted, deployment, provider, or paid-resource change. This closes a
+local guard gap but is not hosted canary approval.
+
+Exact next action: reconcile local release/rollback metadata while keeping
+the canary closed.
+
 ## M3.186 One-tenant Cortex brief canary review packet (completed, not approved)
 
 1. Added a review-only packet with exact source SHA and independent API/Web
