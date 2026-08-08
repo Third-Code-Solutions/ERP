@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.178 Operational snapshot ownership and release evidence (completed)
+
+1. Reviewed existing release identity and rollback guidance for the closed
+   operational seam.
+2. Added explicit policy metadata for abstract backend ownership, exact Git SHA
+   release identity, and last-known-good-artifact rollback.
+3. Kept the metadata non-authoritative: it does not create deployment or
+   exporter permission.
+
+Evidence: API 634/634 across 145 files; shared 273/273; Web full unit lane;
+focused policy contract; root typecheck, lint, serial Nest/Next production
+build with 82 pages; spend/controlled-release guards, Actionlint, pinned refs,
+Gitleaks, diff checks, and clean-room scan. No SQL changed, so the preceding
+disposable replay remains current: 112/112 migrations, 367/367 zero-skip
+database tests, 26 API integration files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`. No
+route, exporter, migration, hosted write, external network, credential,
+provider, deployment, or paid resource was added.
+
+Release gate: retain the closed adapter gate; any future operational release
+must name the owner, exact SHA, retained artifact, and rollback evidence.
+
+Next source-only slice: M3.179 review adapter trigger conditions without
+enabling an exporter or route.
+
 ## M3.177 Deployment observability access-policy audit (completed)
 
 1. Audited public health/readiness probes, global JWT identity, explicit

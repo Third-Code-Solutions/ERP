@@ -25,7 +25,13 @@ encoded beside the seam as
 | Rate limit | Not applicable while no exporter exists |
 | External sink | Disabled |
 | Cost control | Zero external spend |
+| Owner | ERP backend owner; no anonymous operational adapter |
+| Release identity | Exact Git commit SHA |
+| Rollback | Last known-good artifact; no rebuild required |
 | Deployment | Separate reviewed release decision and rollback evidence required |
+
+Ownership, release identity, and rollback fields are evidence requirements,
+not deployment authority. The source policy cannot enable an exporter or route.
 
 ## Boundary audit
 
