@@ -1,5 +1,17 @@
 # Target State
 
+## M3.190 bounded Cortex chat retrieval authority
+
+The chat read path has a separate Core projection at
+`GET /v1/cortex/chat-retrieval`. It returns bounded recent nodes, keyword
+matches, an optional focused summary/citation set, deterministic keyword
+answer citations, graph stats, freshness, and an explicit semantic status.
+Nest owns tenant/RBAC scope and rejects disabled or non-allowlisted tenants;
+the database remains the source of truth. The Web chat route is not cut over
+until deterministic parity, protected-flow, rollback, and spend evidence are
+reviewed. Semantic/provider retrieval and conversation ownership remain
+separate slices.
+
 ## M3.189 Cortex chat retrieval authority
 
 Chat retrieval will have its own strict projection and Nest authority covering

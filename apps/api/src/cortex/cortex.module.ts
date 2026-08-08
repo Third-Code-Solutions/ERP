@@ -13,6 +13,9 @@ import { CortexEntityService } from './cortex-entity.service'
 import { CortexBriefController } from './cortex-brief.controller'
 import { CortexBriefPipe } from './cortex-brief.pipe'
 import { CortexBriefService } from './cortex-brief.service'
+import { CortexChatRetrievalController } from './cortex-chat-retrieval.controller'
+import { CortexChatRetrievalPipe } from './cortex-chat-retrieval.pipe'
+import { CortexChatRetrievalService } from './cortex-chat-retrieval.service'
 import { CortexGraphController } from './cortex-graph.controller'
 import { CortexGraphPipe } from './cortex-graph.pipe'
 import { CortexGraphService } from './cortex-graph.service'
@@ -72,6 +75,7 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
   ],
   controllers: [
     CortexBriefController,
+    CortexChatRetrievalController,
     CortexConversationsController,
     CortexAssistantGenerationController,
     CortexAssistantProviderHealthController,
@@ -83,6 +87,8 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
   providers: [
     CortexBriefPipe,
     CortexBriefService,
+    CortexChatRetrievalPipe,
+    CortexChatRetrievalService,
     CortexConversationsService,
     CortexConversationIdPipe,
     CortexConversationTurnPipe,
@@ -126,6 +132,7 @@ export class CortexModule implements NestModule {
       .apply(RequestObservabilityMiddleware)
       .forRoutes(
         CortexBriefController,
+        CortexChatRetrievalController,
         CortexEntityController,
         CortexConversationsController,
         CortexAssistantGenerationController,

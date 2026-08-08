@@ -1,5 +1,23 @@
 # Next Actions
 
+## Exact next action after M3.190 Cortex chat retrieval contract
+
+Keep `ERP_CORTEX_CHAT_RETRIEVAL_READS_ENABLED=false` and
+`ERP_CORTEX_CHAT_RETRIEVAL_READS_TENANT_IDS=[]`. Keep the Web chat route on
+its current direct path; do not add a Core adapter, semantic/provider call,
+conversation ownership cutover, SQL migration, hosted Supabase query/write,
+Vercel/Railway build/deploy, AI/image/provider call, or paid resource under
+the cost lock. Keep every other Cortex flag/allowlist false/empty and Vercel
+Git disconnected.
+
+Next safe source-only milestone: M3.191 build a deterministic fixture proving
+legacy chat retrieval and the Core projection agree on one tenant, then record
+a review-only packet with exact identity, protected role/cross-tenant checks,
+rollback, and spend blockers. Do not enable a tenant canary until those gates
+and the M3.152 backup/PITR plus isolated 112-migration replay evidence pass.
+
+M3.190 is source authority only, not production or hosted activation approval.
+
 ## Exact next action after M3.189 Chat retrieval audit
 
 Keep `ERP_CORTEX_BRIEF_READS_ENABLED=false`,

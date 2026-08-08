@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-299 - Make Cortex chat retrieval a separate bounded Core contract (2026-08-09)
+
+Decision: add a read-only `GET /v1/cortex/chat-retrieval` contract instead of
+reusing search, graph, conversation, or write endpoints. Bound recent/match
+windows, derive tenant/RBAC scope from the Nest principal, validate canonical
+focus refs, return citations/freshness, and report semantic retrieval as
+`not_migrated` until separately implemented. Keep the API gate false/empty and
+do not wire the Web chat route yet.
+
+Rationale: the chat prompt currently combines multiple direct reads with
+different limits and citation semantics. Reusing a narrower endpoint could
+silently change evidence or leak a forbidden focused record. A separate
+projection enables deterministic parity and fail-closed cutover while keeping
+provider spend out of this milestone.
+
+Validation: shared 4/4, API 71/71 focused tests, shared/API typecheck. No SQL,
+hosted write/deploy, provider call, or paid resource. Rollback is clearing the
+new flag/allowlist; no hosted artifact was changed.
+
 ## D-298 - Keep chat retrieval separate from Cortex write canaries (2026-08-09)
 
 Decision: do not widen Core user-turn, assistant-turn, generation, search,

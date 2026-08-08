@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.190 Cortex chat retrieval contract and Nest authority (completed, not approved)
+
+1. Added a strict shared query/result contract with canonical focused refs,
+   bounded recent/match limits, source-backed items, citations, freshness, and
+   explicit semantic status.
+2. Added the fail-closed Nest `GET /v1/cortex/chat-retrieval` pipe, controller,
+   and service. Tenant and role scope come only from `CurrentPrincipal`; the
+   service repeats ownership/type checks for focused records.
+3. Added independent disabled-by-default API environment gates and regression
+   tests for strict input/output, scope derivation, focus denial, and HTTP
+   rejection. The Web chat route and all existing write/provider canaries are
+   unchanged.
+
+Evidence: shared contract 4/4; API chat-retrieval service/controller and
+environment 71/71; shared/API typecheck. No SQL, hosted, deployment, provider,
+or paid-resource action occurred. This source contract is not canary approval.
+
+Exact next action: M3.191 create deterministic legacy/Core retrieval parity
+fixtures and a review-only packet while keeping the Web route and all
+allowlists closed.
+
 ## M3.189 Cortex chat retrieval authority audit (completed)
 
 1. Traced every direct chat POST conversation, graph, keyword, focused, and
