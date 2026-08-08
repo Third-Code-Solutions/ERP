@@ -1,5 +1,26 @@
 # Next Actions
 
+## Exact next action after M3.186 Cortex brief review packet
+
+Keep `ERP_CORTEX_BRIEF_READS_ENABLED=false`,
+`ERP_CORTEX_BRIEF_READS_TENANT_IDS=[]`, and the Web Core brief flag disabled
+with an empty tenant allowlist. Keep all other Cortex generation, worker,
+provider, read, queue, and alert-routing gates false; provider policies
+disabled; route credentials unset; and Vercel Git disconnected. Do not query or
+mutate managed Supabase, deploy/build Vercel or Railway, call AI/image/provider
+services, or create a paid resource under the cost lock.
+
+Next safe source-only action: close only locally verifiable review gaps in
+`CORTEX_BRIEF_CANARY_REVIEW.md`. Hosted schema/PITR, exact tenant identity,
+live RBAC, deployment identity, rollback artifact, and spend approval require
+explicit owner/provider evidence; do not infer them from local tests.
+
+Before any real canary, complete M3.152 backup/PITR and isolated clone replay
+of all 112 migrations, then approve one exact tenant, a low request/daily
+micros policy, credential scope, reviewed release SHA, live RBAC/cancellation
+checks, and a rollback drill. M3.186 is review-only and not activation
+approval.
+
 ## Exact next action after M3.185 Dashboard parity
 
 Keep all Cortex generation, worker, provider, read, queue, and alert-routing

@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.186 One-tenant Cortex brief canary review packet (completed, not approved)
+
+1. Added a review-only packet with exact source SHA and independent API/Web
+   gate names/defaults.
+2. Mapped browser session, Nest principal/capability, role scope, database,
+   audit, and rollback authority.
+3. Recorded bounded limits, timeout/no-retry behavior, parity evidence, abort
+   conditions, and all unresolved hosted/identity/spend gates.
+4. Kept both allowlists empty; no deployment, provider, or managed database
+   action occurred.
+
+Evidence: `docs/operations/CORTEX_BRIEF_CANARY_REVIEW.md`; M3.185 parity 4/4;
+prior full release lane remains current. This packet is not activation
+approval. Exact next action: close only locally verifiable evidence gaps while
+keeping the canary closed.
+
 ## M3.185 Dashboard brief parity fixture (completed)
 
 1. Reused one deterministic tenant fixture for legacy and Core-shaped brief

@@ -63,6 +63,13 @@ inputs are complete; it does not enable a route, exporter, sink, or deployment.
   and Core canaries are ERP data paths only; process metrics cannot become a
   dashboard KPI, graph node, citation, or assistant context.
 
+## M3.186 Cortex brief canary review boundary
+
+The review packet is evidence metadata only. It cannot authorize an exporter,
+process snapshot route, tenant canary, provider call, or deployment. Request
+limits and spend controls are application/release evidence, not operational
+counter exposure.
+
 ## M3.185 Dashboard brief parity boundary
 
 Parity fixtures compare tenant-scoped ERP projections only. They do not read
