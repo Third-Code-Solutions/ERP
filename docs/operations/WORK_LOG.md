@@ -1,5 +1,52 @@
 # Work Log
 
+## 2026-08-08 - M3.168 Cortex provider request/response protocol
+
+Implemented the smallest source-only protocol slice around M3.167. Added strict
+versioned plan/request/response contracts, a Nest-built re-redacted envelope,
+deterministic dispatch identity, bounded timeout with adapter abortion, opaque
+receipt hashing, and exact response-to-official-completion fingerprinting. No
+internal tenant/user/job/request/attempt identity crosses the adapter boundary.
+
+Added forward-only database fields and constraints for protocol, dispatch,
+request, receipt, and response evidence. Transition enforcement freezes the
+dispatch contract; the completion-link trigger rejects altered provider output.
+Post-dispatch ambiguity is terminal and consumes the reservation maximum,
+preventing automatic duplicate spend. Reconciliation failure alone may retry.
+The production adapter remains deliberately unavailable.
+
+Validation:
+
+- Shared 264/264; API 605/605; Web 676/676; Python 8/8.
+- Clean PostgreSQL 17 + Redis replay: 110/110 migrations, database 362/362
+  zero-skip, 26 API integration files/36 tests, equal before/after schema hash
+  `923B227DB420320E184A26D5ECC4EF2BE79AE4F9E5D98C9B5CFA1BE77FCFE498`.
+- Lint, typecheck, Nest/Next production build with 82 pages, spend 4/4,
+  controlled release 5/5, Actionlint, pinned actions, Gitleaks, and diff hygiene
+  passed.
+- The database lane was run in bounded batches after the desktop command limit
+  interrupted one long aggregate process. Every constituent file passed; a
+  Redis readiness retry was added, and integration execution is serialized in
+  the WSL lane to remove startup/parallel timing races.
+- The clean-room source scan now excludes dependency/build output; this fixed a
+  parallel-load timeout while retaining all shipped source/package checks.
+
+Release boundary and unresolved risk:
+
+- No credential, AI/image/provider call, hosted Supabase query/write,
+  Auth/Storage/data mutation, Vercel/Railway build/deploy, paid resource, or
+  Vercel Git change occurred. Managed Supabase is still last verified at
+  55/110.
+- All gates remain false/empty. The remaining activation gaps are provider
+  observability/circuit breaking, complete-clone replay, backup/PITR, one exact
+  low-budget tenant, reviewed release identity, and live rollback proof.
+- Rollback closes dispatch, reconciles open attempts, and preserves the
+  forward-only evidence. Do not down-migrate or rewrite linked provenance.
+
+Exact next action: M3.169 source-only provider spend/latency/error observability
+and automatic circuit-breaker authority using durable metadata only. Keep the
+production adapter unavailable and perform no paid or hosted action.
+
 ## 2026-08-08 - M3.167 Cortex provider-grounded completion authority
 
 Implemented the smallest safe provenance slice around M3.166. Added one

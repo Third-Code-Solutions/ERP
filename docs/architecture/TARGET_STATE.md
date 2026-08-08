@@ -1,5 +1,29 @@
 # Target State
 
+## M3.168 provider protocol and spend-safe dispatch
+
+Every paid assistant dispatch must use a strict versioned contract constructed
+by Nest after the current attempt is durably reserved. The request must be
+re-redacted, bounded, free of internal tenant/user/job/request/attempt identity,
+and bound to one deterministic dispatch key and request fingerprint. Provider
+plans must declare a bounded request ceiling and timeout before reservation.
+
+Responses must match the protocol and reserved model, cite only authorized
+evidence, remain within the reservation, and return an opaque receipt that is
+hashed before persistence. The official completion must match the durable
+response fingerprint exactly. PostgreSQL must freeze dispatch identity and
+reject any mismatched completion even from a direct service-role writer.
+Automatic retries after dispatch are forbidden when the provider outcome is
+unknown; conservative maximum settlement bounds spend and prevents a second
+dispatch. Python remains advisory and cannot reserve, dispatch, settle, or
+commit official ERP state.
+
+This boundary is source-complete and locally replayed. It does not authorize a
+credential or real provider. Activation still requires spend/latency/error
+observability with an automatic circuit breaker, complete-clone migration
+replay, backup/PITR evidence, one exact tenant, a low policy ceiling, one
+reviewed release SHA, live RBAC/cancellation proof, and an approved rollback.
+
 ## M3.167 provider-grounded completion provenance
 
 An official provider-grounded assistant turn must be inseparable from exactly

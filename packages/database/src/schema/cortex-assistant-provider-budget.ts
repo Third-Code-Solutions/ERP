@@ -9,6 +9,7 @@ import {
   index,
   integer,
   pgTable,
+  smallint,
   timestamp,
   uniqueIndex,
   uuid,
@@ -83,6 +84,11 @@ export const cortexAssistantProviderAttempts = pgTable(
     job_id: uuid('job_id').notNull(),
     attempt_number: integer('attempt_number').notNull(),
     request_hash: char('request_hash', { length: 64 }).notNull(),
+    protocol_version: smallint('protocol_version'),
+    dispatch_key: char('dispatch_key', { length: 64 }),
+    request_fingerprint: char('request_fingerprint', { length: 64 }),
+    provider_request_id_hash: char('provider_request_id_hash', { length: 64 }),
+    response_fingerprint: char('response_fingerprint', { length: 64 }),
     status: varchar('status', { length: 20 }).notNull().default('reserved'),
     reserved_cost_micros: bigint('reserved_cost_micros', {
       mode: 'number',
@@ -140,6 +146,21 @@ export const cortexAssistantProviderAttempts = pgTable(
       'cortex_asst_provider_attempts_request_hash_hex',
       sql`${table.request_hash} ~ '^[0-9a-f]{64}$'`
     ),
+    protocolVersionCheck: check(
+      'cortex_asst_provider_attempts_protocol_version',
+      sql`${table.protocol_version} is null or ${table.protocol_version} = 1`
+    ),
+    protocolHashCheck: check(
+      'cortex_asst_provider_attempts_protocol_hashes_hex',
+      sql`(${table.dispatch_key} is null
+          or ${table.dispatch_key} ~ '^[0-9a-f]{64}$')
+        and (${table.request_fingerprint} is null
+          or ${table.request_fingerprint} ~ '^[0-9a-f]{64}$')
+        and (${table.provider_request_id_hash} is null
+          or ${table.provider_request_id_hash} ~ '^[0-9a-f]{64}$')
+        and (${table.response_fingerprint} is null
+          or ${table.response_fingerprint} ~ '^[0-9a-f]{64}$')`
+    ),
     statusCheck: check(
       'cortex_asst_provider_attempts_status_allowed',
       sql`${table.status} in ('reserved', 'dispatched', 'settled', 'released')`
@@ -162,24 +183,65 @@ export const cortexAssistantProviderAttempts = pgTable(
         (${table.status} = 'reserved'
           and ${table.consumed_cost_micros} is null
           and ${table.outcome_code} is null
+          and ${table.protocol_version} is null
+          and ${table.dispatch_key} is null
+          and ${table.request_fingerprint} is null
+          and ${table.provider_request_id_hash} is null
+          and ${table.response_fingerprint} is null
           and ${table.dispatched_at} is null
           and ${table.terminal_at} is null)
         or
         (${table.status} = 'dispatched'
           and ${table.consumed_cost_micros} is null
           and ${table.outcome_code} is null
+          and (
+            (${table.protocol_version} is null
+              and ${table.dispatch_key} is null
+              and ${table.request_fingerprint} is null)
+            or
+            (${table.protocol_version} = 1
+              and ${table.dispatch_key} is not null
+              and ${table.request_fingerprint} is not null)
+          )
+          and ${table.provider_request_id_hash} is null
+          and ${table.response_fingerprint} is null
           and ${table.dispatched_at} is not null
           and ${table.terminal_at} is null)
         or
         (${table.status} = 'settled'
           and ${table.consumed_cost_micros} is not null
           and ${table.outcome_code} is not null
+          and (
+            (${table.protocol_version} is null
+              and ${table.dispatch_key} is null
+              and ${table.request_fingerprint} is null
+              and ${table.provider_request_id_hash} is null
+              and ${table.response_fingerprint} is null)
+            or
+            (${table.protocol_version} = 1
+              and ${table.dispatch_key} is not null
+              and ${table.request_fingerprint} is not null
+              and (
+                (${table.outcome_code} = 'provider_succeeded'
+                  and ${table.provider_request_id_hash} is not null
+                  and ${table.response_fingerprint} is not null)
+                or
+                (${table.outcome_code} <> 'provider_succeeded'
+                  and ${table.provider_request_id_hash} is null
+                  and ${table.response_fingerprint} is null)
+              ))
+          )
           and ${table.dispatched_at} is not null
           and ${table.terminal_at} is not null)
         or
         (${table.status} = 'released'
           and ${table.consumed_cost_micros} = 0
           and ${table.outcome_code} is not null
+          and ${table.protocol_version} is null
+          and ${table.dispatch_key} is null
+          and ${table.request_fingerprint} is null
+          and ${table.provider_request_id_hash} is null
+          and ${table.response_fingerprint} is null
           and ${table.dispatched_at} is null
           and ${table.terminal_at} is not null)
       )`

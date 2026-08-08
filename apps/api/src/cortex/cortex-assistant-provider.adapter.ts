@@ -1,39 +1,28 @@
 import { Injectable } from '@nestjs/common'
 import type {
-  GroundedAnswerEvidence,
-  GroundedAnswerResult,
-} from '@third-code-erp/ai'
+  CortexAssistantProviderPlan,
+  CortexAssistantProviderRequest,
+  CortexAssistantProviderResponse,
+} from '@third-code-erp/shared-types'
 
-export interface CortexAssistantProviderPlan {
-  provider: string
-  model: GroundedAnswerResult['model']
-  maxCostMicros: string
-}
-
-export interface CortexAssistantProviderDispatchInput {
-  jobId: string
-  attemptNumber: number
-  question: string
-  evidence: GroundedAnswerEvidence[]
-  plan: CortexAssistantProviderPlan
-}
-
-export interface CortexAssistantProviderDispatchResult
-  extends GroundedAnswerResult {
-  consumedCostMicros: string
+export type {
+  CortexAssistantProviderPlan,
+  CortexAssistantProviderRequest,
+  CortexAssistantProviderResponse,
 }
 
 export type CortexAssistantProviderAdapterErrorCode =
   | 'provider_adapter_unavailable'
+  | 'provider_plan_invalid'
+  | 'provider_request_timeout'
+  | 'provider_rate_limited'
+  | 'provider_request_rejected'
   | 'provider_request_failed'
   | 'provider_response_invalid'
   | 'provider_outcome_unknown'
 
 export class CortexAssistantProviderAdapterError extends Error {
-  constructor(
-    readonly code: CortexAssistantProviderAdapterErrorCode,
-    readonly retryable: boolean
-  ) {
+  constructor(readonly code: CortexAssistantProviderAdapterErrorCode) {
     super(code)
     this.name = 'CortexAssistantProviderAdapterError'
   }
@@ -50,11 +39,11 @@ export class CortexAssistantProviderAdapter {
   }
 
   async dispatch(
-    _input: CortexAssistantProviderDispatchInput
-  ): Promise<CortexAssistantProviderDispatchResult> {
+    _request: CortexAssistantProviderRequest,
+    _signal: AbortSignal
+  ): Promise<CortexAssistantProviderResponse> {
     throw new CortexAssistantProviderAdapterError(
-      'provider_adapter_unavailable',
-      false
+      'provider_adapter_unavailable'
     )
   }
 }

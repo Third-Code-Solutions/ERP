@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.168 provider protocol
+
+Keep every Cortex generation, worker, provider-execution, provider-budget,
+recovery, Web, and Core gate false; all exact-tenant allowlists empty; provider
+policies absent or disabled; credentials unset; and Vercel Git disconnected.
+Do not query or mutate managed Supabase, deploy/build Vercel or Railway, call
+an AI/image/provider, or create a paid resource under the cost lock.
+
+The next safe source-only milestone is M3.169: derive tenant/provider/model
+spend, remaining budget, success/error count, unknown outcomes, and bounded
+latency from durable provider attempts without prompts or response payloads.
+Nest must stop new reservations/dispatch through an automatic fail-closed
+circuit-breaker authority when configured thresholds are exceeded. Prove exact
+tenant scope, concurrent behavior, recovery/reset authority, audit, and no
+provider call with in-memory fakes and local PostgreSQL only.
+
+Before any real provider canary, complete M3.152 backup/PITR and an isolated
+complete-clone replay of all 110 migrations. Separately approve one exact
+tenant, one low request/daily micros policy, credential scope, alerts, one
+reviewed release SHA, live RBAC/cancellation checks, and a rollback drill.
+M3.168 proves protocol integrity only; it is not activation approval.
+
 ## Exact next action after M3.167 provider completion authority
 
 Keep every Cortex generation, worker, provider-execution, provider-budget,

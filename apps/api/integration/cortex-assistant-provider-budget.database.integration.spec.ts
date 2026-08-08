@@ -21,6 +21,7 @@ import { AuditService } from '../src/audit/audit.service'
 import {
   CortexAssistantProviderBudgetService,
 } from '../src/cortex/cortex-assistant-provider-budget.service'
+import { cortexAssistantProviderDispatchKey } from '../src/cortex/cortex-assistant-provider-protocol'
 import {
   DatabaseService,
   type DatabaseTransaction,
@@ -184,6 +185,26 @@ function reservation(jobId: string, maxCostMicros: string) {
   } as const
 }
 
+function dispatch(reservationId: string) {
+  return {
+    reservationId,
+    protocolVersion: 1 as const,
+    dispatchKey: cortexAssistantProviderDispatchKey(reservationId),
+    requestFingerprint: 'd'.repeat(64),
+  }
+}
+
+function settlement(reservationId: string, consumedCostMicros: string) {
+  return {
+    reservationId,
+    protocolVersion: 1 as const,
+    consumedCostMicros,
+    outcomeCode: 'provider_succeeded' as const,
+    providerRequestIdHash: 'e'.repeat(64),
+    responseFingerprint: 'f'.repeat(64),
+  }
+}
+
 suite('Cortex assistant provider budget database integration', () => {
   it('reserves, dispatches, settles, releases, caps spend, and audits exact replay', async () => {
     await alwaysRollback(async (transaction) => {
@@ -235,11 +256,17 @@ suite('Cortex assistant provider budget database integration', () => {
       ).rejects.toMatchObject({ code: 'provider_daily_budget_exceeded' })
 
       await expect(
-        service.markDispatched({ reservationId: first.reservationId })
+        service.markDispatched(dispatch(first.reservationId))
       ).resolves.toMatchObject({ status: 'dispatched', replayed: false })
       await expect(
-        service.markDispatched({ reservationId: first.reservationId })
+        service.markDispatched(dispatch(first.reservationId))
       ).resolves.toMatchObject({ status: 'dispatched', replayed: true })
+      await expect(
+        service.markDispatched({
+          ...dispatch(first.reservationId),
+          requestFingerprint: '0'.repeat(64),
+        })
+      ).rejects.toMatchObject({ code: 'provider_attempt_changed' })
       await expect(
         service.release({
           reservationId: first.reservationId,
@@ -247,36 +274,41 @@ suite('Cortex assistant provider budget database integration', () => {
         })
       ).rejects.toMatchObject({ code: 'provider_attempt_state_conflict' })
       await expect(
-        service.settle({
-          reservationId: first.reservationId,
-          consumedCostMicros: '301',
-          outcomeCode: 'provider_succeeded',
-        })
+        service.settle(settlement(first.reservationId, '301'))
       ).rejects.toMatchObject({
         code: 'provider_settlement_budget_exceeded',
       })
 
       await expect(
-        service.settle({
-          reservationId: first.reservationId,
-          consumedCostMicros: '200',
-          outcomeCode: 'provider_succeeded',
-        })
+        service.settle(settlement(first.reservationId, '200'))
       ).resolves.toMatchObject({ status: 'settled', replayed: false })
       await expect(
-        service.settle({
-          reservationId: first.reservationId,
-          consumedCostMicros: '200',
-          outcomeCode: 'provider_succeeded',
-        })
+        service.settle(settlement(first.reservationId, '200'))
       ).resolves.toMatchObject({ status: 'settled', replayed: true })
       await expect(
-        service.settle({
-          reservationId: first.reservationId,
-          consumedCostMicros: '199',
-          outcomeCode: 'provider_succeeded',
-        })
+        service.settle(settlement(first.reservationId, '199'))
       ).rejects.toMatchObject({ code: 'provider_attempt_changed' })
+
+      const [settledProtocol] = await transaction
+        .select({
+          protocolVersion: cortexAssistantProviderAttempts.protocol_version,
+          dispatchKey: cortexAssistantProviderAttempts.dispatch_key,
+          requestFingerprint:
+            cortexAssistantProviderAttempts.request_fingerprint,
+          providerRequestIdHash:
+            cortexAssistantProviderAttempts.provider_request_id_hash,
+          responseFingerprint:
+            cortexAssistantProviderAttempts.response_fingerprint,
+        })
+        .from(cortexAssistantProviderAttempts)
+        .where(eq(cortexAssistantProviderAttempts.id, first.reservationId))
+      expect(settledProtocol).toEqual({
+        protocolVersion: 1,
+        dispatchKey: cortexAssistantProviderDispatchKey(first.reservationId),
+        requestFingerprint: 'd'.repeat(64),
+        providerRequestIdHash: 'e'.repeat(64),
+        responseFingerprint: 'f'.repeat(64),
+      })
 
       await expect(
         service.release({
@@ -322,18 +354,33 @@ suite('Cortex assistant provider budget database integration', () => {
         reservation(seven.jobId, '100')
       )
       await service.markDispatched({
-        reservationId: replayedDispatch.reservationId,
+        ...dispatch(replayedDispatch.reservationId),
       })
       await expect(
         service.reconcileAttempt(replayedDispatch.reservationId, 'replayed')
       ).resolves.toBe(1)
-      await expect(
-        service.settle({
-          reservationId: replayedDispatch.reservationId,
-          consumedCostMicros: '100',
-          outcomeCode: 'replayed_outcome_unknown',
+      const [reconciledDispatch] = await transaction
+        .select({
+          status: cortexAssistantProviderAttempts.status,
+          outcomeCode: cortexAssistantProviderAttempts.outcome_code,
+          providerRequestIdHash:
+            cortexAssistantProviderAttempts.provider_request_id_hash,
+          responseFingerprint:
+            cortexAssistantProviderAttempts.response_fingerprint,
         })
-      ).resolves.toMatchObject({ status: 'settled', replayed: true })
+        .from(cortexAssistantProviderAttempts)
+        .where(
+          eq(
+            cortexAssistantProviderAttempts.id,
+            replayedDispatch.reservationId
+          )
+        )
+      expect(reconciledDispatch).toEqual({
+        status: 'settled',
+        outcomeCode: 'replayed_outcome_unknown',
+        providerRequestIdHash: null,
+        responseFingerprint: null,
+      })
 
       const superseded = await service.reserve(reservation(eight.jobId, '100'))
       await transaction
@@ -360,7 +407,7 @@ suite('Cortex assistant provider budget database integration', () => {
         .set({ enabled: false, updated_at: new Date() })
         .where(eq(cortexAssistantProviderPolicies.tenant_id, tenant.tenantId))
       await expect(
-        service.markDispatched({ reservationId: fifthReservation.reservationId })
+        service.markDispatched(dispatch(fifthReservation.reservationId))
       ).rejects.toMatchObject({ code: 'provider_budget_policy_unavailable' })
       await expect(
         budgetService(transaction, [], false).release({

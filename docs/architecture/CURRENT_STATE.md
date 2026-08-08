@@ -5,6 +5,40 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.168 Cortex provider request/response protocol (2026-08-08)
+
+Provider execution now has a versioned, provider-neutral protocol without a
+production network adapter. Nest validates a bounded provider/model/cost/
+timeout plan, re-redacts the claimed question and evidence, and constructs the
+only dispatch envelope. The envelope excludes tenant, user, job, request, and
+attempt identifiers; it carries a deterministic SHA-256 dispatch key derived
+from the immutable reservation, a bounded timeout, and at most 12 evidence
+nodes. PostgreSQL records the protocol version, dispatch key, and request
+fingerprint before the adapter can run.
+
+The response boundary accepts only protocol v1, the reserved model, bounded
+content and cost, an opaque provider receipt, and unique citations already in
+the authorized evidence set. Nest stores only SHA-256 receipt/request/response
+fingerprints. The response fingerprint is the exact official completion hash;
+both Nest and a PostgreSQL completion-link trigger reject a forged or changed
+completion. Dispatch identity is immutable after dispatch. Timeout aborts the
+adapter. Any post-dispatch provider ambiguity becomes a terminal attempt at the
+reserved maximum; only a failure to reconcile durable state is retryable.
+
+Validation passed: shared 264/264; API 605/605; Web 676/676; Python 8/8;
+database 362/362 with zero skips; 26 API integration files and 36 tests;
+lint/typecheck; Nest/Next production build with 82 generated pages; spend 4/4;
+controlled release 5/5; Actionlint; pinned workflow actions; Gitleaks; and diff
+hygiene. A clean PostgreSQL 17 + Redis replay applied 110/110 migrations and
+produced equal before/after schema hashes
+`923B227DB420320E184A26D5ECC4EF2BE79AE4F9E5D98C9B5CFA1BE77FCFE498`.
+
+The production provider adapter remains unavailable. No credential, AI/image/
+provider call, hosted Supabase query or write, Auth/Storage/data mutation,
+Vercel/Railway build or deployment, paid resource, or Vercel Git change
+occurred. All rollout gates remain false/empty. Managed Supabase remains last
+verified at 55 migrations versus 110 in source.
+
 ## M3.167 Cortex provider-grounded completion authority (2026-08-08)
 
 Official assistant completion can now prove which paid attempt produced it.

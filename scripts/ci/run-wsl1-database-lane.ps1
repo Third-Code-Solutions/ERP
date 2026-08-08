@@ -138,6 +138,14 @@ fi
   --daemonize yes \
   --save "" \
   --appendonly no
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if test "$(/opt/third-code-erp-ci/redis-7.4.9/bin/redis-cli \
+    -h 127.0.0.1 -p 6379 ping 2>/dev/null || true)" = "PONG"; then
+    break
+  fi
+  test "$attempt" -lt 10
+  sleep 1
+done
 test "$(/opt/third-code-erp-ci/redis-7.4.9/bin/redis-cli \
   -h 127.0.0.1 -p 6379 ping)" = "PONG"
 test "$(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc \
@@ -304,7 +312,11 @@ try {
   Invoke-Checked -Command 'pnpm' -ArgumentList @(
     '--filter',
     '@third-code-erp/api',
-    'test:integration'
+    'exec',
+    'vitest',
+    'run',
+    'integration',
+    '--maxWorkers=1'
   )
 } finally {
   Pop-Location

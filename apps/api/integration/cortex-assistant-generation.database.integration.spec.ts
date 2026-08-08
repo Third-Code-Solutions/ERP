@@ -24,9 +24,11 @@ import {
 import { describe, expect, it } from 'vitest'
 import type { ErpPrincipal } from '../src/auth/current-principal.decorator'
 import { AuditService } from '../src/audit/audit.service'
+import { cortexAssistantGenerationCompletionHash } from '../src/cortex/cortex-assistant-generation-completion'
 import { CortexAssistantGenerationStateService } from '../src/cortex/cortex-assistant-generation.state'
 import { CortexAssistantGenerationService } from '../src/cortex/cortex-assistant-generation.service'
 import { CortexAssistantProviderBudgetService } from '../src/cortex/cortex-assistant-provider-budget.service'
+import { cortexAssistantProviderDispatchKey } from '../src/cortex/cortex-assistant-provider-protocol'
 import { CortexAssistantTurnsService } from '../src/cortex/cortex-assistant-turns.service'
 import type { CortexAssistantTurnSignatureHeaders } from '../src/cortex/cortex-assistant-turns.service'
 import {
@@ -39,6 +41,16 @@ const integrationEnabled =
   process.env.ERP_API_INTEGRATION_EXPECTED === '1'
 const suite = integrationEnabled ? describe : describe.skip
 const rollback = Symbol('rollback')
+const PROVIDER_MODEL = 'third-code-provider-v1'
+
+function providerDispatch(reservationId: string) {
+  return {
+    reservationId,
+    protocolVersion: 1 as const,
+    dispatchKey: cortexAssistantProviderDispatchKey(reservationId),
+    requestFingerprint: 'd'.repeat(64),
+  }
+}
 
 function transactionBoundDatabase(
   transaction: DatabaseTransaction
@@ -318,7 +330,7 @@ suite('Cortex assistant generation database integration', () => {
       await transaction.insert(cortexAssistantProviderPolicies).values({
         tenant_id: tenantId,
         provider: 'fake',
-        model: 'deterministic-grounded-v1',
+        model: PROVIDER_MODEL,
         enabled: true,
         request_limit_micros: 400,
         daily_limit_micros: 1_000,
@@ -329,7 +341,7 @@ suite('Cortex assistant generation database integration', () => {
         jobId: cancelWorkerClaim.jobId,
         attemptNumber: cancelWorkerClaim.attemptNumber,
         provider: 'fake',
-        model: 'deterministic-grounded-v1',
+        model: PROVIDER_MODEL,
         maxCostMicros: '400',
       })
       await expect(
@@ -382,12 +394,12 @@ suite('Cortex assistant generation database integration', () => {
         jobId: recoveredWorkerClaim.jobId,
         attemptNumber: recoveredWorkerClaim.attemptNumber,
         provider: 'fake',
-        model: 'deterministic-grounded-v1',
+        model: PROVIDER_MODEL,
         maxCostMicros: '400',
       })
-      await providerBudget.markDispatched({
-        reservationId: recoveryReservation.reservationId,
-      })
+      await providerBudget.markDispatched(
+        providerDispatch(recoveryReservation.reservationId)
+      )
       await expect(
         state.recoverableJobIds(new Date(Date.now() + 1_000), [tenantId])
       ).resolves.toContain(recoveredWorkerClaim.jobId)
@@ -419,17 +431,20 @@ suite('Cortex assistant generation database integration', () => {
         jobId: failedWorkerClaim.jobId,
         attemptNumber: failedWorkerClaim.attemptNumber,
         provider: 'fake',
-        model: 'deterministic-grounded-v1',
+        model: PROVIDER_MODEL,
         maxCostMicros: '400',
       })
       await state.failTerminal(
         failedWorkerClaim.jobId,
         failedWorkerClaim.claimTokenHash,
-        'worker_disabled'
+        'provider_request_timeout'
       )
-      await expect(state.status(failedWorkerClaim.jobId, principal)).resolves.toMatchObject({
+      await expect(
+        state.status(failedWorkerClaim.jobId, principal)
+      ).resolves.toMatchObject({
         status: 'failed',
-        failureCode: 'worker_disabled',
+        failureCode: 'provider_request_timeout',
+        retryable: false,
       })
       const [releasedOnFailure] = await transaction
         .select({
@@ -526,12 +541,25 @@ suite('Cortex assistant generation database integration', () => {
         jobId: providerWorkerClaim.jobId,
         attemptNumber: providerWorkerClaim.attemptNumber,
         provider: 'fake',
-        model: 'deterministic-grounded-v1',
+        model: PROVIDER_MODEL,
         maxCostMicros: '400',
       })
-      await providerBudget.markDispatched({
-        reservationId: providerReservation.reservationId,
-      })
+      await providerBudget.markDispatched(
+        providerDispatch(providerReservation.reservationId)
+      )
+      const providerCompletion = {
+        outcome: 'provider_grounded' as const,
+        providerAttemptId: providerReservation.reservationId,
+        content: 'Provider-grounded project summary.',
+        citationNodeIds: [node.id],
+        model: PROVIDER_MODEL,
+      }
+      const providerResponseFingerprint =
+        cortexAssistantGenerationCompletionHash({
+          jobId: providerWorkerClaim.jobId,
+          requestId: providerWorkerClaim.requestId,
+          completion: providerCompletion,
+        })
       await expect(
         assistantTurns.completeFromWorker({
           jobId: providerWorkerClaim.jobId,
@@ -542,15 +570,76 @@ suite('Cortex assistant generation database integration', () => {
             providerAttemptId: providerReservation.reservationId,
             content: 'Unsettled provider result.',
             citationNodeIds: [node.id],
-            model: 'deterministic-grounded-v1',
+            model: PROVIDER_MODEL,
           },
         })
       ).rejects.toThrow('Cortex provider completion authority is invalid')
       await providerBudget.settle({
         reservationId: providerReservation.reservationId,
+        protocolVersion: 1,
         consumedCostMicros: '125',
         outcomeCode: 'provider_succeeded',
+        providerRequestIdHash: 'e'.repeat(64),
+        responseFingerprint: providerResponseFingerprint,
       })
+      const [providerProtocol] = await transaction
+        .select({
+          protocolVersion: cortexAssistantProviderAttempts.protocol_version,
+          dispatchKey: cortexAssistantProviderAttempts.dispatch_key,
+          requestFingerprint:
+            cortexAssistantProviderAttempts.request_fingerprint,
+          providerRequestIdHash:
+            cortexAssistantProviderAttempts.provider_request_id_hash,
+          responseFingerprint:
+            cortexAssistantProviderAttempts.response_fingerprint,
+        })
+        .from(cortexAssistantProviderAttempts)
+        .where(
+          eq(cortexAssistantProviderAttempts.id, providerReservation.reservationId)
+        )
+      expect(providerProtocol).toEqual({
+        protocolVersion: 1,
+        dispatchKey: cortexAssistantProviderDispatchKey(
+          providerReservation.reservationId
+        ),
+        requestFingerprint: 'd'.repeat(64),
+        providerRequestIdHash: 'e'.repeat(64),
+        responseFingerprint: providerResponseFingerprint,
+      })
+      await expect(
+        transaction.transaction(async (nested) => {
+          const [forgedMessage] = await nested
+            .insert(cortexMessages)
+            .values({
+              tenant_id: tenantId,
+              conversation_id: providerConversationId,
+              role: 'assistant',
+              content: 'Forged provider completion.',
+            })
+            .returning({ id: cortexMessages.id })
+          if (!forgedMessage) throw new Error('Forged message fixture missing')
+          await nested
+            .update(cortexAssistantTurnRequests)
+            .set({
+              state: 'succeeded',
+              completion_hash:
+                providerResponseFingerprint === '0'.repeat(64)
+                  ? '1'.repeat(64)
+                  : '0'.repeat(64),
+              claim_token_hash: null,
+              lease_expires_at: null,
+              assistant_message_id: forgedMessage.id,
+              provider_attempt_id: providerReservation.reservationId,
+              outcome: 'provider_grounded',
+              model: PROVIDER_MODEL,
+              result: { status: 'forged' },
+              completed_at: new Date(),
+            })
+            .where(eq(cortexAssistantTurnRequests.id, providerClaim.requestId))
+        })
+      ).rejects.toThrow(
+        'provider completion attempt is not settled current authority'
+      )
       await expect(
         assistantTurns.completeFromWorker({
           jobId: providerWorkerClaim.jobId,
@@ -571,15 +660,20 @@ suite('Cortex assistant generation database integration', () => {
           requestId: providerWorkerClaim.requestId,
           claimTokenHash: providerWorkerClaim.claimTokenHash,
           completion: {
-            outcome: 'provider_grounded',
-            providerAttemptId: providerReservation.reservationId,
-            content: 'Provider-grounded project summary.',
-            citationNodeIds: [node.id],
-            model: 'deterministic-grounded-v1',
+            ...providerCompletion,
+            content: 'Different provider response.',
           },
         })
+      ).rejects.toThrow('Cortex provider completion authority is invalid')
+      await expect(
+        assistantTurns.completeFromWorker({
+          jobId: providerWorkerClaim.jobId,
+          requestId: providerWorkerClaim.requestId,
+          claimTokenHash: providerWorkerClaim.claimTokenHash,
+          completion: providerCompletion,
+        })
       ).resolves.toBe(true)
-      const [providerCompletion] = await transaction
+      const [storedProviderCompletion] = await transaction
         .select({
           outcome: cortexAssistantTurnRequests.outcome,
           providerAttemptId:
@@ -589,7 +683,7 @@ suite('Cortex assistant generation database integration', () => {
         })
         .from(cortexAssistantTurnRequests)
         .where(eq(cortexAssistantTurnRequests.id, providerClaim.requestId))
-      expect(providerCompletion).toMatchObject({
+      expect(storedProviderCompletion).toMatchObject({
         outcome: 'provider_grounded',
         providerAttemptId: providerReservation.reservationId,
         assistantMessageId: expect.any(String),
@@ -601,7 +695,7 @@ suite('Cortex assistant generation database integration', () => {
         result: {
           status: 'succeeded',
           outcome: 'provider_grounded',
-          model: 'deterministic-grounded-v1',
+          model: PROVIDER_MODEL,
           content: 'Provider-grounded project summary.',
         },
       })

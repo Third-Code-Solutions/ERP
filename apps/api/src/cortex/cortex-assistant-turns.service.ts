@@ -63,6 +63,7 @@ import {
   type DatabaseTransaction,
 } from '../database/database.service'
 import { cortexSearchNodeTypeScope } from './cortex-search-scope'
+import { cortexAssistantGenerationCompletionHash } from './cortex-assistant-generation-completion'
 
 export interface CortexAssistantTurnSignatureHeaders {
   timestamp: string | undefined
@@ -511,17 +512,10 @@ export class CortexAssistantTurnsService {
   }): Promise<boolean> {
     const parsedCompletion =
       cortexAssistantGenerationCommitCompletionSchema.parse(input.completion)
-    const completionHash = commandDigest({
+    const completionHash = cortexAssistantGenerationCompletionHash({
       jobId: input.jobId,
       requestId: input.requestId,
-      content: parsedCompletion.content,
-      citationNodeIds: parsedCompletion.citationNodeIds,
-      outcome: parsedCompletion.outcome,
-      model: parsedCompletion.model,
-      providerAttemptId:
-        parsedCompletion.outcome === 'provider_grounded'
-          ? parsedCompletion.providerAttemptId
-          : null,
+      completion: parsedCompletion,
     })
 
     return this.database.client.transaction(async (transaction) => {
@@ -589,6 +583,9 @@ export class CortexAssistantTurnsService {
             consumedCostMicros:
               cortexAssistantProviderAttempts.consumed_cost_micros,
             outcomeCode: cortexAssistantProviderAttempts.outcome_code,
+            protocolVersion: cortexAssistantProviderAttempts.protocol_version,
+            responseFingerprint:
+              cortexAssistantProviderAttempts.response_fingerprint,
             model: cortexAssistantProviderPolicies.model,
           })
           .from(cortexAssistantProviderAttempts)
@@ -626,7 +623,10 @@ export class CortexAssistantTurnsService {
           providerAttempt.consumedCostMicros < 0 ||
           providerAttempt.consumedCostMicros >
             providerAttempt.reservedCostMicros ||
-          providerAttempt.model !== parsedCompletion.model
+          providerAttempt.model !== parsedCompletion.model ||
+          (providerAttempt.protocolVersion !== null &&
+            (providerAttempt.protocolVersion !== 1 ||
+              providerAttempt.responseFingerprint !== completionHash))
         ) {
           throw new ConflictException(
             'Cortex provider completion authority is invalid'

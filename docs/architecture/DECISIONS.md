@@ -1,5 +1,32 @@
 # Architecture Decisions
 
+## D-277 - Bind provider I/O to one durable protocol attempt (2026-08-08)
+
+Decision: Nest alone constructs protocol-v1 provider requests after a durable
+reservation. It re-redacts and bounds content, removes internal identity,
+derives dispatch idempotency from the reservation, and records request identity
+before dispatch. A response is accepted only when its protocol, model, cost,
+content, and citations match the reserved authority. Only hashes of the opaque
+receipt and request/response evidence are persisted. The response fingerprint
+must equal the exact official completion hash.
+
+PostgreSQL freezes dispatch identity and repeats the response-to-completion
+match. Any error after dispatch is terminal and conservatively consumes the
+reserved maximum because an external provider may already have billed it. A
+second dispatch is forbidden; only failure to reconcile the durable attempt is
+retryable. Legacy null-protocol rows remain readable during rolling migration.
+
+Rationale: budget reservation and completion provenance do not prevent payload
+drift, replay with a changed prompt, forged provider receipts, model mismatch,
+or double billing after a timeout. A versioned identity-minimized envelope and
+exact durable fingerprints make those boundaries testable without copying any
+external ERP implementation or activating a paid provider.
+
+Validation and release boundary: all local suites, migration replay, schema
+hash equality, build, spend/release guards, workflow checks, secret scan, and
+diff checks passed. Production dispatch remains unavailable. Rollback closes
+gates, reconciles open attempts, and preserves forward-only evidence.
+
 ## D-276 - Bind official provider completion to settled spend (2026-08-08)
 
 Decision: a `provider_grounded` assistant completion must carry the exact

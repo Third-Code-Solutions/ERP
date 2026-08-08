@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const CORTEX_ASSISTANT_PROVIDER_COST_MICROS_MAX = 999_999_999_999
 
-const positiveCostMicrosSchema = z
+export const cortexAssistantProviderPositiveCostMicrosSchema = z
   .string()
   .regex(/^[1-9]\d{0,11}$/, 'Cost micros must be a positive bounded integer')
   .refine(
@@ -17,7 +17,7 @@ const positiveCostMicrosSchema = z
     'Cost micros exceed the supported bound'
   )
 
-const nonNegativeCostMicrosSchema = z
+export const cortexAssistantProviderNonNegativeCostMicrosSchema = z
   .string()
   .regex(/^(0|[1-9]\d{0,11})$/, 'Cost micros must be a bounded integer')
   .refine(
@@ -32,13 +32,13 @@ const nonNegativeCostMicrosSchema = z
     'Cost micros exceed the supported bound'
   )
 
-const providerKeySchema = z
+export const cortexAssistantProviderKeySchema = z
   .string()
   .min(1)
   .max(50)
   .regex(/^[a-z0-9][a-z0-9._-]*$/, 'Invalid provider key')
 
-const modelKeySchema = z
+export const cortexAssistantProviderModelKeySchema = z
   .string()
   .min(1)
   .max(100)
@@ -50,25 +50,41 @@ const outcomeCodeSchema = z
   .max(100)
   .regex(/^[a-z0-9][a-z0-9:_-]*$/, 'Invalid outcome code')
 
+export const cortexAssistantProviderHashSchema = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/, 'Provider fingerprint must be SHA-256 hex')
+
+export const cortexAssistantProviderAttemptIdentitySchema = z
+  .object({ reservationId: z.string().uuid() })
+  .strict()
+
 export const cortexAssistantProviderReservationCommandSchema = z
   .object({
     jobId: z.string().uuid(),
     attemptNumber: z.number().int().min(1).max(3),
-    provider: providerKeySchema,
-    model: modelKeySchema,
-    maxCostMicros: positiveCostMicrosSchema,
+    provider: cortexAssistantProviderKeySchema,
+    model: cortexAssistantProviderModelKeySchema,
+    maxCostMicros: cortexAssistantProviderPositiveCostMicrosSchema,
   })
   .strict()
 
 export const cortexAssistantProviderDispatchCommandSchema = z
-  .object({ reservationId: z.string().uuid() })
+  .object({
+    reservationId: z.string().uuid(),
+    protocolVersion: z.literal(1),
+    dispatchKey: cortexAssistantProviderHashSchema,
+    requestFingerprint: cortexAssistantProviderHashSchema,
+  })
   .strict()
 
 export const cortexAssistantProviderSettlementCommandSchema = z
   .object({
     reservationId: z.string().uuid(),
-    consumedCostMicros: nonNegativeCostMicrosSchema,
-    outcomeCode: outcomeCodeSchema,
+    protocolVersion: z.literal(1),
+    consumedCostMicros: cortexAssistantProviderNonNegativeCostMicrosSchema,
+    outcomeCode: z.literal('provider_succeeded'),
+    providerRequestIdHash: cortexAssistantProviderHashSchema,
+    responseFingerprint: cortexAssistantProviderHashSchema,
   })
   .strict()
 
@@ -91,11 +107,12 @@ export const cortexAssistantProviderAttemptResultSchema = z
     reservationId: z.string().uuid(),
     jobId: z.string().uuid(),
     attemptNumber: z.number().int().min(1).max(3),
-    provider: providerKeySchema,
-    model: modelKeySchema,
+    provider: cortexAssistantProviderKeySchema,
+    model: cortexAssistantProviderModelKeySchema,
     status: cortexAssistantProviderAttemptStatusSchema,
-    reservedCostMicros: positiveCostMicrosSchema,
-    consumedCostMicros: nonNegativeCostMicrosSchema.nullable(),
+    reservedCostMicros: cortexAssistantProviderPositiveCostMicrosSchema,
+    consumedCostMicros:
+      cortexAssistantProviderNonNegativeCostMicrosSchema.nullable(),
     outcomeCode: outcomeCodeSchema.nullable(),
     budgetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     replayed: z.boolean(),
