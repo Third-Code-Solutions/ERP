@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.176 Backend-only operational snapshot seam (completed)
+
+1. Added a schema-versioned `readOperationalSnapshot()` method with explicit
+   `scope: process` and frozen fixed-cardinality counters.
+2. Kept the method unbound to controllers, browser routes, exporters, tenant
+   responses, or external telemetry.
+3. Added proof that snapshot values contain no tenant, event, credential,
+   payload, or raw error identity and cannot be mutated through the returned
+   object.
+
+Evidence: focused Cortex snapshot contract 2/2; API 632/632 across 144 files;
+shared 273/273; Web full unit lane; database 367/367 zero-skip; 112/112
+disposable migrations; 26 API integration files/40 tests; equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; root
+typecheck, lint, serial Nest/Next production build with 82 pages; spend,
+controlled-release, Actionlint, pinned refs, Gitleaks, diff checks, and
+clean-room scan. No migration, hosted write, external network, credential,
+provider, deployment, or paid resource was added.
+
+Release gate: keep every Cortex queue, worker, recovery, route, provider, and
+budget gate false or empty. Any future exporter or route requires separate
+security and cost approval. Rollback removes snapshot wiring and preserves the
+forward-only alert ledger; never down-migrate.
+
+Next source-only slice: M3.177 audit snapshot access against deployment
+observability policy before considering any authenticated operational adapter.
+
 ## M3.175 Local post-commit enqueue observability (completed)
 
 1. Added a process-local, fixed-cardinality counter seam for post-commit and

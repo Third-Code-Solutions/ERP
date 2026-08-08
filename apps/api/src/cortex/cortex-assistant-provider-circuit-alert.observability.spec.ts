@@ -35,4 +35,31 @@ describe('CortexAssistantProviderCircuitAlertObservability', () => {
       total: 1,
     })
   })
+
+  it('exposes only an immutable backend operational snapshot', () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined)
+    const metrics = new CortexAssistantProviderCircuitAlertObservability()
+    metrics.recordRecoveryFallback('failed')
+
+    const snapshot = metrics.readOperationalSnapshot()
+
+    expect(snapshot).toEqual({
+      schemaVersion: 1,
+      scope: 'process',
+      metric: 'cortex_provider_circuit_alert_enqueue_total',
+      counters: {
+        'post_commit.enqueued': 0,
+        'post_commit.skipped': 0,
+        'post_commit.failed': 0,
+        'recovery_fallback.enqueued': 0,
+        'recovery_fallback.skipped': 0,
+        'recovery_fallback.failed': 1,
+      },
+    })
+    expect(Object.isFrozen(snapshot)).toBe(true)
+    expect(Object.isFrozen(snapshot.counters)).toBe(true)
+    expect(JSON.stringify(snapshot)).not.toMatch(
+      /tenant|eventKey|credential|payload|error/i
+    )
+  })
 })

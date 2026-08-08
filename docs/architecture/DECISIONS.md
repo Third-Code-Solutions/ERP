@@ -1,5 +1,28 @@
 # Architecture Decisions
 
+## D-285 - Keep operational metric snapshots backend-only and immutable (2026-08-09)
+
+Decision: expose a schema-versioned `readOperationalSnapshot()` method on the
+Nest observability service, scoped to the current process and returning frozen
+counter values. Do not bind it to a controller, browser route, tenant-facing
+response, or exporter in this milestone.
+
+Rationale: process-wide enqueue counters cannot be safely attributed to one
+tenant. A typed read seam supports future operational tooling while preventing
+cross-tenant activity disclosure, accidental mutation, and premature telemetry
+cost. Any exporter or route needs its own authentication, authorization,
+redaction, retention, and spend review.
+
+Validation and release boundary: focused snapshot contract 2/2; API 632/632;
+shared 273/273; Web full unit lane; database 367/367 zero-skip; 112/112
+disposable migrations; 26 API integration files/40 tests; equal schema hash;
+root typecheck/lint/build with 82 pages; spend/controlled-release guards,
+Actionlint, pinned refs, Gitleaks, diff checks, and clean-room scan pass.
+Queue, worker, recovery, route, provider, and budget gates remain closed; no
+database migration, hosted write, external network, credential, deployment,
+or paid resource is allowed. Rollback removes the snapshot method only;
+preserve the forward-only alert ledger and never down-migrate.
+
 ## D-284 - Keep circuit-alert enqueue metrics local and fixed-cardinality (2026-08-09)
 
 Decision: count post-commit and recovery-fallback enqueue outcomes in a

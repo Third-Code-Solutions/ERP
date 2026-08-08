@@ -1,5 +1,25 @@
 # Work Log
 
+## 2026-08-09 - M3.176 backend-only operational snapshot seam
+
+Added a typed, schema-versioned `readOperationalSnapshot()` seam with explicit
+process scope and frozen fixed-cardinality counters. No controller, browser
+route, exporter, tenant response, or external telemetry path binds to it.
+
+Validation: focused Cortex snapshot contract 2/2; API 632/632 across 144
+files; shared 273/273; Web full unit lane; database 367/367 zero-skip; 112/112
+disposable migrations; 26 API integration files/40 tests; equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; root
+typecheck, lint, serial Nest/Next build with 82 pages; spend,
+controlled-release, Actionlint, pinned refs, Gitleaks, diff checks, and
+clean-room scan. Disposable PostgreSQL/Redis stopped; ports 54322/6379 closed.
+No schema/migration change, hosted Supabase query/write, credential,
+provider/pager/AI/image call, Vercel/Railway build/deploy, paid resource, or
+Vercel Git change occurred. Gates remain false/empty.
+
+Exact next action after completion: M3.177 audit snapshot access against
+deployment observability policy before considering an authenticated adapter.
+
 ## 2026-08-09 - M3.175 local post-commit enqueue observability
 
 Added fixed-cardinality, process-local Cortex circuit-alert metrics for

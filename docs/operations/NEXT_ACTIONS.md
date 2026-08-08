@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.176 backend-only operational snapshot seam
+
+Keep every Cortex generation, worker, provider-execution, provider-budget,
+recovery, Web, Core, queue, and alert-routing gate false; all exact-tenant
+allowlists empty; provider policies absent or disabled; route credentials
+unset; and Vercel Git disconnected. Do not query or mutate managed Supabase,
+deploy/build Vercel or Railway, call an AI/image/provider or external pager, or
+create a paid resource under the cost lock.
+
+The next safe source-only milestone is M3.177: audit snapshot access against
+deployment observability policy. Any authenticated adapter must define exact
+caller authorization, process-versus-tenant scope, redaction, retention,
+rate limits, and cost controls before code binds the snapshot to a route or
+exporter. Do not add external network, hosted telemetry writes, deployment,
+provider activation, or a public browser route.
+
+Before any real provider canary, complete M3.152 backup/PITR and isolated
+complete-clone replay of all 112 migrations, then approve one exact tenant, one
+low request/daily micros policy, credential scope, one reviewed release SHA,
+live RBAC/cancellation checks, and a rollback drill. M3.176 is source-only and
+not activation approval.
+
 ## Exact next action after M3.175 local post-commit enqueue observability
 
 Keep every Cortex generation, worker, provider-execution, provider-budget,

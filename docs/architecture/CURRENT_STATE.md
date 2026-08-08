@@ -5,6 +5,27 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.176 Backend-only operational snapshot seam (2026-08-09)
+
+The Cortex circuit-alert observability service now exposes a typed,
+schema-versioned `readOperationalSnapshot()` seam for future reviewed
+operational export. Snapshot scope is explicitly `process`; counters remain
+fixed-cardinality and are returned as frozen values. No controller, browser
+route, tenant identity, event key, alert payload, credential, or raw transport
+error is included. The seam remains unexported and backend-only.
+
+Validation passed: focused Cortex snapshot contract 2/2; API 632/632 across
+144 files; shared 273/273; Web full unit lane; database 367/367 with zero
+skips; 112/112 disposable migrations; 26 API integration files/40 tests;
+equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; root
+typecheck, lint, and serial Nest/Next production build with 82 pages; spend,
+controlled-release, Actionlint, pinned workflow refs, Gitleaks, diff checks,
+and clean-room scan. Disposable PostgreSQL/Redis were stopped and ports
+54322/6379 are closed. No database migration, hosted write, deployment,
+exporter, provider activation, or paid resource was added; all queue, worker,
+recovery, and route gates remain false/empty.
+
 ## M3.175 Local post-commit enqueue observability (2026-08-09)
 
 The disabled Cortex circuit-alert handoff now records fixed-cardinality,
