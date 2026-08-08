@@ -1,5 +1,15 @@
 # Work Log
 
+## 2026-08-09 - M3.188 Local release/rollback metadata reconciliation
+
+Reconciled the review packet to application SHA
+`55697564c49cf92a58e7e85016fe4d6ac71f2abe` and recorded the documented Web
+rollback target. Railway/API rollback identity stays explicitly unresolved.
+No live provider read, SQL, hosted write/deploy, or paid resource.
+
+Exact next action: stop at external blockers; do not infer hosted identity or
+enable a canary.
+
 ## 2026-08-09 - M3.187 Exact-tenant Cortex brief canary gate
 
 Tightened the Web brief canary to reject wildcard tenant selection; exact UUID

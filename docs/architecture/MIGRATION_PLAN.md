@@ -1,5 +1,19 @@
 # Migration Plan
 
+## M3.188 Local release/rollback metadata reconciliation (completed, not approved)
+
+1. Reconciled the review packet to application candidate
+   `55697564c49cf92a58e7e85016fe4d6ac71f2abe`.
+2. Recorded the documented retained Web rollback target and source.
+3. Marked Railway/API rollback identity unresolved rather than inferring it.
+4. Kept every flag, allowlist, hosted action, and provider action closed.
+
+No SQL or runtime change. This does not certify hosted deployment identity,
+Supabase parity, or spend approval.
+
+Exact next action: stop at external blockers and wait for owner/provider
+evidence; do not enable a canary.
+
 ## M3.187 Exact-tenant Cortex brief canary gate (completed, not approved)
 
 1. Added a strict Web helper variant that rejects wildcard allowlists for the
