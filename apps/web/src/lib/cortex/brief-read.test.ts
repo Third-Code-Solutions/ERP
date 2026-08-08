@@ -117,6 +117,32 @@ describe('readCortexBrief', () => {
     expect(mocks.cortexNodeTypeScope).not.toHaveBeenCalled()
   })
 
+  it('proves normalized Core output is structurally equal to the legacy fixture', async () => {
+    const legacy = await readCortexBrief({
+      tenantId: TENANT_ID,
+      role: 'admin',
+      limit: 8,
+    })
+    expect(legacy.ok).toBe(true)
+    if (!legacy.ok) return
+
+    mocks.cortexBriefReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexBriefThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: coreBrief,
+    })
+
+    const core = await readCortexBrief({
+      tenantId: TENANT_ID,
+      role: 'admin',
+      limit: 8,
+    })
+    expect(core.ok).toBe(true)
+    if (!core.ok) return
+
+    expect(core.brief).toEqual(legacy.brief)
+  })
+
   it('fails closed for a selected tenant when Core is unavailable', async () => {
     mocks.cortexBriefReadsUseCoreApi.mockReturnValue(true)
     mocks.getCortexBriefThroughCoreApi.mockResolvedValue({

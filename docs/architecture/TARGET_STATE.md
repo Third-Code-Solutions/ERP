@@ -1,5 +1,12 @@
 # Target State
 
+## M3.185 Dashboard brief parity evidence
+
+The dashboard seam has a deterministic fixture proving the legacy and
+normalized Core projections are equivalent for the bounded brief. This is
+parity evidence only; it does not approve a tenant canary or imply graph/chat
+authority migration.
+
 ## M3.184 Dashboard server-component brief adapter
 
 The dashboard consumes one server-only brief seam. It selects Nest authority

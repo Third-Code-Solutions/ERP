@@ -63,6 +63,13 @@ inputs are complete; it does not enable a route, exporter, sink, or deployment.
   and Core canaries are ERP data paths only; process metrics cannot become a
   dashboard KPI, graph node, citation, or assistant context.
 
+## M3.185 Dashboard brief parity boundary
+
+Parity fixtures compare tenant-scoped ERP projections only. They do not read
+the process snapshot, export counters, activate a provider, or authorize a
+dashboard canary. Observability remains backend-only and separate from this
+consumer evidence.
+
 ## M3.184 Dashboard brief consumption boundary
 
 The dashboard page consumes the server-only brief seam and never imports the

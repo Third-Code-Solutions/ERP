@@ -1,5 +1,16 @@
 # Work Log
 
+## 2026-08-09 - M3.185 Dashboard brief parity fixture
+
+Added a deterministic fixture that reads the same tenant brief through the
+legacy and Core-selected paths and asserts structural equality after Core
+normalization. Focused parity 4/4; sequential Web typecheck/build passed.
+No runtime source, SQL, flag, provider, hosted write/deploy, or paid resource
+changed. M3.184 full suite remains current.
+
+Exact next action: M3.186 prepare a one-tenant canary review packet while
+keeping every flag closed.
+
 ## 2026-08-09 - M3.184 Dashboard server-component brief adapter seam
 
 Moved Cortex dashboard brief authority into server-only `readCortexBrief()`.

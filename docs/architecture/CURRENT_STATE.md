@@ -5,6 +5,22 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.185 Dashboard brief parity fixture (2026-08-09)
+
+Added deterministic parity evidence for the dashboard seam. The same tenant
+fixture is read through the role-scoped legacy path and the selected Core path;
+the normalized Core projection is structurally equal to the legacy projection,
+including dates, stats, freshness, and items. No runtime source, flag, SQL,
+provider, hosted, or deployment behavior changed.
+
+Focused brief-read parity: 4/4. Sequential Web build and typecheck passed;
+M3.184 full suite remains current: API 641/641, shared 277/277, Web 683/683,
+database 224 passed plus 143 credential-gated skips, lint, 82-page build,
+spend/release/Actionlint/pinned-refs/Gitleaks/diff/clean-room gates.
+
+Exact next safe slice: prepare a canary review packet for one tenant while
+keeping all feature flags and allowlists closed.
+
 ## M3.184 Dashboard server-component brief adapter seam (2026-08-09)
 
 The Cortex dashboard page now delegates its brief read to a server-only
