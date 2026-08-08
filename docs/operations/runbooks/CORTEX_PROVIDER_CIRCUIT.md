@@ -65,6 +65,12 @@ payloads, and delivered through an injectable local sink with bounded retry.
 Transaction owners hand newly-created events to BullMQ only after commit; the
 alert ledger itself is the transactional outbox and remains authoritative when
 queue enqueue fails.
+The backend emits fixed-cardinality process-local metric records for
+`post_commit` and `recovery_fallback` phases with `enqueued`, `skipped`, or
+`failed` outcomes. Use these records to distinguish disabled/duplicate intake
+from transport failure; they contain no tenant IDs, event keys, alert payloads,
+credentials, or raw error text. Metrics are not exported or exposed through a
+public route in this source-only slice.
 `pending`, `processing`, `delivered`, and `failed` are database states; a
 failed sink may be retried by event key, and the drain stops after one failure
 to prevent a hot loop. BullMQ, when separately approved, carries only

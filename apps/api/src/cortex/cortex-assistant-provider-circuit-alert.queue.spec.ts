@@ -9,6 +9,7 @@ import {
 } from './cortex-assistant-provider-circuit-alert.constants'
 import { CortexAssistantProviderCircuitAlertQueue } from './cortex-assistant-provider-circuit-alert.queue'
 import type { CortexAssistantProviderCircuitAlertService } from './cortex-assistant-provider-circuit-alert.service'
+import type { CortexAssistantProviderCircuitAlertObservability } from './cortex-assistant-provider-circuit-alert.observability'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const EVENT_KEY = 'a'.repeat(64)
@@ -143,6 +144,57 @@ describe('CortexAssistantProviderCircuitAlertQueue', () => {
       { schemaVersion: 1, eventKey: EVENT_KEY },
       expect.any(Object)
     )
+  })
+
+  it('records recovery enqueue outcomes without exposing event identity', async () => {
+    const queue = {
+      getJob: vi.fn().mockResolvedValue(undefined),
+      add: vi.fn().mockResolvedValue({ id: 'transport' }),
+    } as unknown as Queue
+    const recordRecoveryFallback = vi.fn()
+    const alerts = {
+      recoverableEventKeys: vi.fn().mockResolvedValue([
+        { tenantId: TENANT_ID, eventKey: EVENT_KEY },
+        {
+          tenantId: '44444444-4444-4444-8444-444444444444',
+          eventKey: 'b'.repeat(64),
+        },
+      ]),
+    } as unknown as CortexAssistantProviderCircuitAlertService
+    const producer = new CortexAssistantProviderCircuitAlertQueue(
+      queue,
+      alerts,
+      enabledConfig() as never,
+      { recordRecoveryFallback } as unknown as CortexAssistantProviderCircuitAlertObservability
+    )
+
+    await expect(producer.enqueuePending([TENANT_ID])).resolves.toBe(1)
+    expect(recordRecoveryFallback).toHaveBeenNthCalledWith(1, 'enqueued')
+    expect(recordRecoveryFallback).toHaveBeenNthCalledWith(2, 'skipped')
+  })
+
+  it('records recovery transport failure before preserving retry behavior', async () => {
+    const queue = {
+      getJob: vi.fn().mockResolvedValue(undefined),
+      add: vi.fn().mockRejectedValue(new Error('redis unavailable')),
+    } as unknown as Queue
+    const recordRecoveryFallback = vi.fn()
+    const alerts = {
+      recoverableEventKeys: vi.fn().mockResolvedValue([
+        { tenantId: TENANT_ID, eventKey: EVENT_KEY },
+      ]),
+    } as unknown as CortexAssistantProviderCircuitAlertService
+    const producer = new CortexAssistantProviderCircuitAlertQueue(
+      queue,
+      alerts,
+      enabledConfig() as never,
+      { recordRecoveryFallback } as unknown as CortexAssistantProviderCircuitAlertObservability
+    )
+
+    await expect(producer.enqueuePending([TENANT_ID])).rejects.toThrow(
+      'redis unavailable'
+    )
+    expect(recordRecoveryFallback).toHaveBeenCalledWith('failed')
   })
 
   it('schedules recovery only when every gate is open', async () => {

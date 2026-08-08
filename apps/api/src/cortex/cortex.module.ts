@@ -40,6 +40,7 @@ import {
 } from './cortex-assistant-provider-circuit-alert.constants'
 import { CortexAssistantProviderCircuitAlertProcessor } from './cortex-assistant-provider-circuit-alert.processor'
 import { CortexAssistantProviderCircuitAlertQueue } from './cortex-assistant-provider-circuit-alert.queue'
+import { CortexAssistantProviderCircuitAlertObservability } from './cortex-assistant-provider-circuit-alert.observability'
 import { CortexAssistantProviderExecutionService } from './cortex-assistant-provider-execution.service'
 import { CortexAssistantProviderHealthController } from './cortex-assistant-provider-health.controller'
 import { CortexAssistantProviderHealthPipe } from './cortex-assistant-provider-health.pipe'
@@ -94,6 +95,7 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     CortexAssistantProviderCircuitAlertService,
     CortexAssistantProviderCircuitAlertRouter,
     CortexAssistantProviderCircuitAlertQueue,
+    CortexAssistantProviderCircuitAlertObservability,
     CortexAssistantProviderCircuitAlertProcessor,
     CortexAssistantProviderExecutionService,
     CortexAssistantProviderHealthPipe,
