@@ -12,6 +12,22 @@ import {
 } from '@/lib/cortex/entity-registry'
 import { cortexNodeTypeScope } from '@/lib/cortex/rbac'
 import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
+import {
+  cortexBriefReadsUseCoreApi,
+  getCortexBriefThroughCoreApi,
+} from '@/lib/erp-core-client'
+
+interface CortexBriefRecord {
+  id: string
+  nodeType: string
+  title: string | null
+  summary: string | null
+  refTable: string
+  refId: string
+  projectId: string | null
+  freshness: 'fresh' | 'stale' | 'unknown'
+  recordedAt: string
+}
 
 const querySchema = z.object({
   limit: z.coerce
@@ -27,6 +43,29 @@ function response(body: unknown, status = 200) {
     status,
     headers: CORTEX_PRIVATE_HEADERS,
   })
+}
+
+function presentItem(item: CortexBriefRecord) {
+  const definition = cortexEntityDefinition(item.nodeType)
+  if (!definition || !definition.refTables.includes(item.refTable)) return null
+
+  return {
+    id: item.id,
+    nodeType: item.nodeType,
+    label: definition.label,
+    title: item.title?.trim() || definition.label,
+    summary: item.summary?.trim() || null,
+    href: cortexHref({
+      type: item.nodeType,
+      refId: item.refId,
+      projectId: item.projectId,
+    }),
+    refTable: item.refTable,
+    refId: item.refId,
+    freshness: item.freshness,
+    recordedAt: item.recordedAt,
+    source: 'cortex' as const,
+  }
 }
 
 /**
@@ -47,6 +86,38 @@ export async function GET(req: NextRequest) {
     return response({ items: [], error: 'Invalid brief limit' }, 400)
   }
 
+  if (cortexBriefReadsUseCoreApi(profile.tenantId)) {
+    const result = await getCortexBriefThroughCoreApi(parsed.data.limit)
+    if (!result.ok || !result.data) {
+      return response(
+        { items: [], error: result.error ?? 'Cortex brief service is unavailable.' },
+        result.status ?? 503
+      )
+    }
+
+    const items = result.data.items.flatMap((item) => {
+      const mapped = presentItem({
+        id: item.id,
+        nodeType: item.nodeType,
+        title: item.title,
+        summary: item.summary,
+        refTable: item.refTable,
+        refId: item.refId,
+        projectId: item.projectId,
+        freshness: item.freshness,
+        recordedAt: item.recordedAt,
+      })
+      return mapped ? [mapped] : []
+    })
+
+    return response({
+      generatedAt: result.data.generatedAt,
+      stats: result.data.stats,
+      freshness: result.data.freshness,
+      items,
+    })
+  }
+
   try {
     const scope = cortexNodeTypeScope(profile.role)
     const brief = await getCortexOperationalBrief(
@@ -56,28 +127,18 @@ export async function GET(req: NextRequest) {
     )
 
     const items = brief.items.flatMap((item) => {
-      const definition = cortexEntityDefinition(item.nodeType)
-      if (!definition || !definition.refTables.includes(item.refTable)) return []
-
-      return [
-        {
-          id: item.nodeId,
-          nodeType: item.nodeType,
-          label: definition.label,
-          title: item.title?.trim() || definition.label,
-          summary: item.summary?.trim() || null,
-          href: cortexHref({
-            type: item.nodeType,
-            refId: item.refId,
-            projectId: item.projectId,
-          }),
-          refTable: item.refTable,
-          refId: item.refId,
-          freshness: item.freshness,
-          recordedAt: item.recordedAt.toISOString(),
-          source: 'cortex' as const,
-        },
-      ]
+      const mapped = presentItem({
+        id: item.nodeId,
+        nodeType: item.nodeType,
+        title: item.title,
+        summary: item.summary,
+        refTable: item.refTable,
+        refId: item.refId,
+        projectId: item.projectId,
+        freshness: item.freshness,
+        recordedAt: item.recordedAt.toISOString(),
+      })
+      return mapped ? [mapped] : []
     })
 
     return response({

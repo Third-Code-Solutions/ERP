@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.183 Cortex brief read contract and Nest authority (completed)
+
+1. Added bounded, strict shared query/stats/freshness/item/result schemas with
+   no tenant or process input.
+2. Added Nest pipe/service/controller using authenticated-principal scope and
+   independent environment gates.
+3. Added a server-only Web Core adapter and route canary; Core failure returns
+   503 with no direct fallback.
+4. Kept the feature flag false and allowlist empty; the dashboard component
+   remains on its legacy path.
+
+Evidence: focused shared 3/3, API brief/environment 68/68, Web brief route
+6/6, Core client 139/139; full API 641/641, shared 277/277, Web 680/680,
+database 224 passed plus 143 credential-gated skips, typecheck/lint, 82-page
+build, spend/release/Actionlint/pinned-refs/Gitleaks/diff/clean-room gates.
+No SQL, hosted, deployment, provider, or paid-resource change. Release gate:
+no canary until parity, exact tenant, RBAC, rollback, and spend evidence.
+
+Exact next action: M3.184 add the dashboard server-component adapter seam
+without enabling a tenant canary.
+
 ## M3.182 Cortex direct-read fallback inventory (completed)
 
 1. Traced every user-facing Cortex read route and dashboard consumer for

@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-09 - M3.183 Cortex brief read contract and Nest authority
+
+Added the strict shared brief contract, Nest `GET /v1/cortex/brief`, bounded
+environment gates, Core adapter, and Web canary branch. Flags are false/empty;
+Core failure is 503 with no direct fallback; dashboard cutover is M3.184.
+No SQL, hosted write/deploy, provider call, or paid resource.
+
+Validation: focused shared 3/3, API brief/environment 68/68, Web brief route
+6/6, Core client 139/139; full API 641/641, shared 277/277, Web 680/680,
+database 224 passed plus 143 credential-gated skips, typecheck/lint, 82-page
+build, spend/release/Actionlint/pinned-refs/Gitleaks/diff/clean-room gates.
+
+Exact next action: M3.184 add the dashboard server-component adapter seam
+without enabling a tenant canary.
+
 ## 2026-08-09 - M3.182 Cortex direct-read fallback inventory
 
 Traced Cortex dashboard and API reads. Search, graph, entity, and saved

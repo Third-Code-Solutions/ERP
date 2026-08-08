@@ -5,6 +5,26 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.183 Cortex brief read contract and Nest authority (2026-08-09)
+
+Added a strict shared Cortex brief query/result contract, a fail-closed NestJS
+`GET /v1/cortex/brief` controller/service/pipe, and an independent exact-tenant
+canary pair: `ERP_CORTEX_BRIEF_READS_ENABLED` plus
+`ERP_CORTEX_BRIEF_READS_TENANT_IDS`. Nest derives tenant and role from the
+authenticated principal and serializes only the ERP projection. The Web brief
+route has a server-only Core adapter; Core errors return 503 with no direct
+fallback. Flags remain false by default; the dashboard server component stays
+direct until its own cutover.
+
+Focused: shared brief 3/3; API brief service/controller plus environment 68/68;
+Web brief route 6/6; Core client 139/139. Full: API 641/641 across 147 files;
+shared 277/277; Web 680/680; database 224 passed plus 143 credential-gated
+skips; typecheck, lint, Nest/Next 82-page build, spend/release/Actionlint/
+pinned-refs/Gitleaks/diff/clean-room gates. No SQL changed; prior DB replay
+remains 112/112 migrations, 367/367 zero-skip tests, 26 API integration files/
+40 tests, equal schema hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+No hosted write/deploy/provider/paid resource.
+
 ## M3.182 Cortex direct-read fallback inventory (2026-08-09)
 
 Audited the remaining user-facing Cortex reads before any further Core

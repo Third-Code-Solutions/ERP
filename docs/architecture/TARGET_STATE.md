@@ -1,5 +1,13 @@
 # Target State
 
+## M3.183 Cortex brief read authority
+
+The brief now has a strict shared contract and Nest tenant/role read authority.
+The Web adapter is independently canaried and fail-closed; its flag stays
+false until parity, identity, rollback, and spend evidence exist. The dashboard
+server component remains a separate cutover; the legacy direct path stays for
+unselected tenants.
+
 ## M3.182 Cortex read-authority inventory
 
 Core read authority is complete only when brief, graph, entity, search, and

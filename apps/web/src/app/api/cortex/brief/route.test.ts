@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   cortexNodeTypeScope: vi.fn(),
   cortexEntityDefinition: vi.fn(),
   cortexHref: vi.fn(),
+  cortexBriefReadsUseCoreApi: vi.fn(),
+  getCortexBriefThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -26,6 +28,11 @@ vi.mock('@/lib/cortex/rbac', () => ({
 vi.mock('@/lib/cortex/entity-registry', () => ({
   cortexEntityDefinition: mocks.cortexEntityDefinition,
   cortexHref: mocks.cortexHref,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  cortexBriefReadsUseCoreApi: mocks.cortexBriefReadsUseCoreApi,
+  getCortexBriefThroughCoreApi: mocks.getCortexBriefThroughCoreApi,
 }))
 
 import { GET } from './route'
@@ -52,6 +59,7 @@ describe('Cortex operational brief boundary', () => {
       refTables: ['invoices'],
     })
     mocks.cortexHref.mockReturnValue('/invoices/' + REF_ID)
+    mocks.cortexBriefReadsUseCoreApi.mockReturnValue(false)
     mocks.getCortexOperationalBrief.mockResolvedValue({
       generatedAt: new Date('2026-08-04T00:00:00.000Z'),
       stats: {
@@ -153,5 +161,60 @@ describe('Cortex operational brief boundary', () => {
       refId: REF_ID,
       projectId: PROJECT_ID,
     })
+  })
+
+  it('uses the closed Core adapter for an explicit tenant canary', async () => {
+    mocks.cortexBriefReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexBriefThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        generatedAt: '2026-08-09T00:00:00.000Z',
+        stats: {
+          nodes: 1,
+          edges: 0,
+          provenance: 1,
+          byType: [{ nodeType: 'invoice', count: 1 }],
+        },
+        freshness: { fresh: 1, stale: 0, unknown: 0 },
+        items: [
+          {
+            id: NODE_ID,
+            nodeType: 'invoice',
+            title: 'Invoice 1042',
+            summary: null,
+            refTable: 'invoices',
+            refId: REF_ID,
+            projectId: PROJECT_ID,
+            freshness: 'fresh',
+            recordedAt: '2026-08-08T23:00:00.000Z',
+            source: 'cortex',
+          },
+        ],
+      },
+    })
+
+    const response = await request('?limit=6')
+    await expect(response.json()).resolves.toMatchObject({
+      generatedAt: '2026-08-09T00:00:00.000Z',
+      items: [
+        expect.objectContaining({ id: NODE_ID, href: '/invoices/' + REF_ID }),
+      ],
+    })
+    expect(mocks.getCortexBriefThroughCoreApi).toHaveBeenCalledWith(6)
+    expect(mocks.getCortexOperationalBrief).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back to direct reads when Core is enabled but unavailable', async () => {
+    mocks.cortexBriefReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexBriefThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'Cortex brief service is unavailable.',
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(503)
+    expect(mocks.getCortexOperationalBrief).not.toHaveBeenCalled()
   })
 })
