@@ -9,7 +9,7 @@ resource.
 
 ## Candidate and gates
 
-- Application candidate: `af66bd1528b963c8f6377409fcf33578124a605c` on
+- Application candidate: `df61bca88e1977f1f754767540e075765f8f3cc0` on
   `agent-02/third-code-erp-landing`, pushed to
   `Third-Code-Solutions/ERP`; not deployed.
 - API gate: `ERP_CORTEX_CHAT_RETRIEVAL_READS_ENABLED=false` and
