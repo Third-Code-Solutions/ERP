@@ -9,6 +9,10 @@ half-open circuit, elevated failures, or unexpected spend. The endpoint exposes
 tenant-scoped aggregates only. It never returns prompts, responses, attempt
 identifiers, user identifiers, or credentials.
 
+The process-level enqueue snapshot is not part of this endpoint. It is an
+internal Nest provider seam governed by the deployment observability policy;
+there is no browser route, exporter, tenant attribution, or external sink.
+
 ## First check
 
 An authenticated tenant owner, administrator, or finance user may call:

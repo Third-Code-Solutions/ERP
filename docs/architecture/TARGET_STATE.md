@@ -1,5 +1,14 @@
 # Target State
 
+## M3.177 deployment observability access-policy audit
+
+The process snapshot seam carries an explicit immutable access policy and a
+module-boundary contract: internal Nest service only, no controller/exporter,
+process scope, no tenant attribution, fixed-cardinality redaction,
+process-lifetime retention, disabled external sink, zero external spend, and
+separate deployment review. Public health/readiness probes remain limited to
+liveness and dependency readiness.
+
 ## M3.176 backend-only operational snapshot seam
 
 Operational tooling may read one schema-versioned process snapshot from the

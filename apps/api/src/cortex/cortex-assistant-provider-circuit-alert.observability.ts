@@ -21,6 +21,27 @@ export const CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_ENQUEUE_METRIC =
 export const CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_OBSERVABILITY_SCHEMA_VERSION =
   1
 
+/**
+ * Deployment-observability policy for the process snapshot seam.
+ *
+ * This is a policy record, not a route or an authorization mechanism. Keeping
+ * it beside the seam makes any future exporter reviewable against explicit
+ * scope, redaction, retention, rate, and spend boundaries.
+ */
+export const CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_OPERATIONAL_SNAPSHOT_POLICY =
+  Object.freeze({
+    authorization: 'internal_nest_service_only',
+    exposure: 'backend_only',
+    scope: 'process',
+    tenantAttribution: 'none',
+    redaction: 'fixed_cardinality_counters_only',
+    retention: 'process_lifetime',
+    rateLimit: 'none_until_exporter',
+    externalSink: 'disabled',
+    costControl: 'zero_external_spend',
+    deployment: 'separate_review_required',
+  } as const)
+
 export interface CortexAssistantProviderCircuitAlertOperationalSnapshot {
   readonly schemaVersion: 1
   readonly scope: 'process'

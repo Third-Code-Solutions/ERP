@@ -1,5 +1,31 @@
 # Architecture Decisions
 
+## D-286 - Encode deployment observability boundaries before any adapter (2026-08-09)
+
+Decision: keep the Cortex process snapshot behind a frozen source policy and
+prove the module registers it as a provider, not an HTTP controller. The
+policy requires internal Nest-only authorization, process scope, no tenant
+attribution, fixed-cardinality redaction, process-lifetime retention, no route
+rate limit until an exporter exists, disabled external sinks, zero external
+spend, and separate deployment review.
+
+Rationale: health/readiness and tenant-facing provider-health routes have
+different audiences and authorization contracts. A process-wide counter cannot
+be safely exposed as tenant data, and an exporter would add network, retention,
+and cost obligations. Making the boundary executable prevents accidental route
+registration while leaving a future adapter reviewable.
+
+Validation and release boundary: API 634/634 across 145 files; shared 273/273;
+Web full unit lane; focused policy/module-boundary contracts; root
+typecheck/lint/build with 82 pages; spend/controlled-release guards, Actionlint,
+pinned refs, Gitleaks, diff checks, and clean-room scan pass. No SQL changed,
+so the preceding disposable replay remains current: 112/112 migrations,
+367/367 zero-skip database tests, 26 API integration files/40 tests, and equal
+schema hash. Global JWT and explicit capability guards remain unchanged; no
+route, exporter, hosted write, credential, deployment, or paid resource was
+added. The adapter gate stays closed and rollback removes only the policy/test
+seam; never down-migrate.
+
 ## D-285 - Keep operational metric snapshots backend-only and immutable (2026-08-09)
 
 Decision: expose a schema-versioned `readOperationalSnapshot()` method on the
