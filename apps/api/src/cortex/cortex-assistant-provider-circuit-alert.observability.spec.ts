@@ -81,6 +81,8 @@ describe('CortexAssistantProviderCircuitAlertObservability', () => {
       externalSink: 'disabled',
       costControl: 'zero_external_spend',
       owner: 'erp_backend_owner',
+      consumer: 'none_registered',
+      allowedConsumer: 'future_reviewed_operational_adapter',
       releaseIdentity: 'git_commit_sha',
       rollback: 'last_known_good_artifact',
       deployment: 'separate_review_required',

@@ -1,5 +1,11 @@
 # Target State
 
+## M3.180 operational adapter consumer ownership audit
+
+No runtime consumer is registered for the process snapshot evaluator. A future
+consumer must be a separately reviewed operational adapter; consumer metadata
+cannot enable a route, exporter, sink, or deployment.
+
 ## M3.179 fail-closed operational adapter trigger conditions
 
 Any future operational adapter must first satisfy the nine review inputs in

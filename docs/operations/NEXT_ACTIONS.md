@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.180 operational adapter consumer ownership audit
+
+Keep every Cortex generation, worker, provider-execution, provider-budget,
+recovery, Web, Core, queue, and alert-routing gate false; all exact-tenant
+allowlists empty; provider policies absent or disabled; route credentials
+unset; and Vercel Git disconnected. Do not query or mutate managed Supabase,
+deploy/build Vercel or Railway, call an AI/image/provider or external pager, or
+create a paid resource under the cost lock.
+
+The next safe source-only milestone is M3.181: review user-facing Cortex/ERP
+search consumer boundaries. Preserve `consumer: none_registered`, all nine
+trigger reviews, process scope, no-tenant attribution, redaction, retention,
+rate, sink, spend, release, and rollback gates. Do not add process-metric
+access, an authenticated adapter, exporter, hosted telemetry write, external
+network, deployment, provider activation, or public browser route.
+
+Before any real provider canary, complete M3.152 backup/PITR and isolated
+complete-clone replay of all 112 migrations, then approve one exact tenant, one
+low request/daily micros policy, credential scope, one reviewed release SHA,
+live RBAC/cancellation checks, and a rollback drill. M3.180 is source-only and
+not activation approval.
+
 ## Exact next action after M3.179 fail-closed operational adapter trigger conditions
 
 Keep every Cortex generation, worker, provider-execution, provider-budget,

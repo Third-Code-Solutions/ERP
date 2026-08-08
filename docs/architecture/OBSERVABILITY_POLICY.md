@@ -26,6 +26,8 @@ encoded beside the seam as
 | External sink | Disabled |
 | Cost control | Zero external spend |
 | Owner | ERP backend owner; no anonymous operational adapter |
+| Consumer | None registered in runtime |
+| Allowed consumer | Future separately reviewed operational adapter only |
 | Release identity | Exact Git commit SHA |
 | Rollback | Last known-good artifact; no rebuild required |
 | Deployment | Separate reviewed release decision and rollback evidence required |

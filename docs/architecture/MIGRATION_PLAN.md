@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.180 Operational adapter consumer ownership audit (completed)
+
+1. Searched the API source and found no runtime evaluator consumer; references
+   are limited to policy code, its contract test, and architecture/operations
+   documentation.
+2. Added explicit `consumer: none_registered` and
+   `allowedConsumer: future_reviewed_operational_adapter` policy metadata.
+3. Kept the ownership record non-authoritative and the adapter gate closed.
+
+Validation passed: API 636/636 across 145 files; shared 273/273; Web full unit
+lane; focused five-test evaluator/policy contract; root typecheck, lint, and
+serial Nest/Next production build with 82 pages; spend/controlled-release
+guards, Actionlint, pinned workflow refs, Gitleaks, diff checks, and clean-room
+scan. No SQL changed, so the preceding disposable replay remains current:
+112/112 migrations, 367/367 zero-skip database tests, 26 API integration
+files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`. No
+route, exporter, migration, hosted write, external network, credential,
+provider, deployment, or paid resource was added.
+
+Release gate: do not register a consumer without the nine trigger reviews and
+separate owner/release/rollback approval.
+
+Next source-only slice: M3.181 review the user-facing Cortex/ERP search
+consumer boundary without adding process-metric access.
+
 ## M3.179 Fail-closed operational adapter trigger conditions (completed)
 
 1. Defined a pure evaluator for caller authorization, process-versus-tenant
