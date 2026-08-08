@@ -24,6 +24,10 @@ import {
 } from '../src/cortex/cortex-assistant-provider-budget.service'
 import { cortexAssistantProviderDispatchKey } from '../src/cortex/cortex-assistant-provider-protocol'
 import { CortexAssistantProviderCircuitAlertService } from '../src/cortex/cortex-assistant-provider-circuit-alert.service'
+import {
+  CortexAssistantProviderCircuitAlertRouteError,
+  CortexAssistantProviderCircuitAlertRouter,
+} from '../src/cortex/cortex-assistant-provider-circuit-alert-router'
 import { CortexAssistantProviderHealthService } from '../src/cortex/cortex-assistant-provider-health.service'
 import {
   DatabaseService,
@@ -901,6 +905,96 @@ suite('Cortex assistant provider budget database integration', () => {
       expect(rows).toHaveLength(3)
       expect(rows.filter((row) => row.tenantId === tenant.tenantId)).toHaveLength(2)
       expect(rows.every((row) => row.status === 'delivered')).toBe(true)
+    })
+  })
+
+  it('maps route failures into durable retry state without raw error persistence', async () => {
+    await alwaysRollback(async (transaction) => {
+      const tenant = await seedTenant(transaction, 'route-delivery')
+      const policyId = await seedPolicy(
+        transaction,
+        tenant.tenantId,
+        500,
+        5_000
+      )
+      const alerts = new CortexAssistantProviderCircuitAlertService(
+        transactionBoundDatabase(transaction),
+        new AuditService()
+      )
+      const asOf = new Date()
+      const opened = await alerts.observe(
+        transaction,
+        {
+          id: policyId,
+          tenantId: tenant.tenantId,
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          failureThreshold: 3,
+          failureWindowSeconds: 300,
+          cooldownSeconds: 900,
+        },
+        {
+          state: 'open',
+          failureCount: 3,
+          tripStartedAt: new Date(asOf.getTime() - 10_000),
+          retryAt: new Date(asOf.getTime() + 60_000),
+          probeInFlight: false,
+          probeAttemptId: null,
+        },
+        asOf
+      )
+      expect(opened.event).toBeTruthy()
+
+      const router = new CortexAssistantProviderCircuitAlertRouter(
+        new ConfigService({
+          ERP_CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_ROUTING_ENABLED: true,
+          ERP_CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_ROUTING_TENANT_IDS: [
+            tenant.tenantId,
+          ],
+        })
+      )
+      let failNext = true
+      const published: string[] = []
+      const adapter = {
+        key: 'local-fake',
+        async publish(event: { eventKey: string }): Promise<void> {
+          if (failNext) {
+            failNext = false
+            throw new CortexAssistantProviderCircuitAlertRouteError(
+              'route_rate_limited'
+            )
+          }
+          published.push(event.eventKey)
+        },
+      }
+
+      await expect(
+        alerts.deliverPendingThroughRoute(router, adapter, 1)
+      ).resolves.toEqual({ delivered: 0, failed: 1 })
+      const [failed] = await transaction
+        .select({
+          status: cortexAssistantProviderCircuitAlerts.status,
+          lastError: cortexAssistantProviderCircuitAlerts.last_error,
+          attemptCount: cortexAssistantProviderCircuitAlerts.attempt_count,
+        })
+        .from(cortexAssistantProviderCircuitAlerts)
+      expect(failed).toEqual({
+        status: 'failed',
+        lastError: 'route_rate_limited',
+        attemptCount: 1,
+      })
+
+      await expect(
+        alerts.deliverPendingThroughRoute(router, adapter, 1)
+      ).resolves.toEqual({ delivered: 1, failed: 0 })
+      expect(published).toEqual([opened.event?.eventKey])
+      const [delivered] = await transaction
+        .select({
+          status: cortexAssistantProviderCircuitAlerts.status,
+          lastError: cortexAssistantProviderCircuitAlerts.last_error,
+        })
+        .from(cortexAssistantProviderCircuitAlerts)
+      expect(delivered).toEqual({ status: 'delivered', lastError: null })
     })
   })
 })

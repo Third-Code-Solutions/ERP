@@ -1,5 +1,25 @@
 # Target State
 
+## M3.172 durable claim-to-route orchestration
+
+Durable alert claims must be the only source for adapter delivery. Nest must
+claim pending, failed, or stale-processing rows transactionally, route exactly
+the validated event envelope, map route outcomes to delivered or bounded
+failure state, and stop a drain after one failure. A retry must reuse the same
+event key and never create a second alert. Tenant/policy scope and source
+identity remain database-enforced; stale claims remain recoverable.
+
+The orchestration seam must preserve existing generic sinks while enabling the
+provider-neutral router. It must not add a queue worker or external adapter
+until a separately reviewed milestone proves job identity, backoff, scheduler
+gates, and rollback. No provider, pager, credential, or hosted deployment is
+authorized here.
+
+Activation still requires a disabled-by-default queue worker, credential-
+isolated external adapter, complete-clone migration replay, backup/PITR
+evidence, one exact tenant, a low approved policy, one reviewed release SHA,
+live RBAC/cancellation proof, and an approved rollback.
+
 ## M3.171 provider-neutral alert routing
 
 Nest must build one strict, versioned aggregate alert envelope from a durable

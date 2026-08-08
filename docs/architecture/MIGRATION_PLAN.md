@@ -1,5 +1,37 @@
 # Migration Plan
 
+## M3.172 Durable claim-to-route orchestration (completed)
+
+1. Added `deliverPendingThroughRoute` to connect transactional alert claims to
+   the protocol-v1 router without changing the existing sink contract.
+2. Mapped route failure results to stable `last_error` codes, preserving
+   `route_rate_limited`, `route_timeout`, `route_rejected`, and related bounded
+   values while never storing raw adapter messages.
+3. Proved local retry behavior: one failed claim is persisted, retried by the
+   same event key, and marked delivered; tenant/policy scope and stale-claim
+   recovery remain unchanged. One failure still stops the current drain.
+4. Added no migration, queue worker, scheduler, credential, external network,
+   provider, hosted write, or deployment.
+
+Evidence: shared 271/271 across 38 files; API 615/615 across 141 files; Web
+676/676; full unit lane; 26 API integration files/39 tests; 112/112 clean
+migrations; database 367/367 zero-skip; equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; lint;
+typecheck; serial Nest/Next production build with 82 pages; spend 4/4;
+controlled release 5/5; Actionlint; pinned actions; Gitleaks; and diff
+hygiene.
+
+Release gate: keep every Cortex provider/budget/generation/worker/recovery/
+Core/Web/alert-routing gate false or empty, exact-tenant allowlists empty,
+credentials unset, and Vercel Git disconnected. Do not apply hosted SQL,
+deploy, call a provider, connect a pager, or create a paid resource under the
+cost lock. Rollback disables route/dispatch gates and preserves forward-only
+circuit/alert evidence. Do not down-migrate.
+
+Next source-only slice: M3.173 disabled-by-default BullMQ alert delivery job
+seam with deterministic job identity, bounded backoff, and local fakes. No
+external network, paging credential, hosted write, deployment, or provider.
+
 ## M3.171 Provider-neutral circuit alert routing (completed)
 
 1. Added a strict protocol-v1 route envelope and result contract derived from

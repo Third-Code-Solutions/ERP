@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-281 - Persist route outcomes through durable alert claims (2026-08-08)
+
+Decision: durable alert claims call the provider-neutral router through one
+Nest-owned orchestration seam. A route acceptance marks the claimed row
+delivered; a route failure stores only its bounded failure code in `last_error`
+and leaves the row retryable. Replays use the original event key, stale
+processing claims remain claimable, and one failure stops the current drain.
+The existing generic sink interface remains compatible. No queue worker or
+external adapter is enabled.
+
+Rationale: routing directly from a transient health observation loses evidence
+and makes retry behavior ambiguous. Claim-first delivery keeps PostgreSQL as
+authority, makes failure/recovery visible, and prevents raw adapter messages or
+credentials from entering durable state.
+
+Validation and release boundary: local database replay, full unit suites,
+serial build, lint, typecheck, spend/release guards, workflow checks, secret
+scan, and diff checks passed. No credential, external network, hosted mutation,
+provider call, or deployment occurred. Rollback disables route/dispatch gates;
+never down-migrate.
+
 ## D-280 - Keep alert routing credential-free at Nest boundary (2026-08-08)
 
 Decision: Nest constructs a protocol-v1 route envelope from a validated,

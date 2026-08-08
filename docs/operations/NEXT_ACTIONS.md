@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.172 durable claim-to-route orchestration
+
+Keep every Cortex generation, worker, provider-execution, provider-budget,
+recovery, Web, Core, alert-routing, and queue gate false; all exact-tenant
+allowlists empty; provider policies absent or disabled; route credentials unset;
+and Vercel Git disconnected. Do not query or mutate managed Supabase,
+deploy/build Vercel or Railway, call an AI/image/provider or external pager, or
+create a paid resource under the cost lock.
+
+The next safe source-only milestone is M3.173: add a disabled-by-default
+BullMQ alert delivery job seam with deterministic event-key job identity,
+bounded backoff, stale-job handling, and local fakes. Preserve durable claim
+state and stable failure codes. Do not add external network, paging
+credentials, hosted writes, deployment, or provider activation.
+
+Before any real provider canary, test-fire approved external alert routing,
+complete M3.152 backup/PITR and an isolated complete-clone replay of all 112
+migrations, then approve one exact tenant, one low request/daily micros policy,
+credential scope, one reviewed release SHA, live RBAC/cancellation checks, and
+a rollback drill. M3.172 proves local durable delivery only; it is not
+activation approval.
+
 ## Exact next action after M3.171 provider-neutral alert routing
 
 Keep every Cortex generation, worker, provider-execution, provider-budget,
