@@ -1,5 +1,36 @@
 # Migration Plan
 
+## M3.182 Cortex direct-read fallback inventory (completed)
+
+1. Traced every user-facing Cortex read route and dashboard consumer for
+   direct database imports and existing Core adapters.
+2. Classified search, graph, entity, and saved-conversation list/detail as
+   separately canaried Core reads with fail-closed legacy fallbacks.
+3. Recorded the brief and chat retrieval gaps: brief has no Core parity;
+   chat conversation bootstrap and graph retrieval remain direct reads even
+   when write/generation authority is independently canaried.
+
+Evidence: repository source audit across `apps/web/src/app/api/cortex`, the
+dashboard Cortex page/components, `apps/web/src/lib/erp-core-client.ts`, and
+`apps/api/src/cortex`; no process snapshot references or operational metric
+consumer were found. No code, SQL, flag, route, provider, hosted write,
+deployment, or paid resource changed. M3.181 validation remains current: API
+636/636; shared 274/274; Web 676/676; database 224 passed with 143 local
+credential-gated skips; typecheck, lint, 82-page build, spend/controlled-
+release guards, Actionlint, pinned refs, Gitleaks, diff checks, and clean-room
+scan passed. The preceding disposable replay remains current at 112/112
+migrations, 367/367 zero-skip database tests, 26 API integration files/40
+tests, and schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+
+Release gate: do not widen a write or provider canary into read authority.
+Brief cutover requires a shared contract, Nest service/controller, Web
+adapter, tenant canary, parity checks, rollback, and spend evidence. Chat
+retrieval remains a separate design slice.
+
+Next source-only slice: M3.183 define the Cortex brief read contract and
+NestJS authority without enabling a tenant canary.
+
 ## M3.181 User-facing Cortex search consumer boundary (completed)
 
 1. Audited the Nest search capability/principal boundary, the Next Cortex

@@ -5,6 +5,25 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.182 Cortex direct-read fallback inventory (2026-08-09)
+
+Audited the remaining user-facing Cortex reads before any further Core
+cutover. Search, graph, entity, and saved-conversation list/detail routes have
+explicit Core adapters with exact-tenant canaries and fail-closed behavior;
+legacy direct reads remain the compatibility path when those flags are off.
+The operating brief has no Core parity and still reads the tenant-scoped
+database projection directly from the dashboard page and brief route. Chat
+still bootstraps conversations and retrieves graph context/statistics directly;
+Core user-turn, assistant-turn, and generation-job authority is independent
+and does not replace that read path. Legacy embedding is disabled and remains
+provider/cost gated.
+
+No code, schema, flag, route, provider, hosted write, deployment, or paid
+resource changed. This source audit establishes the next safe slice: define a
+shared brief read contract and Nest authority before changing the dashboard
+page. Chat retrieval requires a separate parity design; it must not be widened
+through a write canary.
+
 ## M3.181 User-facing Cortex search consumer boundary (2026-08-09)
 
 Audited the user-facing Cortex search consumers. The Nest controller/service
