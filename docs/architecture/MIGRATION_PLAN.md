@@ -1,5 +1,34 @@
 # Migration Plan
 
+## M3.174 Post-commit circuit-alert enqueue wiring (completed)
+
+1. Returned newly-created aggregate alert events from provider settlement and
+   reconciliation transaction owners without changing ERP result contracts.
+2. Propagated events through generation cancel/retry/fail, claim-failure, and
+   recovery paths; queue enqueue is called only after the owning transaction
+   resolves successfully.
+3. Kept the existing alert ledger as the transactional outbox boundary. Queue
+   failure is non-authoritative; durable event-key recovery remains the retry
+   path and all payload/tenant/attempt secrecy rules remain unchanged.
+4. Added local fake proof that committed events reach the queue seam and queue
+   failure cannot reject the ERP post-commit path.
+
+Evidence: shared 273/273; API 628/628; Web 676/676; database 367/367
+zero-skip; 112/112 migrations with equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; 26 API
+integration files/40 tests; lint; typecheck; serial Nest/Next build with 82
+pages; spend/release guards; Actionlint; pinned refs; Gitleaks; diff checks;
+and clean-room scan. No migration, hosted write, external adapter, credential,
+provider, deployment, or paid resource was added. All Cortex queue/worker/
+recovery/route gates remain false/empty and disposable services are stopped.
+
+Release gate: do not activate the queue, worker, recovery, route, provider, or
+budget gates. Rollback disables the same gates; preserve forward-only alert
+ledger evidence and do not down-migrate.
+
+Next source-only slice: M3.175 add a bounded local post-commit queue metric and
+failure counter without enabling transport or external routing.
+
 ## M3.173 Disabled-by-default BullMQ alert delivery seam (completed)
 
 1. Added a strict shared queue contract containing only `schemaVersion` and the
@@ -30,10 +59,9 @@ connect a pager, or create a paid resource. Rollback disables queue/worker/
 recovery/route gates and preserves forward-only alert evidence. Do not
 down-migrate.
 
-Next source-only slice: M3.174 post-commit enqueue wiring from opened/recovered
-alert observations into the disabled queue, with an explicit transactional
-outbox boundary and local fake proof. No external network, credential, hosted
-write, deployment, or provider activation.
+Next source-only slice: M3.175 add bounded local post-commit enqueue
+observability. No external network, credential, hosted write, deployment, or
+provider activation.
 
 ## M3.172 Durable claim-to-route orchestration (completed)
 

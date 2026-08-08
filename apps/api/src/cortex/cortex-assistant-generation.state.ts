@@ -21,6 +21,7 @@ import {
   cortexGraphRefTableMatchesType,
   isCortexGraphRefTable,
   redactCortexText,
+  type CortexAssistantProviderCircuitAlertEvent,
   type CortexAssistantGenerationStartCommand,
   type CortexAssistantGenerationStatus,
 } from '@third-code-erp/shared-types'
@@ -297,7 +298,8 @@ export class CortexAssistantGenerationStateService {
     jobId: string,
     principal: ErpPrincipal
   ): Promise<CortexAssistantGenerationStatus> {
-    return this.database.client.transaction(async (transaction) => {
+    let alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
+    const status = await this.database.client.transaction(async (transaction) => {
       const authorizedPrincipal = await this.lockPrincipal(transaction, principal)
       await this.audit.stampActor(transaction, authorizedPrincipal)
       let [job] = await transaction
@@ -343,7 +345,7 @@ export class CortexAssistantGenerationStateService {
               )
             )
           )
-        await this.providerBudget.reconcileGenerationJobWithin(
+        alertEvents = await this.providerBudget.reconcileGenerationJobWithinWithAlerts(
           transaction,
           job.id,
           'cancelled'
@@ -362,12 +364,15 @@ export class CortexAssistantGenerationStateService {
       }
       return toStatus(job)
     })
+    await this.providerBudget.enqueueCircuitAlertEventsAfterCommit(alertEvents)
+    return status
   }
 
   async claim(
     jobId: string
   ): Promise<ClaimedCortexAssistantGenerationJob | null> {
-    return this.database.client.transaction(async (transaction) => {
+    let alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
+    const claimed = await this.database.client.transaction(async (transaction) => {
       const [row] = await transaction
         .select({
           jobId: cortexAssistantGenerationJobs.id,
@@ -430,12 +435,16 @@ export class CortexAssistantGenerationStateService {
         .for('update')
       if (!row || row.jobStatus !== 'queued') return null
       if (row.attempts >= CORTEX_ASSISTANT_GENERATION_MAX_ATTEMPTS) {
-        await this.failWithin(transaction, row.jobId, 'attempt_limit')
+        alertEvents.push(
+          ...(await this.failWithin(transaction, row.jobId, 'attempt_limit'))
+        )
         return null
       }
       const role = row.role as ErpRole
       if (!roleHasCapability(role, 'cortex.search')) {
-        await this.failWithin(transaction, row.jobId, 'permission_revoked')
+        alertEvents.push(
+          ...(await this.failWithin(transaction, row.jobId, 'permission_revoked'))
+        )
         return null
       }
       if (
@@ -443,11 +452,15 @@ export class CortexAssistantGenerationStateService {
         !row.requestClaimTokenHash ||
         row.requestClaimTokenHash !== row.jobClaimTokenHash
       ) {
-        await this.failWithin(transaction, row.jobId, 'claim_fence_changed')
+        alertEvents.push(
+          ...(await this.failWithin(transaction, row.jobId, 'claim_fence_changed'))
+        )
         return null
       }
       if (!row.leaseExpiresAt || row.leaseExpiresAt.getTime() <= Date.now()) {
-        await this.failWithin(transaction, row.jobId, 'claim_lease_expired')
+        alertEvents.push(
+          ...(await this.failWithin(transaction, row.jobId, 'claim_lease_expired'))
+        )
         return null
       }
       const [officialTurn] = await transaction
@@ -468,7 +481,13 @@ export class CortexAssistantGenerationStateService {
         .limit(1)
         .for('share')
       if (!officialTurn) {
-        await this.failWithin(transaction, row.jobId, 'official_user_turn_missing')
+        alertEvents.push(
+          ...(await this.failWithin(
+            transaction,
+            row.jobId,
+            'official_user_turn_missing'
+          ))
+        )
         return null
       }
 
@@ -479,10 +498,12 @@ export class CortexAssistantGenerationStateService {
           !row.contextRefId ||
           !isCortexGraphRefTable(row.contextRefTable)
         ) {
-          await this.failWithin(
-            transaction,
-            row.jobId,
-            'conversation_scope_revoked'
+          alertEvents.push(
+            ...(await this.failWithin(
+              transaction,
+              row.jobId,
+              'conversation_scope_revoked'
+            ))
           )
           return null
         }
@@ -508,10 +529,12 @@ export class CortexAssistantGenerationStateService {
           ) ||
           (scope !== null && !scope.includes(contextNode.nodeType))
         ) {
-          await this.failWithin(
-            transaction,
-            row.jobId,
-            'conversation_scope_revoked'
+          alertEvents.push(
+            ...(await this.failWithin(
+              transaction,
+              row.jobId,
+              'conversation_scope_revoked'
+            ))
           )
           return null
         }
@@ -607,6 +630,8 @@ export class CortexAssistantGenerationStateService {
         })),
       }
     })
+    await this.providerBudget.enqueueCircuitAlertEventsAfterCommit(alertEvents)
+    return claimed
   }
 
   async retryOrFail(
@@ -614,6 +639,7 @@ export class CortexAssistantGenerationStateService {
     claimTokenHash: string,
     failureCode: string
   ): Promise<void> {
+    let alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
     await this.database.client.transaction(async (transaction) => {
       const [job] = await transaction
         .select({
@@ -636,7 +662,7 @@ export class CortexAssistantGenerationStateService {
       if (!job) return
       const terminal =
         job.attemptCount >= CORTEX_ASSISTANT_GENERATION_MAX_ATTEMPTS
-      await this.providerBudget.reconcileGenerationJobWithin(
+      alertEvents = await this.providerBudget.reconcileGenerationJobWithinWithAlerts(
         transaction,
         jobId,
         terminal ? 'failed' : 'retry'
@@ -669,6 +695,7 @@ export class CortexAssistantGenerationStateService {
         )
       }
     })
+    await this.providerBudget.enqueueCircuitAlertEventsAfterCommit(alertEvents)
   }
 
   async failTerminal(
@@ -676,6 +703,7 @@ export class CortexAssistantGenerationStateService {
     claimTokenHash: string,
     failureCode: string
   ): Promise<void> {
+    let alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
     await this.database.client.transaction(async (transaction) => {
       const now = new Date()
       const [failed] = await transaction
@@ -698,7 +726,7 @@ export class CortexAssistantGenerationStateService {
           claimTokenHash: cortexAssistantGenerationJobs.claim_token_hash,
         })
       if (!failed) return
-      await this.providerBudget.reconcileGenerationJobWithin(
+      alertEvents = await this.providerBudget.reconcileGenerationJobWithinWithAlerts(
         transaction,
         jobId,
         'failed'
@@ -710,6 +738,7 @@ export class CortexAssistantGenerationStateService {
         now
       )
     })
+    await this.providerBudget.enqueueCircuitAlertEventsAfterCommit(alertEvents)
   }
 
   async recoverableJobIds(
@@ -719,7 +748,8 @@ export class CortexAssistantGenerationStateService {
     if (tenantIds.length === 0) {
       throw new Error('Assistant generation recovery tenant scope is required')
     }
-    return this.database.client.transaction(async (transaction) => {
+    let alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
+    const recoverable = await this.database.client.transaction(async (transaction) => {
       const rows = await transaction
         .select({
           id: cortexAssistantGenerationJobs.id,
@@ -744,13 +774,17 @@ export class CortexAssistantGenerationStateService {
         .for('update', { skipLocked: true })
       const recoverable: string[] = []
       for (const row of rows) {
-        await this.providerBudget.reconcileGenerationJobWithin(
-          transaction,
-          row.id,
-          'recovered'
+        alertEvents.push(
+          ...(await this.providerBudget.reconcileGenerationJobWithinWithAlerts(
+            transaction,
+            row.id,
+            'recovered'
+          ))
         )
         if (row.attempts >= CORTEX_ASSISTANT_GENERATION_MAX_ATTEMPTS) {
-          await this.failWithin(transaction, row.id, 'attempt_limit')
+          alertEvents.push(
+            ...(await this.failWithin(transaction, row.id, 'attempt_limit'))
+          )
           continue
         }
         if (row.status === 'processing') {
@@ -763,6 +797,8 @@ export class CortexAssistantGenerationStateService {
       }
       return recoverable
     })
+    await this.providerBudget.enqueueCircuitAlertEventsAfterCommit(alertEvents)
+    return recoverable
   }
 
   private jobSelection() {
@@ -809,7 +845,7 @@ export class CortexAssistantGenerationStateService {
     transaction: DatabaseTransaction,
     jobId: string,
     failureCode: string
-  ): Promise<void> {
+  ): Promise<CortexAssistantProviderCircuitAlertEvent[]> {
     const now = new Date()
     const [failed] = await transaction
       .update(cortexAssistantGenerationJobs)
@@ -829,8 +865,8 @@ export class CortexAssistantGenerationStateService {
         requestId: cortexAssistantGenerationJobs.request_id,
         claimTokenHash: cortexAssistantGenerationJobs.claim_token_hash,
       })
-    if (!failed) return
-    await this.providerBudget.reconcileGenerationJobWithin(
+    if (!failed) return []
+    const alertEvents = await this.providerBudget.reconcileGenerationJobWithinWithAlerts(
       transaction,
       jobId,
       'failed'
@@ -841,6 +877,7 @@ export class CortexAssistantGenerationStateService {
       failed.claimTokenHash,
       now
     )
+    return alertEvents
   }
 
   private async expireRequestLeaseWithin(

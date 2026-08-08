@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
 import type { CortexAssistantProviderCircuitAlertService } from './cortex-assistant-provider-circuit-alert.service'
+import type { CortexAssistantProviderCircuitAlertQueue } from './cortex-assistant-provider-circuit-alert.queue'
 import {
   cortexAssistantProviderReservationHash,
   CortexAssistantProviderBudgetError,
@@ -16,6 +17,20 @@ const COMMAND = {
   model: 'gpt-4.1-mini',
   maxCostMicros: '250000',
 } as const
+
+const ALERT_EVENT = {
+  id: '11111111-1111-4111-8111-111111111111',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  policyId: '33333333-3333-4333-8333-333333333333',
+  eventKey: 'a'.repeat(64),
+  eventType: 'opened' as const,
+  provider: 'openai',
+  model: 'gpt-4.1-mini',
+  failureCount: 3,
+  retryAt: '2026-08-08T12:15:00.000Z',
+  asOf: '2026-08-08T12:00:00.000Z',
+  runbook: 'cortex-provider-circuit' as const,
+}
 
 describe('CortexAssistantProviderBudgetService', () => {
   it('hashes every idempotency dimension without exposing raw job identity', () => {
@@ -51,5 +66,36 @@ describe('CortexAssistantProviderBudgetService', () => {
       })
     ).rejects.toBeInstanceOf(CortexAssistantProviderBudgetError)
     expect(transaction).not.toHaveBeenCalled()
+  })
+
+  it('flushes only committed alert events through the post-commit queue seam', async () => {
+    const enqueue = vi.fn().mockResolvedValue(true)
+    const service = new CortexAssistantProviderBudgetService(
+      new ConfigService({}),
+      { client: { transaction: vi.fn() } } as unknown as DatabaseService,
+      {} as AuditService,
+      {} as CortexAssistantProviderCircuitAlertService,
+      { enqueue } as unknown as CortexAssistantProviderCircuitAlertQueue
+    )
+
+    await service.enqueueCircuitAlertEventsAfterCommit([ALERT_EVENT])
+
+    expect(enqueue).toHaveBeenCalledOnce()
+    expect(enqueue).toHaveBeenCalledWith(ALERT_EVENT)
+  })
+
+  it('keeps ERP commits independent when transport enqueue fails', async () => {
+    const enqueue = vi.fn().mockRejectedValue(new Error('redis unavailable'))
+    const service = new CortexAssistantProviderBudgetService(
+      new ConfigService({}),
+      { client: { transaction: vi.fn() } } as unknown as DatabaseService,
+      {} as AuditService,
+      {} as CortexAssistantProviderCircuitAlertService,
+      { enqueue } as unknown as CortexAssistantProviderCircuitAlertQueue
+    )
+
+    await expect(
+      service.enqueueCircuitAlertEventsAfterCommit([ALERT_EVENT])
+    ).resolves.toBeUndefined()
   })
 })
