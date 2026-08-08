@@ -86,6 +86,13 @@ projections. It does not read, export, or authorize the process snapshot;
 process counters and provider circuit state remain excluded from the packet,
 the Core result, and any future Web seam.
 
+## M3.192 Web seam boundary
+
+The unconnected Web adapter imports no database helper and does not expose
+operational snapshots. Its exact-tenant Core selection, timeout, and
+fail-closed behavior are ERP read controls only; observability remains
+backend-only and cannot become chat context or provider budget input.
+
 ## M3.188 Release identity boundary
 
 Local source and documented rollback metadata are evidence fields only. They do

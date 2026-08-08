@@ -1,5 +1,16 @@
 # Cortex chat read authority audit
 
+## M3.192 unconnected Web seam
+
+`apps/web/src/lib/cortex/chat-retrieval-read.ts` is a server-only, exact-tenant
+Core seam. It has no database import: disabled/unselected tenants return a
+closed result, selected Core timeout/5xx/invalid payload returns 503, and no
+direct fallback is possible inside the seam. The authenticated client sends
+bounded query/limits plus JSON focus and re-parses the strict response.
+
+The POST chat route does not import this seam. Conversation ownership/context
+and existing 404/409 behavior remain a separate M3.193 design gate.
+
 ## M3.191 parity evidence
 
 The API service test now compares a deterministic projection of the current

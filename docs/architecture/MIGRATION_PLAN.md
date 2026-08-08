@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.192 unconnected Web chat retrieval seam (completed, not approved)
+
+1. Added the server-only exact-tenant flag evaluator and Core client for
+   `GET /v1/cortex/chat-retrieval`; focus is JSON-encoded for safe GET
+   transport and parsed by the shared strict schema.
+2. Added `readCortexChatRetrievalThroughCore()` with no database import. A
+   selected Core failure returns 503 and cannot regain direct retrieval.
+3. Added tests for disabled tenant, Core success/failure, wildcard rejection,
+   invalid payloads, request construction, JSON focus parsing, and HTTP input.
+   The Web chat route is not imported or changed.
+
+Evidence: Web Core client 142/142, seam 3/3, API focus transport 3/3, shared
+contract 4/4, shared/Web typecheck. No SQL, hosted, deployment, provider, or
+paid-resource action. This is a source seam, not a canary.
+
+Exact next action: M3.193 design and test conversation owner/context parity in
+an unconnected server seam; keep retrieval and write canaries closed.
+
 ## M3.191 Cortex chat retrieval parity fixture and review packet (completed, not approved)
 
 1. Added a deterministic service fixture that normalizes the current direct

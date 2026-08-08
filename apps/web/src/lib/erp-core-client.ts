@@ -200,6 +200,10 @@ import {
   cortexBriefResultSchema,
   type CortexBriefQuery,
   type CortexBriefResult,
+  cortexChatRetrievalQuerySchema,
+  cortexChatRetrievalResultSchema,
+  type CortexChatRetrievalQuery,
+  type CortexChatRetrievalResult,
   cortexSearchResultSchema,
   type CortexSearchResult,
   cortexGraphResponseSchema,
@@ -443,6 +447,17 @@ export function cortexBriefReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_CORTEX_BRIEF_READS_VIA_API,
     process.env.ERP_CORTEX_BRIEF_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Chat retrieval remains an exact-tenant, server-only read seam. */
+export function cortexChatRetrievalReadsUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_CHAT_RETRIEVAL_READS_VIA_API,
+    process.env.ERP_CORTEX_CHAT_RETRIEVAL_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1148,6 +1163,79 @@ export async function getCortexBriefThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex brief service is unavailable.',
+    }
+  }
+}
+
+/**
+ * Read-only chat retrieval adapter. The Web chat route does not call this yet;
+ * when it does, a selected tenant must receive a Core error rather than
+ * silently regaining direct database authority.
+ */
+export async function getCortexChatRetrievalThroughCoreApi(
+  query: CortexChatRetrievalQuery
+): Promise<CoreResult<CortexChatRetrievalResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  const parsedQuery = cortexChatRetrievalQuerySchema.safeParse(query)
+  if (!parsedQuery.success) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid Cortex chat retrieval query.',
+    }
+  }
+
+  const params = new URLSearchParams({
+    query: parsedQuery.data.query,
+    recentLimit: String(parsedQuery.data.recentLimit),
+    matchLimit: String(parsedQuery.data.matchLimit),
+  })
+  if (parsedQuery.data.focus) {
+    params.set('focus', JSON.stringify(parsedQuery.data.focus))
+  }
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/chat-retrieval?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex chat retrieval service is unavailable.',
+      }
+    }
+
+    const parsed = cortexChatRetrievalResultSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid Cortex chat retrieval result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex chat retrieval service is unavailable.',
     }
   }
 }

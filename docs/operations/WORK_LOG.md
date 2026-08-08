@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-09 - M3.192 unconnected Web chat retrieval seam
+
+Added the server-only exact-tenant Core chat retrieval client and a seam that
+fails closed on Core errors with no direct database import or fallback. Focus
+is JSON-encoded for the strict GET contract. Added gate, request, invalid
+payload, success/failure, and API transport tests. The chat route remains
+unconnected; ownership/context parity is next.
+
+Validation: Web Core client 142/142, seam 3/3, API focus transport 3/3, shared
+contract 4/4, shared/Web typecheck. No SQL, hosted write/deploy, provider call,
+or paid resource.
+
+Exact next action: M3.193 owner/context parity design and tests; keep canaries
+closed.
+
 ## 2026-08-09 - M3.191 Cortex chat retrieval parity fixture
 
 Added a deterministic fixture proving the current direct chat retrieval shape
