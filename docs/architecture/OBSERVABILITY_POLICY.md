@@ -63,6 +63,12 @@ inputs are complete; it does not enable a route, exporter, sink, or deployment.
   and Core canaries are ERP data paths only; process metrics cannot become a
   dashboard KPI, graph node, citation, or assistant context.
 
+## M3.188 Release identity boundary
+
+Local source and documented rollback metadata are evidence fields only. They do
+not expose process counters, authorize a hosted exporter, or prove a Railway/
+Vercel deployment identity.
+
 ## M3.187 Exact-tenant brief canary boundary
 
 The Web brief canary rejects wildcard tenant selection locally. This protects

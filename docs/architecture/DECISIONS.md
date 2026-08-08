@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-297 - Do not infer hosted rollback identity from local source (2026-08-09)
+
+Decision: record the exact local application candidate and documented Web
+rollback target, but leave Railway/API rollback identity unresolved until a
+provider read supplies it. Local Git state cannot certify hosted release or
+rollback identity.
+
+Rationale: claiming a hosted artifact from a source SHA could cause an invalid
+rollback or an accidental rebuild. Explicit unknown status keeps the canary
+review honest and spend-safe.
+
+Validation: packet metadata reconciled; no SQL, hosted write/deploy, provider
+call, or paid resource. Rollback remains closed flags/allowlists plus retained
+artifacts.
+
 ## D-296 - Reject wildcard selection for the Cortex brief Web canary (2026-08-09)
 
 Decision: the Web brief canary accepts only an exact UUID allowlist. It uses a

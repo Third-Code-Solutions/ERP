@@ -1,5 +1,11 @@
 # Target State
 
+## M3.188 Local release/rollback metadata
+
+The review packet records an exact source candidate and documented Web rollback
+reference. API/Railway rollback identity remains an explicit external gate;
+local source state cannot certify hosted release identity.
+
 ## M3.187 Exact-tenant Cortex brief canary gate
 
 The dashboard brief Web gate rejects wildcard selection and requires one

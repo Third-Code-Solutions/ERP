@@ -5,6 +5,17 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.188 Local release/rollback metadata reconciliation (2026-08-09)
+
+Reconciled the canary packet to application candidate
+`55697564c49cf92a58e7e85016fe4d6ac71f2abe`, recorded the documented retained
+Web rollback target, and kept Railway/API rollback identity explicitly
+unresolved. This is source/documentation evidence only; no live provider check,
+tenant flag, SQL, hosted write/deploy, or paid resource occurred.
+
+Exact next safe slice: stop at the unresolved external gates; do not infer
+Railway/API identity, Supabase parity, or spend approval locally.
+
 ## M3.187 Exact-tenant Cortex brief canary gate (2026-08-09)
 
 Closed a locally verifiable review gap: `cortexBriefReadsUseCoreApi()` now

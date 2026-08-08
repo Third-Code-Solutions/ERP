@@ -9,7 +9,7 @@ call, or paid resource.
 
 ## Candidate and flags
 
-- Candidate source: `b6cf687c26c03a7bdf46acb6b4974390f0bde140` on
+- Candidate source: `55697564c49cf92a58e7e85016fe4d6ac71f2abe` on
   `agent-02/third-code-erp-landing`; pushed to
   `Third-Code-Solutions/ERP`. It is not deployed.
 - API gate: `ERP_CORTEX_BRIEF_READS_ENABLED=false` and
@@ -43,6 +43,19 @@ call, or paid resource.
   gates passed.
 - Brief read is bounded: dashboard limit 8; shared/API maximum 24; Core fetch
   timeout 5 seconds; no retry loop and no AI/provider budget.
+
+## Local release and rollback metadata
+
+- Source candidate is exact and clean locally; the current branch resolves to
+  `55697564c49cf92a58e7e85016fe4d6ac71f2abe`.
+- Documented retained Web rollback target:
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` from source
+  `f24e5603a35571f8dcadd43fc09c64d12646a7d0`. This is a recorded target, not a
+  live provider check in this milestone.
+- Railway/API last-known-good deployment identity and rollback artifact remain
+  unresolved and must be supplied before activation.
+- This packet's later documentation commits do not change the application
+  candidate; re-review the exact candidate SHA before any hosted action.
 
 ## Blocking evidence before one-tenant activation
 
