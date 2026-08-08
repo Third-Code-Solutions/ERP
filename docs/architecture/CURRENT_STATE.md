@@ -5,6 +5,23 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.189 Cortex chat retrieval authority audit (2026-08-09)
+
+Audited `apps/web/src/app/api/cortex/chat/route.ts`: conversation ownership,
+context authorization, graph stats/recent nodes, keyword matches, focused
+entity, semantic search, and deterministic keyword answers remain direct reads.
+Core user/assistant-turn writes and generation jobs are independently canaried
+but do not replace retrieval or prove parity. Conversation list/detail routes
+have Core adapters; chat POST does not use them for ownership/message reads.
+
+Added `docs/architecture/CORTEX_CHAT_READ_AUTHORITY.md` with the observed
+authority table, tenant/RBAC invariants, test evidence, and separate-contract
+requirements. No runtime, SQL, flag, hosted write/deploy/provider call, or
+paid resource changed.
+
+Exact next safe slice: define a bounded chat retrieval contract and Nest
+authority without enabling a tenant canary.
+
 ## M3.188 Local release/rollback metadata reconciliation (2026-08-09)
 
 Reconciled the canary packet to application candidate

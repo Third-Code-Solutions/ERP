@@ -1,5 +1,12 @@
 # Target State
 
+## M3.189 Cortex chat retrieval authority
+
+Chat retrieval will have its own strict projection and Nest authority covering
+recent, keyword, focused, citation, freshness, and optional semantic context.
+Write/generation and conversation list/detail canaries remain separate; no
+existing write flag implies chat read approval.
+
 ## M3.188 Local release/rollback metadata
 
 The review packet records an exact source candidate and documented Web rollback

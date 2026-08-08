@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.189 Cortex chat retrieval authority audit (completed)
+
+1. Traced every direct chat POST conversation, graph, keyword, focused, and
+   semantic read plus direct assistant persistence path.
+2. Confirmed tenant and role scope inputs, current Core write/generation gates,
+   existing conversation list/detail adapters, and missing chat-read contract.
+3. Recorded why existing search/graph/detail contracts cannot be reused without
+   changing prompt, citation, or freshness semantics.
+
+Evidence: `docs/architecture/CORTEX_CHAT_READ_AUTHORITY.md`; existing chat
+route tests remain current. No SQL, runtime, hosted, deployment, provider, or
+paid-resource change.
+
+Exact next action: M3.190 define the bounded chat retrieval contract and Nest
+authority without enabling a tenant canary.
+
 ## M3.188 Local release/rollback metadata reconciliation (completed, not approved)
 
 1. Reconciled the review packet to application candidate

@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-298 - Keep chat retrieval separate from Cortex write canaries (2026-08-09)
+
+Decision: do not widen Core user-turn, assistant-turn, generation, search,
+graph, entity, or conversation canaries into chat retrieval authority. Define a
+new bounded projection for recent, keyword, focused, citation, freshness, and
+optional semantic context first.
+
+Rationale: chat currently combines several direct reads and prompt assembly;
+existing endpoints do not prove context/citation parity. A write success or a
+generic search result cannot authorize the assistant's evidence source.
+
+Validation: source audit and authority table added; no SQL, hosted
+write/deploy, provider call, or paid resource. Rollback is documentation-only;
+keep every retrieval and write canary closed.
+
 ## D-297 - Do not infer hosted rollback identity from local source (2026-08-09)
 
 Decision: record the exact local application candidate and documented Web

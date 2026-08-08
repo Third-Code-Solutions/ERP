@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.189 Chat retrieval audit
+
+Keep `ERP_CORTEX_BRIEF_READS_ENABLED=false`,
+`ERP_CORTEX_BRIEF_READS_TENANT_IDS=[]`, and the Web Core brief flag disabled
+with an empty tenant allowlist. Keep all Cortex generation, worker, provider,
+read, queue, conversation, graph, entity, and alert-routing gates false;
+provider policies disabled; route credentials unset; and Vercel Git
+disconnected. Do not query or mutate managed Supabase, deploy/build Vercel or
+Railway, call AI/image/provider services, or create a paid resource under the
+cost lock.
+
+Next safe source-only milestone: M3.190 define the bounded chat retrieval
+contract and Nest authority. Keep recent/keyword/focused/semantic context
+separate, require strict projection/citations/freshness, preserve tenant and
+role scope, and fail closed for an exact tenant. Do not implement a canary,
+move provider embedding, or widen a write/search/graph flag.
+
+Before any real canary, complete M3.152 backup/PITR and isolated clone replay
+of all 112 migrations, then approve one exact tenant, low request/daily micros,
+credential scope, reviewed release SHA, live RBAC/cancellation checks, and a
+rollback drill. M3.189 is source-only and not activation approval.
+
 ## Exact next action after M3.188 Release metadata reconciliation
 
 Keep `ERP_CORTEX_BRIEF_READS_ENABLED=false`,
