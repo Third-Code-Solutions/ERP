@@ -1,5 +1,28 @@
 # Work Log
 
+## 2026-08-09 - M3.181 user-facing Cortex search consumer boundary
+
+Audited Nest Cortex search, the Next search route, command-palette
+normalization, and Cortex page/graph/brief/chat consumers. Tenant and role
+scope come from the authenticated session/principal; only registered record
+sources become deep links. Added shared-contract and Web projection tests that
+reject or strip process-scoped observability fields. No process snapshot access,
+route, exporter, migration, hosted write, deployment, provider activation, or
+paid resource was added.
+
+Validation: focused shared search 4/4 and Web Cortex search route 7/7; API
+636/636; shared 274/274; Web 676/676; database 224 passed with 143 local
+credential-gated skips; root typecheck, lint, serial Nest/Next build with 82
+pages; spend/controlled-release, Actionlint, pinned refs, Gitleaks, diff
+checks, and clean-room scan passed. No SQL changed, so the preceding
+disposable replay remains current: 112/112 migrations, 367/367 zero-skip
+database tests, 26 API integration files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+Gates stay false/empty.
+
+Exact next action after completion: M3.182 inventory Cortex chat/brief/graph
+direct-read fallbacks before any additional Core read cutover.
+
 ## 2026-08-09 - M3.180 operational adapter consumer ownership audit
 
 Audited evaluator references: no runtime consumer exists; only policy code,

@@ -103,6 +103,9 @@ describe('Cortex search authorization and retrieval', () => {
         summary: 'Concrete Tower progress billing',
         attributes: { project_id: '44444444-4444-4444-8444-444444444444' },
         freshness: 'fresh',
+        scope: 'process',
+        metric: 'cortex_provider_circuit_alert_enqueue_total',
+        counters: { 'post_commit.enqueued': 1 },
       },
       {
         id: '55555555-5555-4555-8555-555555555555',

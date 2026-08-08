@@ -1,5 +1,15 @@
 # Target State
 
+## M3.181 user-facing Cortex search consumer boundary
+
+User-facing search remains a tenant- and role-scoped record projection. Nest
+derives authorization from the authenticated principal; Next accepts only a
+bounded query and maps registered sources to safe deep links. The result
+contract is strict and cannot carry process snapshot scope, metric, or counter
+fields. Command-palette normalization remains presentation-only. Process
+observability stays backend-only and unregistered from Cortex search, graph,
+brief, and chat consumers.
+
 ## M3.180 operational adapter consumer ownership audit
 
 No runtime consumer is registered for the process snapshot evaluator. A future

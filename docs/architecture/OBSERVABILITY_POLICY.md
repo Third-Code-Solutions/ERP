@@ -53,6 +53,11 @@ inputs are complete; it does not enable a route, exporter, sink, or deployment.
   controller, and the module-boundary test locks this invariant.
 - The snapshot is process-scoped, immutable, and unexported. A future adapter
   must not infer tenant scope from process counters.
+- User-facing Cortex search derives tenant and role from the authenticated
+  session/principal, maps only registered entity sources to safe deep links, and
+  never reads the snapshot. The strict search result contract rejects
+  process-scoped `scope`, `metric`, or `counters` fields; command-palette
+  normalization is presentation-only.
 
 ## Adapter gate
 
