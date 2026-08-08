@@ -1,5 +1,28 @@
 # Next Actions
 
+## Exact next action after M3.182 Cortex direct-read fallback inventory
+
+Keep every Cortex generation, worker, provider-execution, provider-budget,
+recovery, Web, Core, queue, and alert-routing gate false; all exact-tenant
+allowlists empty; provider policies absent or disabled; route credentials
+unset; and Vercel Git disconnected. Do not query or mutate managed Supabase,
+deploy/build Vercel or Railway, call an AI/image/provider or external pager, or
+create a paid resource under the cost lock.
+
+The next safe source-only milestone is M3.183: define the Cortex brief read
+contract and NestJS authority without enabling a tenant canary. Specify stats,
+freshness, item bounds, role scope, strict response validation, Web adapter
+behavior, parity fixtures, rollback, and spend evidence. Keep chat retrieval
+and conversation bootstrap separate; do not treat a write/provider canary as
+read approval, and do not add process-metric access, exporter, hosted
+telemetry, external network, deployment, provider activation, or public route.
+
+Before any real provider canary, complete M3.152 backup/PITR and isolated
+complete-clone replay of all 112 migrations, then approve one exact tenant, one
+low request/daily micros policy, credential scope, one reviewed release SHA,
+live RBAC/cancellation checks, and a rollback drill. M3.182 is source-only and
+not activation approval.
+
 ## Exact next action after M3.181 user-facing Cortex search consumer boundary
 
 Keep every Cortex generation, worker, provider-execution, provider-budget,

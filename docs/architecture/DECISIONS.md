@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-291 - Do not widen Cortex write canaries into read authority (2026-08-09)
+
+Decision: keep the current Core read canaries separate from Cortex writes and
+provider generation. Search, graph, entity, and saved-conversation reads may
+cut over only through their own shared contracts and exact-tenant gates. The
+brief has no Core parity yet; chat conversation bootstrap and graph retrieval
+remain direct reads until a separate parity design is approved.
+
+Rationale: write idempotency and provider-budget correctness do not prove read
+projection parity, role scope, freshness, citations, or rollback. Treating a
+write canary as read authority could silently change the dashboard or assistant
+evidence source and make failures fall back inconsistently.
+
+Validation and release boundary: repository audit of Cortex routes, dashboard
+consumers, Core adapters, and Nest modules; no code, SQL, flag, route,
+provider, hosted write, deployment, or paid resource. M3.181 API 636/636,
+shared 274/274, Web 676/676, typecheck/lint/build, spend/controlled-release,
+Actionlint, pinned refs, Gitleaks, diff, and clean-room evidence remains
+current. Rollback is documentation-only; preserve all forward database
+ledgers and keep canaries closed.
+
 ## D-290 - Keep process observability out of user-facing Cortex search (2026-08-09)
 
 Decision: keep Cortex search, command-palette results, graph, brief, and chat

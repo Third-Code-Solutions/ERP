@@ -1,5 +1,15 @@
 # Target State
 
+## M3.182 Cortex read-authority inventory
+
+Core read authority is complete only when brief, graph, entity, search, and
+conversation projections have shared schemas, Nest authorization, tenant
+canaries, parity evidence, and fail-closed rollback. The current graph,
+entity, search, and conversation canaries remain separately gated. The brief
+needs a new shared contract and Nest read service before dashboard cutover;
+chat retrieval and conversation bootstrap need their own parity design. A
+write or provider canary must never be treated as read authority.
+
 ## M3.181 user-facing Cortex search consumer boundary
 
 User-facing search remains a tenant- and role-scoped record projection. Nest

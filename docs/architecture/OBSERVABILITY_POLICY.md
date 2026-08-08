@@ -58,6 +58,10 @@ inputs are complete; it does not enable a route, exporter, sink, or deployment.
   never reads the snapshot. The strict search result contract rejects
   process-scoped `scope`, `metric`, or `counters` fields; command-palette
   normalization is presentation-only.
+- The brief, graph, entity, conversation, and chat retrieval consumers also
+  have no access to `readOperationalSnapshot()`. Their direct-read fallbacks
+  and Core canaries are ERP data paths only; process metrics cannot become a
+  dashboard KPI, graph node, citation, or assistant context.
 
 ## Adapter gate
 

@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-09 - M3.182 Cortex direct-read fallback inventory
+
+Traced Cortex dashboard and API reads. Search, graph, entity, and saved
+conversation list/detail have separate Core adapters and exact-tenant gates;
+brief has no Core parity; chat conversation bootstrap and graph retrieval stay
+direct reads while write/assistant/generation authority is independently
+canaried. Legacy embedding remains disabled and provider/cost gated. No code,
+SQL, flag, route, provider, hosted write, deployment, or paid resource changed.
+
+Evidence: source audit of Web Cortex routes/components, Core client seams, and
+Nest Cortex modules; no process snapshot consumer found. M3.181 validation
+remains current: API 636/636; shared 274/274; Web 676/676; database 224 passed
+with 143 local credential-gated skips; typecheck, lint, 82-page build,
+spend/controlled-release, Actionlint, pinned refs, Gitleaks, diff, and
+clean-room checks passed. Disposable replay remains 112/112 migrations,
+367/367 zero-skip DB tests, 26 API integration files/40 tests, and equal schema
+hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+Gates stay false/empty.
+
+Exact next action after completion: M3.183 define the Cortex brief read
+contract and NestJS authority without enabling a tenant canary.
+
 ## 2026-08-09 - M3.181 user-facing Cortex search consumer boundary
 
 Audited Nest Cortex search, the Next search route, command-palette
