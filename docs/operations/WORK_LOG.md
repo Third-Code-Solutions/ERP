@@ -1,5 +1,15 @@
 # Work Log
 
+## 2026-08-09 - M3.186 One-tenant Cortex brief canary review packet
+
+Added `CORTEX_BRIEF_CANARY_REVIEW.md` with candidate SHA, API/Web gate names,
+session/principal/RBAC authority, bounded timeout/no-retry behavior, parity,
+rollback, spend, and hosted blockers. Both allowlists remain empty. No SQL,
+runtime, hosted write/deploy, provider call, or paid resource.
+
+Exact next action: close only locally verifiable evidence gaps while keeping
+the canary closed.
+
 ## 2026-08-09 - M3.185 Dashboard brief parity fixture
 
 Added a deterministic fixture that reads the same tenant brief through the

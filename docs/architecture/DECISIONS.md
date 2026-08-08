@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-295 - Keep the Cortex brief canary packet review-only (2026-08-09)
+
+Decision: record candidate identity, independent flags, tenant/RBAC proof,
+bounded request/spend controls, rollback, and hosted blockers in a review-only
+packet. Do not enable either allowlist or infer deployment readiness from local
+tests.
+
+Rationale: read-only behavior still exposes tenant-scoped ERP facts. A source
+SHA and parity fixture cannot prove hosted identity, Supabase parity, live
+authorization, rollback, or spend ceilings. Keeping the packet closed avoids
+an accidental production or billing change.
+
+Validation: packet added; no SQL, hosted write/deploy, provider call, or paid
+resource. Rollback remains clearing both flags/allowlists and retaining the
+last-known-good artifacts.
+
 ## D-294 - Require deterministic dashboard brief parity before canary review (2026-08-09)
 
 Decision: compare the role-scoped legacy fixture with the normalized Core

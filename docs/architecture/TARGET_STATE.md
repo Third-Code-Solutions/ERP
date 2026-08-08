@@ -1,5 +1,12 @@
 # Target State
 
+## M3.186 One-tenant Cortex brief canary review
+
+Canary activation requires a review packet with exact source/deployment
+identity, tenant/role proof, parity, rollback, bounded request behavior, and
+spend evidence. The current packet is review-only; both API/Web gates remain
+closed until external hosted evidence is supplied.
+
 ## M3.185 Dashboard brief parity evidence
 
 The dashboard seam has a deterministic fixture proving the legacy and

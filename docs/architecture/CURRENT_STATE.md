@@ -5,6 +5,23 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.186 One-tenant Cortex brief canary review packet (2026-08-09)
+
+Added `docs/operations/CORTEX_BRIEF_CANARY_REVIEW.md` as a source-only approval
+packet. It records the exact candidate SHA, both independent API/Web flags,
+session/principal/RBAC authority, bounded request and spend controls, parity
+evidence, rollback, and explicit blockers. Both allowlists remain empty; no
+tenant, deployment identity, hosted parity, provider, or paid activation is
+approved.
+
+The packet explicitly keeps managed Supabase parity, backup/PITR, exact tenant
+identity, live RBAC, deployment identity, rollback artifact, and spend ceiling
+as unresolved gates. No SQL, runtime code, hosted write/deploy/provider call,
+or paid resource changed.
+
+Exact next safe slice: close only the evidence gaps that can be verified
+locally, without enabling a tenant canary or touching managed providers.
+
 ## M3.185 Dashboard brief parity fixture (2026-08-09)
 
 Added deterministic parity evidence for the dashboard seam. The same tenant
