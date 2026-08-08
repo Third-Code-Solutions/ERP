@@ -58,7 +58,14 @@ credential before re-enabling the policy.
 
 ## Alerting status
 
-No external paging integration is activated by this milestone. Thresholds are
-policy-owned, not guessed in code. Before production activation, connect alerts
-to the aggregate health endpoint, test-fire each circuit state, verify routing,
-and link this runbook.
+The source-only alert ledger records one aggregate `opened` event per circuit
+trip and one `recovered` event after a successful probe. Events are scoped by
+tenant and policy, deduplicated by deterministic event key, audited without
+payloads, and delivered through an injectable local sink with bounded retry.
+`pending`, `processing`, `delivered`, and `failed` are database states; a
+failed sink may be retried by event key, and the drain stops after one failure
+to prevent a hot loop. No external paging integration is activated. Before
+production activation, connect an approved provider-neutral route, test-fire
+each circuit state, verify tenant routing and credential isolation, and link
+this runbook. Never put prompts, responses, credentials, attempt IDs, or user
+identities in an alert.

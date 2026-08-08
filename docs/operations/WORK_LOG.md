@@ -1,5 +1,46 @@
 # Work Log
 
+## 2026-08-08 - M3.170 durable Cortex circuit alerts
+
+Implemented the smallest source-only alert slice around M3.169. Added the
+strict aggregate-only alert event, tenant/policy/source-scoped PostgreSQL
+ledger, deterministic open/recovery keys, service-only RLS, checks, indexes,
+and privacy-safe audit entries. Circuit observations are wired to successful
+settlement and recovery; repeated observations deduplicate at the database
+boundary.
+
+Added a Nest delivery service with transactional claims, stale-processing
+recovery, bounded attempts, stable sink errors, and an injectable local fake
+sink. A failed delivery can be retried by event key and halts the current
+drain after one failure. No external pager or provider adapter was called.
+
+Validation:
+
+- Shared 268/268; API 610/610; Web 676/676; AI worker 8/8; DXF worker 11/11.
+- Clean PostgreSQL 17 + Redis replay: 112/112 migrations, database 367/367
+  zero-skip, 26 API integration files/38 tests, equal before/after schema hash
+  `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+- Lint, typecheck, Nest/Next production build with 82 pages, spend 4/4,
+  controlled release 5/5, Actionlint, pinned actions, Gitleaks, and diff
+  hygiene passed.
+- Integration proves tenant isolation, one open event per trip, one recovery,
+  and retry-idempotent local sink delivery.
+
+Release boundary and unresolved risk:
+
+- No credential, AI/image/provider call, hosted Supabase query/write,
+  Auth/Storage/data mutation, Vercel/Railway build/deploy, paid resource, or
+  Vercel Git change occurred. Managed Supabase remains last verified at 55/112.
+- All gates remain false/empty. External routing, complete-clone replay,
+  backup/PITR, one low-budget tenant, reviewed release identity, and live
+  rollback proof remain activation gaps.
+- Rollback closes dispatch and reconciles attempts while preserving the
+  forward-only circuit and alert evidence. Do not down-migrate.
+
+Exact next action: M3.171 source-only alert-routing adapter conformance with
+local fakes and strict credential isolation. Add no external network, pager
+credential, hosted write, deployment, paid resource, or provider activation.
+
 ## 2026-08-08 - M3.169 Cortex provider health and circuit authority
 
 Implemented the smallest source-only health/control slice around M3.168. Added

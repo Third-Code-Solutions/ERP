@@ -28,6 +28,7 @@ import { cortexAssistantGenerationCompletionHash } from '../src/cortex/cortex-as
 import { CortexAssistantGenerationStateService } from '../src/cortex/cortex-assistant-generation.state'
 import { CortexAssistantGenerationService } from '../src/cortex/cortex-assistant-generation.service'
 import { CortexAssistantProviderBudgetService } from '../src/cortex/cortex-assistant-provider-budget.service'
+import { CortexAssistantProviderCircuitAlertService } from '../src/cortex/cortex-assistant-provider-circuit-alert.service'
 import { cortexAssistantProviderDispatchKey } from '../src/cortex/cortex-assistant-provider-protocol'
 import { CortexAssistantTurnsService } from '../src/cortex/cortex-assistant-turns.service'
 import type { CortexAssistantTurnSignatureHeaders } from '../src/cortex/cortex-assistant-turns.service'
@@ -175,7 +176,8 @@ suite('Cortex assistant generation database integration', () => {
       const providerBudget = new CortexAssistantProviderBudgetService(
         config,
         database,
-        audit
+        audit,
+        new CortexAssistantProviderCircuitAlertService(database, audit)
       )
       const state = new CortexAssistantGenerationStateService(
         database,

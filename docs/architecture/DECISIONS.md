@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-279 - Make circuit alerts durable, scoped, and idempotent (2026-08-08)
+
+Decision: Nest observes the tenant/policy circuit snapshot and records one
+aggregate-only `opened` event for each deterministic trip and one `recovered`
+event linked to that opening. PostgreSQL enforces tenant-composite scope,
+source/recovery uniqueness, immutable event identity, and service-only RLS.
+Delivery claims are transactional; processing claims can expire, failed rows
+are bounded and retryable, and a sink receives only the strict event contract.
+The local sink is injectable and external paging is not activated.
+
+Rationale: an in-memory or cache-only alert path loses outages during process
+restarts, duplicates pages during retries, and can leak sensitive provider
+payloads. Durable event keys and source linkage make replay safe while keeping
+PostgreSQL the authority and Redis/Python/browser outside approval paths.
+
+Validation and release boundary: focused and full local suites, clean replay,
+schema-hash equality, lint, typecheck, production build, spend/release guards,
+workflow checks, secret scan, and diff checks passed. No credential, external
+network, hosted mutation, provider call, or deployment occurred. Rollback
+closes dispatch and preserves forward-only circuit/alert evidence; never
+down-migrate.
+
 ## D-278 - Persist a tripped provider circuit until proven recovery (2026-08-08)
 
 Decision: provider health is computed from immutable tenant/policy attempt

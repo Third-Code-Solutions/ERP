@@ -1,5 +1,26 @@
 # Target State
 
+## M3.170 durable circuit alert ledger and delivery seam
+
+Every tenant/provider/model circuit opening and proven recovery must produce a
+single durable, aggregate-only event. Event identity must be deterministic and
+source-scoped, with PostgreSQL uniqueness preventing duplicate transitions or
+recovery replays. The ledger must support pending, processing, delivered, and
+failed states, bounded retries, stale-claim recovery, and a sink contract that
+never receives prompts, responses, credentials, attempt IDs, or user identity.
+
+Nest owns observation, audit, claim, and delivery authorization. A sink failure
+must be safe to retry by event key and must not hot-loop the queue. External
+paging remains a separately approved adapter; this milestone uses a local fake
+sink only. Tenant scope, policy scope, source linkage, checks, and service-only
+RLS remain database-enforced.
+
+This source boundary is locally complete. Activation still requires a tested
+external routing adapter, complete-clone migration replay, backup/PITR
+evidence, one exact tenant, a low approved policy, one reviewed release SHA,
+live RBAC/cancellation proof, and an approved rollback. No provider or hosted
+deployment is authorized by this milestone.
+
 ## M3.169 provider health and automatic circuit breaking
 
 Provider execution must expose tenant-scoped operational truth without raw

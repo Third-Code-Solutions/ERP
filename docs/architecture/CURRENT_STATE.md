@@ -5,6 +5,38 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.170 Durable Cortex circuit alerts (2026-08-08)
+
+Nest now records aggregate-only `opened` and `recovered` circuit transitions
+in a tenant/policy-scoped alert ledger. Deterministic transition keys make
+repeated health observations idempotent: one event per open trip and one
+recovery event linked to that opening. The ledger supports pending,
+processing, delivered, and failed states with bounded attempts and stale-claim
+recovery; raw sink errors are never persisted.
+
+Delivery is an injected local sink seam only. A failed sink is retried by
+`eventKey` and stops the current drain after one failure to avoid a hot loop.
+Audit entries contain event type and aggregate scope only. Alert payloads
+exclude prompts, responses, credentials, attempt IDs, and user identities.
+PostgreSQL owns tenant scope, source/recovery uniqueness, status transitions,
+and service-only RLS. No external pager, credential, network call, provider,
+hosted SQL, or deployment was enabled.
+
+Validation passed: shared 268/268; API 610/610; Web 676/676; AI worker 8/8;
+DXF worker 11/11; database 367/367 with zero skips; 112/112 clean migrations;
+26 API integration files and 38 tests; lint/typecheck; Nest/Next production
+build with 82 generated pages; spend 4/4; controlled release 5/5;
+Actionlint; pinned workflow actions; Gitleaks; and diff hygiene. The clean
+replay produced equal before/after schema hashes
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+
+The production provider adapter and external alert integration remain
+unavailable. All rollout gates remain false/empty. Managed Supabase is still
+last verified at 55 migrations versus 112 in source. No credential,
+AI/image/provider call, hosted Supabase query or write, Auth/Storage/data
+mutation, Vercel/Railway build or deployment, paid resource, or Vercel Git
+change occurred.
+
 ## M3.169 Cortex provider health and circuit authority (2026-08-08)
 
 Nest now exposes one tenant-derived aggregate provider-health read for owners,

@@ -33,6 +33,7 @@ import { CortexAssistantGenerationStateService } from './cortex-assistant-genera
 import { CortexAssistantGenerationWorkerClient } from './cortex-assistant-generation.worker'
 import { CortexAssistantProviderAdapter } from './cortex-assistant-provider.adapter'
 import { CortexAssistantProviderBudgetService } from './cortex-assistant-provider-budget.service'
+import { CortexAssistantProviderCircuitAlertService } from './cortex-assistant-provider-circuit-alert.service'
 import { CortexAssistantProviderExecutionService } from './cortex-assistant-provider-execution.service'
 import { CortexAssistantProviderHealthController } from './cortex-assistant-provider-health.controller'
 import { CortexAssistantProviderHealthPipe } from './cortex-assistant-provider-health.pipe'
@@ -81,6 +82,7 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     CortexAssistantGenerationWorkerClient,
     CortexAssistantProviderAdapter,
     CortexAssistantProviderBudgetService,
+    CortexAssistantProviderCircuitAlertService,
     CortexAssistantProviderExecutionService,
     CortexAssistantProviderHealthPipe,
     CortexAssistantProviderHealthService,
