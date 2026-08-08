@@ -1,5 +1,23 @@
 # Current State
 
+## M3.191 Cortex chat retrieval parity fixture and review packet (2026-08-09)
+
+Added a deterministic equality fixture for the current direct Web retrieval
+shape versus the strict Core projection: stats, recent/match items, focused
+projection, keyword citations, and semantic status. Added
+`docs/operations/CORTEX_CHAT_RETRIEVAL_REVIEW.md` with exact source identity,
+closed API gate, authority contract, parity limits, blockers, and rollback.
+The fixture does not invoke a browser, hosted database, provider, or deployed
+service; the Web chat route and all flags remain unchanged.
+
+Focused parity/service lane: 5/5 chat service tests; shared contract 4/4;
+shared/API typecheck. No SQL, hosted write/deploy, provider call, or paid
+resource changed.
+
+Exact next safe slice: design the server-only Web chat read seam and exact
+tenant Core adapter contract; keep it unconnected and canaries closed until
+protected ownership/context parity is proven.
+
 ## M3.190 Cortex chat retrieval contract and Nest authority (2026-08-09)
 
 Added the strict shared `cortexChatRetrieval` query/result projection and a

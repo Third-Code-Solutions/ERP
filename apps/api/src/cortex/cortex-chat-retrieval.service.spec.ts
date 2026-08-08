@@ -204,4 +204,75 @@ describe('CortexChatRetrievalService', () => {
     ).resolves.toMatchObject({ focused: { found: false, summary: '', citations: [] } })
     expect(mocks.cortexDescribeEntity).not.toHaveBeenCalled()
   })
+
+  it('proves the strict Core projection matches a deterministic legacy fixture', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-09T00:00:00.000Z'))
+    try {
+      const service = new CortexChatRetrievalService(config())
+      const core = await service.read(
+        { query: 'Concrete Tower', recentLimit: 6, matchLimit: 4 },
+        PRINCIPAL
+      )
+
+      // This is the legacy Web retrieval shape normalized without an HTTP or
+      // provider call. It mirrors the current direct reads in chat/route.ts.
+      const legacy = {
+        generatedAt: '2026-08-09T00:00:00.000Z',
+        stats: {
+          nodes: 1,
+          edges: 0,
+          provenance: 1,
+          byType: [{ nodeType: 'invoice', count: 1 }],
+        },
+        recent: [
+          {
+            id: NODE_ID,
+            nodeType: 'invoice',
+            title: 'Invoice 1042',
+            summary: 'Concrete Tower',
+            refTable: 'invoices',
+            refId: REF_ID,
+            projectId: PROJECT_ID,
+            freshness: 'fresh',
+            recordedAt: '2026-08-08T23:00:00.000Z',
+            source: 'cortex',
+          },
+        ],
+        matches: [
+          {
+            id: NODE_ID,
+            nodeType: 'invoice',
+            title: 'Invoice 1042',
+            summary: 'Concrete Tower',
+            refTable: 'invoices',
+            refId: REF_ID,
+            projectId: PROJECT_ID,
+            freshness: 'fresh',
+            recordedAt: '2026-08-08T23:00:00.000Z',
+            source: 'cortex',
+          },
+        ],
+        focused: null,
+        keywordAnswer: {
+          answer: 'Found invoice.',
+          citations: [
+            {
+              nodeId: NODE_ID,
+              nodeType: 'invoice',
+              refTable: 'invoices',
+              refId: REF_ID,
+              title: 'Invoice 1042',
+              projectId: PROJECT_ID,
+            },
+          ],
+        },
+        semanticStatus: 'not_migrated',
+      }
+
+      expect(core).toEqual(legacy)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

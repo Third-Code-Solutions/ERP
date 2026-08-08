@@ -1,5 +1,14 @@
 # Target State
 
+## M3.191 chat retrieval parity evidence
+
+The legacy direct retrieval fixture and strict Core chat projection now have a
+repeatable equality check for one tenant-shaped source set. This is evidence
+for serialization and citation parity only; it does not certify the browser
+conversation owner/context path, hosted identity, RBAC, rollback, or spend.
+The next seam must keep conversation ownership and focused-record
+authorization explicit before any Web cutover.
+
 ## M3.190 bounded Cortex chat retrieval authority
 
 The chat read path has a separate Core projection at
