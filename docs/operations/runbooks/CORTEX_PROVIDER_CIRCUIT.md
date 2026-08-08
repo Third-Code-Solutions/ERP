@@ -65,7 +65,9 @@ payloads, and delivered through an injectable local sink with bounded retry.
 `pending`, `processing`, `delivered`, and `failed` are database states; a
 failed sink may be retried by event key, and the drain stops after one failure
 to prevent a hot loop. No external paging integration is activated. Before
-production activation, connect an approved provider-neutral route, test-fire
-each circuit state, verify tenant routing and credential isolation, and link
-this runbook. Never put prompts, responses, credentials, attempt IDs, or user
-identities in an alert.
+production activation, connect an approved provider-neutral route through the
+protocol-v1 envelope. Verify exact-tenant gating, adapter-key validation,
+event-key idempotency, bounded failure codes, and credential isolation. Test-
+fire each circuit state, verify routing, and link this runbook. Never put
+prompts, responses, credentials, URLs, attempt IDs, or user identities in an
+alert.

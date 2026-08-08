@@ -1,5 +1,33 @@
 # Architecture Decisions
 
+## D-280 - Keep alert routing credential-free at Nest boundary (2026-08-08)
+
+Decision: Nest constructs a protocol-v1 route envelope from a validated,
+aggregate-only circuit event. It checks an independent exact-tenant gate and
+passes only event key, tenant/policy scope, provider/model, bounded counts and
+timestamps, and runbook identity to an adapter. Adapter credentials and
+destinations belong exclusively inside a future adapter implementation. The
+adapter key is a stable non-secret identifier and `eventKey` is its required
+idempotency key.
+
+Known adapter failures map to a bounded route taxonomy; unknown failures become
+`route_unknown`. Raw error text, URLs, secrets, prompts, responses, and user
+identity cannot enter the route result or audit path. Local fakes prove duplicate
+delivery, tenant isolation, bounded payloads, and failure redaction. The route
+gate defaults closed and no external adapter is activated.
+
+Rationale: passing provider credentials or free-form payloads through generic
+alert code creates accidental secret persistence, cross-tenant routing, and
+unbounded retry leakage. A strict envelope plus adapter-owned credentials lets
+PostgreSQL remain the event authority while Nest controls activation and
+rollback.
+
+Validation and release boundary: shared/API full suites, serial build, lint,
+typecheck, spend/release guards, workflow checks, secret scan, and diff checks
+passed. No credential, external network, hosted mutation, provider call, or
+deployment occurred. Rollback closes route and dispatch gates; never
+down-migrate.
+
 ## D-279 - Make circuit alerts durable, scoped, and idempotent (2026-08-08)
 
 Decision: Nest observes the tenant/policy circuit snapshot and records one

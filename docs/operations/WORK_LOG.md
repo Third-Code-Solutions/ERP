@@ -1,5 +1,48 @@
 # Work Log
 
+## 2026-08-08 - M3.171 provider-neutral circuit alert routing
+
+Implemented the smallest source-only routing slice around M3.170. Added a
+strict protocol-v1 route envelope/result contract derived from validated
+aggregate alert evidence. Envelope contains event-key idempotency, tenant/
+policy scope, provider/model, bounded counts/timestamps, and runbook only;
+credentials, URLs, prompts, responses, user identity, and raw errors cannot be
+represented.
+
+Added Nest exact-tenant route gating, stable adapter-key validation, bounded
+failure classification, and an adapter interface whose only input is the
+credential-free envelope. Local fake tests prove duplicate event keys are
+idempotent, wrong tenants stay closed, payload forwarding is bounded, known
+failures stay stable, and unknown error messages never escape.
+
+Validation:
+
+- Shared 271/271 across 38 files; API 615/615 across 141 files; Web 676/676.
+- Full unit lane passed. Lint, typecheck, serial Nest/Next production build
+  with 82 pages, spend 4/4, controlled release 5/5, Actionlint, pinned
+  actions, Gitleaks, and diff hygiene passed.
+- No migration changed. M3.170 database baseline remains 112/112 migrations,
+  367/367 zero-skip tests, equal schema hash
+  `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+- The first parallel gate attempt exposed a Next `.next/types` race; rerunning
+  lint, typecheck, and build serially passed. This remains an operations note,
+  not a product failure.
+
+Release boundary and unresolved risk:
+
+- No credential, AI/image/provider call, hosted Supabase query/write,
+  Auth/Storage/data mutation, Vercel/Railway build/deploy, paid resource, or
+  Vercel Git change occurred. Managed Supabase remains last verified at 55/112.
+- All gates remain false/empty. External route adapter, complete-clone replay,
+  backup/PITR, one low-budget tenant, reviewed release identity, and live
+  rollback proof remain activation gaps.
+- Rollback disables route and dispatch gates while preserving forward-only
+  circuit/alert evidence. Do not down-migrate.
+
+Exact next action: M3.172 source-only route delivery orchestration seam that
+maps durable claims to this adapter contract. Local fakes only; no external
+network, credential, hosted write, deployment, paid resource, or provider.
+
 ## 2026-08-08 - M3.170 durable Cortex circuit alerts
 
 Implemented the smallest source-only alert slice around M3.169. Added the

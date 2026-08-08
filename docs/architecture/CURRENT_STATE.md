@@ -5,6 +5,35 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.171 Provider-neutral circuit alert routing (2026-08-08)
+
+Nest now owns a provider-neutral route boundary for durable circuit events.
+`CortexAssistantProviderCircuitAlertRouter` builds one strict protocol-v1
+envelope from validated aggregate evidence, checks a separate exact-tenant
+routing gate, and passes no credential, URL, prompt, response, or user data to
+an adapter. Adapter failures collapse to stable codes (`route_timeout`,
+`route_rate_limited`, `route_rejected`, and related bounded categories); raw
+messages are never returned or persisted.
+
+The adapter contract requires `eventKey` idempotency. Local fake coverage proves
+duplicate delivery is harmless, tenant allowlists are enforced, route payload
+keys are bounded, URL/credential-shaped adapter identifiers are rejected, and
+unknown errors cannot leak their message. No real adapter, route credential,
+network call, external pager, hosted SQL, provider, or deployment was enabled.
+
+Validation passed: shared 271/271 across 38 files; API 615/615 across 141
+files; Web 676/676; lint; typecheck; serial Nest/Next production build with
+82 generated pages; full unit lane; spend 4/4; controlled release 5/5;
+Actionlint; pinned workflow actions; Gitleaks; and diff hygiene. Database
+schema remains unchanged from M3.170: 112/112 migration and 367/367
+zero-skip replay baseline, hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+
+All rollout gates remain false/empty. Managed Supabase remains last verified at
+55 migrations versus 112 in source. No credential, AI/image/provider call,
+hosted Supabase query or write, Auth/Storage/data mutation, Vercel/Railway
+build or deployment, paid resource, or Vercel Git change occurred.
+
 ## M3.170 Durable Cortex circuit alerts (2026-08-08)
 
 Nest now records aggregate-only `opened` and `recovered` circuit transitions
