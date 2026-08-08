@@ -63,6 +63,13 @@ inputs are complete; it does not enable a route, exporter, sink, or deployment.
   and Core canaries are ERP data paths only; process metrics cannot become a
   dashboard KPI, graph node, citation, or assistant context.
 
+## M3.189 Chat retrieval boundary
+
+Chat retrieval is ERP tenant data, not process observability. Its future
+projection must not carry `readOperationalSnapshot()` fields, exporter state,
+or provider circuit counters. A chat-read canary is independent of any
+operational adapter review.
+
 ## M3.188 Release identity boundary
 
 Local source and documented rollback metadata are evidence fields only. They do

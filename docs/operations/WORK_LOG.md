@@ -1,5 +1,16 @@
 # Work Log
 
+## 2026-08-09 - M3.189 Cortex chat retrieval authority audit
+
+Audited the chat POST direct reads: conversation ownership/context, graph stats,
+recent nodes, keyword matches, focused entity, semantic search, and keyword
+answer. Core write/generation and conversation list/detail adapters remain
+separate and do not prove retrieval parity. Added the authority audit document.
+No runtime, SQL, hosted write/deploy, provider call, or paid resource.
+
+Exact next action: M3.190 define the bounded chat retrieval contract and Nest
+authority without enabling a tenant canary.
+
 ## 2026-08-09 - M3.188 Local release/rollback metadata reconciliation
 
 Reconciled the review packet to application SHA
