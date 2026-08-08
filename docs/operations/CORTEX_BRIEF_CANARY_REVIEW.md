@@ -9,7 +9,7 @@ call, or paid resource.
 
 ## Candidate and flags
 
-- Candidate source: `55697564c49cf92a58e7e85016fe4d6ac71f2abe` on
+- Candidate source: `8600c9e573b90365491a0640f64ab5b1bf797965` on
   `agent-02/third-code-erp-landing`; pushed to
   `Third-Code-Solutions/ERP`. It is not deployed.
 - API gate: `ERP_CORTEX_BRIEF_READS_ENABLED=false` and
@@ -46,8 +46,10 @@ call, or paid resource.
 
 ## Local release and rollback metadata
 
-- Source candidate is exact and clean locally; the current branch resolves to
-  `55697564c49cf92a58e7e85016fe4d6ac71f2abe`.
+- Source candidate is exact and clean locally; the application candidate
+  resolves to `8600c9e573b90365491a0640f64ab5b1bf797965`. M3.190 adds a
+  separate disabled chat-retrieval authority; it does not widen or approve
+  the brief canary.
 - Documented retained Web rollback target:
   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` from source
   `f24e5603a35571f8dcadd43fc09c64d12646a7d0`. This is a recorded target, not a
