@@ -5,6 +5,24 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.180 Operational adapter consumer ownership audit (2026-08-09)
+
+Repository search confirms the adapter evaluator has no runtime consumer. The
+policy now records `consumer: none_registered` and permits only a future,
+separately reviewed operational adapter. This is an ownership invariant, not an
+activation mechanism.
+
+Validation passed: API 636/636 across 145 files; shared 273/273; Web full unit
+lane; focused five-test evaluator/policy contract; root typecheck, lint, and
+serial Nest/Next production build with 82 pages; spend/controlled-release
+guards, Actionlint, pinned workflow refs, Gitleaks, diff checks, and clean-room
+scan. No SQL changed, so the preceding disposable replay remains current:
+112/112 migrations, 367/367 zero-skip database tests, 26 API integration
+files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`. No
+route, exporter, database migration, hosted write, deployment, provider
+activation, or paid resource was added; the adapter gate remains closed.
+
 ## M3.179 Fail-closed operational adapter trigger conditions (2026-08-09)
 
 The closed snapshot seam now has a pure evidence evaluator requiring nine

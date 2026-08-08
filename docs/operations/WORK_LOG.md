@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-09 - M3.180 operational adapter consumer ownership audit
+
+Audited evaluator references: no runtime consumer exists; only policy code,
+tests, and architecture/operations docs reference it. Added explicit
+`consumer: none_registered` plus a future reviewed-adapter allowlist marker.
+No route, exporter, sink, migration, hosted write, deployment, provider
+activation, or paid resource was added.
+
+Validation: API 636/636 across 145 files; shared 273/273; Web full unit lane;
+focused five-test evaluator/policy contract; root typecheck, lint, and serial
+Nest/Next build with 82 pages; spend/controlled-release, Actionlint, pinned
+refs, Gitleaks, diff checks, and clean-room scan passed. No SQL changed, so
+the preceding disposable replay remains current: 112/112 migrations, 367/367
+zero-skip database tests, 26 API integration files/40 tests, and equal schema
+hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+No route, exporter, sink, migration, hosted write, deployment, provider
+activation, or paid resource was added. Gates stay false/empty.
+
+Exact next action after completion: M3.181 review user-facing Cortex/ERP search
+consumer boundaries without adding process-metric access.
+
 ## 2026-08-09 - M3.179 fail-closed operational adapter trigger conditions
 
 Added a pure evaluator requiring caller authorization, process-versus-tenant
