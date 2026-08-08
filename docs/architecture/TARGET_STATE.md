@@ -1,5 +1,12 @@
 # Target State
 
+## M3.178 operational snapshot ownership and release evidence
+
+The closed snapshot policy names an ERP backend owner, binds any future
+operational release to an exact Git commit SHA, and requires rollback to a
+last-known-good artifact without rebuilding. These are evidence requirements,
+not deployment authority.
+
 ## M3.177 deployment observability access-policy audit
 
 The process snapshot seam carries an explicit immutable access policy and a

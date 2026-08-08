@@ -1,5 +1,25 @@
 # Work Log
 
+## 2026-08-09 - M3.178 operational snapshot ownership and release evidence
+
+Extended the closed snapshot policy with abstract ERP backend ownership, exact
+Git commit SHA release identity, and last-known-good-artifact rollback evidence.
+These fields are non-authoritative metadata; no exporter, route, migration,
+hosted write, deployment, provider activation, or paid resource was added.
+
+Validation: API 634/634 across 145 files; shared 273/273; Web full unit lane;
+focused policy contract; root typecheck, lint, serial Nest/Next build with 82
+pages; spend/controlled-release, Actionlint, pinned refs, Gitleaks, diff
+checks, and clean-room scan passed. No SQL changed, so the preceding
+disposable replay remains current: 112/112 migrations, 367/367 zero-skip
+database tests, 26 API integration files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+No route, exporter, migration, hosted write, deployment, provider activation,
+or paid resource was added. Gates stay false/empty.
+
+Exact next action after completion: M3.179 review adapter trigger conditions
+without enabling an exporter or route.
+
 ## 2026-08-09 - M3.177 deployment observability access-policy audit
 
 Audited public health/readiness probes, global JWT identity, explicit

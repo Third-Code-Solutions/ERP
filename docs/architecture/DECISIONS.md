@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-287 - Require owner, exact SHA, and artifact rollback evidence (2026-08-09)
+
+Decision: the closed operational snapshot policy records abstract ownership as
+the ERP backend owner, exact Git commit SHA as release identity, and rollback to
+the last known-good artifact without rebuilding. These fields do not authorize
+a deployment or exporter.
+
+Rationale: observability changes can expose cross-tenant process activity or
+create spend through an external sink. A future adapter needs an accountable
+owner and reproducible release/rollback identity before it can be considered;
+metadata alone must never be treated as approval.
+
+Validation and release boundary: API 634/634; shared 273/273; Web full unit
+lane; focused policy contract covers all ownership, release, and rollback
+fields; root typecheck/lint/build with 82 pages; spend/controlled-release
+guards, Actionlint, pinned refs, Gitleaks, diff checks, and clean-room scan
+pass. No SQL changed, so the preceding disposable replay remains current:
+112/112 migrations, 367/367 zero-skip database tests, 26 API integration
+files/40 tests, and equal schema hash. No route, exporter, hosted write,
+credential, deployment, or paid resource was added. Rollback removes the
+metadata only; preserve the alert ledger and never down-migrate.
+
 ## D-286 - Encode deployment observability boundaries before any adapter (2026-08-09)
 
 Decision: keep the Cortex process snapshot behind a frozen source policy and

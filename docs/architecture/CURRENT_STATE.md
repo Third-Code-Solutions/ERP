@@ -5,6 +5,23 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.178 Operational snapshot ownership and release evidence (2026-08-09)
+
+The closed process snapshot policy now names an abstract ERP backend owner,
+requires an exact Git commit SHA as release identity, and requires rollback to
+the last known-good artifact without a rebuild. These fields are policy metadata
+only; no deployment or operational adapter is enabled.
+
+Validation passed: API 634/634 across 145 files; shared 273/273; Web full unit
+lane; focused policy contract; root typecheck, lint, and serial Nest/Next
+production build with 82 pages; spend, controlled-release, Actionlint, pinned
+workflow refs, Gitleaks, diff checks, and clean-room scan. No SQL changed, so
+the preceding disposable replay remains current: 112/112 migrations, 367/367
+zero-skip database tests, 26 API integration files/40 tests, and equal schema
+hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+No route, exporter, hosted write, deployment, provider activation, or paid
+resource was added; the adapter gate remains closed.
+
 ## M3.177 Deployment observability access-policy audit (2026-08-09)
 
 The operational snapshot seam now has an explicit frozen policy record covering

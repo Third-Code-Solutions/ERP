@@ -79,6 +79,9 @@ describe('CortexAssistantProviderCircuitAlertObservability', () => {
       rateLimit: 'none_until_exporter',
       externalSink: 'disabled',
       costControl: 'zero_external_spend',
+      owner: 'erp_backend_owner',
+      releaseIdentity: 'git_commit_sha',
+      rollback: 'last_known_good_artifact',
       deployment: 'separate_review_required',
     })
     expect(
