@@ -15,6 +15,13 @@ import type {
   CortexAssistantProviderCircuitPolicy,
   CortexAssistantProviderCircuitSnapshot,
 } from './cortex-assistant-provider-health.query'
+import {
+  CortexAssistantProviderCircuitAlertRouter,
+} from './cortex-assistant-provider-circuit-alert-router'
+import type {
+  CortexAssistantProviderCircuitAlertRouteAdapter,
+  CortexAssistantProviderCircuitAlertRouteFailureCode,
+} from '@third-code-erp/shared-types'
 
 export interface CortexAssistantProviderCircuitAlertPolicy
   extends CortexAssistantProviderCircuitPolicy {
@@ -29,6 +36,24 @@ export interface CortexAssistantProviderCircuitAlertSink {
 export interface CortexAssistantProviderCircuitAlertObservation {
   event: CortexAssistantProviderCircuitAlertEvent | null
   created: boolean
+}
+
+export class CortexAssistantProviderCircuitAlertDeliveryError extends Error {
+  constructor(readonly code: CortexAssistantProviderCircuitAlertRouteFailureCode) {
+    super(code)
+    this.name = 'CortexAssistantProviderCircuitAlertDeliveryError'
+  }
+}
+
+type StableDeliveryFailureCode =
+  | 'sink_failed'
+  | CortexAssistantProviderCircuitAlertRouteFailureCode
+
+function stableDeliveryFailureCode(error: unknown): StableDeliveryFailureCode {
+  if (error instanceof CortexAssistantProviderCircuitAlertDeliveryError) {
+    return error.code
+  }
+  return 'sink_failed'
 }
 
 interface AlertRow {
@@ -150,13 +175,33 @@ export class CortexAssistantProviderCircuitAlertService {
         await sink.publish(claimed)
         await this.markDelivered(claimed.id)
         delivered += 1
-      } catch {
-        await this.markFailed(claimed.id)
+      } catch (error) {
+        await this.markFailed(claimed.id, stableDeliveryFailureCode(error))
         failed += 1
         break
       }
     }
     return { delivered, failed }
+  }
+
+  async deliverPendingThroughRoute(
+    router: CortexAssistantProviderCircuitAlertRouter,
+    adapter: CortexAssistantProviderCircuitAlertRouteAdapter,
+    limit = 100
+  ): Promise<{ delivered: number; failed: number }> {
+    return this.deliverPending(
+      {
+        publish: async (event) => {
+          const result = await router.route(event, adapter)
+          if (result.status === 'failed') {
+            throw new CortexAssistantProviderCircuitAlertDeliveryError(
+              result.failureCode ?? 'route_unknown'
+            )
+          }
+        },
+      },
+      limit
+    )
   }
 
   private async recordRecovery(
@@ -334,7 +379,10 @@ export class CortexAssistantProviderCircuitAlertService {
       )
   }
 
-  private async markFailed(eventId: string): Promise<void> {
+  private async markFailed(
+    eventId: string,
+    failureCode: StableDeliveryFailureCode = 'sink_failed'
+  ): Promise<void> {
     const now = new Date()
     await this.database.client
       .update(cortexAssistantProviderCircuitAlerts)
@@ -342,7 +390,7 @@ export class CortexAssistantProviderCircuitAlertService {
         status: 'failed',
         processing_started_at: null,
         delivered_at: null,
-        last_error: 'sink_failed',
+        last_error: failureCode,
         updated_at: now,
       })
       .where(

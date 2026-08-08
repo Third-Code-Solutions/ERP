@@ -5,6 +5,34 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.172 Durable claim-to-route orchestration (2026-08-08)
+
+Durable alert claims now connect directly to the provider-neutral router through
+`deliverPendingThroughRoute`. Claiming remains transactional and tenant/
+policy-scoped; route results become delivered state or stable `last_error`
+codes. Failed claims can retry immediately, stale processing claims are
+recoverable, and one route failure stops the current drain to prevent a hot
+loop. The route adapter still receives only the strict protocol-v1 envelope.
+
+Local PostgreSQL/Redis replay proves a `route_rate_limited` failure is persisted
+without raw error text, then retried by the same event key and committed as
+delivered. Existing generic sink behavior remains compatible. No queue worker,
+external adapter, credential, network call, pager, provider, hosted SQL, or
+deployment was enabled by this milestone.
+
+Validation passed: shared 271/271 across 38 files; API 615/615 across 141
+files; Web 676/676; full unit lane; 26 API integration files and 39 tests;
+112/112 migration replay; database 367/367 zero-skip; equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; lint;
+typecheck; serial Nest/Next production build with 82 pages; spend 4/4;
+controlled release 5/5; Actionlint; pinned workflow actions; Gitleaks; and
+diff hygiene.
+
+All rollout gates remain false/empty. Managed Supabase remains last verified at
+55 migrations versus 112 in source. No credential, AI/image/provider call,
+hosted Supabase query or write, Auth/Storage/data mutation, Vercel/Railway
+build or deployment, paid resource, or Vercel Git change occurred.
+
 ## M3.171 Provider-neutral circuit alert routing (2026-08-08)
 
 Nest now owns a provider-neutral route boundary for durable circuit events.
