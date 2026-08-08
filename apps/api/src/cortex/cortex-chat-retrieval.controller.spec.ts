@@ -83,4 +83,40 @@ describe('Cortex chat retrieval HTTP contract', () => {
       expect.objectContaining({ tenantId: TENANT_ID, role: 'viewer' })
     )
   })
+
+  it('accepts the JSON-encoded focus used by the server Core adapter', async () => {
+    const retrieve = vi.fn().mockResolvedValue({
+      generatedAt: '2026-08-09T00:00:00.000Z',
+      stats: { nodes: 0, edges: 0, provenance: 0, byType: [] },
+      recent: [],
+      matches: [],
+      focused: null,
+      keywordAnswer: { answer: '', citations: [] },
+      semanticStatus: 'not_migrated',
+    })
+    const app = await appFor(retrieve)
+    const focus = encodeURIComponent(
+      JSON.stringify({
+        refTable: 'invoices',
+        refId: '44444444-4444-4444-8444-444444444444',
+      })
+    )
+
+    await request(app.getHttpServer())
+      .get(`/v1/cortex/chat-retrieval?query=invoice&focus=${focus}`)
+      .expect(200)
+
+    expect(retrieve).toHaveBeenCalledWith(
+      {
+        query: 'invoice',
+        focus: {
+          refTable: 'invoices',
+          refId: '44444444-4444-4444-8444-444444444444',
+        },
+        recentLimit: 40,
+        matchLimit: 12,
+      },
+      expect.objectContaining({ tenantId: TENANT_ID })
+    )
+  })
 })

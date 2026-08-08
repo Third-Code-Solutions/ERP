@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.192 unconnected Web chat seam
+
+Keep `ERP_CORTEX_CHAT_RETRIEVAL_READS_VIA_API` disabled and
+`ERP_CORTEX_CHAT_RETRIEVAL_READS_VIA_API_TENANT_IDS` empty. Do not import the
+seam from `apps/web/src/app/api/cortex/chat/route.ts`; keep all conversation,
+write, generation, semantic, provider, SQL, Supabase, Vercel, and Railway
+actions closed under the cost lock. Vercel Git remains disconnected.
+
+Next safe source-only milestone: M3.193 design/test conversation ownership and
+focused-record context parity as a separate unconnected server seam. Preserve
+current 404/409 behavior, tenant/session/RBAC derivation, idempotency, and
+no-fallback rules. Do not enable a tenant or wildcard canary.
+
+M3.192 is source seam evidence only, not browser, hosted, deployment,
+rollback, or spend approval.
+
 ## Exact next action after M3.191 chat retrieval parity fixture
 
 Keep `ERP_CORTEX_CHAT_RETRIEVAL_READS_ENABLED=false` and

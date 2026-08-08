@@ -22,6 +22,12 @@ describe('Cortex chat retrieval contract', () => {
         matchLimit: 12,
       })
     ).toMatchObject({ query: 'invoice', focus: { refTable: 'invoices' } })
+    expect(
+      cortexChatRetrievalQuerySchema.parse({
+        query: 'invoice',
+        focus: JSON.stringify({ refTable: 'invoices', refId: REF_ID }),
+      })
+    ).toMatchObject({ query: 'invoice', focus: { refId: REF_ID } })
     expect(() =>
       cortexChatRetrievalQuerySchema.parse({ query: 'x', recentLimit: 41 })
     ).toThrow()

@@ -14,7 +14,8 @@ resource.
   `Third-Code-Solutions/ERP`; not deployed.
 - API gate: `ERP_CORTEX_CHAT_RETRIEVAL_READS_ENABLED=false` and
   `ERP_CORTEX_CHAT_RETRIEVAL_READS_TENANT_IDS=[]`.
-- Web chat remains on its direct path. No Web adapter, Core client branch, or
+- Web chat remains on its direct path. A server-only Core client/seam exists
+  for review, but the route does not import it; no tenant branch or
   semantic/provider cutover exists.
 - Wildcards are not permitted for any future chat-read allowlist.
 
@@ -38,6 +39,8 @@ record.
 - Shared contract: 4/4.
 - API service/controller/environment focused lane: 72/72 (including the
   deterministic legacy/Core projection equality fixture).
+- Web Core client 142/142 and unconnected seam 3/3; API JSON-focus transport
+  3/3.
 - Shared/API typecheck, root test, lint, build, spend guard, controlled-release
   plan, Actionlint, pinned workflow refs, Gitleaks, diff, and clean-room scans
   passed. The production build generated 82 Web pages.

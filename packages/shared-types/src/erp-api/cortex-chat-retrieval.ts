@@ -22,10 +22,21 @@ export type CortexChatRetrievalFocus = z.infer<
   typeof cortexChatRetrievalFocusSchema
 >
 
+const cortexChatRetrievalFocusInputSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return value
+  }
+}, cortexChatRetrievalFocusSchema)
+
 export const cortexChatRetrievalQuerySchema = z
   .object({
     query: z.string().trim().min(1).max(2_000),
-    focus: cortexChatRetrievalFocusSchema.optional(),
+    // Core GET transport may carry the focus object as encoded JSON. Direct
+    // callers may still pass the structured object.
+    focus: cortexChatRetrievalFocusInputSchema.optional(),
     recentLimit: z.coerce.number().int().min(1).max(40).default(40),
     matchLimit: z.coerce.number().int().min(1).max(12).default(12),
   })

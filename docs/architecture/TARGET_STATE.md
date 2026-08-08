@@ -1,5 +1,13 @@
 # Target State
 
+## M3.192 unconnected Web chat seam
+
+The future Web chat route has a server-only exact-tenant Core retrieval seam
+with no direct fallback after Core selection. Its transport is authenticated,
+bounded, no-store, single-timeout, JSON-focus safe, and strict-schema parsed.
+Conversation ownership/context remains an independent authority boundary; the
+route is not wired until that parity and protected-flow evidence is complete.
+
 ## M3.191 chat retrieval parity evidence
 
 The legacy direct retrieval fixture and strict Core chat projection now have a

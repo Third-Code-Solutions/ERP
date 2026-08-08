@@ -1,5 +1,22 @@
 # Current State
 
+## M3.192 Unconnected Web chat retrieval seam (2026-08-09)
+
+Added a server-only `readCortexChatRetrievalThroughCore()` seam plus
+`getCortexChatRetrievalThroughCoreApi()` transport. It accepts only the strict
+bounded query, sends canonical focus as JSON through the Core GET contract,
+uses the exact-tenant Web flag, parses the result, and fails closed without a
+database fallback. The chat route remains unconnected; conversation
+owner/context, writes, generation, semantic retrieval, and provider spend are
+separate boundaries.
+
+Focused validation: Core client 142/142, unconnected seam 3/3, API focus
+transport 3/3, shared contract 4/4, shared/Web typecheck. No SQL, hosted
+write/deploy, provider call, or paid resource changed.
+
+Exact next safe slice: prove conversation ownership/context parity in an
+unconnected seam; do not wire the chat route or enable a tenant canary.
+
 ## M3.191 Cortex chat retrieval parity fixture and review packet (2026-08-09)
 
 Added a deterministic equality fixture for the current direct Web retrieval

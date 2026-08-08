@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-301 - Keep the Web chat Core retrieval seam unconnected (2026-08-09)
+
+Decision: add a server-only, exact-tenant Core retrieval adapter with strict
+result parsing and no direct fallback, but do not import it from the chat POST
+route until conversation owner/context parity is separately proven.
+
+Rationale: retrieval projection parity does not prove that a conversation or
+focused record is still owned and visible to the current session. Connecting
+both authorities in one change would make a Core failure or context mismatch
+hard to roll back and could alter existing 404/409 behavior.
+
+Validation: Web Core client 142/142, seam 3/3, API focus transport 3/3, shared
+contract 4/4, shared/Web typecheck. No SQL, hosted action, provider call, or
+paid resource; exact tenant gate remains false/empty.
+
 ## D-300 - Require fixture parity before a Web chat read seam (2026-08-09)
 
 Decision: record deterministic equality between the existing direct retrieval
