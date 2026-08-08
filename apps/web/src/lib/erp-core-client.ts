@@ -280,6 +280,28 @@ export function tenantEnabledForCoreApi(
   enabled: string | undefined,
   tenantIds: string | undefined
 ): boolean {
+  return tenantEnabledForCoreApiInternal(tenantId, enabled, tenantIds, true)
+}
+
+/**
+ * Exact-tenant variant for sensitive read authority. Wildcard selection is
+ * intentionally rejected so a brief canary cannot widen beyond its reviewed
+ * tenant UUID.
+ */
+export function tenantEnabledForExactCoreApi(
+  tenantId: string,
+  enabled: string | undefined,
+  tenantIds: string | undefined
+): boolean {
+  return tenantEnabledForCoreApiInternal(tenantId, enabled, tenantIds, false)
+}
+
+function tenantEnabledForCoreApiInternal(
+  tenantId: string,
+  enabled: string | undefined,
+  tenantIds: string | undefined,
+  allowWildcard: boolean
+): boolean {
   if (enabled !== 'true') return false
   const normalizedTenantId = tenantId.trim().toLowerCase()
   if (!UUID_PATTERN.test(normalizedTenantId)) return false
@@ -297,7 +319,7 @@ export function tenantEnabledForCoreApi(
   ) {
     return false
   }
-  if (allowlist.includes('*')) return allowlist.length === 1
+  if (allowlist.includes('*')) return allowWildcard && allowlist.length === 1
 
   return allowlist.includes(normalizedTenantId)
 }
@@ -417,7 +439,7 @@ export function cortexSearchUseCoreApi(tenantId: string): boolean {
 
 /** Cortex brief authority remains disabled until a read canary is approved. */
 export function cortexBriefReadsUseCoreApi(tenantId: string): boolean {
-  return tenantEnabledForCoreApi(
+  return tenantEnabledForExactCoreApi(
     tenantId,
     process.env.ERP_CORTEX_BRIEF_READS_VIA_API,
     process.env.ERP_CORTEX_BRIEF_READS_VIA_API_TENANT_IDS

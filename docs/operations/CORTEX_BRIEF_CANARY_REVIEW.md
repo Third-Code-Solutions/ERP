@@ -18,6 +18,8 @@ call, or paid resource.
   `ERP_CORTEX_BRIEF_READS_VIA_API_TENANT_IDS` is empty/unset.
 - A real review must set one exact tenant UUID in both allowlists only after
   all gates below pass. Wildcards are not permitted.
+- The Web brief gate uses the exact-tenant helper; `*` is rejected even though
+  other legacy Core seams retain their historical generic helper behavior.
 
 ## Authority and identity
 
@@ -33,7 +35,9 @@ call, or paid resource.
 
 - M3.185 deterministic parity fixture: 4/4. Legacy and normalized Core
   projections match for generated time, stats, freshness, and items.
-- Full prior release lane: API 641/641, shared 277/277, Web 683/683, database
+- Focused gate: Core client 139/139 plus brief-read 4/4; Web typecheck and
+  sequential 82-page build pass. Full prior release lane: API 641/641, shared
+  277/277, Web 683/683, database
   224 passed plus 143 local credential-gated skips; typecheck, lint, 82-page
   build, spend/release, Actionlint, pinned refs, Gitleaks, diff, and clean-room
   gates passed.

@@ -117,6 +117,7 @@ import {
   enqueueDocumentProcessingThroughCoreApi,
   getDocumentProcessingStatusThroughCoreApi,
   cortexBriefReadsUseCoreApi,
+  tenantEnabledForExactCoreApi,
   getCortexBriefThroughCoreApi,
   cortexSearchUseCoreApi,
   searchCortexThroughCoreApi,
@@ -872,6 +873,16 @@ describe('ERP Core client', () => {
     vi.stubEnv('ERP_CORTEX_BRIEF_READS_VIA_API_TENANT_IDS', '')
     expect(cortexBriefReadsUseCoreApi(RESULT.tenantId)).toBe(false)
     expect(cortexBriefReadsUseCoreApi('not-a-uuid')).toBe(false)
+
+    vi.stubEnv('ERP_CORTEX_BRIEF_READS_VIA_API_TENANT_IDS', '*')
+    expect(cortexBriefReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(
+      tenantEnabledForExactCoreApi(
+        RESULT.tenantId,
+        'true',
+        RESULT.tenantId
+      )
+    ).toBe(true)
   })
 
   it('keeps Cortex search on the legacy route unless the exact tenant gate matches', () => {

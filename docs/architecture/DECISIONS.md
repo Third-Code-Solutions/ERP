@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-296 - Reject wildcard selection for the Cortex brief Web canary (2026-08-09)
+
+Decision: the Web brief canary accepts only an exact UUID allowlist. It uses a
+strict helper that rejects `*`; other legacy Core seams keep their existing
+generic helper until separately reviewed.
+
+Rationale: the packet promises one-tenant scope, and wildcard selection would
+make a future operator mistake widen every dashboard request. Local rejection
+is cheap, deterministic, and independent of hosted state.
+
+Validation: Core client 139/139, brief-read 4/4, Web typecheck/build; no SQL,
+hosted write/deploy, provider call, or paid resource. Rollback is unchanged:
+clear flags and allowlists.
+
 ## D-295 - Keep the Cortex brief canary packet review-only (2026-08-09)
 
 Decision: record candidate identity, independent flags, tenant/RBAC proof,

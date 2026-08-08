@@ -1,5 +1,11 @@
 # Target State
 
+## M3.187 Exact-tenant Cortex brief canary gate
+
+The dashboard brief Web gate rejects wildcard selection and requires one
+reviewed tenant UUID. Other read seams remain independently governed. Exact
+tenant behavior is locally tested; hosted approval is still separate.
+
 ## M3.186 One-tenant Cortex brief canary review
 
 Canary activation requires a review packet with exact source/deployment

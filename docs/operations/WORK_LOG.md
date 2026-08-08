@@ -1,5 +1,15 @@
 # Work Log
 
+## 2026-08-09 - M3.187 Exact-tenant Cortex brief canary gate
+
+Tightened the Web brief canary to reject wildcard tenant selection; exact UUID
+only. Core client 139/139 plus brief-read 4/4, Web typecheck, and sequential
+82-page build passed. Other legacy Core gates unchanged. No SQL, hosted
+write/deploy, provider call, or paid resource.
+
+Exact next action: reconcile local release/rollback metadata while keeping the
+canary closed.
+
 ## 2026-08-09 - M3.186 One-tenant Cortex brief canary review packet
 
 Added `CORTEX_BRIEF_CANARY_REVIEW.md` with candidate SHA, API/Web gate names,
