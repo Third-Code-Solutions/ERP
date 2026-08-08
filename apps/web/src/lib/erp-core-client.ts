@@ -196,6 +196,10 @@ import {
   type CostEntryCreationResult,
   costEntryDeletionResultSchema,
   type CostEntryDeletionResult,
+  cortexBriefQuerySchema,
+  cortexBriefResultSchema,
+  type CortexBriefQuery,
+  type CortexBriefResult,
   cortexSearchResultSchema,
   type CortexSearchResult,
   cortexGraphResponseSchema,
@@ -408,6 +412,15 @@ export function cortexSearchUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_CORTEX_SEARCH_VIA_API,
     process.env.ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS
+  )
+}
+
+/** Cortex brief authority remains disabled until a read canary is approved. */
+export function cortexBriefReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_BRIEF_READS_VIA_API,
+    process.env.ERP_CORTEX_BRIEF_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1048,6 +1061,71 @@ export async function searchCortexThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex search service is unavailable.',
+    }
+  }
+}
+
+/**
+ * Read-only Cortex brief adapter. Core failures fail closed for a selected
+ * tenant; the legacy direct database path must not silently regain authority.
+ */
+export async function getCortexBriefThroughCoreApi(
+  query: CortexBriefQuery | number = 12
+): Promise<CoreResult<CortexBriefResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  const parsedQuery = cortexBriefQuerySchema.safeParse(
+    typeof query === 'number' ? { limit: query } : query
+  )
+  if (!parsedQuery.success) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid Cortex brief query.',
+    }
+  }
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/brief?limit=${parsedQuery.data.limit}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex brief service is unavailable.',
+      }
+    }
+
+    const parsed = cortexBriefResultSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid Cortex brief result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex brief service is unavailable.',
     }
   }
 }

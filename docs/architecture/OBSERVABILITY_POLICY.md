@@ -63,6 +63,14 @@ inputs are complete; it does not enable a route, exporter, sink, or deployment.
   and Core canaries are ERP data paths only; process metrics cannot become a
   dashboard KPI, graph node, citation, or assistant context.
 
+## M3.183 Cortex brief read boundary
+
+The brief contract and Nest authority carry only the tenant-scoped ERP
+projection. The Web adapter and route reject process fields such as `scope`,
+`metric`, and counters. The Core canary is independent from the process
+snapshot and provider budgets; an endpoint does not imply dashboard cutover or
+exporter eligibility.
+
 ## Adapter gate
 
 Do not add a route, exporter, or external sink until a separate milestone

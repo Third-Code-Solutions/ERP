@@ -116,6 +116,8 @@ import {
   signPublicSignatureThroughCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
   getDocumentProcessingStatusThroughCoreApi,
+  cortexBriefReadsUseCoreApi,
+  getCortexBriefThroughCoreApi,
   cortexSearchUseCoreApi,
   searchCortexThroughCoreApi,
   cortexGraphReadsUseCoreApi,
@@ -858,6 +860,20 @@ describe('ERP Core client', () => {
     vi.restoreAllMocks()
   })
 
+  it('keeps Cortex brief reads on the legacy route unless the exact tenant gate matches', () => {
+    vi.stubEnv('ERP_CORTEX_BRIEF_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_CORTEX_BRIEF_READS_VIA_API_TENANT_IDS', RESULT.tenantId)
+    expect(cortexBriefReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_CORTEX_BRIEF_READS_VIA_API', 'TRUE')
+    expect(cortexBriefReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_CORTEX_BRIEF_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_CORTEX_BRIEF_READS_VIA_API_TENANT_IDS', '')
+    expect(cortexBriefReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(cortexBriefReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('keeps Cortex search on the legacy route unless the exact tenant gate matches', () => {
     vi.stubEnv('ERP_CORTEX_SEARCH_VIA_API', 'true')
     vi.stubEnv('ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS', RESULT.tenantId)
@@ -1415,6 +1431,57 @@ describe('ERP Core client', () => {
     })
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/cortex/search?q=Concrete%20Tower&limit=20',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('calls the authenticated Core Cortex brief read and validates the response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          generatedAt: '2026-08-09T00:00:00.000Z',
+          stats: {
+            nodes: 1,
+            edges: 0,
+            provenance: 1,
+            byType: [{ nodeType: 'invoice', count: 1 }],
+          },
+          freshness: { fresh: 1, stale: 0, unknown: 0 },
+          items: [
+            {
+              id: '33333333-3333-4333-8333-333333333333',
+              nodeType: 'invoice',
+              title: 'Invoice 1042',
+              summary: null,
+              refTable: 'invoices',
+              refId: '44444444-4444-4444-8444-444444444444',
+              projectId: null,
+              freshness: 'fresh',
+              recordedAt: '2026-08-08T23:00:00.000Z',
+              source: 'cortex',
+            },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getCortexBriefThroughCoreApi(6)).resolves.toMatchObject({
+      ok: true,
+      data: {
+        stats: { nodes: 1 },
+        items: [expect.objectContaining({ nodeType: 'invoice' })],
+      },
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/cortex/brief?limit=6',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

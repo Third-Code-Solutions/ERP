@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-292 - Give Cortex brief an independent, fail-closed read canary (2026-08-09)
+
+Decision: use a strict shared brief contract plus Nest `GET /v1/cortex/brief`
+authority with its own exact-tenant environment pair. The Web route returns
+503 on Core failure and never silently falls back; the flag stays false and the
+allowlist empty.
+
+Rationale: the projection carries role scope, freshness, and provenance; graph
+or write canaries do not prove brief parity. Strict serialization prevents
+process fields from crossing the ERP boundary.
+
+Validation: focused and full gates recorded in `CURRENT_STATE`; no SQL,
+hosted write/deploy, provider call, or paid resource. Rollback is the flag plus
+the last reviewed source commit.
+
 ## D-291 - Do not widen Cortex write canaries into read authority (2026-08-09)
 
 Decision: keep the current Core read canaries separate from Cortex writes and

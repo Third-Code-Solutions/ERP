@@ -10,6 +10,9 @@ import { ProviderQuotaModule } from '../observability/provider-quota.module'
 import { CortexEntityController } from './cortex-entity.controller'
 import { CortexEntityPipe } from './cortex-entity.pipe'
 import { CortexEntityService } from './cortex-entity.service'
+import { CortexBriefController } from './cortex-brief.controller'
+import { CortexBriefPipe } from './cortex-brief.pipe'
+import { CortexBriefService } from './cortex-brief.service'
 import { CortexGraphController } from './cortex-graph.controller'
 import { CortexGraphPipe } from './cortex-graph.pipe'
 import { CortexGraphService } from './cortex-graph.service'
@@ -68,6 +71,7 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     }),
   ],
   controllers: [
+    CortexBriefController,
     CortexConversationsController,
     CortexAssistantGenerationController,
     CortexAssistantProviderHealthController,
@@ -77,6 +81,8 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     CortexSemanticIndexController,
   ],
   providers: [
+    CortexBriefPipe,
+    CortexBriefService,
     CortexConversationsService,
     CortexConversationIdPipe,
     CortexConversationTurnPipe,
@@ -119,6 +125,7 @@ export class CortexModule implements NestModule {
     consumer
       .apply(RequestObservabilityMiddleware)
       .forRoutes(
+        CortexBriefController,
         CortexEntityController,
         CortexConversationsController,
         CortexAssistantGenerationController,
