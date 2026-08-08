@@ -1,5 +1,26 @@
 # Target State
 
+## M3.171 provider-neutral alert routing
+
+Nest must build one strict, versioned aggregate alert envelope from a durable
+circuit event. The envelope carries event-key idempotency, exact tenant/policy
+scope, provider/model, bounded failure count/timestamps, and runbook identity;
+it cannot carry credentials, URLs, prompts, responses, user identity, or raw
+adapter errors. Routing must require a separate exact-tenant gate and remain
+closed by default.
+
+Adapters must receive only this envelope, expose a stable non-secret key, and
+deduplicate by `eventKey`. Nest maps known adapter failures to a bounded
+taxonomy and maps unknown failures to `route_unknown`; raw messages never cross
+the result or persistence boundary. Local fake conformance is required before
+any external route is considered. No provider or external pager is authorized
+by this source milestone.
+
+Activation still requires credential-isolated adapter review, tested external
+routing, complete-clone migration replay, backup/PITR evidence, one exact
+tenant, a low approved policy, one reviewed release SHA, live RBAC/cancellation
+proof, and an approved rollback.
+
 ## M3.170 durable circuit alert ledger and delivery seam
 
 Every tenant/provider/model circuit opening and proven recovery must produce a

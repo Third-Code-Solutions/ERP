@@ -1,5 +1,39 @@
 # Migration Plan
 
+## M3.171 Provider-neutral circuit alert routing (completed)
+
+1. Added a strict protocol-v1 route envelope and result contract derived from
+   validated aggregate circuit events. Unknown keys, URLs, credentials, raw
+   payload text, and unscoped result fields are rejected.
+2. Added a Nest exact-tenant routing gate, stable adapter-key validation, and a
+   bounded failure taxonomy. Adapter messages never return through the route
+   result and no route credential is accepted by the router.
+3. Added an adapter interface requiring `eventKey` idempotency and local fake
+   conformance tests covering duplicate delivery, tenant isolation, bounded
+   forwarding, known failures, unknown-error redaction, and invalid keys.
+4. Kept provider execution, external paging, hosted SQL, and deployment gates
+   closed. No migration was added; M3.170 schema/replay evidence remains the
+   database baseline.
+
+Evidence: shared 271/271 across 38 files; API 615/615 across 141 files; Web
+676/676; full unit lane; lint/typecheck; serial Nest/Next production build with
+82 pages; spend 4/4; controlled release 5/5; Actionlint; pinned actions;
+Gitleaks; diff hygiene; and unchanged database baseline of 112/112 migrations
+and 367/367 zero-skip tests with equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+
+Release gate: keep every Cortex provider/budget/generation/worker/recovery/
+Core/Web gate false or empty, route gate false, exact-tenant allowlists empty,
+credentials unset, and Vercel Git disconnected. Do not apply hosted SQL,
+deploy, call a provider, connect a pager, or create a paid resource under the
+cost lock. Rollback disables route and dispatch gates; preserve forward-only
+circuit, alert, and route evidence. Do not down-migrate.
+
+Next source-only slice: M3.172 route delivery orchestration seam that maps
+durable alert claims to the provider-neutral adapter and preserves delivered/
+failed ledger state. Use local fakes only; add no external network, credential,
+hosted write, deployment, or provider activation.
+
 ## M3.170 Durable Cortex circuit alerts (completed)
 
 1. Added the aggregate-only circuit alert contract and a tenant/policy-scoped
