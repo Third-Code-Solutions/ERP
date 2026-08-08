@@ -1,5 +1,15 @@
 # Target State
 
+## M3.175 local post-commit enqueue observability
+
+The closed-by-default alert handoff exposes a fixed-cardinality process-local
+metric seam. It counts `post_commit` and `recovery_fallback` outcomes as
+`enqueued`, `skipped`, or `failed`, and emits sanitized structured records
+without tenant, event, alert, credential, or transport-error identity. The
+transactional outbox remains authoritative: post-commit transport failure
+cannot reject an ERP commit, while recovery transport failure remains
+retryable. No metrics exporter or public endpoint is enabled in this slice.
+
 ## M3.174 post-commit circuit-alert enqueue wiring
 
 Every transaction that creates an aggregate `opened` or `recovered` alert must

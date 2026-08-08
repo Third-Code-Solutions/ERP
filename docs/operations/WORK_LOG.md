@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-08-09 - M3.175 local post-commit enqueue observability
+
+Added fixed-cardinality, process-local Cortex circuit-alert metrics for
+`post_commit` and `recovery_fallback` enqueue outcomes (`enqueued`, `skipped`,
+`failed`). Structured records carry only stable metric dimensions and a local
+total; no tenant, event, alert, credential, or raw transport identity crosses
+the boundary. Post-commit failure remains non-authoritative and swallowed;
+recovery failure is recorded before rethrow for BullMQ retry.
+
+Validation:
+
+- Focused Cortex tests 13/13; API unit lane 631/631 across 144 files; API
+  typecheck passed; shared 273/273; database 367/367 zero-skip; 112/112
+  disposable migrations; 26 API integration files/40 tests; equal schema hash
+  `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+- Root typecheck, lint, serial Nest/Next build with 82 pages, spend/release,
+  Actionlint, pinned refs, Gitleaks, diff checks, and clean-room scan passed.
+- Disposable PostgreSQL/Redis stopped; ports 54322/6379 closed.
+- No schema/migration change, hosted Supabase query/write, credential,
+  provider/pager/AI/image call, Vercel/Railway build/deploy, paid resource, or
+  Vercel Git change occurred. All gates remain false/empty.
+
+Exact next action after completion: M3.176 review a read-only operational
+snapshot seam without exposing tenant or event identity.
+
 ## 2026-08-09 - M3.174 post-commit circuit-alert enqueue wiring
 
 Added a post-commit handoff from provider settlement/reconciliation and

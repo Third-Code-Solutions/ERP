@@ -1,5 +1,29 @@
 # Architecture Decisions
 
+## D-284 - Keep circuit-alert enqueue metrics local and fixed-cardinality (2026-08-09)
+
+Decision: count post-commit and recovery-fallback enqueue outcomes in a
+process-local Nest observability service with the fixed dimensions
+`phase={post_commit,recovery_fallback}` and
+`outcome={enqueued,skipped,failed}`. Emit sanitized structured metric records;
+never include tenant IDs, event keys, alert payloads, credentials, or raw
+transport errors. Post-commit failure remains swallowed; recovery failure is
+recorded then rethrown for bounded retry.
+
+Rationale: the transactional outbox needs evidence that the non-authoritative
+transport handoff succeeded or fell back, but adding an exporter, hosted
+telemetry write, or public endpoint would expand rollout and cost risk. Fixed
+cardinality prevents unbounded labels and the local seam can later be adapted
+to an approved metrics sink without changing ERP transaction ownership.
+
+Validation and release boundary: focused Cortex tests 13/13; API 631/631;
+shared/database full lanes; 112/112 disposable migrations; 26 API integration
+files/40 tests; equal schema hash; root typecheck/lint/build; spend/release,
+Actionlint, pinned refs, Gitleaks, and clean-room checks pass. No migration,
+credential, external network, provider/pager call, deployment, or paid resource
+is allowed. Rollback removes metrics wiring and preserves the forward-only
+alert ledger; never down-migrate.
+
 ## D-283 - Enqueue circuit alerts only after transaction commit (2026-08-09)
 
 Decision: transaction owners collect only newly-created aggregate circuit-alert

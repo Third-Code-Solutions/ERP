@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   type OnApplicationBootstrap,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
@@ -27,6 +28,7 @@ import {
   cortexAssistantProviderCircuitAlertTransportJobId,
 } from './cortex-assistant-provider-circuit-alert.constants'
 import { CortexAssistantProviderCircuitAlertService } from './cortex-assistant-provider-circuit-alert.service'
+import { CortexAssistantProviderCircuitAlertObservability } from './cortex-assistant-provider-circuit-alert.observability'
 
 type CortexAssistantProviderCircuitAlertTransportJob =
   | CortexAssistantProviderCircuitAlertQueueJob
@@ -50,7 +52,10 @@ export class CortexAssistantProviderCircuitAlertQueue
     @Inject(CortexAssistantProviderCircuitAlertService)
     private readonly alerts: CortexAssistantProviderCircuitAlertService,
     @Inject(ConfigService)
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
+    @Optional()
+    @Inject(CortexAssistantProviderCircuitAlertObservability)
+    private readonly observability?: CortexAssistantProviderCircuitAlertObservability
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -95,8 +100,20 @@ export class CortexAssistantProviderCircuitAlertQueue
     )
     let enqueued = 0
     for (const event of events) {
-      if (!this.intakeAllowed(event.tenantId)) continue
-      if (await this.enqueueEventKey(event.eventKey)) enqueued += 1
+      if (!this.intakeAllowed(event.tenantId)) {
+        this.observability?.recordRecoveryFallback('skipped')
+        continue
+      }
+      try {
+        const didEnqueue = await this.enqueueEventKey(event.eventKey)
+        this.observability?.recordRecoveryFallback(
+          didEnqueue ? 'enqueued' : 'skipped'
+        )
+        if (didEnqueue) enqueued += 1
+      } catch (error) {
+        this.observability?.recordRecoveryFallback('failed')
+        throw error
+      }
     }
     return enqueued
   }

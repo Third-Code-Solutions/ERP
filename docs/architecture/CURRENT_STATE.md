@@ -5,6 +5,31 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.175 Local post-commit enqueue observability (2026-08-09)
+
+The disabled Cortex circuit-alert handoff now records fixed-cardinality,
+process-local counters for `post_commit` and `recovery_fallback` enqueue
+outcomes: `enqueued`, `skipped`, and `failed`. Each increment emits one
+structured metric log with only the stable metric name, phase, outcome, value,
+and process-local total. No tenant ID, event key, alert payload, credential,
+or raw transport error crosses the observability boundary.
+
+Post-commit transport failures remain swallowed after the ERP transaction has
+committed; recovery enqueue failures still throw so BullMQ recovery retry
+semantics remain intact. The metrics service is an in-process seam only; no
+exporter, endpoint, hosted write, or provider activation was added.
+
+Validation passed: focused Cortex tests 13/13; API 631/631 across 144 files;
+shared 273/273; database 367/367 with zero skips; 112/112 disposable
+migrations; 26 API integration files/40 tests; equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; root
+typecheck, lint, and serial Nest/Next production build with 82 pages; spend,
+release, Actionlint, pinned workflow refs, Gitleaks, diff checks, and clean-room
+scan. Disposable PostgreSQL/Redis were stopped and ports 54322/6379 are closed.
+No hosted Supabase query/write, credential, provider/pager, AI/image call,
+Vercel/Railway build/deployment, paid resource, or Vercel Git change occurred.
+All queue, worker, recovery, and route gates remain false/empty.
+
 ## M3.174 Post-commit circuit-alert enqueue wiring (2026-08-09)
 
 Budget and generation-state transaction owners now collect only newly-created

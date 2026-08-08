@@ -4,6 +4,7 @@ import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
 import type { CortexAssistantProviderCircuitAlertService } from './cortex-assistant-provider-circuit-alert.service'
 import type { CortexAssistantProviderCircuitAlertQueue } from './cortex-assistant-provider-circuit-alert.queue'
+import type { CortexAssistantProviderCircuitAlertObservability } from './cortex-assistant-provider-circuit-alert.observability'
 import {
   cortexAssistantProviderReservationHash,
   CortexAssistantProviderBudgetError,
@@ -70,32 +71,38 @@ describe('CortexAssistantProviderBudgetService', () => {
 
   it('flushes only committed alert events through the post-commit queue seam', async () => {
     const enqueue = vi.fn().mockResolvedValue(true)
+    const recordPostCommitEnqueue = vi.fn()
     const service = new CortexAssistantProviderBudgetService(
       new ConfigService({}),
       { client: { transaction: vi.fn() } } as unknown as DatabaseService,
       {} as AuditService,
       {} as CortexAssistantProviderCircuitAlertService,
-      { enqueue } as unknown as CortexAssistantProviderCircuitAlertQueue
+      { enqueue } as unknown as CortexAssistantProviderCircuitAlertQueue,
+      { recordPostCommitEnqueue } as unknown as CortexAssistantProviderCircuitAlertObservability
     )
 
     await service.enqueueCircuitAlertEventsAfterCommit([ALERT_EVENT])
 
     expect(enqueue).toHaveBeenCalledOnce()
     expect(enqueue).toHaveBeenCalledWith(ALERT_EVENT)
+    expect(recordPostCommitEnqueue).toHaveBeenCalledWith('enqueued')
   })
 
   it('keeps ERP commits independent when transport enqueue fails', async () => {
     const enqueue = vi.fn().mockRejectedValue(new Error('redis unavailable'))
+    const recordPostCommitEnqueue = vi.fn()
     const service = new CortexAssistantProviderBudgetService(
       new ConfigService({}),
       { client: { transaction: vi.fn() } } as unknown as DatabaseService,
       {} as AuditService,
       {} as CortexAssistantProviderCircuitAlertService,
-      { enqueue } as unknown as CortexAssistantProviderCircuitAlertQueue
+      { enqueue } as unknown as CortexAssistantProviderCircuitAlertQueue,
+      { recordPostCommitEnqueue } as unknown as CortexAssistantProviderCircuitAlertObservability
     )
 
     await expect(
       service.enqueueCircuitAlertEventsAfterCommit([ALERT_EVENT])
     ).resolves.toBeUndefined()
+    expect(recordPostCommitEnqueue).toHaveBeenCalledWith('failed')
   })
 })

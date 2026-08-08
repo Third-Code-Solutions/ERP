@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, Optional } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import {
   cortexAssistantGenerationJobs,
@@ -30,6 +30,7 @@ import { cortexAssistantProviderDispatchKey } from './cortex-assistant-provider-
 import { readCortexAssistantProviderCircuit } from './cortex-assistant-provider-health.query'
 import { CortexAssistantProviderCircuitAlertService } from './cortex-assistant-provider-circuit-alert.service'
 import { CortexAssistantProviderCircuitAlertQueue } from './cortex-assistant-provider-circuit-alert.queue'
+import { CortexAssistantProviderCircuitAlertObservability } from './cortex-assistant-provider-circuit-alert.observability'
 
 export type CortexAssistantProviderBudgetErrorCode =
   | 'provider_budget_disabled'
@@ -202,7 +203,10 @@ export class CortexAssistantProviderBudgetService {
     @Inject(CortexAssistantProviderCircuitAlertService)
     private readonly circuitAlerts: CortexAssistantProviderCircuitAlertService,
     @Inject(CortexAssistantProviderCircuitAlertQueue)
-    private readonly circuitAlertQueue?: CortexAssistantProviderCircuitAlertQueue
+    private readonly circuitAlertQueue?: CortexAssistantProviderCircuitAlertQueue,
+    @Optional()
+    @Inject(CortexAssistantProviderCircuitAlertObservability)
+    private readonly circuitAlertObservability?: CortexAssistantProviderCircuitAlertObservability
   ) {}
 
   async reserve(
@@ -693,9 +697,13 @@ export class CortexAssistantProviderBudgetService {
     if (!this.circuitAlertQueue) return
     for (const event of events) {
       try {
-        await this.circuitAlertQueue.enqueue(event)
+        const enqueued = await this.circuitAlertQueue.enqueue(event)
+        this.circuitAlertObservability?.recordPostCommitEnqueue(
+          enqueued ? 'enqueued' : 'skipped'
+        )
       } catch {
         // The durable alert ledger/recovery scheduler is the retry boundary.
+        this.circuitAlertObservability?.recordPostCommitEnqueue('failed')
       }
     }
   }

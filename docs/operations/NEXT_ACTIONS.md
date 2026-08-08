@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.175 local post-commit enqueue observability
+
+Keep every Cortex generation, worker, provider-execution, provider-budget,
+recovery, Web, Core, queue, and alert-routing gate false; all exact-tenant
+allowlists empty; provider policies absent or disabled; route credentials
+unset; and Vercel Git disconnected. Do not query or mutate managed Supabase,
+deploy/build Vercel or Railway, call an AI/image/provider or external pager, or
+create a paid resource under the cost lock.
+
+The next safe source-only milestone is M3.176: review a read-only operational
+snapshot seam for the fixed-cardinality post-commit/recovery enqueue counters.
+Keep snapshot access backend-only or explicitly authenticated; expose no
+tenant IDs, event keys, alert payloads, credentials, or raw transport errors.
+Do not add an exporter, hosted telemetry write, external network, deployment,
+provider activation, or public browser route until security and cost review.
+
+Before any real provider canary, complete M3.152 backup/PITR and isolated
+complete-clone replay of all 112 migrations, then approve one exact tenant, one
+low request/daily micros policy, credential scope, one reviewed release SHA,
+live RBAC/cancellation checks, and a rollback drill. M3.175 is source-only and
+not activation approval.
+
 ## Exact next action after M3.174 post-commit enqueue wiring
 
 Keep every Cortex generation, worker, provider-execution, provider-budget,

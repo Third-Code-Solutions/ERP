@@ -1,5 +1,35 @@
 # Migration Plan
 
+## M3.175 Local post-commit enqueue observability (completed)
+
+1. Added a process-local, fixed-cardinality counter seam for post-commit and
+   recovery-fallback enqueue outcomes: `enqueued`, `skipped`, and `failed`.
+2. Emitted sanitized structured metric records with no tenant IDs, event keys,
+   alert payloads, credentials, or raw transport errors.
+3. Recorded post-commit transport failure without changing the authoritative
+   ERP commit contract; recorded recovery failure before rethrowing so BullMQ
+   retry behavior remains intact.
+4. Added unit proof for counter snapshots, metric records, post-commit success
+   and failure, recovery success/skip, and recovery failure propagation.
+
+Evidence: focused Cortex tests 13/13; API 631/631 across 144 files; shared
+273/273; database 367/367 zero-skip; 112/112 disposable migrations; 26 API
+integration files/40 tests; equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; root
+typecheck, lint, serial Nest/Next production build with 82 pages; spend,
+release, Actionlint, pinned refs, Gitleaks, diff checks, and clean-room scan.
+No migration, hosted write, external network, credential, provider,
+deployment, or paid resource was added.
+
+Release gate: keep all Cortex queue, worker, recovery, route, provider, and
+budget gates false or empty. Metrics remain process-local and unexported until
+a separately reviewed observability sink is approved. Rollback removes the
+metrics provider wiring; preserve the forward-only alert ledger and never
+down-migrate.
+
+Next source-only slice: M3.176 review a read-only operational snapshot seam
+for these counters without exposing tenant or event identity.
+
 ## M3.174 Post-commit circuit-alert enqueue wiring (completed)
 
 1. Returned newly-created aggregate alert events from provider settlement and
