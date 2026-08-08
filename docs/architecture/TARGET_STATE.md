@@ -1,5 +1,18 @@
 # Target State
 
+## M3.174 post-commit circuit-alert enqueue wiring
+
+Every transaction that creates an aggregate `opened` or `recovered` alert must
+return the newly-created event to its transaction owner. The owner may call
+the disabled queue seam only after PostgreSQL commit succeeds. The durable
+alert ledger is the transactional outbox: queue loss never rolls back an ERP
+transaction, and the recovery scheduler re-enqueues the same opaque event key.
+
+Settlement, reconciliation, generation cancellation/retry/failure, claim
+failure, and generation recovery must share this boundary. No caller may
+enqueue from inside a transaction or pass raw alert data to BullMQ. All queue,
+worker, recovery, and route gates remain closed by default.
+
 ## M3.173 disabled-by-default BullMQ alert delivery seam
 
 The alert transport must carry only `{schemaVersion,eventKey}`. The job ID is

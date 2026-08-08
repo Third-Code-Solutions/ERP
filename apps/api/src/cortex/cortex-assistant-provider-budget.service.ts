@@ -13,6 +13,7 @@ import {
   cortexAssistantProviderReleaseCommandSchema,
   cortexAssistantProviderReservationCommandSchema,
   cortexAssistantProviderSettlementCommandSchema,
+  type CortexAssistantProviderCircuitAlertEvent,
   type CortexAssistantProviderAttemptResult,
   type CortexAssistantProviderDispatchCommand,
   type CortexAssistantProviderReleaseCommand,
@@ -28,6 +29,7 @@ import {
 import { cortexAssistantProviderDispatchKey } from './cortex-assistant-provider-protocol'
 import { readCortexAssistantProviderCircuit } from './cortex-assistant-provider-health.query'
 import { CortexAssistantProviderCircuitAlertService } from './cortex-assistant-provider-circuit-alert.service'
+import { CortexAssistantProviderCircuitAlertQueue } from './cortex-assistant-provider-circuit-alert.queue'
 
 export type CortexAssistantProviderBudgetErrorCode =
   | 'provider_budget_disabled'
@@ -103,6 +105,11 @@ export type CortexAssistantProviderReconciliationReason =
   | 'provider_request_failed'
   | 'provider_response_invalid'
   | 'provider_outcome_unknown'
+
+interface CortexAssistantProviderReconciliationResult {
+  reconciled: number
+  alertEvents: CortexAssistantProviderCircuitAlertEvent[]
+}
 
 const RECONCILIATION_OUTCOMES: Record<
   CortexAssistantProviderReconciliationReason,
@@ -193,7 +200,9 @@ export class CortexAssistantProviderBudgetService {
     @Inject(AuditService)
     private readonly audit: AuditService,
     @Inject(CortexAssistantProviderCircuitAlertService)
-    private readonly circuitAlerts: CortexAssistantProviderCircuitAlertService
+    private readonly circuitAlerts: CortexAssistantProviderCircuitAlertService,
+    @Inject(CortexAssistantProviderCircuitAlertQueue)
+    private readonly circuitAlertQueue?: CortexAssistantProviderCircuitAlertQueue
   ) {}
 
   async reserve(
@@ -459,7 +468,8 @@ export class CortexAssistantProviderBudgetService {
   ): Promise<CortexAssistantProviderAttemptResult> {
     const command = cortexAssistantProviderSettlementCommandSchema.parse(input)
     const consumedMicros = Number(command.consumedCostMicros)
-    return this.database.client.transaction(async (transaction) => {
+    let alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
+    const result = await this.database.client.transaction(async (transaction) => {
       const attempt = await this.findAttempt(transaction, command.reservationId)
       if (!attempt) this.fail('provider_attempt_not_found')
       if (attempt.status === 'settled') {
@@ -518,9 +528,14 @@ export class CortexAssistantProviderBudgetService {
         responseFingerprint: command.responseFingerprint,
       }
       await this.writeStateAudit(transaction, settled, 'settled')
-      await this.observeCircuit(transaction, settled, now)
+      const observation = await this.observeCircuit(transaction, settled, now)
+      if (observation.created && observation.event) {
+        alertEvents = [observation.event]
+      }
       return this.toResult(settled, false)
     })
+    await this.enqueueCircuitAlertEventsAfterCommit(alertEvents)
+    return result
   }
 
   async release(
@@ -577,7 +592,8 @@ export class CortexAssistantProviderBudgetService {
     const command = cortexAssistantProviderAttemptIdentitySchema.parse({
       reservationId,
     })
-    return this.database.client.transaction(async (transaction) => {
+    let alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
+    const reconciled = await this.database.client.transaction(async (transaction) => {
       const [identity] = await transaction
         .select({ jobId: cortexAssistantProviderAttempts.job_id })
         .from(cortexAssistantProviderAttempts)
@@ -591,10 +607,17 @@ export class CortexAssistantProviderBudgetService {
         .limit(1)
         .for('update')
       if (!job) return 0
-      return this.reconcileOpenAttemptsWithin(transaction, job.id, reason, {
-        reservationId: command.reservationId,
-      })
+      const result = await this.reconcileOpenAttemptsWithin(
+        transaction,
+        job.id,
+        reason,
+        { reservationId: command.reservationId }
+      )
+      alertEvents = result.alertEvents
+      return result.reconciled
     })
+    await this.enqueueCircuitAlertEventsAfterCommit(alertEvents)
+    return reconciled
   }
 
   async reconcileSupersededAttempts(
@@ -611,7 +634,8 @@ export class CortexAssistantProviderBudgetService {
     ) {
       throw new Error('Invalid provider reconciliation scope')
     }
-    return this.database.client.transaction(async (transaction) => {
+    let alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
+    const reconciled = await this.database.client.transaction(async (transaction) => {
       const [job] = await transaction
         .select({ id: cortexAssistantGenerationJobs.id })
         .from(cortexAssistantGenerationJobs)
@@ -619,13 +643,17 @@ export class CortexAssistantProviderBudgetService {
         .limit(1)
         .for('update')
       if (!job) return 0
-      return this.reconcileOpenAttemptsWithin(
+      const result = await this.reconcileOpenAttemptsWithin(
         transaction,
         job.id,
         'superseded',
         { maxAttemptExclusive: currentAttemptNumber }
       )
+      alertEvents = result.alertEvents
+      return result.reconciled
     })
+    await this.enqueueCircuitAlertEventsAfterCommit(alertEvents)
+    return reconciled
   }
 
   async reconcileGenerationJobWithin(
@@ -633,7 +661,43 @@ export class CortexAssistantProviderBudgetService {
     jobId: string,
     reason: 'cancelled' | 'retry' | 'failed' | 'recovered'
   ): Promise<number> {
-    return this.reconcileOpenAttemptsWithin(transaction, jobId, reason)
+    const result = await this.reconcileOpenAttemptsWithin(
+      transaction,
+      jobId,
+      reason
+    )
+    return result.reconciled
+  }
+
+  async reconcileGenerationJobWithinWithAlerts(
+    transaction: DatabaseTransaction,
+    jobId: string,
+    reason: 'cancelled' | 'retry' | 'failed' | 'recovered'
+  ): Promise<CortexAssistantProviderCircuitAlertEvent[]> {
+    const result = await this.reconcileOpenAttemptsWithin(
+      transaction,
+      jobId,
+      reason
+    )
+    return result.alertEvents
+  }
+
+  /**
+   * Flushes only events created inside a committed PostgreSQL transaction.
+   * The ledger row is the transactional outbox; queue failure cannot roll
+   * back the ERP write because recovery can re-enqueue the same event key.
+   */
+  async enqueueCircuitAlertEventsAfterCommit(
+    events: readonly CortexAssistantProviderCircuitAlertEvent[]
+  ): Promise<void> {
+    if (!this.circuitAlertQueue) return
+    for (const event of events) {
+      try {
+        await this.circuitAlertQueue.enqueue(event)
+      } catch {
+        // The durable alert ledger/recovery scheduler is the retry boundary.
+      }
+    }
   }
 
   private async findAttempt(
@@ -758,7 +822,7 @@ export class CortexAssistantProviderBudgetService {
       reservationId?: string
       maxAttemptExclusive?: number
     } = {}
-  ): Promise<number> {
+  ): Promise<CortexAssistantProviderReconciliationResult> {
     const conditions = [
       eq(cortexAssistantProviderAttempts.job_id, jobId),
       inArray(cortexAssistantProviderAttempts.status, [
@@ -849,17 +913,27 @@ export class CortexAssistantProviderBudgetService {
       latestAttempt = attempt
       reconciled += 1
     }
+    const alertEvents: CortexAssistantProviderCircuitAlertEvent[] = []
     if (latestAttempt) {
-      await this.observeCircuit(transaction, latestAttempt, new Date())
+      const observation = await this.observeCircuit(
+        transaction,
+        latestAttempt,
+        new Date()
+      )
+      if (observation.created && observation.event) {
+        alertEvents.push(observation.event)
+      }
     }
-    return reconciled
+    return { reconciled, alertEvents }
   }
 
   private async observeCircuit(
     transaction: DatabaseTransaction,
     attempt: ProviderAttemptRow,
     asOf: Date
-  ): Promise<void> {
+  ): Promise<
+    Awaited<ReturnType<CortexAssistantProviderCircuitAlertService['observe']>>
+  > {
     const [clock] = await transaction.execute<ProviderClockRow>(sql`
       select transaction_timestamp()::text as now
     `)
@@ -875,7 +949,7 @@ export class CortexAssistantProviderBudgetService {
       },
       parseProviderClock(clock.now)
     )
-    await this.circuitAlerts.observe(
+    return this.circuitAlerts.observe(
       transaction,
       {
         id: attempt.policyId,

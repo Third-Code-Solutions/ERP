@@ -5,6 +5,33 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.174 Post-commit circuit-alert enqueue wiring (2026-08-09)
+
+Budget and generation-state transaction owners now collect only newly-created
+aggregate alert events while PostgreSQL is open. They enqueue those events
+through the existing closed-by-default BullMQ seam only after the transaction
+returns successfully. The `cortex_assistant_provider_circuit_alerts` ledger is
+the transactional outbox boundary; a Redis/queue failure cannot roll back an
+ERP commit, and the durable recovery scheduler can re-enqueue the same opaque
+`eventKey`.
+
+Opened and recovered observations from settlement, reconciliation, generation
+cancel/retry/fail, claim failure, and generation recovery all use the same
+post-commit helper. No prompt, response, attempt identity, user identity,
+credential, or raw queue error crosses the boundary. Local fakes prove the
+enqueue seam and transport-failure isolation.
+
+Validation passed: shared 273/273 across 39 files; API 628/628 across 143
+files; Web 676/676; full unit lane; API typecheck/lint; serial Nest/Next build
+with 82 pages; disposable PostgreSQL/Redis replay with 112/112 migrations,
+database 367/367 zero-skip, 26 API integration files/40 tests, and equal schema
+hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+Spend/release guards, Actionlint, pinned workflow refs, Gitleaks, diff checks,
+and clean-room source scan passed. No hosted Supabase query/write, credential,
+provider, pager, AI/image call, Vercel/Railway build/deployment, paid resource,
+or Vercel Git change occurred. All queue, worker, recovery, and route gates
+remain false/empty; disposable services are stopped.
+
 ## M3.173 Disabled-by-default BullMQ alert delivery seam (2026-08-09)
 
 Nest now exposes a closed-by-default BullMQ transport for durable circuit-alert

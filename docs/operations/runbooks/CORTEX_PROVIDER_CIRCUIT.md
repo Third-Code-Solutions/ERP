@@ -62,6 +62,9 @@ The source-only alert ledger records one aggregate `opened` event per circuit
 trip and one `recovered` event after a successful probe. Events are scoped by
 tenant and policy, deduplicated by deterministic event key, audited without
 payloads, and delivered through an injectable local sink with bounded retry.
+Transaction owners hand newly-created events to BullMQ only after commit; the
+alert ledger itself is the transactional outbox and remains authoritative when
+queue enqueue fails.
 `pending`, `processing`, `delivered`, and `failed` are database states; a
 failed sink may be retried by event key, and the drain stops after one failure
 to prevent a hot loop. BullMQ, when separately approved, carries only

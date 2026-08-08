@@ -1,5 +1,40 @@
 # Work Log
 
+## 2026-08-09 - M3.174 post-commit circuit-alert enqueue wiring
+
+Added a post-commit handoff from provider settlement/reconciliation and
+generation cancel/retry/fail/claim/recovery transaction owners. Only newly
+created aggregate alert events enter the handoff; BullMQ remains closed by
+default and receives the same opaque event key through its existing bounded
+queue seam. The PostgreSQL alert ledger remains the transactional outbox, so
+queue loss cannot roll back ERP state and recovery remains durable.
+
+Validation:
+
+- Shared 273/273; API 628/628; Web 676/676; full unit lane; API typecheck/lint;
+  serial Nest/Next build with 82 pages; local fakes prove the post-commit
+  enqueue seam and transport-failure isolation.
+- Disposable PostgreSQL/Redis replay passed 112/112 migrations, database
+  367/367 zero-skip, 26 API integration files/40 tests, and equal schema hash
+  `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+- Spend/release guards, Actionlint, pinned workflow refs, Gitleaks, diff
+  checks, and clean-room source scan passed.
+- No schema/migration change, hosted Supabase query/write, credential,
+  provider/pager/AI/image call, Vercel/Railway build/deploy, paid resource, or
+  Vercel Git change occurred. All gates remain false/empty.
+
+Release boundary and unresolved risk:
+
+- External adapter activation, complete-clone replay, backup/PITR, one exact
+  low-budget tenant, reviewed release identity, and live rollback proof remain
+  required before production routing.
+- Rollback disables queue/worker/recovery/route gates and preserves forward-only
+  alert evidence. Do not down-migrate.
+
+Exact next action: M3.175 bounded local post-commit enqueue observability with
+no external network, credential, hosted write, deployment, paid resource, or
+provider activation.
+
 ## 2026-08-09 - M3.173 disabled-by-default BullMQ alert delivery seam
 
 Added the closed-by-default queue seam around the durable circuit-alert

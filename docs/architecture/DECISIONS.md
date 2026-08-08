@@ -1,5 +1,28 @@
 # Architecture Decisions
 
+## D-283 - Enqueue circuit alerts only after transaction commit (2026-08-09)
+
+Decision: transaction owners collect only newly-created aggregate circuit-alert
+events and call the BullMQ queue seam after PostgreSQL commit. The durable
+`cortex_assistant_provider_circuit_alerts` ledger is the transactional outbox;
+queue failure is swallowed at this non-authoritative boundary and recovery
+re-enqueues by opaque `eventKey`.
+
+Rationale: enqueueing from inside a transaction can publish an event whose ERP
+write later rolls back. Deferring the call preserves PostgreSQL authority,
+tenant scope, event-key idempotency, and bounded recovery while allowing
+settlement, reconciliation, and generation recovery to share one seam. No
+prompt, response, attempt/user identity, credential, or raw transport error is
+passed to the queue.
+
+Validation and release boundary: local fake conformance; shared/API/Web full
+unit suites; database replay; 112/112 migrations; schema hash equality; lint;
+typecheck; serial build; spend/release guards; Actionlint; pinned refs;
+Gitleaks; and diff checks passed. No migration, hosted mutation, credential,
+provider/pager call, deployment, or paid resource occurred. All queue/worker/
+recovery/route gates remain closed; rollback disables them and never
+down-migrates.
+
 ## D-282 - Keep alert BullMQ transport opaque and bounded (2026-08-09)
 
 Decision: BullMQ alert jobs carry only the durable circuit `eventKey`, with a
