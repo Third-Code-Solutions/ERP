@@ -1,5 +1,21 @@
 # Work Log
 
+## 2026-08-09 - M3.190 Cortex chat retrieval contract and Nest authority
+
+Added the shared strict Cortex chat retrieval projection and Nest
+`GET /v1/cortex/chat-retrieval`. Core derives tenant/RBAC scope, bounds recent
+and keyword retrieval, rechecks focused-record ownership/type, and emits only
+source-backed citations/freshness; semantic/provider status remains explicitly
+`not_migrated`. Added independent false/empty environment gates and focused
+contract/service/controller/environment tests. Web chat is not wired.
+
+Validation: shared contract 4/4; API focused service/controller/environment
+71/71; shared/API typecheck. No SQL, hosted write/deploy, provider call, or
+paid resource.
+
+Exact next action: M3.191 parity fixture and review packet; keep all canaries
+closed.
+
 ## 2026-08-09 - M3.189 Cortex chat retrieval authority audit
 
 Audited the chat POST direct reads: conversation ownership/context, graph stats,

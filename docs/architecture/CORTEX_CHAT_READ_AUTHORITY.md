@@ -38,6 +38,22 @@ semantic hits, and a bounded prompt projection with one role scope.
 6. Core write/generation success must never be used as evidence that retrieval
    parity, role scope, or citation parity is complete.
 
+## M3.190 source-only Core contract
+
+Added `packages/shared-types/src/erp-api/cortex-chat-retrieval.ts` and the
+Nest `GET /v1/cortex/chat-retrieval` pipe/controller/service. The projection
+has bounded `recentLimit` (1-40) and `matchLimit` (1-12), canonical optional
+focus refs, tenant/RBAC-scoped recent and keyword nodes, deterministic keyword
+answer citations, focused citations, graph stats, freshness, and
+`semanticStatus: not_migrated`. The service repeats tenant and role checks for
+the focused node before calling the source-grounded describe helper.
+
+`ERP_CORTEX_CHAT_RETRIEVAL_READS_ENABLED=false` and
+`ERP_CORTEX_CHAT_RETRIEVAL_READS_TENANT_IDS=[]` by default. Web chat remains on
+the legacy direct path; no Core adapter or semantic/provider call is enabled.
+Focused contract/service/controller/environment validation is green. This is
+an authority seam, not parity, hosted identity, rollback, or canary evidence.
+
 ## Evidence and unresolved design
 
 - Existing chat tests prove conversation ownership denial, record-context

@@ -70,6 +70,15 @@ projection must not carry `readOperationalSnapshot()` fields, exporter state,
 or provider circuit counters. A chat-read canary is independent of any
 operational adapter review.
 
+## M3.190 Chat retrieval contract boundary
+
+The new Core chat retrieval projection contains only tenant-scoped ERP graph
+facts, bounded item windows, citations, freshness, and an explicit semantic
+status. It cannot carry `readOperationalSnapshot()` fields, process counters,
+provider circuit state, request IDs, or tenant-control metadata. Its API gate
+and allowlist are false/empty; no browser route or exporter consumes it. Any
+future Web cutover requires a separate parity and protected-flow review.
+
 ## M3.188 Release identity boundary
 
 Local source and documented rollback metadata are evidence fields only. They do

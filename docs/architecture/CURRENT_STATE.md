@@ -1,5 +1,24 @@
 # Current State
 
+## M3.190 Cortex chat retrieval contract and Nest authority (2026-08-09)
+
+Added the strict shared `cortexChatRetrieval` query/result projection and a
+fail-closed Nest `GET /v1/cortex/chat-retrieval` authority. The service derives
+tenant and role scope from `CurrentPrincipal`, bounds recent/keyword windows,
+rechecks focused-record ownership and canonical table/type mapping, and
+serializes citations/freshness. Semantic/provider context is explicitly
+`not_migrated`; no embedding or model call is made. The API canary
+`ERP_CORTEX_CHAT_RETRIEVAL_READS_ENABLED` plus its exact tenant allowlist is
+false/empty, and the Web chat route is unchanged.
+
+Focused validation: shared contract 4/4; API chat-retrieval service/controller
+and environment 71/71; shared/API typecheck. No SQL, hosted write/deploy,
+provider call, or paid resource changed.
+
+Exact next safe slice: add a deterministic legacy/Core retrieval parity
+fixture and review packet without wiring `apps/web/src/app/api/cortex/chat` or
+enabling a tenant canary.
+
 Verified from the repository and local replay evidence on 2026-08-09.
 Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
