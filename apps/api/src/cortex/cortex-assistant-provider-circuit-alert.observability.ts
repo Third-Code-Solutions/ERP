@@ -45,6 +45,57 @@ export const CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_OPERATIONAL_SNAPSHOT_POLICY
     deployment: 'separate_review_required',
   } as const)
 
+export interface CortexAssistantProviderCircuitAlertOperationalAdapterTriggerInput {
+  readonly callerAuthorizationReviewed: boolean
+  readonly scopeReviewed: boolean
+  readonly redactionReviewed: boolean
+  readonly retentionReviewed: boolean
+  readonly rateLimitReviewed: boolean
+  readonly costControlReviewed: boolean
+  readonly ownerApproved: boolean
+  readonly releaseIdentityVerified: boolean
+  readonly rollbackArtifactVerified: boolean
+}
+
+export interface CortexAssistantProviderCircuitAlertOperationalAdapterTriggerResult {
+  readonly status: 'blocked' | 'eligible'
+  readonly blockers: readonly string[]
+}
+
+const OPERATIONAL_ADAPTER_TRIGGER_REQUIREMENTS: ReadonlyArray<
+  readonly [
+    keyof CortexAssistantProviderCircuitAlertOperationalAdapterTriggerInput,
+    string,
+  ]
+> = [
+  ['callerAuthorizationReviewed', 'caller authorization review'],
+  ['scopeReviewed', 'process-versus-tenant scope review'],
+  ['redactionReviewed', 'field redaction review'],
+  ['retentionReviewed', 'retention and deletion review'],
+  ['rateLimitReviewed', 'bounded rate-limit review'],
+  ['costControlReviewed', 'provider/network cost-control review'],
+  ['ownerApproved', 'ERP backend owner approval'],
+  ['releaseIdentityVerified', 'exact Git release SHA verification'],
+  ['rollbackArtifactVerified', 'last-known-good rollback artifact verification'],
+]
+
+/**
+ * Evaluate evidence for a future operational adapter. `eligible` is an
+ * evidence result only; it never enables a route, exporter, sink, or deploy.
+ */
+export function evaluateCortexAssistantProviderCircuitAlertOperationalAdapterTrigger(
+  input: CortexAssistantProviderCircuitAlertOperationalAdapterTriggerInput
+): CortexAssistantProviderCircuitAlertOperationalAdapterTriggerResult {
+  const blockers = OPERATIONAL_ADAPTER_TRIGGER_REQUIREMENTS.filter(
+    ([key]) => !input[key]
+  ).map(([, label]) => label)
+
+  return Object.freeze({
+    status: blockers.length === 0 ? 'eligible' : 'blocked',
+    blockers: Object.freeze(blockers),
+  })
+}
+
 export interface CortexAssistantProviderCircuitAlertOperationalSnapshot {
   readonly schemaVersion: 1
   readonly scope: 'process'

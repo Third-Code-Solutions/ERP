@@ -1,5 +1,12 @@
 # Target State
 
+## M3.179 fail-closed operational adapter trigger conditions
+
+Any future operational adapter must first satisfy the nine review inputs in
+the pure evaluator: authorization, scope, redaction, retention, rate, cost,
+owner, exact SHA, and rollback artifact. Eligibility is evidence only and
+cannot enable a route, exporter, sink, or deployment.
+
 ## M3.178 operational snapshot ownership and release evidence
 
 The closed snapshot policy names an ERP backend owner, binds any future

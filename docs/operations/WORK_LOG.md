@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-09 - M3.179 fail-closed operational adapter trigger conditions
+
+Added a pure evaluator requiring caller authorization, process-versus-tenant
+scope, redaction, retention, bounded rate, provider/network cost, backend-owner
+approval, exact Git SHA, and last-known-good rollback evidence. Missing inputs
+return stable blockers; complete inputs return advisory `eligible` only. No
+route, exporter, sink, migration, hosted write, deployment, provider
+activation, or paid resource was added.
+
+Validation: API 636/636 across 145 files; shared 273/273; Web full unit lane;
+focused five-test evaluator/policy contract; root typecheck, lint, serial
+Nest/Next build with 82 pages; spend/controlled-release, Actionlint, pinned
+refs, Gitleaks, diff checks, and clean-room scan passed. No SQL changed, so
+the preceding disposable replay remains current: 112/112 migrations, 367/367
+zero-skip database tests, 26 API integration files/40 tests, and equal schema
+hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+No route, exporter, sink, migration, hosted write, deployment, provider
+activation, or paid resource was added. Gates stay false/empty.
+
+Exact next action after completion: M3.180 review evaluator consumer ownership
+without adding a consumer or enabling an adapter.
+
 ## 2026-08-09 - M3.178 operational snapshot ownership and release evidence
 
 Extended the closed snapshot policy with abstract ERP backend ownership, exact

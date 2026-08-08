@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-288 - Fail closed on incomplete operational adapter evidence (2026-08-09)
+
+Decision: evaluate any future operational snapshot adapter against nine explicit
+reviews—caller authorization, process-versus-tenant scope, redaction,
+retention, bounded rate, provider/network cost, backend owner, exact Git SHA,
+and last-known-good rollback artifact. Missing evidence returns stable blockers;
+complete evidence returns `eligible` only as a non-authoritative result.
+
+Rationale: a policy record alone can drift or be mistaken for activation
+authority. A pure evaluator makes omission visible and keeps the route,
+exporter, sink, deployment, and provider gates closed until separate review.
+
+Validation and release boundary: API 636/636; shared 273/273; Web full unit
+lane; focused five-test evaluator/policy contract; root typecheck/lint/build
+with 82 pages; spend/controlled-release guards, Actionlint, pinned refs,
+Gitleaks, diff checks, and clean-room scan pass. No SQL changed, so the
+preceding disposable replay remains current: 112/112 migrations, 367/367
+zero-skip database tests, 26 API integration files/40 tests, and equal schema
+hash. No route, exporter, hosted write, credential, deployment, or paid
+resource. Rollback removes the evaluator only; preserve the alert ledger and
+never down-migrate.
+
 ## D-287 - Require owner, exact SHA, and artifact rollback evidence (2026-08-09)
 
 Decision: the closed operational snapshot policy records abstract ownership as

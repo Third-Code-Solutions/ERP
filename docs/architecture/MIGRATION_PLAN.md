@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.179 Fail-closed operational adapter trigger conditions (completed)
+
+1. Defined a pure evaluator for caller authorization, process-versus-tenant
+   scope, redaction, retention, bounded rate, provider/network cost, backend
+   owner, exact Git SHA, and rollback artifact evidence.
+2. Made the evaluator fail closed with stable blocker labels when any review is
+   missing.
+3. Kept `eligible` advisory only; it does not bind a route, exporter, sink, or
+   deployment.
+
+Evidence: API 636/636 across 145 files; shared 273/273; Web full unit lane;
+focused five-test evaluator/policy contract; root typecheck, lint, serial
+Nest/Next production build with 82 pages; spend/controlled-release guards,
+Actionlint, pinned refs, Gitleaks, diff checks, and clean-room scan. No SQL
+changed, so the preceding disposable replay remains current: 112/112
+migrations, 367/367 zero-skip database tests, 26 API integration files/40
+tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`. No
+route, exporter, migration, hosted write, external network, credential,
+provider, deployment, or paid resource was added.
+
+Release gate: all nine reviews and the separate adapter policy remain required;
+do not treat evaluator eligibility as activation approval.
+
+Next source-only slice: M3.180 review evaluator consumer ownership without
+adding a consumer or enabling an adapter.
+
 ## M3.178 Operational snapshot ownership and release evidence (completed)
 
 1. Reviewed existing release identity and rollback guidance for the closed
