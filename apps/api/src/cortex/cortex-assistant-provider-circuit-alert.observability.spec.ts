@@ -1,6 +1,9 @@
 import { Logger } from '@nestjs/common'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CortexAssistantProviderCircuitAlertObservability } from './cortex-assistant-provider-circuit-alert.observability'
+import {
+  CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_OPERATIONAL_SNAPSHOT_POLICY,
+  CortexAssistantProviderCircuitAlertObservability,
+} from './cortex-assistant-provider-circuit-alert.observability'
 
 describe('CortexAssistantProviderCircuitAlertObservability', () => {
   afterEach(() => {
@@ -61,5 +64,27 @@ describe('CortexAssistantProviderCircuitAlertObservability', () => {
     expect(JSON.stringify(snapshot)).not.toMatch(
       /tenant|eventKey|credential|payload|error/i
     )
+  })
+
+  it('keeps deployment-observability controls explicit and frozen', () => {
+    expect(
+      CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_OPERATIONAL_SNAPSHOT_POLICY
+    ).toEqual({
+      authorization: 'internal_nest_service_only',
+      exposure: 'backend_only',
+      scope: 'process',
+      tenantAttribution: 'none',
+      redaction: 'fixed_cardinality_counters_only',
+      retention: 'process_lifetime',
+      rateLimit: 'none_until_exporter',
+      externalSink: 'disabled',
+      costControl: 'zero_external_spend',
+      deployment: 'separate_review_required',
+    })
+    expect(
+      Object.isFrozen(
+        CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_OPERATIONAL_SNAPSHOT_POLICY
+      )
+    ).toBe(true)
   })
 })

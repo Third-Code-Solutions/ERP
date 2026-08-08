@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.177 Deployment observability access-policy audit (completed)
+
+1. Audited public health/readiness probes, global JWT identity, explicit
+   capability guards, and Cortex controller/provider registration.
+2. Added a frozen source policy for caller authorization, exposure, process
+   scope, redaction, retention, rate, external sink, spend, and deployment
+   review boundaries.
+3. Added a module-boundary contract proving the snapshot service is not an HTTP
+   controller and kept the adapter gate closed.
+
+Evidence: API 634/634 across 145 files; shared 273/273; Web full unit lane;
+focused policy/module-boundary contracts; root typecheck, lint, serial
+Nest/Next production build with 82 pages; spend/controlled-release guards,
+Actionlint, pinned refs, Gitleaks, diff checks, and clean-room scan. No SQL
+changed, so the preceding disposable replay remains the current database
+evidence: 112/112 migrations, 367/367 zero-skip database tests, 26 API
+integration files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`. No
+route, exporter, migration, hosted write, external network, credential,
+provider, deployment, or paid resource was added.
+
+Release gate: no authenticated adapter or external sink until the policy's
+caller, scope, redaction, retention, rate, cost, release, and rollback evidence
+are separately reviewed.
+
+Next source-only slice: M3.178 review operational snapshot ownership and
+release evidence without enabling an exporter or route.
+
 ## M3.176 Backend-only operational snapshot seam (completed)
 
 1. Added a schema-versioned `readOperationalSnapshot()` method with explicit

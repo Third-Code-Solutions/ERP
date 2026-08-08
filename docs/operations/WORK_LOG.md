@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-09 - M3.177 deployment observability access-policy audit
+
+Audited public health/readiness probes, global JWT identity, explicit
+capability guards, and Cortex module registration. Added a frozen policy record
+for internal Nest-only authorization, backend/process scope, no tenant
+attribution, fixed-cardinality redaction, process-lifetime retention, disabled
+external sinks, zero external spend, and separate deployment review. Added a
+module-boundary test proving the snapshot service is a provider, not an HTTP
+controller. No route, exporter, migration, hosted write, deployment, provider
+activation, or paid resource was added.
+
+Validation: API 634/634 across 145 files; shared 273/273; Web full unit lane;
+focused policy/module-boundary contracts; root typecheck, lint, serial Nest/Next
+build with 82 pages; spend/controlled-release, Actionlint, pinned refs,
+Gitleaks, diff checks, and clean-room scan passed. No SQL changed, so the
+preceding disposable replay remains current: 112/112 migrations, 367/367
+zero-skip database tests, 26 API integration files/40 tests, and equal schema
+hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+No route, exporter, migration, hosted write, deployment, provider activation,
+or paid resource was added. Gates remain false/empty.
+
+Exact next action after completion: M3.178 review operational snapshot
+ownership and release evidence without enabling an exporter or route.
+
 ## 2026-08-09 - M3.176 backend-only operational snapshot seam
 
 Added a typed, schema-versioned `readOperationalSnapshot()` seam with explicit

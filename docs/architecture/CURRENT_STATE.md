@@ -5,6 +5,28 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.177 Deployment observability access-policy audit (2026-08-09)
+
+The operational snapshot seam now has an explicit frozen policy record covering
+authorization, backend-only exposure, process scope, no tenant attribution,
+fixed-cardinality redaction, process-lifetime retention, no route rate limit,
+disabled external sink, zero external spend, and separate deployment review.
+The Cortex module-boundary test proves the observability service is a provider,
+not an HTTP controller. Public `/health` and `/ready` remain liveness/readiness
+only; all other routes remain behind JWT identity plus explicit capability
+guards.
+
+Validation passed: API 634/634 across 145 files; shared 273/273; Web full unit
+lane; focused policy/module-boundary contracts included; root typecheck, lint,
+and serial Nest/Next production build with 82 pages; spend,
+controlled-release, Actionlint, pinned workflow refs, Gitleaks, diff checks,
+and clean-room scan. No SQL changed, so the preceding disposable replay remains
+the current database evidence: 112/112 migrations, 367/367 zero-skip database
+tests, 26 API integration files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+No route, exporter, hosted write, deployment, provider activation, or paid
+resource was added; the adapter gate remains closed.
+
 ## M3.176 Backend-only operational snapshot seam (2026-08-09)
 
 The Cortex circuit-alert observability service now exposes a typed,
