@@ -1,5 +1,22 @@
 # Migration Plan
 
+## M3.185 Dashboard brief parity fixture (completed)
+
+1. Reused one deterministic tenant fixture for legacy and Core-shaped brief
+   results.
+2. Exercised both source paths through `readCortexBrief()`.
+3. Asserted structural equality after Core date/item normalization.
+4. Kept flags, allowlists, SQL, provider activation, and hosted actions
+   unchanged.
+
+Evidence: brief-read parity 4/4; sequential Web typecheck and 82-page build
+passed. M3.184 full suite remains current at API 641/641, shared 277/277,
+Web 683/683, database 224 passed plus 143 credential-gated skips, lint and
+release/security gates. This fixture is not canary approval.
+
+Exact next action: M3.186 prepare a one-tenant canary review packet while
+keeping every flag closed.
+
 ## M3.184 Dashboard server-component brief adapter seam (completed)
 
 1. Moved the dashboard page's brief authority decision into the server-only

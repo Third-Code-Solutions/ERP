@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-294 - Require deterministic dashboard brief parity before canary review (2026-08-09)
+
+Decision: compare the role-scoped legacy fixture with the normalized Core
+projection through the same server seam before any tenant canary review. Exact
+structural equality is evidence, not activation authority.
+
+Rationale: serialization and Date conversion can silently drop or change
+tenant-visible facts even when API schemas pass. A deterministic fixture makes
+the parity claim repeatable without network, database, provider, or hosted
+spend.
+
+Validation: brief-read parity 4/4, sequential Web typecheck/build, prior full
+M3.184 gates; no SQL, hosted write/deploy, provider call, or paid resource.
+Rollback is unchanged: closed flags and the last reviewed source commit.
+
 ## D-293 - Route the Cortex dashboard brief through one server seam (2026-08-09)
 
 Decision: the dashboard calls `readCortexBrief()` only. An exact-tenant Core
