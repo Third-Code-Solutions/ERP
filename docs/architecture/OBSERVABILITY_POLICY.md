@@ -33,6 +33,15 @@ encoded beside the seam as
 Ownership, release identity, and rollback fields are evidence requirements,
 not deployment authority. The source policy cannot enable an exporter or route.
 
+## Adapter trigger evaluator
+
+`evaluateCortexAssistantProviderCircuitAlertOperationalAdapterTrigger()` is a
+pure, fail-closed evidence check. It requires all nine reviews: caller
+authorization, process-versus-tenant scope, redaction, retention, bounded
+rate, provider/network cost, backend-owner approval, exact Git SHA, and
+last-known-good rollback artifact. `eligible` means only that the evidence
+inputs are complete; it does not enable a route, exporter, sink, or deployment.
+
 ## Boundary audit
 
 - `/health` and `/ready` are public liveness/readiness probes only. They do not

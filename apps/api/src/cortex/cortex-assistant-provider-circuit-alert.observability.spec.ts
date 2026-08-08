@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_OPERATIONAL_SNAPSHOT_POLICY,
   CortexAssistantProviderCircuitAlertObservability,
+  evaluateCortexAssistantProviderCircuitAlertOperationalAdapterTrigger,
 } from './cortex-assistant-provider-circuit-alert.observability'
 
 describe('CortexAssistantProviderCircuitAlertObservability', () => {
@@ -89,5 +90,56 @@ describe('CortexAssistantProviderCircuitAlertObservability', () => {
         CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_OPERATIONAL_SNAPSHOT_POLICY
       )
     ).toBe(true)
+  })
+
+  it('fails closed when adapter evidence is absent', () => {
+    const result =
+      evaluateCortexAssistantProviderCircuitAlertOperationalAdapterTrigger({
+        callerAuthorizationReviewed: false,
+        scopeReviewed: false,
+        redactionReviewed: false,
+        retentionReviewed: false,
+        rateLimitReviewed: false,
+        costControlReviewed: false,
+        ownerApproved: false,
+        releaseIdentityVerified: false,
+        rollbackArtifactVerified: false,
+      })
+
+    expect(result).toEqual({
+      status: 'blocked',
+      blockers: [
+        'caller authorization review',
+        'process-versus-tenant scope review',
+        'field redaction review',
+        'retention and deletion review',
+        'bounded rate-limit review',
+        'provider/network cost-control review',
+        'ERP backend owner approval',
+        'exact Git release SHA verification',
+        'last-known-good rollback artifact verification',
+      ],
+    })
+    expect(Object.isFrozen(result)).toBe(true)
+    expect(Object.isFrozen(result.blockers)).toBe(true)
+  })
+
+  it('returns eligibility evidence only when every review is clear', () => {
+    const result =
+      evaluateCortexAssistantProviderCircuitAlertOperationalAdapterTrigger({
+        callerAuthorizationReviewed: true,
+        scopeReviewed: true,
+        redactionReviewed: true,
+        retentionReviewed: true,
+        rateLimitReviewed: true,
+        costControlReviewed: true,
+        ownerApproved: true,
+        releaseIdentityVerified: true,
+        rollbackArtifactVerified: true,
+      })
+
+    expect(result).toEqual({ status: 'eligible', blockers: [] })
+    expect(Object.isFrozen(result)).toBe(true)
+    expect(Object.isFrozen(result.blockers)).toBe(true)
   })
 })
