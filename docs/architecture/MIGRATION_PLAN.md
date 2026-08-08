@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.181 User-facing Cortex search consumer boundary (completed)
+
+1. Audited the Nest search capability/principal boundary, the Next Cortex
+   route, command-palette normalization, and Cortex page/graph/brief/chat
+   consumers.
+2. Confirmed that only tenant- and role-scoped registered record projections
+   reach the user; no consumer reads the process snapshot.
+3. Added strict shared-contract and Web projection regression coverage that
+   rejects or strips process-scoped observability fields.
+
+Evidence: focused shared search 4/4 and Web Cortex search route 7/7; API
+636/636; shared 274/274; Web 676/676; database 224 passed with 143 local
+credential-gated skips; root typecheck, lint, serial Nest/Next production
+build with 82 pages; spend/controlled-release guards, Actionlint, pinned refs,
+Gitleaks, diff checks, and clean-room scan. No SQL changed, so the preceding
+disposable replay remains current: 112/112 migrations, 367/367 zero-skip
+database tests, 26 API integration files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`. No
+process-metric access, route, exporter, migration, hosted write, external
+network, credential, provider, deployment, or paid resource was added.
+
+Release gate: keep process snapshot access backend-only and keep the Core
+search canary disabled unless its existing tenant, identity, parity, rollback,
+and spend evidence is approved.
+
+Next source-only slice: M3.182 inventory Cortex chat/brief/graph direct-read
+fallbacks before any additional Core read cutover.
+
 ## M3.180 Operational adapter consumer ownership audit (completed)
 
 1. Searched the API source and found no runtime evaluator consumer; references

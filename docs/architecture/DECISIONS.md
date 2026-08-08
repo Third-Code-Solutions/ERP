@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-290 - Keep process observability out of user-facing Cortex search (2026-08-09)
+
+Decision: keep Cortex search, command-palette results, graph, brief, and chat
+consumers limited to authenticated tenant- and role-scoped product records.
+The strict result contract rejects process snapshot fields; the Next projection
+maps only registered entity sources and safe deep links. No consumer may read
+`readOperationalSnapshot()`.
+
+Rationale: process-wide enqueue counters have no tenant attribution. Allowing
+them into a user-facing search or assistant response would disclose unrelated
+runtime activity and blur operational versus ERP data boundaries.
+
+Validation and release boundary: focused shared search 4/4 and Web Cortex search
+route 7/7; API 636/636; shared 274/274; Web 676/676; root typecheck/lint/build
+with 82 pages; spend/controlled-release guards, Actionlint, pinned refs,
+Gitleaks, diff checks, and clean-room scan pass. No SQL changed, so the
+preceding disposable replay remains current: 112/112 migrations, 367/367
+zero-skip database tests, 26 API integration files/40 tests, and equal schema
+hash. No process-metric access, route, exporter, hosted write, credential,
+deployment, or paid resource. Rollback removes only the regression tests and
+documentation; preserve the alert ledger and never down-migrate.
+
 ## D-289 - Keep the operational adapter consumer unregistered by default (2026-08-09)
 
 Decision: record `consumer: none_registered` in the snapshot policy and permit

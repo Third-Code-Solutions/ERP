@@ -5,6 +5,30 @@ Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
 
+## M3.181 User-facing Cortex search consumer boundary (2026-08-09)
+
+Audited the user-facing Cortex search consumers. The Nest controller/service
+requires the `cortex.search` capability and derives tenant and role scope from
+the authenticated principal. The Next route accepts only a bounded query,
+uses the session tenant and role, maps only registered entity sources to safe
+deep links, and never reads the process snapshot. The command palette only
+normalizes actionable links; the Cortex page, graph, brief, and chat consume
+tenant-scoped product data. The Core result schema is strict and rejects
+process-scoped observability fields.
+
+Added regression coverage for the strict result boundary and the Next
+projection. Focused validation passed: shared search 4/4 and Web Cortex search
+route 7/7. Full validation passed: API 636/636; shared 274/274; Web 676/676;
+database 224 passed with 143 credential-gated skips; root typecheck, lint, and
+serial Nest/Next production build with 82 pages; spend/controlled-release
+guards, Actionlint, pinned workflow refs, Gitleaks, diff checks, and clean-room
+scan. No SQL changed, so the preceding disposable replay remains current:
+112/112 migrations, 367/367 zero-skip database tests, 26 API integration
+files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`. No
+process-metric access, route, exporter, hosted write, deployment, provider
+activation, or paid resource was added.
+
 ## M3.180 Operational adapter consumer ownership audit (2026-08-09)
 
 Repository search confirms the adapter evaluator has no runtime consumer. The

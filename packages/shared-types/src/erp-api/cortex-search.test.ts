@@ -47,4 +47,15 @@ describe('Cortex search contract', () => {
       })
     ).toThrow()
   })
+
+  it('rejects process-scoped observability fields from a user-facing result', () => {
+    expect(() =>
+      cortexSearchResultSchema.parse({
+        scope: 'process',
+        metric: 'cortex_provider_circuit_alert_enqueue_total',
+        counters: { 'post_commit.enqueued': 1 },
+        hits: [],
+      })
+    ).toThrow()
+  })
 })
