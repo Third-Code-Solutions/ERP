@@ -1,9 +1,36 @@
 # Current State
 
-Verified from the repository and local replay evidence on 2026-08-08.
+Verified from the repository and local replay evidence on 2026-08-09.
 Managed-provider state is refreshed only through explicitly recorded read-only
 checks. Application deployments are reported separately and are never inferred
 from a successful build.
+
+## M3.173 Disabled-by-default BullMQ alert delivery seam (2026-08-09)
+
+Nest now exposes a closed-by-default BullMQ transport for durable circuit-alert
+event keys. Jobs carry only `{schemaVersion,eventKey}`; deterministic IDs,
+three bounded attempts, exponential backoff, terminal-job replacement, and a
+60-second exact-scope recovery scheduler prevent duplicate transport or
+unbounded retries. The processor reloads tenant scope from PostgreSQL before
+claiming and routes through the existing protocol-v1 adapter boundary.
+
+Stale processing rows are recoverable within a three-attempt durable ceiling;
+rows that exceed the ceiling become a stable `stale_attempt_limit` failure.
+Route failures remain bounded codes and are retried by the same event key.
+Queue, worker, recovery, and route gates all default false and intersect exact
+tenant allowlists. The production adapter token has no external implementation;
+the fallback is a credential-free local-disabled adapter.
+
+Validation passed: shared 273/273 across 39 files; API 626/626 across 143
+files; Web 676/676; disposable PostgreSQL/Redis replay 112/112 migrations,
+database 367/367 zero-skip, 26 API integration files/40 tests, and equal schema
+hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`;
+lint; typecheck; serial Nest/Next production build with 82 pages.
+
+All rollout gates remain false/empty. No hosted Supabase query/write,
+credential, provider, pager, AI/image call, Vercel/Railway build/deployment,
+paid resource, or Vercel Git change occurred. PostgreSQL/Redis disposable
+services are stopped. M3.173 is transport conformance, not activation approval.
 
 ## M3.172 Durable claim-to-route orchestration (2026-08-08)
 

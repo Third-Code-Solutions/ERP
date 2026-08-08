@@ -997,4 +997,119 @@ suite('Cortex assistant provider budget database integration', () => {
       expect(delivered).toEqual({ status: 'delivered', lastError: null })
     })
   })
+
+  it('delivers one opaque event key and recovers stale claims with a bounded ceiling', async () => {
+    await alwaysRollback(async (transaction) => {
+      const tenant = await seedTenant(transaction, 'queue-seam')
+      const policyId = await seedPolicy(transaction, tenant.tenantId, 500, 5_000)
+      const alerts = new CortexAssistantProviderCircuitAlertService(
+        transactionBoundDatabase(transaction),
+        new AuditService()
+      )
+      const asOf = new Date()
+      const opened = await alerts.observe(
+        transaction,
+        {
+          id: policyId,
+          tenantId: tenant.tenantId,
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          failureThreshold: 3,
+          failureWindowSeconds: 300,
+          cooldownSeconds: 900,
+        },
+        {
+          state: 'open',
+          failureCount: 3,
+          tripStartedAt: new Date(asOf.getTime() - 10_000),
+          retryAt: new Date(asOf.getTime() + 60_000),
+          probeInFlight: false,
+          probeAttemptId: null,
+        },
+        asOf
+      )
+      const event = opened.event
+      if (!event) throw new Error('Queue seam alert fixture missing')
+
+      expect(await alerts.tenantIdForEventKey(event.eventKey)).toBe(
+        tenant.tenantId
+      )
+      const router = new CortexAssistantProviderCircuitAlertRouter(
+        new ConfigService({
+          ERP_CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_ROUTING_ENABLED: true,
+          ERP_CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_ROUTING_TENANT_IDS: [
+            tenant.tenantId,
+          ],
+        })
+      )
+      let failNext = true
+      const published: string[] = []
+      const adapter = {
+        key: 'local-fake',
+        async publish(payload: { eventKey: string }): Promise<void> {
+          if (failNext) {
+            failNext = false
+            throw new CortexAssistantProviderCircuitAlertRouteError(
+              'route_rate_limited'
+            )
+          }
+          published.push(payload.eventKey)
+        },
+      }
+
+      await expect(
+        alerts.deliverEventKeyThroughRoute(event.eventKey, router, adapter)
+      ).resolves.toMatchObject({
+        status: 'failed',
+        failureCode: 'route_rate_limited',
+      })
+      await expect(
+        alerts.deliverEventKeyThroughRoute(event.eventKey, router, adapter)
+      ).resolves.toMatchObject({ status: 'delivered', failureCode: null })
+      expect(published).toEqual([event.eventKey])
+
+      const staleAt = new Date(Date.now() - 10 * 60_000)
+      await transaction
+        .update(cortexAssistantProviderCircuitAlerts)
+        .set({
+          status: 'processing',
+          attempt_count: 1,
+          processing_started_at: staleAt,
+          delivered_at: null,
+          last_error: null,
+          created_at: staleAt,
+          updated_at: staleAt,
+        })
+        .where(eq(cortexAssistantProviderCircuitAlerts.id, event.id))
+      const recoverable = await alerts.recoverableEventKeys(
+        new Date(Date.now() - 5 * 60_000),
+        [tenant.tenantId]
+      )
+      expect(recoverable).toEqual([
+        { tenantId: tenant.tenantId, eventKey: event.eventKey },
+      ])
+
+      await transaction
+        .update(cortexAssistantProviderCircuitAlerts)
+        .set({ attempt_count: 3, updated_at: staleAt })
+        .where(eq(cortexAssistantProviderCircuitAlerts.id, event.id))
+      await expect(
+        alerts.recoverableEventKeys(
+          new Date(Date.now() - 5 * 60_000),
+          [tenant.tenantId]
+        )
+      ).resolves.toEqual([])
+      const [terminal] = await transaction
+        .select({
+          status: cortexAssistantProviderCircuitAlerts.status,
+          lastError: cortexAssistantProviderCircuitAlerts.last_error,
+        })
+        .from(cortexAssistantProviderCircuitAlerts)
+        .where(eq(cortexAssistantProviderCircuitAlerts.id, event.id))
+      expect(terminal).toEqual({
+        status: 'failed',
+        lastError: 'stale_attempt_limit',
+      })
+    })
+  })
 })

@@ -64,11 +64,17 @@ tenant and policy, deduplicated by deterministic event key, audited without
 payloads, and delivered through an injectable local sink with bounded retry.
 `pending`, `processing`, `delivered`, and `failed` are database states; a
 failed sink may be retried by event key, and the drain stops after one failure
-to prevent a hot loop. Route delivery uses the same claim path: acceptance
-marks `delivered`; bounded route failures persist as `last_error` and remain
-retryable. No external paging integration is activated. Before production
-activation, connect an approved provider-neutral route through the protocol-v1
-envelope. Verify exact-tenant gating, adapter-key validation, event-key
-idempotency, bounded failure codes, and credential isolation. Test-fire each
-circuit state, verify routing, and link this runbook. Never put prompts,
-responses, credentials, URLs, attempt IDs, or user identities in an alert.
+to prevent a hot loop. BullMQ, when separately approved, carries only
+`{schemaVersion,eventKey}` with three attempts and bounded exponential
+backoff. Recovery reloads tenant scope from PostgreSQL, replaces only terminal
+transport jobs, reclaims stale rows, and records `stale_attempt_limit` after
+the durable ceiling. Route delivery uses the same claim path: acceptance marks
+`delivered`; bounded route failures persist as `last_error` and remain
+retryable. All queue, worker, recovery, and route gates are closed by default;
+no external paging integration is activated. Before production activation,
+connect an approved provider-neutral route through the protocol-v1 envelope.
+Verify exact-tenant gating, adapter-key validation, event-key idempotency,
+bounded failure codes, credential isolation, queue loss, stale recovery, and
+rollback. Test-fire each circuit state, verify routing, and link this runbook.
+Never put prompts, responses, credentials, URLs, attempt IDs, or user
+identities in an alert.

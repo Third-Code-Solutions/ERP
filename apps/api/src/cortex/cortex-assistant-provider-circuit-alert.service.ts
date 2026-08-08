@@ -5,7 +5,7 @@ import {
   cortexAssistantProviderCircuitAlertEventSchema,
   type CortexAssistantProviderCircuitAlertEvent,
 } from '@third-code-erp/shared-types'
-import { and, asc, desc, eq, lt, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm'
 import { AuditService } from '../audit/audit.service'
 import {
   DatabaseService,
@@ -22,6 +22,12 @@ import type {
   CortexAssistantProviderCircuitAlertRouteAdapter,
   CortexAssistantProviderCircuitAlertRouteFailureCode,
 } from '@third-code-erp/shared-types'
+import {
+  CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_MAX_ATTEMPTS,
+} from '@third-code-erp/shared-types'
+import {
+  CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_RECOVERY_BATCH_SIZE,
+} from './cortex-assistant-provider-circuit-alert.constants'
 
 export interface CortexAssistantProviderCircuitAlertPolicy
   extends CortexAssistantProviderCircuitPolicy {
@@ -36,6 +42,17 @@ export interface CortexAssistantProviderCircuitAlertSink {
 export interface CortexAssistantProviderCircuitAlertObservation {
   event: CortexAssistantProviderCircuitAlertEvent | null
   created: boolean
+}
+
+export interface CortexAssistantProviderCircuitAlertRecoverableEvent {
+  tenantId: string
+  eventKey: string
+}
+
+export interface CortexAssistantProviderCircuitAlertDeliveryResult {
+  eventKey: string
+  status: 'delivered' | 'failed' | 'ignored'
+  failureCode: StableDeliveryFailureCode | null
 }
 
 export class CortexAssistantProviderCircuitAlertDeliveryError extends Error {
@@ -204,6 +221,107 @@ export class CortexAssistantProviderCircuitAlertService {
     )
   }
 
+  async tenantIdForEventKey(eventKey: string): Promise<string | null> {
+    const [row] = await this.database.client
+      .select({ tenantId: cortexAssistantProviderCircuitAlerts.tenant_id })
+      .from(cortexAssistantProviderCircuitAlerts)
+      .where(eq(cortexAssistantProviderCircuitAlerts.event_key, eventKey))
+      .limit(1)
+    return row?.tenantId ?? null
+  }
+
+  async recoverableEventKeys(
+    staleBefore: Date,
+    tenantIds: readonly string[],
+    limit = CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_RECOVERY_BATCH_SIZE
+  ): Promise<CortexAssistantProviderCircuitAlertRecoverableEvent[]> {
+    const scopedTenantIds = [...new Set(tenantIds)]
+    if (scopedTenantIds.length === 0) {
+      throw new Error('Cortex provider circuit alert tenant scope is required')
+    }
+    const boundedLimit = Math.max(
+      1,
+      Math.min(limit, CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_RECOVERY_BATCH_SIZE)
+    )
+    const now = new Date()
+
+    // A transport worker can disappear after claiming a row. Once the
+    // durable attempt ceiling is reached, leave a stable terminal failure
+    // instead of creating an unbounded recovery loop.
+    await this.database.client
+      .update(cortexAssistantProviderCircuitAlerts)
+      .set({
+        status: 'failed',
+        processing_started_at: null,
+        delivered_at: null,
+        last_error: 'stale_attempt_limit',
+        updated_at: now,
+      })
+      .where(
+        and(
+          inArray(
+            cortexAssistantProviderCircuitAlerts.tenant_id,
+            scopedTenantIds
+          ),
+          eq(cortexAssistantProviderCircuitAlerts.status, 'processing'),
+          lt(cortexAssistantProviderCircuitAlerts.updated_at, staleBefore),
+          gte(
+            cortexAssistantProviderCircuitAlerts.attempt_count,
+            CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_MAX_ATTEMPTS
+          )
+        )
+      )
+
+    const rows = await this.database.client
+      .select({
+        tenantId: cortexAssistantProviderCircuitAlerts.tenant_id,
+        eventKey: cortexAssistantProviderCircuitAlerts.event_key,
+      })
+      .from(cortexAssistantProviderCircuitAlerts)
+      .where(
+        and(
+          inArray(
+            cortexAssistantProviderCircuitAlerts.tenant_id,
+            scopedTenantIds
+          ),
+          lt(
+            cortexAssistantProviderCircuitAlerts.attempt_count,
+            CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_MAX_ATTEMPTS
+          ),
+          or(
+            eq(cortexAssistantProviderCircuitAlerts.status, 'pending'),
+            eq(cortexAssistantProviderCircuitAlerts.status, 'failed'),
+            and(
+              eq(cortexAssistantProviderCircuitAlerts.status, 'processing'),
+              lt(cortexAssistantProviderCircuitAlerts.updated_at, staleBefore)
+            )
+          )
+        )
+      )
+      .orderBy(asc(cortexAssistantProviderCircuitAlerts.created_at))
+      .limit(boundedLimit)
+    return rows
+  }
+
+  async deliverEventKeyThroughRoute(
+    eventKey: string,
+    router: CortexAssistantProviderCircuitAlertRouter,
+    adapter: CortexAssistantProviderCircuitAlertRouteAdapter
+  ): Promise<CortexAssistantProviderCircuitAlertDeliveryResult> {
+    const claimed = await this.claimEventKey(eventKey)
+    if (!claimed) {
+      return { eventKey, status: 'ignored', failureCode: null }
+    }
+    const result = await router.route(claimed, adapter)
+    if (result.status === 'failed') {
+      const failureCode = result.failureCode ?? 'route_unknown'
+      await this.markFailed(claimed.id, failureCode)
+      return { eventKey, status: 'failed', failureCode }
+    }
+    await this.markDelivered(claimed.id)
+    return { eventKey, status: 'delivered', failureCode: null }
+  }
+
   private async recordRecovery(
     transaction: DatabaseTransaction,
     policy: CortexAssistantProviderCircuitAlertPolicy,
@@ -357,6 +475,54 @@ export class CortexAssistantProviderCircuitAlertService {
       return updated
         ? toEvent(updated as unknown as AlertRow)
         : null
+    })
+  }
+
+  private async claimEventKey(
+    eventKey: string
+  ): Promise<CortexAssistantProviderCircuitAlertEvent | null> {
+    const staleBefore = new Date(Date.now() - 5 * 60_000)
+    return this.database.client.transaction(async (transaction) => {
+      const [row] = await transaction
+        .select()
+        .from(cortexAssistantProviderCircuitAlerts)
+        .where(
+          and(
+            eq(cortexAssistantProviderCircuitAlerts.event_key, eventKey),
+            lt(
+              cortexAssistantProviderCircuitAlerts.attempt_count,
+              CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_MAX_ATTEMPTS
+            ),
+            or(
+              eq(cortexAssistantProviderCircuitAlerts.status, 'pending'),
+              eq(cortexAssistantProviderCircuitAlerts.status, 'failed'),
+              and(
+                eq(cortexAssistantProviderCircuitAlerts.status, 'processing'),
+                lt(
+                  cortexAssistantProviderCircuitAlerts.updated_at,
+                  staleBefore
+                )
+              )
+            )
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!row) return null
+      const now = new Date()
+      const [updated] = await transaction
+        .update(cortexAssistantProviderCircuitAlerts)
+        .set({
+          status: 'processing',
+          attempt_count: sql`${cortexAssistantProviderCircuitAlerts.attempt_count} + 1`,
+          processing_started_at: now,
+          delivered_at: null,
+          last_error: null,
+          updated_at: now,
+        })
+        .where(eq(cortexAssistantProviderCircuitAlerts.id, row.id))
+        .returning()
+      return updated ? toEvent(updated as unknown as AlertRow) : null
     })
   }
 

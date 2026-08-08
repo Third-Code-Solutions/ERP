@@ -35,6 +35,11 @@ import { CortexAssistantProviderAdapter } from './cortex-assistant-provider.adap
 import { CortexAssistantProviderBudgetService } from './cortex-assistant-provider-budget.service'
 import { CortexAssistantProviderCircuitAlertService } from './cortex-assistant-provider-circuit-alert.service'
 import { CortexAssistantProviderCircuitAlertRouter } from './cortex-assistant-provider-circuit-alert-router'
+import {
+  CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_QUEUE,
+} from './cortex-assistant-provider-circuit-alert.constants'
+import { CortexAssistantProviderCircuitAlertProcessor } from './cortex-assistant-provider-circuit-alert.processor'
+import { CortexAssistantProviderCircuitAlertQueue } from './cortex-assistant-provider-circuit-alert.queue'
 import { CortexAssistantProviderExecutionService } from './cortex-assistant-provider-execution.service'
 import { CortexAssistantProviderHealthController } from './cortex-assistant-provider-health.controller'
 import { CortexAssistantProviderHealthPipe } from './cortex-assistant-provider-health.pipe'
@@ -57,6 +62,9 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     ProviderQuotaModule,
     BullModule.registerQueue({ name: CORTEX_SEMANTIC_INDEX_QUEUE }),
     BullModule.registerQueue({ name: CORTEX_ASSISTANT_GENERATION_QUEUE }),
+    BullModule.registerQueue({
+      name: CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_QUEUE,
+    }),
   ],
   controllers: [
     CortexConversationsController,
@@ -85,6 +93,8 @@ import { CortexSemanticIndexWorkerClient } from './cortex-semantic-index.worker'
     CortexAssistantProviderBudgetService,
     CortexAssistantProviderCircuitAlertService,
     CortexAssistantProviderCircuitAlertRouter,
+    CortexAssistantProviderCircuitAlertQueue,
+    CortexAssistantProviderCircuitAlertProcessor,
     CortexAssistantProviderExecutionService,
     CortexAssistantProviderHealthPipe,
     CortexAssistantProviderHealthService,
