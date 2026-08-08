@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config'
 import {
   auditLog,
   cortexAssistantGenerationJobs,
+  cortexAssistantProviderCircuitAlerts,
   cortexAssistantProviderAttempts,
   cortexAssistantProviderPolicies,
   cortexAssistantTurnRequests,
@@ -22,6 +23,7 @@ import {
   CortexAssistantProviderBudgetService,
 } from '../src/cortex/cortex-assistant-provider-budget.service'
 import { cortexAssistantProviderDispatchKey } from '../src/cortex/cortex-assistant-provider-protocol'
+import { CortexAssistantProviderCircuitAlertService } from '../src/cortex/cortex-assistant-provider-circuit-alert.service'
 import { CortexAssistantProviderHealthService } from '../src/cortex/cortex-assistant-provider-health.service'
 import {
   DatabaseService,
@@ -216,7 +218,11 @@ function budgetService(
       ERP_CORTEX_ASSISTANT_PROVIDER_BUDGET_TENANT_IDS: [...tenantIds],
     }),
     transactionBoundDatabase(transaction),
-    new AuditService()
+    new AuditService(),
+    new CortexAssistantProviderCircuitAlertService(
+      transactionBoundDatabase(transaction),
+      new AuditService()
+    )
   )
 }
 
@@ -749,6 +755,152 @@ suite('Cortex assistant provider budget database integration', () => {
           reservation(sparseAllowed.jobId, '100')
         )
       ).resolves.toMatchObject({ status: 'reserved' })
+    })
+  })
+
+  it('deduplicates scoped circuit transitions and retries a local sink idempotently', async () => {
+    await alwaysRollback(async (transaction) => {
+      const tenant = await seedTenant(transaction, 'alert')
+      const otherTenant = await seedTenant(transaction, 'alert-other')
+      const policyId = await seedPolicy(transaction, tenant.tenantId, 500, 5_000)
+      const otherPolicyId = await seedPolicy(
+        transaction,
+        otherTenant.tenantId,
+        500,
+        5_000
+      )
+      const alerts = new CortexAssistantProviderCircuitAlertService(
+        transactionBoundDatabase(transaction),
+        new AuditService()
+      )
+      const asOf = new Date()
+      const tripStartedAt = new Date(asOf.getTime() - 30_000)
+      const opened = {
+        state: 'open' as const,
+        failureCount: 3,
+        tripStartedAt,
+        retryAt: new Date(asOf.getTime() + 60_000),
+        probeInFlight: false,
+        probeAttemptId: null,
+      }
+      const policy = {
+        id: policyId,
+        tenantId: tenant.tenantId,
+        provider: 'openai',
+        model: 'gpt-4.1-mini',
+        failureThreshold: 3,
+        failureWindowSeconds: 300,
+        cooldownSeconds: 900,
+      }
+      const first = await alerts.observe(transaction, policy, opened, asOf)
+      const duplicate = await alerts.observe(
+        transaction,
+        policy,
+        opened,
+        asOf
+      )
+      expect(first).toMatchObject({ created: true, event: { eventType: 'opened' } })
+      expect(duplicate).toMatchObject({
+        created: false,
+        event: { id: first.event?.id, eventKey: first.event?.eventKey },
+      })
+
+      const recovered = await alerts.observe(
+        transaction,
+        policy,
+        {
+          state: 'closed',
+          failureCount: 0,
+          tripStartedAt: null,
+          retryAt: null,
+          probeInFlight: false,
+          probeAttemptId: null,
+        },
+        new Date(asOf.getTime() + 1_000)
+      )
+      const recoveredDuplicate = await alerts.observe(
+        transaction,
+        policy,
+        {
+          state: 'closed',
+          failureCount: 0,
+          tripStartedAt: null,
+          retryAt: null,
+          probeInFlight: false,
+          probeAttemptId: null,
+        },
+        new Date(asOf.getTime() + 2_000)
+      )
+      expect(recovered).toMatchObject({
+        created: true,
+        event: { eventType: 'recovered' },
+      })
+      expect(recovered.event?.eventKey).not.toBe(first.event?.eventKey)
+      expect(recoveredDuplicate).toMatchObject({
+        created: false,
+        event: { id: recovered.event?.id },
+      })
+
+      const other = await alerts.observe(
+        transaction,
+        {
+          ...policy,
+          id: otherPolicyId,
+          tenantId: otherTenant.tenantId,
+        },
+        opened,
+        asOf
+      )
+      expect(other.event?.tenantId).toBe(otherTenant.tenantId)
+      expect(other.event?.eventKey).not.toBe(first.event?.eventKey)
+
+      let failNext = true
+      const deliveredEvents: string[] = []
+      const sink = {
+        async publish(event: { eventKey: string }): Promise<void> {
+          if (failNext) {
+            failNext = false
+            throw new Error('test sink failure')
+          }
+          deliveredEvents.push(event.eventKey)
+        },
+      }
+      await expect(alerts.deliverPending(sink, 1)).resolves.toEqual({
+        delivered: 0,
+        failed: 1,
+      })
+      await expect(alerts.deliverPending(sink, 1)).resolves.toEqual({
+        delivered: 1,
+        failed: 0,
+      })
+      await expect(alerts.deliverPending(sink, 1)).resolves.toEqual({
+        delivered: 1,
+        failed: 0,
+      })
+      await expect(alerts.deliverPending(sink, 1)).resolves.toEqual({
+        delivered: 1,
+        failed: 0,
+      })
+      expect(deliveredEvents).toHaveLength(3)
+      expect(deliveredEvents).toEqual(
+        expect.arrayContaining([
+          first.event?.eventKey,
+          recovered.event?.eventKey,
+          other.event?.eventKey,
+        ])
+      )
+
+      const rows = await transaction
+        .select({
+          tenantId: cortexAssistantProviderCircuitAlerts.tenant_id,
+          eventType: cortexAssistantProviderCircuitAlerts.event_type,
+          status: cortexAssistantProviderCircuitAlerts.status,
+        })
+        .from(cortexAssistantProviderCircuitAlerts)
+        .orderBy(asc(cortexAssistantProviderCircuitAlerts.created_at))
+      expect(rows).toHaveLength(3)
+      expect(rows.filter((row) => row.tenantId === tenant.tenantId)).toHaveLength(2)
+      expect(rows.every((row) => row.status === 'delivered')).toBe(true)
     })
   })
 })

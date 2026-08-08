@@ -1,5 +1,40 @@
 # Migration Plan
 
+## M3.170 Durable Cortex circuit alerts (completed)
+
+1. Added the aggregate-only circuit alert contract and a tenant/policy-scoped
+   PostgreSQL ledger with source/recovery uniqueness, status checks, attempt
+   bounds, service-only grants, and forced RLS.
+2. Added deterministic open-trip and recovery event keys. Repeated health
+   observations deduplicate at the database boundary and write privacy-safe
+   audit entries without prompts, responses, credentials, attempt IDs, or
+   user identities.
+3. Added the Nest delivery seam with transactional claims, stale processing
+   recovery, bounded attempts, stable `sink_failed` errors, and a local fake
+   sink. A failed delivery is retryable by event key and stops the current
+   drain to prevent a hot loop.
+4. Wired circuit observation to provider spend settlement and recovery, and
+   added tenant-isolation, transition-deduplication, and retry-idempotency
+   integration coverage.
+
+Evidence: shared 268/268; API 610/610; Web 676/676; AI worker 8/8; DXF worker
+11/11; database 367/367 zero-skip; 112/112 clean migrations; 26 integration
+files/38 tests; lint/typecheck; Nest/Next production build with 82 pages;
+spend 4/4; controlled release 5/5; Actionlint; pinned actions; Gitleaks;
+diff hygiene; and equal schema hashes
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+
+Release gate: keep every Cortex provider/budget/generation/worker/recovery/
+Core/Web gate false or empty, policies absent or disabled, credentials unset,
+and Vercel Git disconnected. Do not apply hosted SQL, deploy, call a
+provider, connect an external pager, or create a paid resource under the cost
+lock. Rollback closes dispatch, reconciles attempts, and preserves the
+forward-only alert and circuit evidence. Do not down-migrate.
+
+Next source-only slice: M3.171 provider-neutral alert-routing adapter
+conformance with local fakes and strict credential isolation. No external
+network, paging credential, hosted write, deployment, or provider activation.
+
 ## M3.169 Cortex provider health and circuit authority (completed)
 
 1. Added strict aggregate health query/result contracts and an owner/admin/

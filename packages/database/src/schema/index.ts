@@ -74,6 +74,7 @@ export * from './cortex-conversation-turn-requests'
 export * from './cortex-assistant-turn-requests'
 export * from './cortex-assistant-generation-jobs'
 export * from './cortex-assistant-provider-budget'
+export * from './cortex-assistant-provider-circuit-alert'
 // Accounting ledger foundation
 export * from './accounting'
 // Supplier payables foundation

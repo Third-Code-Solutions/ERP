@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuditService } from '../audit/audit.service'
 import type { DatabaseService } from '../database/database.service'
+import type { CortexAssistantProviderCircuitAlertService } from './cortex-assistant-provider-circuit-alert.service'
 import {
   cortexAssistantProviderReservationHash,
   CortexAssistantProviderBudgetError,
@@ -34,7 +35,8 @@ describe('CortexAssistantProviderBudgetService', () => {
     const service = new CortexAssistantProviderBudgetService(
       new ConfigService({}),
       { client: { transaction } } as unknown as DatabaseService,
-      {} as AuditService
+      {} as AuditService,
+      {} as CortexAssistantProviderCircuitAlertService
     )
 
     await expect(service.reserve(COMMAND)).rejects.toMatchObject({

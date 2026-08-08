@@ -27,6 +27,7 @@ import {
 } from '../database/database.service'
 import { cortexAssistantProviderDispatchKey } from './cortex-assistant-provider-protocol'
 import { readCortexAssistantProviderCircuit } from './cortex-assistant-provider-health.query'
+import { CortexAssistantProviderCircuitAlertService } from './cortex-assistant-provider-circuit-alert.service'
 
 export type CortexAssistantProviderBudgetErrorCode =
   | 'provider_budget_disabled'
@@ -190,7 +191,9 @@ export class CortexAssistantProviderBudgetService {
     @Inject(DatabaseService)
     private readonly database: DatabaseService,
     @Inject(AuditService)
-    private readonly audit: AuditService
+    private readonly audit: AuditService,
+    @Inject(CortexAssistantProviderCircuitAlertService)
+    private readonly circuitAlerts: CortexAssistantProviderCircuitAlertService
   ) {}
 
   async reserve(
@@ -515,6 +518,7 @@ export class CortexAssistantProviderBudgetService {
         responseFingerprint: command.responseFingerprint,
       }
       await this.writeStateAudit(transaction, settled, 'settled')
+      await this.observeCircuit(transaction, settled, now)
       return this.toResult(settled, false)
     })
   }
@@ -809,6 +813,7 @@ export class CortexAssistantProviderBudgetService {
       .for('update', { of: cortexAssistantProviderAttempts })
 
     let reconciled = 0
+    let latestAttempt: ProviderAttemptRow | null = null
     for (const attempt of attempts) {
       const now = new Date()
       const outcome = RECONCILIATION_OUTCOMES[reason][
@@ -841,9 +846,49 @@ export class CortexAssistantProviderBudgetService {
         outcomeCode: outcome,
       }
       await this.writeStateAudit(transaction, terminal, targetState)
+      latestAttempt = attempt
       reconciled += 1
     }
+    if (latestAttempt) {
+      await this.observeCircuit(transaction, latestAttempt, new Date())
+    }
     return reconciled
+  }
+
+  private async observeCircuit(
+    transaction: DatabaseTransaction,
+    attempt: ProviderAttemptRow,
+    asOf: Date
+  ): Promise<void> {
+    const [clock] = await transaction.execute<ProviderClockRow>(sql`
+      select transaction_timestamp()::text as now
+    `)
+    if (!clock?.now) throw new Error('Provider circuit clock unavailable')
+    const circuit = await readCortexAssistantProviderCircuit(
+      transaction,
+      {
+        id: attempt.policyId,
+        tenantId: attempt.tenantId,
+        failureThreshold: attempt.circuitFailureThreshold,
+        failureWindowSeconds: attempt.circuitFailureWindowSeconds,
+        cooldownSeconds: attempt.circuitCooldownSeconds,
+      },
+      parseProviderClock(clock.now)
+    )
+    await this.circuitAlerts.observe(
+      transaction,
+      {
+        id: attempt.policyId,
+        tenantId: attempt.tenantId,
+        provider: attempt.provider,
+        model: attempt.model,
+        failureThreshold: attempt.circuitFailureThreshold,
+        failureWindowSeconds: attempt.circuitFailureWindowSeconds,
+        cooldownSeconds: attempt.circuitCooldownSeconds,
+      },
+      circuit,
+      asOf
+    )
   }
 
   private toResult(

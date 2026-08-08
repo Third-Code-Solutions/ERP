@@ -14,6 +14,7 @@ export interface CortexAssistantProviderCircuitPolicy {
 export interface CortexAssistantProviderCircuitSnapshot {
   state: CortexAssistantProviderCircuitState
   failureCount: number
+  tripStartedAt: Date | null
   retryAt: Date | null
   probeInFlight: boolean
   probeAttemptId: string | null
@@ -22,6 +23,7 @@ export interface CortexAssistantProviderCircuitSnapshot {
 interface CircuitEvidenceRow extends Record<string, unknown> {
   failureCount: number
   tripped: boolean
+  tripStartedAt: string | null
   latestFailureAt: string | null
 }
 
@@ -29,6 +31,7 @@ export function evaluateCortexAssistantProviderCircuit(input: {
   policy: CortexAssistantProviderCircuitPolicy
   failureCount: number
   tripped: boolean
+  tripStartedAt: Date | null
   latestFailureAt: Date | null
   probeAttemptId: string | null
   now: Date
@@ -37,12 +40,13 @@ export function evaluateCortexAssistantProviderCircuit(input: {
     return {
       state: 'closed',
       failureCount: input.failureCount,
+      tripStartedAt: null,
       retryAt: null,
       probeInFlight: false,
       probeAttemptId: null,
     }
   }
-  if (!input.latestFailureAt) {
+  if (!input.latestFailureAt || !input.tripStartedAt) {
     throw new Error('Provider circuit failure evidence is missing')
   }
 
@@ -52,6 +56,7 @@ export function evaluateCortexAssistantProviderCircuit(input: {
   return {
     state: retryAt.getTime() > input.now.getTime() ? 'open' : 'half_open',
     failureCount: input.failureCount,
+    tripStartedAt: input.tripStartedAt,
     retryAt,
     probeInFlight: input.probeAttemptId !== null,
     probeAttemptId: input.probeAttemptId,
@@ -93,6 +98,13 @@ export async function readCortexAssistantProviderCircuit(
     )
     select
       least(count(*), ${policy.failureThreshold})::int as "failureCount",
+      (
+        min(threshold_start) filter (
+          where threshold_start is not null
+            and extract(epoch from (terminal_at - threshold_start))
+              <= ${policy.failureWindowSeconds}
+        )
+      )::text as "tripStartedAt",
       max(terminal_at)::text as "latestFailureAt",
       coalesce(bool_or(
         threshold_start is not null
@@ -116,6 +128,12 @@ export async function readCortexAssistantProviderCircuit(
     : null
   if (latestFailureAt && !Number.isFinite(latestFailureAt.getTime())) {
     throw new Error('Provider circuit failure time is invalid')
+  }
+  const tripStartedAt = evidence.tripStartedAt
+    ? new Date(evidence.tripStartedAt)
+    : null
+  if (tripStartedAt && !Number.isFinite(tripStartedAt.getTime())) {
+    throw new Error('Provider circuit trip time is invalid')
   }
 
   let probeAttemptId: string | null = null
@@ -146,6 +164,7 @@ export async function readCortexAssistantProviderCircuit(
     policy,
     failureCount,
     tripped: evidence.tripped,
+    tripStartedAt,
     latestFailureAt,
     probeAttemptId,
     now,
