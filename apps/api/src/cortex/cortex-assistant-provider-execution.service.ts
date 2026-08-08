@@ -1,28 +1,40 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import type { GroundedAnswerResult } from '@third-code-erp/ai'
 import {
-  cortexAssistantGenerationWorkerCompletionSchema,
+  cortexAssistantProviderPlanSchema,
+  cortexAssistantProviderResponseSchema,
   cortexAssistantProviderSettlementCommandSchema,
+  type CortexAssistantProviderPlan,
+  type CortexAssistantProviderRequest,
+  type CortexAssistantProviderResponse,
 } from '@third-code-erp/shared-types'
 import type { ClaimedCortexAssistantGenerationJob } from './cortex-assistant-generation.state'
+import { cortexAssistantGenerationCompletionHash } from './cortex-assistant-generation-completion'
 import {
   CortexAssistantProviderAdapter,
   CortexAssistantProviderAdapterError,
-  type CortexAssistantProviderDispatchResult,
 } from './cortex-assistant-provider.adapter'
 import {
   CortexAssistantProviderBudgetError,
   CortexAssistantProviderBudgetService,
   type CortexAssistantProviderBudgetErrorCode,
 } from './cortex-assistant-provider-budget.service'
+import {
+  buildCortexAssistantProviderRequest,
+  cortexAssistantProviderRequestFingerprint,
+  cortexAssistantProviderRequestIdHash,
+} from './cortex-assistant-provider-protocol'
 
 export type CortexAssistantProviderExecutionErrorCode =
   | CortexAssistantProviderBudgetErrorCode
   | 'provider_execution_disabled'
   | 'provider_adapter_unavailable'
+  | 'provider_plan_invalid'
   | 'provider_dispatch_replay'
   | 'provider_attempt_terminal'
+  | 'provider_request_timeout'
+  | 'provider_rate_limited'
+  | 'provider_request_rejected'
   | 'provider_request_failed'
   | 'provider_response_invalid'
   | 'provider_outcome_unknown'
@@ -38,9 +50,11 @@ export class CortexAssistantProviderExecutionError extends Error {
   }
 }
 
-export interface CortexAssistantProviderExecutionResult
-  extends GroundedAnswerResult {
+export interface CortexAssistantProviderExecutionResult {
   providerAttemptId: string
+  content: string
+  citationNodeIds: string[]
+  model: string
 }
 
 /**
@@ -102,10 +116,19 @@ export class CortexAssistantProviderExecutionService {
         false
       )
     }
-    const plan = this.adapter.plan()
-    if (!plan) {
+    const rawPlan = this.adapter.plan()
+    if (!rawPlan) {
       throw new CortexAssistantProviderExecutionError(
         'provider_adapter_unavailable',
+        false
+      )
+    }
+    let plan: CortexAssistantProviderPlan
+    try {
+      plan = cortexAssistantProviderPlanSchema.parse(rawPlan)
+    } catch {
+      throw new CortexAssistantProviderExecutionError(
+        'provider_plan_invalid',
         false
       )
     }
@@ -142,9 +165,29 @@ export class CortexAssistantProviderExecutionService {
       )
     }
 
+    let request: CortexAssistantProviderRequest
+    let requestFingerprint: string
+    try {
+      request = buildCortexAssistantProviderRequest({
+        reservationId: reservation.reservationId,
+        plan,
+        claimed,
+      })
+      requestFingerprint = cortexAssistantProviderRequestFingerprint(request)
+    } catch {
+      await this.reconcileAttempt(reservation.reservationId, 'execution_failed')
+      throw new CortexAssistantProviderExecutionError(
+        'provider_request_rejected',
+        false
+      )
+    }
+
     try {
       const dispatched = await this.budget.markDispatched({
         reservationId: reservation.reservationId,
+        protocolVersion: 1,
+        dispatchKey: request.dispatchKey,
+        requestFingerprint,
       })
       if (dispatched.replayed) {
         await this.reconcileAttempt(reservation.reservationId, 'replayed')
@@ -154,18 +197,26 @@ export class CortexAssistantProviderExecutionService {
         )
       }
 
-      const output = await this.adapter.dispatch({
+      const output = await this.dispatchWithinTimeout(request)
+      const completion = this.validateOutput(output, request, claimed)
+      const responseFingerprint = cortexAssistantGenerationCompletionHash({
         jobId: claimed.jobId,
-        attemptNumber: claimed.attemptNumber,
-        question: claimed.question,
-        evidence: claimed.evidence,
-        plan,
+        requestId: claimed.requestId,
+        completion: {
+          outcome: 'provider_grounded',
+          providerAttemptId: reservation.reservationId,
+          ...completion,
+        },
       })
-      const completion = this.validateOutput(output, claimed)
       const settlement = cortexAssistantProviderSettlementCommandSchema.parse({
         reservationId: reservation.reservationId,
+        protocolVersion: 1,
         consumedCostMicros: output.consumedCostMicros,
         outcomeCode: 'provider_succeeded',
+        providerRequestIdHash: cortexAssistantProviderRequestIdHash(
+          output.providerRequestId
+        ),
+        responseFingerprint,
       })
       await this.budget.settle(settlement)
       return {
@@ -183,7 +234,7 @@ export class CortexAssistantProviderExecutionService {
       if (error instanceof CortexAssistantProviderAdapterError) {
         throw new CortexAssistantProviderExecutionError(
           error.code,
-          error.retryable
+          false
         )
       }
       if (error instanceof CortexAssistantProviderBudgetError) {
@@ -191,36 +242,58 @@ export class CortexAssistantProviderExecutionService {
       }
       throw new CortexAssistantProviderExecutionError(
         'provider_outcome_unknown',
-        true
+        false
       )
     }
   }
 
   private validateOutput(
-    output: CortexAssistantProviderDispatchResult,
+    output: CortexAssistantProviderResponse,
+    request: CortexAssistantProviderRequest,
     claimed: ClaimedCortexAssistantGenerationJob
-  ): GroundedAnswerResult {
-    let completion: GroundedAnswerResult
+  ): { content: string; citationNodeIds: string[]; model: string } {
+    let parsed: CortexAssistantProviderResponse
     try {
-      completion = cortexAssistantGenerationWorkerCompletionSchema.parse({
-        content: output.content,
-        citationNodeIds: output.citationNodeIds,
-        model: output.model,
-      })
+      parsed = cortexAssistantProviderResponseSchema.parse(output)
     } catch {
-      throw new CortexAssistantProviderAdapterError(
-        'provider_response_invalid',
-        false
-      )
+      throw new CortexAssistantProviderAdapterError('provider_response_invalid')
+    }
+    if (parsed.model !== request.model) {
+      throw new CortexAssistantProviderAdapterError('provider_response_invalid')
     }
     const allowedNodeIds = new Set(claimed.evidence.map((item) => item.nodeId))
-    if (completion.citationNodeIds.some((id) => !allowedNodeIds.has(id))) {
-      throw new CortexAssistantProviderAdapterError(
-        'provider_response_invalid',
-        false
-      )
+    if (parsed.citationNodeIds.some((id) => !allowedNodeIds.has(id))) {
+      throw new CortexAssistantProviderAdapterError('provider_response_invalid')
     }
-    return completion
+    return {
+      content: parsed.content,
+      citationNodeIds: parsed.citationNodeIds,
+      model: parsed.model,
+    }
+  }
+
+  private async dispatchWithinTimeout(
+    request: CortexAssistantProviderRequest
+  ): Promise<CortexAssistantProviderResponse> {
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort()
+        reject(
+          new CortexAssistantProviderAdapterError('provider_request_timeout')
+        )
+      }, request.timeoutMs)
+      timer.unref()
+    })
+    try {
+      return await Promise.race([
+        this.adapter.dispatch(request, controller.signal),
+        timeout,
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
   }
 
   private async reconcileAttempt(

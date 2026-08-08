@@ -43,6 +43,9 @@ describe('CortexAssistantProviderBudgetService', () => {
     await expect(
       service.markDispatched({
         reservationId: '22222222-2222-4222-8222-222222222222',
+        protocolVersion: 1,
+        dispatchKey: 'b'.repeat(64),
+        requestFingerprint: 'c'.repeat(64),
       })
     ).rejects.toBeInstanceOf(CortexAssistantProviderBudgetError)
     expect(transaction).not.toHaveBeenCalled()

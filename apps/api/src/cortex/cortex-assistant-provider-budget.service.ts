@@ -8,6 +8,7 @@ import {
 } from '@third-code-erp/database'
 import {
   cortexAssistantProviderAttemptResultSchema,
+  cortexAssistantProviderAttemptIdentitySchema,
   cortexAssistantProviderDispatchCommandSchema,
   cortexAssistantProviderReleaseCommandSchema,
   cortexAssistantProviderReservationCommandSchema,
@@ -24,6 +25,7 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import { cortexAssistantProviderDispatchKey } from './cortex-assistant-provider-protocol'
 
 export type CortexAssistantProviderBudgetErrorCode =
   | 'provider_budget_disabled'
@@ -50,6 +52,11 @@ interface ProviderAttemptRow {
   jobId: string
   attemptNumber: number
   requestHash: string
+  protocolVersion: number | null
+  dispatchKey: string | null
+  requestFingerprint: string | null
+  providerRequestIdHash: string | null
+  responseFingerprint: string | null
   status: string
   reservedCostMicros: number
   consumedCostMicros: number | null
@@ -296,7 +303,22 @@ export class CortexAssistantProviderBudgetService {
       const attempt = await this.findAttempt(transaction, command.reservationId)
       if (!attempt) this.fail('provider_attempt_not_found')
       this.assertTenantReservationGate(attempt.tenantId)
-      if (attempt.status === 'dispatched') return this.toResult(attempt, true)
+      if (
+        command.dispatchKey !==
+        cortexAssistantProviderDispatchKey(command.reservationId)
+      ) {
+        this.fail('provider_attempt_changed')
+      }
+      if (attempt.status === 'dispatched') {
+        if (
+          attempt.protocolVersion !== command.protocolVersion ||
+          attempt.dispatchKey !== command.dispatchKey ||
+          attempt.requestFingerprint !== command.requestFingerprint
+        ) {
+          this.fail('provider_attempt_changed')
+        }
+        return this.toResult(attempt, true)
+      }
       if (!attempt.policyEnabled) {
         this.fail('provider_budget_policy_unavailable')
       }
@@ -311,7 +333,14 @@ export class CortexAssistantProviderBudgetService {
       const now = new Date()
       const [updated] = await transaction
         .update(cortexAssistantProviderAttempts)
-        .set({ status: 'dispatched', dispatched_at: now, updated_at: now })
+        .set({
+          status: 'dispatched',
+          protocol_version: command.protocolVersion,
+          dispatch_key: command.dispatchKey,
+          request_fingerprint: command.requestFingerprint,
+          dispatched_at: now,
+          updated_at: now,
+        })
         .where(
           and(
             eq(cortexAssistantProviderAttempts.id, attempt.id),
@@ -321,8 +350,15 @@ export class CortexAssistantProviderBudgetService {
         .returning({ id: cortexAssistantProviderAttempts.id })
       if (!updated) this.fail('provider_attempt_state_conflict')
 
-      await this.writeStateAudit(transaction, attempt, 'dispatched')
-      return this.toResult({ ...attempt, status: 'dispatched' }, false)
+      const dispatched = {
+        ...attempt,
+        status: 'dispatched',
+        protocolVersion: command.protocolVersion,
+        dispatchKey: command.dispatchKey,
+        requestFingerprint: command.requestFingerprint,
+      }
+      await this.writeStateAudit(transaction, dispatched, 'dispatched')
+      return this.toResult(dispatched, false)
     })
   }
 
@@ -337,7 +373,10 @@ export class CortexAssistantProviderBudgetService {
       if (attempt.status === 'settled') {
         if (
           attempt.consumedCostMicros !== consumedMicros ||
-          attempt.outcomeCode !== command.outcomeCode
+          attempt.outcomeCode !== command.outcomeCode ||
+          attempt.protocolVersion !== command.protocolVersion ||
+          attempt.providerRequestIdHash !== command.providerRequestIdHash ||
+          attempt.responseFingerprint !== command.responseFingerprint
         ) {
           this.fail('provider_attempt_changed')
         }
@@ -345,6 +384,13 @@ export class CortexAssistantProviderBudgetService {
       }
       if (attempt.status !== 'dispatched') {
         this.fail('provider_attempt_state_conflict')
+      }
+      if (
+        attempt.protocolVersion !== command.protocolVersion ||
+        !attempt.dispatchKey ||
+        !attempt.requestFingerprint
+      ) {
+        this.fail('provider_attempt_changed')
       }
       if (consumedMicros > attempt.reservedCostMicros) {
         this.fail('provider_settlement_budget_exceeded')
@@ -357,6 +403,8 @@ export class CortexAssistantProviderBudgetService {
           status: 'settled',
           consumed_cost_micros: consumedMicros,
           outcome_code: command.outcomeCode,
+          provider_request_id_hash: command.providerRequestIdHash,
+          response_fingerprint: command.responseFingerprint,
           terminal_at: now,
           updated_at: now,
         })
@@ -374,6 +422,8 @@ export class CortexAssistantProviderBudgetService {
         status: 'settled',
         consumedCostMicros: consumedMicros,
         outcomeCode: command.outcomeCode,
+        providerRequestIdHash: command.providerRequestIdHash,
+        responseFingerprint: command.responseFingerprint,
       }
       await this.writeStateAudit(transaction, settled, 'settled')
       return this.toResult(settled, false)
@@ -431,7 +481,7 @@ export class CortexAssistantProviderBudgetService {
     reservationId: string,
     reason: 'execution_failed' | 'replayed'
   ): Promise<number> {
-    const command = cortexAssistantProviderDispatchCommandSchema.parse({
+    const command = cortexAssistantProviderAttemptIdentitySchema.parse({
       reservationId,
     })
     return this.database.client.transaction(async (transaction) => {
@@ -578,6 +628,13 @@ export class CortexAssistantProviderBudgetService {
       jobId: cortexAssistantProviderAttempts.job_id,
       attemptNumber: cortexAssistantProviderAttempts.attempt_number,
       requestHash: cortexAssistantProviderAttempts.request_hash,
+      protocolVersion: cortexAssistantProviderAttempts.protocol_version,
+      dispatchKey: cortexAssistantProviderAttempts.dispatch_key,
+      requestFingerprint: cortexAssistantProviderAttempts.request_fingerprint,
+      providerRequestIdHash:
+        cortexAssistantProviderAttempts.provider_request_id_hash,
+      responseFingerprint:
+        cortexAssistantProviderAttempts.response_fingerprint,
       status: cortexAssistantProviderAttempts.status,
       reservedCostMicros:
         cortexAssistantProviderAttempts.reserved_cost_micros,
@@ -739,6 +796,11 @@ export class CortexAssistantProviderBudgetService {
             ? null
             : String(attempt.consumedCostMicros),
         outcome_code: attempt.outcomeCode,
+        protocol_version: attempt.protocolVersion,
+        dispatch_key: attempt.dispatchKey,
+        request_fingerprint: attempt.requestFingerprint,
+        provider_request_id_hash: attempt.providerRequestIdHash,
+        response_fingerprint: attempt.responseFingerprint,
       },
     })
   }

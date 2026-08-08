@@ -1,5 +1,40 @@
 # Migration Plan
 
+## M3.168 Cortex provider request/response protocol (completed)
+
+1. Added strict provider plan, request, and response schemas with protocol v1,
+   bounded cost/time/content/evidence, model equality, opaque receipt, and
+   authorized unique citations.
+2. Made Nest construct a re-redacted identity-minimized envelope and derive one
+   deterministic dispatch key from the reservation. Persisted request identity
+   before fake-adapter dispatch.
+3. Added timeout abortion and a terminal post-dispatch error taxonomy. Unknown
+   provider outcomes reconcile at the reserved maximum; only reconciliation
+   infrastructure failure is retryable.
+4. Persisted protocol/request/receipt/response fingerprints, froze dispatch
+   authority, and required the response fingerprint to equal the official
+   completion hash in both Nest and PostgreSQL.
+5. Preserved rolling compatibility for pre-protocol null rows. Kept the
+   production adapter unavailable and used in-memory fakes only.
+
+Evidence: shared 264/264; API 605/605; Web 676/676; Python 8/8; database
+362/362 zero-skip; 110/110 clean migrations; 26 integration files/36 tests;
+lint/typecheck; Nest/Next production build with 82 pages; spend 4/4; controlled
+release 5/5; Actionlint; pinned workflow actions; Gitleaks; diff hygiene; and
+equal schema hashes
+`923B227DB420320E184A26D5ECC4EF2BE79AE4F9E5D98C9B5CFA1BE77FCFE498`.
+
+Release gate: keep every Cortex provider/budget/generation/worker/recovery/Core/
+Web gate false or empty, policies absent or disabled, credentials unset, and
+Vercel Git disconnected. Do not apply hosted SQL, deploy, or call a provider
+under the cost lock. Rollback is forward-only: close dispatch, reconcile open
+attempts, and preserve protocol evidence and linked completions. Legacy null
+protocol rows remain accepted only for rolling compatibility.
+
+Next source-only slice: M3.169 provider spend/latency/error observability and an
+automatic circuit-breaker contract using durable attempt metadata only. Keep
+the production adapter unavailable; add no credentials or network calls.
+
 ## M3.167 Cortex provider-grounded completion authority (completed)
 
 1. Add a nullable tenant-composite provider-attempt link to the official

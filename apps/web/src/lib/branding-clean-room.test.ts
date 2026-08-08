@@ -34,11 +34,14 @@ const textExtensions = new Set([
   '.tsx',
   '.txt',
 ])
+const ignoredDirectories = new Set(['coverage', 'dist', 'node_modules'])
 
 function collectTextFiles(root: string): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
     const path = resolve(root, entry.name)
-    if (entry.isDirectory()) return collectTextFiles(path)
+    if (entry.isDirectory()) {
+      return ignoredDirectories.has(entry.name) ? [] : collectTextFiles(path)
+    }
     return textExtensions.has(path.slice(path.lastIndexOf('.')).toLowerCase())
       ? [path]
       : []

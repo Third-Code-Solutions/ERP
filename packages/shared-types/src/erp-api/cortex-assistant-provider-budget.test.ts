@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   cortexAssistantProviderAttemptResultSchema,
+  cortexAssistantProviderDispatchCommandSchema,
   cortexAssistantProviderReleaseCommandSchema,
   cortexAssistantProviderReservationCommandSchema,
   cortexAssistantProviderSettlementCommandSchema,
@@ -8,6 +9,7 @@ import {
 
 const JOB_ID = '11111111-1111-4111-8111-111111111111'
 const RESERVATION_ID = '22222222-2222-4222-8222-222222222222'
+const HASH = 'a'.repeat(64)
 
 describe('Cortex assistant provider budget contracts', () => {
   it('accepts one strict, exact-micros reservation command', () => {
@@ -60,10 +62,21 @@ describe('Cortex assistant provider budget contracts', () => {
 
   it('bounds terminal outcome and exact settlement cost', () => {
     expect(
+      cortexAssistantProviderDispatchCommandSchema.parse({
+        reservationId: RESERVATION_ID,
+        protocolVersion: 1,
+        dispatchKey: HASH,
+        requestFingerprint: HASH,
+      })
+    ).toMatchObject({ protocolVersion: 1, dispatchKey: HASH })
+    expect(
       cortexAssistantProviderSettlementCommandSchema.parse({
         reservationId: RESERVATION_ID,
+        protocolVersion: 1,
         consumedCostMicros: '0',
         outcomeCode: 'provider_succeeded',
+        providerRequestIdHash: HASH,
+        responseFingerprint: HASH,
       })
     ).toMatchObject({ consumedCostMicros: '0' })
     expect(
