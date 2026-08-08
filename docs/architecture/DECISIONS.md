@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-293 - Route the Cortex dashboard brief through one server seam (2026-08-09)
+
+Decision: the dashboard calls `readCortexBrief()` only. An exact-tenant Core
+selection normalizes the validated Nest projection; a Core error is shown and
+does not regain direct database authority. Unselected tenants retain the
+existing role-scoped database path.
+
+Rationale: page-level branching was an authority leak and made parity/rollback
+hard to test. A single server seam keeps tenant selection, fail-closed
+behavior, and source normalization outside React rendering.
+
+Validation: brief-read 3/3, presentation/panel 8/8, full test/typecheck/lint/
+build and release/security gates recorded in `CURRENT_STATE`; no SQL, hosted
+write/deploy, provider call, or paid resource. Rollback is the source commit
+plus closed canary flags.
+
 ## D-292 - Give Cortex brief an independent, fail-closed read canary (2026-08-09)
 
 Decision: use a strict shared brief contract plus Nest `GET /v1/cortex/brief`

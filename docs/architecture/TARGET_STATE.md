@@ -1,5 +1,13 @@
 # Target State
 
+## M3.184 Dashboard server-component brief adapter
+
+The dashboard consumes one server-only brief seam. It selects Nest authority
+only for an exact tenant allowlist, normalizes the strict Core projection into
+the existing render model, and fails closed visibly on Core errors. The legacy
+database path remains for unselected tenants; chat, graph, and other reads are
+not implicitly cut over.
+
 ## M3.183 Cortex brief read authority
 
 The brief now has a strict shared contract and Nest tenant/role read authority.

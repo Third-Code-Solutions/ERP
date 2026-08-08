@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.184 Dashboard server-component brief adapter seam (completed)
+
+1. Moved the dashboard page's brief authority decision into the server-only
+   `readCortexBrief()` seam.
+2. Kept unselected tenants on the role-scoped database projection.
+3. Normalized the strict Core result to the existing presentation model and
+   made selected Core failure visible without direct fallback.
+4. Suppressed brief-derived KPI/graph metrics on failure while leaving the
+   independent assistant surface intact.
+
+Evidence: brief-read 3/3 and presentation/panel 8/8; full API 641/641, shared
+277/277, Web 683/683, database 224 passed plus 143 credential-gated skips,
+typecheck/lint, 82-page build, spend/release/Actionlint/pinned-refs/Gitleaks/
+diff/clean-room gates. No SQL, hosted, deployment, provider, or paid-resource
+change. Release gate remains closed.
+
+Exact next action: M3.185 add deterministic dashboard parity fixtures and
+review evidence without enabling a tenant canary.
+
 ## M3.183 Cortex brief read contract and Nest authority (completed)
 
 1. Added bounded, strict shared query/stats/freshness/item/result schemas with

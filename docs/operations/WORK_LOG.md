@@ -1,5 +1,21 @@
 # Work Log
 
+## 2026-08-09 - M3.184 Dashboard server-component brief adapter seam
+
+Moved Cortex dashboard brief authority into server-only `readCortexBrief()`.
+Selected exact-tenant Core uses the validated Nest projection; Core failure is
+visible and suppresses brief-derived KPI/graph metrics with no direct fallback.
+Unselected tenants retain role-scoped database reads. No SQL, hosted
+write/deploy, provider call, or paid resource.
+
+Validation: brief-read 3/3 and presentation/panel 8/8; full API 641/641,
+shared 277/277, Web 683/683, database 224 passed plus 143 credential-gated
+skips, typecheck/lint, 82-page build, spend/release/Actionlint/pinned-refs/
+Gitleaks/diff/clean-room gates.
+
+Exact next action: M3.185 add deterministic dashboard parity fixtures and
+review evidence without enabling a tenant canary.
+
 ## 2026-08-09 - M3.183 Cortex brief read contract and Nest authority
 
 Added the strict shared brief contract, Nest `GET /v1/cortex/brief`, bounded

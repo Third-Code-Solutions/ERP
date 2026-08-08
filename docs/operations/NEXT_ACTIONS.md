@@ -1,5 +1,24 @@
 # Next Actions
 
+## Exact next action after M3.184 Dashboard brief seam
+
+Keep all Cortex generation, worker, provider, read, queue, and alert-routing
+gates false; exact-tenant allowlists empty; provider policies disabled; route
+credentials unset; and Vercel Git disconnected. Do not query or mutate managed
+Supabase, deploy/build Vercel or Railway, call AI/image/provider services, or
+create a paid resource under the cost lock.
+
+Next safe source-only milestone: M3.185 add deterministic dashboard parity
+fixtures comparing the legacy and normalized Core projections, record exact
+identity/RBAC/rollback/spend review evidence, and keep every tenant canary
+closed. No process metrics, exporter, hosted telemetry, external network,
+deployment, or provider activation.
+
+Before a real provider canary, complete M3.152 backup/PITR and isolated clone
+replay of all 112 migrations, then approve one exact tenant, a low request/daily
+micros policy, credential scope, reviewed release SHA, live RBAC/cancellation
+checks, and rollback drill. M3.184 is source-only and not activation approval.
+
 ## Exact next action after M3.183 Cortex brief authority
 
 Keep all Cortex generation, worker, provider, read, queue, and alert-routing
