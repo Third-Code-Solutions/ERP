@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-10 - M3.199 Nest document-intake authority seam
+
+Added strict shared intake schemas, `document_intake_requests` ledger/migration,
+Nest service/controller/pipe, verified membership and project/storage scoping,
+idempotent replay, semantic audit, fail-closed config, protected HTTP/service
+tests, and an unconnected Web Core adapter/gate. Legacy upload behavior remains
+unchanged and all canaries are closed.
+
+Reconciled the source-only managed Supabase parity manifest to 55/113 applied/
+source migrations with 58 pending in 8 ordered review batches; no hosted state
+was queried or changed.
+
+Validation: API 77/77; Web Core 148/148; shared contract 4/4; typecheck/lint;
+Nest webpack; Next 82-page build; database package 224 passed/143 environment
+skips. No hosted database, deployment, provider, browser, or paid action.
+
+Exact next action: M3.200 zero-replay migration and legacy upload parity;
+retain cost lock and do not enable a canary.
+
 ## 2026-08-10 - M3.198 Next API database-boundary guard
 
 Added `verify-web-db-boundary.mjs` plus four policy tests. The report identifies

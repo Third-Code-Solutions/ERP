@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.199 Nest document-intake contract (completed, not approved)
+
+1. Added strict shared request/result schemas and a migration-backed,
+   tenant-scoped request ledger with RLS and composite project/user FKs.
+2. Added fail-closed Nest service/controller/pipe with verified membership,
+   document.manage authorization, storage-prefix validation, idempotent replay,
+   exact size bound, and same-transaction audit.
+3. Added protected HTTP/service/config evidence plus an unconnected Web Core
+   adapter and exact tenant gate; left `upload/complete` unchanged.
+
+Evidence: API 77/77; Web Core 148/148; shared contract 4/4; typecheck/lint;
+Nest/Web builds; database package 224 passed with 143 environment-dependent
+skips. No hosted database, provider, deployment, or paid resource action.
+
+Exact next action: run a zero-to-current local migration replay with the new
+ledger, compare the legacy upload response contract, and add a disposable Web
+canary harness. Keep `ERP_DOCUMENT_INTAKE_WRITES_VIA_API=false` and the Nest
+flag/tenant list closed.
+
 ## M3.198 Next API database-boundary guard (completed, not approved)
 
 1. Inventory direct `db`/`tx` writes and raw executes under

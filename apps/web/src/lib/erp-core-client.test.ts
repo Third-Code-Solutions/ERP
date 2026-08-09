@@ -111,7 +111,9 @@ import {
   reverseJournalEntryThroughCoreApi,
   documentProcessingJobsUseCoreApi,
   documentDeleteWritesUseCoreApi,
+  documentIntakeWritesUseCoreApi,
   deleteDocumentThroughCoreApi,
+  createDocumentThroughCoreApi,
   publicSigningWritesUseCoreApi,
   signPublicSignatureThroughCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
@@ -155,6 +157,17 @@ vi.mock('@third-code-erp/auth', () => ({
 }))
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+const DOCUMENT_ID = '88888888-8888-4888-8888-888888888888'
+const DOCUMENT_INTAKE_RESULT = {
+  documentId: DOCUMENT_ID,
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  projectId: PROJECT_ID,
+  storagePath:
+    '22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333/drawing.pdf',
+  documentType: 'pdf' as const,
+  status: 'created' as const,
+  created: true,
+}
 const RFQ_ID = '44444444-4444-4444-8444-444444444444'
 const RFQ_CREATE_RESULT = {
   rfqId: RFQ_ID,
@@ -376,7 +389,6 @@ const RFQ_TRANSITION_RESULT = {
   tenantId: '22222222-2222-4222-8222-222222222222',
   transitioned: true as const,
 }
-const DOCUMENT_ID = '88888888-8888-4888-8888-888888888888'
 const PUBLIC_SIGNING_TOKEN = 'a'.repeat(64)
 const PUBLIC_SIGNING_RESULT = {
   sessionId: '11111111-1111-4111-8111-111111111111',
@@ -3685,6 +3697,23 @@ describe('ERP Core client', () => {
     expect(documentDeleteWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
+  it('keeps document intake delegation fail-closed unless its exact gate matches', () => {
+    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(documentIntakeWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'TRUE')
+    expect(documentIntakeWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(documentIntakeWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+    expect(documentIntakeWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('sends an idempotent document deletion and validates the result', async () => {
     const result = {
       documentId: DOCUMENT_ID,
@@ -3729,6 +3758,64 @@ describe('ERP Core client', () => {
     ).resolves.toEqual({
       ok: false,
       error: 'Document was not deleted.',
+    })
+  })
+
+  it('sends an idempotent document intake command and validates the result', async () => {
+    const command = {
+      storagePath: DOCUMENT_INTAKE_RESULT.storagePath,
+      projectId: PROJECT_ID,
+      fileName: 'drawing.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DOCUMENT_INTAKE_RESULT), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createDocumentThroughCoreApi(command, 'document-intake-1')
+    ).resolves.toEqual({
+      ok: true,
+      data: DOCUMENT_INTAKE_RESULT,
+      status: 201,
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/documents',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(command),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'document-intake-1',
+        }),
+      })
+    )
+  })
+
+  it('does not fall back after document intake Core failure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('unavailable', { status: 503 }))
+    )
+    await expect(
+      createDocumentThroughCoreApi(
+        {
+          storagePath: DOCUMENT_INTAKE_RESULT.storagePath,
+          projectId: PROJECT_ID,
+          fileName: 'drawing.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 1024,
+        },
+        'document-intake-2'
+      )
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Document intake is not enabled for this tenant.',
+      status: 503,
     })
   })
 

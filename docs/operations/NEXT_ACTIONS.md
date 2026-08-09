@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.199 document-intake seam
+
+Keep `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false`,
+`ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS=[]`,
+`ERP_DOCUMENT_INTAKE_WRITES_VIA_API=false`, and its tenant list empty. Do not
+wire `apps/web/src/app/api/upload/complete/route.ts` yet.
+
+M3.200: replay the new migration from zero locally, test duplicate keys and
+foreign tenant/project prefixes against the real Postgres transaction lane,
+freeze legacy upload response parity, and add a disposable Web canary harness.
+Only after exact release/rollback identities, readiness, spend, and browser
+evidence are reviewed can a single tenant be considered for canary approval.
+
+M3.199 is source contract evidence only, not hosted database or deployment
+approval.
+
 ## Exact next action after M3.198 Web database-boundary guard
 
 Keep all Core canaries disabled and all hosted/provider actions closed under

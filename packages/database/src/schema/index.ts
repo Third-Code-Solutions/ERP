@@ -83,6 +83,7 @@ export * from './supplier-bills'
 export * from './cash'
 export * from './cash-draft-requests'
 export * from './document-delete-requests'
+export * from './document-intake-requests'
 // Bank statement matching and reconciliation
 export * from './bank-reconciliation'
 export * from './inventory-masters'

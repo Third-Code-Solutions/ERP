@@ -9,8 +9,8 @@
 
 - Managed PostgreSQL: 17.6, `ACTIVE_HEALTHY`.
 - Managed ledger: 55 migrations through `20260729233017`.
-- Source ledger: 104 migrations through `20260807160000`.
-- Ledger shape: exact linear prefix; 49 missing, zero unexpected, zero applied
+- Source ledger: 113 migrations through `20260810090000`.
+- Ledger shape: exact linear prefix; 58 missing, zero unexpected, zero applied
   after the first gap.
 - SQL review flags across the missing suffix: 39 `drop-object`, 12 explicit
   transaction-control, and four with neither scanner flag. These are
@@ -55,7 +55,7 @@ longer equal the exact pending suffix.
 
 ## Ordered review batches
 
-The six manifest batches are review checkpoints only. They do not authorize
+The eight manifest batches are review checkpoints only. They do not authorize
 independent production deployments and must never reorder the migration
 ledger. A production failure after any committed migration is a partial apply
 and invokes the database recovery plan.
@@ -68,6 +68,8 @@ and invokes the database recovery plan.
 5. Project, inventory, Cost Entry, asset, and security foundations: 11
    migrations.
 6. Latest authority/security hardening: 7 migrations.
+7. Cortex provider authority: 8 migrations.
+8. Document intake authority: 1 migration.
 
 Exact filenames live in the machine manifest and are checked against
 `supabase/migrations`.
@@ -84,7 +86,7 @@ Exact filenames live in the machine manifest and are checked against
    or managed schemas.
 4. Apply the owner-approved mapping only to the isolated clone. Never use a
    synthetic rename as production evidence.
-5. Apply all 49 migrations to the clone in source order, pausing only for
+5. Apply all 58 migrations to the clone in source order, pausing only for
    review evidence. Run no-skip database/API integration, schema/catalog diff,
    RLS/privilege checks, tenant isolation, audit recovery, Redis recovery, and
    protected workflow/browser smoke checks.
@@ -110,7 +112,7 @@ All must be true:
 - Duplicate mapping owner-approved and replayed without collision.
 - Managed backup/PITR point plus successful isolated restore drill.
 - Separate Storage object recovery evidence.
-- Exact 104-migration rehearsal with zero skips and no catalog/data drift.
+- Exact 113-migration rehearsal with zero skips and no catalog/data drift.
 - Auth/public-user identity, tenant isolation, semantic audit, and privilege
   closure proven.
 - Security notices triaged; `auth_tenant_id()` anonymous execution removed by

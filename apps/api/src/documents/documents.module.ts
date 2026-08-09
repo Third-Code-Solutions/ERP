@@ -4,6 +4,9 @@ import { RequestObservabilityMiddleware } from '../observability/request-observa
 import { DocumentDeleteController } from './document-delete.controller'
 import { DocumentDeletePipe } from './document-delete.pipe'
 import { DocumentDeleteService } from './document-delete.service'
+import { DocumentIntakeController } from './document-intake.controller'
+import { DocumentIntakePipe } from './document-intake.pipe'
+import { DocumentIntakeService } from './document-intake.service'
 import { PublicSigningController } from './public-signing.controller'
 import { PublicSigningPipe } from './public-signing.pipe'
 import { PublicSigningService } from './public-signing.service'
@@ -11,10 +14,16 @@ import { PublicSigningStorageService } from './public-signing.storage'
 
 @Module({
   imports: [AuditModule],
-  controllers: [DocumentDeleteController, PublicSigningController],
+  controllers: [
+    DocumentDeleteController,
+    DocumentIntakeController,
+    PublicSigningController,
+  ],
   providers: [
     DocumentDeletePipe,
     DocumentDeleteService,
+    DocumentIntakePipe,
+    DocumentIntakeService,
     PublicSigningPipe,
     PublicSigningService,
     PublicSigningStorageService,
@@ -24,6 +33,10 @@ export class DocumentsModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestObservabilityMiddleware)
-      .forRoutes(DocumentDeleteController, PublicSigningController)
+      .forRoutes(
+        DocumentDeleteController,
+        DocumentIntakeController,
+        PublicSigningController
+      )
   }
 }

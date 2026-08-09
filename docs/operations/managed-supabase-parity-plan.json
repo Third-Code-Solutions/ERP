@@ -5,10 +5,10 @@
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
     "postgresMajor": 17,
     "appliedCount": 55,
-    "sourceCount": 104,
-    "pendingCount": 49,
+    "sourceCount": 113,
+    "pendingCount": 58,
     "appliedHead": "20260729233017",
-    "sourceHead": "20260807160000",
+    "sourceHead": "20260810090000",
     "ledgerStatus": "review_required"
   },
   "policy": {
@@ -101,6 +101,27 @@
         "20260807140000_revoke_anon_tenant_identity_rpc.sql",
         "20260807150000_user_role_assignment_authority.sql",
         "20260807160000_cortex_semantic_index_jobs.sql"
+      ]
+    },
+    {
+      "id": "07-cortex-provider-authority",
+      "purpose": "Cortex conversation ownership, assistant generation, provider budgets, completion links, protocol, health, and circuit alerts.",
+      "migrations": [
+        "20260807170000_cortex_conversation_user_turn_authority.sql",
+        "20260807190000_cortex_assistant_turn_authority.sql",
+        "20260808090000_cortex_assistant_generation_jobs.sql",
+        "20260808100000_cortex_assistant_provider_budget.sql",
+        "20260808110000_cortex_assistant_provider_completion_link.sql",
+        "20260808120000_cortex_assistant_provider_protocol.sql",
+        "20260808130000_cortex_assistant_provider_health.sql",
+        "20260808140000_cortex_assistant_provider_circuit_alerts.sql"
+      ]
+    },
+    {
+      "id": "08-document-intake-authority",
+      "purpose": "Tenant-scoped document intake idempotency and audit ledger for the disabled Nest authority seam.",
+      "migrations": [
+        "20260810090000_document_intake_workflow.sql"
       ]
     }
   ]
