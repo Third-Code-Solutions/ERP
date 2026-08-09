@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.198 Web database-boundary guard
+
+Keep all Core canaries disabled and all hosted/provider actions closed under
+the cost lock. Do not add a new direct Next API write or broaden an allowlist
+without a migration owner and parity test.
+
+M3.199: specify a tenant-scoped, idempotent Nest document-intake command and
+HTTP contract; add protected tests and an unconnected Web adapter. Remove the
+`upload/complete` allowlist entry only after local parity, rollback, and
+release-identity gates pass. Server Actions/internal service inventory remains
+separate.
+
+M3.198 is source policy evidence only, not production authority or deployment
+approval.
+
 ## Exact next action after M3.197 release identity planner
 
 Keep Core/Web flags disabled with empty exact tenant allowlists. Do not run

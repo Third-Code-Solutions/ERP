@@ -1,5 +1,19 @@
 # Work Log
 
+## 2026-08-10 - M3.198 Next API database-boundary guard
+
+Added `verify-web-db-boundary.mjs` plus four policy tests. The report identifies
+four explicitly owned legacy write routes and two read-only `db.execute`
+routes; unallowlisted writes and raw executes fail closed. Wired the test into
+hosted and self-hosted CI. Added `WEB_DB_BOUNDARY_REVIEW.md` and updated
+architecture/migration/decision/next-action records.
+
+Validation: boundary tests 4/4; report `clear`. No runtime route, schema,
+managed Supabase, hosted action, provider call, deployment, or paid resource.
+
+Exact next action: M3.199 Nest document-intake contract/parity seam; retain the
+cost lock and all canaries.
+
 ## 2026-08-10 - M3.197 release identity and rollback planner
 
 Added pure release identity checks plus read-only `pnpm plan:release-identity`.

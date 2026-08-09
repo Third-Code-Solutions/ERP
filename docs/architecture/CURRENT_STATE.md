@@ -1,5 +1,21 @@
 # Current State
 
+## M3.198 Next API database-boundary guard (2026-08-10)
+
+Added a read-only static verifier for direct Drizzle access in
+`apps/web/src/app/api`. Four existing write routes are explicitly classified
+with migration owners; two `db.execute` routes are classified read-only. A
+synthetic unallowlisted write and an unclassified raw execute both fail the
+policy test. No runtime route, schema, flag, hosted database, provider, or
+deployment changed. The review packet is
+`docs/architecture/WEB_DB_BOUNDARY_REVIEW.md`.
+
+Validation: boundary tests 4/4 and report `clear`. CI and self-hosted CI invoke
+the test. This is a source guard only; Server Actions and internal Web service
+writes remain migration inventory. Exact next safe slice: design a disabled
+Nest document-intake contract and parity harness before changing
+`upload/complete` authority.
+
 ## M3.197 Release identity and rollback planner (2026-08-10)
 
 Added read-only `pnpm plan:release-identity` with deterministic identity

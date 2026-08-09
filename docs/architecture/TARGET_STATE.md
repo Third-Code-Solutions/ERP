@@ -1,5 +1,13 @@
 # Target State
 
+## M3.198 Next API database boundary
+
+Every Next API direct database write is either removed in favor of Nest or is
+temporarily listed with an owner, operation set, and migration target. Raw
+`db.execute` is explicitly read-only classified. The verifier is a guard
+against new split authority; it does not certify hosted behavior or permit a
+canary.
+
 ## M3.197 release identity and rollback gate
 
 Every release candidate has machine-checked source SHA/branch/clean state,

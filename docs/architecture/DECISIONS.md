@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-307 - Guard Next API direct database authority (2026-08-10)
+
+Decision: keep existing Next API behavior, but require every direct write to be
+explicitly allowlisted with operations, migration owner, and a reason. Treat
+raw `db.execute` as read-only only when separately classified. Fail CI for new
+or mismatched access; do not silently rewrite routes in this milestone.
+
+Rationale: a big-bang move would risk tenant predicates and API compatibility,
+while an unguarded Web surface would let split authority grow. A static,
+read-only guard creates a measurable boundary and leaves reversible seams for
+Nest to assume authority incrementally.
+
+Validation: boundary tests 4/4 and report `clear`; no runtime, database,
+provider, hosted, or deployment action. Server Actions/internal services are
+not yet claimed migrated.
+
 ## D-306 - Make release identity and rollback evidence machine-checked (2026-08-10)
 
 Decision: require a clean candidate SHA, matching API/Web deployed source
