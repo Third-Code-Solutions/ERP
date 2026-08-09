@@ -28,8 +28,10 @@ spec, `apps/web/src/lib/erp-core-client.ts` and client spec,
 exports/enums/project-comments, `supabase/migrations/20260810100000_project_comment_create_workflow.sql`,
 `scripts/verify-database-repro.mjs`, and architecture notes.
 
-Exact next action: review, commit, push under `kurtgav`, verify the remote SHA,
-then run disposable PostgreSQL replay before any hosted migration/canary.
+Source commit `78fb551611a763b7eef14063d1948516935a78eb` is pushed under
+`kurtgav`; local and remote branch SHAs match. Exact next action: collect
+API/Web release identity, rollback, readiness, and protected-browser evidence;
+keep hosted migration/canary behind explicit spend approval.
 
 ## 2026-08-10 - M3.202 canonical upload command payload
 

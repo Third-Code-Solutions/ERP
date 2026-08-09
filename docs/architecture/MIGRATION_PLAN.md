@@ -17,9 +17,12 @@ integration passed 28 files/42 tests; and the migration filename/index
 verifier passed. All flags remain false/empty and no hosted state or paid
 resource changed.
 
-Exact next action: review the complete diff, commit/push as `kurtgav`, verify
-the remote SHA, then run a disposable zero-to-current PostgreSQL replay before
-any managed Supabase migration or tenant canary.
+Source commit `78fb551611a763b7eef14063d1948516935a78eb` is pushed as
+`kurtgav`; local HEAD and `origin/agent-02/third-code-erp-landing` match. The
+zero-to-current PostgreSQL replay and no-skip database/API integration evidence
+are complete. Exact next action: collect API/Web release identity, rollback,
+readiness, and protected-browser evidence; keep hosted migration and tenant
+canary behind explicit spend approval.
 
 ## M3.202 canonical upload payload (completed, not approved)
 
