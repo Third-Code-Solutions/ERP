@@ -1,5 +1,21 @@
 # Next Actions
 
+## Exact next action after M3.194 owner/context parity fixture
+
+Keep `ERP_CORTEX_CONVERSATION_CONTEXT_READS_ENABLED=false` and both exact
+tenant allowlists empty. Do not import the seam into
+`apps/web/src/app/api/cortex/chat/route.ts`; keep retrieval, conversation
+writes, generation, semantic indexing, Supabase, Vercel, Railway, provider,
+and paid actions closed under the cost lock.
+
+Next safe source-only milestone: M3.195 protected HTTP parity and selected
+Core no-fallback harness, including malformed query, cross-tenant/foreign
+ownership, role-forbidden focus, Core 503, strict projection, and rollback
+evidence. Do not enable tenant or wildcard canary.
+
+M3.194 is deterministic local source evidence only, not hosted, browser,
+deployment, rollback, or spend approval.
+
 ## Exact next action after M3.193 owner/context parity seam
 
 Keep `ERP_CORTEX_CONVERSATION_CONTEXT_READS_ENABLED=false` and

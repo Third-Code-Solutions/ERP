@@ -1,5 +1,23 @@
 # Work Log
 
+## 2026-08-09 - M3.194 conversation owner/context parity fixture
+
+Added `cortex-conversation-context.parity.spec.ts` with 12 deterministic
+tenant-shaped legacy/Core cases. It compares normalized success results and
+observable 404/409 status/body semantics for unscoped chat, owned restore,
+matching focus, foreign/half-bound/revoked state, role denial, immutable
+mismatch, unsupported source, and source/type mismatch. Added the review packet
+`CORTEX_CONVERSATION_CONTEXT_REVIEW.md`.
+
+Validation: parity 12/12; principal-derived tenant/user read assertion; shared
+types 286 tests, API 152 files/675 tests, Web 102 files/696 tests; typechecks,
+lint, Nest webpack, Next 82-page build, spend/release/security guards green.
+No SQL, hosted write/deploy, provider/browser call, or paid resource. Chat
+route and all canaries remain closed.
+
+Exact next action: M3.195 protected HTTP parity and selected-Core no-fallback
+harness; retain cost lock.
+
 ## 2026-08-09 - M3.193 conversation owner/context parity seam
 
 Added the strict owner/context contract, disabled-by-default Nest authority at

@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-303 - Require deterministic owner/context parity before HTTP cutover (2026-08-09)
+
+Decision: add a frozen 12-case legacy/Core owner/context fixture and review
+packet before wiring the Web chat route. Compare normalized success data plus
+observable 404/409 semantics; keep Core/Web gates closed.
+
+Rationale: service-level tests can prove individual branches while missing
+legacy contract drift across ownership, revoked focus, role scope, and source
+mapping. A deterministic fixture exposes that drift without touching managed
+data, browser state, or provider spend.
+
+Validation: parity 12/12; principal-derived tenant/user read assertion. No SQL,
+hosted action, provider call, browser session, or paid resource. Next gate is
+protected HTTP parity and selected-Core no-fallback evidence.
+
 ## D-302 - Keep chat owner/context separate from retrieval (2026-08-09)
 
 Decision: add a dedicated, read-only owner/context Core contract and an
