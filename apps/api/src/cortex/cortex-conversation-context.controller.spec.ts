@@ -1,6 +1,11 @@
 import 'reflect-metadata'
 
-import { ValidationPipe } from '@nestjs/common'
+import {
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+  ValidationPipe,
+} from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import type { NextFunction, Request, Response } from 'express'
 import request from 'supertest'
@@ -109,5 +114,45 @@ describe('Cortex conversation context HTTP contract', () => {
       {},
       expect.objectContaining({ tenantId: TENANT_ID })
     )
+  })
+
+  it.each([
+    {
+      name: 'conversation concealment',
+      exception: new NotFoundException('Conversation not found'),
+      status: 404,
+      message: 'Conversation not found',
+    },
+    {
+      name: 'focused record concealment',
+      exception: new NotFoundException('Focused record not found'),
+      status: 404,
+      message: 'Focused record not found',
+    },
+    {
+      name: 'immutable context mismatch',
+      exception: new ConflictException('Conversation context mismatch'),
+      status: 409,
+      message: 'Conversation context mismatch',
+    },
+    {
+      name: 'closed tenant canary',
+      exception: new ServiceUnavailableException(
+        'Cortex conversation context reads are not enabled for this tenant.'
+      ),
+      status: 503,
+      message: 'Cortex conversation context reads are not enabled for this tenant.',
+    },
+  ])('preserves $name HTTP status and message', async ({ exception, status, message }) => {
+    const resolve = vi.fn().mockRejectedValue(exception)
+    const app = await appFor(resolve)
+
+    await request(app.getHttpServer())
+      .get(`/v1/cortex/conversation-context?conversationId=${CONVERSATION_ID}`)
+      .expect(status)
+      .expect(({ body }) => {
+        expect(body.message).toBe(message)
+        expect(body.statusCode).toBe(status)
+      })
   })
 })

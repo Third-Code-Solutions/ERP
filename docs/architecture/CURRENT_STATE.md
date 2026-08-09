@@ -1,5 +1,22 @@
 # Current State
 
+## M3.195 Conversation owner/context protected HTTP harness (2026-08-09)
+
+Added protected HTTP contract coverage for `GET /v1/cortex/conversation-context`.
+Malformed/incomplete/caller-scope input rejects at 400; service exceptions
+preserve 404/409/503 status and message semantics. Extended selected Web Core
+seam coverage: Core timeout maps to 503, calls Core once, and never retries or
+falls back to direct database authority. Chat route remains unconnected.
+
+Validation: Nest HTTP 7/7; Web seam 4/4; shared-types 286 tests, API 152
+files/679 tests, Web 102 files/697 tests; typechecks/lint green. Existing Nest
+webpack and 82-page Next build remain green; spend/release/security guards
+green. No SQL, hosted write/deploy, provider, browser, or paid action. All
+Core/Web canaries remain false/empty.
+
+Exact next safe slice: disposable protected auth/cross-tenant harness and
+release-identity/rollback evidence; keep all canaries closed.
+
 ## M3.194 Conversation owner/context parity fixture (2026-08-09)
 
 Added deterministic legacy/Core parity evidence for the pre-chat owner/context
@@ -17,8 +34,8 @@ retrieval, provider, or browser path. Chat route remains unconnected. Both
 Core/Web owner-context gates remain false/empty; no SQL, hosted write/deploy,
 or paid resource changed.
 
-Exact next safe slice: prove protected HTTP parity and selected-Core
-no-fallback behavior in a disposable test harness; keep all canaries closed.
+Exact next safe slice: prove protected auth/cross-tenant behavior in a
+disposable harness; keep all canaries closed.
 
 ## M3.193 Conversation owner/context parity seam (2026-08-09)
 
