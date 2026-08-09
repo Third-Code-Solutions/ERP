@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
         fileName,
         mimeType,
         sizeBytes,
-        description,
+        description: description ?? null,
       },
       userRow.tenant_id,
       `upload-${createUploadIdempotencyKey({

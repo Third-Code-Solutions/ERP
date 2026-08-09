@@ -312,6 +312,7 @@ describe('completed document upload Project access', () => {
         fileName: 'notes.txt',
         mimeType: 'text/plain',
         sizeBytes: 1_024,
+        description: null,
       },
       TENANT_ID,
       expect.stringMatching(/^upload-[a-f0-9]{64}$/)
