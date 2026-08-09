@@ -1,5 +1,29 @@
 # Architecture Decisions
 
+## D-313 - Make Core authoritative for project comment creation (2026-08-10)
+
+Decision: project discussion creation is a strict Nest command with verified
+membership, `project.update` capability, tenant/project predicates, a durable
+tenant-scoped idempotency ledger, mention resolution, and same-transaction
+semantic audit. The Web action selects Core only for an exact enabled tenant;
+after selection, Core failure is terminal and no direct-write fallback is
+allowed. Browser insert/update/delete privileges on `project_comments` are
+revoked by the migration; the legacy server credential path remains closed-
+canary compatibility only.
+
+Rationale: comments are construction traceability and Cortex context, not
+incidental UI state. Two browser writes could cross tenant/project boundaries,
+lose audit linkage, or duplicate a retry. Core transaction plus replay ledger
+provides one authority while preserving current API behavior until local
+replay, hosted release identity, rollback, and protected browser evidence are
+available.
+
+Validation: focused shared/API/Web suites; full tests, typecheck, lint, and
+production build passed; disposable PostgreSQL replay reached 114/114
+migrations and the real comment transaction/replay/rollback integration
+passed. Hosted SQL, deployment, provider, and paid actions were intentionally
+not performed.
+
 ## D-312 - Canonicalize optional upload descriptions (2026-08-10)
 
 Decision: the guarded Web-to-Core document command sends `description: null`

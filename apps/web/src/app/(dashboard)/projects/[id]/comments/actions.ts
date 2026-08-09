@@ -1,15 +1,26 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { getUser } from '@third-code-erp/auth'
+import { can, getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { projectComments, users } from '@third-code-erp/database/schema'
+import { projectComments, projects, users } from '@third-code-erp/database/schema'
 import { and, eq, inArray } from 'drizzle-orm'
+import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  createProjectCommentThroughCoreApi,
+  projectCommentCreateWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 
 interface ActionResult {
   error?: string
 }
+
+const CreateCommentSchema = z.object({
+  projectId: z.string().uuid(),
+  idempotencyKey: z.string().trim().min(1).max(256).optional(),
+})
 
 const EMAIL_MENTION_RE = /@([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g
 
@@ -37,19 +48,62 @@ export async function createComment(
   projectId: string,
   formData: FormData
 ): Promise<ActionResult> {
+  const parsed = CreateCommentSchema.safeParse({
+    projectId,
+    idempotencyKey: formData.get('idempotency_key') ?? undefined,
+  })
+  if (!parsed.success) return { error: 'Invalid project comment request' }
+
+  const safeProjectId = parsed.data.projectId
   const user = await getUser()
   if (!user) return { error: 'Unauthorized' }
 
   const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
+    .select({ tenant_id: users.tenant_id, role: users.role })
     .from(users)
     .where(eq(users.id, user.id))
   if (!userRow?.tenant_id) return { error: 'No tenant' }
+  if (!can(userRow.role, 'project.update')) return { error: 'Forbidden' }
 
   const rawBody = formData.get('body')
   const body = typeof rawBody === 'string' ? rawBody.trim() : ''
   if (!body) return { error: 'Comment body is required' }
   if (body.length > 10000) return { error: 'Comment is too long (max 10,000 characters)' }
+
+  if (projectCommentCreateWritesUseCoreApi(userRow.tenant_id)) {
+    const coreResult = await createProjectCommentThroughCoreApi(
+      { projectId: safeProjectId, body },
+      parsed.data.idempotencyKey ?? randomUUID()
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return {
+        error:
+          coreResult.error ??
+          'Project comment was not created. No compatibility fallback was used.',
+      }
+    }
+    if (
+      coreResult.data.tenantId !== userRow.tenant_id ||
+      coreResult.data.projectId !== safeProjectId ||
+      coreResult.data.authorId !== user.id ||
+      coreResult.data.body !== body
+    ) {
+      return { error: 'ERP Core API returned an invalid project comment scope.' }
+    }
+    revalidatePath(`/projects/${safeProjectId}/comments`)
+    return {}
+  }
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(
+      and(
+        eq(projects.id, safeProjectId),
+        eq(projects.tenant_id, userRow.tenant_id)
+      )
+    )
+  if (!project) return { error: 'Project not found' }
 
   const mentionEmails = extractMentionEmails(body)
   const mentionIds = await resolveMentionUserIds(userRow.tenant_id, mentionEmails)
@@ -58,7 +112,7 @@ export async function createComment(
     .insert(projectComments)
     .values({
       tenant_id: userRow.tenant_id,
-      project_id: projectId,
+      project_id: safeProjectId,
       author_id: user.id,
       body,
       mentions: mentionIds,
@@ -74,13 +128,13 @@ export async function createComment(
     entityId: inserted.id,
     action: 'create',
     diff: {
-      project_id: projectId,
+      project_id: safeProjectId,
       body_length: body.length,
       mention_count: mentionIds.length,
     },
   })
 
-  revalidatePath(`/projects/${projectId}/comments`)
+  revalidatePath(`/projects/${safeProjectId}/comments`)
   return {}
 }
 

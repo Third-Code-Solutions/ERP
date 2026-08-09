@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { tenants } from './tenants'
@@ -20,6 +20,10 @@ export const projectComments = pgTable(
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex('ux_project_comments_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     tenantIdx: index('idx_project_comments_tenant_id').on(table.tenant_id),
     projectCreatedIdx: index('idx_project_comments_project_created').on(table.project_id, table.created_at),
     authorIdx: index('idx_project_comments_author').on(table.author_id),

@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.203 project comment creation (completed, not approved)
+
+1. Added strict shared command/result contracts and the Nest controller/pipe.
+2. Added a tenant-scoped Core transaction with verified membership,
+   `project.update`, project scope, mention resolution, idempotent replay, and
+   same-transaction audit.
+3. Added migration-backed service-only ledger and browser-DML revocation;
+   wired the Web Server Action behind exact flags with no fallback, while
+   preserving the closed compatibility path.
+
+Evidence: focused shared/API/Web suites passed; full `pnpm test`, typecheck,
+lint, and production build passed; disposable PostgreSQL replay reached
+114/114 migrations; database tests passed 367/367 without skips; API
+integration passed 28 files/42 tests; and the migration filename/index
+verifier passed. All flags remain false/empty and no hosted state or paid
+resource changed.
+
+Exact next action: review the complete diff, commit/push as `kurtgav`, verify
+the remote SHA, then run a disposable zero-to-current PostgreSQL replay before
+any managed Supabase migration or tenant canary.
+
 ## M3.202 canonical upload payload (completed, not approved)
 
 1. Normalize an omitted upload description to explicit `null` before the Core
@@ -9,9 +30,9 @@
    provider, or paid resource was changed.
 
 Evidence: route 8/8; full `pnpm test`; typecheck; lint; and production build
-passed. Source commit `12b9825dadd6fd50f4bf91e687bf71737a806b9a` matches the
-remote branch. Exact next action: collect release identity/rollback/readiness
-evidence, then keep hosted cutover behind the spend lock.
+passed. Source branch HEAD `f36cdc9c8c906abd10a6fcab757624855496f13c` matches
+the remote branch. Exact next action: collect release identity/rollback/
+readiness evidence, then keep hosted cutover behind the spend lock.
 
 ## M3.201 guarded upload route cutover (completed, not approved)
 

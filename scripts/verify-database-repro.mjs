@@ -118,6 +118,7 @@ const requiredServerOnlyTables = [
   'cortex_assistant_provider_policies',
   'cortex_assistant_provider_attempts',
   'document_intake_requests',
+  'project_comment_create_requests',
 ]
 
 const requiredPolicies = [
@@ -313,6 +314,7 @@ const requiredIndexes = [
   'idx_assets_tenant_project',
   'ux_opportunities_tenant_id_id',
   'ux_pre_con_checklists_tenant_id_id',
+  'ux_project_comments_tenant_id_id',
 ]
 
 const requiredServerOnlyIndexes = [
@@ -337,6 +339,9 @@ const requiredServerOnlyIndexes = [
   'ux_document_intake_requests_tenant_id_id',
   'ux_document_intake_requests_tenant_key',
   'idx_document_intake_requests_tenant_state',
+  'ux_project_comment_create_requests_tenant_id_id',
+  'ux_project_comment_create_requests_tenant_key',
+  'idx_project_comment_create_requests_tenant_state',
 ]
 
 const requiredExpandedNodeTypes = [

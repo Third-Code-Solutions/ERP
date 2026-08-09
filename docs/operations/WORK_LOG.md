@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-10 - M3.203 Core project comment authority
+
+Implemented the project-comment command boundary incrementally. Added shared
+contracts, Core service/controller/pipe, idempotency ledger schema and
+migration, exact tenant/capability checks, mention resolution, semantic audit,
+Web Core adapter/selector, and compatibility-path tenant/project hardening.
+Added API, Web, shared-contract, and environment tests; extended the database
+reproducibility verifier with the new service-only table/indexes.
+
+Validation: focused suites passed; full `pnpm test` passed; disposable
+PostgreSQL replay reached 114/114 migrations; database tests passed 367/367
+without skips; API integration passed 28 files/42 tests including the new
+real-transaction comment test; `pnpm typecheck`, `pnpm lint`, `pnpm build`,
+`pnpm verify:web-db-boundary`, and migration `--files-only` verification
+passed. No Supabase SQL, Vercel, Railway, provider, browser, or paid action
+occurred. All comment Core flags remain false/empty.
+
+Changed files: `apps/api/src/projects/project-comment-creation.service.ts`,
+`apps/api/src/projects/project-comments.controller.ts`,
+`apps/api/src/projects/project-comment.pipe.ts`, their specs,
+`apps/api/src/projects/projects.module.ts`, config/environment examples and
+spec, `apps/web/src/app/(dashboard)/projects/[id]/comments/actions.ts` and
+spec, `apps/web/src/lib/erp-core-client.ts` and client spec,
+`packages/shared-types/src/erp-api/project-comments.ts` and spec,
+`packages/database/src/schema/project-comment-create-requests.ts`, schema
+exports/enums/project-comments, `supabase/migrations/20260810100000_project_comment_create_workflow.sql`,
+`scripts/verify-database-repro.mjs`, and architecture notes.
+
+Exact next action: review, commit, push under `kurtgav`, verify the remote SHA,
+then run disposable PostgreSQL replay before any hosted migration/canary.
+
 ## 2026-08-10 - M3.202 canonical upload command payload
 
 Normalized the optional upload description to explicit `null` at the Core
@@ -15,7 +46,7 @@ Changed files: `apps/web/src/app/api/upload/complete/route.ts`,
 `apps/web/src/app/api/upload/complete/route.test.ts`, and architecture/
 operations notes.
 
-Source push complete: commit `12b9825dadd6fd50f4bf91e687bf71737a806b9a`
+Source push complete: branch HEAD `f36cdc9c8c906abd10a6fcab757624855496f13c`
 verified equal on local and `origin/agent-02/third-code-erp-landing`; worktree
 clean; GitHub active identity `kurtgav`.
 

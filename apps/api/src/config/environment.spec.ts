@@ -9,6 +9,32 @@ const REQUIRED = {
 }
 
 describe('ERP API environment', () => {
+  it('keeps project comment creation disabled and tenant-scoped by default', () => {
+    const defaults = validateEnvironment(REQUIRED)
+    expect(defaults.ERP_PROJECT_COMMENT_CREATE_WRITES_ENABLED).toBe(false)
+    expect(defaults.ERP_PROJECT_COMMENT_CREATE_WRITES_TENANT_IDS).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PROJECT_COMMENT_CREATE_WRITES_ENABLED: 'true',
+        ERP_PROJECT_COMMENT_CREATE_WRITES_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_PROJECT_COMMENT_CREATE_WRITES_ENABLED: true,
+      ERP_PROJECT_COMMENT_CREATE_WRITES_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_PROJECT_COMMENT_CREATE_WRITES_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_PROJECT_COMMENT_CREATE_WRITES_TENANT_IDS')
+  })
+
   it('keeps user role assignment disabled and tenant-scoped by default', () => {
     const defaults = validateEnvironment(REQUIRED)
     expect(
