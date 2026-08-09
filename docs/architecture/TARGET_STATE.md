@@ -1,5 +1,12 @@
 # Target State
 
+## M3.197 release identity and rollback gate
+
+Every release candidate has machine-checked source SHA/branch/clean state,
+matching API/Web release identities, explicit rollback targets, and a clear
+spend/deployment guard before any canary. Missing hosted evidence remains
+`review_required`; source tests never imply production identity.
+
 ## M3.196 protected auth and tenant boundary
 
 The future Core owner/context route is exercised through the real JWT

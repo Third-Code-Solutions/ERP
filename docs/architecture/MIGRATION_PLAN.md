@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.197 release identity/rollback planner (completed, not approved)
+
+1. Added pure `buildReleaseIdentityPlan()` checks for clean candidate source,
+   matching API/Web hosted source SHAs, explicit hosted release IDs, rollback
+   IDs, closed Vercel Git, and clear spend guard.
+2. Added read-only `pnpm plan:release-identity` with JSON and strict
+   `--require-clear` output; no provider or database access.
+3. Added `RELEASE_IDENTITY_ROLLBACK_REVIEW.md` with required evidence and
+   reversible rollback sequence.
+
+Evidence: planner tests 5/5; current report intentionally `review_required`
+for missing hosted/rollback IDs. No SQL, hosted read/write, deployment,
+provider, browser, or paid-resource action.
+
+Exact next action: M3.198 either capture exact external identities under
+explicit budget approval or continue source-only reliability work; keep all
+canaries false/empty.
+
 ## M3.196 protected auth/cross-tenant harness (completed, not approved)
 
 1. Added a disposable HTTP harness using the real `SupabaseJwtGuard` and

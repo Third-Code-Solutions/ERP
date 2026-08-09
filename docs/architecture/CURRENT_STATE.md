@@ -1,5 +1,17 @@
 # Current State
 
+## M3.197 Release identity and rollback planner (2026-08-10)
+
+Added read-only `pnpm plan:release-identity` with deterministic identity
+checks. It records candidate SHA/branch/clean state, requires API/Web hosted
+release IDs whose source SHAs match candidate, requires explicit rollback IDs,
+and rechecks Vercel Git/spend guard. Pure planner tests pass 5/5. No provider,
+SQL, flag, browser, or deployment action occurred. Current report is
+`review_required` until external release and rollback identities are supplied.
+
+Exact next safe slice: keep canaries closed; obtain provider identities only
+under explicit budget approval, or continue source-only production hardening.
+
 ## M3.196 Conversation owner/context protected auth boundary (2026-08-10)
 
 Added a disposable HTTP harness that composes the real `SupabaseJwtGuard`,

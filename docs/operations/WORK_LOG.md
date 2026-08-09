@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-10 - M3.197 release identity and rollback planner
+
+Added pure release identity checks plus read-only `pnpm plan:release-identity`.
+Planner records candidate SHA/branch/clean state; matches hosted API/Web
+source SHAs; requires hosted release IDs, rollback IDs, closed Vercel Git, and
+clear spend guard. Added `RELEASE_IDENTITY_ROLLBACK_REVIEW.md`.
+
+Validation: planner tests 5/5. Current planner report correctly remains
+`review_required` because external identities/rollback targets are absent. No
+SQL, hosted action, provider/browser call, or paid resource. Canaries remain
+closed.
+
+Exact next action: M3.198 identity capture only with explicit budget approval;
+otherwise continue source-only hardening.
+
 ## 2026-08-10 - M3.196 conversation owner/context protected auth boundary
 
 Added `cortex-conversation-context.protected.spec.ts`, a disposable Nest HTTP
