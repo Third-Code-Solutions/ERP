@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.193 conversation owner/context parity seam (completed, not approved)
+
+1. Added strict owner/context query and response contracts; JSON focus is
+   accepted only as transport and caller tenant/user/role fields are rejected.
+2. Added disabled-by-default Nest resolution at
+   `GET /v1/cortex/conversation-context`. It locks no writes, derives the
+   verified principal, checks owner scope, preserves 404/409 behavior, and
+   reauthorizes current role/context mapping.
+3. Added a server-only Web Core client/seam with exact-tenant selection,
+   strict parsing, timeout/no-store transport, and no direct fallback. The
+   chat route remains unchanged and unconnected.
+
+Evidence: shared 5/5; API service 9/9, controller 3/3, environment 66/66;
+Web client 145/145 and seam 3/3; shared/API/Web typechecks; lint; API/Web
+production builds; spend/release/security CI guards. Full package lanes after
+the final correction are green: shared-types 286 passed, API 663 passed, Web
+696 passed; database previously passed 224 with 143 environment-dependent
+skips. Nest webpack and the 82-page Next production build are green. No SQL,
+hosted, deployment, provider, or paid-resource action.
+
+Exact next action: M3.194 deterministic legacy/Core owner/context parity
+fixture and review packet; keep both gates, route, retrieval, writes, and
+provider actions closed.
+
 ## M3.192 unconnected Web chat retrieval seam (completed, not approved)
 
 1. Added the server-only exact-tenant flag evaluator and Core client for

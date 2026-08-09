@@ -121,6 +121,8 @@ import {
   getCortexBriefThroughCoreApi,
   cortexChatRetrievalReadsUseCoreApi,
   getCortexChatRetrievalThroughCoreApi,
+  cortexConversationContextReadsUseCoreApi,
+  getCortexConversationContextThroughCoreApi,
   cortexSearchUseCoreApi,
   searchCortexThroughCoreApi,
   cortexGraphReadsUseCoreApi,
@@ -1592,6 +1594,73 @@ describe('ERP Core client', () => {
       ok: false,
       status: 503,
       error: 'ERP Core API returned an invalid Cortex chat retrieval result.',
+    })
+  })
+
+  it('keeps Cortex conversation owner/context reads exact-tenant and rejects wildcard', () => {
+    vi.stubEnv('ERP_CORTEX_CONVERSATION_CONTEXT_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_CONTEXT_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(cortexConversationContextReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv(
+      'ERP_CORTEX_CONVERSATION_CONTEXT_READS_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(cortexConversationContextReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+  })
+
+  it('calls the authenticated Core owner/context read with JSON focus transport', async () => {
+    const query = {
+      conversationId: '33333333-3333-4333-8333-333333333333',
+      context: {
+        refTable: 'projects' as const,
+        refId: '44444444-4444-4444-8444-444444444444',
+      },
+    }
+    const resolution = { conversationId: query.conversationId, context: null }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(resolution), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getCortexConversationContextThroughCoreApi(query)).resolves.toEqual({
+      ok: true,
+      data: resolution,
+    })
+    const expectedParams = new URLSearchParams({
+      conversationId: query.conversationId,
+      context: JSON.stringify(query.context),
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/cortex/conversation-context?${expectedParams.toString()}`,
+      expect.objectContaining({ method: 'GET', cache: 'no-store' })
+    )
+  })
+
+  it('rejects an invalid Core owner/context projection', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ context: null }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    )
+
+    await expect(
+      getCortexConversationContextThroughCoreApi({})
+    ).resolves.toEqual({
+      ok: false,
+      status: 503,
+      error:
+        'ERP Core API returned an invalid Cortex conversation context result.',
     })
   })
 

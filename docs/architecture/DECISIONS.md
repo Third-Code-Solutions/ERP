@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-302 - Keep chat owner/context separate from retrieval (2026-08-09)
+
+Decision: add a dedicated, read-only owner/context Core contract and an
+unconnected Web seam. Do not reuse retrieval, entity, conversation detail, or
+write canaries as chat bootstrap authority; do not wire the chat route yet.
+
+Rationale: chat must preserve owner lookup, immutable focus, current-role
+authorization, and 404/409 behavior independently from evidence retrieval.
+Combining these paths would make a retrieval cutover capable of changing
+conversation isolation or silently restoring direct database authority after a
+Core failure.
+
+Validation: shared 5/5; API service 9/9, controller 3/3, environment 66/66;
+Web client 145/145 and seam 3/3; typechecks passed. No SQL, hosted action,
+provider call, or paid resource. Both exact-tenant gates remain false/empty.
+
 ## D-301 - Keep the Web chat Core retrieval seam unconnected (2026-08-09)
 
 Decision: add a server-only, exact-tenant Core retrieval adapter with strict

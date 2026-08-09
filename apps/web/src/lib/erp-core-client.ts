@@ -204,6 +204,10 @@ import {
   cortexChatRetrievalResultSchema,
   type CortexChatRetrievalQuery,
   type CortexChatRetrievalResult,
+  cortexConversationContextResolveQuerySchema,
+  cortexConversationContextResolveResponseSchema,
+  type CortexConversationContextResolveQuery,
+  type CortexConversationContextResolveResponse,
   cortexSearchResultSchema,
   type CortexSearchResult,
   cortexGraphResponseSchema,
@@ -458,6 +462,17 @@ export function cortexChatRetrievalReadsUseCoreApi(
     tenantId,
     process.env.ERP_CORTEX_CHAT_RETRIEVAL_READS_VIA_API,
     process.env.ERP_CORTEX_CHAT_RETRIEVAL_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Conversation owner/context authority remains an exact-tenant seam. */
+export function cortexConversationContextReadsUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_CORTEX_CONVERSATION_CONTEXT_READS_VIA_API,
+    process.env.ERP_CORTEX_CONVERSATION_CONTEXT_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1236,6 +1251,79 @@ export async function getCortexChatRetrievalThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex chat retrieval service is unavailable.',
+    }
+  }
+}
+
+/**
+ * Read-only owner/context adapter. It transports focus as JSON and does not
+ * carry tenant, user, or role fields because Core derives those from auth.
+ */
+export async function getCortexConversationContextThroughCoreApi(
+  query: CortexConversationContextResolveQuery
+): Promise<CoreResult<CortexConversationContextResolveResponse>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  const parsedQuery = cortexConversationContextResolveQuerySchema.safeParse(query)
+  if (!parsedQuery.success) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Invalid Cortex conversation context query.',
+    }
+  }
+
+  const params = new URLSearchParams()
+  if (parsedQuery.data.conversationId) {
+    params.set('conversationId', parsedQuery.data.conversationId)
+  }
+  if (parsedQuery.data.context) {
+    params.set('context', JSON.stringify(parsedQuery.data.context))
+  }
+  const suffix = params.size > 0 ? `?${params.toString()}` : ''
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/cortex/conversation-context${suffix}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Cortex conversation context service is unavailable.',
+      }
+    }
+
+    const parsed = cortexConversationContextResolveResponseSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error:
+          'ERP Core API returned an invalid Cortex conversation context result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Cortex conversation context service is unavailable.',
     }
   }
 }

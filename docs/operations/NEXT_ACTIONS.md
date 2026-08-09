@@ -1,5 +1,24 @@
 # Next Actions
 
+## Exact next action after M3.193 owner/context parity seam
+
+Keep `ERP_CORTEX_CONVERSATION_CONTEXT_READS_ENABLED=false` and
+`ERP_CORTEX_CONVERSATION_CONTEXT_READS_TENANT_IDS=[]`; keep Web
+`ERP_CORTEX_CONVERSATION_CONTEXT_READS_VIA_API=false` with an empty exact
+tenant allowlist. Do not import the seam into
+`apps/web/src/app/api/cortex/chat/route.ts`; keep retrieval, conversation
+writes, generation, semantic indexing, Supabase, Vercel, Railway, provider,
+and paid actions closed under the cost lock.
+
+Next safe source-only milestone: M3.194 deterministic parity between the
+legacy chat owner/context behavior and the Core resolution, plus a review
+packet covering protected roles, cross-tenant/foreign ownership, revoked
+focus, 404/409 semantics, rollback, hosted identity, and spend. Do not enable
+a tenant or wildcard canary.
+
+M3.193 is local source evidence only, not browser, hosted, deployment,
+rollback, or spend approval.
+
 ## Exact next action after M3.192 unconnected Web chat seam
 
 Keep `ERP_CORTEX_CHAT_RETRIEVAL_READS_VIA_API` disabled and
