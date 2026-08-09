@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.206 universal search partial-result contract (completed, source-only)
+
+1. Added the shared bounded hit/result schema used by Web now and Nest Core
+   later; preserve `hits`/`hint` compatibility while adding explicit status
+   and failed record kinds.
+2. Labeled each authorized Web query before parallel execution, retained
+   server-only error logging, and exposed only a generic incomplete-results
+   warning in the command palette. Invalid responses fail closed.
+3. Added shared schema, route summarization, and response-hardening tests.
+
+Validation: shared contract 2/2, Web search route 12/12, root lint, full test
+suite, production build, Web DB-boundary verification, managed-parity
+verification, clean-room tests 7/7, and spend-guard tests 4/4. No hosted
+database/provider/deployment action. No Core cutover flag exists or opened in
+this slice.
+
+Exact next action: implement a disabled Nest Core universal-search read adapter
+against the shared contract, then run disposable PostgreSQL replay and exact
+tenant/no-fallback integration before any canary or provider action.
+
 ## M3.205 managed Supabase parity manifest refresh (completed, source-only)
 
 1. Reconciled `docs/operations/managed-supabase-parity-plan.json` with the

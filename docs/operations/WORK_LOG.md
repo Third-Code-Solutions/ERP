@@ -1,5 +1,28 @@
 # Work Log
 
+## 2026-08-10 - M3.206 universal search partial-result contract
+
+Added `packages/shared-types/src/erp-api/universal-search.ts` and tests; made
+the Web search route use the shared contract, label each fan-out query, and
+report `complete`/`partial` with bounded failed record types. The command
+palette now validates the payload and gives an honest incomplete-results
+warning; malformed responses fail closed. Existing `hits`/`hint` consumers
+remain compatible.
+
+Validation: shared contract 2/2, Web route 12/12, root lint, full test suite,
+production build, Web DB-boundary verification, managed-parity verification,
+clean-room tests 7/7, and spend-guard tests 4/4. No Supabase SQL/query,
+migration history repair, Vercel/Railway deployment, provider call, queue,
+browser mutation, or paid action occurred.
+
+Changed files: shared universal-search contract/test/index export; Web search
+route/result helper/policy/test; command palette; six architecture/operations
+memory files.
+
+Exact next action: review/stage only these source and memory files, commit, push
+the reviewed source SHA as `kurtgav`, verify local/origin identity, and keep
+hosted state and all Core search gates closed.
+
 ## 2026-08-10 - M3.205 managed Supabase parity manifest refresh
 
 Read-only parity guard failed after M3.204 because manifest source count/head,

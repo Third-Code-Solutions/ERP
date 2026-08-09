@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.206 universal search contract
+
+Root lint, full tests, production build, clean-room tests, managed-parity
+verification, Web DB-boundary verification, and Vercel/Railway spend guard are
+green. Review/stage only the M3.206 source and memory files, commit, push the
+SHA as `kurtgav`, and verify local/origin identity. Do not query or mutate
+Supabase, repair migration history, create a paid branch, deploy
+Vercel/Railway, or open a canary.
+
+After the source push, implement the disabled Nest Core universal-search
+read adapter with the same contract, explicit capability/tenant/assignee
+scope, exact tenant allowlist, and terminal selected-Core failure. Require
+disposable PostgreSQL replay and protected-browser evidence before activation.
+
 ## Exact next action after M3.205 parity manifest refresh
 
 Keep managed Supabase status `review_required`; applied boundary remains 55

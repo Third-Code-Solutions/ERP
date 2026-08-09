@@ -1,5 +1,30 @@
 # Current State
 
+## M3.206 universal search partial-result contract (2026-08-10)
+
+Universal search now uses one strict shared result contract for the Web
+compatibility route and the future Nest Core read authority. The contract
+keeps the existing `hits`/`hint` fields, adds `status` (`complete` or
+`partial`) and bounded `failedTypes`, and rejects external navigation or
+database diagnostics. The compatibility route labels each role-authorized
+record query before `Promise.allSettled`; a failed query is logged server-side
+and surfaced only as an incomplete-result warning. The command palette parses
+the response and fails closed on a malformed payload instead of trusting an
+untyped browser cast.
+
+Shared contract tests 2/2, Web search route tests 12/12, root lint, full test
+suite, production build, Web DB-boundary verification, managed-parity
+verification, clean-room tests 7/7, and spend-guard tests 4/4 passed. No
+database, hosted row, migration, Auth/Storage object, provider, queue, Vercel
+deployment, Railway build, or paid action changed. This is a source-only
+compatibility improvement; universal search business reads have not yet moved
+behind Nest Core.
+
+Exact next action: design the disabled Nest Core universal-search read adapter
+against this contract, with explicit capability, tenant, assignee, and exact
+tenant-canary checks plus no fallback, after disposable PostgreSQL replay is
+available.
+
 ## M3.205 managed Supabase parity manifest refresh (2026-08-10)
 
 The read-only managed-Supabase parity manifest now matches the repository
