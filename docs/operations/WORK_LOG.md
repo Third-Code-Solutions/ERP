@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-10 - M3.205 managed Supabase parity manifest refresh
+
+Read-only parity guard failed after M3.204 because manifest source count/head,
+pending count, and planned suffix were stale. Updated the source manifest to
+115 migrations, source head `20260810110000`, 60 pending migrations, and nine
+ordered review batches; added the project-comment create/delete pair. Updated
+the human parity runbook to state that the hosted boundary remains 55 through
+`20260729233017` and that no hosted state changed.
+
+Validation: `pnpm verify:managed-supabase-parity-plan` passed 55/115, 60
+pending, nine batches; `pnpm test:managed-supabase-parity-plan` passed 4/4;
+`pnpm test:provider-spend-guard` passed 4/4. Earlier landing clean-room
+runtime tests passed 7/7. No Supabase query/write, branch, deployment,
+provider, browser mutation, or paid action.
+
+Exact next action: restore a disposable PostgreSQL 17 runtime and replay the
+full source ledger with zero skipped critical tests; keep hosted release and
+feature flags closed.
+
 ## 2026-08-10 - M3.204 Core project comment deletion authority
 
 Added the strict delete command/result, Nest deletion service/controller,

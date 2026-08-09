@@ -1,5 +1,18 @@
 # Current State
 
+## M3.205 managed Supabase parity manifest refresh (2026-08-10)
+
+The read-only managed-Supabase parity manifest now matches the repository
+source ledger after M3.204: 115 migration files through
+`20260810110000_project_comment_delete_workflow.sql`, with the previously
+verified managed boundary held at 55 migrations through
+`20260729233017`. The exact suffix is 60 ordered pending migrations in nine
+review batches, including project-comment create/delete authority. The
+machine verifier and its four negative/positive tests pass. This refresh
+changes only source planning evidence; it does not query or mutate Supabase,
+repair migration history, create a paid branch, enable flags, or deploy.
+Vercel/Railway spend guard remains green.
+
 ## M3.204 Core-authoritative project comment deletion (2026-08-10)
 
 Project-comment deletion now has an original Nest Core command boundary:

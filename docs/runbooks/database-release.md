@@ -1,10 +1,13 @@
 # Hosted Database Release
 
-## Current verified release state (2026-08-07)
+## Current verified release state (2026-08-10 source refresh; hosted snapshot 2026-08-07)
 
-- Target `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY` PostgreSQL 17.6 with
-  55/103 source migrations applied through `20260729233017`; the exact linear
-  suffix contains 48 files through `20260807150000`.
+- Last verified hosted snapshot: target `aqqrtkmtcsfkbyyqxowv` was
+  `ACTIVE_HEALTHY` PostgreSQL 17.6 with 55 migrations applied through
+  `20260729233017`. No hosted state was queried in the source refresh below.
+- Current repository manifest: 115 source migrations through
+  `20260810110000_project_comment_delete_workflow.sql`; 60 ordered pending
+  migrations remain. The managed boundary is still `review_required`.
 - Current Purchase Order planner still reports one tenant duplicate-number
   group with 12 records. The first missing migration intentionally aborts
   while that group exists. No owner mapping has been supplied.

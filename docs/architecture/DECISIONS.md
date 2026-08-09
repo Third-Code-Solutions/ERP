@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-315 - Keep managed parity manifest source-accurate and hosted-read-only (2026-08-10)
+
+Decision: refresh the machine-checked parity manifest whenever source
+migrations advance, while preserving the last verified managed applied prefix
+and `review_required` status. M3.204 project-comment create/delete migrations
+are recorded as an ordered source suffix, not treated as hosted state.
+
+Rationale: stale counts/head make release tooling fail open or mislead review;
+claiming source migrations are hosted would be worse. A linear 55/115 boundary
+with 60 explicit pending files makes the missing evidence visible and keeps
+costly or irreversible actions behind backup, replay, rollback, and spend gates.
+
+Validation: parity verifier 55/115, 60 pending, nine ordered batches; four
+manifest tests; spend-guard tests. No database/provider/deployment action.
+
 ## D-314 - Make Core authoritative for project comment deletion (2026-08-10)
 
 Decision: project-comment deletion is a strict Nest command with verified
