@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.196 protected auth boundary
+
+Keep Core/Web owner-context flags disabled with empty exact tenant allowlists.
+Do not import the seam into `apps/web/src/app/api/cortex/chat/route.ts`; keep
+Supabase, Vercel, Railway, provider, and paid actions closed under the cost
+lock.
+
+Next safe source-only milestone: M3.197 capture the exact candidate SHA,
+API/Web release identity, readiness/log evidence, and reversible rollback
+artifact. Hosted auth/session and cross-tenant replay require explicit budget
+and access approval; do not infer them from local synthetic evidence.
+
+M3.196 is local protected-boundary evidence only, not hosted, browser,
+deployment, rollback, or spend approval.
+
 ## Exact next action after M3.195 protected HTTP harness
 
 Keep Core/Web owner-context flags disabled with empty exact tenant allowlists.

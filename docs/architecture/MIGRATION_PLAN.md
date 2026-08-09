@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.196 protected auth/cross-tenant harness (completed, not approved)
+
+1. Added a disposable HTTP harness using the real `SupabaseJwtGuard` and
+   `CapabilityGuard` around the owner/context controller.
+2. Proved 401 rejection before resolution for missing bearer or missing ERP
+   membership, verified membership-derived tenant/user/role scope, and 400
+   rejection for caller-selected tenant input.
+3. Added `CORTEX_CONVERSATION_CONTEXT_PROTECTED_REVIEW.md` with exact release
+   identity, rollback, unresolved hosted replay, and spend gates.
+
+Evidence: protected harness 3/3; shared-types 286 tests, API 153 files/682
+tests, Web 102 files/697 tests; typechecks/lint; Nest webpack; Next 82-page
+production build; spend, controlled-release, Actionlint, workflow-ref,
+Gitleaks, and diff guards. No SQL, managed Supabase read/write, deployment,
+provider, browser, or paid-resource action. Core/Web canaries remain
+false/empty.
+
+Exact next action: M3.197 record exact API/Web release identities, readiness,
+rollback artifact, and (only if separately approved) hosted cross-tenant replay;
+keep all canaries closed.
+
 ## M3.195 protected owner/context HTTP harness (completed, not approved)
 
 1. Extended the Nest HTTP contract with strict 400 input rejection and
