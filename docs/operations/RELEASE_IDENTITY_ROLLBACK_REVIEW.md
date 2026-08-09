@@ -27,6 +27,16 @@ source-only run remains `review_required` because hosted identities and
 rollback targets are not supplied; this is expected and prevents a false
 production claim.
 
+## Local browser evidence
+
+Production build served from isolated `127.0.0.1:3100` using candidate
+`5df3a3db2dbce5abed84504ea323b626b93b179a` was checked at 1440x900, 768x900,
+and 390x844. All sizes had no horizontal overflow, loaded image assets, and
+zero console errors/warnings. Landing title, one JSON-LD block, heading
+hierarchy, responsive navigation, Cortex query switching, capability accordion,
+carousel controls, and FAQ disclosure were observed. Login/signup prefetches
+returned 200. Screenshots are ephemeral QA artifacts outside repository.
+
 Rollback artifact: retain prior known-good API/Web IDs and source SHAs; clear
 Core/Web flags and tenant allowlists first; restore prior aliases only after
 readiness and legacy-route checks. No hosted canary is authorized by this
