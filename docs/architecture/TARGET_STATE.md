@@ -1,5 +1,15 @@
 # Target State
 
+## M3.193 conversation owner/context authority
+
+Chat bootstrap will resolve owner and immutable focused context through a
+separate exact-tenant Core seam before prompt assembly. Core owns tenant/user
+ownership, current-role scope, canonical source/type checks, and 404/409
+semantics. The Web seam is server-only, strict, bounded, and has no direct
+database fallback after selection. It remains unconnected until deterministic
+legacy parity, protected-flow evidence, hosted identity, rollback, and spend
+gates pass.
+
 ## M3.192 unconnected Web chat seam
 
 The future Web chat route has a server-only exact-tenant Core retrieval seam

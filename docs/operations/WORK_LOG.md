@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-09 - M3.193 conversation owner/context parity seam
+
+Added the strict owner/context contract, disabled-by-default Nest authority at
+`GET /v1/cortex/conversation-context`, and the server-only Web Core adapter and
+unconnected seam. Core preserves owned-conversation 404s, immutable-context
+409s, current-role focused-record checks, and no messages/retrieval/provider
+authority. Focus is JSON-transported; tenant/user/role remain principal-only.
+The chat route is unchanged and no selected Core failure falls back to direct
+database authority.
+
+Validation: shared 5/5; API service 9/9, controller 3/3, environment 66/66;
+Web client 145/145 and seam 3/3; shared/API/Web typechecks, lint, API/Web
+production builds, spend/release/security CI guards pass. Final package lanes:
+shared-types 286 passed, API 663 passed, Web 696 passed; database previously
+passed 224 with 143 environment-dependent skips. Nest webpack and the 82-page
+Next production build are green. No SQL, hosted write/deploy, provider call,
+or paid resource.
+
+Exact next action: M3.194 deterministic legacy/Core owner/context parity
+fixture and review packet; keep every gate and route unconnected.
+
 ## 2026-08-09 - M3.192 unconnected Web chat retrieval seam
 
 Added the server-only exact-tenant Core chat retrieval client and a seam that

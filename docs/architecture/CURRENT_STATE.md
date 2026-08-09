@@ -1,5 +1,33 @@
 # Current State
 
+## M3.193 Conversation owner/context parity seam (2026-08-09)
+
+Added the disabled-by-default Nest `GET /v1/cortex/conversation-context`
+authority plus strict shared query/response contracts. Core derives tenant,
+user, role, and capability; preserves the chat route's owner/context behavior
+(404 for foreign/missing/revoked state, 409 for immutable focus mismatch); and
+returns no messages or retrieval material. Added a server-only Web adapter and
+unconnected seam with JSON focus transport and no direct database fallback
+after exact-tenant Core selection. `apps/web/src/app/api/cortex/chat/route.ts`
+is unchanged.
+
+Focused validation: shared contract 5/5; Nest service 9/9, HTTP 3/3,
+environment 66/66; Web Core client 145/145 and unconnected seam 3/3;
+shared/API/Web typechecks pass. No SQL, hosted write/deploy, provider call, or
+paid resource changed. Both owner/context gates remain false/empty.
+
+Full package lanes after the final transport-parity correction are green:
+shared-types 286 passed, API 663 passed, and Web 696 passed; the database lane
+previously passed 224 tests with 143 environment-dependent tests skipped.
+`pnpm lint` and separate Nest/Web production builds are green, including the
+82-page Next production build. An earlier `vitest --reporter=dot` API attempt
+timed out under runner contention; the exact package script
+`pnpm --filter @third-code-erp/api test` passed all 151 files/663 tests. This
+is source evidence only; database skips remain an external replay/hosted gap.
+
+Exact next safe slice: build a deterministic legacy/Core owner/context parity
+fixture and review packet; keep the chat route and all canaries closed.
+
 ## M3.192 Unconnected Web chat retrieval seam (2026-08-09)
 
 Added a server-only `readCortexChatRetrievalThroughCore()` seam plus
