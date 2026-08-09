@@ -117,6 +117,7 @@ const requiredServerOnlyTables = [
   'user_role_assignment_requests',
   'cortex_assistant_provider_policies',
   'cortex_assistant_provider_attempts',
+  'document_intake_requests',
 ]
 
 const requiredPolicies = [
@@ -333,6 +334,9 @@ const requiredServerOnlyIndexes = [
   'ux_customer_invoice_draft_create_requests_tenant_id_id',
   'ux_customer_invoice_draft_create_requests_tenant_key',
   'idx_customer_invoice_draft_create_requests_tenant_state',
+  'ux_document_intake_requests_tenant_id_id',
+  'ux_document_intake_requests_tenant_key',
+  'idx_document_intake_requests_tenant_state',
 ]
 
 const requiredExpandedNodeTypes = [

@@ -115,15 +115,6 @@ export class DocumentIntakeService {
     return this.database.client.transaction(async (transaction) => {
       const authorizedPrincipal = await this.authorize(transaction, principal)
       await this.audit.stampActor(transaction, authorizedPrincipal)
-      const replay = await this.claimRequest(
-        transaction,
-        authorizedPrincipal,
-        command.projectId,
-        idempotencyKey,
-        requestHash
-      )
-      if (replay.state === 'succeeded') return replayResult(replay.result)
-
       const [project] = await transaction
         .select({ id: projects.id })
         .from(projects)
@@ -141,6 +132,18 @@ export class DocumentIntakeService {
       if (!command.storagePath.startsWith(expectedPrefix)) {
         throw new ForbiddenException('Storage path is outside tenant project scope')
       }
+
+      // Validate tenant/project scope before claiming idempotency. A foreign
+      // project must return a concealed 404/403, never a raw composite-FK
+      // failure from the request ledger.
+      const replay = await this.claimRequest(
+        transaction,
+        authorizedPrincipal,
+        command.projectId,
+        idempotencyKey,
+        requestHash
+      )
+      if (replay.state === 'succeeded') return replayResult(replay.result)
 
       const documentType = classifyDocumentType(
         command.fileName,

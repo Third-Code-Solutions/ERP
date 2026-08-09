@@ -1,5 +1,38 @@
 # Work Log
 
+## 2026-08-10 - M3.200 migration replay and upload canary harness
+
+Replayed the source migration ledger from zero in WSL PostgreSQL 17 through
+113/113 migrations. Added the real transaction integration fixture for scoped
+document intake, idempotency, conflict/concealment, audit/ledger counts, and
+rollback. Fixed service ordering so invalid project scope cannot surface a raw
+composite-FK failure. Extended the database reproducibility verifier for the
+new service-only ledger and indexes.
+
+Added `document-upload-complete.ts` strict response schemas and tests, parsed
+the legacy upload route response, and added an unconnected Core canary harness
+for non-extractor uploads. No flags changed; `/api/upload/complete` remains
+legacy-authoritative.
+
+Validation: local replay 113/113; DB tests 367/367 no skips; API integration
+26 files; focused DB integration 1/1; verifier 113 migrations/11 service-only
+tables; release planner current 113/113; schema hashes equal; shared 3/3;
+Web 158/158. Local DB/Redis stopped. Managed Supabase, Vercel, Railway,
+providers, browser, and paid resources untouched.
+
+Changed files: `apps/api/src/documents/document-intake.service.ts`,
+`apps/api/integration/document-intake.database.integration.spec.ts`,
+`scripts/verify-database-repro.mjs`,
+`packages/shared-types/src/erp-api/document-upload-complete.ts`,
+`packages/shared-types/src/erp-api/document-upload-complete.test.ts`,
+`packages/shared-types/src/index.ts`,
+`apps/web/src/app/api/upload/complete/route.ts`,
+`apps/web/src/lib/erp-core-client.ts`,
+`apps/web/src/lib/erp-core-client.test.ts`, and architecture/operations notes.
+
+Exact next action: full gates, reviewed commit, push as `kurtgav`; do not
+deploy or enable a canary under the cost lock.
+
 ## 2026-08-10 - M3.199 Nest document-intake authority seam
 
 Added strict shared intake schemas, `document_intake_requests` ledger/migration,

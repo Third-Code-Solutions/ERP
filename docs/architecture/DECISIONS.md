@@ -1,5 +1,33 @@
 # Architecture Decisions
 
+## D-309 - Freeze legacy upload response before any Core canary (2026-08-10)
+
+Decision: define the existing `/api/upload/complete` response as a strict
+shared contract and parse the legacy route output. A disposable Core adapter
+may map only non-extractor uploads under the exact tenant gate; CAD, visual,
+spreadsheet, CSV, and document extraction stays on the legacy path. Core
+errors are terminal with no direct-write fallback, and the route remains
+unconnected until hosted identity, replay, rollback, and spend gates pass.
+
+Rationale: API compatibility is observable beyond the document row. Freezing
+the response first makes a future authority switch measurable and prevents a
+partial migration from dropping extraction status or changing client behavior.
+
+Validation: local zero-to-current replay 113/113; real database integration
+1/1; schema hash equal; shared contract 3/3; Web upload/Core 158/158. No
+hosted/provider/deployment/paid action.
+
+## D-310 - Validate document scope before idempotency claim (2026-08-10)
+
+Decision: Nest checks verified membership, project existence, and storage prefix
+before inserting the idempotency ledger row.
+
+Rationale: a foreign project must produce concealed 404/403 semantics, never a
+raw composite-FK database error. Valid retries still use the durable ledger.
+
+Validation: local PostgreSQL transaction integration covers foreign project,
+foreign prefix, replay/conflict, and rollback; 1/1.
+
 ## D-308 - Make document intake Nest-authoritative before Web cutover (2026-08-10)
 
 Decision: document recording is a strict Nest command. Core derives tenant,

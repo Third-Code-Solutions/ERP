@@ -1,5 +1,23 @@
 # Next Actions
 
+## Exact next action after M3.200 replay/parity freeze
+
+Keep `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false`,
+`ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS=[]`,
+`ERP_DOCUMENT_INTAKE_WRITES_VIA_API=false`, and its tenant list empty. Do not
+wire `apps/web/src/app/api/upload/complete/route.ts` to the disposable canary.
+
+Run the full source gates and review the exact diff, commit/push the reviewed
+branch with `kurtgav`, then capture matching API/Web release IDs, readiness,
+rollback targets, and managed-database migration evidence. Only after those
+checks and explicit spend approval can one non-extractor tenant be considered.
+CAD/AI/visual extraction remains legacy-authoritative until a separate parity
+milestone. No Vercel, Railway, Supabase, provider, or paid action under the
+current cost lock.
+
+M3.200 is local source/replay evidence only, not hosted database or deployment
+approval.
+
 ## Exact next action after M3.199 document-intake seam
 
 Keep `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false`,

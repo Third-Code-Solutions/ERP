@@ -12,6 +12,7 @@ import {
 } from '@/lib/erp-core-client'
 import { getProject } from '@/lib/project-queries'
 import { writeAuditLogInTransaction } from '@/lib/audit'
+import { documentUploadCompleteResultSchema } from '@third-code-erp/shared-types'
 import {
   extractScopeFromVisual,
   type VisualExtractResult,
@@ -365,7 +366,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({
+  const response = documentUploadCompleteResultSchema.parse({
     id: docId,
     storagePath,
     documentType: docType,
@@ -374,4 +375,6 @@ export async function POST(req: NextRequest) {
     ...(cadParseWarning ? { cadParseWarning } : {}),
     ...(cadResult ? { cadResult } : {}),
   })
+
+  return NextResponse.json(response)
 }

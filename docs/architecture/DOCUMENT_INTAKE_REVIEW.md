@@ -1,5 +1,28 @@
 # Document Intake Review
 
+## M3.200 parity and replay update
+
+The source ledger was replayed from zero through 113/113 migrations on local
+PostgreSQL 17. The real transaction fixture passed scoped create, idempotent
+replay, same-key conflict, foreign-project 404, foreign storage-prefix 403,
+audit/ledger cardinality, and rollback (1/1). Scope checks now precede the
+ledger claim so a foreign project cannot leak a raw composite-FK error. The
+reproducibility verifier now requires the intake ledger plus its three
+tenant/idempotency/state indexes; it reports 11 service-only tables.
+
+The legacy upload response is frozen in
+`packages/shared-types/src/erp-api/document-upload-complete.ts` and the
+existing route parses its final payload. The disposable Core canary in
+`apps/web/src/lib/erp-core-client.ts` accepts only non-extractor formats and
+maps Core success to the frozen shape. It is not imported by the route; all
+flags and allowlists remain closed.
+
+Evidence: DB 367/367 without skips; API integration 26 files; focused DB 1/1;
+release planner current 113/113; schema-before/after hash equal;
+shared/Web focused 3/3 and 158/158. Managed Supabase parity remains 55/113
+source-only; hosted SQL, release identity, browser, rollback, and spend gates
+are unresolved.
+
 ## M3.199 scope
 
 This packet defines a source-only, disabled-by-default Nest authority for
