@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.194 conversation owner/context parity fixture (completed, not approved)
+
+1. Added a deterministic 12-case fixture comparing Core normalized
+   owner/context results with the current Web chat route's observable 404/409
+   contract.
+2. Covered unscoped and owned restore, matching focus, foreign/half-bound/
+   revoked state, role denial, immutable mismatch, unsupported source, and
+   source/type mismatch.
+3. Added `CORTEX_CONVERSATION_CONTEXT_REVIEW.md` with authority boundaries,
+   exact gates, rollback, evidence, and unresolved hosted identity/replay/spend
+   requirements. The chat route remains unchanged and unconnected.
+
+Evidence: parity fixture 12/12 and principal-derived tenant/user read
+assertion; shared types 286 tests, API 152 files/675 tests, Web 102 files/696
+tests; shared/API/Web typechecks; lint; Nest webpack; Next 82-page build;
+spend/release/security guards. No SQL, hosted, deployment, provider, browser,
+or paid-resource action. Exact next action: M3.195 protected HTTP parity and
+selected-Core no-fallback harness; keep all canaries false/empty.
+
 ## M3.193 conversation owner/context parity seam (completed, not approved)
 
 1. Added strict owner/context query and response contracts; JSON focus is

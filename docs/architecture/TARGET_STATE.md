@@ -1,5 +1,13 @@
 # Target State
 
+## M3.194 deterministic owner/context parity evidence
+
+The future Core owner/context seam now has a repeatable 12-case fixture against
+the current Web contract, including concealed ownership/focus failures and
+immutable-context conflict semantics. This evidence remains source-only; the
+Web chat route stays unconnected until protected HTTP behavior, exact deployed
+identity, rollback, hosted database replay, and spend gates pass.
+
 ## M3.193 conversation owner/context authority
 
 Chat bootstrap will resolve owner and immutable focused context through a
