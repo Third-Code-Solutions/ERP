@@ -5,14 +5,18 @@
 Keep `ERP_PROJECT_COMMENT_CREATE_WRITES_ENABLED=false`,
 `ERP_PROJECT_COMMENT_CREATE_WRITES_TENANT_IDS=[]`,
 `ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API=false`, and
-`ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API_TENANT_IDS=`. Review the source
-diff, commit/push it as `kurtgav`, and verify the exact remote SHA. Then run a
-disposable zero-to-current PostgreSQL replay and inspect composite tenant/FK,
-RLS, ledger, and browser-DML evidence. No Supabase, Vercel, Railway, provider,
-browser, or paid action under the current cost lock.
+`ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API_TENANT_IDS=`. Source commit
+`78fb551611a763b7eef14063d1948516935a78eb` is pushed as `kurtgav`; local and
+remote branch SHAs match. Disposable zero-to-current replay, composite
+tenant/FK, RLS, ledger, browser-DML, and no-skip integration evidence are
+complete. No Supabase, Vercel, Railway, provider, browser, or paid action under
+the current cost lock.
 
 M3.203 is source evidence only; do not approve a tenant canary until replay,
-release identity, rollback, readiness, and protected browser checks pass.
+
+Exact next action: collect API/Web release identity, rollback, readiness, and
+protected-browser evidence; keep hosted migration and canary behind explicit
+spend approval.
 
 ## Exact next action after M3.202 canonical upload payload
 
