@@ -8,6 +8,9 @@ release IDs whose source SHAs match candidate, requires explicit rollback IDs,
 and rechecks Vercel Git/spend guard. Pure planner tests pass 5/5. No provider,
 SQL, flag, browser, or deployment action occurred. Current report is
 `review_required` until external release and rollback identities are supplied.
+Local production browser QA at 1440/768/390 passed with no horizontal
+overflow or console errors; Cortex, accordion, carousel, and FAQ interactions
+were observed.
 
 Exact next safe slice: keep canaries closed; obtain provider identities only
 under explicit budget approval, or continue source-only production hardening.
