@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-312 - Canonicalize optional upload descriptions (2026-08-10)
+
+Decision: the guarded Web-to-Core document command sends `description: null`
+when the legacy request omits a description. The idempotency hash already
+normalizes the same value; the route test asserts the exact payload.
+
+Rationale: JSON omission and explicit null must not create two replay shapes
+for one business command. Canonical serialization keeps Core, retries, and
+audit/idempotency reasoning stable without changing the closed-by-default
+legacy path.
+
+Validation: upload route 8/8; full tests, typecheck, lint, and production build
+passed. No hosted/provider/deployment/paid action.
+
 ## D-311 - Select Core before legacy upload mutation (2026-08-10)
 
 Decision: `/api/upload/complete` may select Core only when both the exact tenant

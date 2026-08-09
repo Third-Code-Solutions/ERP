@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-10 - M3.202 canonical upload command payload
+
+Normalized the optional upload description to explicit `null` at the Core
+authority boundary. This keeps the wire command, deterministic idempotency
+hash, and replay semantics canonical when the legacy caller omits a
+description. No route behavior or default canary flag changed.
+
+Validation: focused upload route 8/8; full `pnpm test`; `pnpm typecheck`;
+`pnpm lint`; and `pnpm build` passed. No hosted SQL, Supabase/Vercel/Railway
+action, provider call, browser deploy, or paid resource.
+
+Changed files: `apps/web/src/app/api/upload/complete/route.ts`,
+`apps/web/src/app/api/upload/complete/route.test.ts`, and architecture/
+operations notes.
+
+Exact next action: commit and push the reviewed source branch as `kurtgav`,
+verify remote SHA and clean state, then hold all hosted release/canary work
+behind the spend lock.
+
 ## 2026-08-10 - M3.201 guarded upload authority selection
 
 Connected `/api/upload/complete` to Core document intake behind the exact

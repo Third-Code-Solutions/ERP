@@ -1,5 +1,17 @@
 # Migration Plan
 
+## M3.202 canonical upload payload (completed, not approved)
+
+1. Normalize an omitted upload description to explicit `null` before the Core
+   request while retaining the existing deterministic idempotency hash.
+2. Assert the exact Core command payload in the guarded route test.
+3. Re-run focused and full source gates; no tenant flag, database, deployment,
+   provider, or paid resource was changed.
+
+Evidence: route 8/8; full `pnpm test`; typecheck; lint; and production build
+passed. Exact next action: push and verify source identity, then keep hosted
+cutover behind the spend lock.
+
 ## M3.201 guarded upload route cutover (completed, not approved)
 
 1. Added one exact selector combining the tenant allowlist and the

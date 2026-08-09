@@ -1,5 +1,13 @@
 # Target State
 
+## M3.202 canonical command serialization
+
+Every authority-selected document command serializes optional fields through a
+single canonical representation before transport and idempotency hashing.
+Absent descriptions become `null`; retries therefore address the same command
+identity across Web, Core, and PostgreSQL. The selector remains reversible and
+closed by default until hosted evidence is approved.
+
 ## M3.201 upload authority selection
 
 The Web upload route has one explicit authority selector. When an exact tenant

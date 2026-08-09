@@ -1,5 +1,17 @@
 # Current State
 
+## M3.202 canonical upload command payload (2026-08-10)
+
+The guarded Core upload path now sends an explicit nullable description when
+the legacy upload request omits one. The same normalized value is used by the
+Core command contract and deterministic idempotency hashing, preventing
+undefined-versus-null replay drift. Default tenant/authority flags remain
+closed; no hosted state changed.
+
+Evidence: focused upload route 8/8; full tests, typecheck, lint, and production
+build passed. This is source evidence only, not hosted release or canary
+approval.
+
 ## M3.201 guarded upload authority selection (2026-08-10)
 
 Connected `POST /api/upload/complete` to the existing Nest document-intake
