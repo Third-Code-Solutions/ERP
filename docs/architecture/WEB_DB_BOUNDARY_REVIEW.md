@@ -1,5 +1,12 @@
 # Web Database Boundary Review
 
+## M3.199 follow-up
+
+The planned Nest document-intake contract now exists, but the legacy
+`upload/complete` allowlist entry remains active because the Web adapter is not
+connected. See `DOCUMENT_INTAKE_REVIEW.md`; migration replay and response
+parity are the next gates.
+
 ## M3.198 scope
 
 This packet covers only runtime files under `apps/web/src/app/api`. It is a

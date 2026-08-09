@@ -137,6 +137,11 @@ export const documentTypeEnum = pgEnum('document_type', [
   'other',
 ])
 
+export const documentIntakeRequestStateEnum = pgEnum(
+  'document_intake_request_state',
+  ['processing', 'succeeded']
+)
+
 export const documentProcessingModeEnum = pgEnum(
   'document_processing_mode',
   ['cad']

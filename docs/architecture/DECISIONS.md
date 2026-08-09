@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-308 - Make document intake Nest-authoritative before Web cutover (2026-08-10)
+
+Decision: document recording is a strict Nest command. Core derives tenant,
+user, and role from verified membership; requires a tenant/project storage
+prefix; records a durable idempotency result and semantic audit in one
+transaction; and remains disabled behind an exact tenant allowlist. The Web
+adapter is server-only, single-call, no-store, and has no direct fallback, but
+the upload route remains unconnected.
+
+Rationale: uploading an object is not equivalent to committing an ERP document.
+Moving the canonical row and audit together prevents split authority, retries,
+cross-tenant paths, and AI/CAD processing from silently finalizing records.
+Keeping the adapter unconnected preserves current API behavior while parity and
+rollback evidence are built.
+
+Validation: API 77/77; Web 148/148; shared 4/4; local builds/typechecks green;
+no hosted/provider/deployment action. The migration must still be replayed from
+zero before any canary.
+
 ## D-307 - Guard Next API direct database authority (2026-08-10)
 
 Decision: keep existing Next API behavior, but require every direct write to be

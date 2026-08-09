@@ -1224,6 +1224,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Document intake is closed by default. Enable only for an explicit tenant
+  // after storage-prefix, idempotency, audit, and rollback evidence pass.
+  ERP_DOCUMENT_INTAKE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Public canvas signing is token-authorized but still closed by default.
   // Enable only for an explicit tenant canary after Storage, replay, and
   // transaction proof are complete.

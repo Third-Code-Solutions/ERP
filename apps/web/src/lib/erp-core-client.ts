@@ -34,6 +34,7 @@ import {
   customerInvoiceReverseResultSchema,
   customerInvoiceCancelResultSchema,
   documentDeleteResultSchema,
+  documentIntakeResultSchema,
   publicSigningResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
@@ -126,6 +127,8 @@ import {
   type CustomerInvoiceCancelBody,
   type CustomerInvoiceCancelResult,
   type DocumentDeleteResult,
+  type DocumentIntakeRequest,
+  type DocumentIntakeResult,
   type PublicSigningBody,
   type PublicSigningResult,
   type DocumentProcessingAccepted,
@@ -1017,6 +1020,19 @@ export function documentDeleteWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_DOCUMENT_DELETE_WRITES_VIA_API,
     process.env.ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+/**
+ * Document intake is delegated only for an explicit tenant canary. The
+ * adapter is intentionally unconnected; upload/complete keeps its legacy
+ * behavior until parity, storage, and hosted rollback evidence pass.
+ */
+export function documentIntakeWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_DOCUMENT_INTAKE_WRITES_VIA_API,
+    process.env.ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -2242,6 +2258,64 @@ export async function deleteDocumentThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No document was deleted.',
+    }
+  }
+}
+
+/**
+ * Server-only, unconnected document-intake adapter. It never falls back to a
+ * Web database write after the caller selects the Core authority.
+ */
+export async function createDocumentThroughCoreApi(
+  request: DocumentIntakeRequest,
+  idempotencyKey: string
+): Promise<CoreResult<DocumentIntakeResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/documents`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'content-type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+        'x-request-id': randomUUID(),
+      },
+      body: JSON.stringify(request),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    })
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'Document intake conflicts with an existing command.'
+            : response.status === 404
+              ? 'Project was not found.'
+              : response.status === 503
+                ? 'Document intake is not enabled for this tenant.'
+                : 'Document was not recorded.'
+      return { ok: false, error: message, status: response.status }
+    }
+
+    const parsed = documentIntakeResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid document intake result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No document was recorded.',
+      status: 503,
     }
   }
 }

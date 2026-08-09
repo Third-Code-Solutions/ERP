@@ -1,5 +1,26 @@
 # Current State
 
+## M3.199 Nest document-intake authority seam (2026-08-10)
+
+Added a strict `POST /v1/documents` Nest contract with verified membership
+scope, project/tenant composite predicates, storage-prefix enforcement, exact
+100 MiB size bound, durable tenant-scoped idempotency, and same-transaction
+semantic audit. Added a migration-backed request ledger, config gate, protected
+HTTP harness, service tests, and a server-only Web adapter. The Web upload route
+remains unconnected; all intake canaries/allowlists stay closed. Review packet:
+`docs/architecture/DOCUMENT_INTAKE_REVIEW.md`.
+
+Reconciled the source-only managed Supabase parity manifest to the current
+113-file ledger: 55 applied boundary, 58 pending, and 8 ordered review batches.
+This is repository evidence only; hosted state was not queried or changed.
+
+Validation: API document/config/protected tests 77/77; Web Core client 148/148;
+shared contract 4/4; typecheck/lint; Nest webpack; Next 82-page build;
+database package 224 passed with 143 environment-dependent skips. No managed
+Supabase, hosted write/deploy, provider, or paid action. Exact next safe slice:
+zero-replay the migration locally, freeze legacy upload response parity, and
+add the Web adapter canary harness without enabling production.
+
 ## M3.198 Next API database-boundary guard (2026-08-10)
 
 Added a read-only static verifier for direct Drizzle access in

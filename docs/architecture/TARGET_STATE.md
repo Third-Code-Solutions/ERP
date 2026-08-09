@@ -1,5 +1,15 @@
 # Target State
 
+## M3.199 document intake authority
+
+Document creation is a Nest transaction, never a browser/database write. The
+verified principal supplies tenant/user/role; the project and storage prefix
+are tenant-scoped; the request ledger makes retries idempotent; the audit event
+commits with the document. Web can select this authority only through an exact
+tenant canary and must fail closed without a direct fallback. The current Web
+adapter is intentionally unconnected until parity, migration replay, release
+identity, rollback, and spend gates pass.
+
 ## M3.198 Next API database boundary
 
 Every Next API direct database write is either removed in favor of Nest or is
