@@ -1,7 +1,7 @@
 # Managed Supabase parity plan
 
 - Status: `review_required`
-- Snapshot: 2026-08-07
+- Snapshot: 2026-08-10 source-ledger refresh; managed boundary unchanged
 - Target: `aqqrtkmtcsfkbyyqxowv` (`ERP`, `ap-northeast-2`)
 - Authority: planning only; no hosted apply approved
 
@@ -9,12 +9,13 @@
 
 - Managed PostgreSQL: 17.6, `ACTIVE_HEALTHY`.
 - Managed ledger: 55 migrations through `20260729233017`.
-- Source ledger: 113 migrations through `20260810090000`.
-- Ledger shape: exact linear prefix; 58 missing, zero unexpected, zero applied
+- Source ledger: 115 migrations through `20260810110000`.
+- Ledger shape: exact linear prefix; 60 missing, zero unexpected, zero applied
   after the first gap.
-- SQL review flags across the missing suffix: 39 `drop-object`, 12 explicit
-  transaction-control, and four with neither scanner flag. These are
-  conservative review flags, not proof of unsafe SQL.
+- Prior 2026-08-07 suffix scan reported 39 `drop-object`, 12 explicit
+  transaction-control, and four with neither scanner flag. Those counts are
+  historical; this source-ledger refresh does not claim a new SQL-risk scan.
+  Any release review must recompute them against all 60 pending files.
 - First pending migration refuses to continue while duplicate tenant Purchase
   Order numbers exist. Current redacted read-only result: one group, 12 rows.
 - Managed catalog still reports 213 anonymous table-privilege rows and 209
@@ -32,6 +33,9 @@
   provider catalog surfaces.
 - A new Supabase development branch currently prices at `$0.01344/hour` for
   this organization. No branch was created or confirmed.
+- M3.204 added the project-comment create/delete authority suffix to source
+  only. The managed applied boundary remains 55 migrations through
+  `20260729233017`; no hosted SQL or migration-history row changed.
 
 Machine source: `managed-supabase-parity-plan.json`. Run:
 
@@ -55,7 +59,7 @@ longer equal the exact pending suffix.
 
 ## Ordered review batches
 
-The eight manifest batches are review checkpoints only. They do not authorize
+The nine manifest batches are review checkpoints only. They do not authorize
 independent production deployments and must never reorder the migration
 ledger. A production failure after any committed migration is a partial apply
 and invokes the database recovery plan.
@@ -70,6 +74,7 @@ and invokes the database recovery plan.
 6. Latest authority/security hardening: 7 migrations.
 7. Cortex provider authority: 8 migrations.
 8. Document intake authority: 1 migration.
+9. Project discussion authority: 2 migrations.
 
 Exact filenames live in the machine manifest and are checked against
 `supabase/migrations`.
@@ -86,7 +91,7 @@ Exact filenames live in the machine manifest and are checked against
    or managed schemas.
 4. Apply the owner-approved mapping only to the isolated clone. Never use a
    synthetic rename as production evidence.
-5. Apply all 58 migrations to the clone in source order, pausing only for
+5. Apply all 60 migrations to the clone in source order, pausing only for
    review evidence. Run no-skip database/API integration, schema/catalog diff,
    RLS/privilege checks, tenant isolation, audit recovery, Redis recovery, and
    protected workflow/browser smoke checks.
@@ -112,7 +117,7 @@ All must be true:
 - Duplicate mapping owner-approved and replayed without collision.
 - Managed backup/PITR point plus successful isolated restore drill.
 - Separate Storage object recovery evidence.
-- Exact 113-migration rehearsal with zero skips and no catalog/data drift.
+- Exact 115-migration rehearsal with zero skips and no catalog/data drift.
 - Auth/public-user identity, tenant isolation, semantic audit, and privilege
   closure proven.
 - Security notices triaged; `auth_tenant_id()` anonymous execution removed by

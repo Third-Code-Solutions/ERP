@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.205 parity manifest refresh
+
+Keep managed Supabase status `review_required`; applied boundary remains 55
+migrations through `20260729233017`. Source ledger now has 115 migrations
+through `20260810110000`, with 60 pending in nine ordered review batches.
+Do not run `supabase db push`, repair migration history, create a paid branch,
+enable a canary, or deploy Vercel/Railway.
+
+Next: restore or enable a disposable PostgreSQL 17 runtime, replay all 115
+migrations, run no-skip database/API integration, catalog/RLS/tenant/audit
+checks, and Redis recovery. Then collect backup/PITR, Auth/Storage, exact
+release identity, rollback, readiness, browser, and spend evidence. Source
+manifest correctness is not hosted parity.
+
 ## Exact next action after M3.204 project comment deletion
 
 Keep `ERP_PROJECT_COMMENT_DELETE_WRITES_ENABLED=false`,

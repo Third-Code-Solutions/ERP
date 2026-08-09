@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.205 managed Supabase parity manifest refresh (completed, source-only)
+
+1. Reconciled `docs/operations/managed-supabase-parity-plan.json` with the
+   current 115-file source ledger: 55 previously verified hosted migrations,
+   60 pending, source head `20260810110000`, and nine ordered review batches.
+2. Added the project-comment create/delete suffix to one explicit review
+   batch without changing the 55-migration hosted boundary.
+3. Updated the human runbook to distinguish source-ledger freshness from
+   hosted state and kept the production-apply gate closed.
+
+Validation: parity verifier 55/115 with 60 pending and nine ordered batches;
+four manifest unit tests passed; Vercel/Railway spend guard tests passed. No
+Supabase query/write, branch, migration-history repair, deployment, provider,
+browser, or paid action occurred.
+
+Exact next action: obtain a disposable PostgreSQL 17 runtime, replay all 115
+migrations with zero skipped critical tests, then compare catalog/RLS/Auth/
+Storage/Redis evidence before any managed release review.
+
 ## M3.204 project comment deletion (completed in source, not approved)
 
 1. Added strict shared delete command/result contracts, the Core DELETE route,

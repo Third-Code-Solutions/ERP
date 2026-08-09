@@ -1,5 +1,15 @@
 # Target State
 
+## M3.205 managed parity is a source-accurate, read-only release gate
+
+The managed-database release manifest always reflects the current migration
+ledger while preserving the last independently verified hosted prefix. Source
+head, count, pending suffix, order, and review-batch membership are machine
+checked. A manifest refresh never implies hosted application, history repair,
+branch creation, or canary approval. Hosted migration remains blocked until
+backup/PITR, Auth/Storage/catalog/RLS parity, zero-skip replay, release
+identity, rollback, readiness, and spend evidence are independently present.
+
 ## M3.204 project discussion deletion authority
 
 Project comments have a single auditable lifecycle authority. Nest Core owns
