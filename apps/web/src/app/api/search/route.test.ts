@@ -21,6 +21,7 @@ import {
   normalizeSearchQuery,
 } from './search-policy'
 import { GET } from './route'
+import { universalSearchResultFromSettled } from './search-result'
 
 function allowed(role: AppRole) {
   const types = [
@@ -127,8 +128,48 @@ describe('universal search request hardening', () => {
     expect(shortQuery.status).toBe(200)
     expect(await shortQuery.json()).toEqual({
       hits: [],
+      status: 'complete',
+      failedTypes: [],
       hint: 'Type at least 2 characters.',
     })
     expect(shortQuery.headers.get('cache-control')).toContain('no-store')
+  })
+})
+
+describe('universal search partial-result contract', () => {
+  it('reports failed record types without leaking query diagnostics', () => {
+    const result = universalSearchResultFromSettled(
+      [
+        { type: 'project' },
+        { type: 'invoice' },
+      ],
+      [
+        {
+          status: 'fulfilled',
+          value: [
+            {
+              type: 'project',
+              id: '33333333-3333-4333-8333-333333333333',
+              title: 'Harbor fit-out',
+              href: '/projects/33333333-3333-4333-8333-333333333333',
+            },
+          ],
+        },
+        { status: 'rejected', reason: new Error('database details') },
+      ]
+    )
+
+    expect(result).toEqual({
+      hits: [
+        {
+          type: 'project',
+          id: '33333333-3333-4333-8333-333333333333',
+          title: 'Harbor fit-out',
+          href: '/projects/33333333-3333-4333-8333-333333333333',
+        },
+      ],
+      status: 'partial',
+      failedTypes: ['invoice'],
+    })
   })
 })

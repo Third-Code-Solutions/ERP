@@ -1,23 +1,13 @@
 import type { AppRole } from '@third-code-erp/auth'
+import {
+  universalSearchHitTypes,
+  type UniversalSearchHitType,
+} from '@third-code-erp/shared-types'
 import { canViewPath } from '@/lib/operations/nav-config'
 
-export type SearchHitType =
-  | 'account'
-  | 'project'
-  | 'opportunity'
-  | 'bom'
-  | 'po'
-  | 'invoice'
-  | 'claim'
-  | 'document'
-  | 'task'
-  | 'permit'
-  | 'punchlist'
-  | 'warranty'
-  | 'delivery'
-  | 'rfq'
-  | 'ledger_account'
-  | 'journal_entry'
+export type SearchHitType = UniversalSearchHitType
+
+export { universalSearchHitTypes }
 
 const SEARCH_PATH_BY_TYPE: Record<SearchHitType, string> = {
   account: '/crm/accounts',

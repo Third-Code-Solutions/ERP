@@ -1,5 +1,22 @@
 # Target State
 
+## M3.206 universal search authority handoff
+
+The Web palette and Nest Core read authority consume one strict universal
+search result contract. Every hit is a bounded, relative navigation target;
+tenant, role, query-plan, SQL, and provider diagnostics never cross the
+boundary. A result declares `complete` or `partial`; partial results identify
+only the affected record kinds so operators can trust the visible data without
+being misled about coverage. Core will derive tenant, role, capability, and
+assignee scope from the verified principal, and the Web compatibility route
+will select Core only for an exact tenant canary. Selected-Core failure is
+terminal; there is no direct-read fallback after authority selection.
+
+The current slice makes the response contract and degraded-state behavior
+explicit while preserving the existing Web API. Core selection remains
+disabled until PostgreSQL replay, protected browser, release identity,
+rollback, readiness, and spend evidence exist.
+
 ## M3.205 managed parity is a source-accurate, read-only release gate
 
 The managed-database release manifest always reflects the current migration

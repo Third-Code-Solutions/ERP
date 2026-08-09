@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-316 - Make universal search completeness explicit (2026-08-10)
+
+Decision: share a strict, navigation-safe universal-search result contract
+between the current Web compatibility route and the future Nest Core read
+authority. Preserve `hits` and `hint` for current clients, add bounded
+`status` and `failedTypes`, and expose no SQL, query-plan, tenant, role, or
+provider diagnostics. Label each role-authorized query before parallel fan-out;
+the UI shows a generic incomplete-results warning and rejects malformed
+responses.
+
+Rationale: `Promise.allSettled` prevents one failed record family from taking
+down the palette, but silently returning fewer hits misleads operators. A
+bounded partial signal improves trust without revealing sensitive internals or
+changing tenant authorization. This is a compatibility step; Core remains the
+future read authority and selection must be exact, canaried, and no-fallback.
+
+Validation: shared contract 2/2, Web route 12/12, root lint, full test suite,
+production build, Web DB-boundary verification, managed-parity verification,
+clean-room tests 7/7, and spend-guard tests 4/4. No hosted, provider,
+migration, or paid action.
+
 ## D-315 - Keep managed parity manifest source-accurate and hosted-read-only (2026-08-10)
 
 Decision: refresh the machine-checked parity manifest whenever source

@@ -4,7 +4,10 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import { useRouter } from 'next/navigation'
-import type { SearchHitType } from '@/app/api/search/search-policy'
+import {
+  universalSearchResultSchema,
+  type UniversalSearchHit,
+} from '@third-code-erp/shared-types'
 import { stageCortexDraft } from '@/lib/cortex/draft-handoff'
 import {
   normalizeCortexPaletteHits,
@@ -20,13 +23,7 @@ import {
   nextCommandPaletteIndex,
 } from './command-palette-navigation'
 
-interface SearchHit {
-  type: SearchHitType
-  id: string
-  title: string
-  subtitle?: string
-  href: string
-}
+type SearchHit = UniversalSearchHit
 
 type PaletteHit = SearchHit | CortexPaletteHit
 
@@ -87,6 +84,7 @@ export function CommandPalette({ open, onClose }: Props) {
   const [cortexLoading, setCortexLoading] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
   const [hint, setHint] = useState<string | null>(null)
+  const [partial, setPartial] = useState(false)
   const [cortexHint, setCortexHint] = useState<string | null>(null)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -144,6 +142,7 @@ export function CommandPalette({ open, onClose }: Props) {
       setCortexHits([])
       setActiveIdx(0)
       setHint(null)
+      setPartial(false)
       setCortexHint(null)
     }
   }, [open])
@@ -157,6 +156,7 @@ export function CommandPalette({ open, onClose }: Props) {
     if (!open || mode !== 'search') {
       setHits([])
       setHint(null)
+      setPartial(false)
       setLoading(false)
       return
     }
@@ -164,6 +164,7 @@ export function CommandPalette({ open, onClose }: Props) {
     if (term.length < 2) {
       setHits([])
       setHint(term.length === 0 ? null : 'Type at least 2 characters.')
+      setPartial(false)
       setLoading(false)
       return
     }
@@ -173,6 +174,7 @@ export function CommandPalette({ open, onClose }: Props) {
     setHits([])
     setActiveIdx(0)
     setHint(null)
+    setPartial(false)
     debounceRef.current = window.setTimeout(async () => {
       const ctrl = new AbortController()
       abortRef.current = ctrl
@@ -186,13 +188,22 @@ export function CommandPalette({ open, onClose }: Props) {
         if (requestSeq !== requestSeqRef.current) return
         if (!res.ok) {
           setHits([])
+          setPartial(false)
           setHint(`Search failed (${res.status})`)
           return
         }
-        const data = (await res.json()) as { hits: SearchHit[]; hint?: string }
+        const data = universalSearchResultSchema.parse(await res.json())
         if (requestSeq !== requestSeqRef.current) return
         setHits(data.hits ?? [])
-        setHint(data.hint ?? (data.hits.length === 0 ? 'No matches.' : null))
+        setPartial(data.status === 'partial')
+        setHint(
+          data.hint ??
+            (data.status === 'partial'
+              ? 'Some record types are temporarily unavailable. Results may be incomplete.'
+              : data.hits.length === 0
+                ? 'No matches.'
+                : null)
+        )
         setActiveIdx(0)
       } catch (err) {
         if (
@@ -200,7 +211,12 @@ export function CommandPalette({ open, onClose }: Props) {
           (err as Error).name !== 'AbortError'
         ) {
           setHits([])
-          setHint('Network error.')
+          setPartial(false)
+          setHint(
+            (err as Error).name === 'ZodError'
+              ? 'Search returned an invalid response.'
+              : 'Network error.'
+          )
         }
       } finally {
         if (requestSeq === requestSeqRef.current) setLoading(false)
@@ -517,7 +533,23 @@ export function CommandPalette({ open, onClose }: Props) {
               Searching…
             </div>
           )}
-          {mode === 'search' && !loading && hits.length === 0 && hint && (
+          {mode === 'search' && !loading && partial && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                padding: '10px 20px',
+                borderBottom: '1px solid var(--color-border)',
+                background: 'var(--color-warning-soft)',
+                color: 'var(--color-warning)',
+                fontSize: 12,
+              }}
+            >
+              Some record types are temporarily unavailable. Results may be
+              incomplete.
+            </div>
+          )}
+          {mode === 'search' && !loading && hits.length === 0 && hint && !partial && (
             <div
               role={
                 hint.startsWith('Search failed') || hint === 'Network error.'
