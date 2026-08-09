@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-10 - M3.196 conversation owner/context protected auth boundary
+
+Added `cortex-conversation-context.protected.spec.ts`, a disposable Nest HTTP
+harness using the real JWT membership and capability guards. It proves
+unauthenticated and membership-less requests stop before resolution, verified
+tenant/user/role scope reaches the resolver, and caller-selected tenant scope
+is rejected before business logic. Added the protected review packet with
+release-identity and rollback gates.
+
+Validation: protected harness 3/3; shared-types 286 tests, API 153 files/682
+tests, Web 102 files/697 tests; typechecks/lint; Nest webpack; Next 82-page
+production build; spend, controlled-release, Actionlint, workflow-ref,
+Gitleaks, and diff guards. No SQL, managed Supabase, hosted write/deploy,
+provider/browser call, or paid resource. Chat route and all canaries remain
+closed.
+
+Exact next action: M3.197 release identity/readiness/rollback evidence; retain
+cost lock and do not enable a tenant or wildcard canary.
+
 ## 2026-08-09 - M3.195 conversation owner/context protected HTTP harness
 
 Extended Nest HTTP tests for strict 400 query rejection and 404/409/503

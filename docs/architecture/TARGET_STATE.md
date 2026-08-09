@@ -1,5 +1,14 @@
 # Target State
 
+## M3.196 protected auth and tenant boundary
+
+The future Core owner/context route is exercised through the real JWT
+membership guard, capability metadata, strict query pipe, and controller in a
+disposable source harness. Tenant/user/role scope is derived from verified
+membership; caller-selected tenant scope is rejected before business logic.
+The route remains unconnected and disabled until exact hosted release
+identity, database replay, browser, rollback, and spend gates pass.
+
 ## M3.195 protected owner/context HTTP boundary
 
 The Core owner/context endpoint now has local strict-input and status/message

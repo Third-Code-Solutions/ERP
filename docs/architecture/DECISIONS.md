@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-305 - Derive owner/context scope only from verified membership (2026-08-10)
+
+Decision: exercise the real JWT membership guard and capability guard around
+the owner/context controller before any Web cutover. Reject missing bearer,
+missing ERP membership, and caller-selected tenant input before the resolver;
+forward only the verified principal.
+
+Rationale: a route-level controller test with an injected principal can pass
+while the production guard chain is absent or a caller can influence tenant
+scope. The disposable harness proves the boundary without managed data or
+provider spend.
+
+Validation: protected harness 3/3; shared-types 286 tests, API 153 files/682
+tests, Web 102 files/697 tests; typechecks/lint; Nest webpack; Next 82-page
+build; spend/release/security guards. No SQL, hosted action, browser session,
+provider call, or paid resource. Hosted release identity, replay, and rollback
+remain unresolved; canaries stay false/empty.
+
 ## D-304 - Keep selected Core HTTP failures fail-closed (2026-08-09)
 
 Decision: preserve owner/context 404/409/503 status/message semantics at the

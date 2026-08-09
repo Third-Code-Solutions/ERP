@@ -1,5 +1,23 @@
 # Current State
 
+## M3.196 Conversation owner/context protected auth boundary (2026-08-10)
+
+Added a disposable HTTP harness that composes the real `SupabaseJwtGuard`,
+`CapabilityGuard`, controller metadata, strict query pipe, and context
+resolver seam. Missing bearer and missing tenant membership reject with 401;
+verified membership supplies the only tenant/user/role scope; caller-selected
+tenant input rejects with 400 before resolution. No managed database, token,
+browser, hosted write/deploy, provider, or paid action was used.
+
+Focused validation: protected harness 3/3. Full local lanes: shared-types 286
+tests, API 153 files/682 tests, Web 102 files/697 tests; API/Web/shared
+typechecks; lint; Nest webpack; Next 82-page production build; spend,
+controlled-release, Actionlint, workflow-ref, Gitleaks, and diff guards green.
+Release identity, hosted cross-tenant replay, and rollback remain external
+gates; Core/Web canaries stay false with empty allowlists. Exact next safe
+slice: capture exact API/Web release identities and rollback/readiness evidence
+without enabling a canary.
+
 ## M3.195 Conversation owner/context protected HTTP harness (2026-08-09)
 
 Added protected HTTP contract coverage for `GET /v1/cortex/conversation-context`.
