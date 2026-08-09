@@ -15,9 +15,12 @@ Changed files: `apps/web/src/app/api/upload/complete/route.ts`,
 `apps/web/src/app/api/upload/complete/route.test.ts`, and architecture/
 operations notes.
 
-Exact next action: commit and push the reviewed source branch as `kurtgav`,
-verify remote SHA and clean state, then hold all hosted release/canary work
-behind the spend lock.
+Source push complete: commit `12b9825dadd6fd50f4bf91e687bf71737a806b9a`
+verified equal on local and `origin/agent-02/third-code-erp-landing`; worktree
+clean; GitHub active identity `kurtgav`.
+
+Exact next action: prepare release identity/rollback/readiness evidence while
+holding all hosted release/canary work behind the spend lock.
 
 ## 2026-08-10 - M3.201 guarded upload authority selection
 

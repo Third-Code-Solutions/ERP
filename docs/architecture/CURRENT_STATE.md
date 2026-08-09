@@ -9,8 +9,9 @@ undefined-versus-null replay drift. Default tenant/authority flags remain
 closed; no hosted state changed.
 
 Evidence: focused upload route 8/8; full tests, typecheck, lint, and production
-build passed. This is source evidence only, not hosted release or canary
-approval.
+build passed. Source commit `12b9825dadd6fd50f4bf91e687bf71737a806b9a` matches
+the remote branch under `kurtgav`; worktree is clean. This is source evidence
+only, not hosted release or canary approval.
 
 ## M3.201 guarded upload authority selection (2026-08-10)
 
