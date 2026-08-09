@@ -9,8 +9,9 @@
    provider, or paid resource was changed.
 
 Evidence: route 8/8; full `pnpm test`; typecheck; lint; and production build
-passed. Exact next action: push and verify source identity, then keep hosted
-cutover behind the spend lock.
+passed. Source commit `12b9825dadd6fd50f4bf91e687bf71737a806b9a` matches the
+remote branch. Exact next action: collect release identity/rollback/readiness
+evidence, then keep hosted cutover behind the spend lock.
 
 ## M3.201 guarded upload route cutover (completed, not approved)
 

@@ -2,18 +2,19 @@
 
 ## Exact next action after M3.202 canonical upload payload
 
-Commit only the reviewed route/test and architecture-note changes, push the
-source branch with the `kurtgav` identity, and verify the remote SHA matches
-the local commit with a clean worktree. Keep
+Source push is complete: local and
+`origin/agent-02/third-code-erp-landing` both resolve to
+`12b9825dadd6fd50f4bf91e687bf71737a806b9a`; the worktree is clean and the
+active GitHub identity is `kurtgav`. Keep
 `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false`,
 `ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS=[]`,
 `ERP_DOCUMENT_INTAKE_WRITES_VIA_API=false`, and its tenant list empty. No
 Vercel, Railway, Supabase, provider, browser, or paid action under the current
 cost lock.
 
-After source verification, prepare release identity/rollback/readiness
-evidence. A hosted non-extractor replay requires explicit spend approval and
-must remain a separate controlled milestone.
+Exact next action: prepare release identity/rollback/readiness evidence. A
+hosted non-extractor replay requires explicit spend approval and must remain a
+separate controlled milestone.
 
 ## Exact next action after M3.201 guarded upload selection
 
