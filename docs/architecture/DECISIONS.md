@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-314 - Make Core authoritative for project comment deletion (2026-08-10)
+
+Decision: project-comment deletion is a strict Nest command with verified
+membership, `project.update`, tenant/project/comment predicates, bounded
+idempotency, and same-transaction semantic audit. The Web action selects Core
+only for an exact enabled tenant; selected-Core failure is terminal with no
+direct-write fallback. Hard deletion is retained for compatibility, while a
+service-only ledger keeps the command result replayable after the comment row
+is gone. Creation/deletion ledger target references use `ON DELETE SET NULL`.
+Browser mutation privileges remain revoked and all rollout flags default to
+false with empty allowlists.
+
+Rationale: discussion is construction traceability. A durable result prevents
+duplicate or misleading retries while preserving current API behavior during
+the incremental migration. The post-lock ledger reread handles a retry that
+waited behind a concurrent delete without weakening tenant isolation.
+
+Validation: focused API 84/84, shared 5/5, Web 16/16, full tests, typecheck,
+lint, build, boundary, and migration filename verification passed. Disposable
+PostgreSQL replay and hosted evidence are still required; WSL/Docker were
+unavailable this turn, and no hosted/provider/paid action occurred.
+
 ## D-313 - Make Core authoritative for project comment creation (2026-08-10)
 
 Decision: project discussion creation is a strict Nest command with verified
