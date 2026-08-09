@@ -1,5 +1,37 @@
 # Work Log
 
+## 2026-08-10 - M3.204 Core project comment deletion authority
+
+Added the strict delete command/result, Nest deletion service/controller,
+tenant-scoped idempotency ledger, exact capability/project/comment checks,
+same-transaction hard delete plus semantic audit, and the post-lock replay
+read. Updated the creation ledger FK/state contract so deletion preserves
+evidence without retaining the comment row. Added the migration, RLS/grants,
+browser-DML guard, Web selector/adapter/no-fallback path, compatibility audit,
+environment gates, integration coverage, and migration verifier inventory.
+
+Validation: focused API deletion/config/controller 84/84; shared deletion
+contracts 5/5; Web comment/Core 16/16; full `pnpm test`; API/Web typecheck;
+lint; production build; `pnpm verify:web-db-boundary`; and migration
+`--files-only` verification passed. WSL virtualization and Docker were
+unavailable, so no fresh PostgreSQL replay or database integration ran this
+turn. No Supabase SQL, Vercel, Railway, provider, browser, or paid action.
+
+Changed files: `apps/api/src/projects/project-comment-deletion.service.ts` and
+spec, project comment controller/module/spec, environment config/spec;
+`apps/web/.env.example`, comment action/spec, Core client/spec;
+`packages/database/src/schema/project-comment-delete-requests.ts`, schema
+export, and create-ledger FK/state; shared delete contract/spec; the
+`20260810110000_project_comment_delete_workflow.sql` migration; root env
+example; and database verifier/integration coverage.
+
+Exact next action: run zero-to-current PostgreSQL replay and real integration
+when a disposable DB runtime is available, then collect release identity,
+rollback, readiness, and protected-browser evidence. Keep all gates closed.
+Source commit `00d6a4064c9d6ed99105d02778be508a8b9e7b79` is pushed to
+`agent-02/third-code-erp-landing` as `kurtgav`; the documentation follow-up is
+the only remaining local change.
+
 ## 2026-08-10 - M3.203 Core project comment authority
 
 Implemented the project-comment command boundary incrementally. Added shared

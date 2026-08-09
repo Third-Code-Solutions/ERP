@@ -306,6 +306,19 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 Everything else can be omitted; the corresponding feature will either
 no-op or log a stdout warning at first invocation.
 
+## Project comment deletion authority (disabled by default)
+
+Keep the Core and Web selectors false with empty tenant lists until the
+`20260810110000_project_comment_delete_workflow.sql` migration has passed a
+zero-to-current PostgreSQL replay and the release/rollback gates are approved.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_PROJECT_COMMENT_DELETE_WRITES_ENABLED` | no | API server | Nest project-comment deletion gate; default false |
+| `ERP_PROJECT_COMMENT_DELETE_WRITES_TENANT_IDS` | no | API server | Explicit deletion tenant allowlist; default empty |
+| `ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API` | no | Next server | Selects the Nest project-comment deletion authority; default false |
+| `ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for project-comment deletion; default empty |
+
 ## Inventory Stock Movement draft command (disabled by default)
 
 The Nest command owns validation, idempotency, tenant authorization, the

@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.204 project comment deletion
+
+Keep `ERP_PROJECT_COMMENT_DELETE_WRITES_ENABLED=false`,
+`ERP_PROJECT_COMMENT_DELETE_WRITES_TENANT_IDS=[]`,
+`ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API=false`, and
+`ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API_TENANT_IDS=`. Keep the existing
+project-comment creation flags false/empty too. Source changes are prepared
+and pushed as `00d6a4064c9d6ed99105d02778be508a8b9e7b79` to
+`agent-02/third-code-erp-landing` by `kurtgav`; local and remote SHAs match.
+No Supabase, Vercel, Railway, provider, browser, or paid action is authorized
+under the cost lock.
+
+M3.204 is source evidence only. The migration has not been applied to the
+managed database, and real PostgreSQL replay/integration is pending because
+WSL virtualization and Docker are unavailable. Once a disposable DB runtime
+exists, replay zero-to-current, run no-skip integration, verify RLS/FKs and
+ledger replay, then capture exact API/Web release IDs, rollback targets,
+readiness, and protected-browser evidence. Do not open a tenant canary or
+deploy a new hosted build before those gates and explicit spend review.
+
 ## Exact next action after M3.203 project comment authority
 
 Keep `ERP_PROJECT_COMMENT_CREATE_WRITES_ENABLED=false`,

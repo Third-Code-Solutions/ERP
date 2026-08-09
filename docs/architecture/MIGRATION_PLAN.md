@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.204 project comment deletion (completed in source, not approved)
+
+1. Added strict shared delete command/result contracts, the Core DELETE route,
+   tenant membership and `project.update` authorization, project/comment
+   scope checks, semantic audit, and idempotent replay including the
+   concurrent-lock retry case.
+2. Added the service-only deletion ledger and migration, retained creation and
+   deletion evidence with `ON DELETE SET NULL`, and kept browser DML revoked.
+3. Added the exact Web Core selector with no fallback, preserved the audited
+   compatibility path, and expanded API/shared/Web/integration coverage.
+
+Source gates passed: focused API 84/84, shared 5/5, Web 16/16, full tests,
+typechecks, lint, production build, Web DB-boundary verification, and
+files-only migration verification. Runtime PostgreSQL replay and the real
+integration lane remain pending because WSL virtualization and Docker are
+unavailable. All flags remain false/empty; no hosted SQL or paid action.
+
+Source commit `00d6a4064c9d6ed99105d02778be508a8b9e7b79` is pushed as
+`kurtgav`; local and `origin/agent-02/third-code-erp-landing` match.
+
+Exact next action: run the disposable zero-to-current PostgreSQL replay and
+real integration once a local database runtime is available, then capture
+matching API/Web release identity, rollback, readiness, and protected-browser
+evidence before any hosted migration or canary.
+
 ## M3.203 project comment creation (completed, not approved)
 
 1. Added strict shared command/result contracts and the Nest controller/pipe.

@@ -1,5 +1,33 @@
 # Current State
 
+## M3.204 Core-authoritative project comment deletion (2026-08-10)
+
+Project-comment deletion now has an original Nest Core command boundary:
+`DELETE /v1/projects/:projectId/comments/:commentId` requires a verified
+tenant membership, `project.update`, a bounded `Idempotency-Key`, and an exact
+closed-by-default tenant canary. Core validates project/comment scope, deletes
+the row in the same PostgreSQL transaction as the semantic audit, and stores a
+strict result in a service-only idempotency ledger. Creation and deletion
+evidence references use `ON DELETE SET NULL`, so hard deletion does not erase
+the immutable command/result evidence. A second ledger read covers a retry that
+waited on a concurrent comment-row lock. Browser DML remains revoked; the Web
+Server Action selects Core only for the exact tenant gate and never falls back
+after selection. The compatibility path remains tenant/project scoped and
+audited while the gate is closed.
+
+Focused API deletion/config/controller suites passed 84/84, shared deletion
+contracts 5/5, and Web comment/Core suites 16/16. Full `pnpm test`, API/Web
+typecheck, lint, production build, Web database-boundary verification, and
+files-only migration verification passed. The files-only verifier now sees
+115 migration files, 32 protected tables, and 13 service-only tables when a
+database runtime is available. Fresh PostgreSQL replay and the real database integration were
+not runnable this turn because WSL virtualization and the Docker daemon are
+unavailable on this machine; the migration is source-only and has not been
+applied to Supabase. No Supabase SQL, Vercel, Railway, provider, browser, or
+paid action occurred. All deletion and creation flags remain false/empty.
+Source commit `00d6a4064c9d6ed99105d02778be508a8b9e7b79` is pushed to
+`agent-02/third-code-erp-landing` as `kurtgav`; local and remote SHAs match.
+
 ## M3.203 Core-authoritative project comment creation (2026-08-10)
 
 Added a strict shared project-comment command/result, a Nest

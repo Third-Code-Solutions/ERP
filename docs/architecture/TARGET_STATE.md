@@ -1,5 +1,17 @@
 # Target State
 
+## M3.204 project discussion deletion authority
+
+Project comments have a single auditable lifecycle authority. Nest Core owns
+tenant-scoped deletion, capability checks, idempotent replay, and the semantic
+audit transaction. The Web layer may select that authority only through an
+exact tenant allowlist; a selected-Core failure is terminal and cannot fall
+back to a browser/database mutation. Deletion evidence remains durable after
+the comment row is removed through a service-only result ledger with nullable
+target references. The default rollout is reversible and closed until
+zero-to-current PostgreSQL replay, hosted release identity, rollback,
+readiness, and protected-browser evidence are approved.
+
 ## M3.203 project discussion authority
 
 Project comments are an official tenant-scoped ERP traceability record. Core
