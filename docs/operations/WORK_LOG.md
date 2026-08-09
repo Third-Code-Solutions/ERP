@@ -19,9 +19,12 @@ Changed files: shared universal-search contract/test/index export; Web search
 route/result helper/policy/test; command palette; six architecture/operations
 memory files.
 
-Exact next action: review/stage only these source and memory files, commit, push
-the reviewed source SHA as `kurtgav`, verify local/origin identity, and keep
-hosted state and all Core search gates closed.
+Source commit `19177d9aeea07b4820c913a3a0ccdfc7daafccc0` is pushed to
+`agent-02/third-code-erp-landing` as `kurtgav`; local and origin SHAs match.
+
+Exact next action: design the disabled Nest Core universal-search read adapter
+against the shared contract; keep hosted state and all Core search gates
+closed.
 
 ## 2026-08-10 - M3.205 managed Supabase parity manifest refresh
 

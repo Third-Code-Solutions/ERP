@@ -4,10 +4,10 @@
 
 Root lint, full tests, production build, clean-room tests, managed-parity
 verification, Web DB-boundary verification, and Vercel/Railway spend guard are
-green. Review/stage only the M3.206 source and memory files, commit, push the
-SHA as `kurtgav`, and verify local/origin identity. Do not query or mutate
-Supabase, repair migration history, create a paid branch, deploy
-Vercel/Railway, or open a canary.
+green. Source commit `19177d9aeea07b4820c913a3a0ccdfc7daafccc0` is pushed as
+`kurtgav`; local and `origin/agent-02/third-code-erp-landing` match. Do not
+query or mutate Supabase, repair migration history, create a paid branch,
+deploy Vercel/Railway, or open a canary.
 
 After the source push, implement the disabled Nest Core universal-search
 read adapter with the same contract, explicit capability/tenant/assignee
