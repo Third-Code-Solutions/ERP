@@ -89,6 +89,9 @@ import {
   type OpportunityProjectConversionResult,
   type CreateProjectCommand,
   type ProjectCreationResult,
+  projectCommentCreationResultSchema,
+  type CreateProjectCommentCommand,
+  type ProjectCommentCreationResult,
   type RfqCreationResult,
   type RfqDispatchResult,
   type RfqQuoteResult,
@@ -350,6 +353,16 @@ export function projectListsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_PROJECT_LISTS_VIA_API,
     process.env.ERP_PROJECT_LISTS_VIA_API_TENANT_IDS
+  )
+}
+
+export function projectCommentCreateWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API,
+    process.env.ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -4224,6 +4237,67 @@ export async function createProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project was created.',
+    }
+  }
+}
+
+export async function createProjectCommentThroughCoreApi(
+  command: CreateProjectCommentCommand,
+  idempotencyKey: string
+): Promise<CoreResult<ProjectCommentCreationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/projects/${encodeURIComponent(
+        command.projectId
+      )}/comments`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 503
+            ? 'Project comment creation is not enabled for this tenant.'
+            : response.status === 404
+              ? 'Project not found.'
+              : response.status === 409
+                ? 'Project comment request conflicts with an earlier command.'
+                : 'Project comment was not created.'
+      return { ok: false, error: message, status: response.status }
+    }
+
+    const parsed = projectCommentCreationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid project comment result.',
+        status: response.status,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No project comment was created.',
+      status: 503,
     }
   }
 }

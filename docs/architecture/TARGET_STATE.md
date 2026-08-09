@@ -1,5 +1,17 @@
 # Target State
 
+## M3.203 project discussion authority
+
+Project comments are an official tenant-scoped ERP traceability record. Core
+derives actor and tenant from verified membership, validates project scope,
+resolves mentions, writes the comment and semantic audit in one PostgreSQL
+transaction, and stores a durable idempotency result for safe retries. Web may
+select this authority only through an exact tenant gate; a selected-Core
+failure is terminal and never falls back to browser/database mutation. The
+legacy Server Action remains a reversible compatibility path until local
+migration replay, hosted identity, rollback, and protected browser evidence
+are approved.
+
 ## M3.202 canonical command serialization
 
 Every authority-selected document command serializes optional fields through a

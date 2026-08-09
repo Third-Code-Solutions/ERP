@@ -13,6 +13,9 @@ import { CostEntryDeletionController } from './cost-entry-deletion.controller'
 import { CostEntryDeletionService } from './cost-entry-deletion.service'
 import { DeleteCostEntryPipe } from './delete-cost-entry.pipe'
 import { RestoreCostEntryPipe } from './restore-cost-entry.pipe'
+import { ProjectCommentsController } from './project-comments.controller'
+import { ProjectCommentCreationService } from './project-comment-creation.service'
+import { CreateProjectCommentPipe } from './project-comment.pipe'
 
 @Module({
   imports: [AuditModule],
@@ -20,6 +23,7 @@ import { RestoreCostEntryPipe } from './restore-cost-entry.pipe'
     ProjectsController,
     CostEntryCreationController,
     CostEntryDeletionController,
+    ProjectCommentsController,
   ],
   providers: [
     ProjectsService,
@@ -27,6 +31,8 @@ import { RestoreCostEntryPipe } from './restore-cost-entry.pipe'
     CostEntryDeletionService,
     DeleteCostEntryPipe,
     RestoreCostEntryPipe,
+    ProjectCommentCreationService,
+    CreateProjectCommentPipe,
   ],
 })
 export class ProjectsModule implements NestModule {
@@ -36,7 +42,8 @@ export class ProjectsModule implements NestModule {
       .forRoutes(
         ProjectsController,
         CostEntryCreationController,
-        CostEntryDeletionController
+        CostEntryDeletionController,
+        ProjectCommentsController
       )
   }
 }

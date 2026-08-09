@@ -119,6 +119,11 @@ export const projectCreateRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const projectCommentCreateRequestStateEnum = pgEnum(
+  'project_comment_create_request_state',
+  ['processing', 'succeeded']
+)
+
 export const bomStatusEnum = pgEnum('bom_status', [
   'draft',
   'approved',

@@ -1,10 +1,24 @@
 # Next Actions
 
+## Exact next action after M3.203 project comment authority
+
+Keep `ERP_PROJECT_COMMENT_CREATE_WRITES_ENABLED=false`,
+`ERP_PROJECT_COMMENT_CREATE_WRITES_TENANT_IDS=[]`,
+`ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API=false`, and
+`ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API_TENANT_IDS=`. Review the source
+diff, commit/push it as `kurtgav`, and verify the exact remote SHA. Then run a
+disposable zero-to-current PostgreSQL replay and inspect composite tenant/FK,
+RLS, ledger, and browser-DML evidence. No Supabase, Vercel, Railway, provider,
+browser, or paid action under the current cost lock.
+
+M3.203 is source evidence only; do not approve a tenant canary until replay,
+release identity, rollback, readiness, and protected browser checks pass.
+
 ## Exact next action after M3.202 canonical upload payload
 
 Source push is complete: local and
 `origin/agent-02/third-code-erp-landing` both resolve to
-`12b9825dadd6fd50f4bf91e687bf71737a806b9a`; the worktree is clean and the
+`f36cdc9c8c906abd10a6fcab757624855496f13c`; the worktree is clean and the
 active GitHub identity is `kurtgav`. Keep
 `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false`,
 `ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS=[]`,

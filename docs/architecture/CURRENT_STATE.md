@@ -1,5 +1,26 @@
 # Current State
 
+## M3.203 Core-authoritative project comment creation (2026-08-10)
+
+Added a strict shared project-comment command/result, a Nest
+`POST /v1/projects/:projectId/comments` transaction, tenant-scoped idempotency
+ledger, membership/capability checks, mention resolution, and same-transaction
+semantic audit. Migration `20260810100000_project_comment_create_workflow.sql`
+adds the ledger, composite tenant foreign keys, comment identity index, and
+revokes browser insert/update/delete privileges; all Core/Web flags remain
+false with empty tenant lists.
+
+The project comments Server Action now validates the project UUID and
+`project.update`, selects Core only for an exact tenant canary, and never falls
+back after Core selection. The closed compatibility path remains available but
+is tenant/project scoped and audited. Focused shared/API/Web tests passed;
+full `pnpm test`, typecheck, lint, and production build passed. Disposable
+PostgreSQL replay reached 114/114 migrations; database tests passed 367/367
+without skips and API integration passed 28 files/42 tests, including the new
+real-transaction comment replay/rollback coverage. No hosted SQL, Supabase,
+Vercel, Railway, provider, or paid action occurred. Source commit and remote
+SHA are recorded after the reviewed push.
+
 ## M3.202 canonical upload command payload (2026-08-10)
 
 The guarded Core upload path now sends an explicit nullable description when
@@ -9,9 +30,9 @@ undefined-versus-null replay drift. Default tenant/authority flags remain
 closed; no hosted state changed.
 
 Evidence: focused upload route 8/8; full tests, typecheck, lint, and production
-build passed. Source commit `12b9825dadd6fd50f4bf91e687bf71737a806b9a` matches
-the remote branch under `kurtgav`; worktree is clean. This is source evidence
-only, not hosted release or canary approval.
+build passed. Source branch HEAD `f36cdc9c8c906abd10a6fcab757624855496f13c`
+matches the remote branch under `kurtgav`; worktree is clean. This is source
+evidence only, not hosted release or canary approval.
 
 ## M3.201 guarded upload authority selection (2026-08-10)
 

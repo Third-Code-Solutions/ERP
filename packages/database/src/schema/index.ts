@@ -28,6 +28,7 @@ export * from './invoices'
 export * from './audit-log'
 export * from './embeddings'
 export * from './project-comments'
+export * from './project-comment-create-requests'
 // Third Code ERP refactor — Phase 0 (REFACTOR.md M1)
 export * from './accounts'
 export * from './contacts'
