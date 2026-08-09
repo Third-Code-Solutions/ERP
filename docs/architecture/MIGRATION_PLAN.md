@@ -16,6 +16,9 @@ verification, clean-room tests 7/7, and spend-guard tests 4/4. No hosted
 database/provider/deployment action. No Core cutover flag exists or opened in
 this slice.
 
+Source commit `19177d9aeea07b4820c913a3a0ccdfc7daafccc0` is pushed as
+`kurtgav`; local and `origin/agent-02/third-code-erp-landing` match.
+
 Exact next action: implement a disabled Nest Core universal-search read adapter
 against the shared contract, then run disposable PostgreSQL replay and exact
 tenant/no-fallback integration before any canary or provider action.
