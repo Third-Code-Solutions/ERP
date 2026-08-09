@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-304 - Keep selected Core HTTP failures fail-closed (2026-08-09)
+
+Decision: preserve owner/context 404/409/503 status/message semantics at the
+Nest HTTP boundary, and map selected Web Core timeout/5xx/invalid results to a
+single 503 failure with no retry or direct database fallback.
+
+Rationale: a Core cutover that changes concealment or silently re-enters direct
+reads can leak ownership or create split authority. Explicit status coverage
+keeps rollback reversible while protected deployed identity remains unproven.
+
+Validation: Nest HTTP 7/7; Web seam 4/4; full API 152 files/679 tests and Web
+102 files/697 tests; typechecks/lint green. No SQL, hosted action, provider,
+browser session, or paid resource. All canaries remain false/empty.
+
 ## D-303 - Require deterministic owner/context parity before HTTP cutover (2026-08-09)
 
 Decision: add a frozen 12-case legacy/Core owner/context fixture and review

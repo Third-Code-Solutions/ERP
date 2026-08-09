@@ -1,5 +1,22 @@
 # Migration Plan
 
+## M3.195 protected owner/context HTTP harness (completed, not approved)
+
+1. Extended the Nest HTTP contract with strict 400 input rejection and
+   404/409/503 status/message parity for owner/context failures.
+2. Extended the server-only Web seam with selected-Core timeout evidence:
+   one Core call, 503 mapping, no retry, and no direct database fallback.
+3. Added `CORTEX_CONVERSATION_CONTEXT_HTTP_REVIEW.md`; kept chat route,
+   allowlists, hosted providers, and paid actions closed.
+
+Evidence: Nest HTTP 7/7; Web seam 4/4; shared-types 286 tests, API 152
+files/679 tests, Web 102 files/697 tests; typechecks/lint green; existing
+production builds and spend/release/security guards green. No SQL, hosted,
+deployment, provider, browser, or paid-resource action.
+
+Exact next action: M3.196 disposable protected auth/cross-tenant harness plus
+release identity and rollback evidence; keep all canaries false/empty.
+
 ## M3.194 conversation owner/context parity fixture (completed, not approved)
 
 1. Added a deterministic 12-case fixture comparing Core normalized

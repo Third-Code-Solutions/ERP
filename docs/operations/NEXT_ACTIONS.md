@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.195 protected HTTP harness
+
+Keep Core/Web owner-context flags disabled with empty exact tenant allowlists.
+Do not import the seam into `apps/web/src/app/api/cortex/chat/route.ts`; keep
+retrieval, conversation writes, generation, semantic indexing, Supabase,
+Vercel, Railway, provider, and paid actions closed.
+
+Next safe source-only milestone: M3.196 disposable protected auth/cross-tenant
+harness, including verified session principal, foreign tenant concealment,
+role scope, release identity, rollback artifact, and no-fallback evidence. Do
+not enable tenant or wildcard canary.
+
+M3.195 is local HTTP source evidence only, not hosted, browser, deployment,
+rollback, or spend approval.
+
 ## Exact next action after M3.194 owner/context parity fixture
 
 Keep `ERP_CORTEX_CONVERSATION_CONTEXT_READS_ENABLED=false` and both exact

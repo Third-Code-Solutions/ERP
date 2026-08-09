@@ -1,5 +1,21 @@
 # Work Log
 
+## 2026-08-09 - M3.195 conversation owner/context protected HTTP harness
+
+Extended Nest HTTP tests for strict 400 query rejection and 404/409/503
+status/message parity. Extended Web selected-Core seam tests so timeout maps to
+503 with one Core call and no retry/direct fallback. Added
+`CORTEX_CONVERSATION_CONTEXT_HTTP_REVIEW.md`.
+
+Validation: Nest HTTP 7/7; Web seam 4/4; shared-types 286 tests, API 152
+files/679 tests, Web 102 files/697 tests; typechecks/lint green. Existing
+production builds and spend/release/security guards green. No SQL, hosted
+write/deploy, provider/browser call, or paid resource. Chat route and canaries
+remain closed.
+
+Exact next action: M3.196 disposable protected auth/cross-tenant harness plus
+release identity/rollback evidence; retain cost lock.
+
 ## 2026-08-09 - M3.194 conversation owner/context parity fixture
 
 Added `cortex-conversation-context.parity.spec.ts` with 12 deterministic

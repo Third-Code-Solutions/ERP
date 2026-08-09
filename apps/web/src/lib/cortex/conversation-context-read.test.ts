@@ -73,5 +73,25 @@ describe('readCortexConversationContextThroughCore', () => {
       status: 409,
       error: 'Conversation context mismatch',
     })
+    expect(mocks.getCortexConversationContextThroughCoreApi).toHaveBeenCalledTimes(1)
+  })
+
+  it('maps a selected Core timeout to 503 without retry or legacy fallback', async () => {
+    mocks.cortexConversationContextReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexConversationContextThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'Cortex conversation context service is unavailable.',
+    })
+
+    await expect(
+      readCortexConversationContextThroughCore({ tenantId: TENANT_ID, query: QUERY })
+    ).resolves.toEqual({
+      ok: false,
+      source: 'core',
+      status: 503,
+      error: 'Cortex conversation context service is unavailable.',
+    })
+    expect(mocks.getCortexConversationContextThroughCoreApi).toHaveBeenCalledTimes(1)
   })
 })

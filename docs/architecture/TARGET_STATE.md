@@ -1,5 +1,13 @@
 # Target State
 
+## M3.195 protected owner/context HTTP boundary
+
+The Core owner/context endpoint now has local strict-input and status/message
+coverage, while the exact-tenant Web seam fails closed on selected-Core timeout
+without retries or direct fallback. The chat route remains unconnected until
+deployed auth, cross-tenant replay, release identity, rollback, and spend gates
+are proven.
+
 ## M3.194 deterministic owner/context parity evidence
 
 The future Core owner/context seam now has a repeatable 12-case fixture against
