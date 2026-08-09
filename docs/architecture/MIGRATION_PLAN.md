@@ -1,5 +1,22 @@
 # Migration Plan
 
+## M3.198 Next API database-boundary guard (completed, not approved)
+
+1. Inventory direct `db`/`tx` writes and raw executes under
+   `apps/web/src/app/api`.
+2. Add a pure, read-only verifier with explicit legacy write and read-only
+   allowlists; block unclassified routes and operations.
+3. Run the policy in both CI workflows and record the review packet with an
+   exact rollback (revert this source-only commit).
+
+Evidence: verifier tests 4/4; current report `clear`; no SQL, hosted read/write,
+deployment, provider, or paid resource. The guard covers Next API routes only;
+Server Actions/internal services remain future migration work.
+
+Exact next action: M3.199 design/test the Nest document-intake contract and a
+disabled Web adapter; keep the `upload/complete` legacy allowlist entry until
+parity and rollback evidence exist.
+
 ## M3.197 release identity/rollback planner (completed, not approved)
 
 1. Added pure `buildReleaseIdentityPlan()` checks for clean candidate source,
