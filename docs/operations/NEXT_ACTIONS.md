@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.197 release identity planner
+
+Keep Core/Web flags disabled with empty exact tenant allowlists. Do not run
+Vercel, Railway, Supabase, provider, or paid actions under current cost lock.
+
+M3.198 choice gate: if explicit budget/access approval arrives, collect exact
+API/Web release IDs, matching source SHAs, rollback IDs, readiness evidence,
+and one controlled browser replay. Otherwise continue source-only reliability,
+tenant isolation, and UX work. Never infer hosted identity from local SHA or
+HTTP 200 alone.
+
+M3.197 is source release evidence only, not deployment or canary approval.
+
 ## Exact next action after M3.196 protected auth boundary
 
 Keep Core/Web owner-context flags disabled with empty exact tenant allowlists.

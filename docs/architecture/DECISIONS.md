@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-306 - Make release identity and rollback evidence machine-checked (2026-08-10)
+
+Decision: require a clean candidate SHA, matching API/Web deployed source
+SHAs, explicit hosted release IDs, explicit rollback IDs, closed Vercel Git,
+and clear spend guard before any canary. Enforce through a read-only local
+planner; missing hosted evidence remains `review_required`.
+
+Rationale: source commits, readiness URLs, and local builds cannot prove which
+artifact serves production or whether rollback is reversible. A planner makes
+that gap explicit without creating another billable build or hosted mutation.
+
+Validation: planner tests 5/5; current report review-required for missing
+external IDs. No SQL, provider call, browser session, deployment, or paid
+resource.
+
 ## D-305 - Derive owner/context scope only from verified membership (2026-08-10)
 
 Decision: exercise the real JWT membership guard and capability guard around
