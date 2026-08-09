@@ -6,7 +6,7 @@ Added read-only `pnpm plan:release-identity` with deterministic identity
 checks. It records candidate SHA/branch/clean state, requires API/Web hosted
 release IDs whose source SHAs match candidate, requires explicit rollback IDs,
 and rechecks Vercel Git/spend guard. Pure planner tests pass 5/5. No provider,
-SQL, flag, browser, or deployment action occurred. Current report is
+SQL, flag, or deployment action occurred. Current report is
 `review_required` until external release and rollback identities are supplied.
 Local production browser QA at 1440/768/390 passed with no horizontal
 overflow or console errors; Cortex, accordion, carousel, and FAQ interactions
