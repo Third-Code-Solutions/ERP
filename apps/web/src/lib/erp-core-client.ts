@@ -90,8 +90,10 @@ import {
   type CreateProjectCommand,
   type ProjectCreationResult,
   projectCommentCreationResultSchema,
+  projectCommentDeletionResultSchema,
   type CreateProjectCommentCommand,
   type ProjectCommentCreationResult,
+  type ProjectCommentDeletionResult,
   type RfqCreationResult,
   type RfqDispatchResult,
   type RfqQuoteResult,
@@ -363,6 +365,16 @@ export function projectCommentCreateWritesUseCoreApi(
     tenantId,
     process.env.ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API,
     process.env.ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function projectCommentDeleteWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API,
+    process.env.ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -4297,6 +4309,66 @@ export async function createProjectCommentThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No project comment was created.',
+      status: 503,
+    }
+  }
+}
+
+export async function deleteProjectCommentThroughCoreApi(
+  projectId: string,
+  commentId: string,
+  idempotencyKey: string
+): Promise<CoreResult<ProjectCommentDeletionResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/projects/${encodeURIComponent(
+        projectId
+      )}/comments/${encodeURIComponent(commentId)}`,
+      {
+        method: 'DELETE',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 503
+            ? 'Project comment deletion is not enabled for this tenant.'
+            : response.status === 404
+              ? 'Project comment not found.'
+              : response.status === 409
+                ? 'Project comment deletion conflicts with an earlier command.'
+                : 'Project comment was not deleted.'
+      return { ok: false, error: message, status: response.status }
+    }
+
+    const parsed = projectCommentDeletionResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid project comment deletion result.',
+        status: response.status,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No project comment was deleted.',
       status: 503,
     }
   }

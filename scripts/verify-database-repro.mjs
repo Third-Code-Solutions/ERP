@@ -119,6 +119,7 @@ const requiredServerOnlyTables = [
   'cortex_assistant_provider_attempts',
   'document_intake_requests',
   'project_comment_create_requests',
+  'project_comment_delete_requests',
 ]
 
 const requiredPolicies = [
@@ -342,6 +343,9 @@ const requiredServerOnlyIndexes = [
   'ux_project_comment_create_requests_tenant_id_id',
   'ux_project_comment_create_requests_tenant_key',
   'idx_project_comment_create_requests_tenant_state',
+  'ux_project_comment_delete_requests_tenant_id_id',
+  'ux_project_comment_delete_requests_tenant_key',
+  'idx_project_comment_delete_requests_tenant_state',
 ]
 
 const requiredExpandedNodeTypes = [

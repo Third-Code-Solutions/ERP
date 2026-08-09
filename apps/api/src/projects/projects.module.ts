@@ -15,6 +15,7 @@ import { DeleteCostEntryPipe } from './delete-cost-entry.pipe'
 import { RestoreCostEntryPipe } from './restore-cost-entry.pipe'
 import { ProjectCommentsController } from './project-comments.controller'
 import { ProjectCommentCreationService } from './project-comment-creation.service'
+import { ProjectCommentDeletionService } from './project-comment-deletion.service'
 import { CreateProjectCommentPipe } from './project-comment.pipe'
 
 @Module({
@@ -32,6 +33,7 @@ import { CreateProjectCommentPipe } from './project-comment.pipe'
     DeleteCostEntryPipe,
     RestoreCostEntryPipe,
     ProjectCommentCreationService,
+    ProjectCommentDeletionService,
     CreateProjectCommentPipe,
   ],
 })
