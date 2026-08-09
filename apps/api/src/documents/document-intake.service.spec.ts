@@ -74,7 +74,8 @@ function enabledHarness() {
   const projectQuery = query([{ id: PROJECT_ID }])
   let selectCalls = 0
   const select = vi.fn(() => {
-    const query = [membershipQuery, requestQuery, projectQuery][selectCalls % 3]
+    // Scope must be validated before the idempotency ledger is claimed.
+    const query = [membershipQuery, projectQuery, requestQuery][selectCalls % 3]
     selectCalls += 1
     return query
   })
@@ -206,7 +207,7 @@ describe('DocumentIntakeService migration boundary', () => {
         'intake-2'
       )
     ).rejects.toBeInstanceOf(ForbiddenException)
-    expect(probe.insert).toHaveBeenCalledTimes(1)
+    expect(probe.insert).not.toHaveBeenCalled()
     expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
   })
 })

@@ -35,6 +35,7 @@ import {
   customerInvoiceCancelResultSchema,
   documentDeleteResultSchema,
   documentIntakeResultSchema,
+  documentUploadCompleteResultSchema,
   publicSigningResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
@@ -129,6 +130,7 @@ import {
   type DocumentDeleteResult,
   type DocumentIntakeRequest,
   type DocumentIntakeResult,
+  type DocumentUploadCompleteResult,
   type PublicSigningBody,
   type PublicSigningResult,
   type DocumentProcessingAccepted,
@@ -1033,6 +1035,46 @@ export function documentIntakeWritesUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_DOCUMENT_INTAKE_WRITES_VIA_API,
     process.env.ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+/**
+ * The first Web canary only covers uploads that the legacy route records
+ * without running an extractor. CAD, visual, spreadsheet, CSV, and document
+ * formats remain on the legacy path until their response and processing
+ * parity are independently proven.
+ */
+export function documentIntakeCanarySupportsUpload(request: {
+  fileName: string
+  mimeType: string
+}): boolean {
+  const extension = request.fileName.split('.').pop()?.toLowerCase() ?? ''
+  const extractorExtensions = new Set([
+    'dxf',
+    'dwg',
+    'pdf',
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
+    'gif',
+    'heic',
+    'xlsx',
+    'xls',
+    'csv',
+    'docx',
+    'doc',
+  ])
+  if (extractorExtensions.has(extension)) return false
+
+  const mimeType = request.mimeType.toLowerCase()
+  return !(
+    mimeType === 'application/pdf' ||
+    mimeType.startsWith('image/') ||
+    mimeType === 'text/csv' ||
+    mimeType.includes('spreadsheet') ||
+    mimeType.includes('wordprocessingml') ||
+    mimeType === 'application/msword'
   )
 }
 
@@ -2318,6 +2360,61 @@ export async function createDocumentThroughCoreApi(
       status: 503,
     }
   }
+}
+
+/**
+ * Disposable Web canary harness for legacy upload response parity. It is not
+ * connected to /api/upload/complete; callers must explicitly select both the
+ * tenant gate and the non-extractor format. A Core error is terminal and
+ * never falls back to a Web database write.
+ */
+export async function completeDocumentUploadThroughCoreCanary(
+  request: DocumentIntakeRequest,
+  tenantId: string,
+  idempotencyKey: string
+): Promise<CoreResult<DocumentUploadCompleteResult>> {
+  if (!documentIntakeWritesUseCoreApi(tenantId)) {
+    return {
+      ok: false,
+      error: 'Document intake canary is not enabled for this tenant.',
+      status: 503,
+    }
+  }
+  if (!documentIntakeCanarySupportsUpload(request)) {
+    return {
+      ok: false,
+      error: 'Document intake canary does not support this upload format.',
+      status: 400,
+    }
+  }
+
+  const coreResult = await createDocumentThroughCoreApi(
+    request,
+    idempotencyKey
+  )
+  if (!coreResult.ok || !coreResult.data) {
+    return {
+      ok: false,
+      error: coreResult.error ?? 'Document intake failed in ERP Core.',
+      status: coreResult.status,
+    }
+  }
+
+  const parsed = documentUploadCompleteResultSchema.safeParse({
+    id: coreResult.data.documentId,
+    storagePath: coreResult.data.storagePath,
+    documentType: coreResult.data.documentType,
+    cadFormat: null,
+    cadParseQueued: false,
+  })
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: 'ERP Core returned an invalid legacy upload response.',
+      status: 502,
+    }
+  }
+  return { ok: true, data: parsed.data, status: coreResult.status }
 }
 
 export async function signPublicSignatureThroughCoreApi(

@@ -1,5 +1,14 @@
 # Target State
 
+## M3.200 upload response compatibility and replay evidence
+
+The legacy upload response is a shared, strict contract. The existing Web
+route remains authoritative while a disposable Core canary maps only
+non-extractor uploads to that contract. No extractor or AI/CAD result is
+silently discarded, and a selected-Core failure never falls back to a direct
+Web write. Local zero-to-current replay is the prerequisite for any hosted
+database release; source parity is not hosted-state evidence.
+
 ## M3.199 document intake authority
 
 Document creation is a Nest transaction, never a browser/database write. The

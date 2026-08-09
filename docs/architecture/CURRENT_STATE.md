@@ -1,5 +1,33 @@
 # Current State
 
+## M3.200 local database replay and upload parity freeze (2026-08-10)
+
+Replayed the complete source migration ledger from an empty local PostgreSQL
+17 database through `20260810090000_document_intake_workflow.sql`: 113/113
+migrations, 32 protected tables, and 11 service-only tables. The real database
+integration proved scoped create, idempotent replay, same-key conflict,
+foreign-project concealment, storage-prefix denial, audit/ledger cardinality,
+and transaction rollback (1/1). The service now validates project and storage
+scope before claiming idempotency, preventing raw composite-FK failures.
+
+Added a strict shared schema for the legacy `/api/upload/complete` response and
+wrapped the existing route output with it. Added a disposable, server-only Core
+canary harness for non-extractor uploads; it is not connected to the route and
+fails closed unless the exact tenant gate is enabled. CAD, visual, spreadsheet,
+CSV, and document formats remain legacy-authoritative.
+
+Validation: local replay 113/113; database tests 367/367 without skips; API
+integration 26 files passed; focused M3.200 database integration 1/1; database
+reproducibility verifier 113 migrations/11 service-only tables; release planner
+current 113/113; schema-before/after SHA-256 equal
+`F51C083CFF33D3C279261BD57F3BAE4F0465BA6E1423EE8DB09880F7B48FBAAD`; shared
+contract 3/3; Web upload/Core suites 158/158. Local PostgreSQL and Redis were
+stopped after verification. Managed Supabase remains source-only 55/113;
+no hosted SQL, deploy, provider, browser, or paid action occurred.
+
+Exact next safe slice: run full source gates, push reviewed source under the
+`kurtgav` identity, and obtain release/rollback identities before any canary.
+
 ## M3.199 Nest document-intake authority seam (2026-08-10)
 
 Added a strict `POST /v1/documents` Nest contract with verified membership

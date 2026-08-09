@@ -112,8 +112,10 @@ import {
   documentProcessingJobsUseCoreApi,
   documentDeleteWritesUseCoreApi,
   documentIntakeWritesUseCoreApi,
+  documentIntakeCanarySupportsUpload,
   deleteDocumentThroughCoreApi,
   createDocumentThroughCoreApi,
+  completeDocumentUploadThroughCoreCanary,
   publicSigningWritesUseCoreApi,
   signPublicSignatureThroughCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
@@ -3811,6 +3813,122 @@ describe('ERP Core client', () => {
           sizeBytes: 1024,
         },
         'document-intake-2'
+      )
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Document intake is not enabled for this tenant.',
+      status: 503,
+    })
+  })
+
+  it('keeps the upload canary limited to non-extractor formats', () => {
+    expect(
+      documentIntakeCanarySupportsUpload({
+        fileName: 'notes.txt',
+        mimeType: 'text/plain',
+      })
+    ).toBe(true)
+    for (const upload of [
+      { fileName: 'drawing.pdf', mimeType: 'application/pdf' },
+      { fileName: 'drawing.dwg', mimeType: 'application/acad' },
+      { fileName: 'site.png', mimeType: 'image/png' },
+      { fileName: 'estimate.xlsx', mimeType: 'application/vnd.ms-excel' },
+    ]) {
+      expect(documentIntakeCanarySupportsUpload(upload)).toBe(false)
+    }
+  })
+
+  it('fails closed before fetch when the upload canary gate is off', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      completeDocumentUploadThroughCoreCanary(
+        {
+          storagePath: `${RESULT.tenantId}/${PROJECT_ID}/notes.txt`,
+          projectId: PROJECT_ID,
+          fileName: 'notes.txt',
+          mimeType: 'text/plain',
+          sizeBytes: 1,
+        },
+        RESULT.tenantId,
+        'document-intake-canary-off'
+      )
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Document intake canary is not enabled for this tenant.',
+      status: 503,
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('maps a successful Core intake to the frozen legacy upload response', async () => {
+    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    const command = {
+      storagePath: `${RESULT.tenantId}/${PROJECT_ID}/notes.txt`,
+      projectId: PROJECT_ID,
+      fileName: 'notes.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 1,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...DOCUMENT_INTAKE_RESULT,
+          storagePath: command.storagePath,
+          projectId: command.projectId,
+          documentType: 'other',
+        }),
+        { status: 201, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      completeDocumentUploadThroughCoreCanary(
+        command,
+        RESULT.tenantId,
+        'document-intake-canary-1'
+      )
+    ).resolves.toEqual({
+      ok: true,
+      data: {
+        id: DOCUMENT_ID,
+        storagePath: command.storagePath,
+        documentType: 'other',
+        cadFormat: null,
+        cadParseQueued: false,
+      },
+      status: 201,
+    })
+  })
+
+  it('returns Core outage without falling back through the upload canary', async () => {
+    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('unavailable', { status: 503 }))
+    )
+
+    await expect(
+      completeDocumentUploadThroughCoreCanary(
+        {
+          storagePath: `${RESULT.tenantId}/${PROJECT_ID}/notes.txt`,
+          projectId: PROJECT_ID,
+          fileName: 'notes.txt',
+          mimeType: 'text/plain',
+          sizeBytes: 1,
+        },
+        RESULT.tenantId,
+        'document-intake-canary-2'
       )
     ).resolves.toEqual({
       ok: false,

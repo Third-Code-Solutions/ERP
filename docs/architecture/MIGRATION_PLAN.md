@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.200 replay and upload parity freeze (completed, not approved)
+
+1. Replayed all 113 migrations from an empty local PostgreSQL 17 database,
+   including the document-intake ledger; verified 367/367 database tests with
+   no environment skips and equal before/after schema hashes.
+2. Added a real-transaction document-intake integration test covering scoped
+   success/replay/conflict, foreign project and storage denial, audit/ledger
+   counts, and rollback. Moved scope validation before idempotency claiming.
+3. Added strict shared legacy upload response schemas and a disposable Web
+   Core canary harness for non-extractor formats. `/api/upload/complete` is
+   still unconnected and all gates/allowlists remain closed.
+
+Evidence: API integration 26 files passed; focused database integration 1/1;
+reproducibility verifier 113/113 with 11 service-only tables; release planner
+current 113/113; schema SHA-256 before/after equal; shared 3/3 and Web 158/158.
+Managed Supabase remains 55/113 source-parity evidence only. No hosted SQL,
+deployment, provider, browser, or paid action.
+
+Exact next action: run full lint/typecheck/tests/build and policy guards, review
+the diff, push the source branch as `kurtgav`, then capture exact API/Web
+release IDs and rollback targets before considering one canary tenant.
+
 ## M3.199 Nest document-intake contract (completed, not approved)
 
 1. Added strict shared request/result schemas and a migration-backed,
