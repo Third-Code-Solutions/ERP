@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-311 - Select Core before legacy upload mutation (2026-08-10)
+
+Decision: `/api/upload/complete` may select Core only when both the exact tenant
+allowlist and non-extractor format selector match. Selection happens before
+the legacy insert. Core errors are terminal; no direct Web fallback occurs.
+The closed default preserves current API behavior, and extractor formats stay
+legacy-authoritative until processing parity exists.
+
+Rationale: authority must be decided before a transaction opens. A post-write
+handoff could create duplicate documents or split audit authority. Deterministic
+command hashing gives retries stable idempotency without requiring a new client
+protocol in the closed-by-default rollout.
+
+Validation: route 8/8; Core client 152/152; Web typecheck. No hosted/provider/
+deployment/paid action.
+
 ## D-309 - Freeze legacy upload response before any Core canary (2026-08-10)
 
 Decision: define the existing `/api/upload/complete` response as a strict

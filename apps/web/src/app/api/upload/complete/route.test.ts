@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   documentProcessingJobsUseCoreApi: vi.fn(),
   enqueueDocumentProcessingThroughCoreApi: vi.fn(),
   extractScopeFromVisual: vi.fn(),
+  documentIntakeCanarySelectedForUpload: vi.fn(),
+  completeDocumentUploadThroughCoreCanary: vi.fn(),
   send: vi.fn(),
   transaction: vi.fn(),
   writeAuditLogInTransaction: vi.fn(),
@@ -41,6 +43,10 @@ vi.mock('@/lib/cad/parse-and-store', () => ({
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
+  documentIntakeCanarySelectedForUpload:
+    mocks.documentIntakeCanarySelectedForUpload,
+  completeDocumentUploadThroughCoreCanary:
+    mocks.completeDocumentUploadThroughCoreCanary,
   documentProcessingJobsUseCoreApi: mocks.documentProcessingJobsUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi:
     mocks.enqueueDocumentProcessingThroughCoreApi,
@@ -82,6 +88,7 @@ describe('completed document upload Project access', () => {
         callback({ insert: mocks.insert })
     )
     mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
+    mocks.documentIntakeCanarySelectedForUpload.mockReturnValue(false)
     mocks.documentProcessingJobsUseCoreApi.mockReturnValue(false)
   })
 
@@ -254,6 +261,99 @@ describe('completed document upload Project access', () => {
     )
     expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
     expect(mocks.send).not.toHaveBeenCalled()
+  })
+
+  it('delegates a non-extractor upload to Core before any legacy write', async () => {
+    const documentId = '44444444-4444-4444-8444-444444444444'
+    const storagePath = `${TENANT_ID}/${OTHER_PROJECT_ID}/uploaded-notes.txt`
+    mocks.getProject.mockResolvedValue({
+      id: OTHER_PROJECT_ID,
+      tenant_id: TENANT_ID,
+    })
+    mocks.documentIntakeCanarySelectedForUpload.mockReturnValue(true)
+    mocks.completeDocumentUploadThroughCoreCanary.mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: {
+        id: documentId,
+        storagePath,
+        documentType: 'other',
+        cadFormat: null,
+        cadParseQueued: false,
+      },
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storagePath,
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'notes.txt',
+          mimeType: 'text/plain',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      id: documentId,
+      storagePath,
+      documentType: 'other',
+      cadFormat: null,
+      cadParseQueued: false,
+    })
+    expect(mocks.completeDocumentUploadThroughCoreCanary).toHaveBeenCalledWith(
+      {
+        storagePath,
+        projectId: OTHER_PROJECT_ID,
+        fileName: 'notes.txt',
+        mimeType: 'text/plain',
+        sizeBytes: 1_024,
+      },
+      TENANT_ID,
+      expect.stringMatching(/^upload-[a-f0-9]{64}$/)
+    )
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
+  })
+
+  it('returns Core canary failure without falling back to a legacy write', async () => {
+    mocks.getProject.mockResolvedValue({
+      id: OTHER_PROJECT_ID,
+      tenant_id: TENANT_ID,
+    })
+    mocks.documentIntakeCanarySelectedForUpload.mockReturnValue(true)
+    mocks.completeDocumentUploadThroughCoreCanary.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. No document was recorded.',
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/uploaded-notes.txt`,
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'notes.txt',
+          mimeType: 'text/plain',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: 'ERP Core API is unavailable. No document was recorded.',
+    })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.insert).not.toHaveBeenCalled()
+    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
   })
 
   it('fails closed without falling back to a Next-side scope write when core rejects the canary', async () => {

@@ -1,5 +1,20 @@
 # Current State
 
+## M3.201 guarded upload authority selection (2026-08-10)
+
+Connected `POST /api/upload/complete` to the existing Nest document-intake
+authority through an exact tenant gate plus non-extractor format selector. The
+route chooses Core before any legacy document insert, derives a deterministic
+command idempotency key from the validated upload command, maps Core success to
+the frozen legacy response, and returns a bounded terminal error without
+fallback when Core is selected and unavailable. Default flags remain false;
+CAD, visual, spreadsheet, CSV, and document extractor uploads remain on the
+legacy path.
+
+Route evidence: Core success and Core 503 no-fallback tests pass; legacy
+same-tenant recording and extractor behavior remain covered. No hosted flag,
+database, deployment, provider, or paid action changed.
+
 ## M3.200 local database replay and upload parity freeze (2026-08-10)
 
 Replayed the complete source migration ledger from an empty local PostgreSQL
@@ -11,10 +26,9 @@ and transaction rollback (1/1). The service now validates project and storage
 scope before claiming idempotency, preventing raw composite-FK failures.
 
 Added a strict shared schema for the legacy `/api/upload/complete` response and
-wrapped the existing route output with it. Added a disposable, server-only Core
-canary harness for non-extractor uploads; it is not connected to the route and
-fails closed unless the exact tenant gate is enabled. CAD, visual, spreadsheet,
-CSV, and document formats remain legacy-authoritative.
+wrapped route output with it. The server-only Core canary was initially
+unconnected in this milestone; M3.201 now connects it behind an exact gate.
+CAD, visual, spreadsheet, CSV, and document formats remain legacy-authoritative.
 
 Validation: local replay 113/113; database tests 367/367 without skips; API
 integration 26 files passed; focused M3.200 database integration 1/1; database
@@ -35,7 +49,7 @@ scope, project/tenant composite predicates, storage-prefix enforcement, exact
 100 MiB size bound, durable tenant-scoped idempotency, and same-transaction
 semantic audit. Added a migration-backed request ledger, config gate, protected
 HTTP harness, service tests, and a server-only Web adapter. The Web upload route
-remains unconnected; all intake canaries/allowlists stay closed. Review packet:
+now has a closed-by-default selector; all intake allowlists stay closed. Review packet:
 `docs/architecture/DOCUMENT_INTAKE_REVIEW.md`.
 
 Reconciled the source-only managed Supabase parity manifest to the current

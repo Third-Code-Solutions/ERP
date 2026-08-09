@@ -1026,9 +1026,9 @@ export function documentDeleteWritesUseCoreApi(tenantId: string): boolean {
 }
 
 /**
- * Document intake is delegated only for an explicit tenant canary. The
- * adapter is intentionally unconnected; upload/complete keeps its legacy
- * behavior until parity, storage, and hosted rollback evidence pass.
+ * Document intake is delegated only for an explicit tenant canary. The upload
+ * route remains legacy-authoritative for the default closed gate and for all
+ * extractor formats.
  */
 export function documentIntakeWritesUseCoreApi(tenantId: string): boolean {
   return tenantEnabledForCoreApi(
@@ -1075,6 +1075,17 @@ export function documentIntakeCanarySupportsUpload(request: {
     mimeType.includes('spreadsheet') ||
     mimeType.includes('wordprocessingml') ||
     mimeType === 'application/msword'
+  )
+}
+
+/** Exact authority selector used by the legacy upload route. */
+export function documentIntakeCanarySelectedForUpload(
+  tenantId: string,
+  request: { fileName: string; mimeType: string }
+): boolean {
+  return (
+    documentIntakeWritesUseCoreApi(tenantId) &&
+    documentIntakeCanarySupportsUpload(request)
   )
 }
 
