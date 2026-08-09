@@ -1,5 +1,14 @@
 # Target State
 
+## M3.201 upload authority selection
+
+The Web upload route has one explicit authority selector. When an exact tenant
+canary and supported non-extractor format match, Core commits the document and
+returns the frozen Web shape; no legacy write is reachable after selection.
+When the selector does not match, existing legacy behavior remains available
+for compatibility, especially for extractor formats awaiting independent
+processing parity. This transition is reversible by clearing the gate.
+
 ## M3.200 upload response compatibility and replay evidence
 
 The legacy upload response is a shared, strict contract. The existing Web

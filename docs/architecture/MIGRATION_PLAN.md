@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.201 guarded upload route cutover (completed, not approved)
+
+1. Added one exact selector combining the tenant allowlist and the
+   non-extractor format contract.
+2. Wired `/api/upload/complete` to call Core before any legacy insert when the
+   selector matches; generated deterministic idempotency keys from the command.
+3. Preserved legacy behavior for closed gates and extractor formats; Core
+   failures return bounded errors with no direct-write fallback.
+
+Evidence: Web route 8/8; Core client 152/152; Web typecheck. Default flags stay
+false/empty; no hosted flag, SQL, deployment, provider, browser, or paid action.
+
+Exact next action: run full repo gates, review release identity/rollback
+evidence, and keep the canary closed until one controlled hosted replay is
+explicitly approved.
+
 ## M3.200 replay and upload parity freeze (completed, not approved)
 
 1. Replayed all 113 migrations from an empty local PostgreSQL 17 database,
@@ -9,8 +25,8 @@
    success/replay/conflict, foreign project and storage denial, audit/ledger
    counts, and rollback. Moved scope validation before idempotency claiming.
 3. Added strict shared legacy upload response schemas and a disposable Web
-   Core canary harness for non-extractor formats. `/api/upload/complete` is
-   still unconnected and all gates/allowlists remain closed.
+   Core canary harness for non-extractor formats. M3.201 connects it through a
+   closed-by-default route selector; all gates/allowlists remain closed.
 
 Evidence: API integration 26 files passed; focused database integration 1/1;
 reproducibility verifier 113/113 with 11 service-only tables; release planner

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { can, getUser } from '@third-code-erp/auth'
@@ -7,6 +8,8 @@ import { eq } from 'drizzle-orm'
 import { inngest } from '@/lib/inngest'
 import { parseAndStoreCad } from '@/lib/cad/parse-and-store'
 import {
+  completeDocumentUploadThroughCoreCanary,
+  documentIntakeCanarySelectedForUpload,
   documentProcessingJobsUseCoreApi,
   enqueueDocumentProcessingThroughCoreApi,
 } from '@/lib/erp-core-client'
@@ -37,6 +40,29 @@ type CadFormat = 'dxf' | 'dwg'
 // (xlsx, csv, docx) without touching the live Postgres enum / running a
 // migration. document_type for these is just 'other'.
 type ExtractorKind = 'pdf' | 'image' | 'spreadsheet' | 'csv' | 'docx'
+
+function createUploadIdempotencyKey(input: {
+  storagePath: string
+  projectId: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  description?: string
+}): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        action: 'upload-complete',
+        storagePath: input.storagePath,
+        projectId: input.projectId,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        sizeBytes: input.sizeBytes,
+        description: input.description ?? null,
+      })
+    )
+    .digest('hex')
+}
 
 function classify(
   fileName: string,
@@ -113,6 +139,44 @@ export async function POST(req: NextRequest) {
 
   if (sizeBytes > MAX_SIZE_BYTES) {
     return NextResponse.json({ error: 'File exceeds 100 MB limit' }, { status: 413 })
+  }
+
+  // Select Core before any legacy document insert. The exact tenant gate is
+  // closed by default; extractor formats keep their existing response and
+  // CAD/AI processing path until separate parity evidence exists.
+  if (
+    documentIntakeCanarySelectedForUpload(userRow.tenant_id, {
+      fileName,
+      mimeType,
+    })
+  ) {
+    const coreResult = await completeDocumentUploadThroughCoreCanary(
+      {
+        storagePath,
+        projectId,
+        fileName,
+        mimeType,
+        sizeBytes,
+        description,
+      },
+      userRow.tenant_id,
+      `upload-${createUploadIdempotencyKey({
+        storagePath,
+        projectId,
+        fileName,
+        mimeType,
+        sizeBytes,
+        description,
+      })}`
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return NextResponse.json(
+        { error: coreResult.error ?? 'Document was not recorded.' },
+        { status: coreResult.status ?? 503 }
+      )
+    }
+    // Preserve legacy upload HTTP success semantics while Core owns commit.
+    return NextResponse.json(coreResult.data)
   }
 
   const { docType, cadFormat, extractorKind } = classify(fileName, mimeType)

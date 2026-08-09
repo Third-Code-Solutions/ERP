@@ -1,5 +1,17 @@
 # Document Intake Review
 
+## M3.201 route selection update
+
+The legacy upload route now has a guarded Core selection seam. Exact tenant
+allowlist plus non-extractor format is required. Core is called before the
+legacy insert; its strict response is returned unchanged, and selected-Core
+errors return a bounded status without fallback. Closed gate and extractor
+formats retain existing behavior. The deterministic idempotency key is a
+SHA-256 command digest prefixed with `upload-`.
+
+Focused evidence: route tests 8/8 and Core client 152/152. No hosted flag or
+database state changed; canary remains disabled.
+
 ## M3.200 parity and replay update
 
 The source ledger was replayed from zero through 113/113 migrations on local
@@ -14,8 +26,8 @@ The legacy upload response is frozen in
 `packages/shared-types/src/erp-api/document-upload-complete.ts` and the
 existing route parses its final payload. The disposable Core canary in
 `apps/web/src/lib/erp-core-client.ts` accepts only non-extractor formats and
-maps Core success to the frozen shape. It is not imported by the route; all
-flags and allowlists remain closed.
+maps Core success to the frozen shape. M3.201 imports it through the guarded
+route selector; all flags and allowlists remain closed.
 
 Evidence: DB 367/367 without skips; API integration 26 files; focused DB 1/1;
 release planner current 113/113; schema-before/after hash equal;
@@ -51,9 +63,10 @@ legacy Web route.
 - Durable ledger/schema: `packages/database/src/schema/document-intake-requests.ts`.
 - Migration: `supabase/migrations/20260810090000_document_intake_workflow.sql`.
 - Nest service/controller/pipe: `apps/api/src/documents/document-intake.*`.
-- Web gate + server-only adapter exist in `apps/web/src/lib/erp-core-client.ts`,
-  but `apps/web/src/app/api/upload/complete/route.ts` remains unconnected and
-  legacy-authoritative while the canary is closed.
+- Web gate + server-only adapter exist in `apps/web/src/lib/erp-core-client.ts`;
+  `apps/web/src/app/api/upload/complete/route.ts` selects them only for an
+  exact enabled tenant and non-extractor format, otherwise remaining
+  legacy-authoritative.
 - Source-only Supabase parity manifest is current at 55/113 with 58 pending in
   8 ordered review batches; this does not represent hosted apply evidence.
 

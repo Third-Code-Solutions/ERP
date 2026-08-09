@@ -1,5 +1,19 @@
 # Work Log
 
+## 2026-08-10 - M3.201 guarded upload authority selection
+
+Connected `/api/upload/complete` to Core document intake behind the exact
+tenant/non-extractor selector. Core selection precedes any legacy insert;
+success returns frozen legacy shape; selected-Core outage returns bounded 503
+with no fallback. Added deterministic command idempotency hashing and route
+tests for success/no-fallback. Default flags remain closed.
+
+Validation: route 8/8; Core client 152/152; Web typecheck. No hosted SQL,
+Supabase/Vercel/Railway action, provider call, browser deploy, or paid resource.
+
+Exact next action: rerun full repo gates, update release identity evidence, and
+hold canary closed pending explicit controlled hosted replay approval.
+
 ## 2026-08-10 - M3.200 migration replay and upload canary harness
 
 Replayed the source migration ledger from zero in WSL PostgreSQL 17 through
@@ -10,9 +24,9 @@ composite-FK failure. Extended the database reproducibility verifier for the
 new service-only ledger and indexes.
 
 Added `document-upload-complete.ts` strict response schemas and tests, parsed
-the legacy upload route response, and added an unconnected Core canary harness
-for non-extractor uploads. No flags changed; `/api/upload/complete` remains
-legacy-authoritative.
+the legacy upload route response, and added a Core canary harness for
+non-extractor uploads. M3.201 connects it through a closed selector; no flags
+changed and extractor uploads remain legacy-authoritative.
 
 Validation: local replay 113/113; DB tests 367/367 no skips; API integration
 26 files; focused DB integration 1/1; verifier 113 migrations/11 service-only

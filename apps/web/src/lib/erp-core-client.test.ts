@@ -113,6 +113,7 @@ import {
   documentDeleteWritesUseCoreApi,
   documentIntakeWritesUseCoreApi,
   documentIntakeCanarySupportsUpload,
+  documentIntakeCanarySelectedForUpload,
   deleteDocumentThroughCoreApi,
   createDocumentThroughCoreApi,
   completeDocumentUploadThroughCoreCanary,
@@ -3836,6 +3837,23 @@ describe('ERP Core client', () => {
     ]) {
       expect(documentIntakeCanarySupportsUpload(upload)).toBe(false)
     }
+    vi.stubEnv('ERP_DOCUMENT_INTAKE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(
+      documentIntakeCanarySelectedForUpload(RESULT.tenantId, {
+        fileName: 'notes.txt',
+        mimeType: 'text/plain',
+      })
+    ).toBe(true)
+    expect(
+      documentIntakeCanarySelectedForUpload(RESULT.tenantId, {
+        fileName: 'drawing.pdf',
+        mimeType: 'application/pdf',
+      })
+    ).toBe(false)
   })
 
   it('fails closed before fetch when the upload canary gate is off', async () => {

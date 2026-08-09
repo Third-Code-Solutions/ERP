@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.201 guarded upload selection
+
+Keep `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false`,
+`ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS=[]`,
+`ERP_DOCUMENT_INTAKE_WRITES_VIA_API=false`, and its tenant list empty. Route
+selection now exists but must not be enabled in hosted environments yet.
+
+Run full tests/typecheck/lint/build and release-policy guards. Then collect
+exact API/Web release identities, rollback targets, readiness, and one approved
+hosted non-extractor replay. Do not enable CAD/AI extractor cutover until its
+processing and response parity is separately proven.
+
 ## Exact next action after M3.200 replay/parity freeze
 
 Keep `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false`,
