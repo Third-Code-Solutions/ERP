@@ -13,23 +13,25 @@ import {
 } from 'drizzle-orm/pg-core'
 import { projectCommentCreateRequestStateEnum } from './enums'
 import { projectComments } from './project-comments'
+import { projects } from './projects'
 import { tenants } from './tenants'
 import { users } from './users'
 
-/** Service-only idempotency ledger for Core project comment creation. */
-export const projectCommentCreateRequests = pgTable(
-  'project_comment_create_requests',
+/** Service-only idempotency ledger for Core project comment deletion. */
+export const projectCommentDeleteRequests = pgTable(
+  'project_comment_delete_requests',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenant_id: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
+    project_id: uuid('project_id').notNull(),
+    comment_id: uuid('comment_id'),
     idempotency_key: varchar('idempotency_key', { length: 256 }).notNull(),
     request_hash: char('request_hash', { length: 64 }).notNull(),
     state: projectCommentCreateRequestStateEnum('state')
       .notNull()
       .default('processing'),
-    comment_id: uuid('comment_id'),
     result: jsonb('result'),
     created_by: uuid('created_by').notNull(),
     created_at: timestamp('created_at', { withTimezone: true })
@@ -39,42 +41,46 @@ export const projectCommentCreateRequests = pgTable(
   },
   (table) => ({
     tenantIdUniqueIdx: uniqueIndex(
-      'ux_project_comment_create_requests_tenant_id_id'
+      'ux_project_comment_delete_requests_tenant_id_id'
     ).on(table.tenant_id, table.id),
     tenantKeyUniqueIdx: uniqueIndex(
-      'ux_project_comment_create_requests_tenant_key'
+      'ux_project_comment_delete_requests_tenant_key'
     ).on(table.tenant_id, table.idempotency_key),
     tenantStateIdx: index(
-      'idx_project_comment_create_requests_tenant_state'
+      'idx_project_comment_delete_requests_tenant_state'
     ).on(table.tenant_id, table.state, table.created_at),
+    projectTenantFk: foreignKey({
+      name: 'project_comment_delete_requests_project_tenant_fk',
+      columns: [table.tenant_id, table.project_id],
+      foreignColumns: [projects.tenant_id, projects.id],
+    }).onDelete('restrict'),
     commentTenantFk: foreignKey({
-      name: 'project_comment_create_requests_comment_tenant_fk',
+      name: 'project_comment_delete_requests_comment_tenant_fk',
       columns: [table.tenant_id, table.comment_id],
       foreignColumns: [projectComments.tenant_id, projectComments.id],
     }).onDelete('set null'),
     createdByTenantFk: foreignKey({
-      name: 'project_comment_create_requests_created_by_tenant_fk',
+      name: 'project_comment_delete_requests_created_by_tenant_fk',
       columns: [table.tenant_id, table.created_by],
       foreignColumns: [users.tenant_id, users.id],
     }).onDelete('restrict'),
     keyCheck: check(
-      'project_comment_create_requests_key_nonempty',
+      'project_comment_delete_requests_key_nonempty',
       sql`${table.idempotency_key} = btrim(${table.idempotency_key})
         and length(${table.idempotency_key}) between 1 and 256`
     ),
     hashCheck: check(
-      'project_comment_create_requests_hash_hex',
+      'project_comment_delete_requests_hash_hex',
       sql`${table.request_hash} ~ '^[0-9a-f]{64}$'`
     ),
     resultObjectCheck: check(
-      'project_comment_create_requests_result_object',
+      'project_comment_delete_requests_result_object',
       sql`${table.result} is null or jsonb_typeof(${table.result}) = 'object'`
     ),
     statePayloadCheck: check(
-      'project_comment_create_requests_state_payload',
+      'project_comment_delete_requests_state_payload',
       sql`(
         (${table.state} = 'processing'
-          and ${table.comment_id} is null
           and ${table.result} is null
           and ${table.completed_at} is null)
         or
@@ -84,13 +90,13 @@ export const projectCommentCreateRequests = pgTable(
       )`
     ),
     completedAfterCreatedCheck: check(
-      'project_comment_create_requests_completed_after_created',
+      'project_comment_delete_requests_completed_after_created',
       sql`${table.completed_at} is null or ${table.completed_at} >= ${table.created_at}`
     ),
   })
 )
 
-export type ProjectCommentCreateRequest =
-  typeof projectCommentCreateRequests.$inferSelect
-export type ProjectCommentCreateRequestInsert =
-  typeof projectCommentCreateRequests.$inferInsert
+export type ProjectCommentDeleteRequest =
+  typeof projectCommentDeleteRequests.$inferSelect
+export type ProjectCommentDeleteRequestInsert =
+  typeof projectCommentDeleteRequests.$inferInsert

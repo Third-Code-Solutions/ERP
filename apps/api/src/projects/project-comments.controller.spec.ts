@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 import { CreateProjectCommentPipe } from './project-comment.pipe'
 import { ProjectCommentCreationService } from './project-comment-creation.service'
+import { ProjectCommentDeletionService } from './project-comment-deletion.service'
 import { ProjectCommentsController } from './project-comments.controller'
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
@@ -23,12 +24,13 @@ describe('Project comment creation HTTP contract', () => {
     close = undefined
   })
 
-  async function appFor(create = vi.fn()) {
+  async function appFor(create = vi.fn(), remove = vi.fn()) {
     const moduleRef = await Test.createTestingModule({
       controllers: [ProjectCommentsController],
       providers: [
         CreateProjectCommentPipe,
         { provide: ProjectCommentCreationService, useValue: { create } },
+        { provide: ProjectCommentDeletionService, useValue: { delete: remove } },
       ],
     }).compile()
     const app = moduleRef.createNestApplication()
@@ -106,6 +108,38 @@ describe('Project comment creation HTTP contract', () => {
       },
       expect.objectContaining({ userId: USER_ID, tenantId: TENANT_ID }),
       'comment-contract-2'
+    )
+  })
+
+  it('requires an idempotency key for deletion before reaching Core', async () => {
+    const remove = vi.fn()
+    const app = await appFor(vi.fn(), remove)
+
+    await request(app.getHttpServer())
+      .delete(`/v1/projects/${PROJECT_ID}/comments/${COMMENT_ID}`)
+      .expect(400)
+
+    expect(remove).not.toHaveBeenCalled()
+  })
+
+  it('forwards the scoped deletion command, principal, and key', async () => {
+    const remove = vi.fn().mockResolvedValue({
+      commentId: COMMENT_ID,
+      tenantId: TENANT_ID,
+      projectId: PROJECT_ID,
+      deleted: true,
+    })
+    const app = await appFor(vi.fn(), remove)
+
+    await request(app.getHttpServer())
+      .delete(`/v1/projects/${PROJECT_ID}/comments/${COMMENT_ID}`)
+      .set('Idempotency-Key', 'comment-delete-contract-1')
+      .expect(200)
+
+    expect(remove).toHaveBeenCalledWith(
+      { projectId: PROJECT_ID, commentId: COMMENT_ID },
+      expect.objectContaining({ userId: USER_ID, tenantId: TENANT_ID }),
+      'comment-delete-contract-1'
     )
   })
 })

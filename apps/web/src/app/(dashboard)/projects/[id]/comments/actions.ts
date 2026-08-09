@@ -10,7 +10,9 @@ import { z } from 'zod'
 import { writeAuditLog } from '@/lib/audit'
 import {
   createProjectCommentThroughCoreApi,
+  deleteProjectCommentThroughCoreApi,
   projectCommentCreateWritesUseCoreApi,
+  projectCommentDeleteWritesUseCoreApi,
 } from '@/lib/erp-core-client'
 
 interface ActionResult {
@@ -142,14 +144,46 @@ export async function deleteComment(
   commentId: string,
   projectId: string
 ): Promise<ActionResult> {
+  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedCommentId = z.string().uuid().safeParse(commentId)
+  if (!parsedProjectId.success || !parsedCommentId.success) {
+    return { error: 'Invalid project comment request' }
+  }
+
   const user = await getUser()
   if (!user) return { error: 'Unauthorized' }
 
   const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
+    .select({ tenant_id: users.tenant_id, role: users.role })
     .from(users)
     .where(eq(users.id, user.id))
   if (!userRow?.tenant_id) return { error: 'No tenant' }
+  if (!can(userRow.role, 'project.update')) return { error: 'Forbidden' }
+
+  if (projectCommentDeleteWritesUseCoreApi(userRow.tenant_id)) {
+    const coreResult = await deleteProjectCommentThroughCoreApi(
+      parsedProjectId.data,
+      parsedCommentId.data,
+      randomUUID()
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return {
+        error:
+          coreResult.error ??
+          'Project comment was not deleted. No compatibility fallback was used.',
+      }
+    }
+    if (
+      coreResult.data.tenantId !== userRow.tenant_id ||
+      coreResult.data.projectId !== parsedProjectId.data ||
+      coreResult.data.commentId !== parsedCommentId.data ||
+      coreResult.data.deleted !== true
+    ) {
+      return { error: 'ERP Core API returned an invalid project comment scope.' }
+    }
+    revalidatePath(`/projects/${parsedProjectId.data}/comments`)
+    return {}
+  }
 
   // Verify the comment belongs to this tenant before deleting.
   const [existing] = await db
@@ -163,12 +197,15 @@ export async function deleteComment(
 
   if (!existing) return { error: 'Comment not found' }
   if (existing.tenant_id !== userRow.tenant_id) return { error: 'Forbidden' }
+  if (existing.project_id !== parsedProjectId.data) {
+    return { error: 'Comment not found' }
+  }
 
   await db
     .delete(projectComments)
     .where(
       and(
-        eq(projectComments.id, commentId),
+        eq(projectComments.id, parsedCommentId.data),
         eq(projectComments.tenant_id, userRow.tenant_id)
       )
     )
@@ -177,11 +214,11 @@ export async function deleteComment(
     tenantId: userRow.tenant_id,
     actorId: user.id,
     entityType: 'project_comment',
-    entityId: commentId,
+    entityId: parsedCommentId.data,
     action: 'delete',
     diff: { project_id: existing.project_id },
   })
 
-  revalidatePath(`/projects/${projectId}/comments`)
+  revalidatePath(`/projects/${parsedProjectId.data}/comments`)
   return {}
 }

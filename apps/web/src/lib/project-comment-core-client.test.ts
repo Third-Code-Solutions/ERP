@@ -10,7 +10,9 @@ vi.mock('@third-code-erp/auth', () => ({
 
 import {
   createProjectCommentThroughCoreApi,
+  deleteProjectCommentThroughCoreApi,
   projectCommentCreateWritesUseCoreApi,
+  projectCommentDeleteWritesUseCoreApi,
 } from './erp-core-client'
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
@@ -26,6 +28,13 @@ const RESULT = {
   body: 'Delivery is ready.',
   mentions: [],
   created: true,
+}
+
+const DELETE_RESULT = {
+  commentId: COMMENT_ID,
+  tenantId: TENANT_ID,
+  projectId: PROJECT_ID,
+  deleted: true,
 }
 
 describe('project comment Core client', () => {
@@ -51,6 +60,11 @@ describe('project comment Core client', () => {
     expect(projectCommentCreateWritesUseCoreApi('not-a-uuid')).toBe(false)
     vi.stubEnv('ERP_PROJECT_COMMENT_CREATE_WRITES_VIA_API', 'TRUE')
     expect(projectCommentCreateWritesUseCoreApi(TENANT_ID)).toBe(false)
+    expect(projectCommentDeleteWritesUseCoreApi(TENANT_ID)).toBe(false)
+    vi.stubEnv('ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API_TENANT_IDS', TENANT_ID)
+    expect(projectCommentDeleteWritesUseCoreApi(TENANT_ID)).toBe(true)
+    expect(projectCommentDeleteWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
   it('posts the command and validates the Core result', async () => {
@@ -112,6 +126,58 @@ describe('project comment Core client', () => {
       ok: false,
       status: 201,
       error: 'ERP Core API returned an invalid project comment result.',
+    })
+  })
+
+  it('deletes through Core and validates the strict result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DELETE_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      deleteProjectCommentThroughCoreApi(
+        PROJECT_ID,
+        COMMENT_ID,
+        'comment-delete-client-1'
+      )
+    ).resolves.toEqual({ ok: true, data: DELETE_RESULT, status: 200 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/projects/${PROJECT_ID}/comments/${COMMENT_ID}`,
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'comment-delete-client-1',
+        }),
+      })
+    )
+  })
+
+  it('does not accept malformed deletion payloads or hide Core failures', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ message: 'not found' }), { status: 404 })
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ commentId: COMMENT_ID }), { status: 200 })
+        )
+    )
+
+    await expect(
+      deleteProjectCommentThroughCoreApi(PROJECT_ID, COMMENT_ID, 'delete-404')
+    ).resolves.toMatchObject({ ok: false, status: 404, error: 'not found' })
+    await expect(
+      deleteProjectCommentThroughCoreApi(PROJECT_ID, COMMENT_ID, 'delete-bad')
+    ).resolves.toMatchObject({
+      ok: false,
+      status: 200,
+      error: 'ERP Core API returned an invalid project comment deletion result.',
     })
   })
 })

@@ -507,6 +507,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Project discussion deletion stays fail-closed until hard-delete replay,
+  // evidence retention, and a protected tenant canary are approved.
+  ERP_PROJECT_COMMENT_DELETE_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_PROJECT_COMMENT_DELETE_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // User role assignment is a privileged command. It stays fail-closed until
   // browser DML revocation, replay, audit, and one protected tenant canary pass.
   ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_ENABLED: z

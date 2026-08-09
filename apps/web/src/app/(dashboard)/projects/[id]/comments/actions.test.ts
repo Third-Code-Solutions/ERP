@@ -7,12 +7,15 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   where: vi.fn(),
   insert: vi.fn(),
+  delete: vi.fn(),
   values: vi.fn(),
   returning: vi.fn(),
   writeAuditLog: vi.fn(),
   revalidatePath: vi.fn(),
   projectCommentCreateWritesUseCoreApi: vi.fn(),
   createProjectCommentThroughCoreApi: vi.fn(),
+  projectCommentDeleteWritesUseCoreApi: vi.fn(),
+  deleteProjectCommentThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
@@ -28,6 +31,7 @@ vi.mock('@third-code-erp/database', () => ({
   db: {
     select: mocks.select,
     insert: mocks.insert,
+    delete: mocks.delete,
   },
 }))
 
@@ -40,9 +44,13 @@ vi.mock('@/lib/erp-core-client', () => ({
     mocks.projectCommentCreateWritesUseCoreApi,
   createProjectCommentThroughCoreApi:
     mocks.createProjectCommentThroughCoreApi,
+  projectCommentDeleteWritesUseCoreApi:
+    mocks.projectCommentDeleteWritesUseCoreApi,
+  deleteProjectCommentThroughCoreApi:
+    mocks.deleteProjectCommentThroughCoreApi,
 }))
 
-import { createComment } from './actions'
+import { createComment, deleteComment } from './actions'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -66,10 +74,12 @@ describe('createComment authority and tenant integrity', () => {
     mocks.from.mockReturnValue({ where: mocks.where })
     mocks.where.mockResolvedValue([{ tenant_id: TENANT_ID, role: 'pm' }])
     mocks.projectCommentCreateWritesUseCoreApi.mockReturnValue(false)
+    mocks.projectCommentDeleteWritesUseCoreApi.mockReturnValue(false)
     mocks.insert.mockReturnValue({ values: mocks.values })
     mocks.values.mockReturnValue({ returning: mocks.returning })
     mocks.returning.mockResolvedValue([{ id: COMMENT_ID }])
     mocks.writeAuditLog.mockResolvedValue(undefined)
+    mocks.delete.mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
   })
 
   it('rejects an invalid project id before authentication or database work', async () => {
@@ -187,6 +197,110 @@ describe('createComment authority and tenant integrity', () => {
           project_id: PROJECT_ID,
           mention_count: 1,
         }),
+      })
+    )
+  })
+})
+
+describe('deleteComment authority and tenant integrity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUser.mockResolvedValue({ id: USER_ID })
+    mocks.can.mockReturnValue(true)
+    mocks.select.mockReturnValue({ from: mocks.from })
+    mocks.from.mockReturnValue({ where: mocks.where })
+    mocks.where.mockResolvedValue([{ tenant_id: TENANT_ID, role: 'pm' }])
+    mocks.projectCommentDeleteWritesUseCoreApi.mockReturnValue(false)
+    mocks.delete.mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+    mocks.writeAuditLog.mockResolvedValue(undefined)
+  })
+
+  it('rejects invalid identifiers before authentication or database work', async () => {
+    const result = await deleteComment('not-a-uuid', PROJECT_ID)
+
+    expect(result).toEqual({ error: 'Invalid project comment request' })
+    expect(mocks.getUser).not.toHaveBeenCalled()
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it('uses Core deletion without falling back to direct database mutation', async () => {
+    mocks.projectCommentDeleteWritesUseCoreApi.mockReturnValue(true)
+    mocks.deleteProjectCommentThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        commentId: COMMENT_ID,
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        deleted: true,
+      },
+    })
+
+    const result = await deleteComment(COMMENT_ID, PROJECT_ID)
+
+    expect(result).toEqual({})
+    expect(mocks.deleteProjectCommentThroughCoreApi).toHaveBeenCalledWith(
+      PROJECT_ID,
+      COMMENT_ID,
+      expect.stringMatching(/^[0-9a-f-]{36}$/i)
+    )
+    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
+  it('fails closed on a Core deletion error', async () => {
+    mocks.projectCommentDeleteWritesUseCoreApi.mockReturnValue(true)
+    mocks.deleteProjectCommentThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No project comment was deleted.',
+    })
+
+    const result = await deleteComment(COMMENT_ID, PROJECT_ID)
+
+    expect(result).toEqual({
+      error: 'ERP Core API is unavailable. No project comment was deleted.',
+    })
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
+  it('rejects a Core result outside authenticated scope', async () => {
+    mocks.projectCommentDeleteWritesUseCoreApi.mockReturnValue(true)
+    mocks.deleteProjectCommentThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        commentId: COMMENT_ID,
+        tenantId: '66666666-6666-4666-8666-666666666666',
+        projectId: PROJECT_ID,
+        deleted: true,
+      },
+    })
+
+    const result = await deleteComment(COMMENT_ID, PROJECT_ID)
+
+    expect(result).toEqual({
+      error: 'ERP Core API returned an invalid project comment scope.',
+    })
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
+  it('keeps compatibility deletion tenant/project scoped and audited', async () => {
+    mocks.where
+      .mockResolvedValueOnce([{ tenant_id: TENANT_ID, role: 'pm' }])
+      .mockResolvedValueOnce([
+        { id: COMMENT_ID, tenant_id: TENANT_ID, project_id: PROJECT_ID },
+      ])
+
+    const result = await deleteComment(COMMENT_ID, PROJECT_ID)
+
+    expect(result).toEqual({})
+    expect(mocks.delete).toHaveBeenCalledOnce()
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: TENANT_ID,
+        actorId: USER_ID,
+        entityType: 'project_comment',
+        entityId: COMMENT_ID,
+        action: 'delete',
+        diff: { project_id: PROJECT_ID },
       })
     )
   })

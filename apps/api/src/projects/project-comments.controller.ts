@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Headers,
   HttpCode,
   HttpStatus,
@@ -13,6 +14,7 @@ import {
 import type {
   CreateProjectCommentCommand,
   ProjectCommentCreationResult,
+  ProjectCommentDeletionResult,
 } from '@third-code-erp/shared-types'
 import {
   CurrentPrincipal,
@@ -21,12 +23,15 @@ import {
 import { RequireCapabilities } from '../auth/capability.guard'
 import { CreateProjectCommentPipe } from './project-comment.pipe'
 import { ProjectCommentCreationService } from './project-comment-creation.service'
+import { ProjectCommentDeletionService } from './project-comment-deletion.service'
 
 @Controller('v1/projects')
 export class ProjectCommentsController {
   constructor(
     @Inject(ProjectCommentCreationService)
-    private readonly comments: ProjectCommentCreationService
+    private readonly comments: ProjectCommentCreationService,
+    @Inject(ProjectCommentDeletionService)
+    private readonly deletions: ProjectCommentDeletionService
   ) {}
 
   @Post(':projectId/comments')
@@ -48,5 +53,27 @@ export class ProjectCommentsController {
       throw new BadRequestException('Project id does not match route')
     }
     return this.comments.create(command, principal, idempotencyKey.trim())
+  }
+
+  @Delete(':projectId/comments/:commentId')
+  @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('project.update')
+  delete(
+    @Param('projectId', new ParseUUIDPipe()) projectId: string,
+    @Param('commentId', new ParseUUIDPipe()) commentId: string,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<ProjectCommentDeletionResult> {
+    if (!idempotencyKey?.trim()) {
+      throw new BadRequestException('Idempotency-Key header is required')
+    }
+    if (idempotencyKey.trim().length > 256) {
+      throw new BadRequestException('Idempotency-Key header is too long')
+    }
+    return this.deletions.delete(
+      { projectId, commentId },
+      principal,
+      idempotencyKey.trim()
+    )
   }
 }
