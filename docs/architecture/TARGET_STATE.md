@@ -1,5 +1,21 @@
 # Target State
 
+## M3.248 Managed Supabase parity/security release gate
+
+The managed `ERP` project must be a verified linear prefix of the repository:
+117/117 migrations through `20260810130000`, with no missing or unexpected
+history. Every public table must have the intended RLS/policy contract, server
+workflow ledgers must be force-RLS/service-only, privileged functions must not
+be callable by `anon` or broad `authenticated` roles, and advisors must have no
+unaccepted security or performance WARNs. Demo-data duplicate mapping,
+audit-chain recovery, backup/restore, readiness, exact deployed SHA, and
+rollback are separate release evidence.
+
+The current read-only audit is not a cutover: hosted is 55/117 migrations with
+11 security WARNs and one performance WARN. Do not apply SQL, enable a tenant,
+or trigger a provider build until the ordered review batches and the spend /
+rollback gate are explicitly approved.
+
 ## M3.247 Document-processing command authority
 
 Document processing is a Core-owned asynchronous command. The browser sends a

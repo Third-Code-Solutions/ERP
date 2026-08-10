@@ -1,5 +1,36 @@
 # Current State
 
+## M3.248 Managed Supabase read-only parity/security audit (2026-08-10)
+
+The connected managed project `aqqrtkmtcsfkbyyqxowv` (`ERP`) was inspected
+read-only through the Supabase connector. It is `ACTIVE_HEALTHY` in
+`ap-northeast-2` on PostgreSQL `17.6.1.121`. Hosted migration history is an
+exact 55-migration prefix ending at `20260729233017_notification_outbox_foundation`;
+the repository has 117 migrations through `20260810130000`, leaving 62 ordered
+source migrations pending. The hosted catalog exposes 88 public tables and
+reports RLS enabled on every listed table; this does not prove force-RLS,
+policy correctness, or service-only privileges.
+
+Hosted Supabase advisors returned 14 security findings (11 WARN) and 253
+performance findings (1 WARN). Stop-ship security findings include the public
+`vector` extension, executable public/authenticated `SECURITY DEFINER` auth and
+authorization helpers (including `auth_tenant_id`), and disabled leaked-password
+protection. Informational findings include RLS-enabled tables without policies
+for `financial_sequences`, `notification_deliveries`, and
+`notification_outbox`. The performance WARN reports duplicate tenant slug
+indexes (`idx_tenants_slug` and `tenants_slug_unique`). These findings are
+consistent with the hosted project stopping before the source security and
+workflow suffix; no hosted SQL was executed.
+
+The hosted project contains demo rows, so any future suffix apply requires a
+fresh backup/restore proof, duplicate Purchase Order mapping, audit-recovery
+tenant, ordered batch plan, post-batch catalog/RLS/advisor checks, and a
+reversible rollback. No Supabase mutation, Storage mutation, Vercel/Railway
+deployment, provider setting, credential, or paid action occurred. Keep all
+cutover flags and tenant allowlists closed. Exact next action: obtain explicit
+approval for a spend-bounded backup/reconciliation canary; until then continue
+source-only Core work.
+
 ## M3.247 Document-processing command authority (2026-08-10)
 
 Added `apps/api/integration/document-processing.http.integration.spec.ts` and

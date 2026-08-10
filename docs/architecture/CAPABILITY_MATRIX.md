@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.248 Managed Supabase parity/security gate (2026-08-10)
+
+Managed `ERP` provider evidence is now recorded without mutation. Hosted
+PostgreSQL 17.6.1.121 is healthy, but the migration prefix is only 55/117
+through `20260729233017`; 62 source migrations remain pending. The catalog
+reports 88 public tables with RLS enabled, while advisors report 11 security
+WARNs and one performance WARN. No production capability is eligible for
+tenant cutover until the missing schema/security/recovery/release evidence is
+resolved and spend-approved.
+
+Validation: read-only Supabase project/migration/table/advisor queries;
+`verify:managed-supabase-parity-plan`, `test:provider-spend-guard`, and
+database-release policy checks pass. No hosted or paid action.
+
 ## M3.247 Document-processing command authority (2026-08-10)
 
 The existing `document.process` and `document.processing.read` Nest authority

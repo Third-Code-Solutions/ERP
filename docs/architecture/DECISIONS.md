@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-360 -- Treat managed Supabase parity and advisor WARNs as stop-ship (2026-08-10)
+
+Decision: keep managed Supabase read-only and all production selectors closed
+until the hosted migration prefix, security catalog, demo-data mapping,
+audit-recovery authority, backup/restore, readiness, exact release SHA,
+protected browser smoke, rollback, and spend gates are independently proven.
+
+Rationale: the connected `ERP` project is healthy but only has 55/117 source
+migrations. Its advisors report executable public/authenticated
+`SECURITY DEFINER` helpers, including `auth_tenant_id`, a public vector
+extension, disabled leaked-password protection, and a duplicate tenant-slug
+index. Applying 62 migrations or deploying against this mixed schema would
+create an integrity/security and billing risk. A read-only provider audit gives
+stronger evidence without mutating data or consuming deployment resources.
+
+Validation: Supabase connector reads confirmed project health/version, 55/117
+migrations, 88 RLS-enabled public tables, 14 security findings (11 WARN), and
+253 performance findings (one WARN). Local parity/release/spend guards pass and
+report no provider mutation. No SQL, Storage, deployment, credential, or paid
+action occurred.
+
 ## D-359 -- Audit and deduplicate the document-processing command (2026-08-10)
 
 Decision: treat document-processing job creation as a Core-owned audited
