@@ -1,5 +1,29 @@
 # Next Actions
 
+## Exact next action after M3.247 Document-processing command authority
+
+Keep `ERP_DOCUMENT_PROCESSING_JOBS_ENABLED=false`,
+`ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED=false`,
+`ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED=false`,
+`ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED=false`, and all corresponding
+tenant lists empty. Focused HTTP canary 1/1, controller contract 6/6,
+document-processing service/database/processor checks 13/13, root source
+gates, full API integration, and the zero-skip disposable PostgreSQL/Redis
+lane passed. Do not apply hosted SQL or trigger Railway/Vercel builds while
+spend protection is active. Next, reconcile ordered hosted migration suffix,
+duplicate-data mapping, audit-recovery tenant, readiness, exact SHA, rollback,
+and billing gates before one explicitly spend-bounded canary. Python/CAD/OCR/AI
+remains analysis-only; Core owns job creation, audit, and official ERP writes.
+
+## M3.247 evidence boundary (completed)
+
+Protected document-processing HTTP/database evidence passed. It covers real
+auth/capability guards, strict command/header validation, disabled/draft gates,
+cross-tenant concealment, durable tenant-scoped job state, opaque queue
+transport, one-time semantic audit, replay/key conflict, and rollback. No
+hosted/provider/paid action occurred. Source-only SHA:
+`05b727eacb4b6ade52cde91f111a01d84712386e`.
+
 ## Exact next action after M3.246 Document intake protected HTTP canary
 
 Keep `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false` and
