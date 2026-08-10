@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.225 Controlled upload-flow browser fixture (fixture added; runtime open)
+
+1. Added a localhost-only Playwright fixture for project document upload.
+2. Intercepted `/api/upload/sign`, signed Storage PUT, and
+   `/api/upload/complete`; unexpected Storage traffic aborts and is asserted
+   empty.
+3. Added progress, terminal Core warning, request-payload, console, and page
+   error assertions. The fixture is opt-in via `E2E_CONTROLLED_UPLOAD=1`.
+4. Default runner result: one intentional skip. Full E2E TypeScript check is
+   currently red on existing unrelated `cortex-focused-local.spec.ts` and
+   `smoke-console.spec.ts` header typing errors. Browser runtime evidence is
+   not yet available.
+
+No hosted provider, deployment, or paid action occurred. Do not call this
+fixture production/browser certification until it runs against disposable
+local authenticated Web/Core services.
+
+Exact next action: provision disposable local auth/runtime state, run the
+fixture, and record console/network/accessibility/responsive results.
+
 ## M3.224 Provider-neutral document Storage contract (completed, source + local)
 
 1. Added server-only `DocumentStorage`, `SupabaseDocumentStorage`, and

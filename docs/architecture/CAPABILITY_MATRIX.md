@@ -1,5 +1,16 @@
 # Third Code ERP capability matrix
 
+## M3.225 Controlled upload-flow browser fixture (2026-08-10)
+
+Fixture source covers local-only sign/upload/complete interception, progress,
+terminal Core warning, unexpected Storage rejection, request payloads, and
+console/page-error assertions. Runtime browser evidence is pending; default
+run intentionally skips unless explicitly enabled with a disposable local
+authenticated runtime.
+
+Validation: Playwright registered one skipped test. Full E2E typecheck has
+pre-existing unrelated failures. No provider or paid action.
+
 ## M3.224 Provider-neutral document Storage contract (2026-08-10)
 
 CAD parser now uses a server-only Storage contract with Supabase and compatible

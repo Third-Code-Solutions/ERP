@@ -1,5 +1,19 @@
 # Work Log
 
+## 2026-08-10 - M3.225 controlled upload-flow browser fixture
+
+Added `documents-upload-controlled.spec.ts`, a localhost-only opt-in Playwright
+fixture. It intercepts sign, signed Storage PUT, and completion responses,
+rejects unexpected Storage traffic, asserts visible upload progress and
+terminal Core-unavailable messaging, and captures console/page errors.
+
+Validation: default Playwright run registered one intentional skip. Full E2E
+typecheck remains red on existing unrelated `cortex-focused-local.spec.ts` and
+`smoke-console.spec.ts` header typing errors. `playwright-cli` wrapper could not
+start because WSL2 virtualization is unavailable. No hosted DB, provider,
+deployment, credential, or paid action. Next: disposable local authenticated
+runtime and real fixture run.
+
 ## 2026-08-10 - M3.224 provider-neutral document Storage contract
 
 Replaced direct CAD parser Storage access with a server-only `DocumentStorage`

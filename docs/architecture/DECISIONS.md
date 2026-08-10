@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-335 - Keep upload browser evidence local and opt-in (2026-08-10)
+
+Decision: controlled upload browser tests may run only against localhost or
+127.0.0.1 and only when explicitly enabled. Sign, object PUT, and completion
+traffic are intercepted; unexpected Storage traffic aborts. Hosted URLs and
+real credentials are rejected by the fixture.
+
+Rationale: browser upload testing can create documents, consume Storage, and
+hide provider regressions behind a passing UI. An opt-in disposable fixture
+proves client progress and terminal Core messaging without billing or data
+mutation; hosted evidence stays a separately approved gate.
+
+Validation: fixture registered; default run intentionally skipped. Full E2E
+typecheck remains blocked by existing unrelated header typing errors. No
+provider or paid action.
+
 ## D-334 - Keep document processing behind a provider-neutral Storage contract (2026-08-10)
 
 Decision: parser and processing code depend on a narrow server-only binary

@@ -1,5 +1,13 @@
 # Target State
 
+## M3.225 Controlled upload-flow browser evidence
+
+The project upload journey must be exercised in a disposable local browser
+with sign, object upload, completion, progress, terminal Core failure, console,
+network, accessibility, and responsive assertions. Provider traffic must be
+intercepted or local; the fixture must reject hosted URLs. Fixture source now
+exists; runtime evidence and unrelated E2E typecheck cleanup remain open.
+
 ## M3.224 Provider-neutral document Storage contract
 
 Server upload and processing code must depend on a narrow binary object
