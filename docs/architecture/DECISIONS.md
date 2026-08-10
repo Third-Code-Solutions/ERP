@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-345 - Require recipient-scoped notification canary before read-state cutover (2026-08-10)
+
+Decision: treat the local `/v1/notifications` canary as a release gate for
+notification read-state authority. It must exercise the real identity and
+capability guards, tenant/recipient predicates, request correlation, audit
+writes, malformed-command rejection, terminal feature disablement, and
+transaction rollback. Keep the Web compatibility route and all Core selectors
+closed until hosted parity, readiness, protected browser evidence, rollback,
+and spend approval are separately approved.
+
+Rationale: notification state is user-private and retryable; a controller unit
+test cannot prove recipient isolation, audit atomicity, or rollback. Disposable
+transaction evidence advances the modular-monolith boundary without mutating
+Supabase or consuming Vercel/Railway budget.
+
+Validation: focused canary 1/1; disposable database 149/149 suites and
+370/370 tests; API integration 64/64 suites and 48/48 tests; schema hash
+unchanged. No hosted/provider write or paid action occurred.
+
 ## D-344 - Require a disposable protected HTTP canary before Today cutover (2026-08-10)
 
 Decision: treat the local `/v1/today` canary as a release gate, not as a

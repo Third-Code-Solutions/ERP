@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-10 - M3.233 Notifications protected local HTTP canary
+
+Added `apps/api/integration/notifications.http.integration.spec.ts`. It boots
+the real Nest notification route with Supabase identity and capability guards,
+request-id middleware, the actual notification service, audit service, and a
+transaction-bound disposable database. The canary proves missing-auth 401;
+tenant, recipient, and cross-tenant scope; request-id echo; malformed input
+400; audited `mark_read`/`mark_all_read`; disabled-feature 503; and rollback
+with no notification or audit rows remaining.
+
+Focused canary: 1/1 PASS. Complete disposable environment: 116 migrations;
+database 149/149 suites and 370/370 tests; API integration 64/64 suites and
+48/48 tests; zero pending/skips; schema-before/after SHA-256 both
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+Expected queue dead-letter/failure-path log lines were observed; assertions
+passed.
+
+No hosted Supabase write, Vercel/Railway deployment, provider setting,
+credential, or paid action occurred. Keep all Core selectors false/empty.
+Next: choose the next bounded source-only ERP seam.
+
 ## 2026-08-10 - M3.232 Today protected local HTTP canary
 
 Added `apps/api/integration/today.http.integration.spec.ts`. It boots the real

@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.233 Notifications protected local HTTP canary (2026-08-10)
+
+The closed notification read-state seam now has disposable HTTP evidence:
+real identity/capability guards, tenant and recipient isolation, bounded
+ordering, request-id propagation, strict malformed-input rejection, audited
+read-state updates, terminal disabled-feature behavior, and transaction
+rollback. Web adoption remains disabled and the persisted role matrix is
+unchanged.
+
+Validation: canary 1/1; disposable PostgreSQL/Redis lane 116 migrations,
+database 149/149 suites and 370/370 tests, API integration 64/64 suites and
+48/48 tests, zero pending/skips, stable schema SHA-256. No hosted or paid
+action.
+
 ## M3.232 Today protected local HTTP canary (2026-08-10)
 
 The closed Today read seam now has disposable HTTP evidence: real identity and
