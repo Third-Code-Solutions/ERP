@@ -1,5 +1,14 @@
 # Next Actions
 
+## Exact next action after M3.218 project-comment evidence fix
+
+Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every other Core
+selector/tenant allowlist false/empty. Run protected Web/Core CAD response
+parity, scope replacement, idempotent replay, draft-BOM separation, and
+rollback checks. Capture exact release identity and readiness before any
+single-tenant hosted canary; do not touch Supabase, Vercel, or Railway while
+the spend lock is active.
+
 ## Exact next action after M3.217 CAD parser-to-Core boundary
 
 Run root tests/lint/typecheck/build and guards. Keep

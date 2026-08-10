@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.218 Project-comment tenant-preserving delete evidence (completed, source + disposable)
+
+1. Reproduced a real PostgreSQL failure where composite `ON DELETE SET NULL`
+   nulled required `tenant_id` while deleting a comment with retained create
+   evidence.
+2. Added a forward corrective migration for both create/delete evidence FKs,
+   using `ON DELETE SET NULL (comment_id)` so tenant scope remains present.
+3. Added a migration/schema contract regression and replayed the full source
+   ledger plus API integration on disposable PostgreSQL 17/Redis 7.4.9.
+
+Focused migration contract 2/2; migration ledger 116/116; database tests
+370/370 with no skips; API integration passed; schema-before/after SHA-256
+matched `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`;
+root tests (shared 315, API 736, Web 749), lint, typecheck, production build
+(82/82 routes), Web DB-boundary, workflow-reference, provider-spend, and diff
+checks pass. Protected browser and hosted/provider proof remain open. No
+Supabase, Vercel, Railway, deployment, or paid action.
+
+Exact next action: protected Web/Core CAD parity and rollback proof with all
+selectors false/empty; do not alter hosted state under the cost lock.
+
 ## M3.217 CAD parser-to-Core canary boundary (completed, source-only)
 
 1. Split CAD parsing into `parseCadEvidence`, which returns a strict shared

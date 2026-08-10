@@ -1,5 +1,13 @@
 # Target State
 
+## M3.218 Tenant-preserving deletion evidence
+
+Composite tenant foreign keys that retain immutable workflow evidence must
+null only nullable target references. Required tenant identity remains intact
+after deletion, preserving tenant isolation, auditability, and idempotent
+replay. PostgreSQL migration semantics and Drizzle declarations stay reviewed
+together; destructive hosted migration remains approval-gated.
+
 ## M3.217 CAD evidence producer boundary
 
 Web CAD parsing produces validated evidence only. Nest Core owns official

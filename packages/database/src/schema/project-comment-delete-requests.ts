@@ -54,6 +54,7 @@ export const projectCommentDeleteRequests = pgTable(
       columns: [table.tenant_id, table.project_id],
       foreignColumns: [projects.tenant_id, projects.id],
     }).onDelete('restrict'),
+    // SQL migration scopes SET NULL to comment_id; tenant_id stays required.
     commentTenantFk: foreignKey({
       name: 'project_comment_delete_requests_comment_tenant_fk',
       columns: [table.tenant_id, table.comment_id],
