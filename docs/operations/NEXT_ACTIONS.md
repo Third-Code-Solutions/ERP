@@ -1,5 +1,28 @@
 # Next Actions
 
+## Exact next action after M3.240 won-opportunity conversion canary
+
+Choose the next smallest source-only ERP boundary. Preserve tenant,
+authorization, state-machine, transaction, idempotency, audit, and rollback
+contracts; implement only the narrow seam; then repeat focused checks, root
+source gates, and the disposable PostgreSQL/Redis lane. Keep
+`ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED=false`, its tenant allowlist empty, and
+`ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API=false` with an empty allowlist. Preserve
+the legacy compatibility path and do not mutate Supabase or trigger
+Vercel/Railway builds while the spend lock is active.
+
+## M3.240 evidence boundary (completed)
+
+The focused conversion canary passed 1/1 and proved validation, capability and
+feature gates, won-stage state, idempotent replay/key reuse conflict,
+project/checklist/notification atomicity, semantic and trigger audit coverage,
+cross-tenant concealment, and rollback. Root tests/typecheck/lint/build, the
+disposable 116-migration zero-skip lane (database 149/149 suites and 370/370
+tests; API integration 72/72 suites and 52/52 tests), direct canary rerun,
+policy guards, and diff hygiene passed. Hosted selector, browser production
+canary, provider state, deployment, and billing remain unverified and
+intentionally untouched.
+
 ## Exact next action after M3.239 CRM opportunity detail canary
 
 Choose the next smallest source-only ERP boundary. Preserve tenant,

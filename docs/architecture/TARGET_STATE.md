@@ -1,5 +1,24 @@
 # Target State
 
+## M3.240 Won-opportunity project conversion authority evidence
+
+The won-to-project handoff has a protected Nest transaction boundary:
+`POST /v1/crm/opportunities/:opportunityId/convert-to-project`. Core owns
+capability and tenant authorization, won-stage state validation, a
+tenant/idempotency ledger, project and opportunity linking, the twelve-item
+pre-construction checklist with dependency-aware SLA clocks, role notifications,
+and semantic audit writes. Database triggers remain part of the append-only
+audit evidence. A disposable HTTP canary proves replay, key reuse conflict,
+cross-tenant concealment, rollback, and the complete handoff without enabling a
+production tenant.
+
+Keep `ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED=false`, the tenant allowlist empty,
+and `ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API=false` with an empty allowlist until
+hosted parity, exact Core release identity, readiness, protected browser
+evidence, rollback, and spend approval exist. The legacy Web conversion path
+remains the compatibility behavior; no hosted or provider state changed in
+M3.240.
+
 ## M3.239 CRM opportunity detail authority evidence
 
 Opportunity detail reads have a protected Nest boundary that authenticates the

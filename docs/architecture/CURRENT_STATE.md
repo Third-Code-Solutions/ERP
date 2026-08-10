@@ -1,5 +1,32 @@
 # Current State
 
+## M3.240 Won-opportunity project conversion protected local HTTP canary (2026-08-10)
+
+Added `apps/api/integration/opportunity-conversion.http.integration.spec.ts`
+for the existing Nest transactional handoff
+`POST /v1/crm/opportunities/:opportunityId/convert-to-project`. The canary
+boots the real controller, conversion service, Supabase identity guard,
+capability guard, audit service, and transaction-bound PostgreSQL client. It
+proves missing-auth and strict-body rejection, capability denial, disabled
+feature fail-closed behavior, cross-tenant 404 concealment, won-stage state
+validation, idempotency replay and key reuse conflict, project creation and
+opportunity backlink, twelve-item checklist generation with dependency clocks,
+tenant-scoped notification delivery, semantic audit rows alongside database
+trigger audit rows, and rollback.
+
+Focused canary: 1/1 PASS. Root `pnpm test` is 173/173 files and 750/750
+tests; typecheck 5/5 tasks, lint 2/2 tasks, and production build PASS. The
+disposable PostgreSQL 17/Redis 7.4.9 lane exited PASS after replaying 116
+migrations: database 149/149 suites and 370/370 tests, and API integration
+72/72 suites and 52/52 tests, all without skips. The canary was rerun directly
+against that local runtime and passed 1/1. No schema migration was required;
+`ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED` and the Web
+`ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API` selector remain fail-closed by default
+with empty tenant allowlists. This remains source-only local evidence: no
+hosted Supabase write, Vercel/Railway deployment, provider setting, credential,
+or paid action occurred. Exact next action: choose the next smallest
+source-only ERP seam.
+
 ## M3.239 CRM opportunity detail protected local HTTP canary (2026-08-10)
 
 Added disposable protected HTTP evidence for the existing Nest opportunity

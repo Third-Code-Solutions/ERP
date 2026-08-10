@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-10 - M3.240 Won-opportunity project conversion protected local HTTP canary
+
+Added `apps/api/integration/opportunity-conversion.http.integration.spec.ts`.
+It boots the real Nest conversion controller/service with Supabase identity and
+capability guards, audit service, and a transaction-bound disposable
+PostgreSQL client. The canary proves strict request validation, capability and
+feature gates, cross-tenant 404 concealment, won-stage validation, idempotency
+replay/key reuse conflict, atomic project creation and opportunity backlink,
+twelve checklist items with dependency clocks, role notifications, semantic
+and trigger audit evidence, and rollback.
+
+Focused canary: 1/1 PASS. Root `pnpm test`: 173 files / 750 tests PASS;
+typecheck 5/5 tasks, lint 2/2 tasks, and production build PASS. The complete
+disposable lane passed 116 migrations with PostgreSQL 17 and Redis 7.4.9;
+database 149/149 suites and 370/370 tests plus API integration 72/72 suites and
+52/52 tests passed without skips. Direct canary rerun: 1/1 PASS. Spend,
+boundary, managed-Supabase parity, workflow-reference, actionlint, and diff
+hygiene guards PASS. No Supabase write, Vercel/Railway deployment, provider
+setting, credential, or paid action occurred. Keep conversion selectors closed.
+Next: choose the next bounded source-only ERP seam.
+
 ## 2026-08-10 - M3.239 CRM opportunity detail protected local HTTP canary
 
 Added `apps/api/integration/opportunities.http.integration.spec.ts`. It boots

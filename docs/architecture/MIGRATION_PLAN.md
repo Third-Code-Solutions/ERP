@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.240 Won-opportunity project conversion protected local HTTP canary (completed, source-only)
+
+1. Added `apps/api/integration/opportunity-conversion.http.integration.spec.ts`
+   using the real conversion controller/service, Supabase identity and
+   capability guards, audit service, and a transaction-bound disposable
+   PostgreSQL client.
+2. Proved 401/400/403/503/404/409 boundaries, won-stage validation,
+   tenant-scoped idempotency replay and key reuse rejection, atomic project
+   creation/backlink, twelve checklist items with six initial SLA clocks and
+   dependency links, role notification creation, semantic plus trigger audit
+   evidence, and rollback.
+3. Validation: focused canary 1/1; root tests 173 files/750 tests; typecheck
+   5/5 tasks, lint 2/2 tasks, and production build PASS; disposable PostgreSQL
+   17/Redis 7.4.9 lane PASS after 116 migrations with database 149/149 suites
+   and 370/370 tests plus API integration 72/72 suites and 52/52 tests without
+   skips; direct canary rerun 1/1; spend, boundary, parity, workflow-reference,
+   actionlint, and diff-hygiene guards PASS.
+
+No schema migration or hosted/provider action occurred. Keep the conversion
+write flags and Web selector closed with empty allowlists and preserve the
+legacy compatibility path. Exact next action: choose the next smallest
+source-only ERP seam; hosted parity, protected browser evidence, production
+cutover, rollback, and spend approval remain required.
+
 ## M3.239 CRM opportunity detail protected local HTTP canary (completed, source-only)
 
 1. Added `apps/api/integration/opportunities.http.integration.spec.ts` using

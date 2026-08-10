@@ -1,5 +1,20 @@
 # Third Code ERP capability matrix
 
+## M3.240 Won-opportunity project conversion protected local HTTP canary (2026-08-10)
+
+The existing won-to-project authority now has disposable HTTP evidence for
+`opportunity.convert`: strict body and capability checks, disabled-by-default
+write gating, won-stage validation, tenant/idempotency replay, project and
+opportunity atomicity, the twelve-item pre-construction checklist, dependency
+SLA clocks, role notifications, semantic/trigger audit coverage, cross-tenant
+concealment, and rollback. Web adoption remains unchanged and closed.
+
+Validation: canary 1/1; root 173/173 files and 750/750 tests; typecheck 5/5,
+lint 2/2, production build PASS; disposable PostgreSQL/Redis lane 116
+migrations with database 149/149 suites and 370/370 tests plus API integration
+72/72 suites and 52/52 tests without skips; direct canary rerun 1/1; policy
+guards PASS; no hosted or paid action.
+
 ## M3.239 CRM opportunity detail protected local HTTP canary (2026-08-10)
 
 The existing opportunity detail authority now has a protected local canary
