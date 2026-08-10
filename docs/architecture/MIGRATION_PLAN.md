@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.219 Protected CAD HTTP boundary (completed, source + tests)
+
+1. Added a Nest harness using the production JWT and capability guards around
+   the CAD evidence controller.
+2. Covered missing bearer, tenant membership authority, trimmed idempotency,
+   rejected caller authority fields, insufficient role, and no-membership
+   failure before Core invocation.
+3. Ran focused 7/7, root tests (shared 315, API 740, Web 749), lint,
+   typecheck, 82/82-route production build, provider-spend, and diff checks.
+
+Protected browser/runtime parity, disposable Web-to-Core replay, and hosted
+release evidence remain open. No Supabase, Vercel, Railway, deployment, or
+paid action occurred.
+
+Exact next action: keep selectors false/empty and prove response parity,
+replacement, idempotency, draft-BOM separation, and rollback on disposable
+PostgreSQL before a canary.
+
 ## M3.218 Project-comment tenant-preserving delete evidence (completed, source + disposable)
 
 1. Reproduced a real PostgreSQL failure where composite `ON DELETE SET NULL`

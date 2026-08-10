@@ -1,5 +1,13 @@
 # Target State
 
+## M3.219 Protected CAD HTTP boundary
+
+CAD evidence commits must cross the real Nest authentication and capability
+boundary. Verified membership supplies tenant authority; caller-supplied
+tenant or actor fields are rejected; missing bearer, missing membership, and
+insufficient capability fail before Core invocation. Idempotency is preserved
+at the controller boundary.
+
 ## M3.218 Tenant-preserving deletion evidence
 
 Composite tenant foreign keys that retain immutable workflow evidence must

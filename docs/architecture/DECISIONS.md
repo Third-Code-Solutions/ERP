@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-329 - Protect CAD evidence commits with real HTTP guards (2026-08-10)
+
+Decision: exercise the production `SupabaseJwtGuard` and `CapabilityGuard` on
+the CAD evidence controller before allowing any Web selector. Tenant authority
+comes from verified ERP membership; `tenantId` and `actorId` in the request
+body are not trusted. Missing credentials, membership, or `document.manage`
+must stop before Core is called, while the idempotency key is trimmed and
+forwarded.
+
+Rationale: controller-only mocks can prove shape but not the authorization
+boundary that protects official ERP writes. This harness closes that evidence
+gap without changing runtime selection or enabling a canary.
+
+Validation: focused controller/protected tests 7/7; root tests, lint,
+typecheck, 82-route build, provider-spend, and diff checks pass. No hosted or
+paid action.
+
 ## D-328 - Scope composite delete nulling to nullable evidence targets (2026-08-10)
 
 Decision: preserve `tenant_id` when deleting project comments whose creation or
