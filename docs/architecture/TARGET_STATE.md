@@ -1,5 +1,16 @@
 # Target State
 
+## M3.232 Today protected local HTTP canary evidence
+
+Before any tenant opens `ERP_TODAY_READS_VIA_API`, the source release must
+prove the bounded `/v1/today` contract against disposable PostgreSQL/Redis:
+verified identity, tenant and assignee predicates, cross-tenant exclusion,
+project-context behavior, strict query rejection, capability denial, request
+correlation, and transaction rollback. M3.232 records that local gate as 2/2
+focused tests and 62/62 API integration suites / 47/47 tests in the full
+zero-skip lane. The selector remains closed until hosted parity, readiness,
+protected browser evidence, rollback, and spend approval exist.
+
 ## M3.231 Today/Project Command Center read authority
 
 The dashboard Today surface has one reviewed Core read contract:

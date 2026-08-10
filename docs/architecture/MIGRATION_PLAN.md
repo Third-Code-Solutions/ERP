@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.232 Today protected local HTTP canary (completed, source + disposable)
+
+1. Added `apps/api/integration/today.http.integration.spec.ts` using the real
+   Nest Today controller/service, Supabase identity and capability guards,
+   request correlation, and a transaction-bound PostgreSQL client.
+2. Proved missing-auth 401, exact tenant/current-assignee results, cross-tenant
+   exclusion, optional project context, strict `asOf` rejection, request-id
+   propagation, and rollback. A test-only unsupported-role principal receives
+   403 from the real capability guard; the persisted role matrix is unchanged.
+3. Ran the focused canary and the disposable lane. Evidence: canary 2/2;
+   PostgreSQL 17.10/Redis 7.4.9; 116 migrations; database 149/149 suites and
+   370/370 tests with zero skips; API integration 62/62 suites and 47/47 tests
+   with zero pending; schema-before and schema-after SHA-256 both
+   `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No schema migration or hosted/provider action occurred. Keep the Web Today
+selector false/empty. Exact next action: choose the next smallest source-only
+ERP seam; hosted parity, protected browser evidence, and spend approval remain
+required before any cutover.
+
 ## M3.231 Today/Project Command Center Nest read seam (completed, source-only)
 
 1. Added a shared bounded Today query/result contract with ISO timestamps and

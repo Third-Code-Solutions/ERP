@@ -1,5 +1,28 @@
 # Current State
 
+## M3.232 Today protected local HTTP canary (2026-08-10)
+
+Added a disposable protected HTTP canary for `GET /v1/today`. The test boots
+the real Nest controller, Today service, Supabase identity guard, capability
+guard, request-correlation middleware, and a transaction-bound PostgreSQL
+client. It proves missing-auth 401, tenant and current-assignee filtering,
+cross-tenant isolation, optional project context, strict browser-time rejection
+(`asOf` 400), request-id propagation, and rollback. A test-only unsupported
+role principal is denied 403 by the real capability guard; persisted roles
+still all receive the current `today.read` capability.
+
+The focused canary passed 2/2 tests. The disposable lane passed 116 migrations,
+database 149/149 suites and 370/370 tests with zero pending/skips, API
+integration 62/62 suites and 47/47 tests with zero pending/skips, and equal
+schema SHA-256 before/after
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This is local evidence only. `ERP_TODAY_READS_VIA_API` remains false with an
+empty allowlist. No Supabase SQL/data/Storage change, Vercel/Railway deploy,
+provider setting, credential, or paid action occurred. Exact next action:
+select the next smallest source-only ERP seam; hosted parity and production
+cutover remain blocked by M3.230 and the spend lock.
+
 ## M3.231 Today/Project Command Center Nest read seam (2026-08-10)
 
 Source now exposes a read-only Nest `GET /v1/today` contract for the existing

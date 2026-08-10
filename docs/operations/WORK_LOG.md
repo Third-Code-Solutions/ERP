@@ -1,5 +1,32 @@
 # Work Log
 
+## 2026-08-10 - M3.232 Today protected local HTTP canary
+
+Added `apps/api/integration/today.http.integration.spec.ts`. It boots the real
+Nest Today route with the Supabase identity guard, capability guard, request-id
+middleware, actual Today service, and a transaction-bound disposable database.
+The canary proves missing-auth 401; tenant, current-assignee, and cross-tenant
+scope; optional project context; strict `asOf` rejection; request-id echo; a
+test-only unsupported-role 403; and rollback with no rows left after the
+transaction aborts.
+
+Focused canary: 2/2 PASS. Full disposable lane: 116 migrations; database
+149/149 suites and 370/370 tests with zero skips; API integration 62/62 suites
+and 47/47 tests with zero pending; schema-before/after SHA-256 both
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+Expected Redis memory-overcommit and queue failure-path log lines were
+observed; all assertions passed.
+
+Root `pnpm test` also passed in the default no-hosted-database environment;
+its environment-backed database suites remain intentionally skipped there.
+Root typecheck, production build, and lint passed sequentially. Repository
+parity, Web DB-boundary, Vercel spend, workflow-reference, and diff guards
+passed.
+
+No hosted Supabase write, Vercel/Railway deployment, provider setting,
+credential, or paid action occurred. Keep `ERP_TODAY_READS_VIA_API=false` and
+its allowlist empty. Next: choose the next bounded source-only ERP seam.
+
 ## 2026-08-10 - M3.231 Today/Project Command Center Nest read seam
 
 Added the shared Today result/query contract, Nest `TodayModule` (`GET

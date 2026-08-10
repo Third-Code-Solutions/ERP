@@ -1,5 +1,18 @@
 # Third Code ERP capability matrix
 
+## M3.232 Today protected local HTTP canary (2026-08-10)
+
+The closed Today read seam now has disposable HTTP evidence: real identity and
+capability guards, tenant/current-assignee filtering, cross-tenant exclusion,
+project expansion behavior, strict query rejection, request-id propagation, and
+transaction rollback. Unsupported roles fail closed at the capability boundary
+in a test-only principal; the persisted role matrix remains unchanged.
+
+Validation: canary 2/2; disposable PostgreSQL/Redis lane 116 migrations,
+database 149/149 suites and 370/370 tests, API integration 62/62 suites and
+47/47 tests, zero pending/skips, stable schema SHA-256. Web selector remains
+disabled; no hosted or paid action.
+
 ## M3.231 Today/Project Command Center read authority (2026-08-10)
 
 Nest now owns a bounded, read-only Today contract with server-time Manila
