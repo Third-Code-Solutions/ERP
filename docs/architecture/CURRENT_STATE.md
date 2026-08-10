@@ -1,5 +1,31 @@
 # Current State
 
+## M3.222 Disposable actual Web parser to protected Core HTTP (2026-08-10)
+
+The disposable integration harness now executes the real Web `parseCadEvidence`
+DXF path against `public/samples/mep-sample.dxf`, then sends its strict worker
+response through the real server-only Web adapter to a running Nest controller
+with JWT and capability guards. Core runs against the same transaction-bound
+PostgreSQL connection, so scope replacement, replay, and rollback are real
+database behavior rather than mocks. The storage provider is a bounded test
+double; no hosted Supabase Storage call occurs.
+
+Evidence: unauthenticated HTTP returned 401; authenticated parser-to-Core
+commit passed; idempotent replay returned the same result; cross-tenant access
+returned 404; exact parsed count/totals, manual-row preservation, zero draft
+BOMs, audit actor, and outer rollback passed. The disposable lane replayed 116
+migrations; database tests passed 370/370 with no skips. Redis emitted only the
+known memory-overcommit warning.
+
+No Supabase, provider, deployment, or paid action occurred. All production
+selectors remain closed. This proves parser-to-Core HTTP and disposable
+transaction behavior, not hosted storage, protected Next upload-route, or
+browser evidence.
+
+Exact next action: exercise the protected Web `/api/upload/complete` path in a
+disposable runtime with the same storage/session test doubles and Core HTTP,
+including document recording and terminal Core failure without legacy fallback.
+
 ## M3.221 Disposable CAD Core replay integrity (2026-08-10)
 
 Disposable PostgreSQL 17/Redis 7.4.9 replay now asserts CAD Core response

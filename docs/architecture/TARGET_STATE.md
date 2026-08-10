@@ -1,5 +1,14 @@
 # Target State
 
+## M3.222 Disposable parser-to-Core HTTP parity
+
+The real Web CAD parser must emit strict worker evidence that crosses the
+server-only adapter into the protected Nest route, where verified identity,
+capability, tenant scope, idempotency, exact totals, replacement, audit, and
+rollback are authoritative. Disposable evidence now covers this boundary;
+provider-backed Storage, protected upload-route, browser, and hosted release
+remain separate gates.
+
 ## M3.221 Disposable CAD Core replay integrity
 
 CAD Core replay must return the exact worker-contract identity and source
