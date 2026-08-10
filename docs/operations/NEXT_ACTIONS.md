@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.208 Core Cortex source validation
+
+Keep all Core selectors/canaries closed. Restore disposable PostgreSQL 17 and
+Redis locally (Docker daemon is currently unavailable), replay the full source
+migration ledger, and run the no-skip Cortex substrate/RLS suites. Compare
+canonical row counts with current `cortex_nodes` coverage for every registered
+source, including the universal-search subset. Do not use Supabase, create a
+paid branch, enable a canary, or deploy Vercel/Railway.
+
+Then run protected API/browser checks for tenant isolation, role scope, source
+identity, malformed graph rows, and selected-Core terminal failure. Collect
+release identity, readiness, rollback, and spend evidence before opening one
+exact tenant.
+
 ## Exact next action after M3.207 universal-search Core seam
 
 Keep all four flags closed:

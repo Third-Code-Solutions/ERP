@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-318 - Validate Cortex source identity inside Core (2026-08-10)
+
+Decision: Core Cortex search must reject graph rows whose source table is not in
+the reviewed registry or whose `ref_table` does not map to the returned
+`node_type`. Candidate hits are parsed by the shared contract; malformed rows
+are omitted. This validation is independent of Web filtering.
+
+Rationale: the Core database client bypasses Postgres RLS and therefore cannot
+trust a graph projection merely because the query was tenant-scoped. The
+authority boundary must prevent unknown or mismatched derived data from
+crossing into downstream navigation/AI consumers while preserving fail-closed
+behavior. Tenant, role, capability, canary, and no-fallback rules remain in
+force.
+
+Validation: focused Core search/controller tests 7/7, API typecheck/build, and
+root lint passed. The full serial API suite exceeded a 240-second command
+limit without completing; database/RLS replay is not yet available.
+
 ## D-317 - Gate Core universal-search reads by exact tenant and never fall back (2026-08-10)
 
 Decision: implement the first Nest Core universal-search seam as a disabled,

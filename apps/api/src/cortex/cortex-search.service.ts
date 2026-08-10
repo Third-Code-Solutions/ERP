@@ -6,8 +6,11 @@ import {
 import { ConfigService } from '@nestjs/config'
 import { searchCortexNodesByTerms } from '@third-code-erp/database'
 import {
+  cortexSearchHitSchema,
   cortexSearchResultSchema,
   cortexSearchTerms,
+  cortexGraphRefTableMatchesType,
+  isCortexGraphRefTable,
   type CortexSearchQuery,
   type CortexSearchResult,
 } from '@third-code-erp/shared-types'
@@ -49,8 +52,17 @@ export class CortexSearchService {
       cortexSearchNodeTypeScope(principal.role)
     )
 
-    return cortexSearchResultSchema.parse({
-      hits: nodes.map((node) => ({
+    const hits = nodes.flatMap((node) => {
+      // The database role bypasses RLS. Do not expose a graph row unless its
+      // source table and node type agree with the reviewed graph registry.
+      if (
+        !isCortexGraphRefTable(node.ref_table) ||
+        !cortexGraphRefTableMatchesType(node.ref_table, node.node_type)
+      ) {
+        return []
+      }
+
+      const parsed = cortexSearchHitSchema.safeParse({
         id: node.id,
         nodeType: node.node_type,
         title: node.title?.trim() || null,
@@ -60,8 +72,11 @@ export class CortexSearchService {
         projectId: projectId(node.attributes),
         freshness: node.freshness,
         source: 'cortex' as const,
-      })),
+      })
+      return parsed.success ? [parsed.data] : []
     })
+
+    return cortexSearchResultSchema.parse({ hits })
   }
 
   private assertReadEnabled(principal: ErpPrincipal): void {
