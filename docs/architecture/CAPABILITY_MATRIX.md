@@ -1,5 +1,15 @@
 # Third Code ERP capability matrix
 
+## M3.220 CAD Web/Core response identity parity (2026-08-10)
+
+The Web CAD adapter verifies Core document, project, and tenant identity before
+accepting a commit result. Schema-valid mismatches return terminal `502` and
+cannot fall back to a Web scope writer.
+
+Validation: focused Web CAD/route 17/17; root tests (shared 315, API 740, Web
+752), lint, typecheck, 82/82-route production build, provider-spend, and diff
+checks pass. No hosted or paid action occurred.
+
 ## M3.219 Protected CAD HTTP boundary (2026-08-10)
 
 CAD evidence commit HTTP coverage now exercises real authentication,

@@ -1,5 +1,12 @@
 # Target State
 
+## M3.220 CAD Web/Core response identity parity
+
+Web accepts CAD Core success only when returned document, project, and tenant
+identities equal the requested document, project, and verified principal
+tenant. Any mismatch is a terminal error; no compatibility write or success
+presentation is allowed.
+
 ## M3.219 Protected CAD HTTP boundary
 
 CAD evidence commits must cross the real Nest authentication and capability

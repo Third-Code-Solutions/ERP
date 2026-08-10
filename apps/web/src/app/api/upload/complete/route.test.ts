@@ -358,7 +358,8 @@ describe('completed document upload Project access', () => {
     expect(mocks.commitCadEvidenceThroughCoreApi).toHaveBeenCalledWith(
       documentId,
       { projectId: OTHER_PROJECT_ID, workerResponse },
-      `cad-evidence-${documentId}`
+      `cad-evidence-${documentId}`,
+      TENANT_ID
     )
     expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
   })

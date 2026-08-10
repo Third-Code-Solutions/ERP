@@ -1,5 +1,13 @@
 # Next Actions
 
+## Exact next action after M3.220 CAD response identity parity
+
+Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every Core selector or
+tenant allowlist false/empty. Run disposable parser-to-Core PostgreSQL replay:
+compare response metadata and exact totals, replace only document-owned scope,
+replay idempotently, assert no draft BOM, prove tenant isolation, and force a
+rollback. Do not touch Supabase, Vercel, or Railway under the spend lock.
+
 ## Exact next action after M3.219 protected CAD boundary
 
 Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every Core selector or

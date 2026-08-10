@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-10 - M3.220 CAD Web/Core response identity parity
+
+Hardened `commitCadEvidenceThroughCoreApi` to require matching document,
+project, and verified tenant identities in Core's response. A schema-valid
+mismatch returns terminal `502`; upload flow cannot fall back to the legacy
+writer. Added document/project/tenant mismatch regressions and updated the
+selected-Core route contract.
+
+Validation: focused Web CAD/route 17/17; root tests shared 315, API 740, Web
+752; lint, typecheck, production build 82/82 routes, provider-spend, and diff
+checks passed. No hosted DB, provider, deployment, or paid action. Next:
+disposable parser/Core database parity and rollback proof.
+
 ## 2026-08-10 - M3.219 protected CAD HTTP boundary
 
 Added `apps/api/src/cad/cad-evidence-commit.protected.spec.ts` using the

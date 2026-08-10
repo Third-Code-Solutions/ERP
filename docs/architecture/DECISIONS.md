@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## D-330 - Fail closed on mismatched CAD Core result identity (2026-08-10)
+
+Decision: Web CAD success requires Core response `documentId`, `projectId`, and
+`tenantId` to match the requested document, command project, and verified
+principal tenant. Return terminal `502` for a schema-valid mismatch; never
+present success or call the compatibility writer.
+
+Rationale: schema validity alone does not prove response belongs to the
+requesting tenant or resource. Identity checking closes a confused-deputy and
+stale/misrouted response class at the Web/Core boundary without enabling a
+canary.
+
+Validation: focused Web CAD/route tests 17/17; root tests, lint, typecheck,
+82-route build, provider-spend, and diff checks pass. No hosted or paid action.
+
 ## D-329 - Protect CAD evidence commits with real HTTP guards (2026-08-10)
 
 Decision: exercise the production `SupabaseJwtGuard` and `CapabilityGuard` on

@@ -291,7 +291,8 @@ export async function POST(req: NextRequest) {
           const coreResult = await commitCadEvidenceThroughCoreApi(
             docId,
             { projectId, workerResponse },
-            `cad-evidence-${docId}`
+            `cad-evidence-${docId}`,
+            userRow.tenant_id
           )
           if (!coreResult.ok || !coreResult.data) {
             const error = coreResult.error ?? 'CAD evidence was not committed.'

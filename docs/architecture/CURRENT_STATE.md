@@ -1,5 +1,22 @@
 # Current State
 
+## M3.220 CAD Web/Core response identity parity (2026-08-10)
+
+The server-only CAD adapter now accepts a successful Core response only when
+document ID, project ID, and verified tenant ID all match the request context.
+A schema-valid but mismatched response is terminal `502`; upload flow cannot
+fall back to the compatibility writer. The upload route forwards the verified
+tenant to this check.
+
+Focused Web CAD/route tests pass 17/17; root tests now report shared 315, API
+740, and Web 752 passing tests. Lint, typecheck, production build (82/82
+routes), provider-spend guard, and diff checks pass. No hosted DB, provider,
+deployment, or paid action occurred.
+
+Exact next action: run disposable parser-to-Core database replay proving direct
+response parity, tenant-scoped replacement, idempotency, no draft BOM, and
+rollback before any canary.
+
 ## M3.219 Protected CAD HTTP boundary (2026-08-10)
 
 Added a protected Nest HTTP regression harness for CAD evidence commits. The
