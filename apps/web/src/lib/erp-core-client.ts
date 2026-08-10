@@ -53,6 +53,7 @@ import {
   financeReceivablesResultSchema,
   financePayablesResultSchema,
   financeCashResultSchema,
+  financeReconciliationResultSchema,
   assetListResultSchema,
   assetReadResultSchema,
   assetMaintenanceDueResultSchema,
@@ -154,6 +155,7 @@ import {
   type FinancePayablesResult,
   type FinanceCashQuery,
   type FinanceCashResult,
+  type FinanceReconciliationResult,
   type AssetListQuery,
   type AssetListResult,
   type AssetReadResult,
@@ -634,6 +636,24 @@ export function financeCashReadsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_FINANCE_CASH_READS_VIA_API,
     process.env.ERP_FINANCE_CASH_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Bank reconciliation register reads remain closed until protected parity is approved. */
+export function financeReconciliationReadsUseCoreApi(
+  tenantId: string
+): boolean {
+  if (
+    (process.env.ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS ?? '')
+      .split(',')
+      .some((entry) => entry.trim() === '*')
+  ) {
+    return false
+  }
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_RECONCILIATION_READS_VIA_API,
+    process.env.ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -3026,6 +3046,58 @@ export async function getFinanceCashThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Cash transactions were not read.',
+    }
+  }
+}
+
+export async function getFinanceReconciliationThroughCoreApi(
+  limit = 500
+): Promise<CoreResult<FinanceReconciliationResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams({ limit: String(limit) })
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/reconciliation?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Bank reconciliation query is invalid.'
+            : response.status === 403
+              ? 'You do not have permission to view bank reconciliation.'
+              : 'Bank reconciliation was not completed.',
+        status: response.status,
+      }
+    }
+
+    const parsed = financeReconciliationResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid bank reconciliation result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Bank reconciliation was not read.',
     }
   }
 }

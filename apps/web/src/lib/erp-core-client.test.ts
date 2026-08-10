@@ -38,6 +38,7 @@ import {
   getFinanceReceivablesThroughCoreApi,
   getFinancePayablesThroughCoreApi,
   getFinanceCashThroughCoreApi,
+  getFinanceReconciliationThroughCoreApi,
   getAssetsThroughCoreApi,
   getAssetThroughCoreApi,
   getAssetMaintenanceDueThroughCoreApi,
@@ -56,6 +57,7 @@ import {
   financeReceivablesReadsUseCoreApi,
   financePayablesReadsUseCoreApi,
   financeCashReadsUseCoreApi,
+  financeReconciliationReadsUseCoreApi,
   assetReadsUseCoreApi,
   assetMaintenanceReadsUseCoreApi,
   assetMaintenanceCreateWritesUseCoreApi,
@@ -660,6 +662,31 @@ const FINANCE_CASH_RESULT = {
   page: 1,
   limit: 500,
   totalPages: 1,
+}
+const FINANCE_RECONCILIATION_RESULT = {
+  tenantId: RESULT.tenantId,
+  rows: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      referenceNumber: 'BANK-001',
+      sourceFileName: 'statement.csv',
+      status: 'draft' as const,
+      statementStart: '2026-08-01',
+      statementEnd: '2026-08-31',
+      currency: 'PHP',
+      closingBalanceCents: 100_000,
+      cashAccountId: '55555555-5555-4555-8555-555555555555',
+      cashAccountName: 'Operating bank',
+      lineCount: 2,
+      matchedCount: 1,
+    },
+  ],
+  total: 1,
+  truncated: false,
+  draftCount: 1,
+  reconciledCount: 0,
+  openExceptions: 1,
+  channels: 1,
 }
 const ACCOUNT_LIST_RESULT = {
   rows: [
@@ -1943,6 +1970,49 @@ describe('ERP Core client', () => {
     ).resolves.toMatchObject({ ok: true, data: { total: 1 } })
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/finance/cash-transactions?cashAccountId=55555555-5555-4555-8555-555555555555&direction=receipt&fromDate=2026-08-01&toDate=2026-08-31&page=1&limit=500',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('keeps bank reconciliation reads closed unless the exact gate matches', () => {
+    expect(financeReconciliationReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeReconciliationReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_READS_VIA_API', 'TRUE')
+    expect(financeReconciliationReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS', '*')
+    expect(financeReconciliationReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(financeReconciliationReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('calls the authenticated Core bank reconciliation read and validates evidence', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(FINANCE_RECONCILIATION_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getFinanceReconciliationThroughCoreApi(500)).resolves.toMatchObject({
+      ok: true,
+      data: { total: 1, rows: [{ closingBalanceCents: 100_000 }] },
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/finance/reconciliation?limit=500',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

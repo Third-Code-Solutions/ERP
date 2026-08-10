@@ -1,5 +1,15 @@
 # Target State
 
+## M3.213 finance read authority seam
+
+Sensitive finance register reads move into Nest Core behind capability checks,
+verified principals, tenant-scoped joins, bounded result contracts, and exact
+decimal-cent representation. Web keeps a compatibility read path during
+incremental migration, but an explicitly selected Core tenant receives a
+terminal error on Core failure rather than an unsafe direct fallback. Canary
+selectors remain exact-UUID and closed by default until database/RLS parity,
+protected browser proof, rollback, readiness, and spend evidence exist.
+
 ## M3.212 one source-safe chat context boundary
 
 Every Cortex response and deterministic fallback must derive answer text,

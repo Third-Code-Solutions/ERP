@@ -255,6 +255,23 @@ evidence, and spend controls are complete.
 | `ERP_FINANCE_CASH_READS_VIA_API` | no | Next server | Selects the authenticated Nest read adapter; exact `true` only |
 | `ERP_FINANCE_CASH_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## Bank reconciliation register read projection (NestJS, disabled by default)
+
+The `/finance/reconciliation` page can select a bounded, tenant-scoped Nest
+`GET /v1/finance/reconciliation` projection. The existing server-side read
+path remains the default. Keep both selectors closed until disposable replay,
+exact-count parity, RLS and audit review, protected browser proof, rollback
+evidence, and spend controls are complete. Core errors are terminal for a
+selected tenant; the page does not silently fall back to a direct database
+read.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_FINANCE_RECONCILIATION_READS_ENABLED` | no | Railway API | Exact `true` enables `GET /v1/finance/reconciliation`; default `false` |
+| `ERP_FINANCE_RECONCILIATION_READS_TENANT_IDS` | no | Railway API | Strict UUID allowlist; default empty |
+| `ERP_FINANCE_RECONCILIATION_READS_VIA_API` | no | Next server | Selects the authenticated Nest read adapter; exact `true` only |
+| `ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
 ## Project detail read cutover (NestJS, disabled by default)
 
 The project detail page can opt into the tenant-scoped Nest read contract for

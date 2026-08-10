@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.213 Core-owned bank reconciliation register read (completed, source-only)
+
+1. Added a strict shared query/result contract for bounded statement rows,
+   signed cent balances, real dates, account context, and match aggregates.
+2. Added a fail-closed Nest Core controller/service with `finance.read`, exact
+   tenant allowlisting, tenant-matched joins, and no browser database writes.
+3. Added an exact-tenant Web selector with terminal Core errors, preserving
+   the existing direct server read while the selector is closed by default.
+4. Added shared, Core, Web-client, and HTTP contract regressions plus operator
+   environment documentation.
+
+Validation: shared 3/3, Core 4/4, Web client 156/156, root shared 309/API
+724/Web 732 tests, typechecks, frozen offline install, root lint/build,
+boundary/ledger/workflow-reference/spend guards passed. Docker PostgreSQL/
+Redis replay, protected parity/browser proof, and hosted checks remain open.
+No migration, hosted row, provider, deployment, or paid action changed.
+
+Exact next action: disposable PostgreSQL 17/Redis replay and protected
+direct/Core reconciliation parity before opening one UUID tenant canary.
+
 ## M3.212 source-safe Cortex chat retrieval (completed, source-only)
 
 1. Refined the shared chat retrieval item contract so `refTable` must match
