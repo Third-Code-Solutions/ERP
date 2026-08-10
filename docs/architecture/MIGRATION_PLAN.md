@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.248 Managed Supabase read-only parity/security audit (completed, no mutation)
+
+1. Queried the connected `ERP` project `aqqrtkmtcsfkbyyqxowv` read-only for
+   project health/version, migration history, public tables/RLS state, and
+   security/performance advisors.
+2. Verified hosted PostgreSQL 17.6.1.121 is healthy but the migration ledger
+   stops at `20260729233017`, while source head is `20260810130000`: 55/117
+   applied and 62 ordered migrations pending.
+3. Recorded stop-ship advisor evidence: 14 security findings (11 WARN),
+   including public/authenticated execution of security-definer helpers,
+   public vector extension, and disabled leaked-password protection; one
+   performance WARN reports duplicate tenant slug indexes.
+4. Kept all hosted SQL, Storage, deployment, provider, credential, and paid
+   actions closed. The source parity manifest remains review-only with
+   `hostedApplyApproved=false`.
+
+Future hosted work must be one explicitly approved, reversible batch at a time:
+backup/restore proof, duplicate-data mapping, audit-recovery authority,
+ordered apply, catalog/RLS/advisor checks, readiness, exact SHA, protected
+browser smoke, and billing guard. Exact next source action: continue Core
+authority work without changing hosted state.
+
 ## M3.247 Document-processing command authority (completed, source-only)
 
 1. Added `apps/api/integration/document-processing.http.integration.spec.ts`

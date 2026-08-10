@@ -1,5 +1,22 @@
 # Next Actions
 
+## Exact next action after M3.248 managed Supabase parity/security audit
+
+Do not apply hosted SQL or trigger Railway/Vercel builds. The managed `ERP`
+project is healthy but only 55/117 migrations applied and has 11 security
+WARNs plus one performance WARN. Keep `hostedApplyApproved=false` and every
+ERP write/cutover tenant list closed. Before any spend-bounded canary, obtain
+backup/restore proof, duplicate Purchase Order mapping, audit-recovery tenant,
+ordered batch approval, post-batch catalog/RLS/advisor checks, readiness,
+exact SHA, protected browser smoke, rollback, and billing approval. Continue
+source-only Core milestones while this gate is unresolved.
+
+## M3.248 evidence boundary (completed)
+
+Read-only Supabase project, migration, table/RLS, security-advisor, and
+performance-advisor evidence was captured. No hosted SQL, Storage, deployment,
+provider setting, credential, or paid action occurred.
+
 ## Exact next action after M3.247 Document-processing command authority
 
 Keep `ERP_DOCUMENT_PROCESSING_JOBS_ENABLED=false`,

@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-10 - M3.248 Managed Supabase read-only parity/security audit
+
+Read-only Supabase connector audit of project `aqqrtkmtcsfkbyyqxowv` (`ERP`):
+`ACTIVE_HEALTHY`, PostgreSQL 17.6.1.121, 55/117 migrations applied through
+`20260729233017`, 62 ordered source migrations pending, and 88 public tables
+with RLS enabled. Security advisors returned 14 findings (11 WARN), including
+public/authenticated executable security-definer helpers, public vector, and
+leaked-password protection disabled. Performance advisors returned 253
+findings (one WARN: duplicate tenant slug indexes).
+
+No SQL, Storage, provider setting, deployment, credential, or paid action
+occurred. Hosted apply remains unapproved; demo-data backup/restore, duplicate
+mapping, audit recovery, ordered batch checks, readiness, exact SHA, rollback,
+and billing gates remain required. Next: continue source-only Core work.
+
 ## 2026-08-10 - M3.247 Document-processing command authority
 
 Added `apps/api/integration/document-processing.http.integration.spec.ts` and
