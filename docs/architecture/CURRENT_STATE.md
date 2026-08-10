@@ -1,5 +1,26 @@
 # Current State
 
+## M3.213 Core-owned bank reconciliation register read (2026-08-10)
+
+Nest Core now exposes a tenant-scoped, bounded bank-reconciliation register
+read with `finance.read` authorization, exact-UUID API gating, strict cents,
+date, status, currency, and count contracts, and same-tenant cash-account/
+statement-line joins. The Web reconciliation page selects it only for an
+exact server-side tenant canary; its existing direct server read remains the
+default. A selected Core error is terminal and cannot silently fall back.
+
+Validation: shared contract 3/3, Core service/controller 4/4, Web Core client
+156/156, root tests (shared 309, API 724, Web 732), API/Web/shared typechecks,
+frozen offline install, root lint/build, Web DB-boundary, migration ledger,
+workflow-reference, and Vercel spend-guard checks passed. Docker PostgreSQL/
+Redis replay, RLS parity, protected browser/API proof, and hosted/provider
+checks remain unverified; no hosted or paid action changed.
+
+Exact next action: confirm Docker health, replay the disposable PostgreSQL 17
+and Redis runtime, compare direct/Core reconciliation rows and aggregate
+counts under protected tenants/roles, then collect release/readiness/rollback
+evidence before any canary or provider deployment.
+
 ## M3.212 source-safe Cortex chat retrieval (2026-08-10)
 
 Cortex chat retrieval now enforces one canonical source-table/node-type

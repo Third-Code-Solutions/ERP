@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-323 - Core owns the bank reconciliation read projection (2026-08-10)
+
+Decision: expose `GET /v1/finance/reconciliation` from Nest Core with
+`finance.read`, verified principal, exact UUID tenant allowlist, strict shared
+contract validation, and tenant-matched statement/account/line queries. The
+Web page may select this authority only for an exact server-side tenant; Core
+failure is terminal, and both selectors default closed.
+
+Rationale: bank statements and match progress are sensitive financial evidence.
+The incremental seam moves authority without a big-bang rewrite, preserves the
+working Web contract, prevents direct browser writes, and bounds integer cents,
+dates, statuses, and aggregate counts before presentation. No hosted canary is
+safe until disposable replay, RLS/row parity, protected browser proof,
+readiness, rollback, and spend controls are recorded.
+
+Validation: shared 3/3, Core 4/4, Web client 156/156, root tests/typechecks,
+lint/build, boundary, migration, workflow-reference, and spend guards passed.
+Docker/provider/hosted evidence remains unverified.
+
 ## D-322 - Never feed raw derived rows into Cortex chat (2026-08-10)
 
 Decision: every Cortex chat retrieval authority and deterministic fallback must

@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-10 - M3.213 Core-owned bank reconciliation register read
+
+Added the closed-by-default Core reconciliation register contract, controller,
+pipe, service, Web selector, strict result validation, tests, and environment
+documentation. The selected path uses tenant-matched bank statement/account/
+line joins, exact cent balances, bounded rows, and terminal failure semantics;
+the existing Web server read remains active by default. No UI redesign,
+business write, migration, hosted row, provider, deployment, or paid action
+changed.
+
+Validation: shared contract 3/3; Core service/controller 4/4; Web Core client
+156/156; root shared 309/API 724/Web 732 tests; API/Web/shared typechecks;
+offline frozen install; root lint/build; Web DB boundary; migration ledger;
+workflow-reference; and Vercel spend guard passed. Docker PostgreSQL/Redis
+replay, RLS parity, protected browser/API evidence, and hosted checks remain
+open.
+
+Exact next action: push the reviewed source/docs commit as `kurtgav`, then
+restore Docker and replay the disposable database/Redis runtime before any
+canary or hosted deployment.
+
 ## 2026-08-10 - M3.212 source-safe Cortex chat retrieval
 
 Closed the remaining raw-derived-row path in Cortex chat. Shared retrieval

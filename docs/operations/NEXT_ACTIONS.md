@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.213 Core reconciliation read
+
+Push only the reviewed source/docs commit as `kurtgav`; do not trigger Vercel,
+Railway, or Supabase actions while the spend guard is active. Confirm Docker
+health, replay PostgreSQL 17 + Redis against the complete source ledger, and
+run no-skip RLS/tenant/role checks. Compare direct Web and Core reconciliation
+rows, dates, exact cents, statement totals, match counts, and truncation under
+protected tenants. Collect release identity, readiness, rollback, and spend
+evidence before opening one UUID canary or deploying hosted.
+
 ## Exact next action after M3.212 source-safe Cortex chat retrieval
 
 Push only the reviewed M3.212 source/docs commit as `kurtgav`; do not trigger
