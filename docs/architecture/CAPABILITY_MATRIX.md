@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.244 Stock Receipt protected HTTP canary (2026-08-10)
+
+The existing `inventory.manage` Stock Receipt draft authority now has
+protected transaction-bound HTTP evidence for identity, RBAC, disabled-tenant
+behavior, exact PO/material/UOM/warehouse scope, idempotent replay/key
+conflict, receipt-line persistence, semantic audit, RLS/browser privilege
+boundaries, cross-tenant concealment, and rollback. Web adoption remains
+closed; receipt-create flags and tenant lists are false/empty.
+
+Validation: database plus HTTP canaries 2/2; root API 173/173 files and
+751/751 tests, shared 54/54 files and 323/323 tests; typecheck 5/5, lint 2/2,
+production build 82/82 pages; disposable 117-migration PostgreSQL/Redis lane
+and API integration 40/40 files and 56/56 tests, zero skips. No hosted or
+paid action. The create-request table has RLS and browser privilege revocation
+but is not force-RLS in current source migration.
+
 ## M3.243 Asset maintenance protected HTTP canary (2026-08-10)
 
 The existing `asset.maintenance.manage` Nest authority now has protected

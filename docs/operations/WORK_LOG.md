@@ -1,5 +1,28 @@
 # Work Log
 
+## 2026-08-10 - M3.244 Stock Receipt protected HTTP canary
+
+Added `apps/api/integration/stock-receipt.http.integration.spec.ts`. It boots
+the real Nest Stock Receipt controller/draft service with Supabase identity and
+capability guards and a transaction-bound disposable PostgreSQL client. The
+canary proves missing/invalid auth, strict body and `Idempotency-Key`
+validation, viewer denial, disabled-tenant fail-closed behavior, cross-tenant
+PO concealment, exact tracked-PO/material/UOM/warehouse scope, replay/key
+conflict, receipt/line persistence, semantic audit, RLS/browser privilege
+boundaries, and rollback.
+
+Validation: focused database plus HTTP canaries 2/2 PASS; root API 173 files/
+751 tests and shared 54 files/323 tests; typecheck 5/5, lint 2/2, production
+build 82/82 pages; disposable PostgreSQL 17/Redis 7.4.9 lane 117 migrations,
+database 149/149 suites and 370/370 tests, API integration 40/40 files and
+56/56 tests, zero skips. Initial canary found a test savepoint proxy flaw and
+an over-strong force-RLS assertion; both were corrected to mirror real nested
+rollback and current migration contract. No schema or runtime selector
+changed. Hosted Supabase, Railway, Vercel, provider settings, credentials, and
+paid actions were not touched. Keep receipt-create flag/list false/empty.
+Next: push once under `kurtgav`, then reconcile hosted parity/release blockers
+without triggering a provider build.
+
 ## 2026-08-10 - M3.243 Asset maintenance protected HTTP canary
 
 Added `apps/api/integration/asset-maintenance.http.integration.spec.ts`. It

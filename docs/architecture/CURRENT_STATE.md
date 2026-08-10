@@ -1,5 +1,32 @@
 # Current State
 
+## M3.244 Stock Receipt protected HTTP canary (2026-08-10)
+
+Added `apps/api/integration/stock-receipt.http.integration.spec.ts`. It boots
+the real Nest Stock Receipt controller and draft-creation service with Supabase
+identity/capability guards against transaction-bound disposable PostgreSQL.
+The canary proves missing/invalid auth, strict body and idempotency-header
+validation, viewer denial, disabled-tenant fail-closed behavior, cross-tenant
+Purchase Order concealment, exact tracked-PO/material/UOM/warehouse scope,
+idempotent replay/key conflict, tenant-scoped receipt/line persistence,
+semantic audit, RLS with browser privileges revoked, and rollback.
+
+Focused Stock Receipt database plus HTTP canaries: 2/2 PASS. Root
+`pnpm test`: API 173 files/751 tests and shared 54 files/323 tests PASS;
+typecheck 5/5, lint 2/2, and production build (82/82 pages) PASS. The
+zero-skip PostgreSQL 17/Redis 7.4.9 lane remains 117 migrations; database
+149/149 suites and 370/370 tests plus API integration 40/40 files and 56/56
+tests PASS. No schema migration, runtime selector, hosted Supabase SQL/data,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Existing `stock_receipt_create_requests` has RLS enabled and no
+`anon`/`authenticated` table privileges; it is not `FORCE ROW LEVEL SECURITY`
+in the current source migration. Treat any force-RLS hardening as a separate
+reviewed migration. Keep
+`ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED` false and
+`ERP_INVENTORY_RECEIPT_CREATE_WRITES_TENANT_IDS` empty. Exact next action:
+push reviewed source/docs, then reconcile hosted parity and release gates
+before any canary or provider action.
+
 ## M3.243 Asset maintenance protected HTTP canary (2026-08-10)
 
 Added `apps/api/integration/asset-maintenance.http.integration.spec.ts`.

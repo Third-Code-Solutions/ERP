@@ -1,5 +1,32 @@
 # Architecture Decisions
 
+## D-356 -- Require protected Stock Receipt HTTP evidence before cutover (2026-08-10)
+
+Decision: use a disposable transaction-bound HTTP canary as the release gate
+for Stock Receipt draft creation. Exercise real JWT identity and
+`inventory.manage` capability guards, strict receipt and `Idempotency-Key`
+parsing, exact tenant/PO/material/UOM/warehouse predicates, tenant-scoped
+replay/key conflict, receipt-line and audit side effects, RLS with browser
+privileges revoked, disabled-tenant behavior, and rollback. Keep Web adoption
+and the receipt-create flags closed.
+
+Rationale: a receipt is official inventory evidence tied to a Purchase Order,
+tracked item, quantity, UOM, warehouse, and later finance posting. A browser
+or cross-tenant line lookup could create false stock or duplicate receipt
+evidence. HTTP rollback proof advances Core authority without hosted mutation
+or deployment spend.
+
+The current create-request migration enables RLS and revokes `anon` and
+`authenticated` table privileges, but does not force RLS. This canary records
+that actual contract; force-RLS hardening is a separate migration decision,
+not an implicit test rewrite.
+
+Validation: focused database plus HTTP canaries passed 2/2; root tests,
+typecheck, lint, build, disposable 117-migration PostgreSQL/Redis lane, and
+40-file/56-test API integration lane passed without skips. No schema
+migration, Supabase SQL, Vercel/Railway action, provider setting, credential,
+or paid action occurred.
+
 ## D-355 -- Require protected asset-maintenance HTTP evidence before cutover (2026-08-10)
 
 Decision: use a disposable transaction-bound HTTP canary as the release gate

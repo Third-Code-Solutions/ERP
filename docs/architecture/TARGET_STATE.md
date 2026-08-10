@@ -1,5 +1,24 @@
 # Target State
 
+## M3.244 Stock Receipt authority evidence
+
+Stock Receipt draft creation is a guarded Nest command at
+`POST /v1/inventory/stock-receipts`. The browser sends only strict receipt
+fields and an opaque idempotency key; Core derives tenant, actor, role,
+Purchase Order, tracked material/UOM line, and active warehouse scope from
+server state. One PostgreSQL transaction owns the draft, receipt lines,
+tenant-scoped replay ledger, and semantic audit. A protected disposable HTTP
+canary proves auth, RBAC, disabled-by-default behavior, cross-tenant
+concealment, replay/conflict, RLS/browser privilege boundaries, and rollback
+while Web adoption remains closed.
+
+Keep `ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED=false` and
+`ERP_INVENTORY_RECEIPT_CREATE_WRITES_TENANT_IDS` empty until hosted parity,
+exact release identity, readiness, protected browser evidence, rollback, and
+spend approval are independently complete. The existing create-request table
+is RLS-enabled with browser privileges revoked but is not force-RLS; any
+hardening requires its own backward-compatible migration and verification.
+
 ## M3.243 Asset maintenance authority evidence
 
 Asset maintenance history creation and reads have a protected Nest boundary:
