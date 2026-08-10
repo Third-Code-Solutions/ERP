@@ -21,12 +21,19 @@ const NODE_ID = '33333333-3333-4333-8333-333333333333'
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444'
 const INVOICE_ID = '55555555-5555-4555-8555-555555555555'
 const TASK_ID = '66666666-6666-4666-8666-666666666666'
+const VENDOR_ID = '77777777-7777-4777-8777-777777777777'
+const MATERIAL_ID = '88888888-8888-4888-8888-888888888888'
 
 const PRINCIPAL: ErpPrincipal = {
   userId: USER_ID,
   tenantId: TENANT_ID,
   role: 'finance',
   email: 'finance@example.test',
+}
+
+const PROCUREMENT_PRINCIPAL: ErpPrincipal = {
+  ...PRINCIPAL,
+  role: 'procurement',
 }
 
 function config(
@@ -130,5 +137,52 @@ describe('UniversalSearchService', () => {
       service.search({ q: '%_%', limit: 10 }, PRINCIPAL)
     ).resolves.toEqual({ hits: [], status: 'complete', failedTypes: [] })
     expect(mocks.searchCortexNodesByTerms).not.toHaveBeenCalled()
+  })
+
+  it('returns tenant-scoped vendor and material records for procurement users', async () => {
+    mocks.searchCortexNodesByTerms.mockResolvedValue([
+      {
+        id: NODE_ID,
+        node_type: 'vendor',
+        ref_table: 'vendors',
+        ref_id: VENDOR_ID,
+        title: 'Harbor Supply',
+        summary: 'Steel and concrete supplier',
+        attributes: {},
+        freshness: 'fresh',
+      },
+      {
+        id: NODE_ID,
+        node_type: 'material',
+        ref_table: 'material_items',
+        ref_id: MATERIAL_ID,
+        title: 'CONC-40',
+        summary: '40 MPa concrete',
+        attributes: {},
+        freshness: 'fresh',
+      },
+    ])
+    const service = new UniversalSearchService(config())
+
+    await expect(
+      service.search({ q: 'steel concrete', limit: 10 }, PROCUREMENT_PRINCIPAL)
+    ).resolves.toMatchObject({
+      hits: [
+        {
+          type: 'vendor',
+          id: VENDOR_ID,
+          title: 'Harbor Supply',
+          subtitle: 'Steel and concrete supplier',
+          href: '/purchase-orders',
+        },
+        {
+          type: 'material',
+          id: MATERIAL_ID,
+          title: 'CONC-40',
+          subtitle: '40 MPa concrete',
+          href: '/admin/material-items',
+        },
+      ],
+    })
   })
 })

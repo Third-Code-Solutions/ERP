@@ -1,5 +1,23 @@
 # Target State
 
+## M3.229 Multi-business master-data universal search
+
+The universal-search contract must cover the shared operational vocabulary
+without bypassing authorization: vendor and material nodes are visible only
+to the roles granted those Cortex scopes, every query remains tenant-scoped,
+and Web fallback results preserve the same labels and safe links as Core.
+Core remains the authoritative path; the Web fallback is bounded, read-only,
+and fail-closed when the Core canary is selected. No browser-supplied tenant
+identity or direct sensitive write is introduced.
+
+Current evidence: shared-types 50 files/315 tests, API search 2 files/6 tests,
+Web search/command-palette 3 files/21 tests, package typechecks/lints, root
+test/typecheck/lint/build, provider-spend, DB-boundary, and workflow-reference
+guards pass. The disposable PostgreSQL/Redis gate passes with 116 migrations,
+370/370 database tests and 45/45 API integration tests, zero skips, and stable
+schema dumps. Hosted source/live parity and production release remain separate
+unverified gates.
+
 ## M3.228 Disposable zero-skip data/API release gate
 
 Every source change that affects database or Nest business behavior must be

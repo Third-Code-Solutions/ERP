@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-341 - Keep master-data search on the shared tenant/RBAC contract (2026-08-10)
+
+Decision: add vendor and material catalog records to universal search only when
+their node types are already allowed by the Cortex role matrix. Register the
+same safe labels and routes in Core and Web fallback; keep the fallback
+tenant-filtered and read-only.
+
+Rationale: procurement and project delivery need one search surface across
+commercial master data, but widening finance or sales visibility without a
+separate authorization review would violate least privilege. A shared contract
+prevents command-palette and API drift while Core remains authoritative.
+
+Validation: shared-types 315 tests, API search 6 tests, Web search/command
+palette 21 tests, root build and guards pass; disposable database/API lane is
+zero-skip and schema-stable. No migration or hosted write.
+
 ## D-340 - Require the disposable no-skip data/API lane before hosted work (2026-08-10)
 
 Decision: treat the local PostgreSQL 17/Redis 7.4.9 replay as the source-level

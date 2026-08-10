@@ -1,5 +1,30 @@
 # Current State
 
+## M3.229 Multi-business master-data universal search (2026-08-10)
+
+Universal Search now indexes tenant-scoped vendor and material catalog records
+through the shared contract, Nest Core search registry, Web direct fallback,
+and command-palette labels. Procurement, commercial, and sales-delivery/project
+management roles may search these node types; finance and sales remain excluded
+by the existing Cortex role matrix. Vendor results link to Purchase Orders and
+material results link to Material Items. No schema or hosted provider change was
+made.
+
+Focused shared-types/API/Web tests, typechecks, lint, root tests, typecheck,
+lint, and production build passed. The disposable lane then passed 149/149
+database files and 370/370 tests with zero skips, 30/30 API integration files
+and 45/45 tests, and identical schema dumps at SHA-256
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+The live landing audit remains read-only: the current Vercel deployment does
+not expose the source branch's Cortex query-preview controls, so source/live
+parity is stale and not deployed under the spend lock. No Supabase, Vercel,
+Railway, deployment, or paid action occurred.
+
+Exact next action: select the next smallest source-only ERP boundary, preserve
+tenant/RBAC/audit invariants, and repeat focused plus disposable verification.
+Keep provider-spend and hosted deployment locks closed.
+
 ## M3.228 Disposable zero-skip PostgreSQL/Redis and API lane (2026-08-10)
 
 The current commit was replayed against the disposable `ThirdCodeERP-Test`

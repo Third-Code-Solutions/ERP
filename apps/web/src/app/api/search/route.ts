@@ -22,6 +22,7 @@ import {
   deliverySchedules,
   rfqs,
   vendors,
+  materialItems,
   ledgerAccounts,
   journalEntries,
 } from '@third-code-erp/database/schema'
@@ -121,6 +122,75 @@ export async function GET(req: NextRequest) {
             title: r.name,
             subtitle: r.industry?.replace(/_/g, ' '),
             href: `/crm/accounts/${r.id}`,
+          }))
+        )
+    )
+  }
+
+  if (canSearchEntity(role, 'vendor')) {
+    addQuery(
+      'vendor',
+      db
+        .select({
+          id: vendors.id,
+          name: vendors.name,
+          contact_name: vendors.contact_name,
+          address: vendors.address,
+        })
+        .from(vendors)
+        .where(
+          and(
+            eq(vendors.tenant_id, tenantId),
+            or(
+              ilike(vendors.name, like),
+              ilike(vendors.contact_name, like),
+              ilike(vendors.address, like)
+            )
+          )
+        )
+        .limit(PER_TYPE_LIMIT)
+        .then((rows) =>
+          rows.map<SearchHit>((row) => ({
+            type: 'vendor',
+            id: row.id,
+            title: row.name,
+            subtitle: row.contact_name ?? row.address ?? undefined,
+            href: '/purchase-orders',
+          }))
+        )
+    )
+  }
+
+  if (canSearchEntity(role, 'material')) {
+    addQuery(
+      'material',
+      db
+        .select({
+          id: materialItems.id,
+          code: materialItems.code,
+          description: materialItems.description,
+          category: materialItems.category,
+          unit: materialItems.unit,
+        })
+        .from(materialItems)
+        .where(
+          and(
+            eq(materialItems.tenant_id, tenantId),
+            or(
+              ilike(materialItems.code, like),
+              ilike(materialItems.description, like),
+              ilike(materialItems.category, like)
+            )
+          )
+        )
+        .limit(PER_TYPE_LIMIT)
+        .then((rows) =>
+          rows.map<SearchHit>((row) => ({
+            type: 'material',
+            id: row.id,
+            title: row.code,
+            subtitle: `${row.description} / ${row.unit}${row.category ? ` / ${row.category}` : ''}`,
+            href: '/admin/material-items',
           }))
         )
     )

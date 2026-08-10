@@ -10,6 +10,8 @@ import { z } from 'zod'
  */
 export const universalSearchHitTypes = [
   'account',
+  'vendor',
+  'material',
   'project',
   'opportunity',
   'bom',
@@ -59,6 +61,8 @@ const UNIVERSAL_SEARCH_ROLE_BY_TYPE: Record<
   readonly UniversalSearchRole[]
 > = {
   account: ['admin', 'sales', 'commercial', 'sd_pm_pe', 'finance', 'cx'],
+  vendor: ['admin', 'commercial', 'sd_pm_pe', 'procurement'],
+  material: ['admin', 'commercial', 'sd_pm_pe', 'procurement'],
   project: [
     'admin',
     'sales',

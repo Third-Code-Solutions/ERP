@@ -1,5 +1,23 @@
 # Work Log
 
+## 2026-08-10 - M3.229 multi-business master-data universal search
+
+Added vendor and material catalog coverage to the shared Universal Search
+contract, Core graph registry, Web fallback, and command palette. Procurement,
+commercial, and SD-PM-PE access follows the existing Cortex role matrix;
+finance and sales remain denied. Every fallback query is tenant-filtered and
+read-only. No database migration or hosted provider call occurred.
+
+Focused checks passed (shared-types 315, API search 6, Web search/palette 21),
+then root test/typecheck/lint/build and spend, DB-boundary, workflow-reference,
+and diff guards passed. The disposable lane passed 116 migrations, database
+149 files/370 tests and API 30 files/45 tests with zero skips; schema dumps were
+identical at SHA-256 `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+The live landing revision still lacks the source branch's Cortex preview
+controls; deployment stays closed to control billing. Next: select another
+bounded source-only ERP seam and repeat the same gates.
+
 ## 2026-08-10 - M3.228 disposable zero-skip PostgreSQL/Redis and API lane
 
 Replayed the current source tree on the exact disposable

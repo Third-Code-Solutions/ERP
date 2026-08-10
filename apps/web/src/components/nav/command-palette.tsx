@@ -29,6 +29,8 @@ type PaletteHit = SearchHit | CortexPaletteHit
 
 const TYPE_LABEL: Record<SearchHit['type'], string> = {
   account: 'Account',
+  vendor: 'Vendor',
+  material: 'Material',
   project: 'Project',
   opportunity: 'Opportunity',
   bom: 'BOM',
@@ -48,6 +50,8 @@ const TYPE_LABEL: Record<SearchHit['type'], string> = {
 
 const TYPE_TONE: Record<SearchHit['type'], string> = {
   account: 'var(--color-navy-700)',
+  vendor: 'var(--color-teal-700, #0f766e)',
+  material: 'var(--color-success)',
   project: 'var(--color-navy-600)',
   opportunity: 'var(--color-gold-600)',
   bom: 'var(--color-success)',
