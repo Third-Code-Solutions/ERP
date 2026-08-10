@@ -1,5 +1,22 @@
 # Migration Plan
 
+## M3.220 CAD Web/Core response identity parity (completed, source + tests)
+
+1. Made the Web CAD adapter require the verified tenant as an expected result
+   identity in addition to the document and project request identities.
+2. Rejected schema-valid Core responses with any mismatched identity as a
+   terminal `502`; the upload route cannot re-enter the compatibility writer.
+3. Added three mismatch regressions and updated the selected-Core route
+   contract. Focused 17/17, root tests (shared 315, API 740, Web 752), lint,
+   typecheck, 82/82-route build, provider-spend, and diff checks pass.
+
+Disposable database replay and hosted release evidence remain open. No
+Supabase, Vercel, Railway, deployment, or paid action occurred.
+
+Exact next action: compare parser evidence with Core scope replacement and
+result on disposable PostgreSQL, including idempotent replay, no draft BOM,
+tenant isolation, and rollback.
+
 ## M3.219 Protected CAD HTTP boundary (completed, source + tests)
 
 1. Added a Nest harness using the production JWT and capability guards around

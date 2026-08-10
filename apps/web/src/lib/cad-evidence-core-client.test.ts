@@ -84,7 +84,12 @@ describe('CAD evidence Core client', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(
-      commitCadEvidenceThroughCoreApi(DOCUMENT_ID, COMMAND, 'cad-evidence-1')
+      commitCadEvidenceThroughCoreApi(
+        DOCUMENT_ID,
+        COMMAND,
+        'cad-evidence-1',
+        TENANT_ID
+      )
     ).resolves.toEqual({ ok: true, data: RESULT, status: 200 })
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -108,7 +113,8 @@ describe('CAD evidence Core client', () => {
       commitCadEvidenceThroughCoreApi(
         DOCUMENT_ID,
         { ...COMMAND, workerResponse: { ...COMMAND.workerResponse, count: 2 } },
-        'cad-evidence-invalid'
+        'cad-evidence-invalid',
+        TENANT_ID
       )
     ).resolves.toEqual({
       ok: false,
@@ -125,11 +131,45 @@ describe('CAD evidence Core client', () => {
     )
 
     await expect(
-      commitCadEvidenceThroughCoreApi(DOCUMENT_ID, COMMAND, 'cad-evidence-2')
+      commitCadEvidenceThroughCoreApi(
+        DOCUMENT_ID,
+        COMMAND,
+        'cad-evidence-2',
+        TENANT_ID
+      )
     ).resolves.toEqual({
       ok: false,
       error: 'CAD evidence was not committed.',
       status: 503,
+    })
+  })
+
+  it.each([
+    ['document', { documentId: '99999999-9999-4999-8999-999999999999' }],
+    ['project', { projectId: '99999999-9999-4999-8999-999999999999' }],
+    ['tenant', { tenantId: '99999999-9999-4999-8999-999999999999' }],
+  ])('rejects mismatched Core %s identity', async (_label, mismatch) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ...RESULT, ...mismatch }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    )
+
+    await expect(
+      commitCadEvidenceThroughCoreApi(
+        DOCUMENT_ID,
+        COMMAND,
+        'cad-evidence-mismatch',
+        TENANT_ID
+      )
+    ).resolves.toEqual({
+      ok: false,
+      error: 'ERP Core API returned a mismatched CAD evidence result.',
+      status: 502,
     })
   })
 })

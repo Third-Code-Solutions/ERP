@@ -6040,7 +6040,8 @@ export type DocumentProcessingCoreResult =
 export async function commitCadEvidenceThroughCoreApi(
   documentId: string,
   command: CadEvidenceCommitCommand,
-  idempotencyKey: string
+  idempotencyKey: string,
+  expectedTenantId: string
 ): Promise<CoreResult<CadEvidenceCommitResult>> {
   const parsedCommand = cadEvidenceCommitCommandSchema.safeParse(command)
   if (!parsedCommand.success) {
@@ -6101,6 +6102,17 @@ export async function commitCadEvidenceThroughCoreApi(
       return {
         ok: false,
         error: 'ERP Core API returned an invalid CAD evidence result.',
+        status: 502,
+      }
+    }
+    if (
+      parsed.data.documentId !== documentId ||
+      parsed.data.projectId !== parsedCommand.data.projectId ||
+      parsed.data.tenantId !== expectedTenantId
+    ) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned a mismatched CAD evidence result.',
         status: 502,
       }
     }
