@@ -1,5 +1,28 @@
 # Architecture Decisions
 
+## D-351 - Require CRM opportunity detail canary before read cutover (2026-08-10)
+
+Decision: use a protected disposable HTTP canary as the release gate for the
+existing CRM opportunity detail authority. The gate must exercise the real
+identity/capability chain, tenant-scoped account/project joins, latest PPRF and
+inspection selection, design and open-change-request aggregates, malformed
+identifier rejection, cross-tenant concealment, and rollback. Keep the Web
+compatibility path and opportunity selector closed until hosted parity,
+readiness, protected browser evidence, rollback, and spend approval are
+separately approved.
+
+Rationale: opportunity detail combines commercial identity with pre-
+construction evidence. A child aggregate queried without repeated tenant scope
+could disclose another tenant's proposal state. A rollback-only HTTP canary
+advances the modular-monolith boundary without changing runtime behavior or
+consuming provider budget.
+
+Validation: focused canary 1/1; service/controller checks; root 173 files/750
+tests; typecheck 5/5, lint 2/2, production build PASS; disposable
+PostgreSQL/Redis lane PASS after 116 migrations with zero skips; direct canary
+rerun 1/1; policy guards and diff hygiene PASS. No hosted/provider write or
+paid action occurred.
+
 ## D-350 - Require CRM accounts canary before read cutover (2026-08-10)
 
 Decision: use a protected disposable HTTP canary as the release gate for the

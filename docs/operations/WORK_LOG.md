@@ -1,5 +1,22 @@
 # Work Log
 
+## 2026-08-10 - M3.239 CRM opportunity detail protected local HTTP canary
+
+Added `apps/api/integration/opportunities.http.integration.spec.ts`. It boots
+the real opportunity controller/service with Supabase identity and capability
+guards and a transaction-bound disposable PostgreSQL client. The canary proves
+missing-auth 401, exact account/project names, latest PPRF version, latest
+inspection, design/approval counts, open change-request count, malformed UUID
+400, cross-tenant 404 concealment, and rollback.
+
+Focused canary: 1/1 PASS; opportunity service/controller checks pass. Root
+tests 173 files/750 tests; typecheck 5/5, lint 2/2, production build PASS;
+disposable replay PASS after 116 migrations with zero skips; direct canary
+rerun 1/1; policy guards and diff hygiene PASS. No Supabase write,
+Vercel/Railway deployment, provider setting, credential, or paid action
+occurred. Keep the opportunity selector closed. Next: choose the next bounded
+source-only ERP seam.
+
 ## 2026-08-10 - M3.238 CRM accounts protected local HTTP canary
 
 Added `apps/api/integration/accounts.http.integration.spec.ts`. It boots the
