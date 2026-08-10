@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-334 - Keep document processing behind a provider-neutral Storage contract (2026-08-10)
+
+Decision: parser and processing code depend on a narrow server-only binary
+download contract. Supabase remains the default adapter; compatible HTTP object
+storage is an explicit alternative and test seam. Tenant/project path
+authorization remains in the Web/Core boundary, not in provider code.
+
+Rationale: provider SDK calls inside parsing make local verification, retries,
+and future object-storage changes expensive and hide binary/error semantics.
+The contract keeps provider failures structured without allowing a provider to
+approve or commit ERP transactions.
+
+Validation: local HTTP stub binary parity, bearer forwarding, 404 mapping,
+traversal rejection, parser injection, Web 756/756, disposable API 45/45, and
+DB 370/370. No hosted or paid action.
+
 ## D-333 - Keep upload recording and Core failure terminal (2026-08-10)
 
 Decision: the selected Core upload path may record the document before

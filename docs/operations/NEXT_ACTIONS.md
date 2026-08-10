@@ -1,5 +1,13 @@
 # Next Actions
 
+## Exact next action after M3.224 Storage contract
+
+Keep production Core selectors false/empty and Supabase/Vercel/Railway spend
+lock active. Add a controlled Playwright upload fixture that intercepts the
+signed Storage upload and `/api/upload/complete` responses. Assert file-input
+selection, preparing/uploading/finalizing/done states, terminal Core warning,
+and no unexpected provider requests. Do not use live credentials or deploy.
+
 ## Exact next action after M3.223 protected upload-complete runtime
 
 Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every Core selector or

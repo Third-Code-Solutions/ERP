@@ -1,5 +1,25 @@
 # Current State
 
+## M3.224 Provider-neutral document Storage contract (2026-08-10)
+
+CAD evidence now consumes a server-only `DocumentStorage` contract rather than
+calling a provider SDK directly. Production default remains
+`SupabaseDocumentStorage`; `HttpDocumentStorage` supports a compatible object
+GET endpoint with binary-safe downloads, structured provider errors, bearer
+headers, and traversal rejection. The parser accepts an injected contract for
+deterministic provider and failure testing.
+
+Evidence: local HTTP-compatible object stub passed binary byte parity, 404
+error mapping, malformed-path rejection, and parser injection without a
+Supabase client. Web tests passed 109/109 files and 756/756 tests; disposable
+PostgreSQL 17/Redis 7.4.9 lane passed 116 migrations, database 370/370 with no
+skips, and API integration 30/30 files (45/45 tests). No hosted Storage,
+Supabase, Vercel, Railway, deployment, or paid action occurred.
+
+Exact next action: add a controlled Playwright upload fixture that intercepts
+signed upload and completion responses, verifies visible progress/error states,
+and keeps real credentials and provider traffic out of the test.
+
 ## M3.223 Disposable protected upload-complete runtime (2026-08-10)
 
 The disposable integration harness now calls the real Web

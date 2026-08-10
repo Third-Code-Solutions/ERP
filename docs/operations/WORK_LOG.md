@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-10 - M3.224 provider-neutral document Storage contract
+
+Replaced direct CAD parser Storage access with a server-only `DocumentStorage`
+contract. Supabase remains production default; compatible HTTP adapter supports
+binary-safe object GET, bearer forwarding, structured errors, and traversal
+rejection. Parser accepts injected Storage for deterministic local tests.
+
+Validation: local HTTP stub and parser injection 6/6; Web 109/109 files and
+756/756 tests; PostgreSQL 17/Redis 7.4.9 disposable lane 116 migrations,
+database 370/370 no skips, API 30/30 files and 45/45 tests. Known Redis
+memory-overcommit warning only. No hosted DB, provider, deployment, or paid
+action. Next: controlled Playwright upload fixture with intercepted network.
+
 ## 2026-08-10 - M3.223 disposable protected upload-complete runtime
 
 Added a test-only API auth alias and a disposable integration harness around

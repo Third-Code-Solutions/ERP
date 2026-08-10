@@ -1,5 +1,16 @@
 # Third Code ERP capability matrix
 
+## M3.224 Provider-neutral document Storage contract (2026-08-10)
+
+CAD parser now uses a server-only Storage contract with Supabase and compatible
+HTTP adapters. Local evidence covers binary parity, bearer forwarding,
+structured provider errors, malformed-path rejection, and injected parser
+execution. Hosted Storage and browser upload evidence remain open.
+
+Validation: Web 109/109 files and 756/756 tests; disposable lane 116
+migrations, DB 370/370 with no skips, API 30/30 files and 45/45 tests. No
+provider or paid action.
+
 ## M3.223 Disposable protected upload-complete runtime (2026-08-10)
 
 The real Web upload route now has disposable evidence for document recording,

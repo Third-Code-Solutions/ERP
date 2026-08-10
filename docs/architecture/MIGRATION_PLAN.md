@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.224 Provider-neutral document Storage contract (completed, source + local)
+
+1. Added server-only `DocumentStorage`, `SupabaseDocumentStorage`, and
+   `HttpDocumentStorage` adapters. Supabase remains the unchanged production
+   default; the HTTP adapter is bounded and provider-neutral.
+2. Injected the contract into the real CAD evidence and compatibility parser,
+   preserving existing call signatures and tenant checks.
+3. Added a local HTTP-compatible object stub proving binary byte parity,
+   structured 404 errors, bearer forwarding, and malformed-path rejection.
+   Added parser coverage proving injected Storage avoids Supabase construction.
+4. Web tests passed 109/109 files and 756/756 tests. Disposable lane passed
+   116 migrations, database 370/370 with no skips, and API integration 30/30
+   files (45/45 tests).
+
+This proves a local provider boundary, not Supabase credentials, hosted object
+availability, browser behavior, or a production canary. No provider or paid
+action occurred.
+
+Exact next action: controlled Playwright upload fixture with network
+interception, visible progress/error assertions, and no real provider traffic.
+
 ## M3.223 Disposable protected upload-complete runtime (completed, source + disposable)
 
 1. Added a test-only API Vitest alias for the Web auth exports used by the

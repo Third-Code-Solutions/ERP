@@ -1,5 +1,14 @@
 # Target State
 
+## M3.224 Provider-neutral document Storage contract
+
+Server upload and processing code must depend on a narrow binary object
+contract. Supabase is one adapter, not a compile-time business-logic
+dependency; compatible object providers can be tested locally and swapped
+without changing tenant authorization or parser/Core transactions. Provider
+credentials, object availability, browser behavior, and hosted release remain
+separate gates.
+
 ## M3.223 Protected upload-complete runtime
 
 The upload-complete path must record the tenant-scoped document, download and
