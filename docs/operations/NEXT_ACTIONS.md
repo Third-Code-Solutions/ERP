@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.243 asset maintenance protected HTTP canary
+
+Keep `ERP_ASSET_MAINTENANCE_READS_ENABLED=false`,
+`ERP_ASSET_MAINTENANCE_READS_TENANT_IDS` empty,
+`ERP_ASSET_MAINTENANCE_CREATE_WRITES_ENABLED=false`, and
+`ERP_ASSET_MAINTENANCE_CREATE_WRITES_TENANT_IDS` empty. The focused canaries,
+root source gates, zero-skip disposable PostgreSQL/Redis lane, and full API
+integration have passed. Push only the reviewed source/docs branch under
+`kurtgav`; do not apply hosted SQL or trigger Railway/Vercel builds while
+spend protection is active. Then reconcile ordered hosted migration suffix,
+duplicate-data mapping, audit-recovery tenant, readiness, exact SHA, rollback,
+and billing gates before one explicitly spend-bounded canary.
+
+## M3.243 evidence boundary (completed)
+
+Protected asset-maintenance database and HTTP canaries passed 2/2. Evidence
+covers real auth/capability guards, strict command/header validation,
+disabled-tenant fail-closed behavior, exact asset/tenant scope, idempotent
+replay/key conflict, history reads, semantic audit, forced-RLS/service-only
+privileges, cross-tenant concealment, and rollback. No hosted/provider/paid
+action occurred.
+
 ## Exact next action after M3.242 Change Request protected HTTP canary
 
 Keep `ERP_CHANGE_REQUEST_WRITES_ENABLED=false`,
