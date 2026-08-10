@@ -1,5 +1,23 @@
 # Work Log
 
+## 2026-08-10 - M3.236 Project read/list protected local HTTP canary
+
+Extended the existing project API integration canary with real Nest read/list
+requests. It proves missing-auth 401, viewer read success, cross-tenant 404,
+same-tenant read success, bounded limit rejection, status/name ordering,
+search filtering, tenant-safe totals, and no disclosure of another tenant's
+project.
+
+Focused canary: 1/1 PASS. Root `pnpm test`: 173 files / 750 tests PASS;
+typecheck, production build, and lint PASS. Disposable lane: 116 migrations;
+database 149/149 suites and 370/370 tests; API integration 66/66 suites and
+49/49 tests; zero pending/skips; schema-before/after SHA-256 both
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No Supabase write, Vercel/Railway deployment, provider setting, credential,
+or paid action occurred. Keep project read/list selectors false/empty. Next:
+choose the next bounded source-only ERP seam.
+
 ## 2026-08-10 - M3.235 Project-comment read authority
 
 Added the strict shared project-comment list contract and the Nest

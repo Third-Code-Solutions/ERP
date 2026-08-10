@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.236 Project read/list protected local HTTP canary (completed, source-only)
+
+1. Extended `apps/api/integration/projects.database.integration.spec.ts` to
+   exercise the real Nest project controller and service for read/list.
+2. Proved missing-auth 401, viewer read success, cross-tenant 404 concealment,
+   same-tenant read success, bounded `limit` rejection, tenant-safe status/name
+   ordering, tenant-safe search filtering, and list totals/rows.
+3. Validation: focused canary 1/1; root tests 173 files/750 tests; typecheck,
+   production build, and lint; disposable PostgreSQL/Redis 116 migrations,
+   database 149/149 suites and 370/370 tests, API 66/66 suites and 49/49
+   tests, zero pending/skips, and equal schema SHA-256
+   `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No schema migration or hosted/provider action occurred. Keep
+`ERP_PROJECT_READS_VIA_API=false`, `ERP_PROJECT_LISTS_VIA_API=false`, and all
+Core selectors closed. Exact next action: choose the next smallest source-only
+ERP seam; hosted parity, protected browser evidence, production cutover,
+rollback, and spend approval remain required.
+
 ## M3.235 Project-comment read authority (completed, source-only)
 
 1. Added the shared strict query/result contract, list pipe, and tenant/project

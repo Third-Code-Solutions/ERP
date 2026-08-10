@@ -1,5 +1,27 @@
 # Current State
 
+## M3.236 Project read/list protected local HTTP canary (2026-08-10)
+
+Extended the disposable project API evidence to cover the existing Nest read
+and list authorities. The canary proves missing-auth rejection, viewer reads,
+cross-tenant project concealment, exact tenant list results, bounded limits,
+status/name ordering, search filtering, and tenant-safe list totals. No Web
+selector was opened and no schema or runtime authority changed.
+
+Focused canary: 1/1 PASS. Root `pnpm test`: 173/173 files and 750/750 tests;
+typecheck, production build, and lint PASS. The disposable PostgreSQL/Redis
+lane passed 116 migrations, database 149/149 suites and 370/370 tests, API
+integration 66/66 suites and 49/49 tests, zero pending/skips, and equal
+schema-before/after SHA-256
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This is local evidence only. `ERP_PROJECT_READS_VIA_API` and
+`ERP_PROJECT_LISTS_VIA_API` remain false with empty tenant allowlists. No
+hosted Supabase write, Vercel/Railway deployment, provider setting,
+credential, or paid action occurred. Exact next action: choose the next
+smallest source-only ERP seam; hosted parity, protected browser evidence,
+production cutover, and spend approval remain blocked.
+
 ## M3.235 Project-comment read authority (2026-08-10)
 
 Added the bounded Nest read authority `GET /v1/projects/:projectId/comments`.

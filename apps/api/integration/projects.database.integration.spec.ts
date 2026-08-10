@@ -214,6 +214,82 @@ suite('Projects API database integration', () => {
       }
 
       try {
+        await request(app.getHttpServer())
+          .get(`/v1/projects/${projectA}`)
+          .expect(401)
+
+        const viewerRead = await request(app.getHttpServer())
+          .get(`/v1/projects/${projectA}`)
+          .set('Authorization', 'Bearer viewer-a-token')
+          .expect(200)
+        expect(viewerRead.body).toMatchObject({
+          id: projectA,
+          tenantId: tenantA,
+          name: 'Original A',
+          client: 'Client A',
+          status: 'active',
+          projectType: 'mep',
+          createdBy: adminA,
+        })
+
+        await request(app.getHttpServer())
+          .get(`/v1/projects/${projectB}`)
+          .set('Authorization', 'Bearer admin-a-token')
+          .expect(404)
+
+        const tenantBRead = await request(app.getHttpServer())
+          .get(`/v1/projects/${projectB}`)
+          .set('Authorization', 'Bearer admin-b-token')
+          .expect(200)
+        expect(tenantBRead.body).toMatchObject({
+          id: projectB,
+          tenantId: tenantB,
+          name: 'Original B',
+          client: 'Client B',
+        })
+
+        await request(app.getHttpServer())
+          .get('/v1/projects?limit=101')
+          .set('Authorization', 'Bearer viewer-a-token')
+          .expect(400)
+
+        const tenantAList = await request(app.getHttpServer())
+          .get('/v1/projects?status=active&sort=name&order=asc&limit=1')
+          .set('Authorization', 'Bearer viewer-a-token')
+          .expect(200)
+        expect(tenantAList.body).toMatchObject({
+          page: 1,
+          limit: 1,
+          total: 1,
+          totalPages: 1,
+        })
+        expect(tenantAList.body.rows).toHaveLength(1)
+        expect(tenantAList.body.rows[0]).toMatchObject({
+          id: projectA,
+          tenantId: tenantA,
+        })
+
+        const concealedList = await request(app.getHttpServer())
+          .get('/v1/projects?q=Original%20B')
+          .set('Authorization', 'Bearer admin-a-token')
+          .expect(200)
+        expect(concealedList.body).toMatchObject({
+          total: 0,
+          page: 1,
+          limit: 20,
+          totalPages: 1,
+          rows: [],
+        })
+
+        const tenantBList = await request(app.getHttpServer())
+          .get('/v1/projects?q=Original%20B')
+          .set('Authorization', 'Bearer admin-b-token')
+          .expect(200)
+        expect(tenantBList.body).toMatchObject({
+          total: 1,
+          rows: [expect.objectContaining({ id: projectB, tenantId: tenantB })],
+        })
+
         const createCommand = {
           name: 'Created A',
           client: 'Client A',

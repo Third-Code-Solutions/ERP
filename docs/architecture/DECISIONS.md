@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-348 - Require project read/list canary before Web read cutover (2026-08-10)
+
+Decision: treat the disposable project read/list HTTP canary as the release
+gate for opening the existing `projectReadsUseCoreApi` and
+`projectListsUseCoreApi` selectors. The gate must exercise the real identity
+and capability guards, bounded query parsing, tenant/project predicates,
+cross-tenant concealment, deterministic filters/order, and response totals.
+Keep both selectors false with empty allowlists while hosted parity, readiness,
+protected browser evidence, rollback, and spend approval remain unapproved.
+
+Rationale: project identity is the tenant boundary used by every downstream
+ERP surface. Unit contracts and direct SQL tests do not prove the controller
+guard chain or disclosure behavior. A transaction-bound local canary advances
+the modular-monolith migration without changing production behavior or
+consuming provider budget.
+
+Validation: focused canary 1/1; root 173 files/750 tests; typecheck, build,
+and lint; disposable database 149/149 suites and 370/370 tests; API
+integration 66/66 suites and 49/49 tests; zero pending/skips; schema hash
+unchanged. No hosted/provider write or paid action occurred.
+
 ## D-347 - Require project-comment read authority canary before read cutover (2026-08-10)
 
 Decision: add a bounded Nest read authority for project comments, but keep Web

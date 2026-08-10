@@ -1,5 +1,17 @@
 # Third Code ERP capability matrix
 
+## M3.236 Project read/list protected local HTTP canary (2026-08-10)
+
+The existing Nest project read/list authority now has protected disposable
+HTTP evidence for identity, viewer access, cross-tenant concealment, bounded
+limits, deterministic filters/order, search, and tenant-safe totals. Web
+adoption remains disabled by default.
+
+Validation: canary 1/1; root 173/173 files and 750/750 tests; typecheck, build,
+and lint PASS; disposable PostgreSQL/Redis lane 116 migrations, database
+149/149 suites and 370/370 tests, API integration 66/66 suites and 49/49
+tests, zero pending/skips, stable schema SHA-256. No hosted or paid action.
+
 ## M3.235 Project-comment read authority (2026-08-10)
 
 The project comments page now has a reviewed Core read adapter with strict
