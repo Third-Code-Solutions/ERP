@@ -21,6 +21,10 @@ import {
   type CortexNeighbor,
 } from './graph'
 import type { CortexNode, CortexProvenance } from '../schema/cortex'
+import {
+  cortexGraphRefTableMatchesType,
+  isCortexGraphRefTable,
+} from '@third-code-erp/shared-types'
 
 export interface Citation {
   nodeId: string
@@ -45,6 +49,16 @@ export interface CortexAnswer {
   citations: Citation[]
 }
 
+/** Only registered source-table/node-type pairs may become answer evidence. */
+function isSafeAnswerNode(
+  node: Pick<CortexNode, 'node_type' | 'ref_table'>
+): boolean {
+  return (
+    isCortexGraphRefTable(node.ref_table) &&
+    cortexGraphRefTableMatchesType(node.ref_table, node.node_type)
+  )
+}
+
 /**
  * Deterministic, grounded answer to a free-text question — no LLM required.
  * Keyword-matches the tenant's graph and returns a cited record list. This is
@@ -62,7 +76,10 @@ export async function cortexKeywordAnswer(
   // Never come up empty: for broad/meta questions (e.g. "what changed recently",
   // "overview") keyword match misses, so fall back to the most recent records.
   const matched = hits.length > 0
-  const used = matched ? hits : await searchCortexNodes(tenantId, { limit: 8, nodeTypes })
+  const candidates = matched
+    ? hits
+    : await searchCortexNodes(tenantId, { limit: 8, nodeTypes })
+  const used = candidates.filter(isSafeAnswerNode)
 
   if (used.length === 0) {
     return {

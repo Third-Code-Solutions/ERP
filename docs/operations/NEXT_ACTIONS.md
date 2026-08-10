@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.212 source-safe Cortex chat retrieval
+
+Push only the reviewed M3.212 source/docs commit as `kurtgav`; do not trigger
+Vercel, Railway, or Supabase actions while spend controls are active. Once
+Docker health is real, replay PostgreSQL 17 + Redis against the complete source
+ledger and run no-skip Cortex/RLS tests. Then perform protected browser/API
+checks for tenant isolation, role scope, canonical source identity, malformed
+rows, deterministic fallback citations, and selected-Core terminal failure.
+Collect exact release identity, readiness, rollback, and spend evidence before
+opening any canary or deployment.
+
 ## Exact next action after M3.211 Web graph compatibility hardening
 
 Run the focused Web graph route tests and root lint/build. Keep all canaries and

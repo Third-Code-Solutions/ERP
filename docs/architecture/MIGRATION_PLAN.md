@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.212 source-safe Cortex chat retrieval (completed, source-only)
+
+1. Refined the shared chat retrieval item contract so `refTable` must match
+   its canonical `nodeType`.
+2. Filtered malformed/mismatched rows in Core retrieval and in Web direct,
+   semantic, and deterministic prompt paths; added a runtime shared-types
+   dependency to the database package for the keyword fallback guard.
+3. Added Web, Core, shared, and database regressions proving unsafe source
+   rows do not reach model context, answer text, or citations.
+
+Validation: Web chat 17/17, shared retrieval 5/5, database retrieval 1/1,
+Core retrieval/controller 9/9, typechecks, frozen lockfile install, root lint,
+and production build passed. Docker/PostgreSQL/RLS replay, protected browser
+evidence, and hosted/provider/deployment checks remain open. No paid action.
+
+Exact next action: restore disposable PostgreSQL/Redis, replay migrations, and
+run protected Cortex tenant/role/source/no-fallback checks before opening any
+Core canary.
+
 ## M3.211 Web Cortex compatibility sanitizer (completed, source-only)
 
 1. Wired the direct Web graph route through the shared whole/focused graph

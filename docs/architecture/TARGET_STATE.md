@@ -1,5 +1,14 @@
 # Target State
 
+## M3.212 one source-safe chat context boundary
+
+Every Cortex response and deterministic fallback must derive answer text,
+citations, and model prompt context only from UUID-backed, registry-validated
+source-table/node-type pairs. Core and Web authorities may omit malformed
+derived rows, but neither may pass raw graph projections to an AI model or
+persist unsafe evidence. The shared contract remains the single source of the
+invariant; database retrieval uses it at runtime.
+
 ## M3.211 one sanitizer across graph authorities
 
 The Web compatibility graph route and Nest Core graph authority use identical

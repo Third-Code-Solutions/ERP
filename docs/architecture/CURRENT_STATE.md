@@ -1,5 +1,24 @@
 # Current State
 
+## M3.212 source-safe Cortex chat retrieval (2026-08-10)
+
+Cortex chat retrieval now enforces one canonical source-table/node-type
+invariant at every prompt-facing path. Shared retrieval items reject mismatched
+sources; Core omits invalid recent/match rows; Web filters direct and semantic
+rows before prompt assembly; and the deterministic database keyword fallback
+filters the same unsafe derived rows before formatting answer text or citations.
+The database package declares the shared contract as a runtime dependency.
+
+Validation: Web chat 17/17, shared retrieval 5/5, database retrieval 1/1,
+Core retrieval/controller 9/9, database typecheck, Web/Core typechecks, frozen
+lockfile install, root lint, and production build passed. Docker PostgreSQL/RLS
+replay and hosted/provider/deployment checks remain unavailable; no paid action
+changed.
+
+Exact next action: restore disposable PostgreSQL/Redis evidence, replay the
+source ledger, and run protected Cortex tenant/role/source and no-fallback
+checks before any canary or provider deployment.
+
 ## M3.211 Web Cortex compatibility sanitizer (2026-08-10)
 
 The legacy Web `/api/cortex/graph` route now uses the same shared whole/focused

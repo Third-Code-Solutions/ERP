@@ -13,9 +13,11 @@ import {
   searchCortexNodesByTerms,
 } from '@third-code-erp/database'
 import {
+  cortexChatRetrievalItemSchema,
   cortexChatRetrievalResultSchema,
   cortexGraphRefTableMatchesType,
   cortexSearchTerms,
+  isCortexGraphRefTable,
   type CortexChatRetrievalQuery,
   type CortexChatRetrievalResult,
 } from '@third-code-erp/shared-types'
@@ -68,8 +70,14 @@ export class CortexChatRetrievalService {
     return cortexChatRetrievalResultSchema.parse({
       generatedAt: new Date().toISOString(),
       stats,
-      recent: recent.map((node) => this.toItem(node)),
-      matches: matches.map((node) => this.toItem(node)),
+      recent: recent.flatMap((node) => {
+        const item = this.toItem(node)
+        return item ? [item] : []
+      }),
+      matches: matches.flatMap((node) => {
+        const item = this.toItem(node)
+        return item ? [item] : []
+      }),
       focused,
       keywordAnswer,
       // Embedding/provider retrieval stays outside this first Core contract.
@@ -120,8 +128,15 @@ export class CortexChatRetrievalService {
     attributes: unknown
     freshness: 'fresh' | 'stale' | 'unknown'
     recorded_at: Date
-  }) {
-    return {
+  }): ReturnType<typeof cortexChatRetrievalItemSchema.parse> | null {
+    if (
+      !isCortexGraphRefTable(node.ref_table) ||
+      !cortexGraphRefTableMatchesType(node.ref_table, node.node_type)
+    ) {
+      return null
+    }
+
+    const parsed = cortexChatRetrievalItemSchema.safeParse({
       id: node.id,
       nodeType: node.node_type,
       title: node.title?.trim() || null,
@@ -132,7 +147,8 @@ export class CortexChatRetrievalService {
       freshness: node.freshness,
       recordedAt: node.recorded_at.toISOString(),
       source: 'cortex' as const,
-    }
+    })
+    return parsed.success ? parsed.data : null
   }
 
   private assertReadEnabled(principal: ErpPrincipal): void {

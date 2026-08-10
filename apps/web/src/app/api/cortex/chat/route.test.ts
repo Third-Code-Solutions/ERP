@@ -819,4 +819,48 @@ describe('Cortex chat conversation ownership', () => {
     expect(started?.prompt_hash).toMatch(/^[0-9a-f]{64}$/)
     expect(completed?.response_hash).toMatch(/^[0-9a-f]{64}$/)
   })
+
+  it('does not feed unknown or mismatched graph rows to the model', async () => {
+    const safeNode = {
+      id: NODE_ID,
+      node_type: 'project',
+      ref_table: 'projects',
+      ref_id: REF_ID,
+      title: 'Visible Project',
+      summary: 'Safe context',
+    }
+    const unsafeNode = {
+      id: ASSISTANT_MESSAGE_ID,
+      node_type: 'project',
+      ref_table: 'invoices',
+      ref_id: REF_ID,
+      title: 'Mismatched Secret',
+      summary: 'Must not reach the prompt',
+    }
+    mocks.searchCortexNodes.mockResolvedValue([safeNode, unsafeNode])
+    mocks.searchCortexNodesByTerms.mockResolvedValue([safeNode, unsafeNode])
+    mocks.openaiCreate.mockResolvedValue(
+      (async function* () {
+        yield { choices: [{ delta: { content: 'Safe response' } }] }
+      })()
+    )
+    vi.stubEnv('OPENAI_API_KEY', 'test-key')
+
+    const request = new NextRequest('http://localhost/api/cortex/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Show projects' }],
+      }),
+    })
+
+    const response = await POST(request)
+    await expect(response.text()).resolves.toBe('Safe response')
+
+    const [modelRequest] = mocks.openaiCreate.mock.calls[0] ?? []
+    const serialized = JSON.stringify(modelRequest)
+    expect(serialized).toContain('Visible Project')
+    expect(serialized).not.toContain('Mismatched Secret')
+    expect(serialized).not.toContain('Must not reach the prompt')
+  })
 })

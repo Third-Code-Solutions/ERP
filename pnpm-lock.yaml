@@ -254,6 +254,9 @@ importers:
 
   packages/database:
     dependencies:
+      '@third-code-erp/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       drizzle-orm:
         specifier: 0.40.1
         version: 0.40.1(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(postgres@3.4.9)
@@ -264,9 +267,6 @@ importers:
       '@third-code-erp/config':
         specifier: workspace:*
         version: link:../config
-      '@third-code-erp/shared-types':
-        specifier: workspace:*
-        version: link:../shared-types
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.18

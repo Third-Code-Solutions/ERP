@@ -14,8 +14,10 @@ import {
 } from '@third-code-erp/database'
 import { getOpenAI, embedText } from '@third-code-erp/ai'
 import {
+  cortexGraphRefTableMatchesType,
   cortexGraphRefTableSchema,
   cortexAssistantGenerationAcceptedSchema,
+  isCortexGraphRefTable,
   type CortexConversationAssistantTurnClaimResult,
   type CortexConversationAssistantTurnOutcome,
 } from '@third-code-erp/shared-types'
@@ -70,6 +72,43 @@ const chatRequestSchema = z.object({
   conversationId: z.string().uuid().optional(),
   context: recordContextSchema.optional(),
 })
+
+type CortexPromptNode = {
+  id: string
+  node_type: string
+  ref_table: string
+  ref_id: string
+  title: string | null
+  summary: string | null
+}
+
+/** Only canonical, UUID-backed graph rows may enter an AI prompt. */
+function isSafeCortexPromptNode(node: {
+  id?: unknown
+  node_type?: unknown
+  ref_table?: unknown
+  ref_id?: unknown
+  title?: unknown
+  summary?: unknown
+}): node is CortexPromptNode {
+  if (
+    typeof node.id !== 'string' ||
+    !z.string().uuid().safeParse(node.id).success ||
+    typeof node.node_type !== 'string' ||
+    typeof node.ref_table !== 'string' ||
+    !isCortexGraphRefTable(node.ref_table) ||
+    !cortexGraphRefTableMatchesType(node.ref_table, node.node_type) ||
+    typeof node.ref_id !== 'string' ||
+    !z.string().uuid().safeParse(node.ref_id).success
+  ) {
+    return false
+  }
+
+  return (
+    (node.title === null || typeof node.title === 'string') &&
+    (node.summary === null || typeof node.summary === 'string')
+  )
+}
 
 /**
  * POST /api/cortex/chat — the Third Code ERP AI Brain (Cortex).
@@ -399,11 +438,13 @@ export async function POST(req: NextRequest) {
   // Ground the agent in the tenant's graph: high-level shape, a recent sample,
   // and records that match the question's keywords.
   const terms = lastUserMessage.toLowerCase().split(/[^a-z0-9₱]+/i).filter(Boolean)
-  const [stats, recent, matches] = await Promise.all([
+  const [stats, recentRows, matchRows] = await Promise.all([
     getCortexGraphStats(profile.tenantId, scope),
     searchCortexNodes(profile.tenantId, { limit: 40, nodeTypes: scope }),
     searchCortexNodesByTerms(profile.tenantId, terms, 12, scope),
   ])
+  const recent = recentRows.filter(isSafeCortexPromptNode)
+  const matches = matchRows.filter(isSafeCortexPromptNode)
   const focused = authorizedContext
     ? await cortexDescribeEntity(
         profile.tenantId,
@@ -426,7 +467,10 @@ export async function POST(req: NextRequest) {
     if (process.env.OPENAI_API_KEY && redactedUserMessage) {
       const qEmbedding = await embedText(redactedUserMessage)
       const hits = await cortexSemanticSearch(profile.tenantId, qEmbedding, { limit: 8, nodeTypes: scope })
-      semantic = hits.map((h) => fmt(h.node)).join('\n')
+      semantic = hits
+        .filter((hit) => isSafeCortexPromptNode(hit.node))
+        .map((hit) => fmt(hit.node))
+        .join('\n')
     }
   } catch (err) {
     console.error('[cortex/chat] semantic retrieval skipped:', err)
