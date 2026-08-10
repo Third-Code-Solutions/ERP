@@ -1,5 +1,30 @@
 # Architecture Decisions
 
+## D-352 - Require won-opportunity conversion canary before write cutover (2026-08-10)
+
+Decision: use a protected disposable HTTP canary as the release gate for the
+existing Nest won-opportunity to project handoff. The gate must exercise the
+real identity and `opportunity.convert` capability chain, exact tenant and
+state checks, idempotency replay and key reuse rejection, project/opportunity
+atomicity, checklist dependency clocks, role notification scope, semantic and
+database-trigger audit evidence, cross-tenant concealment, and rollback. Keep
+the server write flag, Web selector, and tenant allowlists fail-closed until
+hosted parity, readiness, protected browser evidence, rollback, and spend
+approval are separately approved.
+
+Rationale: this is the first CRM boundary that creates an official ERP project
+from a commercial state. A partial handoff would leave a won opportunity,
+project, checklist, notification, or audit chain inconsistent; a replay or
+cross-tenant key could duplicate or disclose business records. A rollback-only
+HTTP canary proves the modular-monolith transaction boundary without enabling
+production writes or consuming provider budget.
+
+Validation: focused canary 1/1; root 173 files/750 tests; typecheck 5/5,
+lint 2/2, production build PASS; disposable PostgreSQL/Redis lane PASS after
+116 migrations with database 149/149 suites and 370/370 tests, API integration
+72/72 suites and 52/52 tests without skips; direct canary rerun 1/1; policy
+guards and diff hygiene PASS. No hosted/provider write or paid action occurred.
+
 ## D-351 - Require CRM opportunity detail canary before read cutover (2026-08-10)
 
 Decision: use a protected disposable HTTP canary as the release gate for the
