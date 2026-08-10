@@ -1,5 +1,18 @@
 # Target State
 
+## M3.234 Project-comment authority evidence
+
+Before any tenant opens Core project-comment writes, the source release must
+prove the real identity/capability chain against disposable PostgreSQL:
+create/delete operations remain tenant- and project-scoped, mentions resolve
+only inside the tenant, idempotency replays safely and rejects command reuse,
+audits are atomic, disabled tenants fail terminally, and rollback removes
+domain, ledger, and audit rows. M3.234 records that local gate as a 1/1
+focused canary and 66/66 API integration suites / 49/49 tests in the full
+zero-skip environment. The Web compatibility actions and all selectors stay
+closed until hosted parity, readiness, protected browser evidence, rollback,
+and spend approval exist.
+
 ## M3.233 Notifications read-state authority evidence
 
 Before any tenant opens Core notification read-state, the source release must

@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-346 - Require project-comment authority canary before write cutover (2026-08-10)
+
+Decision: treat the local project-comment create/delete canary as the release
+gate for opening the existing Core write seam. It must exercise the real
+identity and capability guards, tenant/project predicates, mention lookup,
+idempotency replay/conflict, request correlation, audit writes, terminal
+feature disablement, and transaction rollback. Keep Web compatibility actions
+and all Core selectors closed until hosted parity, readiness, protected
+browser evidence, rollback, and spend approval are separately approved.
+
+Rationale: project discussion is operational evidence and may contain
+tenant-private construction decisions. A service unit test cannot prove the
+route guard chain, cross-project concealment, or atomic ledger/audit behavior.
+Disposable transaction evidence advances the modular-monolith boundary without
+mutating Supabase or consuming Vercel/Railway budget.
+
+Validation: focused canary 1/1; disposable database 149/149 suites and
+370/370 tests; API integration 66/66 suites and 49/49 tests; schema hash
+unchanged. No hosted/provider write or paid action occurred.
+
 ## D-345 - Require recipient-scoped notification canary before read-state cutover (2026-08-10)
 
 Decision: treat the local `/v1/notifications` canary as a release gate for

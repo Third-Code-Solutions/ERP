@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.234 Project-comment protected local HTTP canary (completed, source + disposable)
+
+1. Added `apps/api/integration/project-comments.http.integration.spec.ts`
+   using the real Nest project-comment controller and create/delete services,
+   Supabase identity and capability guards, request correlation, audit service,
+   and a transaction-bound disposable database.
+2. Proved missing-auth 401; viewer 403; required/route-matched idempotency
+   keys; tenant/project scope; mention resolution; same-key replay and
+   conflict; audited create/delete; disabled-tenant 503; and rollback.
+3. Ran the focused canary and the complete disposable environment. Evidence:
+   canary 1/1; PostgreSQL 17.10/Redis 7.4.9; 116 migrations; database
+   149/149 suites and 370/370 tests; API integration 66/66 suites and 49/49
+   tests; zero pending/skips; schema-before and schema-after SHA-256 both
+   `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No schema migration or hosted/provider action occurred. Keep the Web
+project-comment selectors and all other Core selectors closed. Exact next
+action: choose the next smallest source-only ERP seam; hosted parity,
+protected browser evidence, and spend approval remain required before cutover.
+
 ## M3.233 Notifications protected local HTTP canary (completed, source + disposable)
 
 1. Added `apps/api/integration/notifications.http.integration.spec.ts` using

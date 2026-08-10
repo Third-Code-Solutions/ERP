@@ -1,5 +1,30 @@
 # Current State
 
+## M3.234 Project-comment protected local HTTP canary (2026-08-10)
+
+Added a disposable protected HTTP canary for the existing project-comment
+create/delete Core authority. The test boots the real Nest controller, both
+idempotent comment services, Supabase identity and capability guards, request
+correlation middleware, audit service, and a transaction-bound PostgreSQL
+client. It proves missing-auth 401, viewer capability denial, required and
+route-matched idempotency keys, tenant/project isolation, mention resolution,
+same-key replay and conflict, audited create/delete, terminal disabled-tenant
+503 responses, and rollback.
+
+The focused canary passed 1/1 tests. With the disposable runtime's complete
+expected environment, API integration passed 66/66 suites and 49/49 tests
+with zero pending/skips. The database lane passed 116 migrations, 149/149
+suites and 370/370 tests with zero pending/skips; schema-before and
+schema-after SHA-256 both remain
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This is local evidence only. Project-comment and all other Core selectors
+remain false/empty. No Supabase SQL/data/Storage change, Vercel/Railway
+deploy, provider setting, credential, or paid action occurred. Exact next
+action: select the next smallest source-only ERP seam; hosted parity,
+protected browser evidence, production cutover, and spend approval remain
+blocked.
+
 ## M3.233 Notifications protected local HTTP canary (2026-08-10)
 
 Added a disposable protected HTTP canary for the existing notification
