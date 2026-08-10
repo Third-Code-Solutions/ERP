@@ -116,4 +116,28 @@ describe('CAD evidence parser boundary', () => {
     expect(result.warnings[0]).toContain('CAD evidence validation failed')
     expect(mocks.transaction).not.toHaveBeenCalled()
   })
+
+  it('accepts provider-neutral Storage without constructing a Supabase client', async () => {
+    const storage = {
+      download: vi.fn().mockResolvedValue({
+        data: new Blob(['dxf']),
+        error: null,
+      }),
+    }
+
+    const result = await parseCadEvidence(
+      {
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        projectId: PROJECT_ID,
+        documentId: DOCUMENT_ID,
+        storagePath: 'tenant/project/drawing.dxf',
+        fileName: 'drawing.dxf',
+      },
+      storage
+    )
+
+    expect(result.status).toBe('extracted')
+    expect(storage.download).toHaveBeenCalledWith('tenant/project/drawing.dxf')
+    expect(mocks.from).not.toHaveBeenCalled()
+  })
 })

@@ -12,7 +12,6 @@
 // DXF content under a .dwg extension and vice versa — magic-byte detection
 // catches that and routes correctly.
 
-import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
 import { documents, scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
@@ -29,6 +28,10 @@ import {
   type WorkerScopeItem,
 } from './worker-contract'
 import { writeAuditLogInTransaction } from '@/lib/audit'
+import {
+  createDocumentStorage,
+  type DocumentStorage,
+} from '@/lib/storage/document-storage'
 
 export interface ParseAndStoreInput {
   tenantId: string
@@ -151,15 +154,13 @@ export async function persistExtractedScopeItems(input: {
 }
 
 export async function parseCadEvidence(
-  input: ParseAndStoreInput
+  input: ParseAndStoreInput,
+  storage: DocumentStorage = createDocumentStorage()
 ): Promise<CadEvidenceParseResult> {
   const { tenantId, projectId, documentId, storagePath, fileName } = input
 
   // 1. Download the file (binary-safe)
-  const supabase = createSupabaseAdminClient()
-  const { data: blob, error: dlErr } = await supabase.storage
-    .from('documents')
-    .download(storagePath)
+  const { data: blob, error: dlErr } = await storage.download(storagePath)
 
   if (dlErr || !blob) {
     return {
@@ -324,9 +325,10 @@ export async function parseCadEvidence(
 
 /** Compatibility writer. Selected Core tenants never call this function. */
 export async function parseAndStoreCad(
-  input: ParseAndStoreInput
+  input: ParseAndStoreInput,
+  storage: DocumentStorage = createDocumentStorage()
 ): Promise<ParseAndStoreResult> {
-  const evidence = await parseCadEvidence(input)
+  const evidence = await parseCadEvidence(input, storage)
   const { workerResponse, ...result } = evidence
   if (!workerResponse) return result
 
