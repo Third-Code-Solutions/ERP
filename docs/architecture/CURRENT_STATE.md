@@ -1,5 +1,23 @@
 # Current State
 
+## M3.221 Disposable CAD Core replay integrity (2026-08-10)
+
+Disposable PostgreSQL 17/Redis 7.4.9 replay now asserts CAD Core response
+parity against the strict worker contract: exact document/project/tenant
+result, source format, count, 65,000-cent line-total sum, document-owned scope
+replacement, one idempotency record on replay, zero draft BOMs, cross-tenant
+rejection, and outer-transaction rollback. The lane replayed 116 migrations;
+database tests passed 370/370 with no skips; focused CAD integration passed 1/1;
+schema-before/after SHA-256 remained
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This is disposable Core/worker-contract evidence, not hosted or protected
+Web-parser runtime proof. No Supabase, provider, deployment, or paid action
+occurred.
+
+Exact next action: feed actual Web parser output through the protected Web/Core
+HTTP path in disposable runtime, then capture rollback/readiness evidence.
+
 ## M3.220 CAD Web/Core response identity parity (2026-08-10)
 
 The server-only CAD adapter now accepts a successful Core response only when

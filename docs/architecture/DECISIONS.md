@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-331 - Treat CAD Core replay as separate from parser/runtime proof (2026-08-10)
+
+Decision: accept disposable CAD replay as evidence only for Core transaction
+integrity when strict worker-contract result identity, exact cents, replacement,
+idempotency, no draft BOM, tenant isolation, and rollback all pass. Keep actual
+Web parser HTTP execution, protected browser proof, hosted migration parity,
+and canary approval as separate gates.
+
+Rationale: a hand-built valid worker response can prove Core invariants but
+cannot prove storage download, DXF parsing, server session forwarding, or
+protected HTTP behavior. Separating evidence prevents a narrow integration
+fixture from certifying the whole upload path.
+
+Validation: disposable PostgreSQL 17/Redis 7.4.9 lane 116 migrations;
+database 370/370 no skips; CAD integration 1/1; schema hashes match. No
+hosted or paid action.
+
 ## D-330 - Fail closed on mismatched CAD Core result identity (2026-08-10)
 
 Decision: Web CAD success requires Core response `documentId`, `projectId`, and

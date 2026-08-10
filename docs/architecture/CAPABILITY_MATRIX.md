@@ -1,5 +1,15 @@
 # Third Code ERP capability matrix
 
+## M3.221 Disposable CAD Core replay integrity (2026-08-10)
+
+Core CAD replay now has disposable evidence for exact worker-contract result
+parity, 65,000-cent totals, document-scoped replacement, idempotent replay,
+zero draft BOMs, cross-tenant denial, and transaction rollback.
+
+Validation: 116 migration replay; database 370/370 with no skips; focused CAD
+integration 1/1; schema hashes equal. Actual Web parser HTTP runtime,
+protected browser, hosted, and paid evidence remain open.
+
 ## M3.220 CAD Web/Core response identity parity (2026-08-10)
 
 The Web CAD adapter verifies Core document, project, and tenant identity before

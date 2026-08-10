@@ -1,5 +1,24 @@
 # Migration Plan
 
+## M3.221 Disposable CAD Core replay integrity (completed, source + disposable)
+
+1. Strengthened the CAD database integration fixture with exact result
+   identity/source parity, exact 65,000-cent totals, and document-only scope
+   replacement assertions.
+2. Added one-idempotency-record replay, zero draft-BOM, cross-tenant rejection,
+   and outer-transaction rollback assertions.
+3. Replayed the source ledger on PostgreSQL 17/Redis 7.4.9: 116 migrations,
+   database 370/370 with no skips, focused CAD integration 1/1, matching schema
+   hashes before/after. Redis emitted only its known memory-overcommit warning.
+
+This proves Core against a strict worker-contract fixture; it does not prove
+the actual Web parser crossing protected HTTP at runtime or hosted parity. No
+Supabase, Vercel, Railway, deployment, or paid action occurred.
+
+Exact next action: run actual Web parser output through protected Web/Core
+HTTP against disposable PostgreSQL, then test rollback/readiness without
+enabling a tenant canary.
+
 ## M3.220 CAD Web/Core response identity parity (completed, source + tests)
 
 1. Made the Web CAD adapter require the verified tenant as an expected result
