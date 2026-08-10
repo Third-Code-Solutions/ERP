@@ -1,5 +1,13 @@
 # Target State
 
+## M3.208 canonical Cortex source boundary
+
+Every Core Cortex search result must be a registered source-table/node-type
+pair and satisfy the shared result schema before it crosses the Core boundary.
+Malformed or unknown derived rows are omitted rather than exposed or used as a
+navigation authority. This rule applies independently of the Web compatibility
+adapter and remains tenant/role/capability scoped.
+
 ## M3.207 Core-owned universal search read authority
 
 Nest Core owns universal-search reads behind `GET /v1/search`, with capability

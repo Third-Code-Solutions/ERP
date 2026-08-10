@@ -92,6 +92,56 @@ describe('CortexSearchService', () => {
     )
   })
 
+  it('omits unknown or mismatched graph sources before they cross Core', async () => {
+    mocks.searchCortexNodesByTerms.mockResolvedValue([
+      {
+        id: NODE_ID,
+        node_type: 'invoice',
+        ref_table: 'secret_table',
+        ref_id: REF_ID,
+        title: 'Do not leak',
+        summary: null,
+        attributes: null,
+        freshness: 'fresh',
+      },
+      {
+        id: '66666666-6666-4666-8666-666666666666',
+        node_type: 'project',
+        ref_table: 'invoices',
+        ref_id: REF_ID,
+        title: 'Do not mismatch',
+        summary: null,
+        attributes: null,
+        freshness: 'fresh',
+      },
+    ])
+    const service = new CortexSearchService(config())
+
+    await expect(
+      service.search({ q: 'concrete', limit: 20 }, PRINCIPAL)
+    ).resolves.toEqual({ hits: [] })
+  })
+
+  it('omits malformed graph rows instead of failing open', async () => {
+    mocks.searchCortexNodesByTerms.mockResolvedValue([
+      {
+        id: 'not-a-uuid',
+        node_type: 'invoice',
+        ref_table: 'invoices',
+        ref_id: REF_ID,
+        title: 'Malformed node',
+        summary: null,
+        attributes: null,
+        freshness: 'fresh',
+      },
+    ])
+    const service = new CortexSearchService(config())
+
+    await expect(
+      service.search({ q: 'concrete', limit: 20 }, PRINCIPAL)
+    ).resolves.toEqual({ hits: [] })
+  })
+
   it('does not query for punctuation-only terms', async () => {
     const service = new CortexSearchService(config())
 

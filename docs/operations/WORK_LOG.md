@@ -1,5 +1,23 @@
 # Work Log
 
+## 2026-08-10 - M3.208 Core Cortex source validation
+
+Closed the Core Cortex search source-boundary gap. `CortexSearchService` now
+uses the shared graph registry and hit schema, omitting unknown tables,
+mismatched node types, and malformed records before response serialization.
+Added two regression cases; no UI, business write, migration, hosted row,
+provider, deployment, or paid action changed.
+
+Validation: focused Cortex search/controller suite 7/7, API typecheck/build,
+and root lint passed. A full serial API-suite attempt exceeded the 240-second
+command limit without completing; it is not counted as green. Disposable
+PostgreSQL/Redis replay, graph coverage comparison, and protected browser
+checks remain unverified.
+
+Exact next action: replay the source migration ledger locally, compare each
+registered Cortex source against canonical row counts, then assess a single
+exact-tenant canary only after release/readiness/rollback/spend evidence.
+
 ## 2026-08-10 - M3.207 closed Nest Core universal-search seam
 
 Added shared canonical search roles/entity policy and bounded query/result

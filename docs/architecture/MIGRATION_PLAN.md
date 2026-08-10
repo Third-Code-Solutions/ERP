@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.208 Core Cortex source validation (completed, source-only)
+
+1. Reused the shared Cortex graph registry to require a known `ref_table` and
+   matching `node_type` for every Core keyword-search hit.
+2. Parsed each candidate with the shared hit schema and omitted malformed
+   records instead of serializing an untrusted graph row or throwing a broad
+   response error.
+3. Added regressions for unknown sources, mismatched types, and malformed node
+   identifiers.
+
+Validation: Cortex search/controller tests 7/7, API typecheck/build, and root
+lint passed. A full serial API-suite attempt exceeded the 240-second command
+limit without completing and is not counted as green. No hosted
+database/provider/deployment action. Full PostgreSQL/RLS replay and protected
+browser evidence remain open.
+
+Exact next action: restore disposable PostgreSQL/Redis, replay the migration
+ledger, and compare graph coverage for every registered source before any
+Core tenant canary.
+
 ## M3.207 closed Nest Core universal-search adapter (completed, source-only)
 
 1. Added a shared canonical role/entity matrix and bounded universal-search

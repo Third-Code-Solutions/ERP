@@ -1,5 +1,20 @@
 # Current State
 
+## M3.208 Core Cortex search source validation (2026-08-10)
+
+The Nest Core Cortex keyword-search adapter now validates every graph hit
+against the shared canonical `ref_table`/`node_type` registry before returning
+it. Unknown tables, mismatched node types, malformed UUIDs, and malformed
+freshness/title payloads are omitted. This closes the authority gap where the
+Web compatibility route filtered sources but Core could have serialized a raw
+graph row. Tenant, role, and capability gates remain unchanged and closed by
+default; no provider or database state changed.
+
+Focused Core Cortex search/controller tests passed 7/7, API typecheck/build,
+and root lint passed. A full serial API-suite attempt exceeded the 240-second
+command limit without completing; it is not counted as green. The full
+graph/backfill and RLS suites still require disposable PostgreSQL evidence.
+
 ## M3.207 closed Nest Core universal-search adapter (2026-08-10)
 
 The repository now contains a source-only, closed-by-default Nest Core
