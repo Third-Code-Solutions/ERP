@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-332 - Keep parser-to-Core HTTP proof separate from provider/upload proof (2026-08-10)
+
+Decision: accept the disposable Web parser-to-protected-Core integration as
+evidence for parser output, HTTP authorization, Core identity, tenant scope,
+idempotency, exact totals, replacement, audit, and rollback only. Keep Storage
+provider behavior, protected Next upload-route behavior, browser evidence, and
+hosted release as separate gates.
+
+Rationale: a test-double Storage boundary lets the real parser and HTTP route
+run deterministically against disposable PostgreSQL without spending against
+Supabase. It cannot prove provider credentials, object availability, or the
+complete upload recording path.
+
+Validation: real DXF fixture; 401 unauthenticated; authenticated commit and
+replay; cross-tenant 404; 116 migration lane; 370/370 database tests; zero
+skips. Production selectors stayed closed.
+
 ## D-331 - Treat CAD Core replay as separate from parser/runtime proof (2026-08-10)
 
 Decision: accept disposable CAD replay as evidence only for Core transaction

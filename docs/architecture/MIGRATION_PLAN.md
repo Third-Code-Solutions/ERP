@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.222 Disposable actual parser-to-Core HTTP parity (completed, source + disposable)
+
+1. Added a test-only API Vitest resolver so the cross-package integration can
+   import the Web parser and server-only adapter without changing production
+   module resolution.
+2. Added a protected HTTP harness using the real DXF fixture, real parser,
+   real Core controller/guards/service, transaction-bound PostgreSQL, and a
+   bounded Storage/session test double.
+3. Proved 401 without a bearer, authenticated commit, exact parser metadata and
+   totals, idempotent replay, document-only replacement, manual and
+   cross-tenant preservation, 404 cross-tenant denial, zero draft BOMs, audit,
+   and outer rollback. The lane replayed 116 migrations; database tests were
+   370/370 with zero skips.
+
+This remains disposable evidence. It does not certify hosted Supabase Storage,
+the protected Next upload route, browser behavior, or a production canary. No
+Supabase, Vercel, Railway, deployment, or paid action occurred.
+
+Exact next action: run protected Web `/api/upload/complete` in disposable
+runtime through the same parser/Core HTTP path; prove document recording and
+terminal Core failure with no compatibility fallback.
+
 ## M3.221 Disposable CAD Core replay integrity (completed, source + disposable)
 
 1. Strengthened the CAD database integration fixture with exact result

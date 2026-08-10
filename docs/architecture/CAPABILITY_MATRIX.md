@@ -1,5 +1,17 @@
 # Third Code ERP capability matrix
 
+## M3.222 Disposable parser-to-Core HTTP parity (2026-08-10)
+
+The real Web DXF parser and server-only adapter now cross a real protected Nest
+HTTP route in disposable PostgreSQL. Evidence covers 401 protection,
+authenticated identity, exact parser result/count/totals, idempotent replay,
+document-owned replacement, tenant isolation, no draft BOM, audit, and
+rollback. Storage is a bounded test double; hosted upload/provider/browser
+evidence remains open.
+
+Validation: 116 migration replay; database 370/370 with no skips; one focused
+parser-to-Core integration passed. No provider or paid action.
+
 ## M3.221 Disposable CAD Core replay integrity (2026-08-10)
 
 Core CAD replay now has disposable evidence for exact worker-contract result

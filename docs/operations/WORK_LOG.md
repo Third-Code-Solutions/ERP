@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-10 - M3.222 disposable actual parser-to-Core HTTP parity
+
+Added a test-only API Vitest resolver plus a cross-package integration harness.
+It runs the real Web parser on `public/samples/mep-sample.dxf`, uses the real
+server-only Core adapter, and calls a real protected Nest HTTP controller with
+JWT/capability guards and transaction-bound PostgreSQL. A bounded Storage and
+session double keeps the run provider-free. Passed 401 protection,
+authenticated commit, exact count/totals, idempotent replay, replacement,
+manual/cross-tenant preservation, cross-tenant 404, no draft BOM, audit, and
+rollback. Disposable lane: 116 migrations; database 370/370, zero skips.
+
+No hosted DB, deployment, provider, or paid action. Known Redis
+memory-overcommit warning only. Next: protected Web upload-complete disposable
+runtime, including document recording and no legacy fallback after Core error.
+
 ## 2026-08-10 - M3.221 disposable CAD Core replay integrity
 
 Expanded CAD database integration assertions: exact Core result identity and

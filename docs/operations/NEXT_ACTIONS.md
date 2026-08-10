@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.222 parser-to-Core HTTP parity
+
+Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every Core selector or
+tenant allowlist false/empty. Run the protected Web `/api/upload/complete` path
+against disposable PostgreSQL with Storage/session test doubles and Core HTTP;
+verify document recording, actual parser output, identity forwarding,
+idempotency, replacement, no draft BOM, tenant isolation, rollback, and
+terminal Core failure without legacy fallback. Do not touch Supabase, Vercel,
+or Railway under the spend lock.
+
 ## Exact next action after M3.221 disposable CAD Core replay
 
 Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every Core selector or
