@@ -11,9 +11,9 @@ import {
   getCortexNodeByRef,
 } from '@third-code-erp/database'
 import {
-  cortexFocusedGraphResultSchema,
   cortexGraphRefTableMatchesType,
-  cortexGraphResultSchema,
+  cortexFocusedGraphResultFromRows,
+  cortexGraphResultFromRows,
   type CortexGraphQuery,
   type CortexGraphResponse,
 } from '@third-code-erp/shared-types'
@@ -36,7 +36,7 @@ export class CortexGraphService {
     const scope = cortexSearchNodeTypeScope(principal.role)
     if (!query.refTable || !query.refId) {
       const graph = await getCortexGraph(principal.tenantId, 1500, scope)
-      return cortexGraphResultSchema.parse(graph)
+      return cortexGraphResultFromRows(graph)
     }
 
     const node = await getCortexNodeByRef(
@@ -58,9 +58,10 @@ export class CortexGraphService {
       40,
       scope
     )
-    if (!graph) throw this.notFound()
+    const sanitized = cortexFocusedGraphResultFromRows(graph)
+    if (!sanitized) throw this.notFound()
 
-    return cortexFocusedGraphResultSchema.parse(graph)
+    return sanitized
   }
 
   private assertReadEnabled(principal: ErpPrincipal): void {

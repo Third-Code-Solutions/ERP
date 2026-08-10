@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.210 resilient graph projection
+
+Keep all hosted/provider/canary flags closed. Docker Desktop processes exist,
+but `docker info` does not return within the bounded timeout. Do not force
+Supabase, Vercel, or Railway access. Once local Docker health is confirmed,
+create disposable PostgreSQL 17 + Redis, replay the full migration ledger, run
+no-skip Cortex/RLS tests, and compare canonical table counts with graph nodes.
+
+Then run protected graph/search/entity browser/API checks and collect release
+identity, readiness, rollback, and spend evidence before any tenant selector.
+
 ## Exact next action after M3.209 shared Cortex source contract
 
 Do not enable any Core canary or call Supabase/Vercel/Railway. Confirm the

@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-320 - Sanitize Cortex graph rows before response assembly (2026-08-10)
+
+Decision: graph authorities use a shared sanitizer that drops malformed nodes,
+unregistered/mismatched sources, invalid links, and links to dropped nodes;
+focused reads return not-found when the focus cannot survive validation.
+
+Rationale: a derived graph is not the ERP source of truth, and one bad mirror
+row must not either leak unsafe data or make the entire operator graph fail.
+The sanitizer preserves valid evidence, enforces bounded output, and keeps the
+tenant/role/capability boundary intact.
+
+Validation: shared graph tests 5/5, Core graph tests 7/7, typechecks, and static
+migration check passed. Full database replay is unavailable while Docker hangs.
+
 ## D-319 - Enforce Cortex source identity in shared contracts (2026-08-10)
 
 Decision: graph nodes, Cortex search hits, and citation records must validate a
