@@ -1,5 +1,28 @@
 # Current State
 
+## M3.230 Hosted Supabase reconciliation audit (2026-08-10)
+
+Read-only Supabase MCP inventory confirms target project
+`aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY` on PostgreSQL 17.6.1 in
+`ap-northeast-2`. Hosted migration history is an exact 55-row prefix ending at
+`20260729233017_notification_outbox_foundation`; repository source has 116
+migrations ending at `20260810120000_project_comment_delete_fk_tenant_preservation`.
+The ordered suffix therefore has 61 pending migrations.
+
+Hosted catalog has tenant RLS on listed public tables. Current Cortex graph has
+3 vendor nodes and 0 material nodes. Newer authority tables including document
+processing jobs/evidence, project-comment request ledgers, purchase-order
+workflow requests, cost-entry creation, and customer-invoice draft requests
+are absent. Security advisors report 14 findings (11 warnings); performance
+advisors report 253 findings (1 warning). No SQL, migration repair, hosted data,
+Storage object, provider setting, deployment, or paid action changed.
+
+This closes only the read-only reconciliation refresh. Hosted apply remains
+blocked until backup/restore, isolated full-suffix replay, catalog/data/RLS
+diff, security review, rollback, owner approval, and spend-bounded canary
+evidence exist. Exact next action: obtain approved clone/backup authority or
+continue source-only Nest/UI work; never hand-edit migration history.
+
 ## M3.229 Multi-business master-data universal search (2026-08-10)
 
 Universal Search now indexes tenant-scoped vendor and material catalog records

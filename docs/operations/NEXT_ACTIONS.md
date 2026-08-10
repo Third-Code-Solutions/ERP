@@ -1,6 +1,22 @@
 # Next Actions
 
-## Exact next action after M3.229 multi-business master-data universal search
+## Exact next action after M3.230 hosted Supabase reconciliation refresh
+
+Do not apply or repair hosted migration history. Obtain explicit backup/clone
+authority, restore target into isolated PostgreSQL 17, replay all 116 source
+migrations, compare catalog/data/RLS/functions/audit, rerun zero-skip DB/API and
+rollback gates, then request owner approval with exact SHA and spend ceiling.
+If clone authority is unavailable, continue source-only Nest/UI slices. No
+Supabase, Vercel, or Railway write under current cost lock.
+
+## M3.230 evidence boundary (completed)
+
+Read-only target inventory: healthy project `aqqrtkmtcsfkbyyqxowv`, 55 applied /
+116 source migrations, 61 pending, 3 vendor graph nodes, 0 material graph
+nodes, 14 security advisor findings, and 253 performance findings. Manifest and
+docs refreshed; no hosted state changed.
+
+## Exact next action after M3.229 multi-business master-data universal search (completed)
 
 Select the next smallest source-only ERP boundary. Record API, tenant,
 authorization, state-machine, transaction, idempotency, and audit contracts;

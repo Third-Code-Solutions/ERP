@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-342 - Treat hosted Supabase as a read-only prefix until clone evidence exists (2026-08-10)
+
+Decision: do not apply, repair, or hand-edit hosted migration history while the
+authorized project remains an exact 55-row prefix of the 116-file source ledger.
+The parity manifest may be refreshed from read-only evidence, but SQL execution
+requires backup/clone, isolated replay, catalog/data/RLS diff, rollback, owner
+approval, and spend-bounded canary evidence.
+
+Rationale: the missing suffix contains critical idempotency, workflow, tenant,
+audit, and Cortex authority. Blind or partial apply could create a mixed-version
+ERP and corrupt the release boundary. Supabase's migration guidance also treats
+remote direct schema edits/history repair as synchronization-sensitive.
+
+Validation: project `aqqrtkmtcsfkbyyqxowv` is healthy PostgreSQL 17.6.1; hosted
+55/116; no SQL or provider write occurred. Source-only parity manifest and audit
+record now match the observed head.
+
 ## D-341 - Keep master-data search on the shared tenant/RBAC contract (2026-08-10)
 
 Decision: add vendor and material catalog records to universal search only when

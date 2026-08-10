@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-10 - M3.230 hosted Supabase reconciliation refresh
+
+Used connected Supabase read-only inventory for project
+`aqqrtkmtcsfkbyyqxowv`. Target is `ACTIVE_HEALTHY`, PostgreSQL 17.6.1,
+`ap-northeast-2`; migration ledger is 55 rows ending at
+`20260729233017_notification_outbox_foundation`. Source contains 116 files,
+leaving 61 ordered pending migrations. Catalog confirms RLS on listed public
+tables, 3 vendor Cortex nodes, 0 material nodes, and absent newer authority
+request tables. Advisors report 14 security and 253 performance findings.
+
+Updated parity manifest and reconciliation docs only. No SQL, migration repair,
+hosted data/Storage change, Vercel/Railway deploy, or paid action occurred.
+Next: approved backup/clone and isolated full replay, or continue source-only
+Nest/UI work. Keep hosted writes closed.
+
 ## 2026-08-10 - M3.229 multi-business master-data universal search
 
 Added vendor and material catalog coverage to the shared Universal Search

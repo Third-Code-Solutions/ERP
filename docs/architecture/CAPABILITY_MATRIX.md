@@ -1,5 +1,17 @@
 # Third Code ERP capability matrix
 
+## M3.230 Hosted Supabase reconciliation refresh (2026-08-10)
+
+Read-only inventory confirms target project `aqqrtkmtcsfkbyyqxowv` is healthy
+PostgreSQL 17.6.1 with 55/116 migrations applied; ordered pending suffix is 61
+files through `20260810120000_project_comment_delete_fk_tenant_preservation`.
+Hosted Cortex has 3 vendor nodes and 0 material nodes; newer authority tables
+are absent. Security advisors: 14 findings; performance advisors: 253 findings.
+
+Parity manifest and audit docs refreshed. No hosted SQL, migration repair,
+provider setting, deployment, data, Storage, or paid action. Hosted release is
+not approved; clone/backup/replay/diff/rollback/owner/spend gates remain open.
+
 ## M3.229 Multi-business master-data universal search (2026-08-10)
 
 Vendor and material catalog records are now searchable through the shared

@@ -1,5 +1,21 @@
 # Target State
 
+## M3.230 Hosted Supabase reconciliation gate
+
+Managed parity evidence must compare the exact repository ledger against the
+authorized target without writing SQL. Current target identity is project
+`aqqrtkmtcsfkbyyqxowv`, healthy PostgreSQL 17.6.1, 55 applied migrations, and
+61 ordered pending migrations through source head
+`20260810120000_project_comment_delete_fk_tenant_preservation`.
+
+Apply stays closed while the target is only a prefix and newer authority
+tables are absent. Required evidence remains: restorable backup/clone,
+isolated 116-migration replay, catalog/data/RLS/function diff, zero-skip DB and
+API tests, security-advisor remediation review, rollback proof, exact owner
+approval, and a spend-bounded canary. Read-only advisors currently show 14
+security findings and 253 performance findings; these are not silently
+auto-fixed in production.
+
 ## M3.229 Multi-business master-data universal search
 
 The universal-search contract must cover the shared operational vocabulary
