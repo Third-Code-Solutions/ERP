@@ -7,7 +7,9 @@ Keep `ERP_INVENTORY_RECEIPT_POST_WRITES_ENABLED=false`,
 `ERP_INVENTORY_RECEIPT_REVERSE_WRITES_ENABLED=false`, and
 `ERP_INVENTORY_RECEIPT_REVERSE_WRITES_TENANT_IDS` empty. Focused canaries,
 root source gates, zero-skip disposable PostgreSQL/Redis lane, and full API
-integration passed. Source/docs are pushed under `kurtgav`; do not apply hosted
+integration passed. The implementation source/docs commit is pushed under
+`kurtgav` at `a30bdcbb1ebfac97186ee61b3862fde6a15e279d`; this follow-up
+records the exact source SHA. Do not apply hosted
 SQL or trigger Railway/Vercel builds while spend protection is active. Next,
 reconcile ordered hosted migration suffix, duplicate-data mapping,
 audit-recovery tenant, readiness, exact SHA, rollback, and billing gates before

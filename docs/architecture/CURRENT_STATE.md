@@ -24,8 +24,9 @@ The zero-skip PostgreSQL 17/Redis 7.4.9 lane ran all 117 migrations; database
 tests PASS without skips. No schema migration, runtime selector, hosted
 Supabase SQL/data, Vercel/Railway deployment, provider setting, credential, or
 paid action changed. Keep post/reverse flags false with empty tenant lists.
-Source/docs are committed and pushed under `kurtgav`; exact SHA is recorded in
-the changeset and work log. Exact next action: reconcile hosted parity and
+The implementation source/docs commit is pushed under `kurtgav` at
+`a30bdcbb1ebfac97186ee61b3862fde6a15e279d`; this follow-up records the exact
+source SHA. Exact next action: reconcile hosted parity and
 release gates before any canary or provider action.
 
 ## M3.244 Stock Receipt protected HTTP canary (2026-08-10)
