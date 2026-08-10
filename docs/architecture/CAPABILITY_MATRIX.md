@@ -1,5 +1,18 @@
 # Third Code ERP capability matrix
 
+## M3.234 Project-comment protected local HTTP canary (2026-08-10)
+
+The closed project-comment create/delete seam now has disposable HTTP
+evidence: real identity/capability guards, tenant/project isolation, mention
+resolution, idempotency replay/conflict, request correlation, audited create
+and delete, terminal disabled-tenant behavior, and transaction rollback. Web
+adoption remains disabled and the persisted role matrix is unchanged.
+
+Validation: canary 1/1; disposable PostgreSQL/Redis lane 116 migrations,
+database 149/149 suites and 370/370 tests, API integration 66/66 suites and
+49/49 tests, zero pending/skips, stable schema SHA-256. No hosted or paid
+action.
+
 ## M3.233 Notifications protected local HTTP canary (2026-08-10)
 
 The closed notification read-state seam now has disposable HTTP evidence:

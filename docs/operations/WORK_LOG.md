@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-10 - M3.234 Project-comment protected local HTTP canary
+
+Added `apps/api/integration/project-comments.http.integration.spec.ts`. It
+boots the real Nest project-comment route with Supabase identity and
+capability guards, request-id middleware, both idempotent comment services,
+the audit service, and a transaction-bound disposable database. The canary
+proves missing-auth 401; viewer 403; required and route-matched keys;
+tenant/project scope; mention resolution; replay/conflict; audited create and
+delete; disabled-tenant 503; and rollback with no domain, ledger, or audit
+rows remaining.
+
+Focused canary: 1/1 PASS. Complete disposable environment: 116 migrations;
+database 149/149 suites and 370/370 tests; API integration 66/66 suites and
+49/49 tests; zero pending/skips; schema-before/after SHA-256 both
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+Expected queue dead-letter/failure-path log lines were observed; assertions
+passed.
+
+No hosted Supabase write, Vercel/Railway deployment, provider setting,
+credential, or paid action occurred. Keep all Core selectors false/empty.
+Next: choose the next bounded source-only ERP seam.
+
 ## 2026-08-10 - M3.233 Notifications protected local HTTP canary
 
 Added `apps/api/integration/notifications.http.integration.spec.ts`. It boots
