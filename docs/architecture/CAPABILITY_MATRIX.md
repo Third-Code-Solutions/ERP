@@ -1,5 +1,16 @@
 # Third Code ERP capability matrix
 
+## M3.223 Disposable protected upload-complete runtime (2026-08-10)
+
+The real Web upload route now has disposable evidence for document recording,
+DXF parsing, protected Core HTTP commit, tenant-scoped exact totals, and
+terminal Core failure with zero compatibility-writer scope rows. Storage and
+session are bounded test doubles; hosted provider and browser evidence remain
+open.
+
+Validation: 116 migration replay; database 370/370 with no skips; API
+integration 30/30 files and 45/45 tests; no provider or paid action.
+
 ## M3.222 Disposable parser-to-Core HTTP parity (2026-08-10)
 
 The real Web DXF parser and server-only adapter now cross a real protected Nest

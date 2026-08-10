@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.223 Disposable protected upload-complete runtime (completed, source + disposable)
+
+1. Added a test-only API Vitest alias for the Web auth exports used by the
+   route and server-only Core adapter; production resolution is unchanged.
+2. Added a disposable integration harness using the real Web upload route,
+   real DXF parser, real protected Nest Core controller/guards/service,
+   transaction-bound PostgreSQL, and bounded Storage/session doubles.
+3. Proved successful document recording, parser metadata, tenant-scoped scope
+   totals, and zero draft BOMs. Forced Core offline and proved the route kept
+   the document, returned `processing-unavailable`, and created zero scope
+   rows without invoking the compatibility writer.
+4. Replayed 116 migrations; database tests were 370/370 with no skips and the
+   API integration lane was 30/30 files, 45/45 tests.
+
+This is disposable runtime evidence only. It does not certify Supabase
+Storage credentials/object availability, browser behavior, or a hosted
+canary. No Supabase, Vercel, Railway, deployment, or paid action occurred.
+
+Exact next action: test the Storage contract against a local HTTP-compatible
+stub and capture controlled browser upload evidence while all production
+selectors remain closed.
+
 ## M3.222 Disposable actual parser-to-Core HTTP parity (completed, source + disposable)
 
 1. Added a test-only API Vitest resolver so the cross-package integration can

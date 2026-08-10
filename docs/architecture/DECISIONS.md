@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-333 - Keep upload recording and Core failure terminal (2026-08-10)
+
+Decision: the selected Core upload path may record the document before
+processing, but a Core outage must return a terminal processing-unavailable
+result and create no compatibility scope rows. Keep Storage/session provider
+behavior and browser proof as separate gates.
+
+Rationale: document receipt is useful durable evidence, while silently
+re-entering the legacy writer would make Core non-authoritative and could
+duplicate or mis-scope ERP transactions. A bounded Storage double provides
+deterministic disposable evidence without provider spend.
+
+Validation: real Web `/api/upload/complete`, real DXF fixture, protected Nest
+HTTP, successful scope commit, deliberate Core outage, zero fallback scope,
+116 migration lane, database 370/370, API integration 30/30 files and 45/45
+tests. No hosted or paid action.
+
 ## D-332 - Keep parser-to-Core HTTP proof separate from provider/upload proof (2026-08-10)
 
 Decision: accept the disposable Web parser-to-protected-Core integration as

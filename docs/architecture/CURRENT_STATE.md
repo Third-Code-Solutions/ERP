@@ -1,5 +1,28 @@
 # Current State
 
+## M3.223 Disposable protected upload-complete runtime (2026-08-10)
+
+The disposable integration harness now calls the real Web
+`/api/upload/complete` route with a real DXF fixture, a bounded Storage/session
+double, and a live protected Nest Core HTTP app backed by disposable
+PostgreSQL. A successful upload records the document, parses DXF evidence,
+and commits tenant-scoped scope rows through Core. When Core is deliberately
+made unavailable, the route keeps the document but returns terminal
+`processing-unavailable` state and creates zero scope rows; the compatibility
+writer is not used.
+
+Evidence: upload route integration passed 1/1 inside the full disposable lane;
+the lane replayed 116 migrations, all 370/370 database tests with no skips,
+and 30/30 API integration files (45/45 tests). Redis emitted only the known
+memory-overcommit warning. The provider and browser boundaries remain
+separate: Storage was a bounded test double and no hosted Supabase Storage,
+Vercel, Railway, deployment, or paid action occurred.
+
+Exact next action: add a provider-neutral Storage contract test with a local
+HTTP-compatible stub, then exercise the protected upload flow in a controlled
+browser fixture. Keep all production Core selectors closed and do not run a
+hosted canary under the spend lock.
+
 ## M3.222 Disposable actual Web parser to protected Core HTTP (2026-08-10)
 
 The disposable integration harness now executes the real Web `parseCadEvidence`
