@@ -14,6 +14,7 @@ const FIXTURE = resolve(
   'mep-sample.dxf'
 )
 const SIGNED_STORAGE_PATH = `${PROJECT_ID}/controlled-plan.dxf`
+const CONTROLLED_RESPONSE_DELAY_MS = 1_000
 
 const LOCAL_BASE_URL = /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?$/
 
@@ -27,7 +28,7 @@ test.describe('controlled project document upload', () => {
 
   test('shows progress and terminal Core warning without provider traffic', async ({
     page,
-  }) => {
+  }, testInfo) => {
     const observed = {
       sign: 0,
       storageUpload: 0,
@@ -41,6 +42,48 @@ test.describe('controlled project document upload', () => {
       if (message.type() === 'error') consoleErrors.push(message.text())
     })
     page.on('pageerror', (error) => pageErrors.push(error.message))
+
+    await page.routeWebSocket('ws://127.0.0.1:4328/**', (webSocket) => {
+      webSocket.onMessage((message) => {
+        if (typeof message !== 'string') return
+        let payload: unknown
+        try {
+          payload = JSON.parse(message)
+        } catch {
+          return
+        }
+        if (Array.isArray(payload)) {
+          const [joinRef, ref, topic, event] = payload
+          if (event !== 'heartbeat' && event !== 'phx_join') return
+          webSocket.send(
+            JSON.stringify([
+              joinRef,
+              ref,
+              topic,
+              'phx_reply',
+              { response: {}, status: 'ok' },
+            ])
+          )
+          return
+        }
+        const object = payload as {
+          event?: string
+          join_ref?: string | null
+          ref?: string | null
+          topic?: string
+        }
+        if (object.event !== 'heartbeat' && object.event !== 'phx_join') return
+        webSocket.send(
+          JSON.stringify({
+            event: 'phx_reply',
+            join_ref: object.join_ref ?? null,
+            payload: { response: {}, status: 'ok' },
+            ref: object.ref ?? null,
+            topic: object.topic ?? 'phoenix',
+          })
+        )
+      })
+    })
 
     // Reject every unrecognised Storage request. This prevents a missing route
     // stub from quietly reaching a real Supabase/object-storage endpoint.
@@ -56,7 +99,9 @@ test.describe('controlled project document upload', () => {
       }
 
       observed.storageUpload += 1
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await new Promise((resolve) =>
+        setTimeout(resolve, CONTROLLED_RESPONSE_DELAY_MS)
+      )
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -76,7 +121,9 @@ test.describe('controlled project document upload', () => {
         fileName: 'mep-sample.dxf',
       })
       expect(requestBody.sizeBytes).toBeGreaterThan(0)
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await new Promise((resolve) =>
+        setTimeout(resolve, CONTROLLED_RESPONSE_DELAY_MS)
+      )
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -100,7 +147,9 @@ test.describe('controlled project document upload', () => {
         storagePath: SIGNED_STORAGE_PATH,
         fileName: 'mep-sample.dxf',
       })
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await new Promise((resolve) =>
+        setTimeout(resolve, CONTROLLED_RESPONSE_DELAY_MS)
+      )
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -140,10 +189,13 @@ test.describe('controlled project document upload', () => {
     expect(response?.status()).toBe(200)
     await expect(page.getByTestId('documents-upload-trigger')).toBeVisible()
 
-    await page.getByTestId('documents-file-input').setInputFiles(FIXTURE)
+    const fileSelection = page
+      .getByTestId('documents-file-input')
+      .setInputFiles(FIXTURE)
     await expect(page.getByText('Preparing upload…')).toBeVisible()
     await expect(page.getByText(/Uploading .* to storage…/)).toBeVisible()
     await expect(page.getByText('Finalizing…')).toBeVisible()
+    await fileSelection
     await expect(
       page.getByText(
         'CAD parsed. No scope items were committed because ERP Core rejected the evidence.'
@@ -157,5 +209,29 @@ test.describe('controlled project document upload', () => {
     expect(observed.unexpectedStorage).toEqual([])
     expect(consoleErrors).toEqual([])
     expect(pageErrors).toEqual([])
+
+    const ariaSnapshot = await page.locator('body').ariaSnapshot({ depth: 4 })
+    expect(ariaSnapshot).toContain('Documents')
+    expect(ariaSnapshot).toContain('Upload file')
+    await testInfo.attach('controlled-upload-aria.yml', {
+      body: ariaSnapshot,
+      contentType: 'text/yaml',
+    })
+
+    for (const viewport of [
+      { name: 'desktop', width: 1440, height: 1000 },
+      { name: 'tablet', width: 768, height: 1024 },
+      { name: 'mobile', width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport)
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth
+      )
+      expect(overflow, viewport.name).toBeLessThanOrEqual(1)
+      await page.screenshot({
+        path: testInfo.outputPath(`documents-upload-${viewport.name}.png`),
+        fullPage: true,
+      })
+    }
   })
 })

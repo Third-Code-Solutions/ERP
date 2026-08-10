@@ -223,7 +223,8 @@ export function useCadUpload({
   refreshOnComplete = true,
 }: UseCadUploadOptions): UseCadUploadResult {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [isRefreshPending, startTransition] = useTransition()
+  const [isUploading, setIsUploading] = useState(false)
   const [phase, setPhase] = useState<UploadPhase>('idle')
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
@@ -237,6 +238,8 @@ export function useCadUpload({
 
   const upload = useCallback(
     (file: File) => {
+      if (isUploading) return
+
       if (file.size > MAX_CAD_SIZE_BYTES) {
         setPhase('error')
         setError(
@@ -248,11 +251,12 @@ export function useCadUpload({
 
       setError('')
       setProgress('')
+      setIsUploading(true)
+      setPhase('preparing')
+      setProgress('Preparing upload…')
 
-      startTransition(async () => {
+      void (async () => {
         try {
-          setPhase('preparing')
-          setProgress('Preparing upload…')
           const signed = await signUpload(
             projectId,
             file.name,
@@ -310,19 +314,31 @@ export function useCadUpload({
           }
 
           onComplete?.(finalResult)
-          if (refreshOnComplete) router.refresh()
+          setIsUploading(false)
+          if (refreshOnComplete) {
+            startTransition(() => router.refresh())
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : 'Upload failed'
           setError(message)
           setPhase('error')
           setProgress('')
+          setIsUploading(false)
         }
-      })
+      })()
     },
-    [projectId, onComplete, refreshOnComplete, router]
+    [isUploading, projectId, onComplete, refreshOnComplete, router]
   )
 
-  return { isPending, phase, progress, error, lastResult, upload, reset }
+  return {
+    isPending: isUploading || isRefreshPending,
+    phase,
+    progress,
+    error,
+    lastResult,
+    upload,
+    reset,
+  }
 }
 
 function formatCompactPhp(cents: number): string {

@@ -1,5 +1,26 @@
 # Target State
 
+## M3.227 Controlled upload browser runtime and UX hardening
+
+The project document-upload journey must expose preparing, uploading, and
+finalizing progress while asynchronous work is actually in flight. A
+localhost-only Playwright proof must exercise the real login and Documents
+route against disposable PostgreSQL/Auth/Web state, intercept object storage
+and terminal Core responses, reject unexpected provider traffic, and record
+console, page-error, accessibility, and desktop/tablet/mobile evidence.
+Responsive project navigation must contain its own horizontal overflow rather
+than widening the application viewport. Hosted provider credentials, live
+Storage objects, Core deployment, and production release remain separate
+gates.
+
+## M3.227 Current evidence boundary
+
+The disposable browser proof now passes 1/1 with exactly one sign, object PUT,
+and completion request, zero unexpected Storage requests, zero console/page
+errors, a captured ARIA snapshot, and no more than one pixel responsive
+overflow. The progress hook and Documents subnav fixes are source changes;
+production/hosted behavior is not inferred from this local run.
+
 ## M3.226 Clean E2E typecheck baseline
 
 All repository E2E specs must pass strict TypeScript checking before browser

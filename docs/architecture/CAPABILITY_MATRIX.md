@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.227 Controlled upload browser runtime and UX hardening (2026-08-10)
+
+The real local login and project Documents journey now proves visible
+preparing/uploading/finalizing progress, controlled signed-object upload,
+terminal Core-unavailable messaging, and no unexpected provider traffic.
+The upload hook renders progress outside the long async transition; the
+Documents subnav contains tablet-width overflow.
+
+Validation: disposable PostgreSQL 17.10/Redis runtime; Playwright 1/1; one
+sign, one object PUT, one completion; zero unexpected Storage requests; zero
+console/page errors; ARIA attachment; desktop/tablet/mobile screenshots; <=1
+pixel responsive overflow. No hosted DB, Supabase, Vercel, Railway, or paid
+action.
+
 ## M3.226 E2E typecheck baseline cleanup (2026-08-10)
 
 Existing Cortex and smoke E2E request headers now narrow required environment

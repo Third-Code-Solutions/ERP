@@ -1,5 +1,45 @@
 # Architecture Decisions
 
+## D-337 - Keep upload progress outside the long async transition (2026-08-10)
+
+Decision: `useCadUpload` owns an explicit upload-pending state and updates
+preparing/uploading/finalizing progress synchronously around network steps.
+Only the post-success `router.refresh()` remains inside `useTransition`.
+
+Rationale: React held progress updates made inside one long async transition,
+so users saw a disabled “Uploading” button without stage context. Explicit
+upload state preserves the existing public hook contract while making the
+workflow legible and preventing duplicate selection during the request.
+
+Validation: controlled local browser proof observed all three progress states,
+then terminal Core-unavailable messaging; focused Web and E2E typechecks pass.
+
+## D-338 - Contain project Documents subnav overflow (2026-08-10)
+
+Decision: the Documents page’s secondary tab strip uses a bounded horizontal
+scroll container with non-shrinking tabs. Do not widen the app shell at tablet
+widths or remove the shared project navigation.
+
+Rationale: the duplicate page-level navigation exceeded the content viewport
+by 136 pixels at 768px. Containment keeps all destinations reachable without
+breaking the document page or introducing global overflow.
+
+Validation: controlled browser screenshots and overflow assertions pass at
+1440px, 768px, and 390px with <=1 pixel document overflow.
+
+## D-339 - Keep auth/realtime additions test-harness-only (2026-08-10)
+
+Decision: add password-token CORS and loopback Realtime responses only to the
+disposable `cortex-route-loopback-harness.mjs`; production auth, middleware,
+and provider configuration remain unchanged.
+
+Rationale: the browser proof must exercise the real login client without
+hosted credentials, while Supabase Realtime’s browser connection would
+otherwise produce false local console failures. The harness uses fixed
+non-production identities and loopback-only origins.
+
+Validation: local Playwright 1/1; no hosted request, deployment, or paid action.
+
 ## D-336 - Narrow environment-backed E2E headers after runtime checks (2026-08-10)
 
 Decision: E2E specs keep runtime presence assertions for local Supabase

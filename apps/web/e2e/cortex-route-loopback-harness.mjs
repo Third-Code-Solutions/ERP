@@ -56,6 +56,11 @@ function json(response, status, body) {
   response.writeHead(status, {
     'cache-control': 'no-store',
     'content-type': 'application/json; charset=utf-8',
+    'access-control-allow-origin': WEB_ORIGIN,
+    'access-control-allow-credentials': 'true',
+    'access-control-allow-headers':
+      'apikey, authorization, content-type, x-client-info',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
   })
   response.end(JSON.stringify(body))
 }
@@ -67,8 +72,25 @@ function bearer(request) {
     : ''
 }
 
-const authServer = createServer((request, response) => {
+async function requestBody(request) {
+  const chunks = []
+  for await (const chunk of request) chunks.push(chunk)
+  return Buffer.concat(chunks)
+}
+
+const authServer = createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', AUTH_ORIGIN)
+
+  if (request.method === 'OPTIONS') {
+    response.writeHead(204, {
+      'access-control-allow-origin': WEB_ORIGIN,
+      'access-control-allow-credentials': 'true',
+      'access-control-allow-headers':
+        'apikey, authorization, content-type, x-client-info',
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
+    })
+    return response.end()
+  }
 
   if (url.pathname === '/__harness__/ready') {
     return json(response, 200, { ready: true })
@@ -101,6 +123,36 @@ const authServer = createServer((request, response) => {
       })
     }
     return json(response, 200, user)
+  }
+
+  if (request.method === 'POST' && url.pathname === '/auth/v1/token') {
+    const rawBody = (await requestBody(request)).toString('utf8')
+    let credentials = {}
+    try {
+      credentials = JSON.parse(rawBody)
+    } catch {
+      credentials = Object.fromEntries(new URLSearchParams(rawBody))
+    }
+    const validPassword = credentials.password === 'local-test-password'
+    if (
+      request.headers.apikey !== ANON_KEY ||
+      url.searchParams.get('grant_type') !== 'password' ||
+      credentials.email !== user.email ||
+      !validPassword
+    ) {
+      return json(response, 400, {
+        error: 'invalid_grant',
+        error_description: 'Invalid local contract credentials',
+      })
+    }
+    return json(response, 200, {
+      access_token: ACCESS_TOKEN,
+      token_type: 'bearer',
+      expires_in: 4_102_444_800 - Math.floor(Date.now() / 1000),
+      expires_at: 4_102_444_800,
+      refresh_token: 'local-contract-refresh-token',
+      user,
+    })
   }
 
   if (request.method === 'GET' && url.pathname === '/rest/v1/users') {

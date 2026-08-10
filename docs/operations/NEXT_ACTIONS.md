@@ -1,12 +1,27 @@
 # Next Actions
 
-## Exact next action after M3.226 E2E typecheck cleanup
+## Exact next action after M3.227 controlled upload browser runtime
 
-Start disposable local auth, Web, Core, PostgreSQL, and Storage-compatible
-services. Run `E2E_CONTROLLED_UPLOAD=1` with local credentials/storage state;
-capture upload progress, request payloads, blocked unexpected Storage calls,
-console, page errors, accessibility tree, and responsive screenshots. Do not
-use hosted URLs or real provider credentials.
+Run focused Web tests/lint and the root tests, typecheck, production build,
+provider-spend, Web DB-boundary, workflow-reference, and diff gates. Review
+only the M3.227 source/docs diff, commit and push as `kurtgav`, then verify
+that local and remote branch SHAs match. Do not deploy Vercel/Railway, mutate
+Supabase, or open a Core selector under the spend lock.
+
+## M3.227 evidence boundary (completed)
+
+Disposable PostgreSQL 17.10/Redis, local auth/Web, and controlled Storage/Core
+responses proved the real login and Documents upload journey. Playwright 1/1
+passed with all three progress states, exact request payloads/counts, zero
+unexpected Storage requests, zero console/page errors, an ARIA snapshot, and
+desktop/tablet/mobile screenshots with <=1px overflow. Hosted Auth, Storage,
+Core, database parity, deployment, and billing remain unverified.
+
+## Exact next action after M3.226 E2E typecheck cleanup (completed)
+
+The disposable local runtime and controlled browser proof requested by M3.226
+are now complete under M3.227. Keep the fixture opt-in and localhost-only;
+hosted URLs and real provider credentials remain rejected.
 
 ## Exact next action after M3.225 controlled upload fixture
 
