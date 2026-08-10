@@ -7,6 +7,7 @@ import request from 'supertest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 import { CreateProjectCommentPipe } from './project-comment.pipe'
+import { ProjectCommentListService } from './project-comment-list.service'
 import { ProjectCommentCreationService } from './project-comment-creation.service'
 import { ProjectCommentDeletionService } from './project-comment-deletion.service'
 import { ProjectCommentsController } from './project-comments.controller'
@@ -24,11 +25,19 @@ describe('Project comment creation HTTP contract', () => {
     close = undefined
   })
 
-  async function appFor(create = vi.fn(), remove = vi.fn()) {
+  async function appFor(
+    create = vi.fn(),
+    remove = vi.fn(),
+    list = vi.fn()
+  ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [ProjectCommentsController],
       providers: [
         CreateProjectCommentPipe,
+        {
+          provide: ProjectCommentListService,
+          useValue: { list },
+        },
         { provide: ProjectCommentCreationService, useValue: { create } },
         { provide: ProjectCommentDeletionService, useValue: { delete: remove } },
       ],
@@ -65,6 +74,27 @@ describe('Project comment creation HTTP contract', () => {
       .expect(400)
 
     expect(create).not.toHaveBeenCalled()
+  })
+
+  it('forwards a bounded read query and verified principal to Core', async () => {
+    const list = vi.fn().mockResolvedValue({
+      tenantId: TENANT_ID,
+      projectId: PROJECT_ID,
+      limit: 10,
+      hasMore: false,
+      items: [],
+    })
+    const app = await appFor(vi.fn(), vi.fn(), list)
+
+    await request(app.getHttpServer())
+      .get(`/v1/projects/${PROJECT_ID}/comments?limit=10`)
+      .expect(200)
+
+    expect(list).toHaveBeenCalledWith(
+      PROJECT_ID,
+      { limit: 10 },
+      expect.objectContaining({ userId: USER_ID, tenantId: TENANT_ID })
+    )
   })
 
   it('rejects a body project id that does not match the route', async () => {

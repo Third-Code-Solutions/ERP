@@ -345,6 +345,18 @@ rollback evidence are recorded.
 | `ERP_TODAY_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/today`; exact `true` only |
 | `ERP_TODAY_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## Project comment read cutover (NestJS, disabled by default)
+
+The project Comments page may opt into the bounded, tenant/project-scoped Nest
+read contract for one controlled tenant. The default remains the existing
+server-side query; keep the flag disabled until protected HTTP/browser,
+deployment identity, and rollback evidence are recorded.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_PROJECT_COMMENT_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects/:id/comments`; exact `true` only |
+| `ERP_PROJECT_COMMENT_READS_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist; wildcard rejected; default empty |
+
 ## CRM account collection read cutover (NestJS, disabled by default)
 
 The Accounts page may opt into the bounded, tenant-scoped Nest account list

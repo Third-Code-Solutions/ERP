@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.235 Project-comment read authority (completed, source-only)
+
+1. Added the shared strict query/result contract, list pipe, and tenant/project
+   scoped Nest `GET /v1/projects/:projectId/comments` service/controller.
+2. Added controller, shared-contract, and protected disposable HTTP evidence;
+   the HTTP canary proves 401/400/404 boundaries, exact tenant/project scope,
+   bounded ordering/pagination, and newest-comment visibility after the
+   existing create/replay path.
+3. Added a Web Core adapter and exact-tenant fail-closed selector while
+   preserving the direct compatibility query. The selector defaults to false
+   and rejects wildcard allowlists.
+4. Validation: shared 2/2; API controller 6/6; protected HTTP 1/1; Web 7/7;
+   root tests 173 files/750 tests; typecheck, production build, and lint;
+   disposable PostgreSQL/Redis 116 migrations, database 149/149 suites and
+   370/370 tests, API 66/66 suites and 49/49 tests, zero pending/skips, and
+   equal schema SHA-256
+   `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No schema migration or hosted/provider action occurred. Keep the project
+comment selector and all other Core selectors closed. Exact next action:
+choose the next smallest source-only ERP seam; hosted parity, protected
+browser evidence, production cutover, rollback, and spend approval remain
+required.
+
 ## M3.234 Project-comment protected local HTTP canary (completed, source + disposable)
 
 1. Added `apps/api/integration/project-comments.http.integration.spec.ts`

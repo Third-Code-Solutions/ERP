@@ -1,5 +1,25 @@
 # Work Log
 
+## 2026-08-10 - M3.235 Project-comment read authority
+
+Added the strict shared project-comment list contract and the Nest
+`GET /v1/projects/:projectId/comments` read service/controller. Core repeats
+tenant/project scope, orders by `created_at desc, id desc`, bounds the limit,
+and returns `hasMore`; the Web adapter validates the exact tenant/project
+scope and fails closed. The direct Web query remains available while
+`ERP_PROJECT_COMMENT_READS_VIA_API=false` and its allowlist is empty.
+
+Focused evidence: shared 2/2; API controller 6/6; protected HTTP canary 1/1;
+Web 7/7. Root `pnpm test`: 173 files / 750 tests PASS. Root typecheck,
+production build, and lint PASS. Disposable lane: 116 migrations; database
+149/149 suites and 370/370 tests; API integration 66/66 suites and 49/49
+tests; zero pending/skips; schema-before/after SHA-256 both
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+Expected queue failure-path log lines were observed; assertions passed. No
+Supabase write, Vercel/Railway deployment, provider setting, credential, or
+paid action occurred. Next: choose the next bounded source-only ERP seam.
+
 ## 2026-08-10 - M3.234 Project-comment protected local HTTP canary
 
 Added `apps/api/integration/project-comments.http.integration.spec.ts`. It

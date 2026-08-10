@@ -1,5 +1,24 @@
 # Target State
 
+## M3.235 Project-comment read authority
+
+The project comments surface has a reviewed, bounded Core read contract:
+`GET /v1/projects/:projectId/comments?limit={1..100}`. Nest owns exact tenant
+and project authorization, deterministic newest-first ordering, bounded
+pagination, author projection, and strict response serialization. The Web
+adapter validates tenant/project/item scope and fails closed on malformed Core
+responses; the direct query remains a compatibility fallback until a tenant
+canary is explicitly opened.
+
+M3.235 records the local gate as shared 2/2, API controller 6/6, protected
+HTTP 1/1, Web client 7/7, root 173/173 files and 750/750 tests, and a complete
+zero-skip disposable PostgreSQL/Redis environment with 116 migrations,
+149/149 database suites and 370/370 tests, 66/66 API integration suites and
+49/49 tests, and equal schema hashes. Keep
+`ERP_PROJECT_COMMENT_READS_VIA_API=false` and its allowlist empty until hosted
+parity, readiness, protected browser evidence, rollback, and spend approval
+exist.
+
 ## M3.234 Project-comment authority evidence
 
 Before any tenant opens Core project-comment writes, the source release must

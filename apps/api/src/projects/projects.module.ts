@@ -14,6 +14,8 @@ import { CostEntryDeletionService } from './cost-entry-deletion.service'
 import { DeleteCostEntryPipe } from './delete-cost-entry.pipe'
 import { RestoreCostEntryPipe } from './restore-cost-entry.pipe'
 import { ProjectCommentsController } from './project-comments.controller'
+import { ProjectCommentListPipe } from './project-comment-list.pipe'
+import { ProjectCommentListService } from './project-comment-list.service'
 import { ProjectCommentCreationService } from './project-comment-creation.service'
 import { ProjectCommentDeletionService } from './project-comment-deletion.service'
 import { CreateProjectCommentPipe } from './project-comment.pipe'
@@ -34,7 +36,9 @@ import { CreateProjectCommentPipe } from './project-comment.pipe'
     RestoreCostEntryPipe,
     ProjectCommentCreationService,
     ProjectCommentDeletionService,
+    ProjectCommentListService,
     CreateProjectCommentPipe,
+    ProjectCommentListPipe,
   ],
 })
 export class ProjectsModule implements NestModule {

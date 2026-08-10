@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Headers,
   HttpCode,
   HttpStatus,
@@ -10,11 +11,14 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common'
 import type {
   CreateProjectCommentCommand,
   ProjectCommentCreationResult,
   ProjectCommentDeletionResult,
+  ProjectCommentListQuery,
+  ProjectCommentListResult,
 } from '@third-code-erp/shared-types'
 import {
   CurrentPrincipal,
@@ -22,6 +26,8 @@ import {
 } from '../auth/current-principal.decorator'
 import { RequireCapabilities } from '../auth/capability.guard'
 import { CreateProjectCommentPipe } from './project-comment.pipe'
+import { ProjectCommentListPipe } from './project-comment-list.pipe'
+import { ProjectCommentListService } from './project-comment-list.service'
 import { ProjectCommentCreationService } from './project-comment-creation.service'
 import { ProjectCommentDeletionService } from './project-comment-deletion.service'
 
@@ -31,8 +37,20 @@ export class ProjectCommentsController {
     @Inject(ProjectCommentCreationService)
     private readonly comments: ProjectCommentCreationService,
     @Inject(ProjectCommentDeletionService)
-    private readonly deletions: ProjectCommentDeletionService
+    private readonly deletions: ProjectCommentDeletionService,
+    @Inject(ProjectCommentListService)
+    private readonly lists: ProjectCommentListService
   ) {}
+
+  @Get(':projectId/comments')
+  @RequireCapabilities('project.read')
+  list(
+    @Param('projectId', new ParseUUIDPipe()) projectId: string,
+    @Query(new ProjectCommentListPipe()) query: ProjectCommentListQuery,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<ProjectCommentListResult> {
+    return this.lists.list(projectId, query, principal)
+  }
 
   @Post(':projectId/comments')
   @HttpCode(HttpStatus.CREATED)

@@ -30,6 +30,7 @@ import {
 import { RequestObservabilityMiddleware } from '../src/observability/request-observability.middleware'
 import { ProjectCommentCreationService } from '../src/projects/project-comment-creation.service'
 import { ProjectCommentDeletionService } from '../src/projects/project-comment-deletion.service'
+import { ProjectCommentListService } from '../src/projects/project-comment-list.service'
 import { CreateProjectCommentPipe } from '../src/projects/project-comment.pipe'
 import { ProjectCommentsController } from '../src/projects/project-comments.controller'
 
@@ -160,6 +161,8 @@ suite('Project comments protected HTTP canary', () => {
           author_id: authorA,
           body: 'Delete this correction note.',
           mentions: [],
+          created_at: new Date('2026-08-09T10:00:00.000Z'),
+          updated_at: new Date('2026-08-09T10:00:00.000Z'),
         },
       ])
 
@@ -199,6 +202,7 @@ suite('Project comments protected HTTP canary', () => {
           CreateProjectCommentPipe,
           ProjectCommentCreationService,
           ProjectCommentDeletionService,
+          ProjectCommentListService,
           AuditService,
           SupabaseJwtGuard,
           CapabilityGuard,
@@ -238,6 +242,56 @@ suite('Project comments protected HTTP canary', () => {
 
       const body = `Delivery is ready for @project-comment-mention-a-${suffix}@integration.test.`
       try {
+        await request(app.getHttpServer())
+          .get(`/v1/projects/${projectA}/comments`)
+          .expect(401)
+
+        const initialRead = await request(app.getHttpServer())
+          .get(`/v1/projects/${projectA}/comments?limit=1`)
+          .set('Authorization', 'Bearer viewer-a-token')
+          .expect(200)
+        expect(initialRead.body).toMatchObject({
+          tenantId: tenantA,
+          projectId: projectA,
+          limit: 1,
+          hasMore: false,
+        })
+        expect(initialRead.body.items).toHaveLength(1)
+        expect(initialRead.body.items[0]).toMatchObject({
+          id: commentToDelete,
+          tenantId: tenantA,
+          projectId: projectA,
+          authorId: authorA,
+          body: 'Delete this correction note.',
+        })
+
+        await request(app.getHttpServer())
+          .get(`/v1/projects/${projectA}/comments?limit=101`)
+          .set('Authorization', 'Bearer viewer-a-token')
+          .expect(400)
+
+        await request(app.getHttpServer())
+          .get(`/v1/projects/${projectA}/comments?tenantId=${tenantA}`)
+          .set('Authorization', 'Bearer viewer-a-token')
+          .expect(400)
+
+        await request(app.getHttpServer())
+          .get(`/v1/projects/${projectB}/comments`)
+          .set('Authorization', 'Bearer pm-a-token')
+          .expect(404)
+
+        const tenantBRead = await request(app.getHttpServer())
+          .get(`/v1/projects/${projectB}/comments`)
+          .set('Authorization', 'Bearer pm-b-token')
+          .expect(200)
+        expect(tenantBRead.body).toMatchObject({
+          tenantId: tenantB,
+          projectId: projectB,
+          limit: 100,
+          hasMore: false,
+          items: [],
+        })
+
         await request(app.getHttpServer())
           .post(`/v1/projects/${projectA}/comments`)
           .send({ projectId: projectA, body })
@@ -288,6 +342,22 @@ suite('Project comments protected HTTP canary', () => {
           .send({ projectId: projectA, body })
           .expect(201)
         expect(replayResponse.body).toEqual(createResponse.body)
+
+        const populatedRead = await request(app.getHttpServer())
+          .get(`/v1/projects/${projectA}/comments?limit=1`)
+          .set('Authorization', 'Bearer viewer-a-token')
+          .expect(200)
+        expect(populatedRead.body).toMatchObject({
+          tenantId: tenantA,
+          projectId: projectA,
+          limit: 1,
+          hasMore: true,
+        })
+        expect(populatedRead.body.items[0]).toMatchObject({
+          id: createResponse.body.commentId,
+          body,
+          mentions: [mentionA],
+        })
 
         await request(app.getHttpServer())
           .post(`/v1/projects/${projectA}/comments`)
