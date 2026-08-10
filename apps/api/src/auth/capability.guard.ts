@@ -48,6 +48,7 @@ export const ERP_CAPABILITIES = [
   'finance.issue_invoice',
   'finance.manage_cash',
   'provider.quota.consume',
+  'notification.read',
 ] as const
 export type ErpCapability = (typeof ERP_CAPABILITIES)[number]
 
@@ -250,6 +251,21 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
   // Every authenticated ERP role may consume a bounded provider budget. The
   // quota key remains tenant/user scoped; this capability grants no ERP write.
   'provider.quota.consume': [
+    'owner',
+    'estimator',
+    'pm',
+    'admin',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+    'viewer',
+  ],
+  'notification.read': [
     'owner',
     'estimator',
     'pm',

@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-324 - Core owns authenticated notification read state (2026-08-10)
+
+Decision: expose `GET/POST /v1/notifications` behind `notification.read`.
+Nest derives tenant and recipient user from the verified principal, filters
+both predicates on every query/update, and writes a semantic audit event in
+the same transaction for mark-read operations. Web may select this authority
+only for an exact UUID tenant; selected-Core failure is terminal; defaults are
+closed.
+
+Rationale: notification rows are user-directed operational evidence and the
+legacy Next route directly updates them. Moving only the read-state boundary
+reduces trust in the Web database path without changing notification creation,
+delivery queues, or public contracts. The strict shared contract prevents
+malformed links/identifiers from crossing the Core seam.
+
+Validation: focused shared/API/Web tests and typechecks passed; root and
+disposable replay/hosted evidence remain pending. No hosted or paid action.
+
 ## D-323 - Core owns the bank reconciliation read projection (2026-08-10)
 
 Decision: expose `GET /v1/finance/reconciliation` from Nest Core with

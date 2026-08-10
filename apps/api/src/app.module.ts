@@ -25,6 +25,7 @@ import { AssetsModule } from './assets/assets.module'
 import { CortexModule } from './cortex/cortex.module'
 import { AdminModule } from './admin/admin.module'
 import { SearchModule } from './search/search.module'
+import { NotificationsModule } from './notifications/notifications.module'
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { SearchModule } from './search/search.module'
     CortexModule,
     SearchModule,
     AdminModule,
+    NotificationsModule,
   ],
   controllers: [HealthController],
   providers: [
