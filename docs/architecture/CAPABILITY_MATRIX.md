@@ -1,5 +1,18 @@
 # Third Code ERP capability matrix
 
+## M3.235 Project-comment read authority (2026-08-10)
+
+The project comments page now has a reviewed Core read adapter with strict
+tenant/project scope, bounded pagination, deterministic ordering, and
+fail-closed response validation. The selector is disabled by default and the
+direct query remains the compatibility path.
+
+Validation: shared read 2/2; API controller 6/6; protected HTTP canary 1/1;
+Web client 7/7; root 173/173 files and 750/750 tests; typecheck, build, and
+lint PASS; disposable PostgreSQL/Redis lane 116 migrations, database 149/149
+suites and 370/370 tests, API integration 66/66 suites and 49/49 tests, zero
+pending/skips, stable schema SHA-256. No hosted or paid action.
+
 ## M3.234 Project-comment protected local HTTP canary (2026-08-10)
 
 The closed project-comment create/delete seam now has disposable HTTP

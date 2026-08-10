@@ -100,9 +100,11 @@ import {
   type ProjectCreationResult,
   projectCommentCreationResultSchema,
   projectCommentDeletionResultSchema,
+  projectCommentListResultSchema,
   type CreateProjectCommentCommand,
   type ProjectCommentCreationResult,
   type ProjectCommentDeletionResult,
+  type ProjectCommentListResult,
   type RfqCreationResult,
   type RfqDispatchResult,
   type RfqQuoteResult,
@@ -405,6 +407,15 @@ export function projectCommentDeleteWritesUseCoreApi(
     tenantId,
     process.env.ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API,
     process.env.ERP_PROJECT_COMMENT_DELETE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+/** Project discussion reads stay closed until a protected tenant canary exists. */
+export function projectCommentReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_PROJECT_COMMENT_READS_VIA_API,
+    process.env.ERP_PROJECT_COMMENT_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -4727,6 +4738,64 @@ export async function createProjectCommentThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No project comment was created.',
+      status: 503,
+    }
+  }
+}
+
+export async function getProjectCommentsThroughCoreApi(
+  projectId: string,
+  limit = 100
+): Promise<CoreResult<ProjectCommentListResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams({ limit: String(limit) })
+    const response = await fetch(
+      `${access.baseUrl}/v1/projects/${encodeURIComponent(
+        projectId
+      )}/comments?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Project comment list filters are invalid.'
+            : response.status === 404
+              ? 'Project not found.'
+              : 'Project comments were not read.',
+        status: response.status,
+      }
+    }
+
+    const parsed = projectCommentListResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid project comment list result.',
+        status: response.status,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Project comments were not read.',
       status: 503,
     }
   }

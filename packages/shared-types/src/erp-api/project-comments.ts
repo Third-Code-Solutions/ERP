@@ -50,3 +50,45 @@ export type DeleteProjectCommentCommand = z.infer<
 export type ProjectCommentDeletionResult = z.infer<
   typeof projectCommentDeletionResultSchema
 >
+
+/** Bounded, tenant-scoped project discussion read. */
+export const projectCommentListQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).default(100),
+  })
+  .strict()
+
+export const projectCommentListItemSchema = z
+  .object({
+    id: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    authorId: z.string().uuid().nullable(),
+    authorName: z.string().nullable(),
+    authorEmail: z.string().email().nullable(),
+    body: z.string().min(1).max(10_000),
+    mentions: z.array(z.string().uuid()),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .strict()
+
+export const projectCommentListResultSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    limit: z.number().int().min(1).max(100),
+    hasMore: z.boolean(),
+    items: z.array(projectCommentListItemSchema).max(100),
+  })
+  .strict()
+
+export type ProjectCommentListQuery = z.infer<
+  typeof projectCommentListQuerySchema
+>
+export type ProjectCommentListItem = z.infer<
+  typeof projectCommentListItemSchema
+>
+export type ProjectCommentListResult = z.infer<
+  typeof projectCommentListResultSchema
+>

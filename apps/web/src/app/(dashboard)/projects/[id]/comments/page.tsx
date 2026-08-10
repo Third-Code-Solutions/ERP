@@ -7,6 +7,10 @@ import { projectComments, projects, users } from '@third-code-erp/database/schem
 import { and, desc, eq } from 'drizzle-orm'
 import { CommentThread, type CommentThreadItem } from '@/components/comments/comment-thread'
 import { CommentComposer } from '@/components/comments/comment-composer'
+import {
+  getProjectCommentsThroughCoreApi,
+  projectCommentReadsUseCoreApi,
+} from '@/lib/erp-core-client'
 
 export const metadata: Metadata = { title: 'Comments' }
 
@@ -44,34 +48,66 @@ export default async function ProjectCommentsPage({
 
   if (!project) return notFound()
 
-  const rows = await db
-    .select({
-      id: projectComments.id,
-      author_id: projectComments.author_id,
-      body: projectComments.body,
-      created_at: projectComments.created_at,
-      author_email: users.email,
-      author_full_name: users.full_name,
-    })
-    .from(projectComments)
-    .leftJoin(users, eq(projectComments.author_id, users.id))
-    .where(
-      and(
-        eq(projectComments.project_id, id),
-        eq(projectComments.tenant_id, userRow.tenant_id)
-      )
-    )
-    .orderBy(desc(projectComments.created_at))
-    .limit(MAX_COMMENTS)
+  const comments: CommentThreadItem[] = projectCommentReadsUseCoreApi(
+    userRow.tenant_id
+  )
+    ? await (async () => {
+        const result = await getProjectCommentsThroughCoreApi(id, MAX_COMMENTS)
+        if (!result.ok || !result.data) {
+          throw new Error(result.error ?? 'Project comments were not read')
+        }
+        if (
+          result.data.tenantId !== userRow.tenant_id ||
+          result.data.projectId !== id ||
+          result.data.items.length > MAX_COMMENTS ||
+          result.data.items.some(
+            (comment) =>
+              comment.tenantId !== userRow.tenant_id ||
+              comment.projectId !== id
+          )
+        ) {
+          throw new Error('ERP Core API returned an invalid comment scope')
+        }
+        return result.data.items.map((comment) => ({
+          id: comment.id,
+          authorId: comment.authorId,
+          authorName:
+            comment.authorName ?? comment.authorEmail ?? 'Removed user',
+          authorEmail: comment.authorEmail,
+          body: comment.body,
+          createdAt: new Date(comment.createdAt),
+        }))
+      })()
+    : await (async () => {
+        const rows = await db
+          .select({
+            id: projectComments.id,
+            author_id: projectComments.author_id,
+            body: projectComments.body,
+            created_at: projectComments.created_at,
+            author_email: users.email,
+            author_full_name: users.full_name,
+          })
+          .from(projectComments)
+          .leftJoin(users, eq(projectComments.author_id, users.id))
+          .where(
+            and(
+              eq(projectComments.project_id, id),
+              eq(projectComments.tenant_id, userRow.tenant_id)
+            )
+          )
+          .orderBy(desc(projectComments.created_at))
+          .limit(MAX_COMMENTS)
 
-  const comments: CommentThreadItem[] = rows.map((row) => ({
-    id: row.id,
-    authorId: row.author_id,
-    authorName: row.author_full_name ?? row.author_email ?? 'Removed user',
-    authorEmail: row.author_email,
-    body: row.body,
-    createdAt: row.created_at,
-  }))
+        return rows.map((row) => ({
+          id: row.id,
+          authorId: row.author_id,
+          authorName: row.author_full_name ?? row.author_email ?? 'Removed user',
+          authorEmail: row.author_email,
+          body: row.body,
+          createdAt: row.created_at,
+        }))
+      })()
 
   const baseHref = `/projects/${id}`
 

@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-347 - Require project-comment read authority canary before read cutover (2026-08-10)
+
+Decision: add a bounded Nest read authority for project comments, but keep Web
+adoption behind an exact-tenant, fail-closed selector. The Core path must
+repeat tenant/project predicates, enforce a bounded limit, serialize a strict
+shared contract, and prove unauthorized, malformed, cross-tenant, and
+pagination cases against disposable PostgreSQL before any tenant canary opens.
+The direct Web query remains the compatibility path while the selector is
+false.
+
+Rationale: project discussion is tenant-private operational evidence. Moving
+the read authority incrementally removes critical database logic from the
+React page without a big-bang rewrite or a billing-sensitive production
+change. Exact selector gating preserves rollback and mixed-version safety.
+
+Validation: shared read 2/2; API controller 6/6; protected HTTP canary 1/1;
+Web client 7/7; root 173 files/750 tests; full disposable database 149/149
+suites and 370/370 tests; API integration 66/66 suites and 49/49 tests; zero
+pending/skips; schema hash unchanged. No hosted/provider write or paid action
+occurred.
+
 ## D-346 - Require project-comment authority canary before write cutover (2026-08-10)
 
 Decision: treat the local project-comment create/delete canary as the release

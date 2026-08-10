@@ -1,5 +1,26 @@
 # Next Actions
 
+## Exact next action after M3.235 Project-comment read authority
+
+Choose the next smallest source-only ERP boundary. Preserve tenant,
+authorization, state-machine, transaction, idempotency, audit, and rollback
+contracts; implement the narrowest change; then run focused checks, root source
+gates, and the disposable PostgreSQL/Redis lane. Keep
+`ERP_PROJECT_COMMENT_READS_VIA_API=false` and its tenant allowlist empty,
+project-comment writes closed, and all other Core selectors false/empty. Do
+not mutate Supabase or trigger Vercel/Railway builds while the spend lock is
+active.
+
+## M3.235 evidence boundary (completed)
+
+The protected project-comment read canary passed 1/1, with shared 2/2, API
+controller 6/6, Web 7/7, and root 173/173 files / 750/750 tests. The full
+disposable environment passed 116 migrations, database 149/149 suites and
+370/370 tests, API integration 66/66 suites and 49/49 tests, zero
+pending/skips, and unchanged schema SHA-256. Hosted selector, browser
+production canary, provider state, deployment, and billing remain unverified
+and intentionally untouched.
+
 ## Exact next action after M3.234 Project-comment protected local HTTP canary
 
 Choose the next smallest source-only ERP boundary. Preserve tenant,
