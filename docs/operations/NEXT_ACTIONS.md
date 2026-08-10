@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.225 controlled upload fixture
+
+Keep fixture opt-in and localhost-only. Start disposable local auth, Web, Core,
+PostgreSQL, and Storage-compatible runtime; provide non-production test
+credentials or storage state; run with `E2E_CONTROLLED_UPLOAD=1`. Capture
+progress states, request payloads, blocked unexpected Storage calls, console,
+page errors, accessibility tree, and desktop/tablet/mobile screenshots. Fix
+existing E2E type errors separately before claiming browser gate green. Do not
+use hosted URLs or real provider credentials.
+
 ## Exact next action after M3.224 Storage contract
 
 Keep production Core selectors false/empty and Supabase/Vercel/Railway spend

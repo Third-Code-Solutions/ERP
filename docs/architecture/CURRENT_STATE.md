@@ -1,5 +1,24 @@
 # Current State
 
+## M3.225 Controlled upload-flow browser fixture (2026-08-10)
+
+Added a gated Playwright fixture for the project document upload UI. It
+intercepts sign, signed-object PUT, and completion responses, rejects any
+unexpected Storage request, asserts preparing/uploading/finalizing progress,
+and verifies terminal Core-unavailable messaging without real provider traffic.
+The fixture refuses non-local base URLs and is disabled unless
+`E2E_CONTROLLED_UPLOAD=1`.
+
+Current evidence is fixture registration only: the default run recorded one
+intentional skip because the local authenticated runtime was not enabled. Full
+E2E TypeScript checking remains red on pre-existing unrelated files
+(`cortex-focused-local.spec.ts` and `smoke-console.spec.ts`). No production
+selector, credential, provider, deployment, or paid action changed.
+
+Exact next action: run this fixture against a disposable local authenticated
+Web/Core runtime, then capture browser console, network, accessibility, and
+responsive evidence. Keep non-local URLs rejected.
+
 ## M3.224 Provider-neutral document Storage contract (2026-08-10)
 
 CAD evidence now consumes a server-only `DocumentStorage` contract rather than
