@@ -7,7 +7,7 @@ It boots the real Nest Stock Receipt post/reverse controller/service with
 Supabase identity and capability guards and a transaction-bound disposable
 PostgreSQL client. The canary proves missing/invalid auth, strict command and
 `Idempotency-Key` validation, viewer denial, disabled-tenant fail-closed
-behavior, cross-tenant concealment, draft→posted→reversed state transitions,
+behavior, cross-tenant concealment, draft-to-posted-to-reversed state transitions,
 balanced journal/stock-ledger effects, PO quantity unwind, replay/key conflict,
 semantic audit, forced-RLS/service-only request access, and rollback.
 
@@ -21,8 +21,10 @@ The disposable PostgreSQL 17/Redis 7.4.9 lane ran 117 migrations, database
 149/149 suites and 370/370 tests, and API integration 41/41 files and 57/57
 tests with zero skips. No schema or runtime selector changed. Hosted Supabase,
 Railway, Vercel, provider settings, credentials, and paid actions were not
-touched. Keep both post/reverse flags/lists false/empty. Source/docs are
-pushed under `kurtgav`; exact SHA is in the changeset. Next: reconcile hosted
+touched. Keep both post/reverse flags/lists false/empty. The implementation
+source/docs commit is pushed under `kurtgav` at
+`a30bdcbb1ebfac97186ee61b3862fde6a15e279d`; this follow-up records the exact
+source SHA. Next: reconcile hosted
 parity/release blockers without triggering a provider build.
 
 ## 2026-08-10 - M3.244 Stock Receipt protected HTTP canary

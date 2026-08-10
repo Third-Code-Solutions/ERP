@@ -7,7 +7,7 @@
    service, real Supabase identity/capability guards, audit service, and
    transaction-bound disposable PostgreSQL client.
 2. Proved 401/400/403/404/409/503 boundaries, strict command/header handling,
-   tenant concealment, explicit draft→posted→reversed transitions, balanced
+   tenant concealment, explicit draft-to-posted-to-reversed transitions, balanced
    journal and stock-ledger effects, PO received-quantity update/rollback,
    semantic audit, forced-RLS/service-only workflow-request access, replay/key
    conflict, and outer transaction rollback.
@@ -23,9 +23,12 @@
    lint, and production build pass. No schema, hosted/provider state, runtime
    selector, or paid action changed.
 
-Keep both post/reverse write flags false and tenant lists empty. Source/docs
-are pushed under `kurtgav`; exact SHA is recorded in the changeset. Exact next
-action: reconcile hosted parity and release gates before any provider action.
+Keep both post/reverse write flags false and tenant lists empty. The
+implementation source/docs commit is pushed under `kurtgav` at
+`a30bdcbb1ebfac97186ee61b3862fde6a15e279d`; this follow-up records the exact
+source SHA.
+Exact next action: reconcile hosted parity and release gates before any
+provider action.
 
 ## M3.244 Stock Receipt protected HTTP canary (completed, source-only)
 
