@@ -4,6 +4,10 @@ import { eq, and, inArray, lt, gt, gte, lte, sum, count, sql, asc, desc, isNull 
 import { computeProjectCostSnapshot } from '@third-code-erp/shared-types/cost'
 import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 import { manilaBoundaries } from '@/lib/operations/cadence-engine'
+import {
+  getTodayThroughCoreApi,
+  todayReadsUseCoreApi,
+} from '@/lib/erp-core-client'
 
 export interface KpiData {
   activeTcv: number
@@ -105,6 +109,24 @@ export async function getTodayCommandCenter(
   now = new Date(),
   includeProjects = false
 ): Promise<TodayCommandCenterData> {
+  if (todayReadsUseCoreApi(tenantId)) {
+    const result = await getTodayThroughCoreApi(includeProjects)
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Today data was not read')
+    }
+    return {
+      summary: result.data.summary,
+      tasks: result.data.tasks.map((task) => ({
+        ...task,
+        dueDate: new Date(task.dueDate),
+      })),
+      projects: result.data.projects.map((project) => ({
+        ...project,
+        updatedAt: new Date(project.updatedAt),
+      })),
+    }
+  }
+
   const todayEnd = manilaBoundaries.endOfDay(now)
   const weekEnd = new Date(todayEnd.getTime() + 7 * 86_400_000)
 

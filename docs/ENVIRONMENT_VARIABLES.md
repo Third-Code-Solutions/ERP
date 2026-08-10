@@ -332,6 +332,19 @@ deployment identity, and rollback evidence are recorded.
 | `ERP_PROJECT_LISTS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects`; exact `true` only |
 | `ERP_PROJECT_LISTS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## Today/Project Command Center read cutover (NestJS, disabled by default)
+
+The dashboard Today surface may opt into the tenant-scoped Nest `GET
+/v1/today` read contract for one controlled tenant. The default remains the
+existing server-side direct query. Keep this disabled until protected local
+HTTP evidence, exact Core deployment identity, data/Redis readiness, and
+rollback evidence are recorded.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_TODAY_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/today`; exact `true` only |
+| `ERP_TODAY_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
 ## CRM account collection read cutover (NestJS, disabled by default)
 
 The Accounts page may opt into the bounded, tenant-scoped Nest account list

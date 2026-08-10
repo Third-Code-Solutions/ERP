@@ -1,5 +1,34 @@
 # Current State
 
+## M3.231 Today/Project Command Center Nest read seam (2026-08-10)
+
+Source now exposes a read-only Nest `GET /v1/today` contract for the existing
+Today surface. The shared result is bounded and serializes timestamps; Core
+uses its server clock and Manila UTC+8 boundaries, repeats tenant and current
+assignee predicates for every task/count query, and only returns the optional
+project context when requested and authorized. The Web server can select this
+authority only through `ERP_TODAY_READS_VIA_API=true` plus a strict tenant
+allowlist; unset/false keeps the existing direct query, so no production
+behavior changed.
+
+Focused shared/API/Web tests pass (shared 51 files/317 tests, API Today 5
+files/8 tests, Web Today client 3 tests), API/Web typechecks pass, and the
+sequential root lint and production build pass (Nest webpack, Next 82 pages).
+The standalone API unit lane passes 173 files/749 tests with a single fork and
+15-second timeout; Web passes 110 files/759 tests. The concurrent `pnpm test`
+attempt had 8 unrelated 5-second HTTP-test timeouts while 164 API files/739
+tests passed; this is recorded as a load-sensitive root gate, not hidden.
+The disposable lane remains green: 116 migrations, database 149/149 files and
+370/370 tests with zero skips, API integration 30/30 files and 45/45 tests,
+and equal schema SHA-256
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No database migration, Supabase SQL/data/Storage change, Vercel/Railway
+deployment, provider setting, or paid action occurred. Exact next action:
+keep the Today canary closed, add protected local route evidence if needed,
+then select the next source-only ERP seam; hosted parity/apply remains blocked
+by M3.230.
+
 ## M3.230 Hosted Supabase reconciliation audit (2026-08-10)
 
 Read-only Supabase MCP inventory confirms target project

@@ -1,5 +1,24 @@
 # Next Actions
 
+## Exact next action after M3.231 Today read seam
+
+Keep `ERP_TODAY_READS_VIA_API=false` and its tenant allowlist empty. Run a
+protected local HTTP canary against the disposable Core/PostgreSQL/Redis
+runtime, including cross-tenant, other-assignee, role, and project-context
+negative cases; record exact API identity and rollback behavior. If that gate
+passes, choose the next smallest source-only ERP boundary. Do not mutate
+Supabase, deploy Vercel/Railway, or incur provider spend.
+
+## M3.231 evidence boundary (completed)
+
+Today/Project Command Center now has a shared strict contract, Nest read
+authority, server Manila time, tenant/assignee scoping, optional authorized
+projects, and a disabled-by-default Web canary. Focused tests, package tests,
+typechecks, lint, build, and the disposable zero-skip lane passed. Hosted
+selector, protected live browser proof, provider state, deployment, and billing
+remain unverified. The concurrent root test command was load-sensitive; the
+standalone API rerun passed 173 files/749 tests.
+
 ## Exact next action after M3.230 hosted Supabase reconciliation refresh
 
 Do not apply or repair hosted migration history. Obtain explicit backup/clone

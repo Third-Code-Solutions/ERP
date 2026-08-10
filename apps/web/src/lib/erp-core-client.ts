@@ -239,6 +239,8 @@ import {
   type CortexSearchResult,
   universalSearchResultSchema,
   type UniversalSearchResult,
+  todayCommandCenterResultSchema,
+  type TodayCommandCenterResult,
   cortexGraphResponseSchema,
   type CortexGraphQuery,
   type CortexGraphResponse,
@@ -374,6 +376,15 @@ export function projectListsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_PROJECT_LISTS_VIA_API,
     process.env.ERP_PROJECT_LISTS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Today is a read-only canary; false/unset keeps the existing direct query. */
+export function todayReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_TODAY_READS_VIA_API,
+    process.env.ERP_TODAY_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -3371,6 +3382,59 @@ export async function getProjectsThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Project list was not read.',
+    }
+  }
+}
+
+export async function getTodayThroughCoreApi(
+  includeProjects = false
+): Promise<CoreResult<TodayCommandCenterResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const params = new URLSearchParams({
+      includeProjects: String(includeProjects),
+    })
+    const response = await fetch(
+      `${access.baseUrl}/v1/today?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 403
+            ? 'You do not have permission to read Today.'
+            : 'Today data was not completed.',
+        status: response.status,
+      }
+    }
+
+    const parsed = todayCommandCenterResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Today result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Today data was not read.',
     }
   }
 }

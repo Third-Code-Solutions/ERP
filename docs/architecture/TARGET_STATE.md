@@ -1,5 +1,22 @@
 # Target State
 
+## M3.231 Today/Project Command Center read authority
+
+The dashboard Today surface has one reviewed Core read contract:
+`GET /v1/today?includeProjects={true|false}`. Nest owns server time and Manila
+day boundaries, tenant/assignee predicates, bounded result sizes (8 tasks, 6
+projects), and capability checks. The browser never supplies tenant identity
+or `asOf`; a shared Zod contract rejects unknown fields and invalid response
+shapes. Project context is an explicit optional capability-bearing expansion,
+not an accidental role bypass.
+
+Web adoption is a tenant-scoped, fail-closed canary controlled by
+`ERP_TODAY_READS_VIA_API` and `ERP_TODAY_READS_VIA_API_TENANT_IDS`, defaulting to
+the current direct read. Required before opening the canary: protected local
+HTTP evidence, exact Core deployment identity, database/Redis readiness,
+tenant-crossing and assignee-negative cases, rollback observation, and a
+spend-bounded owner approval. No hosted selector is open now.
+
 ## M3.230 Hosted Supabase reconciliation gate
 
 Managed parity evidence must compare the exact repository ledger against the

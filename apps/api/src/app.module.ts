@@ -26,6 +26,7 @@ import { CortexModule } from './cortex/cortex.module'
 import { AdminModule } from './admin/admin.module'
 import { SearchModule } from './search/search.module'
 import { NotificationsModule } from './notifications/notifications.module'
+import { TodayModule } from './today/today.module'
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { NotificationsModule } from './notifications/notifications.module'
     SearchModule,
     AdminModule,
     NotificationsModule,
+    TodayModule,
   ],
   controllers: [HealthController],
   providers: [

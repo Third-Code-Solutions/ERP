@@ -52,6 +52,7 @@ export * from './erp-api/togal-bom'
 export * from './erp-api/opportunity-project-conversion'
 export * from './erp-api/user-role-assignment'
 export * from './erp-api/project-comments'
+export * from './erp-api/today'
 // BOM calculations exported via './bom' subpath to avoid BasisPoints conflict
 export {
   lineTotal,
