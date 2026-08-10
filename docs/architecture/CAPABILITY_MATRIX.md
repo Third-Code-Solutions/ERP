@@ -1,5 +1,16 @@
 # Third Code ERP capability matrix
 
+## M3.238 CRM accounts protected local HTTP canary (2026-08-10)
+
+The existing CRM account list/detail/KYC read authorities now have disposable
+HTTP evidence for identity, `account.read`, `account.kyc_review`, bounded
+filters, exact related-record scope, cross-tenant concealment, and rollback.
+Web adoption remains unchanged and closed by default.
+
+Validation: protected canary 1/1; root 173/173 files and 750/750 tests;
+typecheck 5/5, lint 2/2, production build PASS; disposable PostgreSQL/Redis
+lane 116 migrations and zero-skip suites PASS; no hosted or paid action.
+
 ## M3.237 Project command-center read authority (2026-08-10)
 
 The project detail command center now has a bounded Nest read authority with

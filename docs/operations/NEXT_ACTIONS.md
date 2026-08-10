@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.238 CRM accounts protected local HTTP canary
+
+Choose the next smallest source-only ERP boundary. Preserve tenant,
+authorization, state-machine, transaction, idempotency, audit, and rollback
+contracts; implement only the narrow seam; then run focused checks, root
+source gates, and the disposable PostgreSQL/Redis lane. Keep account and all
+other Core selectors false/empty, preserve direct compatibility paths, and do
+not mutate Supabase or trigger Vercel/Railway builds while the spend lock is
+active.
+
+## M3.238 evidence boundary (completed)
+
+The protected account canary passed 1/1 and proved identity, viewer access,
+finance-only KYC review, bounded list queries, exact related-record scope,
+cross-tenant concealment, and rollback. Root tests/typecheck/lint/build passed;
+the disposable 116-migration PostgreSQL/Redis lane passed with zero skips and
+the canary passed again directly against that runtime. Hosted selector,
+browser production canary, provider state, deployment, and billing remain
+unverified and intentionally untouched.
+
 ## Exact next action after M3.237 Project command-center read authority
 
 Choose the next smallest source-only ERP boundary. Preserve tenant,

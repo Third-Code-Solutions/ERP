@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-350 - Require CRM accounts canary before read cutover (2026-08-10)
+
+Decision: use a protected disposable HTTP canary as the release gate for the
+existing CRM account list, detail, and KYC queue authorities. The gate must
+exercise the real identity and capability guards, bounded query parsing,
+tenant predicates across related contact/opportunity/project/KYC reads,
+cross-tenant concealment, finance-only KYC review, and transaction rollback.
+Keep the Web compatibility path and account Core selectors closed until
+hosted parity, readiness, protected browser evidence, rollback, and spend
+approval are separately approved.
+
+Rationale: accounts are the commercial root for opportunities and projects;
+an account graph leak would disclose downstream tenant-private records. Unit
+tests prove query construction but not the route guard chain. A rollback-only
+HTTP canary advances the modular-monolith boundary without changing runtime
+behavior or consuming provider budget.
+
+Validation: focused canary 1/1; root 173 files/750 tests; typecheck 5/5,
+lint 2/2, production build PASS; disposable PostgreSQL/Redis lane PASS after
+116 migrations with zero skips; direct canary rerun 1/1; schema unchanged.
+No hosted/provider write or paid action occurred.
+
 ## D-349 - Require project command-center canary before read cutover (2026-08-10)
 
 Decision: add a bounded Nest command-center read authority, but keep Web
