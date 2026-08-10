@@ -1,5 +1,16 @@
 # Web Database Boundary Review
 
+## M3.216 CAD evidence adapter
+
+The server-only Web client can now call Nest CAD evidence authority for an
+exact tenant, with strict worker-response validation and terminal selected-Core
+errors. It is not connected to `upload/complete`; Web parser/scope/BOM writes
+remain compatibility behavior until parity and rollback evidence exist. The
+static route inventory is unchanged and still intentionally lists the
+temporary direct write path. Root tests, lint, typecheck, production build,
+boundary, migration, workflow-reference, provider-spend, and diff gates pass;
+runtime replay and protected/hosted proof remain open.
+
 ## M3.215 DocuSeal webhook authority update
 
 The callback now has a closed exact-tenant Web selector and server-to-server

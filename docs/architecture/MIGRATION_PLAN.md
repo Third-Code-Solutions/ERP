@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.216 Web-to-Nest CAD evidence adapter (completed, source-only)
+
+1. Added an exact UUID Web selector for CAD evidence authority, rejecting
+   wildcard selection and keeping the default false/empty.
+2. Added a server-only adapter for the existing Nest evidence endpoint. It
+   validates worker response identity/count/shape before fetch, forwards the
+   authenticated session and idempotency key, validates strict Core results,
+   and exposes terminal errors without a fallback write.
+3. Left the existing upload/parser path unchanged. No tenant can reach this
+   adapter until a separate parser, auto-BOM, response-parity, and rollback
+   canary is reviewed.
+
+Focused adapter 4/4; root tests (shared 315, API 736, Web 745), lint,
+typecheck, production build (82/82 routes), Web DB-boundary, migration
+files-only, workflow-reference, provider-spend, and diff checks pass. Parser
+parity, disposable replay, protected browser proof, and hosted/provider proof
+remain unavailable. No migration, hosted row, provider, deployment, or paid
+action.
+
+Exact next action: push source only; keep
+`ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and its tenant allowlist empty.
+
 ## M3.215 Core-owned DocuSeal webhook transaction (completed, source-only)
 
 1. Added strict shared event/document/result schemas with HTTP URL, bounded

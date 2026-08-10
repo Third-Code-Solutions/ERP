@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.216 Web-to-Nest CAD evidence adapter (2026-08-10)
+
+The Web server now exposes a closed exact-tenant adapter to the existing Nest
+CAD evidence commit authority. Worker document identity/count are validated
+before fetch; Core owns the official scope transaction, idempotency, totals,
+and audit. The upload/parser route remains compatibility-authoritative and no
+canary is approved.
+
+Validation: adapter 4/4; root tests (shared 315, API 736, Web 745), lint,
+typecheck, production build (82/82 routes), Web DB-boundary, migration
+files-only, workflow-reference, provider-spend, and diff checks passed.
+Parser parity, disposable PostgreSQL/RLS replay, protected browser proof, and
+hosted/provider evidence remain open. No hosted or paid action occurred.
+
 ## M3.215 Core-owned DocuSeal webhook transaction (2026-08-10)
 
 DocuSeal completion now has a strict, secret-authenticated Nest transaction
