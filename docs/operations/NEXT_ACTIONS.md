@@ -1,5 +1,12 @@
 # Next Actions
 
+## Exact next action after M3.211 Web graph compatibility hardening
+
+Run the focused Web graph route tests and root lint/build. Keep all canaries and
+hosted provider actions closed. Push only the reviewed source/docs commit.
+After Docker health is real, replay PostgreSQL/Redis and compare Core/Web graph
+coverage and malformed-row behavior under protected tenants.
+
 ## Exact next action after M3.210 resilient graph projection
 
 Keep all hosted/provider/canary flags closed. Docker Desktop processes exist,

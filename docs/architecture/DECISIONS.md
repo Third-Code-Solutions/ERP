@@ -1,5 +1,15 @@
 # Architecture Decisions
 
+## D-321 - Keep Web/Core Cortex graph degradation identical (2026-08-10)
+
+Decision: the Web compatibility graph route must call the shared graph
+sanitizers before returning direct-path results. Core and Web therefore retain
+the same valid nodes/links and conceal invalid focused graphs identically.
+
+Rationale: an incremental authority migration cannot create different trust or
+failure semantics for the same tenant. Raw Web fallback data would bypass the
+source-contract hardening already required of Core.
+
 ## D-320 - Sanitize Cortex graph rows before response assembly (2026-08-10)
 
 Decision: graph authorities use a shared sanitizer that drops malformed nodes,

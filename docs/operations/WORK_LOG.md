@@ -1,5 +1,15 @@
 # Work Log
 
+## 2026-08-10 - M3.211 Web Cortex compatibility sanitizer
+
+Wired `/api/cortex/graph` direct reads through the shared graph sanitizers and
+added malformed whole-graph/focused-row regressions. Web/Core graph failure
+semantics now match; no UI, business write, migration, hosted row, provider,
+deployment, or paid action changed.
+
+Validation: Web graph route tests 10/10, Web typecheck, and root lint/build
+passed. Exact next action: push the source-only compatibility hardening.
+
 ## 2026-08-10 - M3.210 resilient Core Cortex graph projection
 
 Added shared whole/focused graph sanitizers and wired Core graph reads through

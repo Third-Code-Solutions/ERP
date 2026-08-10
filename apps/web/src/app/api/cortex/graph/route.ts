@@ -5,7 +5,11 @@ import {
   getCortexGraph,
   getCortexNodeByRef,
 } from '@third-code-erp/database'
-import { cortexGraphQuerySchema } from '@third-code-erp/shared-types'
+import {
+  cortexFocusedGraphResultFromRows,
+  cortexGraphQuerySchema,
+  cortexGraphResultFromRows,
+} from '@third-code-erp/shared-types'
 import { cortexEntityDefinition } from '@/lib/cortex/entity-registry'
 import { cortexCanSeeType, cortexNodeTypeScope } from '@/lib/cortex/rbac'
 import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
@@ -74,13 +78,14 @@ export async function GET(req: NextRequest) {
       40,
       scope
     )
-    if (!graph) {
+    const sanitized = cortexFocusedGraphResultFromRows(graph)
+    if (!sanitized) {
       return response({ error: 'Focused record not found' }, 404)
     }
-    return response(graph)
+    return response(sanitized)
   }
 
   // RBAC: only the node types this role may see (admin/owner = unrestricted).
   const graph = await getCortexGraph(profile.tenantId, 1500, scope)
-  return response(graph)
+  return response(cortexGraphResultFromRows(graph))
 }

@@ -56,7 +56,16 @@ describe('Cortex focused graph authorization', () => {
     })
     mocks.getCortexFocusedGraph.mockResolvedValue({
       focusNodeId: NODE_ID,
-      nodes: [{ id: NODE_ID }],
+      nodes: [
+        {
+          id: NODE_ID,
+          type: 'journal_entry',
+          title: 'Journal 1042',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
       links: [],
     })
     mocks.cortexGraphReadsUseCoreApi.mockReturnValue(false)
@@ -84,6 +93,47 @@ describe('Cortex focused graph authorization', () => {
       expect.arrayContaining(['journal_entry'])
     )
     expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
+  })
+
+  it('sanitizes malformed whole-graph rows on the compatibility path', async () => {
+    mocks.getCortexGraph.mockResolvedValue({
+      nodes: [
+        {
+          id: NODE_ID,
+          type: 'journal_entry',
+          title: 'Journal 1042',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+        {
+          id: 'not-a-uuid',
+          type: 'journal_entry',
+          title: 'Malformed',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
+      links: [{ source: NODE_ID, target: 'not-a-uuid', type: 'bad' }],
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      nodes: [
+        {
+          id: NODE_ID,
+          type: 'journal_entry',
+          title: 'Journal 1042',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
+      links: [],
+    })
   })
 
   it('rejects partial or malformed focus before database access', async () => {
@@ -136,6 +186,30 @@ describe('Cortex focused graph authorization', () => {
       error: 'Focused record not found',
     })
     expect(mocks.getCortexFocusedGraph).not.toHaveBeenCalled()
+  })
+
+  it('conceals a focused graph whose focus row fails sanitization', async () => {
+    mocks.getCortexFocusedGraph.mockResolvedValue({
+      focusNodeId: NODE_ID,
+      nodes: [
+        {
+          id: 'not-a-uuid',
+          type: 'journal_entry',
+          title: 'Malformed focus',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
+      links: [],
+    })
+
+    const response = await request(
+      `?refTable=journal_entries&refId=${REF_ID}`
+    )
+
+    expect(response.status).toBe(404)
+    expectPrivate(response)
   })
 
   it('rejects a node type that does not own the requested source', async () => {
