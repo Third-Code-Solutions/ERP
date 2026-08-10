@@ -1,5 +1,15 @@
 # Work Log
 
+## 2026-08-10 - M3.226 E2E typecheck baseline cleanup
+
+Fixed strict-header typing in existing `cortex-focused-local.spec.ts` and
+`smoke-console.spec.ts` by explicitly narrowing required local Supabase values
+after runtime checks. Full `e2e/tsconfig.json` typecheck now passes.
+
+Controlled upload remains intentionally skipped without disposable local
+auth/Web/Core services. No hosted DB, provider, deployment, credential, or
+paid action. Next: run controlled browser fixture locally and capture evidence.
+
 ## 2026-08-10 - M3.225 controlled upload-flow browser fixture
 
 Added `documents-upload-controlled.spec.ts`, a localhost-only opt-in Playwright
@@ -8,9 +18,8 @@ rejects unexpected Storage traffic, asserts visible upload progress and
 terminal Core-unavailable messaging, and captures console/page errors.
 
 Validation: default Playwright run registered one intentional skip. Full E2E
-typecheck remains red on existing unrelated `cortex-focused-local.spec.ts` and
-`smoke-console.spec.ts` header typing errors. `playwright-cli` wrapper could not
-start because WSL2 virtualization is unavailable. No hosted DB, provider,
+typecheck is clean after M3.226. `playwright-cli` wrapper could not start
+because WSL2 virtualization is unavailable. No hosted DB, provider,
 deployment, credential, or paid action. Next: disposable local authenticated
 runtime and real fixture run.
 

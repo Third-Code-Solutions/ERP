@@ -1,5 +1,13 @@
 # Third Code ERP capability matrix
 
+## M3.226 E2E typecheck baseline cleanup (2026-08-10)
+
+Existing Cortex and smoke E2E request headers now narrow required environment
+values explicitly. Full `apps/web/e2e/tsconfig.json` typecheck passes; browser
+runtime still requires disposable local auth/Web/Core services.
+
+Validation: E2E TypeScript PASS; no provider or paid action.
+
 ## M3.225 Controlled upload-flow browser fixture (2026-08-10)
 
 Fixture source covers local-only sign/upload/complete interception, progress,
@@ -8,8 +16,8 @@ console/page-error assertions. Runtime browser evidence is pending; default
 run intentionally skips unless explicitly enabled with a disposable local
 authenticated runtime.
 
-Validation: Playwright registered one skipped test. Full E2E typecheck has
-pre-existing unrelated failures. No provider or paid action.
+Validation: Playwright registered one skipped test. Full E2E typecheck now
+passes after M3.226. No provider or paid action.
 
 ## M3.224 Provider-neutral document Storage contract (2026-08-10)
 

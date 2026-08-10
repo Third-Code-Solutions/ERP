@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-336 - Narrow environment-backed E2E headers after runtime checks (2026-08-10)
+
+Decision: E2E specs keep runtime presence assertions for local Supabase
+configuration, then use explicit non-null narrowing for request headers and
+URLs. Do not weaken strict TypeScript or silently substitute placeholder
+credentials.
+
+Rationale: compile-time strictness catches malformed test requests, while
+runtime checks preserve clear skip/fail behavior when local credentials are
+absent. This makes browser evidence trustworthy without touching production
+auth behavior.
+
+Validation: full `apps/web/e2e/tsconfig.json` typecheck passed. Controlled
+upload remains opt-in and skipped without disposable local auth. No provider or
+paid action.
+
 ## D-335 - Keep upload browser evidence local and opt-in (2026-08-10)
 
 Decision: controlled upload browser tests may run only against localhost or
@@ -13,8 +29,7 @@ proves client progress and terminal Core messaging without billing or data
 mutation; hosted evidence stays a separately approved gate.
 
 Validation: fixture registered; default run intentionally skipped. Full E2E
-typecheck remains blocked by existing unrelated header typing errors. No
-provider or paid action.
+typecheck is clean after M3.226. No provider or paid action.
 
 ## D-334 - Keep document processing behind a provider-neutral Storage contract (2026-08-10)
 

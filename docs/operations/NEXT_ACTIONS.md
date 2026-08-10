@@ -1,5 +1,13 @@
 # Next Actions
 
+## Exact next action after M3.226 E2E typecheck cleanup
+
+Start disposable local auth, Web, Core, PostgreSQL, and Storage-compatible
+services. Run `E2E_CONTROLLED_UPLOAD=1` with local credentials/storage state;
+capture upload progress, request payloads, blocked unexpected Storage calls,
+console, page errors, accessibility tree, and responsive screenshots. Do not
+use hosted URLs or real provider credentials.
+
 ## Exact next action after M3.225 controlled upload fixture
 
 Keep fixture opt-in and localhost-only. Start disposable local auth, Web, Core,
