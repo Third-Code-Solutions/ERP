@@ -1,5 +1,39 @@
 # Current State
 
+## M3.207 closed Nest Core universal-search adapter (2026-08-10)
+
+The repository now contains a source-only, closed-by-default Nest Core
+universal-search read seam at `GET /v1/search`. Core validates the bounded
+shared query/result contract, requires the existing `cortex.search` capability,
+derives tenant, role, and user scope from the verified principal, and reads
+only the tenant-scoped derived Cortex graph. A canonical shared role/entity
+matrix prevents Web/Core policy drift. Task hits additionally require the
+verified principal to be the graph assignee. Results contain only safe relative
+hrefs and bounded metadata; unknown or malformed graph sources are skipped.
+
+The Web compatibility route has an exact-UUID tenant selector and calls Core
+only when both source and Web flags are enabled. A selected-Core failure is
+terminal (503); Web never falls back to direct database reads after authority
+selection. All four selector flags remain closed by default and no canary is
+enabled. The adapter is a bounded graph-indexed foundation, not complete
+direct-table parity; graph backfill/parity is still required before activation.
+
+Validation: shared universal-search additions 4/4 and full shared suite
+47 files/302 tests passed; API focused search specs 5/5, full API suite
+161 files/716 tests passed, typecheck and build passed; Web search route 14/14,
+Core client 154 tests, and full Web suite 104 files/727 tests passed; root lint
+passed; root production build passed with `NEXT_PRIVATE_BUILD_WORKER=0`.
+Serial Turbo tests passed all packages; the default concurrent `pnpm test`
+had eight pre-existing 5-second HTTP/e2e timeouts, and those eight files
+passed isolated at one worker (35/35). Database integration/RLS tests requiring
+`DATABASE_URL` remain skipped. Boundary, parity, clean-room, spend, and
+release-plan guards passed. No database, hosted row, migration, provider,
+Vercel/Railway deployment, or paid action changed.
+
+Exact next action: restore disposable PostgreSQL/Redis evidence, replay and
+backfill the graph, then run protected tenant/role/assignee/no-fallback browser
+and API checks before considering an exact tenant canary.
+
 ## M3.206 universal search partial-result contract (2026-08-10)
 
 Universal search now uses one strict shared result contract for the Web

@@ -289,6 +289,35 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_CORTEX_SEARCH_TENANT_IDS')
   })
 
+  it('keeps universal search reads disabled and tenant-scoped by default', () => {
+    expect(
+      validateEnvironment(REQUIRED).ERP_UNIVERSAL_SEARCH_READS_ENABLED
+    ).toBe(false)
+    expect(
+      validateEnvironment(REQUIRED).ERP_UNIVERSAL_SEARCH_READS_TENANT_IDS
+    ).toEqual([])
+
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_UNIVERSAL_SEARCH_READS_ENABLED: 'true',
+        ERP_UNIVERSAL_SEARCH_READS_TENANT_IDS:
+          '22222222-2222-4222-8222-222222222222',
+      })
+    ).toMatchObject({
+      ERP_UNIVERSAL_SEARCH_READS_ENABLED: true,
+      ERP_UNIVERSAL_SEARCH_READS_TENANT_IDS: [
+        '22222222-2222-4222-8222-222222222222',
+      ],
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_UNIVERSAL_SEARCH_READS_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_UNIVERSAL_SEARCH_READS_TENANT_IDS')
+  })
+
   it('keeps Cortex brief reads disabled and tenant-scoped by default', () => {
     expect(validateEnvironment(REQUIRED).ERP_CORTEX_BRIEF_READS_ENABLED).toBe(
       false

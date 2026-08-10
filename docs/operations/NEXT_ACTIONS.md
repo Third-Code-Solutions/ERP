@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.207 universal-search Core seam
+
+Keep all four flags closed:
+`ERP_UNIVERSAL_SEARCH_READS_ENABLED=false`,
+`ERP_UNIVERSAL_SEARCH_READS_TENANT_IDS=[]`,
+`ERP_UNIVERSAL_SEARCH_READS_VIA_API=false`, and
+`ERP_UNIVERSAL_SEARCH_READS_VIA_API_TENANT_IDS=[]`. Do not run `supabase db
+push`, repair migration history, create a paid branch, enable a canary, or
+deploy Vercel/Railway.
+
+Restore a disposable PostgreSQL 17/Redis runtime and replay the full source
+migration ledger. Backfill and compare every graph-indexed search source,
+then run no-skip database/API integration plus protected browser checks for
+tenant, canonical role, task assignee, capability, malformed source, exact
+tenant selection, and terminal selected-Core failure. Collect release identity,
+readiness, rollback, and spend evidence before selecting one exact tenant.
+
+Current source validation is recorded in M3.207: serial Turbo tests, typechecks,
+lint, production build, boundary/parity/clean-room/spend/release-plan guards
+passed; default concurrent `pnpm test` had eight environment-sensitive timeout
+files that passed isolated one-worker; DB/RLS integration is still unverified.
+
 ## Exact next action after M3.206 universal search contract
 
 Root lint, full tests, production build, clean-room tests, managed-parity

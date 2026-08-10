@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-317 - Gate Core universal-search reads by exact tenant and never fall back (2026-08-10)
+
+Decision: implement the first Nest Core universal-search seam as a disabled,
+tenant-scoped read adapter over the existing Cortex graph projection. Require
+the verified `cortex.search` capability and derive tenant, role, user, and task
+assignee scope from the authenticated principal. Share one canonical
+role/entity policy and bounded query/result schemas with Web. Enable Core only
+for exact UUID tenant selectors; if selected Core fails, return a terminal
+error rather than re-entering direct Web database reads.
+
+Rationale: authority selection must be auditable and fail closed during the
+incremental modular-monolith migration. The graph is the only existing Core
+read projection in this slice, so direct-table parity and backfill are explicit
+preconditions instead of hidden fallback behavior. Wildcards, client-supplied
+tenant/role scope, external hrefs, SQL diagnostics, and malformed sources are
+rejected or omitted.
+
+Validation: API search specs 5/5, Web route/client regressions, full serial
+Turbo suite, typechecks, lint, and production build passed; database/RLS
+integration remains unverified without `DATABASE_URL`. No hosted or paid
+action.
+
 ## D-316 - Make universal search completeness explicit (2026-08-10)
 
 Decision: share a strict, navigation-safe universal-search result contract
