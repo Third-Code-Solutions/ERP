@@ -12,20 +12,23 @@ idempotent replay/key conflict, tenant-scoped receipt/line persistence,
 semantic audit, RLS with browser privileges revoked, and rollback.
 
 Focused Stock Receipt database plus HTTP canaries: 2/2 PASS. Root
-`pnpm test`: API 173 files/751 tests and shared 54 files/323 tests PASS;
-typecheck 5/5, lint 2/2, and production build (82/82 pages) PASS. The
-zero-skip PostgreSQL 17/Redis 7.4.9 lane remains 117 migrations; database
-149/149 suites and 370/370 tests plus API integration 40/40 files and 56/56
-tests PASS. No schema migration, runtime selector, hosted Supabase SQL/data,
-Vercel/Railway deployment, provider setting, credential, or paid action
-changed. Existing `stock_receipt_create_requests` has RLS enabled and no
+`pnpm test`: API 173 files/751 tests, Web 111 files/768 tests, and shared 54
+files/323 tests PASS; the database package reported 63/67 files and 227/370
+tests with 143 expected environment skips because the root command had no
+`DATABASE_URL`. Typecheck 5/5, lint 2/2, and production build (82/82 pages)
+PASS. The zero-skip PostgreSQL 17/Redis 7.4.9 lane ran all 117 migrations;
+database 149/149 suites and 370/370 tests plus API integration 40/40 files and
+56/56 tests PASS without skips. No schema migration, runtime selector, hosted
+Supabase SQL/data, Vercel/Railway deployment, provider setting, credential, or
+paid action changed. Existing `stock_receipt_create_requests` has RLS enabled and no
 `anon`/`authenticated` table privileges; it is not `FORCE ROW LEVEL SECURITY`
 in the current source migration. Treat any force-RLS hardening as a separate
 reviewed migration. Keep
 `ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED` false and
-`ERP_INVENTORY_RECEIPT_CREATE_WRITES_TENANT_IDS` empty. Exact next action:
-push reviewed source/docs, then reconcile hosted parity and release gates
-before any canary or provider action.
+`ERP_INVENTORY_RECEIPT_CREATE_WRITES_TENANT_IDS` empty. Source/docs are
+committed and pushed at `09c5b5f0910ebb92afd65fbf5675f42e74c001aa`. Exact next
+action: reconcile hosted parity and release gates before any canary or provider
+action.
 
 ## M3.243 Asset maintenance protected HTTP canary (2026-08-10)
 

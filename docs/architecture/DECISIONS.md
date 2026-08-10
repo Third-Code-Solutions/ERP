@@ -21,11 +21,13 @@ The current create-request migration enables RLS and revokes `anon` and
 that actual contract; force-RLS hardening is a separate migration decision,
 not an implicit test rewrite.
 
-Validation: focused database plus HTTP canaries passed 2/2; root tests,
-typecheck, lint, build, disposable 117-migration PostgreSQL/Redis lane, and
-40-file/56-test API integration lane passed without skips. No schema
-migration, Supabase SQL, Vercel/Railway action, provider setting, credential,
-or paid action occurred.
+Validation: focused database plus HTTP canaries passed 2/2; API 173/173,
+Web 111/111, and shared 54/54 root test files passed. The root database package
+had 143 expected environment skips without `DATABASE_URL`; the disposable
+117-migration PostgreSQL/Redis lane reran all 370 database tests and the
+40-file/56-test API integration lane with zero skips. Typecheck, lint, and
+production build passed. No schema migration, Supabase SQL, Vercel/Railway
+action, provider setting, credential, or paid action occurred.
 
 ## D-355 -- Require protected asset-maintenance HTTP evidence before cutover (2026-08-10)
 

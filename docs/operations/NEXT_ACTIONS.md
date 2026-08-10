@@ -5,12 +5,13 @@
 Keep `ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED=false` and
 `ERP_INVENTORY_RECEIPT_CREATE_WRITES_TENANT_IDS` empty. Focused canaries, root
 source gates, zero-skip disposable PostgreSQL/Redis lane, and full API
-integration have passed. Push only reviewed source/docs branch under `kurtgav`;
-do not apply hosted SQL or trigger Railway/Vercel builds while spend protection
-is active. Then reconcile ordered hosted migration suffix, duplicate-data
-mapping, audit-recovery tenant, readiness, exact SHA, rollback, and billing
-gates before one explicitly spend-bounded canary. Force-RLS hardening for the
-create-request table is separate work and not part of this release.
+integration have passed. Reviewed source/docs are pushed under `kurtgav` at
+`09c5b5f0910ebb92afd65fbf5675f42e74c001aa`; do not apply hosted SQL or trigger
+Railway/Vercel builds while spend protection is active. Next, reconcile ordered
+hosted migration suffix, duplicate-data mapping, audit-recovery tenant,
+readiness, exact SHA, rollback, and billing gates before one explicitly
+spend-bounded canary. Force-RLS hardening for the create-request table is
+separate work and not part of this release.
 
 ## M3.244 evidence boundary (completed)
 
