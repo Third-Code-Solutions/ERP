@@ -16,10 +16,11 @@ draft creation:
   replay, key conflict, receipt-line persistence, semantic audit, RLS/browser
   privilege boundaries, and rollback.
 - Focused database plus HTTP canaries: 2/2 PASS. Root API 173/173 files and
-  751/751 tests, shared 54/54 files and 323/323 tests, typecheck 5/5, lint
-  2/2, production build 82/82 pages, disposable 117-migration lane with
-  database 149/149 suites and 370/370 tests, and API integration 40/40 files
-  and 56/56 tests all passed without skips.
+  751/751 tests, Web 111/111 files and 768/768 tests, and shared 54/54 files
+  and 323/323 tests passed. The root database package had 143 expected
+  environment skips without `DATABASE_URL`; the disposable 117-migration lane
+  reran database 149/149 suites and 370/370 tests plus API integration 40/40
+  files and 56/56 tests with zero skips.
 
 ## Release boundary
 

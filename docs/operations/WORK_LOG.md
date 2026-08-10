@@ -12,16 +12,18 @@ conflict, receipt/line persistence, semantic audit, RLS/browser privilege
 boundaries, and rollback.
 
 Validation: focused database plus HTTP canaries 2/2 PASS; root API 173 files/
-751 tests and shared 54 files/323 tests; typecheck 5/5, lint 2/2, production
-build 82/82 pages; disposable PostgreSQL 17/Redis 7.4.9 lane 117 migrations,
-database 149/149 suites and 370/370 tests, API integration 40/40 files and
-56/56 tests, zero skips. Initial canary found a test savepoint proxy flaw and
-an over-strong force-RLS assertion; both were corrected to mirror real nested
-rollback and current migration contract. No schema or runtime selector
-changed. Hosted Supabase, Railway, Vercel, provider settings, credentials, and
-paid actions were not touched. Keep receipt-create flag/list false/empty.
-Next: push once under `kurtgav`, then reconcile hosted parity/release blockers
-without triggering a provider build.
+751 tests, Web 111 files/768 tests, and shared 54 files/323 tests; typecheck
+5/5, lint 2/2, production build 82/82 pages. The root database package had 143
+expected environment skips without `DATABASE_URL`; the disposable PostgreSQL
+17/Redis 7.4.9 lane ran 117 migrations, database 149/149 suites and 370/370
+tests, and API integration 40/40 files and 56/56 tests with zero skips. Initial
+canary found a test savepoint proxy flaw and an over-strong force-RLS assertion;
+both were corrected to mirror real nested rollback and current migration
+contract. No schema or runtime selector changed. Hosted Supabase, Railway,
+Vercel, provider settings, credentials, and paid actions were not touched.
+Keep receipt-create flag/list false/empty. Source/docs are now pushed under
+`kurtgav` at `09c5b5f0910ebb92afd65fbf5675f42e74c001aa`. Next: reconcile hosted
+parity/release blockers without triggering a provider build.
 
 ## 2026-08-10 - M3.243 Asset maintenance protected HTTP canary
 
