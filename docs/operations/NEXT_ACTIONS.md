@@ -1,5 +1,26 @@
 # Next Actions
 
+## Exact next action after M3.237 Project command-center read authority
+
+Choose the next smallest source-only ERP boundary. Preserve tenant,
+authorization, state-machine, transaction, idempotency, audit, and rollback
+contracts; implement only the narrow seam; then run focused checks, root
+source gates, and the disposable PostgreSQL/Redis lane. Keep
+`ERP_PROJECT_COMMAND_CENTER_READS_VIA_API=false` with an empty tenant
+allowlist, all other Core selectors false/empty, and do not mutate Supabase or
+trigger Vercel/Railway builds while the spend lock is active.
+
+## M3.237 evidence boundary (completed)
+
+The protected project command-center canary passed 1/1. It proved exact
+tenant/project authorization, aggregate counts and progress, strict empty
+query parsing, cross-tenant concealment, and the fail-closed Web adapter. The
+full disposable environment passed 116 migrations, database 149/149 suites
+and 370/370 tests, API integration 33/33 files and 49/49 tests, zero
+pending/skips, and unchanged schema SHA-256. Hosted selector, browser
+production canary, provider state, deployment, and billing remain unverified
+and intentionally untouched.
+
 ## Exact next action after M3.236 Project read/list protected local HTTP canary
 
 Choose the next smallest source-only ERP boundary. Preserve tenant,

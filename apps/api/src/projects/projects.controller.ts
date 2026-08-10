@@ -16,6 +16,8 @@ import type {
   ProjectListQuery,
   ProjectListResult,
   ProjectReadResult,
+  ProjectCommandCenterQuery,
+  ProjectCommandCenterResult,
   ProjectUpdateResult,
   UpdateProjectCommand,
 } from '@third-code-erp/shared-types'
@@ -26,6 +28,8 @@ import {
 import { RequireCapabilities } from '../auth/capability.guard'
 import { CreateProjectPipe } from './create-project.pipe'
 import { ProjectsService } from './projects.service'
+import { ProjectCommandCenterPipe } from './project-command-center.pipe'
+import { ProjectCommandCenterService } from './project-command-center.service'
 import { ProjectListPipe } from './project-list.pipe'
 import { UpdateProjectPipe } from './update-project.pipe'
 
@@ -33,7 +37,9 @@ import { UpdateProjectPipe } from './update-project.pipe'
 export class ProjectsController {
   constructor(
     @Inject(ProjectsService)
-    private readonly projects: ProjectsService
+    private readonly projects: ProjectsService,
+    @Inject(ProjectCommandCenterService)
+    private readonly commandCenter: ProjectCommandCenterService
   ) {}
 
   @Get()
@@ -52,6 +58,16 @@ export class ProjectsController {
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<ProjectReadResult> {
     return this.projects.read(projectId, principal)
+  }
+
+  @Get(':projectId/command-center')
+  @RequireCapabilities('project.read')
+  commandCenterRead(
+    @Param('projectId', new ParseUUIDPipe()) projectId: string,
+    @Query(new ProjectCommandCenterPipe()) query: ProjectCommandCenterQuery,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<ProjectCommandCenterResult> {
+    return this.commandCenter.read(projectId, query, principal)
   }
 
   @Post()

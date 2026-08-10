@@ -101,10 +101,12 @@ import {
   projectCommentCreationResultSchema,
   projectCommentDeletionResultSchema,
   projectCommentListResultSchema,
+  projectCommandCenterResultSchema,
   type CreateProjectCommentCommand,
   type ProjectCommentCreationResult,
   type ProjectCommentDeletionResult,
   type ProjectCommentListResult,
+  type ProjectCommandCenterResult,
   type RfqCreationResult,
   type RfqDispatchResult,
   type RfqQuoteResult,
@@ -378,6 +380,15 @@ export function projectListsUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_PROJECT_LISTS_VIA_API,
     process.env.ERP_PROJECT_LISTS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Project operational signals stay closed until a protected canary exists. */
+export function projectCommandCenterReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_PROJECT_COMMAND_CENTER_READS_VIA_API,
+    process.env.ERP_PROJECT_COMMAND_CENTER_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -2815,6 +2826,58 @@ export async function getProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Project data was not read.',
+    }
+  }
+}
+
+export async function getProjectCommandCenterThroughCoreApi(
+  projectId: string
+): Promise<CoreResult<ProjectCommandCenterResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/projects/${encodeURIComponent(projectId)}/command-center`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 404
+            ? 'Project not found.'
+            : 'Project command center was not completed.',
+        status: response.status,
+      }
+    }
+
+    const parsed = projectCommandCenterResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid project command center result.',
+        status: response.status,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Project signals were not read.',
+      status: 503,
     }
   }
 }

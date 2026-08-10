@@ -357,6 +357,19 @@ deployment identity, and rollback evidence are recorded.
 | `ERP_PROJECT_COMMENT_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects/:id/comments`; exact `true` only |
 | `ERP_PROJECT_COMMENT_READS_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist; wildcard rejected; default empty |
 
+## Project command-center read cutover (NestJS, disabled by default)
+
+The project detail command center may opt into the bounded tenant/project-scoped
+Nest aggregate for one controlled tenant. The default remains the existing
+six-query server-side read; keep the flag disabled until protected
+HTTP/browser, deployment identity, readiness, and rollback evidence are
+recorded.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_PROJECT_COMMAND_CENTER_READS_VIA_API` | no | Next server | Selects Nest `GET /v1/projects/:id/command-center`; exact `true` only |
+| `ERP_PROJECT_COMMAND_CENTER_READS_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist; wildcard rejected; default empty |
+
 ## CRM account collection read cutover (NestJS, disabled by default)
 
 The Accounts page may opt into the bounded, tenant-scoped Nest account list
