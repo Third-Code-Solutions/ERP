@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.245 Stock Receipt post/reverse protected HTTP canary (completed, source-only)
+
+1. Added `apps/api/integration/stock-receipt-workflow.http.integration.spec.ts`
+   around the existing Nest Stock Receipt post/reverse controller and workflow
+   service, real Supabase identity/capability guards, audit service, and
+   transaction-bound disposable PostgreSQL client.
+2. Proved 401/400/403/404/409/503 boundaries, strict command/header handling,
+   tenant concealment, explicit draft→posted→reversed transitions, balanced
+   journal and stock-ledger effects, PO received-quantity update/rollback,
+   semantic audit, forced-RLS/service-only workflow-request access, replay/key
+   conflict, and outer transaction rollback.
+3. The initial canary found a cross-tenant request-claim ordering defect that
+   returned a composite-FK 500. Added a tenant-scoped receipt preflight before
+   claiming the request; the protected boundary now returns concealed 404.
+4. Focused canaries pass 3/3. Root API 173/173 files and 751/751 tests, Web
+   111/111 files and 768/768 tests, and shared 54/54 files and 323/323 tests
+   pass. The root database package had 143 expected environment skips without
+   `DATABASE_URL`; the disposable 117-migration PostgreSQL/Redis lane reran
+   database 149/149 suites and 370/370 tests with zero skips, and API
+   integration passed 41/41 files and 57/57 tests with zero skips. Typecheck,
+   lint, and production build pass. No schema, hosted/provider state, runtime
+   selector, or paid action changed.
+
+Keep both post/reverse write flags false and tenant lists empty. Source/docs
+are pushed under `kurtgav`; exact SHA is recorded in the changeset. Exact next
+action: reconcile hosted parity and release gates before any provider action.
+
 ## M3.244 Stock Receipt protected HTTP canary (completed, source-only)
 
 1. Added `apps/api/integration/stock-receipt.http.integration.spec.ts` around

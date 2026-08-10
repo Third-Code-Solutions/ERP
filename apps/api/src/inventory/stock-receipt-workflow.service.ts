@@ -159,6 +159,17 @@ export class StockReceiptWorkflowService {
         principal
       )
       await this.audit.stampActor(transaction, authorizedPrincipal)
+      const [scopedReceipt] = await transaction
+        .select({ id: stockReceipts.id })
+        .from(stockReceipts)
+        .where(
+          and(
+            eq(stockReceipts.id, receiptId),
+            eq(stockReceipts.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+      if (!scopedReceipt) throw new NotFoundException('Stock Receipt not found')
       const request = await this.claimRequest(
         transaction,
         authorizedPrincipal,
@@ -268,6 +279,17 @@ export class StockReceiptWorkflowService {
         principal
       )
       await this.audit.stampActor(transaction, authorizedPrincipal)
+      const [scopedReceipt] = await transaction
+        .select({ id: stockReceipts.id })
+        .from(stockReceipts)
+        .where(
+          and(
+            eq(stockReceipts.id, receiptId),
+            eq(stockReceipts.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+      if (!scopedReceipt) throw new NotFoundException('Stock Receipt not found')
       const request = await this.claimRequest(
         transaction,
         authorizedPrincipal,

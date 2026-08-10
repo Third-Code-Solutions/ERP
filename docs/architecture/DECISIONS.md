@@ -1,5 +1,28 @@
 # Architecture Decisions
 
+## D-357 -- Require protected Stock Receipt post/reverse HTTP evidence before cutover (2026-08-10)
+
+Decision: use a disposable transaction-bound HTTP canary as the release gate
+for Stock Receipt posting and reversal. Exercise real JWT identity and
+`inventory.manage` capability guards, strict commands and idempotency keys,
+tenant/state predicates, concealed cross-tenant access, balanced journal and
+stock-ledger effects, PO quantity reconciliation, semantic audit, forced RLS,
+and rollback. Keep Web adoption and both post/reverse flags closed.
+
+Rationale: posting creates official inventory and accounting evidence, while
+reversal must unwind it exactly once. The canary caught that claiming a
+workflow request before tenant-scoped receipt lookup leaked a database FK
+failure as HTTP 500. Preflighting the scoped receipt preserves concealed 404
+behavior and avoids inserting an invalid tenant/request pair.
+
+Validation: focused HTTP/database canaries passed 3/3; API 173/173, Web
+111/111, and shared 54/54 root test files passed. The root database package
+had 143 expected environment skips without `DATABASE_URL`; the disposable
+117-migration PostgreSQL/Redis lane reran all 370 database tests and the
+41-file/57-test API integration lane with zero skips. Typecheck, lint, and
+production build passed. No schema migration, hosted SQL/data, Vercel/Railway
+action, provider setting, credential, or paid action occurred.
+
 ## D-356 -- Require protected Stock Receipt HTTP evidence before cutover (2026-08-10)
 
 Decision: use a disposable transaction-bound HTTP canary as the release gate

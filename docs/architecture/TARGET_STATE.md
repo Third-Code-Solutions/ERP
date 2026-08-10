@@ -1,5 +1,25 @@
 # Target State
 
+## M3.245 Stock Receipt post/reverse authority evidence
+
+Stock Receipt posting and reversal are guarded Nest commands. Core derives
+tenant, actor, role, receipt state, journal accounts, and Purchase Order scope
+from locked server state; one PostgreSQL transaction owns the tenant-scoped
+replay ledger, receipt state, stock ledger, journal, PO received quantity, and
+semantic audit. A protected disposable HTTP canary proves auth, RBAC,
+disabled-by-default behavior, cross-tenant concealment, explicit state
+transitions, balanced accounting side effects, replay/conflict, forced RLS,
+and rollback. Web adoption remains closed.
+
+Keep `ERP_INVENTORY_RECEIPT_POST_WRITES_ENABLED=false`,
+`ERP_INVENTORY_RECEIPT_POST_WRITES_TENANT_IDS` empty,
+`ERP_INVENTORY_RECEIPT_REVERSE_WRITES_ENABLED=false`, and
+`ERP_INVENTORY_RECEIPT_REVERSE_WRITES_TENANT_IDS` empty until hosted parity,
+exact release identity, readiness, protected browser evidence, rollback, and
+spend approval are independently complete. A tenant-scoped receipt preflight
+must remain before workflow-request claiming so cross-tenant requests fail
+closed without a database constraint error.
+
 ## M3.244 Stock Receipt authority evidence
 
 Stock Receipt draft creation is a guarded Nest command at

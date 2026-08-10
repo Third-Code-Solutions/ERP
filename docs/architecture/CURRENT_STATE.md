@@ -1,5 +1,33 @@
 # Current State
 
+## M3.245 Stock Receipt post/reverse protected HTTP canary (2026-08-10)
+
+Added `apps/api/integration/stock-receipt-workflow.http.integration.spec.ts`.
+It boots the real Nest Stock Receipt post/reverse controller and workflow
+service with Supabase identity/capability guards against transaction-bound
+disposable PostgreSQL. The canary proves missing/invalid auth, strict command
+and `Idempotency-Key` handling, viewer denial, disabled-tenant fail-closed
+behavior, cross-tenant concealment, post/reverse state transitions,
+idempotent replay/key conflict, journal/ledger/PO quantity side effects,
+semantic audit, forced-RLS/service-only workflow-request access, and rollback.
+
+The first run exposed a real cross-tenant ordering defect: claiming the
+workflow request before a tenant-scoped receipt lookup caused a composite-FK
+500. The service now performs the scoped receipt preflight before claiming the
+request; the same attack is a concealed 404. Focused HTTP/database canaries
+pass 3/3. Root `pnpm test`: API 173 files/751 tests, Web 111 files/768 tests,
+and shared 54 files/323 tests PASS; the database package reported 63/67 files
+and 227/370 tests with 143 expected environment skips because the root command
+had no `DATABASE_URL`. Typecheck 5/5, lint 2/2, and production build PASS.
+The zero-skip PostgreSQL 17/Redis 7.4.9 lane ran all 117 migrations; database
+149/149 suites and 370/370 tests plus API integration 41/41 files and 57/57
+tests PASS without skips. No schema migration, runtime selector, hosted
+Supabase SQL/data, Vercel/Railway deployment, provider setting, credential, or
+paid action changed. Keep post/reverse flags false with empty tenant lists.
+Source/docs are committed and pushed under `kurtgav`; exact SHA is recorded in
+the changeset and work log. Exact next action: reconcile hosted parity and
+release gates before any canary or provider action.
+
 ## M3.244 Stock Receipt protected HTTP canary (2026-08-10)
 
 Added `apps/api/integration/stock-receipt.http.integration.spec.ts`. It boots

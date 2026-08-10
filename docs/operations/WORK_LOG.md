@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-08-10 - M3.245 Stock Receipt post/reverse protected HTTP canary
+
+Added `apps/api/integration/stock-receipt-workflow.http.integration.spec.ts`.
+It boots the real Nest Stock Receipt post/reverse controller/service with
+Supabase identity and capability guards and a transaction-bound disposable
+PostgreSQL client. The canary proves missing/invalid auth, strict command and
+`Idempotency-Key` validation, viewer denial, disabled-tenant fail-closed
+behavior, cross-tenant concealment, draft→posted→reversed state transitions,
+balanced journal/stock-ledger effects, PO quantity unwind, replay/key conflict,
+semantic audit, forced-RLS/service-only request access, and rollback.
+
+The first canary reproduced a real 500: cross-tenant request claiming happened
+before the tenant-scoped receipt lookup and violated a composite FK. The
+workflow service now preflights the scoped receipt before claiming the request;
+the boundary returns concealed 404. Focused canaries 3/3 PASS; root API 173/
+751, Web 111/768, shared 54/323; typecheck 5/5; lint 2/2; production build
+PASS. Root database had 143 expected environment skips without `DATABASE_URL`.
+The disposable PostgreSQL 17/Redis 7.4.9 lane ran 117 migrations, database
+149/149 suites and 370/370 tests, and API integration 41/41 files and 57/57
+tests with zero skips. No schema or runtime selector changed. Hosted Supabase,
+Railway, Vercel, provider settings, credentials, and paid actions were not
+touched. Keep both post/reverse flags/lists false/empty. Source/docs are
+pushed under `kurtgav`; exact SHA is in the changeset. Next: reconcile hosted
+parity/release blockers without triggering a provider build.
+
 ## 2026-08-10 - M3.244 Stock Receipt protected HTTP canary
 
 Added `apps/api/integration/stock-receipt.http.integration.spec.ts`. It boots
