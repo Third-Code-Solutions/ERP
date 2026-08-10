@@ -55,8 +55,8 @@ function readEnvFile(): Record<string, string> {
 
 async function authenticate(context: BrowserContext): Promise<void> {
   const env = readEnvFile()
-  const url = env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const url = env.NEXT_PUBLIC_SUPABASE_URL!
+  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   const email = process.env.E2E_USER_EMAIL ?? 'test@third-code-erp.local'
   const password = process.env.E2E_USER_PASSWORD ?? 'testpassword123'
 

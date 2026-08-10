@@ -1,5 +1,12 @@
 # Target State
 
+## M3.226 Clean E2E typecheck baseline
+
+All repository E2E specs must pass strict TypeScript checking before browser
+runtime evidence is trusted. Environment-backed values may be asserted at
+runtime, then narrowed explicitly for request headers. Baseline now passes;
+disposable browser execution remains separate.
+
 ## M3.225 Controlled upload-flow browser evidence
 
 The project upload journey must be exercised in a disposable local browser

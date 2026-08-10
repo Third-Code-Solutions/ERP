@@ -1,5 +1,17 @@
 # Current State
 
+## M3.226 E2E typecheck baseline cleanup (2026-08-10)
+
+Fixed strict-header typing in existing Cortex and smoke E2E specs by making
+required local Supabase environment values explicit after their runtime
+configuration checks. Full `apps/web/e2e/tsconfig.json` now typechecks cleanly;
+the controlled upload fixture remains opt-in and still has no disposable local
+authenticated runtime evidence.
+
+Exact next action: run `E2E_CONTROLLED_UPLOAD=1` against disposable local
+auth/Web/Core services and capture browser evidence. Hosted URLs remain
+rejected.
+
 ## M3.225 Controlled upload-flow browser fixture (2026-08-10)
 
 Added a gated Playwright fixture for the project document upload UI. It
@@ -11,9 +23,8 @@ The fixture refuses non-local base URLs and is disabled unless
 
 Current evidence is fixture registration only: the default run recorded one
 intentional skip because the local authenticated runtime was not enabled. Full
-E2E TypeScript checking remains red on pre-existing unrelated files
-(`cortex-focused-local.spec.ts` and `smoke-console.spec.ts`). No production
-selector, credential, provider, deployment, or paid action changed.
+E2E TypeScript checking is now clean after M3.226. No production selector,
+credential, provider, deployment, or paid action changed.
 
 Exact next action: run this fixture against a disposable local authenticated
 Web/Core runtime, then capture browser console, network, accessibility, and

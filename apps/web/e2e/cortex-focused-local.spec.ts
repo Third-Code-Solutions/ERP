@@ -37,8 +37,9 @@ test.describe('Cortex focused graph', () => {
   }, testInfo) => {
     testInfo.setTimeout(60_000)
     const env = readLocalEnv()
-    const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL!
+    const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY!
+    const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     const email = process.env.E2E_USER_EMAIL ?? 'test@thirdcode.local'
     const baseUrl = testInfo.project.use.baseURL
     expect(supabaseUrl).toBeTruthy()
@@ -109,7 +110,7 @@ test.describe('Cortex focused graph', () => {
 
     const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
       headers: {
-        apikey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        apikey: anonKey,
         Authorization: `Bearer ${accessToken}`,
       },
     })
@@ -350,7 +351,7 @@ test.describe('Cortex focused graph', () => {
       {
         method: 'POST',
         headers: {
-          apikey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          apikey: anonKey,
           Authorization: `Bearer ${accessToken}`,
         },
       }

@@ -1,5 +1,20 @@
 # Migration Plan
 
+## M3.226 E2E typecheck baseline cleanup (completed, source + typecheck)
+
+1. Narrowed required local Supabase URL/key values explicitly after existing
+   runtime presence checks in Cortex and smoke E2E specs.
+2. Re-ran `pnpm --filter @third-code-erp/web exec tsc -p e2e/tsconfig.json --noEmit`;
+   full E2E project typecheck passed.
+3. Controlled upload runtime remains intentionally skipped unless
+   `E2E_CONTROLLED_UPLOAD=1` and a disposable local authenticated runtime are
+   provided.
+
+No hosted provider, deployment, or paid action occurred.
+
+Exact next action: execute controlled upload fixture against disposable local
+auth/Web/Core services and capture browser evidence.
+
 ## M3.225 Controlled upload-flow browser fixture (fixture added; runtime open)
 
 1. Added a localhost-only Playwright fixture for project document upload.
@@ -9,9 +24,7 @@
 3. Added progress, terminal Core warning, request-payload, console, and page
    error assertions. The fixture is opt-in via `E2E_CONTROLLED_UPLOAD=1`.
 4. Default runner result: one intentional skip. Full E2E TypeScript check is
-   currently red on existing unrelated `cortex-focused-local.spec.ts` and
-   `smoke-console.spec.ts` header typing errors. Browser runtime evidence is
-   not yet available.
+   clean after M3.226; browser runtime evidence is not yet available.
 
 No hosted provider, deployment, or paid action occurred. Do not call this
 fixture production/browser certification until it runs against disposable
