@@ -1,5 +1,22 @@
 # Third Code ERP capability matrix
 
+## M3.245 Stock Receipt post/reverse protected HTTP canary (2026-08-10)
+
+The existing `inventory.manage` Stock Receipt authority now has protected
+transaction-bound HTTP evidence for post/reverse authentication, RBAC,
+disabled-tenant behavior, cross-tenant concealment, explicit state transitions,
+balanced journal and stock-ledger effects, PO quantity reconciliation,
+idempotent replay/key conflict, semantic audit, forced-RLS/service-only
+workflow-request access, and rollback. Web adoption remains closed; both
+post/reverse flags and tenant lists are false/empty. The scoped receipt
+preflight prevents composite-FK errors from crossing the tenant boundary.
+
+Validation: focused canaries 3/3; root API 173/173 files and 751/751 tests,
+Web 111/111 and 768/768, shared 54/54 and 323/323; typecheck 5/5, lint 2/2,
+production build; disposable 117-migration PostgreSQL/Redis lane with
+database 149/149 suites and 370/370 tests plus API integration 41/41 files
+and 57/57 tests, zero skips. No hosted or paid action.
+
 ## M3.244 Stock Receipt protected HTTP canary (2026-08-10)
 
 The existing `inventory.manage` Stock Receipt draft authority now has
