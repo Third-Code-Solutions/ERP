@@ -1,5 +1,14 @@
 # Target State
 
+## M3.221 Disposable CAD Core replay integrity
+
+CAD Core replay must return the exact worker-contract identity and source
+metadata, replace only document-owned scope, preserve unrelated and other-
+tenant rows, replay one idempotency result, create no draft BOM unless an
+explicit separate draft-BOM command is selected, and roll back as one
+transaction. Disposable evidence now covers these invariants; actual Web
+parser HTTP runtime and hosted release remain separate gates.
+
 ## M3.220 CAD Web/Core response identity parity
 
 Web accepts CAD Core success only when returned document, project, and tenant

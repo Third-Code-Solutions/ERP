@@ -1,5 +1,18 @@
 # Work Log
 
+## 2026-08-10 - M3.221 disposable CAD Core replay integrity
+
+Expanded CAD database integration assertions: exact Core result identity and
+source/count parity, 65,000-cent total, replacement limited to document-owned
+rows, one idempotency record after replay, zero draft BOMs, cross-tenant 404,
+and outer-transaction rollback. Ran WSL PostgreSQL 17/Redis 7.4.9 lane:
+116 migrations, database 370/370 no skips, schema hash unchanged; focused CAD
+integration passed 1/1. Known Redis memory-overcommit warning only.
+
+This remains worker-contract/Core evidence; actual Web parser HTTP runtime and
+hosted/provider checks remain open. No hosted DB, deployment, provider, or paid
+action. Next: actual parser through protected Web/Core disposable runtime.
+
 ## 2026-08-10 - M3.220 CAD Web/Core response identity parity
 
 Hardened `commitCadEvidenceThroughCoreApi` to require matching document,

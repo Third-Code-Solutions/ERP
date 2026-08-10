@@ -1,5 +1,14 @@
 # Next Actions
 
+## Exact next action after M3.221 disposable CAD Core replay
+
+Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every Core selector or
+tenant allowlist false/empty. Feed actual Web `parseCadEvidence` output through
+the protected Web/Core HTTP path against disposable PostgreSQL; verify storage
+download, parser metadata, identity forwarding, exact totals, replacement,
+idempotency, no draft BOM, tenant isolation, and rollback. Do not touch
+Supabase, Vercel, or Railway under the spend lock.
+
 ## Exact next action after M3.220 CAD response identity parity
 
 Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every Core selector or

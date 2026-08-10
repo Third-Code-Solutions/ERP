@@ -3,6 +3,7 @@ import 'reflect-metadata'
 import { randomUUID } from 'node:crypto'
 import {
   auditLog,
+  boms,
   cadEvidenceCommitRequests,
   db,
   documents,
@@ -306,6 +307,13 @@ suite('CAD evidence commit database integration', () => {
             )
           )
         )
+
+      const draftBoms = await transaction
+        .select({ id: boms.id })
+        .from(boms)
+        .where(
+          and(eq(boms.tenant_id, tenantA), eq(boms.project_id, projectA))
+        )
       const semanticAudit = await transaction
         .select()
         .from(auditLog)
@@ -317,12 +325,12 @@ suite('CAD evidence commit database integration', () => {
           )
         )
 
-      expect(committed).toMatchObject({
+      expect(committed).toEqual({
         documentId: documentA,
         projectId: projectA,
         tenantId: tenantA,
-        scopeItemsCreated: 2,
-        sourceFormat: 'dxf',
+        scopeItemsCreated: command.workerResponse.count,
+        sourceFormat: command.workerResponse.source_format,
         status: 'committed',
       })
       expect(tenantALines).toHaveLength(3)
@@ -337,10 +345,16 @@ suite('CAD evidence commit database integration', () => {
           .filter((line) => line.notes?.includes(`document:${documentA}`))
           .map((line) => line.line_total_cents)
       ).toEqual([15_000, 50_000])
+      expect(
+        tenantALines
+          .filter((line) => line.notes?.includes(`document:${documentA}`))
+          .reduce((sum, line) => sum + line.line_total_cents, 0)
+      ).toBe(65_000)
       expect(tenantBLines).toHaveLength(1)
       expect(requests).toHaveLength(1)
       expect(requests[0]?.state).toBe('succeeded')
       expect(requests[0]?.scope_item_count).toBe(2)
+      expect(draftBoms).toHaveLength(0)
       expect(semanticAudit).toHaveLength(1)
       expect(semanticAudit[0]?.actor_id).toBe(userA)
     })
