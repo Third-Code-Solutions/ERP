@@ -1,5 +1,20 @@
 # Target State
 
+## M3.238 CRM accounts read authority evidence
+
+CRM account list, detail, and KYC queue reads have a protected Nest boundary
+that authenticates the caller, checks the account or KYC capability, repeats
+tenant predicates across every related graph query, bounds filters and page
+size, and conceals another tenant's account as 404. M3.238 records a real
+transaction-bound HTTP canary against disposable PostgreSQL/Redis: 1/1 PASS,
+with root tests 173/173 files and 750/750 tests, typecheck/lint/build PASS,
+and the full zero-skip disposable lane completed after 116 migrations.
+
+Keep the existing Web compatibility path and any account Core selectors
+closed until hosted parity, exact Core deployment identity, readiness,
+protected browser evidence, rollback, and spend approval exist. No schema or
+provider change was needed for this evidence milestone.
+
 ## M3.237 Project command-center read authority
 
 The project detail command center has a reviewed Nest read contract:

@@ -1,5 +1,23 @@
 # Third Code ERP landing behavior audit
 
+## 2026-08-10 live production recheck
+
+- Browser proof at 1440x900, 768x900, and 390x844 found zero horizontal
+  overflow and zero console errors. Client/scroll widths were 1425/1425,
+  753/753, and 375/375 respectively.
+- The desktop, tablet, and mobile H1 remained three visual lines; the measured
+  widths were approximately 560px, 674px, and 327px. The mobile page kept the
+  compact navigation and stacked hero.
+- All four Cortex capability controls changed exactly one expanded state.
+  JSON-LD still contained Organization, SoftwareApplication, and a five-item
+  FAQPage. Unauthenticated `/dashboard` redirected to `/auth/login`.
+- The deployed snapshot did not include the newer source-branch Cortex query
+  preview controls. Record this as source/live drift until a separately
+  approved, spend-safe release; do not infer production parity from local
+  build success.
+- Exact evidence: `docs/research/LIVE_LANDING_AUDIT_20260810.md` and the
+  two dated captures under `docs/design-references/`.
+
 ## 2026-08-07 live production recheck
 
 - Browser proof at 1440x1000, 768x1024, and 390x844 found zero horizontal

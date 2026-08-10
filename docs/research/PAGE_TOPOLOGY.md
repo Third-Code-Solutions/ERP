@@ -1,5 +1,18 @@
 # Third Code ERP landing page topology
 
+## 2026-08-10 live topology recheck
+
+Playwright reconfirmed the public route at 1440x900, 768x900, and 390x844.
+The route retained the fixed nav, single-column tablet/mobile hero, dense
+platform grid, capability accordion, workflow stack, priority carousel, FAQ,
+CTA, and footer order. No horizontal overflow or console errors were
+observed. The deployed snapshot predates the source-branch Cortex query
+preview controls; this is documented drift, not a reason to bypass the spend
+lock with a deployment.
+
+Fresh captures: `docs/design-references/third-code-erp-live-desktop.png` and
+`docs/design-references/third-code-erp-live-mobile.png`.
+
 Observed order from the live page and source route. IDs and data attributes are recorded so future UI work can preserve deep links and behavior.
 
 1. `header` / fixed navigation

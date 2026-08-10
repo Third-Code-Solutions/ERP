@@ -1,5 +1,23 @@
 # Work Log
 
+## 2026-08-10 - M3.238 CRM accounts protected local HTTP canary
+
+Added `apps/api/integration/accounts.http.integration.spec.ts`. It boots the
+real CRM account controller/service with Supabase identity and capability
+guards and a transaction-bound disposable PostgreSQL client. The canary
+proves missing-auth 401, viewer account reads, finance-only KYC queue access,
+bounded filters and limits, exact contact/opportunity/project detail scope,
+cross-tenant 404 concealment, tenant-safe KYC rows, and rollback.
+
+Focused canary: 1/1 PASS. Root `pnpm test`: 173 files / 750 tests PASS;
+typecheck 5/5 tasks, lint 2/2 tasks, and production build PASS. The complete
+disposable lane passed after 116 migrations with zero skips; the canary was
+rerun directly against the local PostgreSQL/Redis runtime and passed 1/1.
+Expected migration notices and queue failure-path logs were observed; no
+assertions failed. No Supabase write, Vercel/Railway deployment, provider
+setting, credential, or paid action occurred. Keep account selectors closed.
+Next: choose the next bounded source-only ERP seam.
+
 ## 2026-08-10 - M3.237 Project command-center read authority
 
 Added the strict shared command-center contract and Nest
