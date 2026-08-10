@@ -1,5 +1,19 @@
 # Migration Plan
 
+## M3.211 Web Cortex compatibility sanitizer (completed, source-only)
+
+1. Wired the direct Web graph route through the shared whole/focused graph
+   sanitizers already used by Core.
+2. Added regressions for malformed whole-graph rows and invalid focused rows.
+3. Preserved exact Core selector behavior and selected-Core no-fallback.
+
+Validation: Web graph route tests 10/10, Web typecheck, and root lint/build
+passed. Docker/PostgreSQL/RLS replay and hosted checks remain open. No provider
+or deployment action.
+
+Exact next action: run the focused Web graph suite and root gates, then push the
+source-only compatibility hardening.
+
 ## M3.210 resilient Core Cortex graph projection (completed, source-only)
 
 1. Added shared graph-row sanitizers for whole and focused responses.

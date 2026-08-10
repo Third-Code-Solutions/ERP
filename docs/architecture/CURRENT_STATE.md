@@ -1,5 +1,17 @@
 # Current State
 
+## M3.211 Web Cortex compatibility sanitizer (2026-08-10)
+
+The legacy Web `/api/cortex/graph` route now uses the same shared whole/focused
+graph sanitizers as Nest Core. Direct-path graph reads no longer return raw
+derived rows; malformed nodes, invalid/dangling links, and invalid focused
+records are filtered or concealed as not-found. Core selection remains exact,
+closed-by-default, and terminal on failure.
+
+Validation: Web graph route tests 10/10 cover compatibility sanitization and
+focused concealment; root lint/build passed. No hosted/provider/deployment
+action changed.
+
 ## M3.210 resilient Core Cortex graph projection (2026-08-10)
 
 Core whole-graph and focused-graph reads now sanitize database-derived rows

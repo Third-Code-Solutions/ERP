@@ -1,5 +1,11 @@
 # Target State
 
+## M3.211 one sanitizer across graph authorities
+
+The Web compatibility graph route and Nest Core graph authority use identical
+shared sanitization. Authority selection changes ownership only; it never
+changes source identity, bounded links, or malformed-row behavior.
+
 ## M3.210 resilient graph reads
 
 Graph read authorities must degrade per malformed row, not per request. They
