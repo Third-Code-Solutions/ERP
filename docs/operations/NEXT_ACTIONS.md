@@ -1,5 +1,26 @@
 # Next Actions
 
+## Exact next action after M3.244 Stock Receipt protected HTTP canary
+
+Keep `ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED=false` and
+`ERP_INVENTORY_RECEIPT_CREATE_WRITES_TENANT_IDS` empty. Focused canaries, root
+source gates, zero-skip disposable PostgreSQL/Redis lane, and full API
+integration have passed. Push only reviewed source/docs branch under `kurtgav`;
+do not apply hosted SQL or trigger Railway/Vercel builds while spend protection
+is active. Then reconcile ordered hosted migration suffix, duplicate-data
+mapping, audit-recovery tenant, readiness, exact SHA, rollback, and billing
+gates before one explicitly spend-bounded canary. Force-RLS hardening for the
+create-request table is separate work and not part of this release.
+
+## M3.244 evidence boundary (completed)
+
+Protected Stock Receipt database and HTTP canaries passed 2/2. Evidence covers
+real auth/capability guards, strict command/header validation, disabled-tenant
+fail-closed behavior, exact PO/material/UOM/warehouse scope, idempotent
+replay/key conflict, receipt-line persistence, semantic audit, RLS/browser
+privilege boundaries, cross-tenant concealment, and rollback. No
+hosted/provider/paid action occurred.
+
 ## Exact next action after M3.243 asset maintenance protected HTTP canary
 
 Keep `ERP_ASSET_MAINTENANCE_READS_ENABLED=false`,

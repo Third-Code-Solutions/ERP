@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.244 Stock Receipt protected HTTP canary (completed, source-only)
+
+1. Added `apps/api/integration/stock-receipt.http.integration.spec.ts` around
+   the existing Nest Stock Receipt controller/draft service, real Supabase
+   identity/capability guards, audit service, and transaction-bound disposable
+   PostgreSQL client.
+2. Proved 401/400/403/404/409/503 boundaries, strict body/header handling,
+   exact tracked-PO/material/UOM/warehouse scope, tenant concealment,
+   tenant-scoped idempotent replay and key conflict, receipt/line persistence,
+   semantic audit, RLS/browser privilege boundaries, and rollback.
+3. Focused database and HTTP canaries pass 2/2. Root API 173/173 files and
+   751/751 tests, shared 54/54 files and 323/323 tests, typecheck 5/5, lint
+   2/2, production build 82/82 pages, disposable 117-migration lane with
+   database 149/149 suites and 370/370 tests, and API integration 40/40 files
+   and 56/56 tests all pass without skips. No schema, hosted/provider state,
+   runtime selector, or paid action changed.
+
+Keep `ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED` false and its tenant list
+empty. Existing source migration enables RLS and revokes browser table
+privileges but does not force RLS; do not silently alter it in this evidence
+milestone. Exact next action: push reviewed source/docs, then reconcile hosted
+parity and release gates before any canary or provider action.
+
 ## M3.243 Asset maintenance protected HTTP canary (completed, source-only)
 
 1. Added `apps/api/integration/asset-maintenance.http.integration.spec.ts`
