@@ -1,5 +1,30 @@
 # Current State
 
+## M3.227 Controlled upload browser runtime and UX hardening (2026-08-10)
+
+The localhost-only controlled document-upload fixture now runs against the
+disposable `ThirdCodeERP-Test` runtime: PostgreSQL 17.10 at `127.0.0.1:54322`,
+Redis at `127.0.0.1:6379`, a local auth/Web harness, and the seeded local
+verification project. The real login UI, project Documents route, upload
+progress states, terminal Core-unavailable response, and browser error guards
+all executed without hosted credentials or provider writes.
+
+Evidence: Playwright 1/1 passed; sign, signed-object PUT, and completion each
+occurred exactly once; unexpected Storage requests were zero; console/page
+errors were zero; local Realtime was explicitly looped back; ARIA snapshot and
+desktop/tablet/mobile screenshots were attached; responsive overflow was <= 1
+pixel at all three viewports. Fixed the upload hook so preparing/uploading/
+finalizing text renders during async work, and made the Documents subnav
+contain horizontal overflow at tablet widths. No Core or Storage provider was
+contacted: completion and object PUT remained controlled test responses.
+
+This is disposable browser evidence only. It does not certify hosted Auth,
+Supabase Storage, Core deployment, production data, or Vercel/Railway health.
+
+Exact next action: update the milestone docs, run focused/root source gates,
+commit and push only reviewed files as `kurtgav`, and verify the remote SHA.
+Keep provider-spend and hosted deployment locks closed.
+
 ## M3.226 E2E typecheck baseline cleanup (2026-08-10)
 
 Fixed strict-header typing in existing Cortex and smoke E2E specs by making

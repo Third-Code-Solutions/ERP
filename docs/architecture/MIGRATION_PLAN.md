@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.227 Controlled upload browser runtime and UX hardening (completed, source + disposable browser)
+
+1. Extended the local-only auth loopback harness with password-token CORS and
+   a bounded Realtime handshake so the existing login client runs without
+   hosted credentials.
+2. Added a dedicated Playwright config for the controlled upload fixture and
+   ran the real login, project Documents route, file selection, sign, object
+   PUT, and completion journey against disposable PostgreSQL 17.10/Redis.
+3. Fixed `useCadUpload` progress rendering by separating explicit upload
+   pending state from the long async transition; only `router.refresh()` uses
+   the transition now.
+4. Contained the Documents page’s secondary tab strip with horizontal
+   overflow and non-shrinking links.
+5. Captured and asserted progress, request payloads/counts, terminal Core
+   warning, blocked Storage traffic, console/page errors, ARIA snapshot, and
+   desktop/tablet/mobile screenshots.
+
+Evidence: Playwright 1/1 passed; sign/object PUT/complete each 1; unexpected
+Storage 0; console/page errors 0; responsive overflow <=1px at 1440/768/390.
+Focused Web and full E2E TypeScript checks passed. This is disposable browser
+evidence only; no hosted DB, Supabase, Vercel, Railway, deployment, or paid
+action occurred.
+
+Exact next action: run focused Web tests/lint and root gates, review the diff,
+commit/push as `kurtgav`, and verify the remote SHA. Keep production Core
+selectors and provider-spend controls closed.
+
 ## M3.226 E2E typecheck baseline cleanup (completed, source + typecheck)
 
 1. Narrowed required local Supabase URL/key values explicitly after existing

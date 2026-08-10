@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-10 - M3.227 controlled upload browser runtime and UX hardening
+
+Started the disposable `ThirdCodeERP-Test` WSL runtime and verified
+PostgreSQL 17.10 at `127.0.0.1:54322` plus Redis `PONG` at `127.0.0.1:6379`.
+The local auth/Web harness now supports the real password login client with
+loopback CORS and Realtime replies; no hosted credentials were read or used.
+
+The controlled Playwright journey exercised the real login and Documents
+route, asserted one sign/one signed-object PUT/one completion payload,
+rejected unexpected Storage requests, showed preparing/uploading/finalizing
+progress, and ended in the deliberate terminal `ERP Core API is unavailable`
+state. It also captured an ARIA snapshot plus desktop/tablet/mobile screenshots
+and asserted zero console/page errors and <=1px responsive overflow.
+
+The runtime exposed two defects and both were fixed: async progress was hidden
+inside one long React transition, and the Documents secondary tab strip added
+136px tablet overflow. Focused Web/E2E typechecks and the controlled browser
+run pass 1/1. No provider, deployment, migration, or paid action occurred.
+Next: run source gates, inspect the exact diff, push the reviewed commit as
+`kurtgav`, and verify the remote SHA.
+
 ## 2026-08-10 - M3.226 E2E typecheck baseline cleanup
 
 Fixed strict-header typing in existing `cortex-focused-local.spec.ts` and
