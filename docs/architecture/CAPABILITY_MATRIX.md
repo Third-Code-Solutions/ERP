@@ -1,5 +1,20 @@
 # Third Code ERP capability matrix
 
+## M3.242 Change Request protected HTTP canary (2026-08-10)
+
+The existing `change_request.create` Nest authority now has protected
+transaction-bound HTTP evidence for identity, capability denial, disabled
+feature behavior, exact opportunity/design-file tenant scope, idempotent
+replay and key conflict, design notification, semantic audit, and rollback.
+Web adoption remains closed; all Change Request flags and UUID allowlists are
+false/empty.
+
+Validation: database plus HTTP canaries 2/2; root API 173/173 files and
+751/751 tests, shared 54/54 files and 323/323 tests; typecheck 5/5, lint 2/2,
+production build 82/82 pages; disposable 117-migration PostgreSQL/Redis lane
+and API integration 38/38 files and 54/54 tests, zero skips. No hosted or paid
+action.
+
 ## M3.241 Opportunity stage-transition authority (2026-08-10)
 
 The pipeline now has a source-complete, closed-by-default Core authority for

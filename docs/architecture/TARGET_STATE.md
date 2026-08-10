@@ -1,5 +1,21 @@
 # Target State
 
+## M3.242 Change Request authority evidence
+
+Client Change Request creation is a guarded Nest command at
+`POST /v1/crm/opportunities/:opportunityId/change-requests`. The browser sends
+only the strict request fields and an opaque idempotency key; Core derives
+tenant, actor, role, opportunity, and affected-design-file scope from locked
+server state. One PostgreSQL transaction owns the change request, design-role
+notifications, replay ledger, and semantic audit. A protected disposable HTTP
+canary proves auth, capability, tenant isolation, replay/conflict, and
+rollback while Web adoption remains closed.
+
+Keep `ERP_CHANGE_REQUEST_WRITES_ENABLED=false`, its tenant list empty,
+`ERP_CHANGE_REQUEST_WRITES_VIA_API=false`, and its UUID allowlist empty until
+hosted parity, exact release identity, readiness, protected browser evidence,
+rollback, and spend approval are independently complete.
+
 ## M3.241 Opportunity stage-transition authority
 
 Opportunity stage changes are a Nest-owned command at

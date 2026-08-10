@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-354 -- Require protected Change Request HTTP evidence before cutover (2026-08-10)
+
+Decision: use a disposable transaction-bound HTTP canary as release evidence
+for the existing Nest Change Request command. Exercise real JWT identity and
+`change_request.create` capability guards, strict command/header parsing,
+tenant and affected-design-file predicates, idempotent replay/key conflict,
+design-role notification and semantic audit side effects, cross-tenant
+concealment, disabled-tenant behavior, and rollback. Keep Web adoption and
+all Change Request flags/selectors closed.
+
+Rationale: Change Requests join commercial opportunity state, design evidence,
+notifications, and audit. A unit or database-only test cannot prove the real
+HTTP trust boundary; an unscoped design-file lookup could disclose or attach
+another tenant's design. Rollback-only evidence advances Core authority without
+mutating hosted data or consuming deployment budget.
+
+Validation/release boundary: focused database and HTTP canaries passed 2/2
+against disposable PostgreSQL/Redis. No schema migration, Supabase SQL,
+Vercel/Railway action, provider setting, credential, or paid action occurred.
+
 ## D-353 -- Make opportunity stage changes and won handoff one Core transaction (2026-08-10)
 
 Decision: add a closed-by-default Nest stage-transition command and a

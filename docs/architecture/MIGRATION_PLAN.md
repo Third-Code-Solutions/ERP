@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.242 Change Request protected HTTP canary (completed, source-only)
+
+1. Added a transaction-bound disposable HTTP canary around the existing Nest
+   Change Request controller/service and real Supabase identity/capability
+   guards.
+2. Proved 401/400/403/404/409/503 boundaries, strict body/header handling,
+   affected-design-file tenant/opportunity scope, tenant-scoped idempotency
+   replay and key conflict, design notification creation, semantic audit, and
+   rollback.
+3. Focused database and HTTP canaries pass 2/2. Root API 173/173 files and
+   751/751 tests, shared 54/54 files and 323/323 tests, typecheck 5/5, lint
+   2/2, production build 82/82 pages, disposable 117-migration lane with
+   database 149/149 suites and 370/370 tests, and API integration 38/38 files
+   and 54/54 tests all pass without skips. No runtime selector, schema,
+   hosted/provider state, or paid action changed.
+
+Keep all four Change Request flags/selectors false/empty. Exact next action:
+run root and zero-skip disposable gates, push reviewed source/docs, then
+reconcile hosted parity and release gates before any canary or provider action.
+
 ## M3.241 Opportunity stage-transition authority (completed, source-only)
 
 1. Added strict shared camel-case command/result contracts and a

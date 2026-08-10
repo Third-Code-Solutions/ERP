@@ -1,5 +1,28 @@
 # Current State
 
+## M3.242 Change Request protected HTTP canary (2026-08-10)
+
+Added `apps/api/integration/change-request.http.integration.spec.ts`. It
+boots the real Nest Change Request controller/service with Supabase identity
+and capability guards against the disposable PostgreSQL runtime. The canary
+proves missing/invalid auth, strict body and idempotency-header validation,
+viewer denial, disabled-tenant fail-closed behavior, cross-tenant concealment,
+affected-design-file scope, idempotent replay/key conflict, exactly one
+tenant-scoped design notification, semantic audit, and rollback.
+
+Focused Change Request database plus HTTP canaries: 2/2 PASS. Root
+`pnpm test`: API 173 files/751 tests and shared 54 files/323 tests PASS;
+typecheck 5/5, lint 2/2, and production build (82/82 pages) PASS. The
+zero-skip PostgreSQL 17/Redis 7.4.9 lane replayed 117 migrations; database
+149/149 suites and 370/370 tests plus API integration 38/38 files and 54/54
+tests PASS. No runtime selector, schema migration, hosted Supabase SQL/data,
+Vercel/Railway deployment, provider setting, credential, or paid action changed.
+Keep
+`ERP_CHANGE_REQUEST_WRITES_ENABLED`, `ERP_CHANGE_REQUEST_WRITES_TENANT_IDS`,
+`ERP_CHANGE_REQUEST_WRITES_VIA_API`, and its UUID allowlist false/empty.
+Exact next action: run root/disposable gates, push reviewed source/docs, then
+reconcile hosted parity and release gates before any canary or provider action.
+
 ## M3.241 Opportunity stage-transition authority (2026-08-10)
 
 Added the closed-by-default Nest command

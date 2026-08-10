@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.242 Change Request protected HTTP canary
+
+Keep `ERP_CHANGE_REQUEST_WRITES_ENABLED=false`,
+`ERP_CHANGE_REQUEST_WRITES_TENANT_IDS` empty,
+`ERP_CHANGE_REQUEST_WRITES_VIA_API=false`, and its UUID allowlist empty.
+Run root tests/typecheck/lint/build plus the zero-skip PostgreSQL/Redis lane,
+push only the reviewed source/docs branch under `kurtgav`, and do not apply
+hosted SQL or trigger Railway/Vercel builds while spend protection is active.
+Then reconcile the ordered hosted migration suffix, duplicate-data mapping,
+audit-recovery tenant, readiness, exact SHA, rollback, and billing gates before
+one explicitly spend-bounded canary.
+
+## M3.242 evidence boundary (completed)
+
+Protected Change Request database and HTTP canaries passed 2/2. Evidence covers
+real auth/capability guards, strict command/header validation, disabled-tenant
+fail-closed behavior, exact opportunity/design-file tenant scope, idempotent
+replay/key conflict, design notification, semantic audit, cross-tenant
+concealment, and rollback. No hosted/provider/paid action occurred.
+
 ## Exact next action after M3.241 opportunity stage-transition authority
 
 Keep `ERP_OPPORTUNITY_STAGE_WRITES_ENABLED=false`,
