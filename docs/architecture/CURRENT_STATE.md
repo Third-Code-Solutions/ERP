@@ -1,5 +1,22 @@
 # Current State
 
+## M3.219 Protected CAD HTTP boundary (2026-08-10)
+
+Added a protected Nest HTTP regression harness for CAD evidence commits. The
+real JWT and capability guards now have coverage for missing bearer tokens,
+verified tenant membership, trimmed idempotency, caller authority-field
+rejection, insufficient roles, and absent ERP membership. Core is never
+invoked when authentication, tenant membership, or capability checks fail.
+
+Focused controller/protected tests pass 7/7; root tests now report shared 315,
+API 740, and Web 749 passing tests. Lint, typecheck, production build
+(82/82 routes), provider-spend guard, and diff checks pass. No hosted DB,
+provider, deployment, or paid action occurred.
+
+Exact next action: prove protected Web-to-Core CAD response parity, scope
+replacement, idempotent replay, draft-BOM separation, and rollback on a
+disposable database before any canary.
+
 ## M3.218 Project-comment tenant-preserving delete evidence (2026-08-10)
 
 Disposable PostgreSQL 17/Redis 7.4.9 replay exposed and corrected a composite

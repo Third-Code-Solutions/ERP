@@ -1,5 +1,13 @@
 # Next Actions
 
+## Exact next action after M3.219 protected CAD boundary
+
+Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every Core selector or
+tenant allowlist false/empty. Run disposable protected Web-to-Core CAD parity,
+scope replacement, idempotent replay, draft-BOM separation, and rollback
+checks. Capture release identity and readiness before any single-tenant
+hosted canary; do not touch Supabase, Vercel, or Railway under the spend lock.
+
 ## Exact next action after M3.218 project-comment evidence fix
 
 Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every other Core

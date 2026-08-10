@@ -1,5 +1,16 @@
 # Third Code ERP capability matrix
 
+## M3.219 Protected CAD HTTP boundary (2026-08-10)
+
+CAD evidence commit HTTP coverage now exercises real authentication,
+membership, capability, idempotency, and strict request authority rules. Core
+is not invoked for missing bearer, missing membership, insufficient role, or
+caller-supplied tenant/actor authority fields.
+
+Validation: focused controller/protected 7/7; root tests (shared 315, API
+740, Web 749), lint, typecheck, 82/82-route production build,
+provider-spend, and diff checks pass. No hosted or paid action occurred.
+
 ## M3.218 Project-comment tenant-preserving delete evidence (2026-08-10)
 
 Project-comment create/delete evidence now retains required tenant identity

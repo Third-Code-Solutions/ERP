@@ -1,5 +1,17 @@
 # Work Log
 
+## 2026-08-10 - M3.219 protected CAD HTTP boundary
+
+Added `apps/api/src/cad/cad-evidence-commit.protected.spec.ts` using the
+production JWT and capability guards. It verifies authentication, verified
+tenant membership, trimmed idempotency, strict rejection of caller authority
+fields, role denial, and no-membership denial before Core invocation.
+
+Validation: focused controller/protected 7/7; root tests shared 315, API 740,
+Web 749; lint, typecheck, production build 82/82 routes, provider-spend, and
+diff checks passed. No hosted DB, deployment, provider, or paid action. Next:
+disposable Web/Core parity and rollback proof.
+
 ## 2026-08-10 - M3.218 project-comment tenant-preserving delete evidence
 
 Disposable PostgreSQL replay found a real delete-path integrity failure:
