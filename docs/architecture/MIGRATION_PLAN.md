@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.241 Opportunity stage-transition authority (completed, source-only)
+
+1. Added strict shared camel-case command/result contracts and a
+   tenant-scoped `opportunity_stage_transition_requests` enum/table with
+   composite tenant foreign keys, replay hash, forced RLS, and service-only
+   privileges in `20260810130000_opportunity_stage_transition_authority.sql`.
+2. Added Nest controller/pipe/service for authenticated,
+   `opportunity.stage_change`-checked, tenant-locked stage transitions. The
+   transaction enforces `STAGE_TRANSITIONS`, KYC gates, regression reasons,
+   probability/weighted-TCV updates, SLA clocks, idempotency replay/conflict,
+   and semantic audit. Won handoff calls the conversion service inside the
+   same transaction.
+3. Added the Web Core adapter and selector without enabling adoption. The
+   legacy pipeline writer remains the compatibility path; a selected Core
+   failure never falls back. Added shared, API environment, Web adapter, and
+   protected HTTP canary coverage.
+4. Validation: focused canary 1/1; root tests 173 files/751 tests; typecheck
+   5/5, lint 2/2, production build PASS; disposable PostgreSQL 17/Redis 7.4.9
+   lane 117 migrations, database 149/149 suites and 370/370 tests, API
+   integration 37/37 files and 53/53 tests, zero skips; policy guards PASS.
+
+No hosted/provider action occurred. Keep both stage API/write flags and UUID
+allowlists false/empty; do not apply the migration to hosted Supabase or
+deploy Railway/Vercel while the managed-Supabase planner, duplicate/audit
+recovery, readiness, exact SHA, rollback, and spend gates remain open.
+Exact next action: obtain the reviewed hosted suffix plan and explicit
+spend-bounded promotion approval, then run one controlled hosted canary.
+
 ## M3.240 Won-opportunity project conversion protected local HTTP canary (completed, source-only)
 
 1. Added `apps/api/integration/opportunity-conversion.http.integration.spec.ts`

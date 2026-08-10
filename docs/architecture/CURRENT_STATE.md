@@ -1,5 +1,34 @@
 # Current State
 
+## M3.241 Opportunity stage-transition authority (2026-08-10)
+
+Added the closed-by-default Nest command
+`POST /v1/crm/opportunities/:opportunityId/stage-transition`. Core now owns
+strict stage commands, tenant and capability rechecks, state-machine
+transitions, KYC gates, SLA clock closure/start, idempotent replay, semantic
+audit, and exact tenant-scoped result persistence. Won and closed-won changes
+invoke the existing Project conversion authority inside the caller's
+transaction, so the stage update and Project/checklist handoff commit or roll
+back together.
+
+The new forced-RLS, service-only
+`opportunity_stage_transition_requests` ledger is source migration
+`20260810130000_opportunity_stage_transition_authority.sql`. The Web pipeline
+action has a fail-closed Core adapter and exact-true plus UUID-allowlist
+selector; all stage API/write selectors and tenant allowlists remain
+false/empty, so existing compatibility behavior is unchanged.
+
+Focused canary: 1/1 PASS. Root `pnpm test`: 173 files / 751 tests PASS;
+typecheck 5/5 tasks, lint 2/2 tasks, and production build PASS. The disposable
+PostgreSQL 17/Redis 7.4.9 lane replayed 117 migrations; database tests passed
+149/149 suites and 370/370 tests without skips, and API integration passed
+37/37 files and 53/53 tests. Direct stage canary and all policy guards PASS.
+No hosted Supabase SQL/data mutation, Vercel/Railway deployment, provider
+setting, credential, or paid action occurred. The managed-Supabase plan now
+records source 117 / hosted applied 55, pending 62, and hostedApplyApproved
+false. Exact next action: reconcile the reviewed hosted suffix and release
+gates before any canary or provider action.
+
 ## M3.240 Won-opportunity project conversion protected local HTTP canary (2026-08-10)
 
 Added `apps/api/integration/opportunity-conversion.http.integration.spec.ts`

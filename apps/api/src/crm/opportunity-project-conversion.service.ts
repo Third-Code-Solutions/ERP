@@ -178,6 +178,47 @@ export class OpportunityProjectConversionService {
   ): Promise<OpportunityProjectConversionResult> {
     const parsedCommand = opportunityProjectConversionCommandSchema.parse(command)
     const idempotencyKey = validateIdempotencyKey(rawIdempotencyKey)
+    this.assertWritesEnabled(principal)
+    const requestHash = commandHash(opportunityId, parsedCommand)
+    return this.database.client.transaction((transaction) =>
+      this.convertWithinTransactionParsed(
+        transaction,
+        opportunityId,
+        parsedCommand,
+        principal,
+        idempotencyKey,
+        requestHash
+      )
+    )
+  }
+
+  /**
+   * Runs the same conversion authority inside a caller-owned transaction.
+   * Stage transitions use this to keep the won handoff atomic with the stage
+   * update; the normal endpoint above remains the public conversion boundary.
+   */
+  async convertWithinTransaction(
+    transaction: DatabaseTransaction,
+    opportunityId: string,
+    command: OpportunityProjectConversionCommand,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<OpportunityProjectConversionResult> {
+    const parsedCommand = opportunityProjectConversionCommandSchema.parse(command)
+    const idempotencyKey = validateIdempotencyKey(rawIdempotencyKey)
+    this.assertWritesEnabled(principal)
+    const requestHash = commandHash(opportunityId, parsedCommand)
+    return this.convertWithinTransactionParsed(
+      transaction,
+      opportunityId,
+      parsedCommand,
+      principal,
+      idempotencyKey,
+      requestHash
+    )
+  }
+
+  private assertWritesEnabled(principal: ErpPrincipal): void {
     const enabled = this.config.get<boolean>(
       'ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED',
       false
@@ -191,9 +232,16 @@ export class OpportunityProjectConversionService {
         'Won-to-Project handoff is not enabled for this tenant; no Project was created.'
       )
     }
+  }
 
-    const requestHash = commandHash(opportunityId, parsedCommand)
-    return this.database.client.transaction(async (transaction) => {
+  private async convertWithinTransactionParsed(
+    transaction: DatabaseTransaction,
+    opportunityId: string,
+    parsedCommand: OpportunityProjectConversionCommand,
+    principal: ErpPrincipal,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<OpportunityProjectConversionResult> {
       const [membership] = await transaction
         .select({
           tenantId: users.tenant_id,
@@ -431,7 +479,6 @@ export class OpportunityProjectConversionService {
       })
       await this.completeRequest(transaction, request.id, result)
       return result
-    })
   }
 
   private async claimRequest(

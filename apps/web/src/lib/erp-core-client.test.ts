@@ -49,6 +49,7 @@ import {
   createAssetMaintenanceThroughCoreApi,
   getOpportunityThroughCoreApi,
   convertOpportunityToProjectThroughCoreApi,
+  transitionOpportunityStageThroughCoreApi,
   projectReadsUseCoreApi,
   projectListsUseCoreApi,
   auditActivityReadsUseCoreApi,
@@ -70,6 +71,7 @@ import {
   inventoryStockMovementWorkflowUseCoreApi,
   opportunityReadsUseCoreApi,
   opportunityConversionWritesUseCoreApi,
+  opportunityStageWritesUseCoreApi,
   purchaseOrderWritesUseCoreApi,
   purchaseOrderBomWritesUseCoreApi,
   purchaseOrderBomGroupedWritesUseCoreApi,
@@ -2448,6 +2450,24 @@ describe('ERP Core client', () => {
     expect(opportunityConversionWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
+  it('keeps opportunity stage delegation fail-closed unless its exact gate matches', () => {
+    expect(opportunityStageWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_OPPORTUNITY_STAGE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_OPPORTUNITY_STAGE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(opportunityStageWritesUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_OPPORTUNITY_STAGE_WRITES_VIA_API', 'TRUE')
+    expect(opportunityStageWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_OPPORTUNITY_STAGE_WRITES_VIA_API', 'true')
+    vi.stubEnv('ERP_OPPORTUNITY_STAGE_WRITES_VIA_API_TENANT_IDS', '')
+    expect(opportunityStageWritesUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(opportunityStageWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('keeps Purchase Order writes fail-closed unless its independent gate matches', () => {
     vi.stubEnv('ERP_PO_CREATE_WRITES_VIA_API', 'true')
     vi.stubEnv(
@@ -4785,6 +4805,45 @@ describe('ERP Core client', () => {
           'Idempotency-Key': 'opportunity-convert-1',
         }),
         body: '{}',
+      })
+    )
+  })
+
+  it('transitions an Opportunity stage through the Nest command boundary', async () => {
+    const result = {
+      ok: true as const,
+      opportunityId: '33333333-3333-4333-8333-333333333333',
+      tenantId: RESULT.tenantId,
+      fromStage: 'contract' as const,
+      toStage: 'won' as const,
+      projectId: PROJECT_ID,
+      checklistId: '55555555-5555-4555-8555-555555555555',
+      convertedToProject: true,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      transitionOpportunityStageThroughCoreApi(
+        result.opportunityId,
+        { newStage: 'won', reason: 'Signed contract' },
+        'opportunity-stage-1'
+      )
+    ).resolves.toEqual({ ok: true, data: result, status: 200 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/crm/opportunities/${result.opportunityId}/stage-transition`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'opportunity-stage-1',
+        }),
+        body: JSON.stringify({ newStage: 'won', reason: 'Signed contract' }),
       })
     )
   })

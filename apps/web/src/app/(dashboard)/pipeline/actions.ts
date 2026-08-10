@@ -10,6 +10,8 @@ import { writeAuditLog } from '@/lib/audit'
 import {
   convertOpportunityToProjectThroughCoreApi,
   opportunityConversionWritesUseCoreApi,
+  opportunityStageWritesUseCoreApi,
+  transitionOpportunityStageThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { startSlaClock, stopSlaClock } from '@/lib/operations/sla-clock'
 import {
@@ -223,6 +225,28 @@ export async function advanceOpportunityStage(
 
   const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
   if (!userRow?.tenant_id) return { error: 'No tenant' }
+
+  if (opportunityStageWritesUseCoreApi(userRow.tenant_id)) {
+    const transition = await transitionOpportunityStageThroughCoreApi(
+      opportunityId,
+      {
+        newStage: nextStage as OpportunityStage,
+        ...(typeof reason === 'string' && reason.trim()
+          ? { reason: reason.trim() }
+          : {}),
+      },
+      randomUUID()
+    )
+    if (!transition.ok) return { error: transition.error }
+    revalidatePath('/pipeline/board')
+    revalidatePath('/pipeline/coverage')
+    revalidatePath('/pipeline/conversion')
+    revalidatePath('/')
+    if (transition.data?.projectId) {
+      revalidatePath(`/projects/${transition.data.projectId}`)
+    }
+    return {}
+  }
 
   const [opp] = await db
     .select({

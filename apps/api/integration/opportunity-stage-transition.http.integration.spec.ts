@@ -1,0 +1,544 @@
+import 'reflect-metadata'
+
+import { randomUUID } from 'node:crypto'
+import { ConfigService } from '@nestjs/config'
+import { ValidationPipe } from '@nestjs/common'
+import { APP_GUARD, Reflector } from '@nestjs/core'
+import { Test } from '@nestjs/testing'
+import {
+  accounts,
+  auditLog,
+  db,
+  opportunityStageTransitionRequests,
+  opportunities,
+  projects,
+  slaLogs,
+  tenants,
+  users,
+  type Database,
+} from '@third-code-erp/database'
+import { and, eq, isNotNull, isNull } from 'drizzle-orm'
+import request from 'supertest'
+import { describe, expect, it, vi } from 'vitest'
+import { CapabilityGuard } from '../src/auth/capability.guard'
+import { SupabaseIdentityService } from '../src/auth/supabase-identity.service'
+import { SupabaseJwtGuard } from '../src/auth/supabase-jwt.guard'
+import { AuditService } from '../src/audit/audit.service'
+import {
+  DatabaseService,
+  type DatabaseTransaction,
+} from '../src/database/database.service'
+import { OpportunityProjectConversionService } from '../src/crm/opportunity-project-conversion.service'
+import { OpportunityStageTransitionController } from '../src/crm/opportunity-stage-transition.controller'
+import { OpportunityStageTransitionPipe } from '../src/crm/opportunity-stage-transition.pipe'
+import { OpportunityStageTransitionService } from '../src/crm/opportunity-stage-transition.service'
+
+const integrationEnabled =
+  Boolean(process.env.DATABASE_URL) &&
+  process.env.ERP_API_INTEGRATION_EXPECTED === '1'
+const suite = integrationEnabled ? describe : describe.skip
+const ROLLBACK = Symbol('rollback')
+
+function transactionBoundDatabase(
+  transaction: DatabaseTransaction
+): DatabaseService {
+  const client = new Proxy({} as Database, {
+    get(_target, property) {
+      if (property === 'transaction') {
+        return async (
+          callback: (scopedTransaction: DatabaseTransaction) => unknown
+        ) => transaction.transaction(callback)
+      }
+
+      const value = Reflect.get(transaction as unknown as object, property)
+      return typeof value === 'function'
+        ? value.bind(transaction)
+        : value
+    },
+  })
+  return { client } as DatabaseService
+}
+
+async function alwaysRollback(
+  callback: (transaction: DatabaseTransaction) => Promise<void>
+): Promise<void> {
+  try {
+    await db.transaction(async (transaction) => {
+      await callback(transaction)
+      throw ROLLBACK
+    })
+  } catch (error) {
+    if (error !== ROLLBACK) throw error
+  }
+}
+
+suite('Opportunity stage transition protected HTTP canary', () => {
+  it('proves strict state, KYC, idempotency, atomic won handoff, SLA, audit, tenant isolation, and rollback', async () => {
+    const tenantA = randomUUID()
+    const tenantB = randomUUID()
+    const salesA = randomUUID()
+    const adminA = randomUUID()
+    const viewerA = randomUUID()
+    const salesB = randomUUID()
+    const accountA = randomUUID()
+    const accountB = randomUUID()
+    const leadOpportunityA = randomUUID()
+    const contractOpportunityA = randomUUID()
+    const rollbackOpportunityA = randomUUID()
+    const rollbackProjectA = randomUUID()
+    const contractOpportunityB = randomUUID()
+    const suffix = randomUUID().slice(0, 12)
+    const observedAt = new Date('2026-08-10T04:00:00.000Z')
+
+    await alwaysRollback(async (transaction) => {
+      await transaction.insert(tenants).values([
+        {
+          id: tenantA,
+          name: 'Stage HTTP Tenant A',
+          slug: `stage-http-a-${suffix}`,
+        },
+        {
+          id: tenantB,
+          name: 'Stage HTTP Tenant B',
+          slug: `stage-http-b-${suffix}`,
+        },
+      ])
+      await transaction.insert(users).values([
+        {
+          id: salesA,
+          tenant_id: tenantA,
+          email: `stage-sales-a-${suffix}@integration.test`,
+          full_name: 'Stage Sales A',
+          role: 'sales',
+        },
+        {
+          id: adminA,
+          tenant_id: tenantA,
+          email: `stage-admin-a-${suffix}@integration.test`,
+          full_name: 'Stage Admin A',
+          role: 'admin',
+        },
+        {
+          id: viewerA,
+          tenant_id: tenantA,
+          email: `stage-viewer-a-${suffix}@integration.test`,
+          full_name: 'Stage Viewer A',
+          role: 'viewer',
+        },
+        {
+          id: salesB,
+          tenant_id: tenantB,
+          email: `stage-sales-b-${suffix}@integration.test`,
+          full_name: 'Stage Sales B',
+          role: 'sales',
+        },
+      ])
+      await transaction.insert(accounts).values([
+        {
+          id: accountA,
+          tenant_id: tenantA,
+          name: 'Stage Client A',
+          industry: 'office',
+          kyc_status: 'approved',
+          created_by: salesA,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+        {
+          id: accountB,
+          tenant_id: tenantB,
+          name: 'Stage Client B',
+          industry: 'industrial',
+          kyc_status: 'approved',
+          created_by: salesB,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+      ])
+      await transaction.insert(projects).values({
+        id: rollbackProjectA,
+        tenant_id: tenantA,
+        account_id: accountA,
+        name: 'Stage rollback project',
+        client: 'Stage Client A',
+        status: 'lead',
+        created_by: salesA,
+        created_at: observedAt,
+        updated_at: observedAt,
+      })
+      await transaction.insert(opportunities).values([
+        {
+          id: leadOpportunityA,
+          tenant_id: tenantA,
+          account_id: accountA,
+          stage: 'lead',
+          tcv_cents: 100_000,
+          probability: 10,
+          weighted_tcv_cents: 10_000,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+        {
+          id: contractOpportunityA,
+          tenant_id: tenantA,
+          account_id: accountA,
+          stage: 'contract',
+          opportunity_type: 'A atomic fit-out',
+          tcv_cents: 1_000_000,
+          probability: 90,
+          weighted_tcv_cents: 900_000,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+        {
+          id: rollbackOpportunityA,
+          tenant_id: tenantA,
+          account_id: accountA,
+          project_id: rollbackProjectA,
+          stage: 'contract',
+          opportunity_type: 'A rollback fit-out',
+          tcv_cents: 800_000,
+          probability: 90,
+          weighted_tcv_cents: 720_000,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+        {
+          id: contractOpportunityB,
+          tenant_id: tenantB,
+          account_id: accountB,
+          stage: 'contract',
+          opportunity_type: 'B fit-out',
+          tcv_cents: 500_000,
+          probability: 90,
+          weighted_tcv_cents: 450_000,
+          created_at: observedAt,
+          updated_at: observedAt,
+        },
+      ])
+      const [initialLeadClock] = await transaction
+        .insert(slaLogs)
+        .values({
+        tenant_id: tenantA,
+        entity_type: 'opportunity',
+        entity_id: leadOpportunityA,
+        sla_label: 'opp.stage_response',
+        sla_seconds: { breach_at_seconds: 432_000, warning_at_pct: 0.8 },
+        started_at: observedAt,
+        })
+        .returning({ id: slaLogs.id })
+      expect(initialLeadClock).toBeTruthy()
+
+      const identities = new Map([
+        ['stage-sales-a-token', salesA],
+        ['stage-admin-a-token', adminA],
+        ['stage-viewer-a-token', viewerA],
+        ['stage-sales-b-token', salesB],
+      ])
+      const identity = {
+        verifyAccessToken: vi.fn(async (token: string) => {
+          const userId = identities.get(token)
+          return userId ? { userId } : null
+        }),
+      }
+      const featureState = {
+        stageEnabled: true,
+        stageTenantIds: [tenantA, tenantB],
+        conversionEnabled: true,
+        conversionTenantIds: [tenantA, tenantB],
+      }
+      const config = {
+        get: vi.fn((key: string, fallback?: unknown) => {
+          if (key === 'ERP_OPPORTUNITY_STAGE_WRITES_ENABLED') {
+            return featureState.stageEnabled
+          }
+          if (key === 'ERP_OPPORTUNITY_STAGE_WRITES_TENANT_IDS') {
+            return featureState.stageTenantIds
+          }
+          if (key === 'ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED') {
+            return featureState.conversionEnabled
+          }
+          if (key === 'ERP_OPPORTUNITY_CONVERT_WRITES_TENANT_IDS') {
+            return featureState.conversionTenantIds
+          }
+          return fallback
+        }),
+      }
+      const database = transactionBoundDatabase(transaction)
+      const moduleRef = await Test.createTestingModule({
+        controllers: [OpportunityStageTransitionController],
+        providers: [
+          Reflector,
+          OpportunityStageTransitionPipe,
+          OpportunityStageTransitionService,
+          OpportunityProjectConversionService,
+          AuditService,
+          SupabaseJwtGuard,
+          CapabilityGuard,
+          {
+            provide: ConfigService,
+            useValue: config,
+          },
+          {
+            provide: DatabaseService,
+            useValue: database,
+          },
+          {
+            provide: SupabaseIdentityService,
+            useValue: identity,
+          },
+          {
+            provide: APP_GUARD,
+            useExisting: SupabaseJwtGuard,
+          },
+          {
+            provide: APP_GUARD,
+            useExisting: CapabilityGuard,
+          },
+        ],
+      }).compile()
+      const app = moduleRef.createNestApplication()
+      app.useGlobalPipes(
+        new ValidationPipe({
+          transform: true,
+          whitelist: true,
+          forbidNonWhitelisted: true,
+        })
+      )
+      await app.init()
+
+      try {
+        const route = (opportunityId: string) =>
+          `/v1/crm/opportunities/${opportunityId}/stage-transition`
+
+        await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .send({ newStage: 'site_survey' })
+          .expect(401)
+
+        await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .send({ newStage: 'site_survey' })
+          .expect(400)
+
+        await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'body-rejected')
+          .send({ newStage: 'site_survey', tenantId: tenantA })
+          .expect(400)
+
+        await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-viewer-a-token')
+          .set('Idempotency-Key', 'viewer-denied')
+          .send({ newStage: 'site_survey' })
+          .expect(403)
+
+        featureState.stageEnabled = false
+        await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'stage-disabled')
+          .send({ newStage: 'site_survey' })
+          .expect(503)
+        featureState.stageEnabled = true
+
+        await request(app.getHttpServer())
+          .post(route(contractOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-b-token')
+          .set('Idempotency-Key', 'cross-tenant')
+          .send({ newStage: 'won' })
+          .expect(404)
+
+        featureState.conversionEnabled = false
+        await request(app.getHttpServer())
+          .post(route(contractOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'conversion-disabled')
+          .send({ newStage: 'won' })
+          .expect(503)
+        featureState.conversionEnabled = true
+
+        const nonTerminal = await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'lead-site-survey')
+          .send({ newStage: 'site_survey' })
+          .expect(200)
+        expect(nonTerminal.body).toMatchObject({
+          ok: true,
+          opportunityId: leadOpportunityA,
+          tenantId: tenantA,
+          fromStage: 'lead',
+          toStage: 'site_survey',
+          projectId: null,
+          checklistId: null,
+          convertedToProject: false,
+        })
+
+        const replay = await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'lead-site-survey')
+          .send({ newStage: 'site_survey' })
+          .expect(200)
+        expect(replay.body).toEqual(nonTerminal.body)
+
+        await request(app.getHttpServer())
+          .post(route(leadOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'lead-site-survey')
+          .send({ newStage: 'lost', reason: 'Different command' })
+          .expect(409)
+
+        const conversion = await request(app.getHttpServer())
+          .post(route(contractOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'contract-won')
+          .send({ newStage: 'won', reason: 'Signed contract' })
+          .expect(200)
+        expect(conversion.body).toMatchObject({
+          ok: true,
+          opportunityId: contractOpportunityA,
+          tenantId: tenantA,
+          fromStage: 'contract',
+          toStage: 'won',
+          convertedToProject: true,
+        })
+        expect(conversion.body.projectId).toEqual(expect.any(String))
+        expect(conversion.body.checklistId).toEqual(expect.any(String))
+
+        await request(app.getHttpServer())
+          .post(route(rollbackOpportunityA))
+          .set('Authorization', 'Bearer stage-sales-a-token')
+          .set('Idempotency-Key', 'rollback-won')
+          .send({ newStage: 'won' })
+          .expect(409)
+
+        const [lead] = await transaction
+          .select({ stage: opportunities.stage })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.id, leadOpportunityA),
+              eq(opportunities.tenant_id, tenantA)
+            )
+          )
+          .limit(1)
+        expect(lead?.stage).toBe('site_survey')
+
+        const [converted] = await transaction
+          .select()
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.id, contractOpportunityA),
+              eq(opportunities.tenant_id, tenantA)
+            )
+          )
+          .limit(1)
+        expect(converted?.stage).toBe('won')
+        expect(converted?.project_id).toBe(conversion.body.projectId)
+
+        const [rollback] = await transaction
+          .select({ stage: opportunities.stage, projectId: opportunities.project_id })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.id, rollbackOpportunityA),
+              eq(opportunities.tenant_id, tenantA)
+            )
+          )
+          .limit(1)
+        expect(rollback).toEqual({ stage: 'contract', projectId: rollbackProjectA })
+
+        const [stageRequest] = await transaction
+          .select()
+          .from(opportunityStageTransitionRequests)
+          .where(
+            and(
+              eq(opportunityStageTransitionRequests.tenant_id, tenantA),
+              eq(opportunityStageTransitionRequests.idempotency_key, 'contract-won')
+            )
+          )
+          .limit(1)
+        expect(stageRequest).toMatchObject({
+          state: 'succeeded',
+          from_stage: 'contract',
+          to_stage: 'won',
+          project_id: conversion.body.projectId,
+          checklist_id: conversion.body.checklistId,
+        })
+
+        const [openLeadClock] = await transaction
+          .select()
+        .from(slaLogs)
+          .where(
+            and(
+              eq(slaLogs.tenant_id, tenantA),
+              eq(slaLogs.entity_id, leadOpportunityA),
+              eq(slaLogs.sla_label, 'opp.stage_response'),
+              isNull(slaLogs.completed_at)
+            )
+          )
+          .limit(1)
+        expect(openLeadClock).toBeTruthy()
+        const [completedInitialClock] = await transaction
+          .select()
+          .from(slaLogs)
+          .where(
+            and(
+              eq(slaLogs.tenant_id, tenantA),
+              eq(slaLogs.entity_id, leadOpportunityA),
+              eq(slaLogs.sla_label, 'opp.stage_response'),
+              eq(slaLogs.id, initialLeadClock!.id),
+              isNotNull(slaLogs.completed_at)
+            )
+          )
+          .limit(1)
+        expect(completedInitialClock).toBeTruthy()
+
+        const semanticAuditRows = await transaction
+          .select()
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, contractOpportunityA),
+              eq(auditLog.action, 'stage_change')
+            )
+          )
+        expect(
+          semanticAuditRows.some(
+            (row) =>
+              typeof row.diff === 'object' &&
+              !Array.isArray(row.diff) &&
+              (row.diff as Record<string, unknown>).source ===
+                'opportunity_stage_core'
+          )
+        ).toBe(true)
+
+        const otherTenantRows = await transaction
+          .select()
+          .from(opportunityStageTransitionRequests)
+          .where(eq(opportunityStageTransitionRequests.tenant_id, tenantB))
+        expect(otherTenantRows).toHaveLength(0)
+        const [untouchedB] = await transaction
+          .select({ stage: opportunities.stage })
+          .from(opportunities)
+          .where(
+            and(
+              eq(opportunities.id, contractOpportunityB),
+              eq(opportunities.tenant_id, tenantB)
+            )
+          )
+          .limit(1)
+        expect(untouchedB?.stage).toBe('contract')
+      } finally {
+        await app.close()
+      }
+    })
+  })
+})
