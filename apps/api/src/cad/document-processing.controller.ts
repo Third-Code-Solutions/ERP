@@ -58,7 +58,10 @@ export class DocumentProcessingController {
       principal,
       idempotencyKey.trim()
     )
-    if (result.status.status === 'queued' || result.status.status === 'processing') {
+    if (
+      result.created &&
+      (result.status.status === 'queued' || result.status.status === 'processing')
+    ) {
       await this.queue.enqueue(result.status.jobId)
     }
     response.status(

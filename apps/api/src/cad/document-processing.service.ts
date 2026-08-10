@@ -268,6 +268,24 @@ export class DocumentProcessingService {
         )
       }
 
+      if (inserted.length > 0) {
+        await this.audit.writeSemantic(transaction, {
+          tenantId: authorizedPrincipal.tenantId,
+          actorId: authorizedPrincipal.userId,
+          entityType: 'document_processing_job',
+          entityId: job.id,
+          action: 'create',
+          diff: {
+            document_id: document.id,
+            project_id: document.projectId,
+            mode: parsedRequest.mode,
+            requested_format: parsedRequest.requestedFormat,
+            create_draft_bom: parsedRequest.createDraftBom,
+            request_hash: hash,
+          },
+        })
+      }
+
       return { status: statusFromRow(job), created: inserted.length > 0 }
     })
   }

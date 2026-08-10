@@ -146,6 +146,25 @@ describe('document processing HTTP contract', () => {
     expect(harness.enqueue).not.toHaveBeenCalled()
   }, 30_000)
 
+  it('does not re-enqueue a queued idempotent replay', async () => {
+    const harness = await appFor(
+      vi.fn().mockResolvedValue({ status: STATUS, created: false })
+    )
+    await request(harness.app.getHttpServer())
+      .post(`/v1/documents/${DOCUMENT_ID}/processing-jobs`)
+      .set('Idempotency-Key', 'job-1')
+      .send(COMMAND)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          jobId: JOB_ID,
+          documentId: DOCUMENT_ID,
+          status: 'queued',
+        })
+      })
+    expect(harness.enqueue).not.toHaveBeenCalled()
+  }, 30_000)
+
   it('reads a job through the tenant-aware status boundary', async () => {
     const harness = await appFor()
     await request(harness.app.getHttpServer())
