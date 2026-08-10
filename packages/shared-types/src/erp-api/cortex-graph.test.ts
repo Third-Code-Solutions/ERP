@@ -66,6 +66,12 @@ describe('Cortex graph contract', () => {
       })
     ).toThrow()
     expect(() =>
+      cortexGraphResponseSchema.parse({
+        ...graph,
+        nodes: [{ ...graph.nodes[0], type: 'invoice' }],
+      })
+    ).toThrow()
+    expect(() =>
       cortexGraphResponseSchema.parse({ ...graph, tenantId: REF_ID })
     ).toThrow()
   })

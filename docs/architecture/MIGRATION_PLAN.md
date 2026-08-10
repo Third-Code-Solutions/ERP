@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.209 shared Cortex source-contract hardening (completed, source-only)
+
+1. Added canonical `refTable`/`nodeType` refinements to graph response,
+   keyword-search hit, and citation schemas.
+2. Reused the existing graph registry rather than maintaining a second source
+   list; mismatched rows now fail schema validation across Core/Web/AI paths.
+3. Added shared regressions for mismatched graph nodes, search hits, and
+   citation evidence.
+
+Validation: shared Cortex graph/search/entity tests 11/11, shared typecheck,
+Core Cortex search/controller tests 7/7, API typecheck, Web Cortex routes/client
+175/175, and Web typecheck passed. Full API suite remains incomplete after a
+240-second timeout; PostgreSQL/RLS replay and protected browser checks remain
+open. No hosted/provider/deployment action.
+
+Exact next action: complete disposable PostgreSQL/Redis replay and graph
+coverage comparison when the local Docker runtime is available.
+
 ## M3.208 Core Cortex source validation (completed, source-only)
 
 1. Reused the shared Cortex graph registry to require a known `ref_table` and

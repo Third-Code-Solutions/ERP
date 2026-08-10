@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-319 - Enforce Cortex source identity in shared contracts (2026-08-10)
+
+Decision: graph nodes, Cortex search hits, and citation records must validate a
+registered `refTable` together with its matching canonical node type. The
+shared contract owns this invariant; Core retains defensive filtering before
+serialization.
+
+Rationale: source identity is a security and trust boundary for deep links,
+tenant-scoped evidence, and AI context. Enforcing it only in one route leaves
+other consumers able to accept malformed or mismatched derived data. A shared
+refinement prevents drift without copying ERPNext/Frappe structures or
+weakening the existing tenant/role/capability gates.
+
+Validation: shared Cortex tests 11/11 and typecheck, Core focused tests 7/7 and
+typecheck passed. Full database replay is still unavailable.
+
 ## D-318 - Validate Cortex source identity inside Core (2026-08-10)
 
 Decision: Core Cortex search must reject graph rows whose source table is not in

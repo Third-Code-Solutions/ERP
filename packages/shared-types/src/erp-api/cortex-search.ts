@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  cortexGraphRefTableMatchesType,
+  cortexGraphRefTableSchema,
+} from './cortex-graph'
 
 export const cortexSearchFreshnessValues = [
   'fresh',
@@ -25,13 +29,22 @@ export const cortexSearchHitSchema = z
     nodeType: z.string().trim().min(1).max(64),
     title: z.string().trim().max(500).nullable(),
     summary: z.string().nullable(),
-    refTable: z.string().trim().min(1).max(100),
+    refTable: cortexGraphRefTableSchema,
     refId: z.string().uuid(),
     projectId: z.string().uuid().nullable(),
     freshness: z.enum(cortexSearchFreshnessValues),
     source: z.literal('cortex'),
   })
   .strict()
+  .superRefine((hit, ctx) => {
+    if (!cortexGraphRefTableMatchesType(hit.refTable, hit.nodeType)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['refTable'],
+        message: 'Cortex source table does not match node type',
+      })
+    }
+  })
 
 export type CortexSearchHit = z.infer<typeof cortexSearchHitSchema>
 

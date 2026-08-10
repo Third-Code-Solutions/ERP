@@ -46,6 +46,23 @@ describe('Cortex search contract', () => {
         ],
       })
     ).toThrow()
+    expect(() =>
+      cortexSearchResultSchema.parse({
+        hits: [
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            nodeType: 'project',
+            title: 'Wrong source',
+            summary: null,
+            refTable: 'invoices',
+            refId: '44444444-4444-4444-8444-444444444444',
+            projectId: null,
+            freshness: 'fresh',
+            source: 'cortex',
+          },
+        ],
+      })
+    ).toThrow()
   })
 
   it('rejects process-scoped observability fields from a user-facing result', () => {
