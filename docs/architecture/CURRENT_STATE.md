@@ -1,5 +1,31 @@
 # Current State
 
+## M3.228 Disposable zero-skip PostgreSQL/Redis and API lane (2026-08-10)
+
+The current commit was replayed against the disposable `ThirdCodeERP-Test`
+runtime: PostgreSQL 17.10 at `127.0.0.1:54322`, Redis 7.4.9 at
+`127.0.0.1:6379`, and database `erp_self_hosted_ci`. The lane dropped and
+recreated only that local database, applied all 116 repository migrations,
+then ran 149 database test files / 370 tests with zero skips and zero failures.
+The Nest API integration suite then passed 30 files / 45 tests with one worker.
+
+The schema-only dump before and after the tests is byte-equivalent at
+SHA-256 `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+Expected failure-path log lines for RFQ, notification, and document queues
+were emitted while their assertions passed; they are not silent failures.
+No hosted database, Supabase, Vercel, Railway, deployment, or paid action was
+used.
+
+This is the authoritative disposable data/API integrity gate for the current
+source tree. The default root test command still skips environment-backed DB
+suites when `DATABASE_URL` is absent; the no-skip lane is the evidence for
+those suites.
+
+Exact next action: select the next smallest source-only ERP boundary, document
+its contract and tenant/authorization invariants, then implement and verify it
+against this disposable lane. Keep provider-spend and hosted deployment locks
+closed.
+
 ## M3.227 Controlled upload browser runtime and UX hardening (2026-08-10)
 
 The localhost-only controlled document-upload fixture now runs against the

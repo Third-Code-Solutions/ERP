@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.228 Disposable zero-skip PostgreSQL/Redis and API lane (completed, source + disposable runtime)
+
+1. Dropped and recreated only local `erp_self_hosted_ci` in the
+   `ThirdCodeERP-Test` WSL distribution; no hosted connection was used.
+2. Replayed all 116 checked-in migrations and verified PostgreSQL 17.10 plus
+   Redis 7.4.9 readiness.
+3. Ran the database Vitest report and enforced zero skipped tests:
+   149/149 files, 370/370 tests, zero failures, zero pending/skipped tests.
+4. Ran the Nest API integration suite with one worker: 30/30 files and
+   45/45 tests passed.
+5. Compared schema-only dumps before and after tests; both SHA-256 values are
+   `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+The API run emitted expected dead-letter/failed-state log lines from tested
+failure paths; the suite still passed. This closes the current source-level
+no-skip database/API gate, but not hosted production health or deployment.
+
+Exact next action: choose one bounded source-only ERP domain seam, write its
+tenant/authorization/state contract, and verify its implementation through the
+same disposable lane before any hosted action.
+
 ## M3.227 Controlled upload browser runtime and UX hardening (completed, source + disposable browser)
 
 1. Extended the local-only auth loopback harness with password-token CORS and

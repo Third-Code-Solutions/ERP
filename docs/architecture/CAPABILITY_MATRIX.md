@@ -1,5 +1,14 @@
 # Third Code ERP capability matrix
 
+## M3.228 Disposable zero-skip data/API release gate (2026-08-10)
+
+Local migration and integration integrity is verified for the current commit:
+PostgreSQL 17.10/Redis 7.4.9; 116 migrations; database 149/149 files and
+370/370 tests with no skips; Nest API 30/30 files and 45/45 tests; identical
+schema dumps before/after at SHA-256
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+Hosted providers and production remain unverified.
+
 ## M3.227 Controlled upload browser runtime and UX hardening (2026-08-10)
 
 The real local login and project Documents journey now proves visible
