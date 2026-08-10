@@ -5,10 +5,10 @@
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
     "postgresMajor": 17,
     "appliedCount": 55,
-    "sourceCount": 115,
-    "pendingCount": 60,
+    "sourceCount": 116,
+    "pendingCount": 61,
     "appliedHead": "20260729233017",
-    "sourceHead": "20260810110000",
+    "sourceHead": "20260810120000",
     "ledgerStatus": "review_required"
   },
   "policy": {
@@ -129,7 +129,8 @@
       "purpose": "Core-authoritative project comment creation and deletion ledgers with browser mutation closure.",
       "migrations": [
         "20260810100000_project_comment_create_workflow.sql",
-        "20260810110000_project_comment_delete_workflow.sql"
+        "20260810110000_project_comment_delete_workflow.sql",
+        "20260810120000_project_comment_delete_fk_tenant_preservation.sql"
       ]
     }
   ]

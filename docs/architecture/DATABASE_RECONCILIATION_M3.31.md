@@ -1,5 +1,21 @@
 # M3.31 - Supabase reconciliation audit (read-only)
 
+## M3.230 read-only refresh (2026-08-10)
+
+The authorized project `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY` on PostgreSQL
+17.6.1 in `ap-northeast-2`. Hosted migration history remains a strict 55-row
+prefix ending at `20260729233017_notification_outbox_foundation`; source now
+contains 116 files through `20260810120000_project_comment_delete_fk_tenant_preservation`,
+so 61 ordered migrations remain pending. Hosted Cortex currently has 3 vendor
+nodes and 0 material nodes; newer authority request tables are absent.
+
+Security advisors returned 14 findings (11 warnings); performance advisors
+returned 253 findings (1 warning). This refresh was read-only. No SQL, migration
+repair, hosted data/Storage object, provider setting, deployment, or paid action
+changed. Hosted apply remains blocked pending the existing backup/clone,
+isolated replay, catalog/data/RLS/function diff, rollback, owner, and spend
+gates.
+
 Verified 2026-08-04 against the authorized Supabase project
 `aqqrtkmtcsfkbyyqxowv` (`https://aqqrtkmtcsfkbyyqxowv.supabase.co`).
 

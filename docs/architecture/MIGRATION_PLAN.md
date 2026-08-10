@@ -1,5 +1,23 @@
 # Migration Plan
 
+## M3.230 Hosted Supabase reconciliation refresh (completed, read-only)
+
+1. Confirmed target project identity and health through the connected Supabase
+   control plane: PostgreSQL 17.6.1, region `ap-northeast-2`.
+2. Compared hosted migration history (55 rows, head
+   `20260729233017_notification_outbox_foundation`) with the source ledger
+   (116 files, head `20260810120000_project_comment_delete_fk_tenant_preservation`).
+3. Refreshed the ordered parity manifest to 61 pending migrations and included
+   the latest project-comment tenant-FK preservation file.
+4. Read table catalog, Cortex vendor/material node counts, and security/performance
+   advisor findings. No migration repair or SQL apply was attempted.
+
+Evidence: target is healthy but source/hosted parity is incomplete; seven
+newer authority-table families are absent, Cortex has 3 vendor nodes and 0
+material nodes, security advisors report 14 findings, and performance advisors
+report 253 findings. Exact next action: approved backup/clone plus isolated
+full replay and diff. Keep hosted writes and deployments closed.
+
 ## M3.229 Multi-business master-data universal search (completed, source + disposable runtime)
 
 1. Extended the shared search contract and role matrix with `vendor` and
