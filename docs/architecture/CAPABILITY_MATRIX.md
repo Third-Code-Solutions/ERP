@@ -1,5 +1,20 @@
 # Third Code ERP capability matrix
 
+## M3.231 Today/Project Command Center read authority (2026-08-10)
+
+Nest now owns a bounded, read-only Today contract with server-time Manila
+boundaries, tenant/assignee-scoped tasks, and an explicit project-context
+expansion. All persisted ERP roles receive `today.read`; project context still
+rechecks the existing `project.read` capability. Web selection is disabled by
+default and requires an exact tenant canary allowlist.
+
+Validation: shared Today 2 tests; API Today 5 files/8 tests plus standalone API
+173 files/749 tests; Web Today client 3 tests plus Web 110 files/759 tests;
+API/Web typecheck, root lint/build, and the disposable zero-skip
+PostgreSQL/Redis lane pass. Concurrent root `pnpm test` was load-sensitive
+(8 unrelated HTTP test timeouts); standalone rerun passed. No hosted/provider
+write or paid action.
+
 ## M3.230 Hosted Supabase reconciliation refresh (2026-08-10)
 
 Read-only inventory confirms target project `aqqrtkmtcsfkbyyqxowv` is healthy

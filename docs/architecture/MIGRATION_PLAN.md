@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.231 Today/Project Command Center Nest read seam (completed, source-only)
+
+1. Added a shared bounded Today query/result contract with ISO timestamps and
+   strict `includeProjects` parsing; browser-controlled time and unknown fields
+   are rejected.
+2. Added the Nest `TodayModule`, controller, service, Manila UTC+8 boundary
+   helper, `today.read` capability, tenant/assignee-scoped PostgreSQL reads,
+   and explicit optional project expansion.
+3. Added the Web Core client, exact tenant canary selector, and adapter that
+   preserves the direct query path unless the flag and allowlist match.
+4. Added shared, API service/pipe/controller/boundary/HTTP, and Web client
+   regression tests. Focused checks, standalone package tests, typechecks,
+   lint, build, and the disposable zero-skip lane passed as recorded in
+   `docs/operations/WORK_LOG.md`.
+
+No schema migration was needed. No Supabase, Vercel, Railway, deployment, or
+paid action occurred. Exact next action: keep the selector disabled, capture
+protected local canary evidence, and then choose the next smallest source-only
+ERP boundary.
+
 ## M3.230 Hosted Supabase reconciliation refresh (completed, read-only)
 
 1. Confirmed target project identity and health through the connected Supabase

@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-10 - M3.231 Today/Project Command Center Nest read seam
+
+Added the shared Today result/query contract, Nest `TodayModule` (`GET
+/v1/today`), Manila server-time boundaries, tenant/assignee-scoped task
+counts/rows, explicit optional project expansion, and `today.read` capability.
+The Web adapter is fail-closed behind `ERP_TODAY_READS_VIA_API` plus a strict
+tenant allowlist; direct dashboard reads remain the default. Added shared,
+API boundary/pipe/service/controller/HTTP, and Web Core-client tests.
+
+Focused Today checks passed (shared 2, API 8, Web 3). Standalone API passed
+173/173 files and 749/749 tests with one fork; Web passed 110/110 files and
+759/759 tests. Root typecheck, sequential lint, and production build passed.
+A concurrent root test run had 8 unrelated 5-second HTTP-test timeouts while
+164 API files/739 tests passed; a bounded standalone rerun passed all API tests.
+The local disposable lane passed 116 migrations, database 149/149 files and
+370/370 tests with zero skips, API integration 30/30 files and 45/45 tests,
+and equal schema SHA-256
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No schema migration, Supabase SQL/data/Storage operation, Vercel/Railway
+deployment, provider setting, credential, or paid action occurred. Next:
+keep the Today selector closed; gather protected local canary evidence and
+then choose the next source-only ERP seam.
+
 ## 2026-08-10 - M3.230 hosted Supabase reconciliation refresh
 
 Used connected Supabase read-only inventory for project

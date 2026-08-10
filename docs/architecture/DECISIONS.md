@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-343 - Put Today read authority behind a closed tenant canary (2026-08-10)
+
+Decision: add Nest `GET /v1/today` as the reviewed read authority for the
+dashboard command center, but keep Web adoption disabled by default behind
+`ERP_TODAY_READS_VIA_API` and a strict tenant UUID allowlist. The API owns the
+clock, Manila boundaries, tenant/assignee predicates, bounded limits, and
+optional project-context authorization; the Web direct query remains the
+compatibility path until protected canary evidence exists.
+
+Rationale: Today is a high-value cross-domain read, but opening it before
+hosted Core identity, database parity, and protected browser evidence would
+change production behavior under the billing lock. A closed adapter advances
+the modular-monolith boundary without a big-bang rewrite or direct browser
+writes.
+
+Validation: shared/API/Web focused contracts pass; standalone API 173/173
+files and 749/749 tests, Web 110/110 files and 759/759 tests, root typecheck,
+lint, and build pass; disposable 116-migration zero-skip lane remains schema
+stable. Hosted selector, database mutation, and deployment were not run.
+
 ## D-342 - Treat hosted Supabase as a read-only prefix until clone evidence exists (2026-08-10)
 
 Decision: do not apply, repair, or hand-edit hosted migration history while the
