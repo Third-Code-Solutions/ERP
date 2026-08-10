@@ -1,5 +1,21 @@
 # Migration Plan
 
+## M3.210 resilient Core Cortex graph projection (completed, source-only)
+
+1. Added shared graph-row sanitizers for whole and focused responses.
+2. Kept only schema-valid canonical nodes and links with two valid endpoints,
+   bounded to the existing graph limits.
+3. Updated Core graph reads to use the sanitizer and conceal invalid focused
+   records as not-found; added shared/Core regressions.
+
+Validation: shared graph sanitizer tests 5/5 + typecheck; Core graph/controller
+tests 7/7 + typecheck; root lint/build; static migration reproducibility check
+passed. Docker engine readiness timed out, so PostgreSQL/RLS replay and
+protected browser evidence remain open. No hosted/provider/deployment action.
+
+Exact next action: run the disposable PostgreSQL/Redis replay when Docker is
+healthy, then compare canonical row counts with current Cortex graph coverage.
+
 ## M3.209 shared Cortex source-contract hardening (completed, source-only)
 
 1. Added canonical `refTable`/`nodeType` refinements to graph response,

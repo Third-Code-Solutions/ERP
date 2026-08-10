@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cortexFocusedGraphResultFromRows,
   cortexGraphQuerySchema,
   cortexGraphRefTableMatchesType,
+  cortexGraphResultFromRows,
   cortexGraphResponseSchema,
   isCortexGraphRefTable,
 } from './cortex-graph'
@@ -74,5 +76,58 @@ describe('Cortex graph contract', () => {
     expect(() =>
       cortexGraphResponseSchema.parse({ ...graph, tenantId: REF_ID })
     ).toThrow()
+  })
+
+  it('sanitizes malformed nodes and dangling links without losing valid graph data', () => {
+    const secondNode = '33333333-3333-4333-8333-333333333333'
+    const result = cortexGraphResultFromRows({
+      nodes: [
+        {
+          id: NODE_ID,
+          type: 'journal_entry',
+          title: 'Journal 1042',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+        {
+          id: 'not-a-uuid',
+          type: 'journal_entry',
+          title: 'Malformed',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+        {
+          id: secondNode,
+          type: 'journal_entry',
+          title: 'Journal 1043',
+          refTable: 'journal_entries',
+          refId: '44444444-4444-4444-8444-444444444444',
+          projectId: null,
+        },
+      ],
+      links: [
+        { source: NODE_ID, target: secondNode, type: 'part_of' },
+        { source: NODE_ID, target: '55555555-5555-4555-8555-555555555555', type: 'leak' },
+        { source: 'not-a-uuid', target: secondNode, type: 'bad' },
+      ],
+    })
+
+    expect(result.nodes).toHaveLength(2)
+    expect(result.links).toEqual([
+      { source: NODE_ID, target: secondNode, type: 'part_of' },
+    ])
+  })
+
+  it('returns no focused graph when the focus row is invalid or absent', () => {
+    expect(cortexFocusedGraphResultFromRows(null)).toBeNull()
+    expect(
+      cortexFocusedGraphResultFromRows({
+        focusNodeId: NODE_ID,
+        nodes: [],
+        links: [],
+      })
+    ).toBeNull()
   })
 })

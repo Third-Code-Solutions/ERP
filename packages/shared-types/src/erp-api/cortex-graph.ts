@@ -139,3 +139,59 @@ export type CortexFocusedGraphResult = z.infer<
   typeof cortexFocusedGraphResultSchema
 >
 export type CortexGraphResponse = z.infer<typeof cortexGraphResponseSchema>
+
+type CortexGraphRows = {
+  nodes?: unknown
+  links?: unknown
+}
+
+/**
+ * Sanitize database-derived graph rows without letting one malformed mirror
+ * row take down the whole graph response. Links survive only when both
+ * endpoints survived node validation.
+ */
+export function cortexGraphResultFromRows(
+  input: CortexGraphRows | null | undefined
+): CortexGraphResult {
+  const nodes = Array.isArray(input?.nodes)
+    ? input.nodes.flatMap((row) => {
+        const parsed = cortexGraphNodeSchema.safeParse(row)
+        return parsed.success ? [parsed.data] : []
+      })
+    : []
+  const nodeIds = new Set(nodes.map((node) => node.id))
+  const links = Array.isArray(input?.links)
+    ? input.links.flatMap((row) => {
+        const parsed = cortexGraphLinkSchema.safeParse(row)
+        if (
+          !parsed.success ||
+          !nodeIds.has(parsed.data.source) ||
+          !nodeIds.has(parsed.data.target)
+        ) {
+          return []
+        }
+        return [parsed.data]
+      })
+    : []
+
+  return cortexGraphResultSchema.parse({
+    nodes: nodes.slice(0, 1500),
+    links: links.slice(0, 12_000),
+  })
+}
+
+/** Return null when a focused graph has no valid focus node after sanitizing. */
+export function cortexFocusedGraphResultFromRows(
+  input: (CortexGraphRows & { focusNodeId?: unknown }) | null | undefined
+): CortexFocusedGraphResult | null {
+  const focusNode = z.string().uuid().safeParse(input?.focusNodeId)
+  if (!focusNode.success) return null
+
+  const graph = cortexGraphResultFromRows(input)
+  if (!graph.nodes.some((node) => node.id === focusNode.data)) return null
+
+  return cortexFocusedGraphResultSchema.parse({
+    ...graph,
+    focusNodeId: focusNode.data,
+  })
+}

@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-10 - M3.210 resilient Core Cortex graph projection
+
+Added shared whole/focused graph sanitizers and wired Core graph reads through
+them. Malformed nodes, mismatched sources, invalid/dangling links, and invalid
+focus rows are omitted or concealed as not-found. No UI, business write,
+migration, hosted row, provider, deployment, or paid action changed.
+
+Validation: shared graph tests 5/5 + typecheck, Core graph/controller tests 7/7
++ typecheck, root lint/build, and static database reproducibility ledger check
+passed. Docker engine readiness timed out; full PostgreSQL/RLS replay and
+protected browser evidence remain open.
+
+Exact next action: retry disposable local runtime only after Docker health is
+confirmed; then replay and compare graph coverage.
+
 ## 2026-08-10 - M3.209 shared Cortex source-contract hardening
 
 Hardened the shared Cortex graph, search, and citation schemas so `refTable`

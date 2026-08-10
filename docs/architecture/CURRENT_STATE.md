@@ -1,5 +1,19 @@
 # Current State
 
+## M3.210 resilient Core Cortex graph projection (2026-08-10)
+
+Core whole-graph and focused-graph reads now sanitize database-derived rows
+before the shared response contract. Valid nodes survive; malformed nodes,
+unknown/mismatched sources, invalid links, and dangling endpoints are omitted.
+A focused response becomes not-found when its focus node is invalid or absent.
+This prevents one corrupted derived mirror row from producing an unsafe graph
+or taking down the complete read surface.
+
+Validation: shared graph sanitizer tests 5/5 + typecheck; Core graph/controller
+tests 7/7 + typecheck; root lint/build; static database reproducibility ledger
+check passed. Docker engine readiness still timed out, so full PostgreSQL/RLS
+replay remains unverified. No hosted or paid action changed.
+
 ## M3.209 shared Cortex source-contract hardening (2026-08-10)
 
 The shared graph, keyword-search, and citation schemas now require every

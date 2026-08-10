@@ -61,10 +61,42 @@ describe('CortexGraphService', () => {
   })
 
   it('derives tenant and finance role scope for the whole graph', async () => {
+    mocks.getCortexGraph.mockResolvedValue({
+      nodes: [
+        {
+          id: NODE_ID,
+          type: 'journal_entry',
+          title: 'Journal 1042',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+        {
+          id: 'not-a-uuid',
+          type: 'journal_entry',
+          title: 'Malformed',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
+      links: [
+        { source: NODE_ID, target: 'not-a-uuid', type: 'bad' },
+      ],
+    })
     const service = new CortexGraphService(config())
 
     await expect(service.read({}, PRINCIPAL)).resolves.toEqual({
-      nodes: [],
+      nodes: [
+        {
+          id: NODE_ID,
+          type: 'journal_entry',
+          title: 'Journal 1042',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
       links: [],
     })
     expect(mocks.getCortexGraph).toHaveBeenCalledWith(
@@ -140,5 +172,42 @@ describe('CortexGraphService', () => {
       )
     ).rejects.toBeInstanceOf(NotFoundException)
     expect(mocks.getCortexFocusedGraph).not.toHaveBeenCalled()
+  })
+
+  it('drops malformed focused neighbors while retaining the valid focus', async () => {
+    mocks.getCortexNodeByRef.mockResolvedValue({
+      id: NODE_ID,
+      node_type: 'journal_entry',
+    })
+    mocks.getCortexFocusedGraph.mockResolvedValue({
+      focusNodeId: NODE_ID,
+      nodes: [
+        {
+          id: NODE_ID,
+          type: 'journal_entry',
+          title: 'Journal 1042',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+        {
+          id: 'not-a-uuid',
+          type: 'journal_entry',
+          title: 'Malformed neighbor',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
+      links: [],
+    })
+    const service = new CortexGraphService(config())
+
+    await expect(
+      service.read({ refTable: 'journal_entries', refId: REF_ID }, PRINCIPAL)
+    ).resolves.toMatchObject({
+      focusNodeId: NODE_ID,
+      nodes: [expect.objectContaining({ id: NODE_ID })],
+    })
   })
 })

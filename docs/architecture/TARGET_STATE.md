@@ -1,5 +1,13 @@
 # Target State
 
+## M3.210 resilient graph reads
+
+Graph read authorities must degrade per malformed row, not per request. They
+retain only schema-valid, source-registered nodes and links whose endpoints are
+present in the retained set; invalid focused records resolve to a concealed
+not-found. This keeps Cortex usable and honest while protecting tenant-scoped
+AI/navigation consumers.
+
 ## M3.209 one canonical Cortex source contract
 
 Graph nodes, keyword hits, and citation evidence share the same source
