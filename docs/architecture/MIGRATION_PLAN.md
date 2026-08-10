@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.229 Multi-business master-data universal search (completed, source + disposable runtime)
+
+1. Extended the shared search contract and role matrix with `vendor` and
+   `material` node types, preserving existing Cortex authorization scopes.
+2. Registered Core vendor/material graph sources with tenant-scoped labels and
+   safe Purchase Orders/Material Items links.
+3. Added bounded Web fallback reads for the vendor and material catalog tables;
+   no schema migration or browser write path changed.
+4. Added command-palette labels and focused regression assertions for permitted
+   and denied roles.
+5. Passed focused package checks plus root test/typecheck/lint/build and all
+   repository guards. Replayed the disposable lane: 116 migrations, database
+   149/149 files and 370/370 tests with zero skips, API 30/30 files and 45/45
+   tests, and unchanged schema SHA-256
+   `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No Supabase, Vercel, Railway, deployment, or paid action occurred. The live
+landing revision remains behind source because deployment is intentionally
+disabled while spend is controlled.
+
+Exact next action: choose the next smallest source-only ERP boundary and repeat
+contract, focused, root, and disposable verification before hosted work.
+
 ## M3.228 Disposable zero-skip PostgreSQL/Redis and API lane (completed, source + disposable runtime)
 
 1. Dropped and recreated only local `erp_self_hosted_ci` in the

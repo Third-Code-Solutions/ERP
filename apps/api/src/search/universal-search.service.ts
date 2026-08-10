@@ -29,6 +29,8 @@ type UniversalSource = {
 /** Only source-of-truth rows already mirrored into the reviewed graph map. */
 const SOURCES: readonly UniversalSource[] = [
   { type: 'account', nodeType: 'account', refTable: 'accounts' },
+  { type: 'vendor', nodeType: 'vendor', refTable: 'vendors' },
+  { type: 'material', nodeType: 'material', refTable: 'material_items' },
   { type: 'project', nodeType: 'project', refTable: 'projects' },
   { type: 'opportunity', nodeType: 'opportunity', refTable: 'opportunities' },
   { type: 'bom', nodeType: 'bom', refTable: 'boms' },
@@ -56,6 +58,8 @@ const UUID_PATTERN =
 
 const LABEL_BY_TYPE: Record<UniversalSearchHitType, string> = {
   account: 'Account',
+  vendor: 'Vendor',
+  material: 'Material',
   project: 'Project',
   opportunity: 'Opportunity',
   bom: 'BOM',
@@ -94,6 +98,10 @@ function hrefFor(type: UniversalSearchHitType, node: CortexNode): string {
   switch (type) {
     case 'account':
       return `/crm/accounts/${node.ref_id}`
+    case 'vendor':
+      return '/purchase-orders'
+    case 'material':
+      return '/admin/material-items'
     case 'project':
       return `/projects/${node.ref_id}`
     case 'opportunity':

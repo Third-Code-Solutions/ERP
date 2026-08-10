@@ -1,6 +1,22 @@
 # Next Actions
 
-## Exact next action after M3.228 disposable zero-skip data/API lane
+## Exact next action after M3.229 multi-business master-data universal search
+
+Select the next smallest source-only ERP boundary. Record API, tenant,
+authorization, state-machine, transaction, idempotency, and audit contracts;
+implement the narrowest change; then rerun focused tests plus the disposable
+PostgreSQL/Redis lane. Keep Supabase mutation, Vercel/Railway deployment, and
+paid provider actions closed while the spend lock is active.
+
+## M3.229 evidence boundary (completed)
+
+Vendor/material search is implemented across shared-types, Core, Web fallback,
+and command palette. Focused, root, and repository guard checks pass. The
+disposable lane proves 116 migrations, 149/149 database files and 370/370
+tests, 30/30 API files and 45/45 tests, zero skips, and unchanged schema.
+Hosted source/live parity and production release remain unverified.
+
+## Exact next action after M3.228 disposable zero-skip data/API lane (completed)
 
 Select the next smallest source-only ERP domain boundary. Record its API,
 tenant, authorization, state-machine, transaction, idempotency, and audit

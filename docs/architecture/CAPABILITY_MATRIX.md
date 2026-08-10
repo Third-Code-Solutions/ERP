@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.229 Multi-business master-data universal search (2026-08-10)
+
+Vendor and material catalog records are now searchable through the shared
+Universal Search contract, Nest Core registry, Web fallback, and command
+palette. Tenant scope and the existing Cortex role matrix are preserved:
+procurement/commercial/SD-PM-PE can search; finance and sales do not gain these
+node types. Results use safe existing Purchase Orders and Material Items links.
+
+Validation: shared-types 50/50 files and 315/315 tests; API 2/2 files and 6/6
+tests; Web 3/3 files and 21/21 tests; package/root typecheck, lint, test, and
+build pass; all repository guards pass; disposable database 149/149 files and
+370/370 tests plus API 30/30 files and 45/45 tests pass with zero skips and
+stable schema dumps. No hosted provider or paid action.
+
 ## M3.228 Disposable zero-skip data/API release gate (2026-08-10)
 
 Local migration and integration integrity is verified for the current commit:
