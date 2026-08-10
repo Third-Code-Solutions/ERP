@@ -1,5 +1,24 @@
 # Current State
 
+## M3.218 Project-comment tenant-preserving delete evidence (2026-08-10)
+
+Disposable PostgreSQL 17/Redis 7.4.9 replay exposed and corrected a composite
+foreign-key defect: `ON DELETE SET NULL` attempted to null the required
+`tenant_id` while retaining project-comment evidence. A forward migration now
+uses PostgreSQL's column-scoped `ON DELETE SET NULL (comment_id)` for both
+create and delete ledgers.
+
+Migration ledger replay passed 116/116; database tests passed 370/370 with no
+skips; API integration passed; schema-before/after SHA-256 matched
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`. Focused
+migration contract 2/2, root tests, lint, typecheck, production build
+(82/82 routes), boundary, workflow, and spend guards pass. No hosted DB,
+provider, deployment, or paid action occurred.
+
+Exact next action: keep all canaries false/empty; prove protected Web/Core
+CAD response parity and rollback, then obtain explicit approval before any
+single-tenant hosted canary.
+
 ## M3.217 CAD parser-to-Core canary boundary (2026-08-10)
 
 `parseCadEvidence` now produces strict document-bound worker evidence without

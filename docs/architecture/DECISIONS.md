@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-328 - Scope composite delete nulling to nullable evidence targets (2026-08-10)
+
+Decision: preserve `tenant_id` when deleting project comments whose creation or
+deletion ledger must remain as evidence. Replace composite `ON DELETE SET NULL`
+with PostgreSQL column-scoped `ON DELETE SET NULL (comment_id)` for both
+ledger foreign keys through a forward migration. Keep tenant scope required;
+do not delete or rewrite evidence rows.
+
+Rationale: PostgreSQL nulls every referencing column for an unrestricted
+composite SET NULL action. Nulling tenant identity violates the ledger's
+not-null invariant and can cross the audit boundary. Column-scoped nulling
+preserves tenant isolation and deterministic replay while allowing the
+requested comment deletion.
+
+Validation: focused migration contract 2/2; disposable PostgreSQL 17/Redis
+7.4.9 replay 116/116 migrations, database 370/370 with no skips, API
+integration passed, and schema hash matched before/after. Root tests, lint,
+typecheck, 82-route build, boundary, workflow, spend, and diff checks pass.
+No hosted DB/provider/deployment action; hosted release remains unapproved.
+
 ## D-327 - Separate CAD evidence production from official commit (2026-08-10)
 
 Decision: make Web CAD parsing return a strict shared worker response with no

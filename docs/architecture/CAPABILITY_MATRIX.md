@@ -1,5 +1,17 @@
 # Third Code ERP capability matrix
 
+## M3.218 Project-comment tenant-preserving delete evidence (2026-08-10)
+
+Project-comment create/delete evidence now retains required tenant identity
+when the comment target is deleted. Column-scoped PostgreSQL nulling clears
+only `comment_id`; idempotent result and audit evidence remain tenant-scoped.
+
+Validation: migration contract 2/2; disposable migration replay 116/116;
+database 370/370 with no skips; API integration passed; schema hashes equal;
+root tests (shared 315, API 736, Web 749), lint, typecheck, 82/82-route
+production build, boundary, workflow-reference, provider-spend, and diff
+checks pass. No hosted or paid action occurred.
+
 ## M3.217 CAD parser-to-Core canary boundary (2026-08-10)
 
 CAD parsing now emits strict evidence without Web persistence. Exact-tenant

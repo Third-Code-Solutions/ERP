@@ -47,6 +47,7 @@ export const projectCommentCreateRequests = pgTable(
     tenantStateIdx: index(
       'idx_project_comment_create_requests_tenant_state'
     ).on(table.tenant_id, table.state, table.created_at),
+    // SQL migration scopes SET NULL to comment_id; tenant_id stays required.
     commentTenantFk: foreignKey({
       name: 'project_comment_create_requests_comment_tenant_fk',
       columns: [table.tenant_id, table.comment_id],

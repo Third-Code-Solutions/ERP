@@ -1,5 +1,22 @@
 # Work Log
 
+## 2026-08-10 - M3.218 project-comment tenant-preserving delete evidence
+
+Disposable PostgreSQL replay found a real delete-path integrity failure:
+composite `ON DELETE SET NULL` nulled required `tenant_id` in retained
+project-comment evidence. Added forward migration
+`20260810120000_project_comment_delete_fk_tenant_preservation.sql`, scoped
+nulling to `comment_id` for both create/delete ledgers, and added a database
+contract regression.
+
+Validation: focused migration contract 2/2; PostgreSQL 17/Redis 7.4.9
+replay 116/116 migrations; database 370/370 with no skips; API integration
+passed; schema-before/after SHA-256
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`; root
+tests, lint, typecheck, 82/82-route build, Web boundary, workflow refs,
+provider-spend, and diff checks passed. No hosted DB, deployment, provider,
+or paid action. Next: protected CAD Web/Core parity and rollback proof.
+
 ## 2026-08-10 - M3.217 CAD parser-to-Core canary boundary
 
 Split CAD parsing from persistence. `parseCadEvidence` validates shared worker
