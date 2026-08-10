@@ -1,5 +1,24 @@
 # Target State
 
+## M3.243 Asset maintenance authority evidence
+
+Asset maintenance history creation and reads have a protected Nest boundary:
+`POST /v1/assets/:assetId/maintenance` and
+`GET /v1/assets/:assetId/maintenance`. Core derives tenant, actor, role, and
+asset scope from locked server state, validates the strict command, persists
+one append-only record with a tenant-scoped idempotency ledger, and writes
+semantic audit in the same transaction. A protected disposable HTTP canary
+proves auth, RBAC, disabled-by-default behavior, replay/conflict, read scope,
+RLS/service-only privileges, and rollback while Web adoption remains closed.
+
+Keep `ERP_ASSET_MAINTENANCE_READS_ENABLED=false`,
+`ERP_ASSET_MAINTENANCE_READS_TENANT_IDS` empty,
+`ERP_ASSET_MAINTENANCE_CREATE_WRITES_ENABLED=false`, and
+`ERP_ASSET_MAINTENANCE_CREATE_WRITES_TENANT_IDS` empty until hosted parity,
+exact release identity, readiness, protected browser evidence, rollback, and
+spend approval are independently complete. No schema migration is required
+for this evidence milestone.
+
 ## M3.242 Change Request authority evidence
 
 Client Change Request creation is a guarded Nest command at

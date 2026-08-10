@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-355 -- Require protected asset-maintenance HTTP evidence before cutover (2026-08-10)
+
+Decision: use a disposable transaction-bound HTTP canary as the release gate
+for the existing Nest asset-maintenance authority. Exercise real JWT identity
+and `asset.read`/`asset.maintenance.manage` capability guards, strict command
+and `Idempotency-Key` parsing, exact tenant/asset predicates, idempotent
+replay/key conflict, append-only history reads, semantic audit, forced-RLS
+service-only privileges, disabled-tenant behavior, and rollback. Keep Web
+adoption and all asset-maintenance flags/lists closed.
+
+Rationale: maintenance history is operational evidence tied to equipment,
+cost, due dates, and audit. A browser or unscoped child lookup could attach a
+record to the wrong tenant or expose another company's service history. A
+rollback-only HTTP canary advances the modular-monolith boundary without
+mutating hosted data or consuming deployment budget.
+
+Validation: focused database plus HTTP canaries passed 2/2; root tests,
+typecheck, lint, build, disposable 117-migration PostgreSQL/Redis lane, and
+39-file/55-test API integration lane passed without skips. No schema
+migration, Supabase SQL, Vercel/Railway action, provider setting, credential,
+or paid action occurred.
+
 ## D-354 -- Require protected Change Request HTTP evidence before cutover (2026-08-10)
 
 Decision: use a disposable transaction-bound HTTP canary as release evidence

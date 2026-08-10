@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.243 Asset maintenance protected HTTP canary (completed, source-only)
+
+1. Added `apps/api/integration/asset-maintenance.http.integration.spec.ts`
+   around the existing Nest asset-maintenance controller/service, real
+   Supabase identity/capability guards, audit service, and transaction-bound
+   disposable PostgreSQL client.
+2. Proved 401/400/403/404/409/503 boundaries, strict body/header handling,
+   tenant and asset scope, tenant-scoped history reads, idempotent replay and
+   key conflict, semantic audit, forced-RLS/service-only table privileges, and
+   rollback.
+3. Focused database and HTTP canaries pass 2/2. Root API 173/173 files and
+   751/751 tests, shared 54/54 files and 323/323 tests, typecheck 5/5, lint
+   2/2, production build 82/82 pages, disposable 117-migration lane with
+   database 149/149 suites and 370/370 tests, and API integration 39/39 files
+   and 55/55 tests all pass without skips. No runtime selector, schema,
+   hosted/provider state, or paid action changed.
+
+Keep all four asset-maintenance flags/lists false/empty. Exact next action:
+push reviewed source/docs, then reconcile hosted parity and release gates
+before any canary or provider action.
+
 ## M3.242 Change Request protected HTTP canary (completed, source-only)
 
 1. Added a transaction-bound disposable HTTP canary around the existing Nest

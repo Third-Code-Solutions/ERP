@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-10 - M3.243 Asset maintenance protected HTTP canary
+
+Added `apps/api/integration/asset-maintenance.http.integration.spec.ts`. It
+boots the real Nest asset-maintenance controller/service with Supabase identity
+and capability guards and a transaction-bound disposable PostgreSQL client.
+The canary proves missing/invalid auth, strict body and `Idempotency-Key`
+validation, viewer denial, disabled-tenant fail-closed behavior, cross-tenant
+asset concealment, replay/key conflict, tenant-scoped history reads, semantic
+audit, forced-RLS/service-only privileges, and rollback.
+
+Validation: focused database plus HTTP canaries 2/2 PASS; root API 173 files/
+751 tests and shared 54 files/323 tests; typecheck 5/5, lint 2/2, production
+build 82/82 pages; disposable PostgreSQL 17/Redis 7.4.9 lane 117 migrations,
+database 149/149 suites and 370/370 tests, API integration 39/39 files and
+55/55 tests, zero skips; expected local Redis overcommit and failure-path
+dead-letter logs only. No schema or runtime selector changed. Hosted Supabase,
+Railway, Vercel, provider settings, credentials, and paid actions were not
+touched. Keep all four asset-maintenance flags/lists false/empty. Next: push
+once under `kurtgav`, then reconcile hosted parity/release blockers without
+triggering a provider build.
+
 ## 2026-08-10 - M3.242 Change Request protected HTTP canary
 
 Added `apps/api/integration/change-request.http.integration.spec.ts`. It
