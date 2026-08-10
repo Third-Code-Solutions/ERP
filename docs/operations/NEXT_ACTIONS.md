@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.232 Today protected local HTTP canary
+
+Choose the next smallest source-only ERP boundary. Preserve the same tenant,
+authorization, state, transaction, idempotency, audit, and rollback contracts;
+write the narrowest change; then run focused checks, root source gates, and the
+disposable PostgreSQL/Redis lane. Keep `ERP_TODAY_READS_VIA_API=false`, all
+other Core selectors false/empty, and do not mutate Supabase or trigger
+Vercel/Railway builds while the spend lock is active.
+
+## M3.232 evidence boundary (completed)
+
+The protected local `/v1/today` canary passed 2/2. It proved identity,
+tenant/current-assignee and cross-tenant filtering, project expansion,
+strict browser-time rejection, request-id propagation, unsupported-role
+403, and rollback. The full disposable lane passed 116 migrations, database
+149/149 suites and 370/370 tests, API integration 62/62 suites and 47/47
+tests, zero pending/skips, and unchanged schema SHA-256. Hosted selector,
+browser production canary, provider state, deployment, and billing remain
+unverified and intentionally untouched.
+
 ## Exact next action after M3.231 Today read seam
 
 Keep `ERP_TODAY_READS_VIA_API=false` and its tenant allowlist empty. Run a

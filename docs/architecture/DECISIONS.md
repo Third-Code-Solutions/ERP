@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-344 - Require a disposable protected HTTP canary before Today cutover (2026-08-10)
+
+Decision: treat the local `/v1/today` canary as a release gate, not as a
+production or hosted canary. It must exercise the real Nest guards and service
+against transaction-bound PostgreSQL, verify tenant/current-assignee and
+cross-tenant boundaries, reject browser-controlled time, deny unsupported
+roles, propagate request identity, and prove rollback. Keep
+`ERP_TODAY_READS_VIA_API=false` and its tenant allowlist empty until hosted
+parity, protected browser evidence, readiness, rollback, and spend approval
+are separately approved.
+
+Rationale: a passing unit contract cannot prove the database predicates and
+HTTP guard chain. A disposable transaction gives strong boundary evidence
+without mutating Supabase or consuming Vercel/Railway budget. The unsupported
+role assertion is deliberately test-only because every persisted ERP role is
+currently authorized for `today.read`.
+
+Validation: canary 2/2; full disposable database 149/149 suites and 370/370
+tests; API integration 62/62 suites and 47/47 tests; schema hash unchanged.
+No hosted/provider write or paid action occurred.
+
 ## D-343 - Put Today read authority behind a closed tenant canary (2026-08-10)
 
 Decision: add Nest `GET /v1/today` as the reviewed read authority for the
