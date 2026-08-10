@@ -1,5 +1,13 @@
 # Web Database Boundary Review
 
+## M3.214 notification authority update
+
+The notification route now has a closed exact-tenant Nest selector for list
+and read-state behavior. The legacy `update` remains visible to the static
+guard because it is still the compatibility fallback while the selector is
+false; selected-Core errors never re-enter that direct branch. Core applies
+tenant + recipient predicates and audits read-state changes.
+
 ## M3.199 follow-up
 
 The planned Nest document-intake contract now exists, but the legacy

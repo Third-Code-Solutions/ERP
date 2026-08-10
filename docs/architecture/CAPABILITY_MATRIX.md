@@ -1,5 +1,13 @@
 # Third Code ERP capability matrix
 
+## M3.214 Core-owned notification read state (2026-08-10)
+
+Notification list and mark-read operations now have a strict Nest authority
+behind `notification.read`, tenant/user predicates, audit, and an exact UUID
+Web selector. The compatibility route remains default and no hosted canary is
+approved; Docker/RLS replay, protected browser proof, rollback/readiness, and
+spend evidence remain open.
+
 ## M3.157 auth-safe semantic-index browser proof (2026-08-07)
 
 Source now has a server-owned access projection and localhost-only browser

@@ -1,5 +1,14 @@
 # Target State
 
+## M3.214 user-scoped notification authority
+
+The authenticated shell reads notifications and commits read-state changes
+through a permission-checked Nest boundary. Every query is tenant + recipient
+scoped; every state mutation is transactionally audited; and the Web route is
+only a compatibility mapper. Exact tenant selectors remain closed until
+replay, protected browser proof, rollback, readiness, and spend evidence are
+available.
+
 ## M3.213 finance read authority seam
 
 Sensitive finance register reads move into Nest Core behind capability checks,

@@ -173,6 +173,21 @@ authority.
 | `ERP_ASSET_READS_ENABLED` | no | Railway API | Exact `true` enables the Nest read seam; default `false` |
 | `ERP_ASSET_READS_TENANT_IDS` | no | Railway API | Comma-separated strict UUID allowlist; default empty |
 
+## Notification list/read-state authority (NestJS, disabled by default)
+
+The authenticated shell can select tenant-and-user-scoped Nest notification
+list and read-state updates. Core preserves the existing Web response shape;
+marking a notification read is audited. The compatibility route remains the
+default, and selected-Core errors are terminal rather than falling back to a
+direct database update.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_NOTIFICATION_READ_STATE_ENABLED` | no | Railway API | Exact `true` enables `GET/POST /v1/notifications`; default `false` |
+| `ERP_NOTIFICATION_READ_STATE_TENANT_IDS` | no | Railway API | Strict UUID allowlist; default empty |
+| `ERP_NOTIFICATION_READ_STATE_VIA_API` | no | Next server | Selects the authenticated Nest adapter; exact `true` only |
+| `ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
+
 ## Cortex keyword search reads (NestJS, disabled by default)
 
 The Cortex keyword read contract is a closed, tenant-derived NestJS seam. The

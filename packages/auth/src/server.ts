@@ -189,6 +189,7 @@ export type ErpCapability =
   | 'budget.manage'
   | 'budget.approve_commercial'
   | 'budget.approve_finance'
+  | 'notification.read'
 
 const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   'project.create': ['admin', 'owner', 'sales', 'commercial', 'sd_pm_pe', 'pm', 'estimator'],
@@ -314,6 +315,21 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   ],
   'budget.approve_commercial': ['admin', 'owner', 'commercial'],
   'budget.approve_finance': ['admin', 'owner', 'finance'],
+  'notification.read': [
+    'admin',
+    'owner',
+    'estimator',
+    'pm',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+    'viewer',
+  ],
 }
 
 export function can(role: AppRole, capability: ErpCapability): boolean {

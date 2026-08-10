@@ -642,6 +642,22 @@ const environmentSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // Notification reads/read-state updates remain closed until tenant/user
+  // parity, audit, and protected canary evidence are approved.
+  ERP_NOTIFICATION_READ_STATE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_NOTIFICATION_READ_STATE_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // PO command boundary stays fail-closed until idempotency and full
   // transaction parity are proven in a later migration slice.
   ERP_PO_CREATE_WRITES_ENABLED: z

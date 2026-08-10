@@ -54,6 +54,9 @@ import {
   financePayablesResultSchema,
   financeCashResultSchema,
   financeReconciliationResultSchema,
+  notificationListResultSchema,
+  notificationReadStateCommandSchema,
+  notificationReadStateResultSchema,
   assetListResultSchema,
   assetReadResultSchema,
   assetMaintenanceDueResultSchema,
@@ -156,6 +159,9 @@ import {
   type FinanceCashQuery,
   type FinanceCashResult,
   type FinanceReconciliationResult,
+  type NotificationListResult,
+  type NotificationReadStateCommand,
+  type NotificationReadStateResult,
   type AssetListQuery,
   type AssetListResult,
   type AssetReadResult,
@@ -654,6 +660,15 @@ export function financeReconciliationReadsUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_RECONCILIATION_READS_VIA_API,
     process.env.ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Notification list/read-state authority remains closed until user-scope parity is approved. */
+export function notificationReadStateUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_NOTIFICATION_READ_STATE_VIA_API,
+    process.env.ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS
   )
 }
 
@@ -3098,6 +3113,106 @@ export async function getFinanceReconciliationThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Bank reconciliation was not read.',
+    }
+  }
+}
+
+export async function getNotificationsThroughCoreApi(): Promise<
+  CoreResult<NotificationListResult>
+> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/notifications`, {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'x-request-id': randomUUID(),
+      },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    })
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 403
+            ? 'You do not have permission to view notifications.'
+            : 'Notifications were not loaded.',
+        status: response.status,
+      }
+    }
+    const parsed = notificationListResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid notification result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Notifications were not loaded.',
+    }
+  }
+}
+
+export async function markNotificationReadStateThroughCoreApi(
+  command: NotificationReadStateCommand
+): Promise<CoreResult<NotificationReadStateResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  const parsedCommand = notificationReadStateCommandSchema.safeParse(command)
+  if (!parsedCommand.success) {
+    return { ok: false, error: 'Notification read-state command is invalid.' }
+  }
+
+  try {
+    const response = await fetch(`${access.baseUrl}/v1/notifications`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${access.accessToken}`,
+        'content-type': 'application/json',
+        'x-request-id': randomUUID(),
+      },
+      body: JSON.stringify(parsedCommand.data),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    })
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Notification read-state command is invalid.'
+            : response.status === 403
+              ? 'You do not have permission to update notifications.'
+              : 'Notification read state was not updated.',
+        status: response.status,
+      }
+    }
+    const parsed = notificationReadStateResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid notification update result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. Notification read state was not updated.',
     }
   }
 }

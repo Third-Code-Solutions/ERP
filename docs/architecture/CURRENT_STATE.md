@@ -1,5 +1,25 @@
 # Current State
 
+## M3.214 Core-owned notification read state (2026-08-10)
+
+Nest Core now owns a closed-by-default `GET/POST /v1/notifications` seam for
+tenant-and-recipient-scoped notification listing and mark-read/mark-all-read
+updates. The route requires the new `notification.read` capability, derives
+tenant/user from the verified principal, audits state changes in the same
+transaction, and returns strict shared contracts. The Web compatibility route
+maps Core responses back to its existing snake_case shape; selected-Core
+errors are terminal and cannot fall back to direct DB writes.
+
+Focused shared/API/Web suites and typechecks pass. Root test, lint, production
+build, migration-ledger, workflow-reference, and provider-spend guards also
+pass. Docker PostgreSQL/Redis replay, RLS parity, protected browser/API proof,
+and hosted/provider checks remain unverified; flags are false/empty and no
+hosted or paid action changed.
+
+Exact next action: push this source/docs slice. Keep notification and all other
+Core selectors closed until disposable replay proves recipient isolation and
+audit parity.
+
 ## M3.213 Core-owned bank reconciliation register read (2026-08-10)
 
 Nest Core now exposes a tenant-scoped, bounded bank-reconciliation register

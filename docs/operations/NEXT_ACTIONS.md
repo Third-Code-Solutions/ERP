@@ -1,5 +1,14 @@
 # Next Actions
 
+## Exact next action after M3.214 notification read-state authority
+
+Root tests, lint, production build, migration files-only, workflow refs, and
+spend guards passed. Push only the reviewed source/docs commit as `kurtgav`;
+do not trigger Vercel, Railway, or Supabase. Once Docker is healthy,
+replay PostgreSQL 17 + Redis and prove notification tenant/recipient isolation,
+audit hash continuity, direct/Core response parity, and selected-Core terminal
+failure before any canary or hosted action.
+
 ## Exact next action after M3.213 Core reconciliation read
 
 Push only the reviewed source/docs commit as `kurtgav`; do not trigger Vercel,

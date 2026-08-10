@@ -39,6 +39,8 @@ import {
   getFinancePayablesThroughCoreApi,
   getFinanceCashThroughCoreApi,
   getFinanceReconciliationThroughCoreApi,
+  getNotificationsThroughCoreApi,
+  markNotificationReadStateThroughCoreApi,
   getAssetsThroughCoreApi,
   getAssetThroughCoreApi,
   getAssetMaintenanceDueThroughCoreApi,
@@ -58,6 +60,7 @@ import {
   financePayablesReadsUseCoreApi,
   financeCashReadsUseCoreApi,
   financeReconciliationReadsUseCoreApi,
+  notificationReadStateUseCoreApi,
   assetReadsUseCoreApi,
   assetMaintenanceReadsUseCoreApi,
   assetMaintenanceCreateWritesUseCoreApi,
@@ -687,6 +690,20 @@ const FINANCE_RECONCILIATION_RESULT = {
   reconciledCount: 0,
   openExceptions: 1,
   channels: 1,
+}
+const NOTIFICATION_LIST_RESULT = {
+  items: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      subject: 'Project update',
+      body: 'A project changed state.',
+      linkUrl: '/projects/44444444-4444-4444-8444-444444444444',
+      channel: 'in_app' as const,
+      isRead: false,
+      createdAt: '2026-08-10T04:00:00.000Z',
+    },
+  ],
+  unread: 1,
 }
 const ACCOUNT_LIST_RESULT = {
   rows: [
@@ -2018,6 +2035,76 @@ describe('ERP Core client', () => {
         cache: 'no-store',
         headers: expect.objectContaining({
           authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('keeps notification authority closed unless the exact tenant gate matches', () => {
+    expect(notificationReadStateUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_NOTIFICATION_READ_STATE_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(notificationReadStateUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_NOTIFICATION_READ_STATE_VIA_API', 'TRUE')
+    expect(notificationReadStateUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_NOTIFICATION_READ_STATE_VIA_API', 'true')
+    vi.stubEnv('ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS', '*')
+    expect(notificationReadStateUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(notificationReadStateUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('reads and updates notifications through the authenticated Core boundary', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(NOTIFICATION_LIST_RESULT), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getNotificationsThroughCoreApi()).resolves.toMatchObject({
+      ok: true,
+      data: { unread: 1, items: [{ id: '33333333-3333-4333-8333-333333333333' }] },
+    })
+    await expect(
+      markNotificationReadStateThroughCoreApi({
+        action: 'mark_read',
+        id: '33333333-3333-4333-8333-333333333333',
+      })
+    ).resolves.toMatchObject({ ok: true, data: { ok: true } })
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'https://erp-api.example.test/v1/notifications',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://erp-api.example.test/v1/notifications',
+      expect.objectContaining({
+        method: 'POST',
+        cache: 'no-store',
+        body: JSON.stringify({
+          action: 'mark_read',
+          id: '33333333-3333-4333-8333-333333333333',
         }),
       })
     )

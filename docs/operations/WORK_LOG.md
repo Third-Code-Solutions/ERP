@@ -1,5 +1,22 @@
 # Work Log
 
+## 2026-08-10 - M3.214 Core-owned notification read state
+
+Added the closed Nest notification list/read-state authority, strict shared
+contracts, all-role `notification.read` capability, tenant+recipient scope,
+same-transaction audit, Web compatibility mapping, exact-tenant selector, and
+route/Core/API regressions. Notification creation and delivery remain on their
+existing server-owned paths; no UI redesign, migration, hosted row, provider,
+deployment, or paid action changed.
+
+Validation: shared 3/3; Core service/controller 5/5; Web route 3/3 + Core
+client 158/158; API/Web/shared/auth typechecks; Web DB boundary; root tests,
+lint, production build, migration files-only, workflow refs, and spend guards
+all passed.
+
+Exact next action: push once as `kurtgav`; keep all notification flags
+false/empty.
+
 ## 2026-08-10 - M3.213 Core-owned bank reconciliation register read
 
 Added the closed-by-default Core reconciliation register contract, controller,

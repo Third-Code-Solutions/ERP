@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.214 Core-owned notification read state (completed, source-only)
+
+1. Added strict shared list, command, and mutation-result schemas with bounded
+   user-facing fields and UUID validation.
+2. Added Nest `GET/POST /v1/notifications`, a new all-role `notification.read`
+   capability, tenant/recipient predicates, fail-closed tenant flags, and
+   same-transaction semantic audit for read-state changes.
+3. Added Web exact-tenant selection, Core client validation, frozen snake_case
+   compatibility mapping, terminal selected-Core errors, and focused route/
+   service/controller/client regressions.
+
+Validation: focused shared 3/3, Core 5/5, Web route 3/3 + Core client 158/158,
+typechecks, Web DB-boundary guard, root tests, root lint, production build,
+migration files-only, workflow-reference, and provider-spend guards passed.
+Docker/RLS replay and hosted proof remain open; no migration, hosted row,
+provider, deployment, or paid action.
+
+Exact next action: push source only; retain both notification selectors
+false/empty.
+
 ## M3.213 Core-owned bank reconciliation register read (completed, source-only)
 
 1. Added a strict shared query/result contract for bounded statement rows,
