@@ -1,5 +1,28 @@
 # Current State
 
+## M3.215 Core-owned DocuSeal webhook transaction (2026-08-10)
+
+Nest Core now contains a closed-by-default internal webhook endpoint for the
+DocuSeal completion transaction. It validates the event/document payload,
+authenticates a server-only Web-to-Core token, resolves the portal token to a
+tenant, locks the tenant BOM row, records an optional signed document, and
+writes a hash-chain audit event in one transaction. A used portal token is a
+terminal idempotent replay and never repeats document, lock, or audit effects.
+
+The Web callback selects Core only for an exact tenant UUID and returns a
+terminal error without re-entering the legacy write branch. Existing Web
+notification delivery remains ancillary after a first Core commit; duplicate
+webhooks do not resend it. All selectors and Core flags remain false/empty.
+Focused shared/API/Web suites and typechecks pass. Root `pnpm test`, lint,
+production build (82/82 routes), Web DB-boundary, migration files-only,
+workflow-reference, provider-spend, and diff checks pass. Disposable
+PostgreSQL/RLS replay, protected webhook proof, and hosted/provider checks are
+still open. No migration, hosted row, provider, deployment, or paid action.
+
+Exact next action: push the reviewed source-only release packet once; retain
+both webhook selectors closed until disposable replay proves tenant isolation,
+locking, duplicate delivery, and audit continuity.
+
 ## M3.214 Core-owned notification read state (2026-08-10)
 
 Nest Core now owns a closed-by-default `GET/POST /v1/notifications` seam for

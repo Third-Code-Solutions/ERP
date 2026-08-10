@@ -1,5 +1,15 @@
 # Web Database Boundary Review
 
+## M3.215 DocuSeal webhook authority update
+
+The callback now has a closed exact-tenant Web selector and server-to-server
+Core adapter. When selected, Core owns the portal-token/document/BOM-lock
+transaction and a Core error is terminal; the legacy `insert`/`update` branch
+is not re-entered. Web notification delivery remains an ancillary side effect
+after a successful first Core commit. The direct route remains listed while
+the selector is false so the static guard continues to expose the temporary
+compatibility authority.
+
 ## M3.214 notification authority update
 
 The notification route now has a closed exact-tenant Nest selector for list

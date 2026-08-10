@@ -658,6 +658,23 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // DocuSeal callbacks remain closed until exact tenant replay and
+  // compatibility evidence are approved. The internal token is server-only.
+  ERP_DOCUSEAL_WEBHOOK_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_DOCUSEAL_WEBHOOK_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
+  ERP_CORE_WEBHOOK_TOKEN: z.string().min(32).optional(),
   // PO command boundary stays fail-closed until idempotency and full
   // transaction parity are proven in a later migration slice.
   ERP_PO_CREATE_WRITES_ENABLED: z
