@@ -1,5 +1,13 @@
 # Target State
 
+## M3.216 CAD evidence authority boundary
+
+CAD parsing and AI/OCR remain evidence producers. Official scope replacement,
+idempotency, exact centavo totals, and audit stay in Nest Core. Web may call
+the strict server-only adapter only for an exact reviewed tenant; Core errors
+are terminal and never re-enter a Web database writer. Parser-to-Core parity,
+auto-BOM authority, and rollback evidence must precede any canary.
+
 ## M3.215 DocuSeal callback authority
 
 DocuSeal completion callbacks cross a strict, server-authenticated Nest

@@ -1,5 +1,25 @@
 # Current State
 
+## M3.216 Web-to-Nest CAD evidence adapter (2026-08-10)
+
+Web now has a server-only, strict adapter for the existing Nest
+`POST /v1/documents/:documentId/cad-evidence` authority. It validates the
+document-bound worker response before network I/O, uses the authenticated
+server session plus idempotency key, validates the Core result, and returns a
+terminal error without a Web fallback. Selection requires an exact tenant UUID
+allowlist and remains false by default. The upload/parser path is unchanged;
+no tenant is routed through this adapter yet.
+
+Focused adapter tests 4/4; root tests (shared 315, API 736, Web 745), lint,
+typecheck, production build (82/82 routes), Web DB-boundary, migration
+files-only, workflow-reference, provider-spend, and diff checks pass. CAD
+parser parity, disposable PostgreSQL/RLS replay, protected browser proof, and
+hosted/provider checks remain open. No migration, hosted row, provider,
+deployment, or paid action.
+
+Exact next action: push once, then document and prove parser/evidence parity;
+keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and its allowlist empty.
+
 ## M3.215 Core-owned DocuSeal webhook transaction (2026-08-10)
 
 Nest Core now contains a closed-by-default internal webhook endpoint for the

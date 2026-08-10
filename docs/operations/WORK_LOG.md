@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-10 - M3.216 Web-to-Nest CAD evidence adapter
+
+Added exact UUID selector and server-only Core adapter for the existing CAD
+evidence transaction. The adapter rejects malformed or document-mismatched
+worker evidence before network I/O, forwards session/idempotency context,
+validates strict results, and fails terminally without Web fallback. Upload
+parser, auto-BOM, tenant flags, hosted data, providers, and deployments remain
+unchanged.
+
+Validation: focused adapter 4/4; root tests (shared 315, API 736, Web 745),
+lint, typecheck, production build (82/82 routes), Web DB-boundary,
+migration files-only, workflow-reference, provider-spend, and diff checks
+passed. Parser parity, disposable replay, protected browser proof, and hosted
+checks remain open. Exact next action: push once; keep selector false/empty.
+
 ## 2026-08-10 - M3.215 Core-owned DocuSeal webhook transaction
 
 Added strict shared DocuSeal webhook contracts, a secret-authenticated Nest

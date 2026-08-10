@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-326 - Web CAD evidence calls Nest authority (2026-08-10)
+
+Decision: add a closed exact-tenant Web adapter for
+`POST /v1/documents/:documentId/cad-evidence`. The adapter validates the
+document-bound worker payload before sending it, uses the server session and a
+stable idempotency key supplied by its caller, validates the strict Core
+result, and never falls back after a selected-Core failure. Do not connect the
+legacy upload/parser path until parser, auto-BOM, response, replay, and
+rollback parity are proven.
+
+Rationale: Web currently owns a compatibility transaction that can replace
+document-derived scope rows. Nest already owns the safer transaction, but an
+unconnected client boundary is required before moving authority incrementally.
+Exact tenant selection limits blast radius while preserving rollback.
+
+Validation: focused adapter 4/4; root tests (shared 315, API 736, Web 745),
+lint, typecheck, production build (82/82 routes), Web DB-boundary, migration
+files-only, workflow-reference, provider-spend, and diff checks pass.
+Disposable replay, protected browser, hosted, and provider release evidence
+remain open. Selector is false/empty.
+
 ## D-325 - Core owns the DocuSeal completion transaction (2026-08-10)
 
 Decision: add `POST /v1/webhooks/docuseal` as a public-but-secret-authenticated

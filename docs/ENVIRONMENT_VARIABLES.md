@@ -425,6 +425,8 @@ The Next.js upload compatibility selector is separate from the API-side gates:
 |---|---|---|---|
 | `ERP_DOCUMENT_PROCESSING_VIA_API` | no | Next server | Selects the binary-DWG Next-to-Nest handoff; default false |
 | `ERP_DOCUMENT_PROCESSING_TENANT_IDS` | no | Next server | Strict UUID allowlist for the handoff; default empty |
+| `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API` | no | Next server | Selects the Nest CAD evidence commit adapter; default false |
+| `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict exact UUID allowlist for CAD evidence commits; wildcard rejected |
 | `ERP_DOCUMENT_DELETE_WRITES_VIA_API` | no | Next server | Selects the Nest document deletion authority; default false |
 | `ERP_DOCUMENT_DELETE_WRITES_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist for document deletion; default empty |
 | `ERP_PUBLIC_SIGNING_VIA_API` | no | Next server | Selects the Nest public-signing authority; default false |

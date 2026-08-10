@@ -1,5 +1,14 @@
 # Next Actions
 
+## Exact next action after M3.216 CAD evidence adapter
+
+Push only reviewed source/docs; do not trigger Vercel, Railway, or Supabase.
+Keep
+`ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and its allowlist empty. Next,
+prove parser-to-Core response parity, scope replacement, exact totals,
+idempotent replay, auto-BOM separation, and rollback in disposable PostgreSQL
+before connecting `upload/complete` for one tenant.
+
 ## Exact next action after M3.215 DocuSeal webhook authority
 
 Push only the reviewed source/docs commit as `kurtgav`; do not trigger Vercel,

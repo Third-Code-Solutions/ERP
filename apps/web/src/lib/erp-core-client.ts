@@ -36,6 +36,9 @@ import {
   documentDeleteResultSchema,
   documentIntakeResultSchema,
   documentUploadCompleteResultSchema,
+  cadEvidenceCommitCommandSchema,
+  cadEvidenceCommitResultSchema,
+  parseCadWorkerResponse,
   publicSigningResultSchema,
   documentProcessingAcceptedSchema,
   documentProcessingStatusSchema,
@@ -142,6 +145,8 @@ import {
   type DocumentIntakeRequest,
   type DocumentIntakeResult,
   type DocumentUploadCompleteResult,
+  type CadEvidenceCommitCommand,
+  type CadEvidenceCommitResult,
   type PublicSigningBody,
   type PublicSigningResult,
   type DocumentProcessingAccepted,
@@ -1093,6 +1098,21 @@ export function documentProcessingJobsUseCoreApi(
     tenantId,
     process.env.ERP_DOCUMENT_PROCESSING_VIA_API,
     process.env.ERP_DOCUMENT_PROCESSING_TENANT_IDS
+  )
+}
+
+/**
+ * CAD evidence commits are delegated only for an explicit tenant canary. The
+ * selector is separate from processing-job intake so evidence authority can
+ * be proven before any queue or draft-BOM cutover.
+ */
+export function cadEvidenceCommitWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API,
+    process.env.ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -6011,6 +6031,88 @@ export async function createChangeRequestThroughCoreApi(
 export type DocumentProcessingCoreResult =
   | DocumentProcessingAccepted
   | DocumentProcessingStatus
+
+/**
+ * Server-only CAD evidence adapter. Core is authoritative for scope-item
+ * replacement, idempotency, exact totals, and audit; this client never falls
+ * back to a Web database write after its caller selects the canary.
+ */
+export async function commitCadEvidenceThroughCoreApi(
+  documentId: string,
+  command: CadEvidenceCommitCommand,
+  idempotencyKey: string
+): Promise<CoreResult<CadEvidenceCommitResult>> {
+  const parsedCommand = cadEvidenceCommitCommandSchema.safeParse(command)
+  if (!parsedCommand.success) {
+    return {
+      ok: false,
+      error: 'Invalid CAD evidence command.',
+      status: 400,
+    }
+  }
+  try {
+    parseCadWorkerResponse(parsedCommand.data.workerResponse, documentId)
+  } catch {
+    return {
+      ok: false,
+      error: 'Invalid CAD evidence command.',
+      status: 400,
+    }
+  }
+
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/documents/${encodeURIComponent(documentId)}/cad-evidence`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(parsedCommand.data),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+
+    const body = (await response.json().catch(() => null)) as unknown
+    if (!response.ok) {
+      const detail =
+        typeof body === 'object' &&
+        body !== null &&
+        'message' in body &&
+        typeof body.message === 'string'
+          ? body.message
+          : response.status === 409
+            ? 'CAD evidence conflicts with an existing command.'
+            : response.status === 404
+              ? 'CAD document was not found.'
+              : 'CAD evidence was not committed.'
+      return { ok: false, error: detail, status: response.status }
+    }
+
+    const parsed = cadEvidenceCommitResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid CAD evidence result.',
+        status: 502,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No CAD evidence was committed.',
+      status: 503,
+    }
+  }
+}
 
 function parseDocumentProcessingResult(
   body: unknown
