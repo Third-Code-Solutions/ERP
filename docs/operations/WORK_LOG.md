@@ -1,5 +1,19 @@
 # Work Log
 
+## 2026-08-10 - M3.217 CAD parser-to-Core canary boundary
+
+Split CAD parsing from persistence. `parseCadEvidence` validates shared worker
+identity/count/shape and returns no DB/BOM side effect; exact-tenant upload
+canary calls Nest Core and never falls back. Compatibility wrapper keeps old
+scope replacement plus auto-BOM while selector remains closed.
+
+Validation: parser 2/2, upload route 10/10, adapter 4/4; root tests (shared
+315, API 736, Web 749), lint, typecheck, production build (82/82 routes),
+boundary, migration files-only, workflow-reference, provider-spend, and diff
+checks passed. Disposable replay, protected browser proof, and hosted checks
+remain open. No migration, hosted row, provider, deployment, or paid action.
+Exact next action: disposable parity replay.
+
 ## 2026-08-10 - M3.216 Web-to-Nest CAD evidence adapter
 
 Added exact UUID selector and server-only Core adapter for the existing CAD

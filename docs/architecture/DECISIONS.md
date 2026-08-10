@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-327 - Separate CAD evidence production from official commit (2026-08-10)
+
+Decision: make Web CAD parsing return a strict shared worker response with no
+database or BOM side effect. An exact-tenant upload can send that response to
+Nest `POST /v1/documents/:documentId/cad-evidence`; selected-Core failure is
+terminal. Keep the old writer plus auto-BOM only for compatibility tenants.
+
+Rationale: parsing and AI/OCR are evidence producers; official scope rows,
+idempotency, audit, and approval-sensitive state belong in Nest Core. This
+split allows parity and rollback proof without a big-bang rewrite or hidden
+double write.
+
+Validation: parser 2/2, upload route 10/10, adapter 4/4; root tests (shared
+315, API 736, Web 749), lint, typecheck, production build (82/82 routes),
+boundary, migration, workflow-reference, provider-spend, and diff checks
+pass. Disposable/hosted release evidence remains open; selectors false/empty.
+
 ## D-326 - Web CAD evidence calls Nest authority (2026-08-10)
 
 Decision: add a closed exact-tenant Web adapter for

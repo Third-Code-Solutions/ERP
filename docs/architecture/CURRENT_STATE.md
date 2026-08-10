@@ -1,5 +1,24 @@
 # Current State
 
+## M3.217 CAD parser-to-Core canary boundary (2026-08-10)
+
+`parseCadEvidence` now produces strict document-bound worker evidence without
+writing scope rows or draft BOMs. The upload route selects this path only for
+an exact tenant UUID allowlist, commits through Nest Core, and never falls
+back to the Web writer after Core selection. Default selector and allowlist
+remain false/empty. `parseAndStoreCad` remains compatibility-authoritative
+and retains auto-BOM for unselected tenants.
+
+Focused parser 2/2, upload route 10/10, adapter 4/4; root tests (shared 315,
+API 736, Web 749), lint, typecheck, production build (82/82 routes), Web
+DB-boundary, migration files-only, workflow-reference, provider-spend, and
+diff checks pass. Disposable PostgreSQL/RLS replay, protected browser proof,
+and hosted/provider checks remain open. No migration, hosted row, provider,
+deployment, or paid action.
+
+Exact next action: prove direct/Core parity, idempotent replay, scope
+replacement, and draft-BOM separation in disposable PostgreSQL.
+
 ## M3.216 Web-to-Nest CAD evidence adapter (2026-08-10)
 
 Web now has a server-only, strict adapter for the existing Nest

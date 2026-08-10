@@ -1,5 +1,13 @@
 # Target State
 
+## M3.217 CAD evidence producer boundary
+
+Web CAD parsing produces validated evidence only. Nest Core owns official
+scope replacement, idempotency, tenant authorization, totals, and audit.
+Draft BOM creation remains separate until its response and rollback parity are
+proven. Compatibility persistence stays available only while selector is
+closed.
+
 ## M3.216 CAD evidence authority boundary
 
 CAD parsing and AI/OCR remain evidence producers. Official scope replacement,
