@@ -1,5 +1,23 @@
 # Third Code ERP capability matrix
 
+## M3.247 Document-processing command authority (2026-08-10)
+
+The existing `document.process` and `document.processing.read` Nest authority
+now has protected transaction-bound HTTP evidence for identity, capability
+denial, disabled and draft-BOM gates, cross-tenant concealment, strict command
+and idempotency handling, durable tenant-scoped job state, opaque queue
+transport, one-time semantic audit, replay/key conflict, and rollback. Web
+adoption remains closed; document-processing, worker-bridge, evidence-commit,
+and draft-BOM flags/lists remain false/empty. Python/CAD/OCR/AI remains
+analysis-only.
+
+Validation: focused HTTP canary 1/1, controller contract 6/6, and
+document-processing service/database/processor checks 13/13; API integration
+43/43 files and 59/59 tests; root API 173/173 and 752/752, Web 111/111 and
+768/768, shared 54/54 and 323/323; typecheck 5/5, lint 2/2, build PASS; the
+disposable 117-migration PostgreSQL/Redis lane 151/151 suites and 373/373
+tests with zero skips. No hosted or paid action.
+
 ## M3.246 Document intake protected HTTP canary (2026-08-10)
 
 The existing `document.manage` Nest authority now has protected

@@ -1,5 +1,28 @@
 # Target State
 
+## M3.247 Document-processing command authority
+
+Document processing is a Core-owned asynchronous command. The browser sends a
+strict CAD mode/format request and an opaque idempotency key; Core derives
+tenant, actor, role, document, and project from verified server state, writes
+one tenant-scoped durable job and semantic audit in PostgreSQL, then hands
+BullMQ only the opaque job id. A replay returns durable status without another
+enqueue or audit event. Python/CAD/OCR/AI may analyze through the worker bridge
+and return bounded evidence, but it cannot authorize, create, approve, or
+finalize ERP records. Draft BOM creation remains separately gated and is not a
+browser authority.
+
+The protected disposable HTTP canary proves auth/RBAC, strict input and
+idempotency, disabled gates, cross-tenant concealment, queue identity, audit,
+and rollback. Keep
+`ERP_DOCUMENT_PROCESSING_JOBS_ENABLED=false`,
+`ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED=false`,
+`ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED=false`, and
+`ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED=false` with all corresponding
+tenant lists empty until hosted migration parity, exact release identity,
+readiness, protected browser evidence, rollback, and spend approval are
+independently complete.
+
 ## M3.246 Document intake authority evidence
 
 Document intake is a guarded Nest command at `POST /v1/documents`. The browser

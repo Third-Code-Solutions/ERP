@@ -1,5 +1,37 @@
 # Current State
 
+## M3.247 Document-processing command authority (2026-08-10)
+
+Added `apps/api/integration/document-processing.http.integration.spec.ts` and
+hardened the existing Core command at
+`POST /v1/documents/:documentId/processing-jobs` plus
+`GET /v1/document-processing-jobs/:jobId`. The protected canary boots the real
+Nest controller/service with Supabase identity and capability guards against a
+transaction-bound disposable PostgreSQL client. It proves missing/invalid
+auth, strict command and `Idempotency-Key` handling, viewer denial,
+disabled-by-default and draft-BOM gates, concealed cross-tenant document
+access, tenant-scoped durable job state, queue transport containing only the
+opaque job id, idempotent replay/key conflict, semantic audit, and rollback.
+
+The canary found two production-boundary defects: queued idempotent replays
+called BullMQ enqueue again, and a newly-created processing job had no semantic
+audit. Core now enqueues only when the durable job is newly created and writes
+one audited `document_processing_job` create event inside the same transaction;
+replays do neither. Focused HTTP canary passes 1/1, controller contract 6/6,
+and document-processing service/database/processor checks 13/13; the
+full API integration lane passes 43/43 files and 59/59 tests. Root `pnpm test`
+passes API 173/173 files and 752/752 tests, Web 111/111 and 768/768, shared
+54/54 and 323/323; database is 64/68 files and 230/373 tests with 143 expected
+environment skips without `DATABASE_URL`. Typecheck 5/5, lint 2/2, and
+production build pass. The zero-skip PostgreSQL 17/Redis 7.4.9 lane applied
+117 migrations and passed 151/151 suites and 373/373 database tests. No schema
+migration, hosted Supabase SQL/data, Vercel/Railway deployment, provider
+setting, credential, or paid action changed. Keep all document-processing,
+worker-bridge, evidence-commit, and draft-BOM flags/tenant lists closed.
+Source-only implementation SHA: `05b727eacb4b6ade52cde91f111a01d84712386e`.
+Exact next action: reconcile hosted parity and release gates before any
+provider action.
+
 ## M3.246 Document intake protected HTTP canary (2026-08-10)
 
 Added `apps/api/integration/document-intake.http.integration.spec.ts` and

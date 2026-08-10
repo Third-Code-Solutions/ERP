@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-10 - M3.247 Document-processing command authority
+
+Added `apps/api/integration/document-processing.http.integration.spec.ts` and
+strengthened the existing document-processing Core boundary. The canary uses
+real Supabase identity/capability guards and transaction-bound disposable
+PostgreSQL. It proves auth, strict command/header handling, disabled and
+draft-BOM gates, tenant/document concealment, durable job state, opaque queue
+transport, replay/key conflict, semantic audit, and rollback.
+
+The canary found two real defects: queued replays re-called enqueue, and job
+creation had no semantic audit. Core now gates enqueue/audit on `created`, so a
+replay does not add transport or audit work. Focused HTTP canary 1/1,
+controller contract 6/6, and document-processing service/database/processor
+checks 13/13; full API
+integration 43/43 files and 59/59 tests; root API 173/752, Web 111/768,
+shared 54/323; typecheck 5/5; lint 2/2; build PASS; zero-skip lane 151/151
+suites and 373/373 database tests after 117 migrations. No schema, hosted
+Supabase, Railway, Vercel, provider, credential, or paid action changed. Keep
+all document-processing flags/lists false/empty. Source-only SHA:
+`05b727eacb4b6ade52cde91f111a01d84712386e`. Next: reconcile hosted parity and
+release blockers without triggering a provider build.
+
 ## 2026-08-10 - M3.246 Document intake protected HTTP canary
 
 Added `apps/api/integration/document-intake.http.integration.spec.ts` and

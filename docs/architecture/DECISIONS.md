@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-359 -- Audit and deduplicate the document-processing command (2026-08-10)
+
+Decision: treat document-processing job creation as a Core-owned audited
+command. Only a newly inserted tenant-scoped job may enqueue the opaque BullMQ
+job id or write the `document_processing_job` create audit event. An idempotent
+replay returns the durable state without another queue call or audit row.
+
+Rationale: repeated client retries are normal around asynchronous work. Calling
+the transport on every replay creates avoidable Redis/worker pressure and
+obscures whether a business command was actually created. The durable
+PostgreSQL row is authoritative; the queue is recoverable transport. Audit must
+record the official creation once, not each retry. Python/CAD/OCR/AI remains an
+analysis worker and cannot finalize ERP state.
+
+Validation: the protected disposable HTTP canary passed with strict auth,
+tenant, gate, queue-identity, replay/conflict, audit, and rollback assertions.
+The full API integration lane passed 43/43 files and 59/59 tests; root
+typecheck, lint, build, and the zero-skip 117-migration PostgreSQL/Redis lane
+passed. No hosted SQL/data, deployment, provider setting, credential, or paid
+action occurred. Implementation SHA:
+`05b727eacb4b6ade52cde91f111a01d84712386e`.
+
 ## D-358 -- Require protected Document Intake HTTP evidence before cutover (2026-08-10)
 
 Decision: use a disposable transaction-bound HTTP canary as the release gate

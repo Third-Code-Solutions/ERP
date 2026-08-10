@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.247 Document-processing command authority (completed, source-only)
+
+1. Added `apps/api/integration/document-processing.http.integration.spec.ts`
+   around the existing Nest document-processing controller/service with real
+   Supabase identity/capability guards, a transaction-bound disposable
+   PostgreSQL client, and an opaque queue spy.
+2. Proved 401/400/403/404/409/503 boundaries, strict command/header parsing,
+   disabled and draft-BOM gates, tenant/document concealment, durable
+   tenant-scoped job state, queue identity, replay/key conflict, semantic
+   audit, and rollback.
+3. Fixed two defects found by the canary: idempotent queued replays no longer
+   call BullMQ enqueue, and newly-created jobs now write one semantic audit
+   event in the same transaction. No migration or Web cutover was needed.
+4. Focused HTTP canary passes 1/1, controller contract 6/6, and
+   document-processing service/database/processor checks 13/13; API
+   integration passes 43/43 files and 59/59
+   tests. Root API 173/173 files and 752/752 tests, Web 111/111 and 768/768,
+   shared 54/54 and 323/323 pass. Root database has 143 expected skips without
+   `DATABASE_URL`; the zero-skip 117-migration PostgreSQL/Redis lane passes
+   151/151 suites and 373/373 tests. Typecheck, lint, and production build
+   pass. No hosted/provider/paid action changed.
+
+Keep every document-processing, worker-bridge, evidence-commit, and draft-BOM
+flag/list false/empty. Implementation source-only SHA:
+`05b727eacb4b6ade52cde91f111a01d84712386e`. Exact next action: reconcile
+hosted parity and release gates before any provider action.
+
 ## M3.246 Document intake protected HTTP canary (completed, source-only)
 
 1. Added `apps/api/integration/document-intake.http.integration.spec.ts`
