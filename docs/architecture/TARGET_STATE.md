@@ -1,5 +1,18 @@
 # Target State
 
+## M3.236 Project read/list authority evidence
+
+Before any tenant opens the existing project read or list adapters, the
+source release must prove the real Nest identity/capability chain against
+disposable PostgreSQL: a viewer can read only its tenant, cross-tenant project
+IDs return concealed 404s, list filters and ordering are bounded, malformed
+limits fail closed, and search results never disclose another tenant.
+M3.236 records that protected local gate as 1/1 focused canary plus the full
+zero-skip 116-migration environment. Keep
+`ERP_PROJECT_READS_VIA_API=false` and `ERP_PROJECT_LISTS_VIA_API=false` with
+empty allowlists until hosted parity, readiness, protected browser evidence,
+rollback, and spend approval exist.
+
 ## M3.235 Project-comment read authority
 
 The project comments surface has a reviewed, bounded Core read contract:

@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.236 Project read/list protected local HTTP canary
+
+Choose the next smallest source-only ERP boundary. Preserve tenant,
+authorization, state-machine, transaction, idempotency, audit, and rollback
+contracts; implement the narrowest change; then run focused checks, root source
+gates, and the disposable PostgreSQL/Redis lane. Keep
+`ERP_PROJECT_READS_VIA_API=false` and `ERP_PROJECT_LISTS_VIA_API=false` with
+empty tenant allowlists, all other Core selectors false/empty, and do not
+mutate Supabase or trigger Vercel/Railway builds while the spend lock is
+active.
+
+## M3.236 evidence boundary (completed)
+
+The protected project read/list canary passed 1/1. It proved identity,
+viewer access, cross-tenant concealment, same-tenant reads, bounded list
+queries, deterministic filters/order, search scope, and tenant-safe totals.
+The full disposable environment passed 116 migrations, database 149/149
+suites and 370/370 tests, API integration 66/66 suites and 49/49 tests, zero
+pending/skips, and unchanged schema SHA-256. Hosted selectors, browser
+production canary, provider state, deployment, and billing remain unverified
+and intentionally untouched.
+
 ## Exact next action after M3.235 Project-comment read authority
 
 Choose the next smallest source-only ERP boundary. Preserve tenant,
