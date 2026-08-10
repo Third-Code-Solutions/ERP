@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.246 Document intake protected HTTP canary (completed, source-only)
+
+1. Added `apps/api/integration/document-intake.http.integration.spec.ts`
+   around the existing Nest document-intake controller/service, real Supabase
+   identity/capability guards, audit service, and transaction-bound disposable
+   PostgreSQL client.
+2. Added `packages/database/src/__tests__/document-intake-workflow.test.ts`
+   to keep the migration and Drizzle ledger contract aligned: composite tenant
+   FKs, replay/state checks, forced RLS, and service-only privileges.
+3. Proved 401/400/403/404/409/503 boundaries, strict command/header handling,
+   tenant/project storage scope, canonical document row and audit side effects,
+   idempotent replay/key conflict, tenant isolation, and rollback.
+4. Focused HTTP canary passed 1/1 and the migration contract passed 3/3. Root
+   API 173/173 files and 751/751 tests, Web 111/111 files and 768/768 tests,
+   shared 54/54 files and 323/323 tests passed. The root database package had
+   143 expected environment skips without `DATABASE_URL`; the disposable
+   117-migration PostgreSQL/Redis lane reran database 373/373 tests with zero
+   skips, and API integration passed 42/42 files and 58/58 tests with zero
+   skips. Typecheck, lint, and production build passed. No schema,
+   hosted/provider state, runtime selector, or paid action changed.
+
+Keep the document-intake flag false and its tenant list empty. Exact next
+action: reconcile hosted parity and release gates before any provider action.
+
 ## M3.245 Stock Receipt post/reverse protected HTTP canary (completed, source-only)
 
 1. Added `apps/api/integration/stock-receipt-workflow.http.integration.spec.ts`

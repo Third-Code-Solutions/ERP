@@ -1,5 +1,33 @@
 # Current State
 
+## M3.246 Document intake protected HTTP canary (2026-08-10)
+
+Added `apps/api/integration/document-intake.http.integration.spec.ts` and
+`packages/database/src/__tests__/document-intake-workflow.test.ts`. The
+protected canary boots the real Nest document-intake controller/service with
+Supabase identity/capability guards against transaction-bound disposable
+PostgreSQL. It proves missing/invalid auth, strict command and
+`Idempotency-Key` handling, viewer denial, disabled-tenant fail-closed
+behavior, cross-tenant project concealment, tenant/project storage-path scope,
+canonical document persistence, replay/key conflict, semantic audit, forced
+RLS/service-only intake-request access, and rollback. The migration contract
+test confirms the existing document-intake ledger has composite tenant FKs,
+forced RLS, and browser privileges revoked.
+
+Focused HTTP canary: 1/1 PASS; migration contract: 3/3 PASS. Root `pnpm
+test`: API 173 files/751 tests, Web 111 files/768 tests, shared 54 files/323
+tests PASS; database 64/68 files and 230/373 tests PASS with 143 expected
+environment skips because the root command had no `DATABASE_URL`. Typecheck
+5/5, lint 2/2, and production build PASS. The zero-skip PostgreSQL 17/Redis
+7.4.9 lane ran all 117 migrations and database 373/373 tests; API integration
+ran 42/42 files and 58/58 tests without skips. No schema migration, runtime
+selector, hosted Supabase SQL/data, Vercel/Railway deployment, provider
+setting, credential, or paid action changed. Keep
+`ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false` and
+`ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS` empty. Source/docs remain source-only;
+exact push SHA is recorded in the changeset. Exact next action: reconcile
+hosted parity and release gates before any provider action.
+
 ## M3.245 Stock Receipt post/reverse protected HTTP canary (2026-08-10)
 
 Added `apps/api/integration/stock-receipt-workflow.http.integration.spec.ts`.

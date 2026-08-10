@@ -1,5 +1,22 @@
 # Target State
 
+## M3.246 Document intake authority evidence
+
+Document intake is a guarded Nest command at `POST /v1/documents`. The browser
+uploads an object first, then sends only strict file metadata and an opaque
+idempotency key. Core derives tenant, actor, role, and project scope; validates
+that the storage path is `${tenant_id}/${project_id}/...`; and commits the
+canonical document row, tenant-scoped replay ledger, and semantic audit in one
+PostgreSQL transaction. A protected disposable HTTP canary proves auth, RBAC,
+disabled-by-default behavior, cross-tenant concealment, storage-path scope,
+replay/conflict, forced RLS, and rollback. Python/AI/OCR may analyze the
+document later but cannot approve or finalize the canonical ERP record.
+
+Keep `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false` and
+`ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS` empty until hosted parity, exact
+release identity, readiness, protected browser evidence, rollback, and spend
+approval are independently complete.
+
 ## M3.245 Stock Receipt post/reverse authority evidence
 
 Stock Receipt posting and reversal are guarded Nest commands. Core derives
