@@ -57,6 +57,8 @@ import {
   notificationListResultSchema,
   notificationReadStateCommandSchema,
   notificationReadStateResultSchema,
+  docuSealWebhookCommandSchema,
+  docuSealWebhookResultSchema,
   assetListResultSchema,
   assetReadResultSchema,
   assetMaintenanceDueResultSchema,
@@ -162,6 +164,8 @@ import {
   type NotificationListResult,
   type NotificationReadStateCommand,
   type NotificationReadStateResult,
+  type DocuSealWebhookCommand,
+  type DocuSealWebhookResult,
   type AssetListQuery,
   type AssetListResult,
   type AssetReadResult,
@@ -669,6 +673,15 @@ export function notificationReadStateUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_NOTIFICATION_READ_STATE_VIA_API,
     process.env.ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS
+  )
+}
+
+/** DocuSeal business writes are delegated only for an exact tenant canary. */
+export function docuSealWebhookUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_DOCUSEAL_WEBHOOK_VIA_API,
+    process.env.ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS
   )
 }
 
@@ -3158,6 +3171,74 @@ export async function getNotificationsThroughCoreApi(): Promise<
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Notifications were not loaded.',
+    }
+  }
+}
+
+/**
+ * Server-only service-to-service webhook adapter. It intentionally uses a
+ * separate internal token rather than a browser session because DocuSeal has
+ * no Supabase user principal. Selected-Core failures are terminal.
+ */
+export async function processDocuSealWebhookThroughCoreApi(
+  command: DocuSealWebhookCommand
+): Promise<CoreResult<DocuSealWebhookResult>> {
+  const parsedCommand = docuSealWebhookCommandSchema.safeParse(command)
+  if (!parsedCommand.success) {
+    return { ok: false, error: 'DocuSeal webhook payload is invalid.', status: 400 }
+  }
+
+  const baseUrl = getCoreApiBaseUrl()
+  const internalToken = process.env.ERP_CORE_WEBHOOK_TOKEN?.trim()
+  if (!baseUrl || !internalToken) {
+    return {
+      ok: false,
+      error: 'ERP Core webhook access is not configured.',
+      status: 503,
+    }
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}/v1/webhooks/docuseal`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-erp-core-webhook-token': internalToken,
+        'x-request-id': randomUUID(),
+      },
+      body: JSON.stringify(parsedCommand.data),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
+    })
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 401
+            ? 'ERP Core webhook access was rejected.'
+            : response.status === 503
+              ? 'ERP Core webhook authority is not enabled for this tenant.'
+              : 'DocuSeal webhook was not committed.',
+        status: response.status,
+      }
+    }
+    const parsed = docuSealWebhookResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core returned an invalid DocuSeal webhook result.',
+        status: 502,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core webhook authority is unavailable.',
+      status: 503,
     }
   }
 }

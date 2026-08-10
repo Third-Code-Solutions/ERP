@@ -1,5 +1,14 @@
 # Next Actions
 
+## Exact next action after M3.215 DocuSeal webhook authority
+
+Push only the reviewed source/docs commit as `kurtgav`; do not trigger Vercel,
+Railway, or Supabase. Root tests, lint, production build, Web DB-boundary,
+migration files-only, workflow refs, provider-spend, and diff checks passed.
+When Docker is healthy, replay PostgreSQL 17 + Redis and prove submission
+tenant isolation, token/BOM locking, duplicate webhook suppression, audit
+hash continuity, and Web/Core response parity before enabling one canary.
+
 ## Exact next action after M3.214 notification read-state authority
 
 Root tests, lint, production build, migration files-only, workflow refs, and

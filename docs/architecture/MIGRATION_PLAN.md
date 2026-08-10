@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.215 Core-owned DocuSeal webhook transaction (completed, source-only)
+
+1. Added strict shared event/document/result schemas with HTTP URL, bounded
+   submission, nullable identity, and duplicate-result validation.
+2. Added a `@Public` Nest endpoint protected by a server-only internal token,
+   exact Core tenant allowlist, locked portal-token lookup, tenant-matched BOM
+   join, optional signed-document insert, BOM lock, and same-transaction audit.
+3. Added an exact Web tenant selector and service-to-service adapter. Selected
+   Core errors are terminal; the legacy write branch is unreachable. First
+   successful Core commits retain existing Web notification delivery, while
+   duplicate events do not resend it.
+
+Focused shared 3/3, Core 6/6, environment 71/71, Web route 2/2, Web Core
+client 160/160, and API/Web/shared/auth typechecks pass. Root `pnpm test`,
+lint, production build (82/82 routes), Web DB-boundary, migration files-only,
+workflow-reference, provider-spend, and diff checks pass. Disposable replay,
+protected webhook/browser proof, and hosted release proof remain unavailable;
+Docker is not healthy. No migration, hosted row, provider, deployment, or paid
+action.
+
+Exact next action: push source only; keep
+`ERP_DOCUSEAL_WEBHOOK_VIA_API=false` and the Core flag false until disposable
+replay and protected release evidence exist.
+
 ## M3.214 Core-owned notification read state (completed, source-only)
 
 1. Added strict shared list, command, and mutation-result schemas with bounded

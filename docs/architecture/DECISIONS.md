@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-325 - Core owns the DocuSeal completion transaction (2026-08-10)
+
+Decision: add `POST /v1/webhooks/docuseal` as a public-but-secret-authenticated
+Nest boundary. Core resolves the external submission to a tenant-owned portal
+token, locks the token and BOM, persists signed document evidence, and audits
+the lock in one transaction. A consumed token produces a duplicate result with
+no side effects. Web selects Core only for an exact UUID allowlist and never
+falls back after selection; Web notification delivery remains ancillary until
+outbox parity is a separate slice.
+
+Rationale: the legacy callback directly mutates several official ERP records
+and is retried by an external provider. A single Core transaction gives the
+callback tenant isolation, lock ordering, retry safety, and audit continuity
+without requiring a provider call or a big-bang signing rewrite. A distinct
+server-only internal token is used because external callbacks have no
+Supabase user principal.
+
+Validation: focused contract/API/Web tests and typechecks pass. Root tests,
+lint, production build, boundary, migration, workflow, provider-spend, and
+diff checks pass. Disposable replay, protected webhook, hosted, and rollback
+release evidence remain open; all selectors are closed.
+
 ## D-324 - Core owns authenticated notification read state (2026-08-10)
 
 Decision: expose `GET/POST /v1/notifications` behind `notification.read`.

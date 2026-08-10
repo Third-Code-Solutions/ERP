@@ -1,5 +1,15 @@
 # Target State
 
+## M3.215 DocuSeal callback authority
+
+DocuSeal completion callbacks cross a strict, server-authenticated Nest
+boundary. The Core transaction derives tenant scope from the portal token,
+locks the BOM before mutation, persists signed evidence, and appends an audit
+event. Web remains a compatibility adapter and may deliver ancillary
+notifications only after Core commits; it cannot regain business-write
+authority after a selected-Core failure. Exact tenant selectors and internal
+tokens stay fail-closed until replay and hosted release evidence exist.
+
 ## M3.214 user-scoped notification authority
 
 The authenticated shell reads notifications and commits read-state changes

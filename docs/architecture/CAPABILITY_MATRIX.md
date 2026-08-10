@@ -1,5 +1,20 @@
 # Third Code ERP capability matrix
 
+## M3.215 Core-owned DocuSeal webhook transaction (2026-08-10)
+
+DocuSeal completion now has a strict, secret-authenticated Nest transaction
+for exact canary tenants: portal-token lookup, tenant-matched BOM lock,
+optional signed-document evidence, duplicate replay suppression, and audit.
+The Web route remains the default and preserves notification delivery; no
+hosted canary or provider action is approved.
+
+Validation: focused shared/API/Web contracts and typechecks passed; root
+tests, lint, production build (82/82 routes), Web DB-boundary, migration
+files-only, workflow-reference, provider-spend, and diff checks passed.
+Disposable PostgreSQL/RLS replay and protected/hosted proof remain blocked by
+unhealthy Docker and unavailable release credentials. Both selectors remain
+false/empty.
+
 ## M3.214 Core-owned notification read state (2026-08-10)
 
 Notification list and mark-read operations now have a strict Nest authority

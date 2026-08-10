@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-10 - M3.215 Core-owned DocuSeal webhook transaction
+
+Added strict shared DocuSeal webhook contracts, a secret-authenticated Nest
+controller/service/pipe, exact tenant gating, locked token/BOM transaction,
+optional signed-document persistence, duplicate suppression, hash-chain audit,
+Web adapter/selector, and route regressions. Existing notification delivery is
+kept only as an ancillary post-commit compatibility side effect. No migration,
+hosted row, provider, deployment, or paid action changed.
+
+Validation: shared 3/3; API service/controller 6/6; environment 71/71; Web
+route 2/2 + Core client 160/160; API/Web/shared/auth typechecks; root `pnpm
+test`, lint, production build (82/82 routes), Web DB-boundary, migration
+files-only, workflow-reference, provider-spend, and diff checks passed.
+Disposable replay, protected webhook proof, and hosted checks remain open
+because Docker is not healthy.
+
+Exact next action: push once as `kurtgav`; keep both webhook selectors
+false/empty until disposable replay and protected release proof exist.
+
 ## 2026-08-10 - M3.214 Core-owned notification read state
 
 Added the closed Nest notification list/read-state authority, strict shared

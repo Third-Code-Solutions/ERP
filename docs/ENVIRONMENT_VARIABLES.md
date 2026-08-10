@@ -100,6 +100,27 @@ audit trail and signature bundle layout are identical either way.
 
 ---
 
+## DocuSeal Core webhook canary
+
+The Web callback remains authoritative by default. When a disposable exact
+tenant replay has passed, the Web route may forward the token/document/BOM-lock
+transaction to Nest Core. Both sides require the same server-only internal
+token; the selector and Core allowlist are independent fail-closed controls.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_CORE_WEBHOOK_TOKEN` | when selected | Web + Core server | Authenticates Web-to-Core webhook calls; minimum 32 random characters |
+| `ERP_DOCUSEAL_WEBHOOK_VIA_API` | no | Web server | Enables the Web adapter only when `true` |
+| `ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS` | when selected | Web server | Exact UUID tenant selector; wildcards are rejected |
+| `ERP_DOCUSEAL_WEBHOOK_ENABLED` | no | Core server | Enables the Nest transaction only when `true` |
+| `ERP_DOCUSEAL_WEBHOOK_TENANT_IDS` | when selected | Core server | Exact UUID tenant allowlist |
+
+Selected-Core failures are terminal and never fall back to Web writes. Web
+notification delivery remains an ancillary compatibility side effect until
+the durable outbox parity is separately approved.
+
+---
+
 ## Resend (Optional)
 
 | Variable | Required | Scope | Where to get | Controls |

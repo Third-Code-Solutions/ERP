@@ -1832,6 +1832,35 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS')
   })
 
+  it('keeps DocuSeal webhook authority fail-closed, tenant-scoped, and token-bounded', () => {
+    expect(validateEnvironment(REQUIRED).ERP_DOCUSEAL_WEBHOOK_ENABLED).toBe(false)
+    expect(validateEnvironment(REQUIRED).ERP_DOCUSEAL_WEBHOOK_TENANT_IDS).toEqual([])
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUSEAL_WEBHOOK_ENABLED: 'true',
+        ERP_DOCUSEAL_WEBHOOK_TENANT_IDS:
+          '33333333-3333-4333-8333-333333333333',
+        ERP_CORE_WEBHOOK_TOKEN: 'x'.repeat(32),
+      })
+    ).toMatchObject({
+      ERP_DOCUSEAL_WEBHOOK_ENABLED: true,
+      ERP_DOCUSEAL_WEBHOOK_TENANT_IDS: [
+        '33333333-3333-4333-8333-333333333333',
+      ],
+      ERP_CORE_WEBHOOK_TOKEN: 'x'.repeat(32),
+    })
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        ERP_DOCUSEAL_WEBHOOK_TENANT_IDS: 'not-a-tenant',
+      })
+    ).toThrow('ERP_DOCUSEAL_WEBHOOK_TENANT_IDS')
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, ERP_CORE_WEBHOOK_TOKEN: 'short' })
+    ).toThrow('ERP_CORE_WEBHOOK_TOKEN')
+  })
+
   it('keeps public signing fail-closed and tenant-scoped', () => {
     expect(validateEnvironment(REQUIRED).ERP_PUBLIC_SIGNING_WRITES_ENABLED).toBe(false)
     expect(validateEnvironment(REQUIRED).ERP_PUBLIC_SIGNING_WRITES_TENANT_IDS).toEqual([])

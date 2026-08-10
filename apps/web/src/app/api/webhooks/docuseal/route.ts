@@ -7,15 +7,21 @@ import {
   documents,
   projects,
 } from '@third-code-erp/database/schema'
+import { docuSealWebhookCommandSchema } from '@third-code-erp/shared-types'
 import type { DocuSealWebhookPayload } from '@/lib/operations/integrations/docuseal'
 import { notifyRoles } from '@/lib/operations/notifications'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  docuSealWebhookUseCoreApi,
+  processDocuSealWebhookThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 /**
  * DocuSeal webhook receiver (REFACTOR.md M3 / US-012).
  *
- * Always returns 200 (except secret mismatch) so DocuSeal doesn't retry —
- * any downstream failure is logged but doesn't surface to the sender.
+ * The compatibility path acknowledges downstream failures to avoid retry
+ * storms. A selected Core authority returns a terminal failure status without
+ * re-entering the legacy writes so the provider can retry safely.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const expectedSecret = process.env.DOCUSEAL_WEBHOOK_SECRET
@@ -59,6 +65,76 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { received: true, note: 'no matching portal token' },
         { status: 200 }
       )
+    }
+
+    if (docuSealWebhookUseCoreApi(tokenRow.tenant_id)) {
+      const coreCommand = docuSealWebhookCommandSchema.safeParse({
+        event: payload.event,
+        submissionId: payload.submission_id,
+        documents: payload.documents ?? [],
+      })
+      if (!coreCommand.success) {
+        return NextResponse.json(
+          { received: false, error: 'Invalid DocuSeal webhook payload' },
+          { status: 400 }
+        )
+      }
+
+      const coreResult = await processDocuSealWebhookThroughCoreApi(
+        coreCommand.data
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return NextResponse.json(
+          {
+            received: false,
+            error: coreResult.error ?? 'DocuSeal webhook was not committed.',
+          },
+          { status: coreResult.status ?? 503 }
+        )
+      }
+
+      if (
+        coreResult.data.handled &&
+        !coreResult.data.duplicate &&
+        coreResult.data.projectId &&
+        coreResult.data.tcvCents !== null &&
+        coreResult.data.tenantId
+      ) {
+        const tcvPhp = (coreResult.data.tcvCents / 100).toLocaleString(
+          'en-PH',
+          {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }
+        )
+        try {
+          await notifyRoles({
+            tenantId: coreResult.data.tenantId,
+            recipientRoles: ['sales', 'commercial', 'admin', 'owner'],
+            subject: `Client signed BOM — ${coreResult.data.projectName ?? 'project'}`,
+            body: `DocuSeal recorded signature for the BOM. TCV: ₱${tcvPhp}.`,
+            linkUrl: `/projects/${coreResult.data.projectId}/bom`,
+            alsoEmail: true,
+            templateId: 'bom-signed',
+            templateVars: {
+              project_name: coreResult.data.projectName ?? 'your project',
+              tcv_php: tcvPhp,
+              project_url: `/projects/${coreResult.data.projectId}`,
+            },
+          })
+        } catch (err) {
+          console.error(
+            '[webhook:docuseal] Core notification delivery failed:',
+            err
+          )
+        }
+      }
+
+      return NextResponse.json({
+        received: true,
+        handled: coreResult.data.handled,
+        duplicate: coreResult.data.duplicate,
+      })
     }
 
     const now = new Date()

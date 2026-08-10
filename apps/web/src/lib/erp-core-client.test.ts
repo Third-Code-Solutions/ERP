@@ -41,6 +41,7 @@ import {
   getFinanceReconciliationThroughCoreApi,
   getNotificationsThroughCoreApi,
   markNotificationReadStateThroughCoreApi,
+  processDocuSealWebhookThroughCoreApi,
   getAssetsThroughCoreApi,
   getAssetThroughCoreApi,
   getAssetMaintenanceDueThroughCoreApi,
@@ -61,6 +62,7 @@ import {
   financeCashReadsUseCoreApi,
   financeReconciliationReadsUseCoreApi,
   notificationReadStateUseCoreApi,
+  docuSealWebhookUseCoreApi,
   assetReadsUseCoreApi,
   assetMaintenanceReadsUseCoreApi,
   assetMaintenanceCreateWritesUseCoreApi,
@@ -704,6 +706,17 @@ const NOTIFICATION_LIST_RESULT = {
     },
   ],
   unread: 1,
+}
+const DOCUSEAL_WEBHOOK_RESULT = {
+  received: true as const,
+  handled: true,
+  duplicate: false,
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  bomId: '33333333-3333-4333-8333-333333333333',
+  projectId: '44444444-4444-4444-8444-444444444444',
+  projectName: 'Fit-out',
+  tcvCents: 125_000,
+  signedDocument: { url: 'https://sign.example.test/signed.pdf' },
 }
 const ACCOUNT_LIST_RESULT = {
   rows: [
@@ -2105,6 +2118,53 @@ describe('ERP Core client', () => {
         body: JSON.stringify({
           action: 'mark_read',
           id: '33333333-3333-4333-8333-333333333333',
+        }),
+      })
+    )
+  })
+
+  it('keeps the DocuSeal webhook authority closed unless the exact tenant gate matches', () => {
+    expect(docuSealWebhookUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_DOCUSEAL_WEBHOOK_VIA_API', 'true')
+    vi.stubEnv('ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS', RESULT.tenantId)
+    expect(docuSealWebhookUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_DOCUSEAL_WEBHOOK_VIA_API', 'TRUE')
+    expect(docuSealWebhookUseCoreApi(RESULT.tenantId)).toBe(false)
+    vi.stubEnv('ERP_DOCUSEAL_WEBHOOK_VIA_API', 'true')
+    vi.stubEnv('ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS', '*')
+    expect(docuSealWebhookUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(docuSealWebhookUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
+  it('uses the internal token for DocuSeal Core processing and validates replay metadata', async () => {
+    vi.stubEnv('ERP_CORE_WEBHOOK_TOKEN', 'x'.repeat(32))
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(DOCUSEAL_WEBHOOK_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      processDocuSealWebhookThroughCoreApi({
+        event: 'submission.completed',
+        submissionId: 'submission-123',
+        documents: [{ url: 'https://sign.example.test/signed.pdf' }],
+      })
+    ).resolves.toEqual({
+      ok: true,
+      data: DOCUSEAL_WEBHOOK_RESULT,
+      status: 200,
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/webhooks/docuseal',
+      expect.objectContaining({
+        method: 'POST',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          'x-erp-core-webhook-token': 'x'.repeat(32),
         }),
       })
     )
