@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.217 CAD parser-to-Core canary boundary (completed, source-only)
+
+1. Split CAD parsing into `parseCadEvidence`, which returns a strict shared
+   worker response without database or BOM side effects.
+2. Route exact-allowlisted CAD tenants through the server-only Nest adapter;
+   selected-Core failure is terminal and never calls the compatibility writer.
+3. Keep `parseAndStoreCad` as the closed-by-default compatibility wrapper,
+   including auto-BOM, until Core draft-BOM parity and disposable replay pass.
+
+Focused parser 2/2, upload route 10/10, adapter 4/4; root tests (shared 315,
+API 736, Web 749), lint, typecheck, production build (82/82 routes), Web
+DB-boundary, migration files-only, workflow-reference, provider-spend, and
+diff checks pass. Disposable PostgreSQL/RLS replay, protected browser proof,
+and hosted/provider proof remain open. No migration, hosted row, provider,
+deployment, or paid action.
+
+Exact next action: prove Core/direct response parity, scope replacement,
+idempotent replay, and auto-BOM separation on disposable PostgreSQL before any
+tenant canary.
+
 ## M3.216 Web-to-Nest CAD evidence adapter (completed, source-only)
 
 1. Added an exact UUID Web selector for CAD evidence authority, rejecting

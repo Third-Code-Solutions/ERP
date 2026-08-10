@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   where: vi.fn(),
   getProject: vi.fn(),
   parseAndStoreCad: vi.fn(),
+  parseCadEvidence: vi.fn(),
+  cadEvidenceCommitWritesUseCoreApi: vi.fn(),
+  commitCadEvidenceThroughCoreApi: vi.fn(),
   documentProcessingJobsUseCoreApi: vi.fn(),
   enqueueDocumentProcessingThroughCoreApi: vi.fn(),
   extractScopeFromVisual: vi.fn(),
@@ -40,9 +43,12 @@ vi.mock('@/lib/project-queries', () => ({
 
 vi.mock('@/lib/cad/parse-and-store', () => ({
   parseAndStoreCad: mocks.parseAndStoreCad,
+  parseCadEvidence: mocks.parseCadEvidence,
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
+  cadEvidenceCommitWritesUseCoreApi: mocks.cadEvidenceCommitWritesUseCoreApi,
+  commitCadEvidenceThroughCoreApi: mocks.commitCadEvidenceThroughCoreApi,
   documentIntakeCanarySelectedForUpload:
     mocks.documentIntakeCanarySelectedForUpload,
   completeDocumentUploadThroughCoreCanary:
@@ -89,6 +95,7 @@ describe('completed document upload Project access', () => {
     )
     mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
     mocks.documentIntakeCanarySelectedForUpload.mockReturnValue(false)
+    mocks.cadEvidenceCommitWritesUseCoreApi.mockReturnValue(false)
     mocks.documentProcessingJobsUseCoreApi.mockReturnValue(false)
   })
 
@@ -261,6 +268,157 @@ describe('completed document upload Project access', () => {
     )
     expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
     expect(mocks.send).not.toHaveBeenCalled()
+  })
+
+  it('commits parsed DXF evidence through Core without the compatibility writer', async () => {
+    const documentId = '44444444-4444-4444-8444-444444444444'
+    const storagePath = `${TENANT_ID}/${OTHER_PROJECT_ID}/drawing.dxf`
+    const workerResponse = {
+      document_id: documentId,
+      scope_items: [
+        {
+          code: null,
+          description: 'Fan Coil Unit',
+          unit: 'unit',
+          quantity: 2,
+          unit_cost_cents: 0,
+          notes: null,
+        },
+      ],
+      count: 1,
+      warnings: [],
+      parsed_format: 'dxf' as const,
+      source_format: 'dxf' as const,
+    }
+    mocks.getProject.mockResolvedValue({
+      id: OTHER_PROJECT_ID,
+      tenant_id: TENANT_ID,
+    })
+    mocks.returning.mockResolvedValue([{ id: documentId }])
+    mocks.cadEvidenceCommitWritesUseCoreApi.mockReturnValue(true)
+    mocks.parseCadEvidence.mockResolvedValue({
+      status: 'extracted',
+      scopeItemsCreated: 0,
+      warnings: [],
+      layerCount: 1,
+      entityCount: 2,
+      detectedFormat: 'dxf',
+      dwgVersion: null,
+      extensionMismatch: false,
+      bom: null,
+      message: 'Parsed 1 scope item.',
+      workerResponse,
+    })
+    mocks.commitCadEvidenceThroughCoreApi.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        documentId,
+        projectId: OTHER_PROJECT_ID,
+        tenantId: TENANT_ID,
+        scopeItemsCreated: 1,
+        sourceFormat: 'dxf',
+        status: 'committed',
+      },
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storagePath,
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'drawing.dxf',
+          mimeType: 'application/dxf',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      id: documentId,
+      cadParseQueued: true,
+      cadResult: {
+        status: 'extracted',
+        scopeItemsCreated: 1,
+        detectedFormat: 'dxf',
+        bomId: null,
+      },
+    })
+    expect(mocks.parseCadEvidence).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      projectId: OTHER_PROJECT_ID,
+      documentId,
+      storagePath,
+      fileName: 'drawing.dxf',
+      actorId: USER_ID,
+    })
+    expect(mocks.commitCadEvidenceThroughCoreApi).toHaveBeenCalledWith(
+      documentId,
+      { projectId: OTHER_PROJECT_ID, workerResponse },
+      `cad-evidence-${documentId}`
+    )
+    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back to the compatibility writer after a selected Core failure', async () => {
+    const documentId = '44444444-4444-4444-8444-444444444444'
+    const workerResponse = {
+      document_id: documentId,
+      scope_items: [],
+      count: 0,
+      warnings: [],
+      parsed_format: 'dxf' as const,
+      source_format: 'dxf' as const,
+    }
+    mocks.getProject.mockResolvedValue({
+      id: OTHER_PROJECT_ID,
+      tenant_id: TENANT_ID,
+    })
+    mocks.returning.mockResolvedValue([{ id: documentId }])
+    mocks.cadEvidenceCommitWritesUseCoreApi.mockReturnValue(true)
+    mocks.parseCadEvidence.mockResolvedValue({
+      status: 'extracted',
+      scopeItemsCreated: 0,
+      warnings: [],
+      layerCount: 0,
+      entityCount: 0,
+      detectedFormat: 'dxf',
+      dwgVersion: null,
+      extensionMismatch: false,
+      bom: null,
+      message: 'Parsed 0 scope items.',
+      workerResponse,
+    })
+    mocks.commitCadEvidenceThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'ERP Core API is unavailable. No CAD evidence was committed.',
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storagePath: `${TENANT_ID}/${OTHER_PROJECT_ID}/drawing.dxf`,
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'drawing.dxf',
+          mimeType: 'application/dxf',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      cadParseWarning:
+        'ERP Core API is unavailable. No CAD evidence was committed.',
+      cadResult: { status: 'processing-unavailable', scopeItemsCreated: 0 },
+    })
+    expect(mocks.parseAndStoreCad).not.toHaveBeenCalled()
   })
 
   it('delegates a non-extractor upload to Core before any legacy write', async () => {

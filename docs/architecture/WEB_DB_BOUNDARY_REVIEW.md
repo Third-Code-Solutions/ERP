@@ -1,5 +1,14 @@
 # Web Database Boundary Review
 
+## M3.217 CAD evidence producer boundary
+
+The selected CAD upload path parses evidence without Web scope/BOM writes, then
+calls Nest Core. Core errors are terminal; compatibility persistence and
+auto-BOM remain reachable only while selector is false. Static inventory still
+lists direct writes intentionally. Parser/route tests, root tests, lint,
+typecheck, build, and guards pass; runtime replay and protected/hosted proof
+remain open.
+
 ## M3.216 CAD evidence adapter
 
 The server-only Web client can now call Nest CAD evidence authority for an

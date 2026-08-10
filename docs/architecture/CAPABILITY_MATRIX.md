@@ -1,5 +1,18 @@
 # Third Code ERP capability matrix
 
+## M3.217 CAD parser-to-Core canary boundary (2026-08-10)
+
+CAD parsing now emits strict evidence without Web persistence. Exact-tenant
+selection commits through Nest Core; no selected-Core failure reaches the
+compatibility writer. Auto-BOM remains compatibility-only pending separate
+Core parity.
+
+Validation: parser 2/2, upload route 10/10, adapter 4/4; root tests (shared
+315, API 736, Web 749), lint, typecheck, production build (82/82 routes),
+boundary, migration, workflow-reference, provider-spend, and diff checks
+pass. Disposable replay, protected browser, and hosted provider evidence
+remain open. No hosted or paid action occurred.
+
 ## M3.216 Web-to-Nest CAD evidence adapter (2026-08-10)
 
 The Web server now exposes a closed exact-tenant adapter to the existing Nest

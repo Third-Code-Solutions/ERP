@@ -1,5 +1,13 @@
 # Next Actions
 
+## Exact next action after M3.217 CAD parser-to-Core boundary
+
+Run root tests/lint/typecheck/build and guards. Keep
+`ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and its allowlist empty. When
+Docker works, replay direct/Core CAD results on disposable PostgreSQL 17 with
+tenant/RLS, scope replacement, idempotency, audit, exact totals, and separate
+draft-BOM assertions before any canary or hosted action.
+
 ## Exact next action after M3.216 CAD evidence adapter
 
 Push only reviewed source/docs; do not trigger Vercel, Railway, or Supabase.

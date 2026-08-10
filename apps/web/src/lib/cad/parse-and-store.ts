@@ -44,6 +44,22 @@ export type ParseStatus =
   | 'binary-dwg-pending' // real DWG, needs converter (no scope yet)
   | 'unknown-format' // not DXF and not DWG header — bail
   | 'download-failed'
+  | 'parse-failed'
+
+/** Evidence-only CAD result. No database or BOM side effect. */
+export interface CadEvidenceParseResult {
+  status: ParseStatus
+  scopeItemsCreated: 0
+  warnings: string[]
+  layerCount: number
+  entityCount: number
+  detectedFormat: 'dxf' | 'dwg' | 'unknown'
+  dwgVersion: string | null
+  extensionMismatch: boolean
+  bom: null
+  message: string
+  workerResponse: WorkerParseResponse | null
+}
 
 export interface ParseAndStoreResult {
   status: ParseStatus
@@ -134,9 +150,9 @@ export async function persistExtractedScopeItems(input: {
   })
 }
 
-export async function parseAndStoreCad(
+export async function parseCadEvidence(
   input: ParseAndStoreInput
-): Promise<ParseAndStoreResult> {
+): Promise<CadEvidenceParseResult> {
   const { tenantId, projectId, documentId, storagePath, fileName } = input
 
   // 1. Download the file (binary-safe)
@@ -157,6 +173,7 @@ export async function parseAndStoreCad(
       extensionMismatch: false,
       bom: null,
       message: 'File could not be retrieved from storage.',
+      workerResponse: null,
     }
   }
 
@@ -179,40 +196,17 @@ export async function parseAndStoreCad(
           fileName,
         })
 
-        const scopeItemsCreated = await persistExtractedScopeItems({
-          tenantId,
-          projectId,
-          documentId,
-          actorId: input.actorId,
-          sourceFormat: workerResult.source_format,
-          items: workerResult.scope_items,
-        })
-
-        // Commit the worker evidence in the application transaction, then run
-        // the auto-BOM inline so the user sees an extracted scope + draft BOM
-        // in the same request.
-        let bom: AutoBomResult | null = null
-        if (scopeItemsCreated > 0) {
-          try {
-            bom = await calcDraftBomFromScope({ tenantId, projectId, documentId })
-          } catch (err) {
-            console.error('[parse-and-store] auto-BOM failed:', err)
-            workerResult.warnings.push(
-              `Auto-BOM failed: ${err instanceof Error ? err.message : String(err)}`
-            )
-          }
-        }
-
         return {
           status: 'extracted',
-          scopeItemsCreated,
+          scopeItemsCreated: 0,
           warnings: workerResult.warnings,
           layerCount: 0,
           entityCount: 0,
           detectedFormat: 'dwg',
           dwgVersion: detection.dwgVersion,
           extensionMismatch: detection.mismatch,
-          bom,
+          workerResponse: workerResult,
+          bom: null,
           message: `DWG ${detection.dwgVersion ?? ''} converted via worker · ${workerResult.count} scope item${workerResult.count === 1 ? '' : 's'} extracted.`,
         }
       } catch (err) {
@@ -228,6 +222,7 @@ export async function parseAndStoreCad(
           dwgVersion: detection.dwgVersion,
           extensionMismatch: detection.mismatch,
           bom: null,
+          workerResponse: null,
           message: `DWG stored. Worker at DXF_PARSER_URL is unreachable (${errMsg}). Verify the worker is running, or re-export as DXF for instant extraction.`,
         }
       }
@@ -247,6 +242,7 @@ export async function parseAndStoreCad(
       dwgVersion: detection.dwgVersion,
       extensionMismatch: detection.mismatch,
       bom: null,
+      workerResponse: null,
       message:
         'DWG stored. To enable automatic DWG extraction, deploy the CAD parser worker and set DXF_PARSER_URL — or re-export as DXF for instant in-browser extraction.',
     }
@@ -264,6 +260,7 @@ export async function parseAndStoreCad(
       dwgVersion: null,
       extensionMismatch: false,
       bom: null,
+      workerResponse: null,
       message:
         'File does not appear to be a valid CAD file. Stored, but no scope extracted.',
     }
@@ -273,25 +270,36 @@ export async function parseAndStoreCad(
   const dxfText = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
   const extraction = extractFromDxfText(dxfText)
 
-  const scopeItemsCreated = await persistExtractedScopeItems({
-    tenantId,
-    projectId,
-    documentId,
-    actorId: input.actorId,
-    sourceFormat: 'dxf',
-    items: extraction.items,
-  })
-
-  // 5. Auto-BOM (non-fatal if it errors)
-  let bom: AutoBomResult | null = null
-  if (scopeItemsCreated > 0) {
-    try {
-      bom = await calcDraftBomFromScope({ tenantId, projectId, documentId })
-    } catch (err) {
-      console.error('[parse-and-store] auto-BOM failed:', err)
-      extraction.warnings.push(
-        `Auto-BOM failed: ${err instanceof Error ? err.message : String(err)}`
-      )
+  let workerResponse: WorkerParseResponse
+  try {
+    workerResponse = parseWorkerResponse(
+      {
+        document_id: documentId,
+        scope_items: extraction.items,
+        count: extraction.items.length,
+        warnings: extraction.warnings,
+        parsed_format: 'dxf',
+        source_format: 'dxf',
+      },
+      documentId
+    )
+  } catch (err) {
+    const validationMessage = err instanceof Error ? err.message : String(err)
+    return {
+      status: 'parse-failed',
+      scopeItemsCreated: 0,
+      warnings: [
+        ...extraction.warnings,
+        `CAD evidence validation failed: ${validationMessage}`,
+      ],
+      layerCount: extraction.layerCount,
+      entityCount: extraction.entityCount,
+      detectedFormat: 'dxf',
+      dwgVersion: null,
+      extensionMismatch: detection.mismatch,
+      bom: null,
+      message: 'DXF parsed, but evidence failed validation. No scope was committed.',
+      workerResponse: null,
     }
   }
 
@@ -301,16 +309,54 @@ export async function parseAndStoreCad(
 
   return {
     status: 'extracted',
-    scopeItemsCreated,
+    scopeItemsCreated: 0,
     warnings: extraction.warnings,
     layerCount: extraction.layerCount,
     entityCount: extraction.entityCount,
     detectedFormat: 'dxf',
     dwgVersion: null,
     extensionMismatch: detection.mismatch,
-    bom,
+    bom: null,
     message,
+    workerResponse,
   }
+}
+
+/** Compatibility writer. Selected Core tenants never call this function. */
+export async function parseAndStoreCad(
+  input: ParseAndStoreInput
+): Promise<ParseAndStoreResult> {
+  const evidence = await parseCadEvidence(input)
+  const { workerResponse, ...result } = evidence
+  if (!workerResponse) return result
+
+  const scopeItemsCreated = await persistExtractedScopeItems({
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    documentId: input.documentId,
+    actorId: input.actorId,
+    sourceFormat: workerResponse.source_format,
+    items: workerResponse.scope_items,
+  })
+
+  // Auto-BOM stays compatibility-only until Core draft-BOM parity is proven.
+  let bom: AutoBomResult | null = null
+  if (scopeItemsCreated > 0) {
+    try {
+      bom = await calcDraftBomFromScope({
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        documentId: input.documentId,
+      })
+    } catch (err) {
+      console.error('[parse-and-store] auto-BOM failed:', err)
+      result.warnings.push(
+        `Auto-BOM failed: ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
+  }
+
+  return { ...result, scopeItemsCreated, bom }
 }
 
 // Backward-compat alias — old name was DXF-specific

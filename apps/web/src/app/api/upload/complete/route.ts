@@ -6,8 +6,10 @@ import { db } from '@third-code-erp/database'
 import { documents, users } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { inngest } from '@/lib/inngest'
-import { parseAndStoreCad } from '@/lib/cad/parse-and-store'
+import { parseAndStoreCad, parseCadEvidence } from '@/lib/cad/parse-and-store'
 import {
+  cadEvidenceCommitWritesUseCoreApi,
+  commitCadEvidenceThroughCoreApi,
   completeDocumentUploadThroughCoreCanary,
   documentIntakeCanarySelectedForUpload,
   documentProcessingJobsUseCoreApi,
@@ -268,6 +270,91 @@ export async function POST(req: NextRequest) {
 
   if (cadFormat) {
     try {
+      // CAD evidence canary: parse produces immutable evidence only, then the
+      // Nest adapter commits official scope rows. Selected-Core failures are
+      // terminal; this branch never calls the compatibility writer.
+      if (
+        cadEvidenceCommitWritesUseCoreApi(userRow.tenant_id) &&
+        !(cadFormat === 'dwg' &&
+          documentProcessingJobsUseCoreApi(userRow.tenant_id))
+      ) {
+        const evidence = await parseCadEvidence({
+          tenantId: userRow.tenant_id,
+          projectId,
+          documentId: docId,
+          storagePath,
+          fileName,
+          actorId: user.id,
+        })
+        const workerResponse = evidence.workerResponse
+        if (workerResponse) {
+          const coreResult = await commitCadEvidenceThroughCoreApi(
+            docId,
+            { projectId, workerResponse },
+            `cad-evidence-${docId}`
+          )
+          if (!coreResult.ok || !coreResult.data) {
+            const error = coreResult.error ?? 'CAD evidence was not committed.'
+            cadParseWarning = error
+            cadResult = {
+              status: 'processing-unavailable',
+              scopeItemsCreated: 0,
+              warnings: [error],
+              layerCount: evidence.layerCount,
+              entityCount: evidence.entityCount,
+              detectedFormat: evidence.detectedFormat,
+              dwgVersion: evidence.dwgVersion,
+              extensionMismatch: evidence.extensionMismatch,
+              message:
+                'CAD parsed. No scope items were committed because ERP Core rejected the evidence.',
+              bomId: null,
+              bomTcvCents: 0,
+              bomCostCents: 0,
+              bomGpMarginBps: 0,
+              ragMatches: 0,
+              aiEstimateMatches: 0,
+            }
+          } else {
+            cadParseQueued = true
+            cadResult = {
+              status: 'extracted',
+              scopeItemsCreated: coreResult.data.scopeItemsCreated,
+              warnings: evidence.warnings,
+              layerCount: evidence.layerCount,
+              entityCount: evidence.entityCount,
+              detectedFormat: evidence.detectedFormat,
+              dwgVersion: evidence.dwgVersion,
+              extensionMismatch: evidence.extensionMismatch,
+              message: `CAD evidence committed by ERP Core - ${coreResult.data.scopeItemsCreated} scope item${coreResult.data.scopeItemsCreated === 1 ? '' : 's'} ready for review.`,
+              bomId: null,
+              bomTcvCents: 0,
+              bomCostCents: 0,
+              bomGpMarginBps: 0,
+              ragMatches: 0,
+              aiEstimateMatches: 0,
+            }
+          }
+        } else {
+          cadParseWarning = evidence.warnings[0]
+          cadResult = {
+            status: evidence.status,
+            scopeItemsCreated: 0,
+            warnings: evidence.warnings,
+            layerCount: evidence.layerCount,
+            entityCount: evidence.entityCount,
+            detectedFormat: evidence.detectedFormat,
+            dwgVersion: evidence.dwgVersion,
+            extensionMismatch: evidence.extensionMismatch,
+            message: evidence.message,
+            bomId: null,
+            bomTcvCents: 0,
+            bomCostCents: 0,
+            bomGpMarginBps: 0,
+            ragMatches: 0,
+            aiEstimateMatches: 0,
+          }
+        }
+      } else {
       // Binary DWG canary: once explicitly selected, Nest owns the worker
       // bridge and the official scope-item commit. Never fall back to the
       // legacy Next-side writer after this gate is selected.
@@ -386,6 +473,7 @@ export async function POST(req: NextRequest) {
           // Logged for ops; intentionally not propagated to UI.
           console.warn('[upload/complete] background DWG queue failed:', err)
         }
+      }
       }
       }
     } catch (err) {
