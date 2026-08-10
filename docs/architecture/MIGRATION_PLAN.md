@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.233 Notifications protected local HTTP canary (completed, source + disposable)
+
+1. Added `apps/api/integration/notifications.http.integration.spec.ts` using
+   the real Nest notification controller/service, Supabase identity and
+   capability guards, request correlation, audit service, and a
+   transaction-bound disposable database.
+2. Proved missing-auth 401; exact tenant/recipient filtering; cross-tenant and
+   other-recipient exclusion; request-id echo; malformed command 400; audited
+   `mark_read` and `mark_all_read`; terminal disabled-feature 503; and rollback
+   of notification and audit rows.
+3. Ran the focused canary and the complete disposable environment. Evidence:
+   canary 1/1; PostgreSQL 17.10/Redis 7.4.9; 116 migrations; database
+   149/149 suites and 370/370 tests; API integration 64/64 suites and 48/48
+   tests; zero pending/skips; schema-before and schema-after SHA-256 both
+   `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No schema migration or hosted/provider action occurred. Keep the Web
+notification selector and all other Core selectors closed. Exact next action:
+choose the next smallest source-only ERP seam; hosted parity, protected
+browser evidence, and spend approval remain required before cutover.
+
 ## M3.232 Today protected local HTTP canary (completed, source + disposable)
 
 1. Added `apps/api/integration/today.http.integration.spec.ts` using the real

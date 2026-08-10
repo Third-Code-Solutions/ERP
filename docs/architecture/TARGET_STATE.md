@@ -1,5 +1,17 @@
 # Target State
 
+## M3.233 Notifications read-state authority evidence
+
+Before any tenant opens Core notification read-state, the source release must
+prove the real identity/capability chain against disposable PostgreSQL: every
+read and write is tenant- and recipient-scoped, malformed commands fail closed,
+updates are audited and transactional, the disabled flag returns terminal 503,
+and rollback removes both domain and audit rows. M3.233 records that local gate
+as a 1/1 focused canary and 64/64 API integration suites / 48/48 tests in the
+full zero-skip environment. The Web compatibility route and all selectors stay
+closed until hosted parity, readiness, protected browser evidence, rollback,
+and spend approval exist.
+
 ## M3.232 Today protected local HTTP canary evidence
 
 Before any tenant opens `ERP_TODAY_READS_VIA_API`, the source release must

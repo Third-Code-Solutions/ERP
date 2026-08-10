@@ -1,5 +1,29 @@
 # Current State
 
+## M3.233 Notifications protected local HTTP canary (2026-08-10)
+
+Added a disposable protected HTTP canary for the existing notification
+read-state seam (`GET/POST /v1/notifications`). The test boots the real Nest
+controller, notification service, Supabase identity guard, capability guard,
+request-correlation middleware, audit service, and a transaction-bound
+PostgreSQL client. It proves missing-auth 401, tenant and recipient isolation,
+bounded ordering, request-id propagation, malformed input 400, audited
+`mark_read`/`mark_all_read`, terminal 503 behavior when the feature is disabled,
+and rollback with no notification or audit rows left behind.
+
+The focused canary passed 1/1 tests. With the disposable runtime's complete
+expected environment, API integration passed 64/64 suites and 48/48 tests
+with zero pending/skips. The database lane passed 116 migrations, 149/149
+suites and 370/370 tests with zero pending/skips; schema-before and
+schema-after SHA-256 both remain
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This is local evidence only. All Core selectors remain false/empty. No
+Supabase SQL/data/Storage change, Vercel/Railway deploy, provider setting,
+credential, or paid action occurred. Exact next action: select the next
+smallest source-only ERP seam; hosted parity, protected browser evidence,
+production cutover, and spend approval remain blocked.
+
 ## M3.232 Today protected local HTTP canary (2026-08-10)
 
 Added a disposable protected HTTP canary for `GET /v1/today`. The test boots
