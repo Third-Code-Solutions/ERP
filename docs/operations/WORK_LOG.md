@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-10 - M3.212 source-safe Cortex chat retrieval
+
+Closed the remaining raw-derived-row path in Cortex chat. Shared retrieval
+items now enforce canonical source identity; Core omits invalid rows; Web
+filters direct and semantic prompt context; and the deterministic database
+keyword answer filters unsafe rows before answer/citation assembly. Added
+focused regressions and declared the runtime shared-types dependency. No UI,
+business write, migration, hosted row, provider, deployment, or paid action
+changed.
+
+Validation: Web chat 17/17, shared retrieval 5/5, database retrieval 1/1,
+Core retrieval/controller 9/9, typechecks, frozen lockfile install, root lint,
+and production build passed. Docker/PostgreSQL/RLS replay and protected
+browser/provider evidence remain open.
+
+Exact next action: push the reviewed source/docs commit, then restore a
+disposable local PostgreSQL/Redis runtime for no-skip replay and protected
+Cortex checks.
+
 ## 2026-08-10 - M3.211 Web Cortex compatibility sanitizer
 
 Wired `/api/cortex/graph` direct reads through the shared graph sanitizers and

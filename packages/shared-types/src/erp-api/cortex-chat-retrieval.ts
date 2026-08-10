@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { cortexCitationSchema } from './cortex-entity'
-import { cortexGraphRefTableSchema } from './cortex-graph'
+import {
+  cortexGraphRefTableMatchesType,
+  cortexGraphRefTableSchema,
+} from './cortex-graph'
 import { cortexBriefStatsSchema } from './cortex-brief'
 import { cortexSearchFreshnessValues } from './cortex-search'
 
@@ -60,6 +63,15 @@ export const cortexChatRetrievalItemSchema = z
     source: z.literal('cortex'),
   })
   .strict()
+  .superRefine((item, ctx) => {
+    if (!cortexGraphRefTableMatchesType(item.refTable, item.nodeType)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['refTable'],
+        message: 'Cortex source table does not match node type',
+      })
+    }
+  })
 
 export type CortexChatRetrievalItem = z.infer<
   typeof cortexChatRetrievalItemSchema

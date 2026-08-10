@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-322 - Never feed raw derived rows into Cortex chat (2026-08-10)
+
+Decision: every Cortex chat retrieval authority and deterministic fallback must
+drop rows unless the reference table is registered and matches the canonical
+node type. The shared contract validates serialized items; Core, Web, and the
+database keyword-answer helper apply defensive filtering before prompt,
+answer-text, or citation assembly.
+
+Rationale: `cortex_nodes` is a derived mirror and the application database role
+bypasses RLS. Tenant predicates alone do not prove source identity. A malformed
+or mismatched row must not become AI context, a user-visible grounded answer,
+or durable citation evidence. Runtime shared-types ownership avoids a second
+source registry and preserves the clean-room implementation.
+
+Validation: Web chat 17/17, shared retrieval 5/5, database retrieval 1/1,
+Core retrieval/controller 9/9, typechecks, frozen lockfile install, root lint,
+and production build passed. PostgreSQL/RLS replay and hosted evidence remain
+unverified.
+
 ## D-321 - Keep Web/Core Cortex graph degradation identical (2026-08-10)
 
 Decision: the Web compatibility graph route must call the shared graph

@@ -82,6 +82,33 @@ describe('Cortex chat retrieval contract', () => {
     ).toMatchObject({ recent: [{ id: NODE_ID }], semanticStatus: 'not_migrated' })
   })
 
+  it('rejects retrieval items whose source table disagrees with node type', () => {
+    expect(() =>
+      cortexChatRetrievalResultSchema.parse({
+        generatedAt: '2026-08-09T00:00:00.000Z',
+        stats: { nodes: 0, edges: 0, provenance: 0, byType: [] },
+        recent: [
+          {
+            id: NODE_ID,
+            nodeType: 'project',
+            title: 'Wrong source',
+            summary: null,
+            refTable: 'invoices',
+            refId: REF_ID,
+            projectId: null,
+            freshness: 'fresh',
+            recordedAt: '2026-08-08T23:00:00.000Z',
+            source: 'cortex',
+          },
+        ],
+        matches: [],
+        focused: null,
+        keywordAnswer: { answer: '', citations: [] },
+        semanticStatus: 'not_migrated',
+      })
+    ).toThrow()
+  })
+
   it('rejects provider and tenant-control fields', () => {
     expect(() =>
       cortexChatRetrievalResultSchema.parse({

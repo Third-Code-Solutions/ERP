@@ -157,6 +157,42 @@ describe('CortexChatRetrievalService', () => {
     )
   })
 
+  it('omits unknown or mismatched graph rows from AI retrieval context', async () => {
+    mocks.searchCortexNodes.mockResolvedValue([
+      NODE,
+      {
+        ...NODE,
+        id: '66666666-6666-4666-8666-666666666666',
+        node_type: 'project',
+        ref_table: 'invoices',
+      },
+      {
+        ...NODE,
+        id: '77777777-7777-4777-8777-777777777777',
+        ref_table: 'secret_records',
+      },
+    ])
+    mocks.searchCortexNodesByTerms.mockResolvedValue([
+      NODE,
+      {
+        ...NODE,
+        id: '88888888-8888-4888-8888-888888888888',
+        node_type: 'project',
+        ref_table: 'invoices',
+      },
+    ])
+    const service = new CortexChatRetrievalService(config())
+
+    const result = await service.read(
+      { query: 'Concrete Tower', recentLimit: 6, matchLimit: 4 },
+      PRINCIPAL
+    )
+
+    expect(result.recent).toHaveLength(1)
+    expect(result.matches).toHaveLength(1)
+    expect(result.recent[0]?.refTable).toBe('invoices')
+  })
+
   it('rechecks focus ownership and role scope before describing it', async () => {
     const service = new CortexChatRetrievalService(config())
 
