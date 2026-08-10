@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-340 - Require the disposable no-skip data/API lane before hosted work (2026-08-10)
+
+Decision: treat the local PostgreSQL 17/Redis 7.4.9 replay as the source-level
+release gate for database and Nest changes. It must apply every checked-in
+migration, reject skipped database tests, run Nest integration tests, and
+compare schema-only dumps before and after tests. It may drop only the named
+local `erp_self_hosted_ci` database and must not use hosted credentials.
+
+Rationale: a green default test command can hide environment-backed database
+skips. The explicit disposable lane proves migration replay, queue-backed
+integration, and schema stability without production data or provider spend.
+
+Validation: 116 migrations; database 149/149 files and 370/370 tests with no
+skips; API 30/30 files and 45/45 tests; schema SHA-256 unchanged at
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
 ## D-337 - Keep upload progress outside the long async transition (2026-08-10)
 
 Decision: `useCadUpload` owns an explicit upload-pending state and updates

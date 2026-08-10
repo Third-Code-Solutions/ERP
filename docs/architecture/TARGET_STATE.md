@@ -1,5 +1,23 @@
 # Target State
 
+## M3.228 Disposable zero-skip data/API release gate
+
+Every source change that affects database or Nest business behavior must be
+replayable on an isolated PostgreSQL 17/Redis 7.4.9 runtime. The gate must
+apply every checked-in migration, run database tests with skips forbidden,
+run the Nest integration suite, and prove that tests do not mutate the
+schema. The lane is local-only and must never read hosted credentials or
+contact Supabase, Vercel, or Railway.
+
+Current evidence: 116 migrations; database 149/149 files and 370/370 tests
+with zero skips; API 30/30 files and 45/45 tests; schema-before and
+schema-after SHA-256 both
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This gate establishes local migration and transaction integrity only. It does
+not certify hosted provider state, production data, rollout capacity, or
+billing behavior.
+
 ## M3.227 Controlled upload browser runtime and UX hardening
 
 The project document-upload journey must expose preparing, uploading, and
