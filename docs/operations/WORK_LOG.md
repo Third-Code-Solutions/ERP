@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-10 - M3.207 closed Nest Core universal-search seam
+
+Added shared canonical search roles/entity policy and bounded query/result
+schemas; implemented the disabled Nest Core `GET /v1/search` graph adapter with
+capability, tenant, role, and assignee enforcement; and added the exact-UUID
+Web selector/client with terminal selected-Core failure and no direct-read
+fallback. Added API/Web/shared/config tests and environment flags. No user
+interface, business write, migration, hosted database, provider, deployment,
+or paid action changed.
+
+Validation: shared additions 4/4 and full 47-file/302-test suite passed; API
+search specs 5/5 and full 161-file/716-test suite passed; Web route 14/14,
+client 154 tests, and full 104-file/727-test suite passed; typechecks, root
+lint, and root build (`NEXT_PRIVATE_BUILD_WORKER=0`) passed. Default concurrent
+`pnpm test` timed out in eight existing HTTP/e2e files; isolated one-worker
+rerun passed 8 files/35 tests. DB/RLS tests needing `DATABASE_URL` were skipped.
+Boundary, managed-parity, clean-room, spend, and release-plan guards passed.
+
+Source-only commits are being pushed as `kurtgav` to the requested GitHub
+branch. Vercel, Railway, and Supabase remain untouched to control spend.
+
+Exact next action: disposable PostgreSQL/Redis replay, graph backfill/parity,
+and protected tenant/role/assignee/no-fallback checks before any canary.
+
 ## 2026-08-10 - M3.206 universal search partial-result contract
 
 Added `packages/shared-types/src/erp-api/universal-search.ts` and tests; made

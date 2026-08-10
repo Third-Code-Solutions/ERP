@@ -32,6 +32,10 @@ import {
   type SearchHitType,
 } from './search-policy'
 import { universalSearchResultFromSettled } from './search-result'
+import {
+  searchUniversalThroughCoreApi,
+  universalSearchReadsUseCoreApi,
+} from '@/lib/erp-core-client'
 
 type SearchHit = UniversalSearchHit
 
@@ -71,6 +75,22 @@ export async function GET(req: NextRequest) {
       failedTypes: [],
       hint: 'Type at least 2 characters.',
     })
+  }
+
+  if (universalSearchReadsUseCoreApi(profile.tenantId)) {
+    const result = await searchUniversalThroughCoreApi(q)
+    if (!result.ok || !result.data) {
+      return searchResponse(
+        {
+          hits: [],
+          status: 'complete',
+          failedTypes: [],
+          hint: result.error ?? 'Universal search service is unavailable.',
+        },
+        result.status ?? 503
+      )
+    }
+    return searchResponse(result.data)
   }
 
   const like = literalSearchPattern(q)

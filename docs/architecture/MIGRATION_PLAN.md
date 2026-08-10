@@ -1,5 +1,35 @@
 # Migration Plan
 
+## M3.207 closed Nest Core universal-search adapter (completed, source-only)
+
+1. Added a shared canonical role/entity matrix and bounded universal-search
+   query/result schemas; legacy role aliases normalize to canonical roles.
+2. Added the guarded Nest Core `GET /v1/search` adapter over existing
+   tenant-scoped Cortex graph reads, including safe source mapping,
+   assignee-scoped task filtering, and no database fallback.
+3. Added an exact-UUID Web selector and Core client. Selected-Core failure is
+   terminal; unselected tenants retain the existing compatibility route.
+4. Added API, Web, shared-schema, and environment/config regression coverage.
+
+Validation: full serial Turbo tests passed (API 161/716, shared 47/302,
+Web 104/727; database integration/RLS skipped without `DATABASE_URL`), plus
+API search specs 5/5, Web route 14/14, root lint, and root build with
+`NEXT_PRIVATE_BUILD_WORKER=0`. The default concurrent `pnpm test` timed out in
+eight existing HTTP/e2e files; an isolated one-worker rerun passed all 35
+tests. Boundary/parity/clean-room/spend/release-plan guards passed.
+
+No hosted database/provider/deployment action. Keep
+`ERP_UNIVERSAL_SEARCH_READS_ENABLED=false`,
+`ERP_UNIVERSAL_SEARCH_READS_TENANT_IDS=[]`,
+`ERP_UNIVERSAL_SEARCH_READS_VIA_API=false`, and
+`ERP_UNIVERSAL_SEARCH_READS_VIA_API_TENANT_IDS=[]` until replay, graph parity,
+protected-browser, release-identity, rollback/readiness, and spend evidence
+are complete.
+
+Exact next action: replay all source migrations on disposable PostgreSQL,
+backfill/compare graph coverage, then run protected tenant/role/assignee and
+selected-Core no-fallback checks.
+
 ## M3.206 universal search partial-result contract (completed, source-only)
 
 1. Added the shared bounded hit/result schema used by Web now and Nest Core

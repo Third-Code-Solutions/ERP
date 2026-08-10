@@ -24,6 +24,7 @@ import { RedisModule } from './observability/redis.module'
 import { AssetsModule } from './assets/assets.module'
 import { CortexModule } from './cortex/cortex.module'
 import { AdminModule } from './admin/admin.module'
+import { SearchModule } from './search/search.module'
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { AdminModule } from './admin/admin.module'
     ProviderQuotaModule,
     AssetsModule,
     CortexModule,
+    SearchModule,
     AdminModule,
   ],
   controllers: [HealthController],

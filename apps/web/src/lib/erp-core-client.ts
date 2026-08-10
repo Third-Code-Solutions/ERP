@@ -220,6 +220,8 @@ import {
   type CortexConversationContextResolveResponse,
   cortexSearchResultSchema,
   type CortexSearchResult,
+  universalSearchResultSchema,
+  type UniversalSearchResult,
   cortexGraphResponseSchema,
   type CortexGraphQuery,
   type CortexGraphResponse,
@@ -472,6 +474,15 @@ export function cortexSearchUseCoreApi(tenantId: string): boolean {
     tenantId,
     process.env.ERP_CORTEX_SEARCH_VIA_API,
     process.env.ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS
+  )
+}
+
+/** Universal search authority stays closed until graph parity is reviewed. */
+export function universalSearchReadsUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_UNIVERSAL_SEARCH_READS_VIA_API,
+    process.env.ERP_UNIVERSAL_SEARCH_READS_VIA_API_TENANT_IDS
   )
 }
 
@@ -1207,6 +1218,61 @@ export async function searchCortexThroughCoreApi(
       ok: false,
       status: 503,
       error: 'Cortex search service is unavailable.',
+    }
+  }
+}
+
+/**
+ * Read-only universal-search adapter. A selected Core failure is returned to
+ * the caller; the compatibility route must not silently regain authority.
+ */
+export async function searchUniversalThroughCoreApi(
+  query: string,
+  limit = 80
+): Promise<CoreResult<UniversalSearchResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
+      }
+    )
+    const rawBody: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const body = rawBody as { message?: unknown } | null
+      return {
+        ok: false,
+        status: response.status,
+        error:
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Universal search service is unavailable.',
+      }
+    }
+
+    const parsed = universalSearchResultSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        status: 503,
+        error: 'ERP Core API returned an invalid universal search result.',
+      }
+    }
+    return { ok: true, data: parsed.data }
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Universal search service is unavailable.',
     }
   }
 }

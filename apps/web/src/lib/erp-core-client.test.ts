@@ -130,6 +130,8 @@ import {
   getCortexConversationContextThroughCoreApi,
   cortexSearchUseCoreApi,
   searchCortexThroughCoreApi,
+  universalSearchReadsUseCoreApi,
+  searchUniversalThroughCoreApi,
   cortexGraphReadsUseCoreApi,
   getCortexGraphThroughCoreApi,
   cortexEntityReadsUseCoreApi,
@@ -918,6 +920,23 @@ describe('ERP Core client', () => {
     expect(cortexSearchUseCoreApi('not-a-uuid')).toBe(false)
   })
 
+  it('keeps universal search on the compatibility route unless the exact tenant gate matches', () => {
+    vi.stubEnv('ERP_UNIVERSAL_SEARCH_READS_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_UNIVERSAL_SEARCH_READS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(universalSearchReadsUseCoreApi(RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_UNIVERSAL_SEARCH_READS_VIA_API', 'TRUE')
+    expect(universalSearchReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+
+    vi.stubEnv('ERP_UNIVERSAL_SEARCH_READS_VIA_API', 'true')
+    vi.stubEnv('ERP_UNIVERSAL_SEARCH_READS_VIA_API_TENANT_IDS', '*')
+    expect(universalSearchReadsUseCoreApi(RESULT.tenantId)).toBe(false)
+    expect(universalSearchReadsUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('keeps Cortex graph reads on the legacy route unless the exact tenant gate matches', () => {
     vi.stubEnv('ERP_CORTEX_GRAPH_READS_VIA_API', 'true')
     vi.stubEnv('ERP_CORTEX_GRAPH_READS_VIA_API_TENANT_IDS', RESULT.tenantId)
@@ -1461,6 +1480,53 @@ describe('ERP Core client', () => {
     })
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/cortex/search?q=Concrete%20Tower&limit=20',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('calls the authenticated Core universal search read and validates the response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          hits: [
+            {
+              type: 'project',
+              id: PROJECT_ID,
+              title: 'Harbor fit-out',
+              href: `/projects/${PROJECT_ID}`,
+            },
+          ],
+          status: 'complete',
+          failedTypes: [],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchUniversalThroughCoreApi('Harbor fit-out')).resolves.toEqual({
+      ok: true,
+      data: {
+        hits: [
+          {
+            type: 'project',
+            id: PROJECT_ID,
+            title: 'Harbor fit-out',
+            href: `/projects/${PROJECT_ID}`,
+          },
+        ],
+        status: 'complete',
+        failedTypes: [],
+      },
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/search?q=Harbor%20fit-out&limit=80`,
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

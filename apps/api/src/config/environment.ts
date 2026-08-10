@@ -98,6 +98,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Universal search authority remains closed until graph parity, task
+  // assignee filtering, and an exact-tenant read canary are approved.
+  ERP_UNIVERSAL_SEARCH_READS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_UNIVERSAL_SEARCH_READS_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // The operating brief is a separate read projection. Keep its Core canary
   // independent from keyword, graph, entity, and conversation reads.
   ERP_CORTEX_BRIEF_READS_ENABLED: z

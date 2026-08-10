@@ -1,5 +1,20 @@
 # Target State
 
+## M3.207 Core-owned universal search read authority
+
+Nest Core owns universal-search reads behind `GET /v1/search`, with capability
+authorization, verified tenant isolation, canonical role/entity policy, and
+assignee-scoped task visibility. It queries an indexed, tenant-scoped graph
+projection and returns only bounded navigation-safe hits. The Web layer remains
+a compatibility surface and selects Core only through an exact UUID tenant
+allowlist; selected-Core errors are terminal and cannot silently re-enter
+direct database fan-out.
+
+The source seam is deliberately disabled until disposable PostgreSQL replay,
+graph backfill/parity, protected browser evidence, exact release identity,
+readiness/rollback checks, and spend controls are available. This milestone
+does not claim full record-family parity or hosted activation.
+
 ## M3.206 universal search authority handoff
 
 The Web palette and Nest Core read authority consume one strict universal
