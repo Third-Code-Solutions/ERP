@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.246 Document intake protected HTTP canary (2026-08-10)
+
+The existing `document.manage` Nest authority now has protected
+transaction-bound HTTP evidence for identity, RBAC, disabled-tenant behavior,
+cross-tenant project concealment, storage-path scope, canonical document
+persistence, idempotent replay/key conflict, semantic audit, forced-RLS/
+service-only request-ledger access, and rollback. Web adoption remains closed;
+the document-intake flag and tenant list are false/empty. Python/AI/OCR remains
+analysis-only and cannot finalize the ERP record.
+
+Validation: focused HTTP canary 1/1 and migration contract 3/3; root API
+173/173 files and 751/751 tests, Web 111/111 and 768/768, shared 54/54 and
+323/323; typecheck 5/5, lint 2/2, production build; disposable 117-migration
+PostgreSQL/Redis lane with database 373/373 tests and API integration 42/42
+files and 58/58 tests, zero skips. No hosted or paid action.
+
 ## M3.245 Stock Receipt post/reverse protected HTTP canary (2026-08-10)
 
 The existing `inventory.manage` Stock Receipt authority now has protected

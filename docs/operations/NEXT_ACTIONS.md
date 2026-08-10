@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.246 Document intake protected HTTP canary
+
+Keep `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false` and
+`ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS` empty. Focused canary, root source
+gates, zero-skip disposable PostgreSQL/Redis lane, and full API integration
+passed. Do not apply hosted SQL or trigger Railway/Vercel builds while spend
+protection is active. Next, reconcile ordered hosted migration suffix,
+duplicate-data mapping, audit-recovery tenant, readiness, exact SHA, rollback,
+and billing gates before one explicitly spend-bounded canary. Python/AI/OCR
+remains analysis-only; Core owns canonical document writes.
+
+## M3.246 evidence boundary (completed)
+
+Protected Document Intake HTTP/database evidence passed. It covers real
+auth/capability guards, strict metadata/header validation, disabled-tenant
+fail-closed behavior, cross-tenant concealment, storage-path scope,
+canonical-row persistence, idempotent replay/key conflict, semantic audit,
+forced-RLS/service-only privileges, and rollback. No hosted/provider/paid
+action occurred.
+
 ## Exact next action after M3.245 Stock Receipt post/reverse protected HTTP canary
 
 Keep `ERP_INVENTORY_RECEIPT_POST_WRITES_ENABLED=false`,

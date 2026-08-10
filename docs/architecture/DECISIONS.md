@@ -1,5 +1,29 @@
 # Architecture Decisions
 
+## D-358 -- Require protected Document Intake HTTP evidence before cutover (2026-08-10)
+
+Decision: use a disposable transaction-bound HTTP canary as the release gate
+for canonical document intake. Exercise real JWT identity and
+`document.manage` capability guards, strict metadata and idempotency-key
+parsing, exact tenant/project storage scope, concealed cross-tenant access,
+canonical document persistence, semantic audit, forced RLS, service-only
+request-ledger access, replay/conflict, and rollback. Keep Web adoption and the
+document-intake selector closed.
+
+Rationale: an uploaded object is not yet an ERP document. Core must bind the
+object to a verified tenant/project, record one canonical row, and preserve
+replay evidence before Python/OCR/AI analysis can be trusted. A storage path
+from another tenant or a duplicate retry must never create or expose a second
+business record.
+
+Validation: focused HTTP canary passed 1/1 and the migration contract 3/3;
+root API 173/173, Web 111/111, and shared 54/54 test files passed. The root
+database package had 143 expected environment skips without `DATABASE_URL`;
+the disposable 117-migration PostgreSQL/Redis lane reran 373/373 database
+tests and the 42-file/58-test API integration lane with zero skips. Typecheck,
+lint, and production build passed. No hosted SQL/data, Vercel/Railway action,
+provider setting, credential, or paid action occurred.
+
 ## D-357 -- Require protected Stock Receipt post/reverse HTTP evidence before cutover (2026-08-10)
 
 Decision: use a disposable transaction-bound HTTP canary as the release gate
