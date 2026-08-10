@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { cortexGraphRefTableSchema } from './cortex-graph'
+import {
+  cortexGraphRefTableMatchesType,
+  cortexGraphRefTableSchema,
+} from './cortex-graph'
 
 export const cortexEntityParamsSchema = z
   .object({
@@ -20,6 +23,17 @@ export const cortexCitationSchema = z
     projectId: z.string().uuid().nullable(),
   })
   .strict()
+  .superRefine((citation, ctx) => {
+    if (
+      !cortexGraphRefTableMatchesType(citation.refTable, citation.nodeType)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['refTable'],
+        message: 'Cortex source table does not match node type',
+      })
+    }
+  })
 
 export type CortexCitation = z.infer<typeof cortexCitationSchema>
 

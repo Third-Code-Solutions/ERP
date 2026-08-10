@@ -1,5 +1,13 @@
 # Target State
 
+## M3.209 one canonical Cortex source contract
+
+Graph nodes, keyword hits, and citation evidence share the same source
+identity invariant: registered reference table plus matching canonical node
+type. Any authority or consumer that receives malformed/mismatched data fails
+closed at schema validation, preventing unsafe deep links and unsourced AI
+context.
+
 ## M3.208 canonical Cortex source boundary
 
 Every Core Cortex search result must be a registered source-table/node-type

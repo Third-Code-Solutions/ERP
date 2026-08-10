@@ -77,6 +77,26 @@ describe('Cortex entity contract', () => {
     })
   })
 
+  it('rejects citations whose source table disagrees with node type', () => {
+    expect(() =>
+      cortexEntityResponseFromSources({
+        summary: 'Invalid context',
+        citations: [
+          {
+            nodeId: NODE_ID,
+            nodeType: 'project',
+            refTable: 'invoices',
+            refId: REF_ID,
+            title: 'Wrong source',
+            projectId: null,
+          },
+        ],
+        relationships: [],
+        evidence: [],
+      })
+    ).toThrow()
+  })
+
   it('normalizes unknown evidence without exposing source internals', () => {
     expect(
       cortexEntityEvidenceEvent({

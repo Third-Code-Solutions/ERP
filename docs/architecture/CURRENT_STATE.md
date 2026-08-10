@@ -1,5 +1,20 @@
 # Current State
 
+## M3.209 shared Cortex source-contract hardening (2026-08-10)
+
+The shared graph, keyword-search, and citation schemas now require every
+`refTable` to match its canonical `nodeType`. This makes the source identity
+rule enforceable at the contract boundary for Core, Web, and Cortex/AI
+consumers, not only inside the Core search service. Mismatched or unregistered
+graph/search/citation payloads fail validation before navigation or evidence
+rendering.
+
+Validation: shared Cortex graph/search/entity tests 11/11 and shared
+typecheck passed; Core Cortex search/controller tests 7/7 and API typecheck
+passed; Web Cortex routes/client 175/175 and Web typecheck passed. Full
+API-suite timeout and missing disposable PostgreSQL/RLS replay remain open. No
+hosted or paid action changed.
+
 ## M3.208 Core Cortex search source validation (2026-08-10)
 
 The Nest Core Cortex keyword-search adapter now validates every graph hit

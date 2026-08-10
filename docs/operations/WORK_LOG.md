@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-10 - M3.209 shared Cortex source-contract hardening
+
+Hardened the shared Cortex graph, search, and citation schemas so `refTable`
+must match the canonical `nodeType`. Added 4 shared regression assertions;
+Core defense-in-depth filtering remains active. No UI, business write,
+migration, hosted row, provider, deployment, or paid action changed.
+
+Validation: shared Cortex tests 11/11 + typecheck, Core Cortex search/controller
+tests 7/7 + typecheck, and Web Cortex routes/client 175/175 + typecheck passed.
+Full API suite remains unverified after its 240-second timeout; PostgreSQL/Redis
+replay, graph coverage, and protected browser evidence remain open.
+
+Exact next action: retry the disposable local runtime only when Docker is
+healthy, then replay migrations and compare graph source coverage.
+
 ## 2026-08-10 - M3.208 Core Cortex source validation
 
 Closed the Core Cortex search source-boundary gap. `CortexSearchService` now

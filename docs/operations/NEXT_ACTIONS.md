@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.209 shared Cortex source contract
+
+Do not enable any Core canary or call Supabase/Vercel/Railway. Confirm the
+local Docker daemon is healthy, then create a disposable PostgreSQL 17 + Redis
+runtime, replay the source migration ledger, and run the no-skip Cortex
+substrate/RLS suite. Compare canonical source-row counts against current graph
+nodes, including universal-search sources.
+
+After replay, run protected API/browser checks for tenant, role, source
+identity, malformed payloads, and selected-Core terminal failure. Record exact
+release identity, readiness, rollback, and spend evidence before any tenant
+selector changes.
+
 ## Exact next action after M3.208 Core Cortex source validation
 
 Keep all Core selectors/canaries closed. Restore disposable PostgreSQL 17 and

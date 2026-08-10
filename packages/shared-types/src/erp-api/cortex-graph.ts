@@ -100,6 +100,15 @@ export const cortexGraphNodeSchema = z
     projectId: z.string().uuid().nullable(),
   })
   .strict()
+  .superRefine((node, ctx) => {
+    if (!cortexGraphRefTableMatchesType(node.refTable, node.type)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['refTable'],
+        message: 'Cortex source table does not match node type',
+      })
+    }
+  })
 
 export const cortexGraphLinkSchema = z
   .object({
