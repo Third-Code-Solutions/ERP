@@ -1,5 +1,23 @@
 # Next Actions
 
+## Exact next action after M3.239 CRM opportunity detail canary
+
+Choose the next smallest source-only ERP boundary. Preserve tenant,
+authorization, state-machine, transaction, idempotency, audit, and rollback
+contracts; implement only the narrow seam; then repeat focused checks, root
+source gates, and the disposable PostgreSQL/Redis lane. Keep the opportunity
+selector false/empty, preserve the direct compatibility path, and do not
+mutate Supabase or trigger Vercel/Railway builds while the spend lock is active.
+
+## M3.239 evidence boundary (completed)
+
+The focused opportunity canary passed 1/1 and proves identity, exact related
+record scope, progress aggregation, malformed UUID rejection, cross-tenant
+concealment, and rollback. Root tests/typecheck/lint/build, the disposable
+116-migration zero-skip lane, direct canary rerun, policy guards, and diff
+hygiene passed. Hosted selector, browser production canary, provider state,
+deployment, and billing remain unverified and intentionally untouched.
+
 ## Exact next action after M3.238 CRM accounts protected local HTTP canary
 
 Choose the next smallest source-only ERP boundary. Preserve tenant,

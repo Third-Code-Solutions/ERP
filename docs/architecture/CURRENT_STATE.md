@@ -1,5 +1,25 @@
 # Current State
 
+## M3.239 CRM opportunity detail protected local HTTP canary (2026-08-10)
+
+Added disposable protected HTTP evidence for the existing Nest opportunity
+detail authority `GET /v1/crm/opportunities/:opportunityId`. The canary boots
+the real controller, service, Supabase identity guard, capability guard, and
+transaction-bound PostgreSQL client. It proves missing-auth rejection,
+exact account/project name joins, latest PPRF and inspection selection,
+design approval counts, open change-request counts, cross-tenant 404
+concealment, malformed UUID rejection, and rollback.
+
+Focused canary: 1/1 PASS. Opportunity service/controller checks pass; root
+`pnpm test` is 173/173 files and 750/750 tests; typecheck 5/5 tasks, lint 2/2
+tasks, and production build PASS. The disposable PostgreSQL/Redis lane exited
+PASS after replaying 116 migrations with zero skips; the canary was rerun
+directly against that local runtime and passed 1/1. No Web selector or runtime
+authority changed, and no schema migration was required. This remains
+source-only local evidence: no hosted Supabase write, Vercel/Railway
+deployment, provider setting, credential, or paid action occurred. Exact next
+action: choose the next smallest source-only ERP seam.
+
 ## M3.238 CRM accounts protected local HTTP canary (2026-08-10)
 
 Added disposable protected HTTP evidence for the existing Nest CRM account

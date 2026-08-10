@@ -1,5 +1,17 @@
 # Target State
 
+## M3.239 CRM opportunity detail authority evidence
+
+Opportunity detail reads have a protected Nest boundary that authenticates the
+caller, checks `opportunity.read`, repeats tenant predicates on the opportunity
+and every progress aggregate, and returns a strict account/project/progress
+projection. M3.239 adds a transaction-bound HTTP canary for PPRF, inspection,
+design, and open-change-request counts while leaving Web adoption closed.
+
+Keep the existing direct compatibility query and any opportunity Core selector
+closed until hosted parity, exact Core release identity, readiness, protected
+browser evidence, rollback, and spend approval exist.
+
 ## M3.238 CRM accounts read authority evidence
 
 CRM account list, detail, and KYC queue reads have a protected Nest boundary

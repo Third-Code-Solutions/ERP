@@ -1,5 +1,17 @@
 # Third Code ERP capability matrix
 
+## M3.239 CRM opportunity detail protected local HTTP canary (2026-08-10)
+
+The existing opportunity detail authority now has a protected local canary
+covering `opportunity.read`, tenant-scoped account/project joins, PPRF and
+inspection freshness, design approval counts, open change-request counts,
+malformed UUIDs, and cross-tenant concealment. Web adoption remains closed.
+
+Validation: canary 1/1; root 173/173 files and 750/750 tests; typecheck 5/5,
+lint 2/2, production build PASS; disposable PostgreSQL/Redis lane 116
+migrations with zero skips PASS; policy guards PASS; no hosted or paid action.
+
+## M3.238 CRM accounts protected local HTTP canary (2026-08-10)
 ## M3.238 CRM accounts protected local HTTP canary (2026-08-10)
 
 The existing CRM account list/detail/KYC read authorities now have disposable
