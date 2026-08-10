@@ -1,5 +1,33 @@
 # Next Actions
 
+## Exact next action after M3.241 opportunity stage-transition authority
+
+Keep `ERP_OPPORTUNITY_STAGE_WRITES_ENABLED=false`,
+`ERP_OPPORTUNITY_STAGE_WRITES_TENANT_IDS` empty,
+`ERP_OPPORTUNITY_STAGE_WRITES_VIA_API=false`, and its UUID allowlist empty.
+Do not apply `20260810130000_opportunity_stage_transition_authority.sql` to
+hosted Supabase or trigger Railway/Vercel builds while spend protection is
+active.
+
+Push the reviewed source/docs commit under `kurtgav`, then perform only
+read-only hosted planner, migration-ledger, duplicate-data, audit-recovery,
+Railway-readiness, and Vercel-readiness checks. Obtain the owner-approved
+ordered suffix plan and explicit spend-bounded approval before one controlled
+hosted migration and one production canary. Capture exact SHA, logs, tenant
+RBAC/replay/audit evidence, rollback, and billing impact; a provider READY
+status alone is not turnover evidence.
+
+## M3.241 evidence boundary (completed)
+
+The protected stage canary passed 1/1 and proves strict command/header
+validation, capability and tenant scope, state/KYC/regression checks,
+idempotent replay/key conflict, SLA closure, semantic audit, atomic won
+handoff, and rollback. Root tests/typecheck/lint/build, the zero-skip 117-
+migration PostgreSQL/Redis lane, API integration 37/37 files and 53/53 tests,
+policy guards, and diff hygiene passed. Hosted selector, browser production
+canary, provider state, deployment, and billing remain unverified and
+intentionally untouched.
+
 ## Exact next action after M3.240 won-opportunity conversion canary
 
 Choose the next smallest source-only ERP boundary. Preserve tenant,

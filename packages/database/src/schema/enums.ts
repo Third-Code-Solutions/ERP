@@ -317,6 +317,11 @@ export const opportunityProjectConversionRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const opportunityStageTransitionRequestStateEnum = pgEnum(
+  'opportunity_stage_transition_request_state',
+  ['processing', 'succeeded']
+)
+
 export const invoiceStatusEnum = pgEnum('invoice_status', [
   'draft',
   'issued',

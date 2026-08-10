@@ -9,6 +9,9 @@ import { OpportunitiesController } from './opportunities.controller'
 import { OpportunitiesService } from './opportunities.service'
 import { OpportunityProjectConversionController } from './opportunity-project-conversion.controller'
 import { OpportunityProjectConversionService } from './opportunity-project-conversion.service'
+import { OpportunityStageTransitionController } from './opportunity-stage-transition.controller'
+import { OpportunityStageTransitionPipe } from './opportunity-stage-transition.pipe'
+import { OpportunityStageTransitionService } from './opportunity-stage-transition.service'
 
 @Module({
   imports: [AuditModule],
@@ -17,12 +20,15 @@ import { OpportunityProjectConversionService } from './opportunity-project-conve
     AccountsController,
     OpportunitiesController,
     OpportunityProjectConversionController,
+    OpportunityStageTransitionController,
   ],
   providers: [
     ChangeRequestCreationService,
     AccountsService,
     OpportunitiesService,
     OpportunityProjectConversionService,
+    OpportunityStageTransitionPipe,
+    OpportunityStageTransitionService,
   ],
 })
 export class CrmModule implements NestModule {

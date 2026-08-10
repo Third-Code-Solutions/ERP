@@ -12,6 +12,7 @@ import {
   accountDetailResultSchema,
   opportunityDetailResultSchema,
   opportunityProjectConversionResultSchema,
+  opportunityStageTransitionResultSchema,
   rfqQuoteResultSchema,
   rfqTransitionResultSchema,
   projectCreationResultSchema,
@@ -96,6 +97,8 @@ import {
   type AccountDetailResult,
   type OpportunityDetailResult,
   type OpportunityProjectConversionResult,
+  type OpportunityStageTransitionCommand,
+  type OpportunityStageTransitionResult,
   type CreateProjectCommand,
   type ProjectCreationResult,
   projectCommentCreationResultSchema,
@@ -461,6 +464,14 @@ export function opportunityConversionWritesUseCoreApi(
     tenantId,
     process.env.ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API,
     process.env.ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+export function opportunityStageWritesUseCoreApi(tenantId: string): boolean {
+  return tenantEnabledForCoreApi(
+    tenantId,
+    process.env.ERP_OPPORTUNITY_STAGE_WRITES_VIA_API,
+    process.env.ERP_OPPORTUNITY_STAGE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -4691,6 +4702,63 @@ export async function convertOpportunityToProjectThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No Project handoff was completed.',
+    }
+  }
+}
+
+export async function transitionOpportunityStageThroughCoreApi(
+  opportunityId: string,
+  command: OpportunityStageTransitionCommand,
+  idempotencyKey: string
+): Promise<CoreResult<OpportunityStageTransitionResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/crm/opportunities/${encodeURIComponent(
+        opportunityId
+      )}/stage-transition`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      const message =
+        typeof body?.message === 'string'
+          ? body.message
+          : response.status === 404
+            ? 'Opportunity not found.'
+            : response.status === 503
+              ? 'Opportunity stage transition is not enabled for this tenant.'
+              : 'Opportunity stage transition was not completed.'
+      return { ok: false, error: message, status: response.status }
+    }
+    const parsed = opportunityStageTransitionResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid Opportunity stage transition result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No Opportunity stage transition was committed.',
     }
   }
 }

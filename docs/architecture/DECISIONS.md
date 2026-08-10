@@ -1,5 +1,31 @@
 # Architecture Decisions
 
+## D-353 -- Make opportunity stage changes and won handoff one Core transaction (2026-08-10)
+
+Decision: add a closed-by-default Nest stage-transition command and a
+tenant/idempotency ledger rather than allowing the pipeline Server Action to
+update the opportunity first and convert it later. The command rechecks
+membership and `opportunity.stage_change`, locks the opportunity, validates
+the explicit stage state machine and KYC evidence, persists the stage/SLA/audit
+changes, and invokes the existing conversion authority in the same
+PostgreSQL transaction for won states. Exact retries replay the stored result;
+key reuse with a different command conflicts. The Web adapter is selected only
+for exact-`true` plus UUID allowlists and never falls back after selection.
+
+Rationale: a lost response or a conversion failure after a browser-side stage
+update could leave a won opportunity without its required Project, checklist,
+contract evidence, or audit trail. A service-only tenant ledger plus one
+transaction gives atomicity, retry safety, RBAC, and clean rollback while
+preserving the existing UI and legacy path during migration. Removing the
+database `from_stage <> to_stage` check is intentional: concurrent retries
+must reach the composite unique-key replay path; fresh no-op transitions are
+still rejected by `STAGE_TRANSITIONS` inside Core. Python/AI remains advisory.
+
+Validation/release boundary: focused and disposable protected canaries,
+root gates, and policy guards passed locally. Source migration 117 is not
+hosted; all stage flags/selectors remain false/empty. No Supabase SQL, Vercel,
+Railway, provider setting, credential, or paid action occurred.
+
 ## D-352 - Require won-opportunity conversion canary before write cutover (2026-08-10)
 
 Decision: use a protected disposable HTTP canary as the release gate for the

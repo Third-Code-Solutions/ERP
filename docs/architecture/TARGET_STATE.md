@@ -1,5 +1,32 @@
 # Target State
 
+## M3.241 Opportunity stage-transition authority
+
+Opportunity stage changes are a Nest-owned command at
+`POST /v1/crm/opportunities/:opportunityId/stage-transition`. The browser
+sends only `newStage`, an optional bounded regression/lost reason, and an
+opaque `Idempotency-Key`; tenant, actor, role, current stage, account KYC, and
+official side effects come from locked server state. Core validates the shared
+stage state machine, updates probability/weighted TCV, closes and starts the
+stage SLA clock, stores the exact replay result, and writes semantic audit in
+one PostgreSQL transaction.
+
+For `won` and `closed_won`, Core calls the existing conversion authority inside
+that same transaction. Project creation or reuse, signed-contract evidence,
+checklist generation, notifications, opportunity backlink, conversion replay,
+and audit therefore cannot partially commit after the stage changes. Python
+and AI remain advisory and cannot finalize the transition.
+
+The transition ledger is tenant-scoped, forced-RLS, service-only, and keyed by
+tenant plus idempotency key. The Next pipeline action selects this authority
+only for exact-`true` plus UUID allowlists; selected failures fail closed and
+never fall back to a second writer. Keep
+`ERP_OPPORTUNITY_STAGE_WRITES_ENABLED=false`,
+`ERP_OPPORTUNITY_STAGE_WRITES_TENANT_IDS` empty,
+`ERP_OPPORTUNITY_STAGE_WRITES_VIA_API=false`, and its allowlist empty until
+hosted migration parity, protected production browser evidence, readiness,
+exact SHA, rollback, and spend approval are independently complete.
+
 ## M3.240 Won-opportunity project conversion authority evidence
 
 The won-to-project handoff has a protected Nest transaction boundary:

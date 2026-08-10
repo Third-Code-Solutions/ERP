@@ -1,5 +1,20 @@
 # Third Code ERP capability matrix
 
+## M3.241 Opportunity stage-transition authority (2026-08-10)
+
+The pipeline now has a source-complete, closed-by-default Core authority for
+tenant-safe opportunity stage transitions and atomic won-to-Project handoff.
+The protected HTTP canary covers strict body and header validation, RBAC,
+disabled gates, cross-tenant concealment, KYC, state transitions, replay/key
+conflict, SLA clock evidence, semantic audit, atomic conversion, and rollback.
+The Web adapter is present but not selected for any tenant.
+
+Validation: focused canary 1/1; root 173/173 files and 751/751 tests; typecheck
+5/5, lint 2/2, build PASS; disposable PostgreSQL 17/Redis 7.4.9 lane 117
+migrations, database 149/149 suites and 370/370 tests, API integration 37/37
+files and 53/53 tests, zero skips; policy guards PASS. No hosted or paid
+action.
+
 ## M3.240 Won-opportunity project conversion protected local HTTP canary (2026-08-10)
 
 The existing won-to-project authority now has disposable HTTP evidence for

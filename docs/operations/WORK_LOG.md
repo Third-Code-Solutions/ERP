@@ -1,5 +1,38 @@
 # Work Log
 
+## 2026-08-10 - M3.241 Opportunity stage-transition authority
+
+Implemented the next bounded Nest migration slice. Added the strict
+`POST /v1/crm/opportunities/:opportunityId/stage-transition` contract, the
+forced-RLS service-only replay ledger, capability/environment gates, and the
+transactional Core service. It locks tenant membership and the opportunity,
+enforces the shared state machine and KYC/regression rules, updates SLA and
+audit evidence, and calls won-to-Project conversion inside the same
+transaction. Added a fail-closed Web adapter/selector; no tenant selects it.
+
+Changed source: shared command/result and tests; database enum/table/schema and
+source migration; Nest controller/pipe/service and conversion transaction
+seam; Web Core client/action adapter and tests; managed-Supabase parity plan;
+architecture/current-state/target-state/migration/decision/capability docs;
+environment example, stage-authority runbook, this changeset, and protected
+HTTP canary.
+
+Validation: focused stage canary 1/1; root `pnpm test` 173 files / 751 tests;
+typecheck 5/5, lint 2/2, production build PASS; disposable PostgreSQL 17 and
+Redis 7.4.9 lane 117 migrations, database 149/149 suites and 370/370 tests,
+API integration 37/37 files and 53/53 tests, zero skips; policy guards and
+`git diff --check` PASS. A first replay run exposed an invalid same-stage
+ledger check; the source migration was corrected, and the full lane plus
+focused rerun passed afterward.
+
+Release boundary: source-only. Supabase, Railway, Vercel, provider settings,
+credentials, and paid actions were not touched. Keep
+`ERP_OPPORTUNITY_STAGE_WRITES_ENABLED`,
+`ERP_OPPORTUNITY_STAGE_WRITES_TENANT_IDS`,
+`ERP_OPPORTUNITY_STAGE_WRITES_VIA_API`, and its tenant list false/empty. Push
+the reviewed source branch only; do not deploy while the spend lock and hosted
+parity/recovery gates remain open.
+
 ## 2026-08-10 - M3.240 Won-opportunity project conversion protected local HTTP canary
 
 Added `apps/api/integration/opportunity-conversion.http.integration.spec.ts`.
