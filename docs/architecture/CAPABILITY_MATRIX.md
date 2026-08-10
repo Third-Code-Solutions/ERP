@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.237 Project command-center read authority (2026-08-10)
+
+The project detail command center now has a bounded Nest read authority with
+exact tenant/project scope across tasks, documents, variation decisions,
+punch-list items, deliveries, and latest progress. The Web adapter validates
+scope and response shape; adoption remains disabled by default and the direct
+query is retained for rollback.
+
+Validation: shared 2/2; Web Core client 3/3 and project-query tests 11/11;
+protected API canary 1/1; root 173/173 files and 750/750 tests; typecheck,
+build, and lint PASS; disposable PostgreSQL/Redis lane 116 migrations,
+database 149/149 suites and 370/370 tests, API 33/33 files and 49/49 tests,
+zero pending/skips, stable schema SHA-256. No hosted or paid action.
+
 ## M3.236 Project read/list protected local HTTP canary (2026-08-10)
 
 The existing Nest project read/list authority now has protected disposable

@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-349 - Require project command-center canary before read cutover (2026-08-10)
+
+Decision: add a bounded Nest command-center read authority, but keep Web
+adoption behind an exact-tenant, fail-closed selector. The Core route must
+repeat tenant/project predicates for every aggregate, serialize bounded task,
+document, decision, punch-list, delivery, and progress values, and reject
+unknown query keys. The direct six-query Web read remains the compatibility
+path while `ERP_PROJECT_COMMAND_CENTER_READS_VIA_API=false`.
+
+Rationale: the project detail command center joins several operational domains;
+moving those reads without one server-authorized aggregate risks inconsistent
+tenant scope and mixed-version disclosure. A protected disposable canary gives
+the modular-monolith migration a reversible gate without changing production
+behavior or consuming Vercel/Railway/Supabase budget.
+
+Validation: shared 2/2; Web Core client 3/3 and project-query tests 11/11;
+protected API canary 1/1; root 173 files/750 tests; typecheck, build, and lint;
+disposable database 149/149 suites and 370/370 tests; API integration 33/33
+files and 49/49 tests; zero pending/skips; schema hash unchanged. No
+hosted/provider write or paid action occurred.
+
 ## D-348 - Require project read/list canary before Web read cutover (2026-08-10)
 
 Decision: treat the disposable project read/list HTTP canary as the release

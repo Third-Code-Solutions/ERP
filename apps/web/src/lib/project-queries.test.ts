@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
 
 const coreMocks = vi.hoisted(() => ({
   getProjectThroughCoreApi: vi.fn(),
+  getProjectCommandCenterThroughCoreApi: vi.fn(),
   getProjectsThroughCoreApi: vi.fn(),
+  projectCommandCenterReadsUseCoreApi: vi.fn(),
   projectReadsUseCoreApi: vi.fn(),
   projectListsUseCoreApi: vi.fn(),
 }))
@@ -33,6 +35,7 @@ describe('getProject', () => {
     vi.clearAllMocks()
     coreMocks.projectReadsUseCoreApi.mockReturnValue(false)
     coreMocks.projectListsUseCoreApi.mockReturnValue(false)
+    coreMocks.projectCommandCenterReadsUseCoreApi.mockReturnValue(false)
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })
     mocks.where.mockReturnValue({ limit: mocks.limit })
@@ -209,6 +212,72 @@ describe('getProject', () => {
 
     await expect(
       getProjectsFiltered(TENANT_ID, { page: 1, limit: 20 })
+    ).rejects.toThrow('invalid tenant scope')
+  })
+})
+
+describe('getProjectCommandCenter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    coreMocks.projectCommandCenterReadsUseCoreApi.mockReturnValue(true)
+  })
+
+  it('uses the tenant-gated Nest command center contract when enabled', async () => {
+    coreMocks.getProjectCommandCenterThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        pendingTasks: 2,
+        overdueTasks: 1,
+        documents: 3,
+        pendingDecisions: 1,
+        openPunchlist: 2,
+        activeDeliveries: 1,
+        progressPercent: 42,
+        progressWeekEnding: '2026-08-10T00:00:00.000Z',
+      },
+    })
+
+    const { getProjectCommandCenter } = await import('./project-queries')
+    await expect(
+      getProjectCommandCenter(TENANT_ID, PROJECT_ID)
+    ).resolves.toEqual({
+      pendingTasks: 2,
+      overdueTasks: 1,
+      documents: 3,
+      pendingDecisions: 1,
+      openPunchlist: 2,
+      activeDeliveries: 1,
+      progressPercent: 42,
+      progressWeekEnding: '2026-08-10T00:00:00.000Z',
+    })
+    expect(coreMocks.getProjectCommandCenterThroughCoreApi).toHaveBeenCalledWith(
+      PROJECT_ID
+    )
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when Core returns another project scope', async () => {
+    coreMocks.getProjectCommandCenterThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        tenantId: '99999999-9999-4999-8999-999999999999',
+        projectId: PROJECT_ID,
+        pendingTasks: 0,
+        overdueTasks: 0,
+        documents: 0,
+        pendingDecisions: 0,
+        openPunchlist: 0,
+        activeDeliveries: 0,
+        progressPercent: null,
+        progressWeekEnding: null,
+      },
+    })
+
+    const { getProjectCommandCenter } = await import('./project-queries')
+    await expect(
+      getProjectCommandCenter(TENANT_ID, PROJECT_ID)
     ).rejects.toThrow('invalid tenant scope')
   })
 })

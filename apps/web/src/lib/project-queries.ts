@@ -13,7 +13,9 @@ import { eq, desc, asc, and, or, ilike, sql, type SQL, count, inArray } from 'dr
 import type { Project, ProgressUpdate } from '@third-code-erp/database/schema'
 import {
   getProjectThroughCoreApi,
+  getProjectCommandCenterThroughCoreApi,
   getProjectsThroughCoreApi,
+  projectCommandCenterReadsUseCoreApi,
   projectReadsUseCoreApi,
   projectListsUseCoreApi,
 } from './erp-core-client'
@@ -146,6 +148,29 @@ export async function getProjectCommandCenter(
   projectId: string,
   now = new Date(),
 ): Promise<ProjectCommandCenterData> {
+  if (projectCommandCenterReadsUseCoreApi(tenantId)) {
+    const result = await getProjectCommandCenterThroughCoreApi(projectId)
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Project signals were not read')
+    }
+    if (
+      result.data.tenantId !== tenantId ||
+      result.data.projectId !== projectId
+    ) {
+      throw new Error('Project command center returned an invalid tenant scope')
+    }
+    return {
+      pendingTasks: result.data.pendingTasks,
+      overdueTasks: result.data.overdueTasks,
+      documents: result.data.documents,
+      pendingDecisions: result.data.pendingDecisions,
+      openPunchlist: result.data.openPunchlist,
+      activeDeliveries: result.data.activeDeliveries,
+      progressPercent: result.data.progressPercent,
+      progressWeekEnding: result.data.progressWeekEnding,
+    }
+  }
+
   const [taskRow, documentRow, decisionRow, punchlistRow, deliveryRow, progressRow] =
     await Promise.all([
       db

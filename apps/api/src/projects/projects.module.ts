@@ -7,6 +7,8 @@ import { AuditModule } from '../audit/audit.module'
 import { RequestObservabilityMiddleware } from '../observability/request-observability.middleware'
 import { ProjectsController } from './projects.controller'
 import { ProjectsService } from './projects.service'
+import { ProjectCommandCenterPipe } from './project-command-center.pipe'
+import { ProjectCommandCenterService } from './project-command-center.service'
 import { CostEntryCreationController } from './cost-entry-creation.controller'
 import { CostEntryCreationService } from './cost-entry-creation.service'
 import { CostEntryDeletionController } from './cost-entry-deletion.controller'
@@ -30,6 +32,7 @@ import { CreateProjectCommentPipe } from './project-comment.pipe'
   ],
   providers: [
     ProjectsService,
+    ProjectCommandCenterService,
     CostEntryCreationService,
     CostEntryDeletionService,
     DeleteCostEntryPipe,
@@ -39,6 +42,7 @@ import { CreateProjectCommentPipe } from './project-comment.pipe'
     ProjectCommentListService,
     CreateProjectCommentPipe,
     ProjectCommentListPipe,
+    ProjectCommandCenterPipe,
   ],
 })
 export class ProjectsModule implements NestModule {

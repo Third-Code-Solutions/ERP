@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-10 - M3.237 Project command-center read authority
+
+Added the strict shared command-center contract and Nest
+`GET /v1/projects/:projectId/command-center` authority. Core repeats exact
+tenant/project predicates for six aggregate reads and serializes bounded task,
+document, decision, punch-list, delivery, and latest-progress fields. The Web
+project detail query now has a fail-closed exact-tenant adapter while its six
+direct queries remain the compatibility path. The standalone Projects E2E
+module was updated with an explicit command-center provider after the root test
+correctly exposed the new controller dependency.
+
+Focused evidence: shared 2/2; Web Core client 3/3 and project-query tests 11/11;
+protected API canary 1/1. Root `pnpm test`: 173 files / 750 tests PASS;
+typecheck, production build, and lint PASS. Disposable lane: 116 migrations;
+database 149/149 suites and 370/370 tests; API integration 33/33 files and
+49/49 tests with zero skips; schema-before/after SHA-256 both
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No Supabase write, Vercel/Railway deployment, provider setting, credential, or
+paid action occurred. Keep `ERP_PROJECT_COMMAND_CENTER_READS_VIA_API=false`
+with an empty allowlist. Next: choose the next bounded source-only ERP seam.
+
 ## 2026-08-10 - M3.236 Project read/list protected local HTTP canary
 
 Extended the existing project API integration canary with real Nest read/list

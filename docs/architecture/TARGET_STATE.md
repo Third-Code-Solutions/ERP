@@ -1,5 +1,25 @@
 # Target State
 
+## M3.237 Project command-center read authority
+
+The project detail command center has a reviewed Nest read contract:
+`GET /v1/projects/:projectId/command-center`. Core owns exact tenant/project
+authorization and the bounded aggregate of pending/overdue tasks, documents,
+pending decisions, open punch-list items, active deliveries, and latest
+progress. The query is intentionally empty and strict so the browser cannot
+smuggle an `asOf` or tenant override. The Web adapter validates the exact
+tenant/project response and fails closed; the six-query direct read remains a
+mixed-version compatibility path.
+
+M3.237 records the local gate as shared 2/2, Web Core client 3/3 plus project
+query tests 11/11, protected API canary 1/1, root 173/173 files and 750/750
+tests, and a complete zero-skip disposable environment with 116 migrations,
+149/149 database suites and 370/370 tests, 33/33 API integration files and
+49/49 tests, and equal schema hashes. Keep
+`ERP_PROJECT_COMMAND_CENTER_READS_VIA_API=false` and its allowlist empty until
+hosted parity, readiness, protected browser evidence, rollback, and spend
+approval exist.
+
 ## M3.236 Project read/list authority evidence
 
 Before any tenant opens the existing project read or list adapters, the

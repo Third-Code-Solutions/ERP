@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.237 Project command-center read authority (completed, source-only)
+
+1. Added the strict shared command-center query/result contract and Nest
+   `GET /v1/projects/:projectId/command-center` service/controller. The service
+   verifies exact tenant/project ownership and computes six bounded aggregates
+   plus the latest progress percentage.
+2. Added a Web Core adapter and exact-tenant fail-closed selector while
+   preserving the existing six-query direct compatibility path. Unknown query
+   fields and malformed or wrong-scope Core responses fail closed.
+3. Added shared, Web, and protected disposable HTTP evidence, including
+   cross-tenant concealment and expected task/document/decision/punch-list/
+   delivery/progress values.
+4. Validation: shared 2/2; Web Core client 3/3 and project-query tests 11/11;
+   protected API canary 1/1; root tests 173 files/750 tests; typecheck,
+   production build, and lint; disposable PostgreSQL/Redis 116 migrations,
+   database 149/149 suites and 370/370 tests, API 33/33 files and 49/49 tests,
+   zero pending/skips, and equal schema SHA-256
+   `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No schema migration or hosted/provider action occurred. Keep
+`ERP_PROJECT_COMMAND_CENTER_READS_VIA_API=false` and its allowlist empty.
+Exact next action: choose the next smallest source-only ERP seam; hosted
+parity, protected browser evidence, production cutover, rollback, and spend
+approval remain required.
+
 ## M3.236 Project read/list protected local HTTP canary (completed, source-only)
 
 1. Extended `apps/api/integration/projects.database.integration.spec.ts` to

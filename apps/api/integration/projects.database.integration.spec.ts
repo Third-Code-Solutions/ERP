@@ -7,9 +7,16 @@ import { Test } from '@nestjs/testing'
 import {
   auditLog,
   db,
+  dailyTasks,
+  deliverySchedules,
+  documents,
   projectCreateRequests,
   projects,
+  progressUpdates,
+  purchaseOrders,
+  punchlistItems,
   tenants,
+  variationOrders,
   users,
   type Database,
 } from '@third-code-erp/database'
@@ -25,6 +32,7 @@ import {
   type DatabaseTransaction,
 } from '../src/database/database.service'
 import { ProjectsController } from '../src/projects/projects.controller'
+import { ProjectCommandCenterService } from '../src/projects/project-command-center.service'
 import { ProjectsService } from '../src/projects/projects.service'
 
 const integrationEnabled =
@@ -83,6 +91,10 @@ suite('Projects API database integration', () => {
       const adminB = randomUUID()
       const projectA = randomUUID()
       const projectB = randomUUID()
+      const purchaseOrderA = randomUUID()
+      const purchaseOrderB = randomUUID()
+      const deliveryA = randomUUID()
+      const deliveryB = randomUUID()
       const suffix = randomUUID().slice(0, 12)
       const observedAt = new Date('2026-07-27T01:00:00.000Z')
       probeTenantId = tenantA
@@ -146,6 +158,134 @@ suite('Projects API database integration', () => {
           updated_at: observedAt,
         },
       ])
+      await transaction.insert(dailyTasks).values([
+        {
+          tenant_id: tenantA,
+          project_id: projectA,
+          assignee_id: adminA,
+          title: 'A overdue task',
+          due_date: new Date(Date.now() - 60 * 60 * 1_000),
+          status: 'pending',
+        },
+        {
+          tenant_id: tenantB,
+          project_id: projectB,
+          assignee_id: adminB,
+          title: 'B overdue task',
+          due_date: new Date(Date.now() - 60 * 60 * 1_000),
+          status: 'pending',
+        },
+      ])
+      await transaction.insert(documents).values([
+        {
+          tenant_id: tenantA,
+          project_id: projectA,
+          uploaded_by: adminA,
+          document_type: 'pdf',
+          file_name: 'a-evidence.pdf',
+          storage_path: `integration/${suffix}/a-evidence.pdf`,
+          mime_type: 'application/pdf',
+          size_bytes: 10,
+        },
+        {
+          tenant_id: tenantB,
+          project_id: projectB,
+          uploaded_by: adminB,
+          document_type: 'pdf',
+          file_name: 'b-evidence.pdf',
+          storage_path: `integration/${suffix}/b-evidence.pdf`,
+          mime_type: 'application/pdf',
+          size_bytes: 10,
+        },
+      ])
+      await transaction.insert(variationOrders).values([
+        {
+          tenant_id: tenantA,
+          project_id: projectA,
+          vo_number: `VO-A-${suffix}`,
+          description: 'A pending decision',
+          change_type: 'site_condition',
+          status: 'pending_client_signature',
+          created_by: adminA,
+        },
+        {
+          tenant_id: tenantB,
+          project_id: projectB,
+          vo_number: `VO-B-${suffix}`,
+          description: 'B pending decision',
+          change_type: 'site_condition',
+          status: 'pending_client_signature',
+          created_by: adminB,
+        },
+      ])
+      await transaction.insert(punchlistItems).values([
+        {
+          tenant_id: tenantA,
+          project_id: projectA,
+          description: 'A open punchlist',
+          priority: 'high',
+          status: 'open',
+          created_by: adminA,
+        },
+        {
+          tenant_id: tenantB,
+          project_id: projectB,
+          description: 'B open punchlist',
+          priority: 'high',
+          status: 'open',
+          created_by: adminB,
+        },
+      ])
+      await transaction.insert(purchaseOrders).values([
+        {
+          id: purchaseOrderA,
+          tenant_id: tenantA,
+          project_id: projectA,
+          created_by: adminA,
+          po_number: `PO-A-${suffix}`,
+          status: 'issued',
+        },
+        {
+          id: purchaseOrderB,
+          tenant_id: tenantB,
+          project_id: projectB,
+          created_by: adminB,
+          po_number: `PO-B-${suffix}`,
+          status: 'issued',
+        },
+      ])
+      await transaction.insert(deliverySchedules).values([
+        {
+          id: deliveryA,
+          tenant_id: tenantA,
+          purchase_order_id: purchaseOrderA,
+          status: 'in_transit',
+          created_by: adminA,
+        },
+        {
+          id: deliveryB,
+          tenant_id: tenantB,
+          purchase_order_id: purchaseOrderB,
+          status: 'in_transit',
+          created_by: adminB,
+        },
+      ])
+      await transaction.insert(progressUpdates).values([
+        {
+          tenant_id: tenantA,
+          project_id: projectA,
+          week_ending: new Date(Date.now() - 24 * 60 * 60 * 1_000),
+          percent_by_category: { overall_pct: 42 },
+          submitted_by: adminA,
+        },
+        {
+          tenant_id: tenantB,
+          project_id: projectB,
+          week_ending: new Date(Date.now() - 24 * 60 * 60 * 1_000),
+          percent_by_category: { overall_pct: 18 },
+          submitted_by: adminB,
+        },
+      ])
 
       const identities = new Map([
         ['admin-a-token', adminA],
@@ -164,6 +304,7 @@ suite('Projects API database integration', () => {
         providers: [
           Reflector,
           ProjectsService,
+          ProjectCommandCenterService,
           AuditService,
           SupabaseJwtGuard,
           CapabilityGuard,
@@ -214,6 +355,54 @@ suite('Projects API database integration', () => {
       }
 
       try {
+        await request(app.getHttpServer())
+          .get(`/v1/projects/${projectA}/command-center`)
+          .expect(401)
+
+        const commandCenterA = await request(app.getHttpServer())
+          .get(`/v1/projects/${projectA}/command-center`)
+          .set('Authorization', 'Bearer viewer-a-token')
+          .expect(200)
+        expect(commandCenterA.body).toMatchObject({
+          tenantId: tenantA,
+          projectId: projectA,
+          pendingTasks: 1,
+          overdueTasks: 1,
+          documents: 1,
+          pendingDecisions: 1,
+          openPunchlist: 1,
+          activeDeliveries: 1,
+          progressPercent: 42,
+        })
+        expect(commandCenterA.body.progressWeekEnding).toEqual(
+          expect.any(String)
+        )
+
+        await request(app.getHttpServer())
+          .get(`/v1/projects/${projectA}/command-center?asOf=2026-08-10T00:00:00.000Z`)
+          .set('Authorization', 'Bearer viewer-a-token')
+          .expect(400)
+
+        await request(app.getHttpServer())
+          .get(`/v1/projects/${projectB}/command-center`)
+          .set('Authorization', 'Bearer admin-a-token')
+          .expect(404)
+
+        const commandCenterB = await request(app.getHttpServer())
+          .get(`/v1/projects/${projectB}/command-center`)
+          .set('Authorization', 'Bearer admin-b-token')
+          .expect(200)
+        expect(commandCenterB.body).toMatchObject({
+          tenantId: tenantB,
+          projectId: projectB,
+          pendingTasks: 1,
+          documents: 1,
+          pendingDecisions: 1,
+          openPunchlist: 1,
+          activeDeliveries: 1,
+          progressPercent: 18,
+        })
+
         await request(app.getHttpServer())
           .get(`/v1/projects/${projectA}`)
           .expect(401)

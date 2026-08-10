@@ -14,6 +14,7 @@ import { DatabaseModule } from '../src/database/database.module'
 import { DatabaseService } from '../src/database/database.service'
 import { REQUEST_ID_HEADER } from '../src/observability/request-observability.middleware'
 import { ProjectsController } from '../src/projects/projects.controller'
+import { ProjectCommandCenterService } from '../src/projects/project-command-center.service'
 import { ProjectsModule } from '../src/projects/projects.module'
 import { ProjectsService } from '../src/projects/projects.service'
 
@@ -51,6 +52,10 @@ describe('Projects API contract', () => {
           {
             provide: ProjectsService,
             useValue: { create, update: vi.fn() },
+          },
+          {
+            provide: ProjectCommandCenterService,
+            useValue: { read: vi.fn() },
           },
         ],
       }).compile()
@@ -135,6 +140,10 @@ describe('Projects API contract', () => {
             provide: ProjectsService,
             useValue: { read },
           },
+          {
+            provide: ProjectCommandCenterService,
+            useValue: { read: vi.fn() },
+          },
         ],
       }).compile()
       const app = moduleRef.createNestApplication()
@@ -190,6 +199,10 @@ describe('Projects API contract', () => {
           {
             provide: ProjectsService,
             useValue: { list },
+          },
+          {
+            provide: ProjectCommandCenterService,
+            useValue: { read: vi.fn() },
           },
         ],
       }).compile()
@@ -260,6 +273,10 @@ describe('Projects API contract', () => {
           {
             provide: ProjectsService,
             useValue: { update },
+          },
+          {
+            provide: ProjectCommandCenterService,
+            useValue: { read: vi.fn() },
           },
         ],
       }).compile()
@@ -422,6 +439,10 @@ describe('Projects API contract', () => {
           {
             provide: ProjectsService,
             useValue: { create: vi.fn(), update: vi.fn() },
+          },
+          {
+            provide: ProjectCommandCenterService,
+            useValue: { read: vi.fn() },
           },
         ],
       }).compile()

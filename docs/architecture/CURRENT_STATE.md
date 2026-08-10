@@ -1,5 +1,30 @@
 # Current State
 
+## M3.237 Project command-center read authority (2026-08-10)
+
+Added the bounded Nest read authority
+`GET /v1/projects/:projectId/command-center`. Core verifies the project belongs
+to the authenticated tenant, repeats tenant/project predicates across the six
+aggregate reads, returns strict pending/overdue task, document, decision,
+punch-list, delivery, and progress fields, and rejects unknown query keys. The
+Web project detail query now has an exact-tenant, fail-closed adapter while the
+existing six-query direct path remains the compatibility fallback.
+
+Focused evidence: shared contract 2/2; Web Core client 3/3 and project-query
+tests 11/11; protected API canary 1/1; root `pnpm test` 173/173 files and
+750/750 tests; typecheck, production build, and lint PASS. The disposable
+PostgreSQL/Redis lane replayed 116 migrations; database tests passed 149/149
+suites and 370/370 tests with zero skips; API integration passed 33/33 files
+and 49/49 tests with zero skips; schema-before/after SHA-256 both remain
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No schema migration was required. `ERP_PROJECT_COMMAND_CENTER_READS_VIA_API`
+remains false with an empty tenant allowlist. This is source-only local
+evidence: no hosted Supabase write, Vercel/Railway deployment, provider
+setting, credential, or paid action occurred. Exact next action: choose the
+next smallest source-only ERP seam; hosted parity, protected browser evidence,
+production cutover, rollback, and spend approval remain blocked.
+
 ## M3.236 Project read/list protected local HTTP canary (2026-08-10)
 
 Extended the disposable project API evidence to cover the existing Nest read
