@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.223 protected upload-complete runtime
+
+Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every Core selector or
+tenant allowlist false/empty in production. Add a provider-neutral Storage
+contract test against a local HTTP-compatible stub, then exercise the
+protected upload flow in a controlled browser fixture. Verify object download,
+document recording, parser metadata, Core identity, terminal Core failure, and
+no compatibility fallback. Do not touch Supabase, Vercel, or Railway while
+the spend lock is active.
+
 ## Exact next action after M3.222 parser-to-Core HTTP parity
 
 Keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and every Core selector or

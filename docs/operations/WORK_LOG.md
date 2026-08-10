@@ -1,5 +1,21 @@
 # Work Log
 
+## 2026-08-10 - M3.223 disposable protected upload-complete runtime
+
+Added a test-only API auth alias and a disposable integration harness around
+the real Web `/api/upload/complete` route. It downloads the real DXF fixture
+through a bounded Storage double, uses the real parser and server-only Core
+adapter, and calls a protected Nest Core HTTP app against disposable
+PostgreSQL. Success recorded the document and tenant-scoped scope totals;
+forcing Core offline returned terminal `processing-unavailable`, retained the
+document, created no scope rows, and did not invoke the compatibility writer.
+
+Validation: self-hosted PostgreSQL 17/Redis 7.4.9 lane; 116 migrations;
+database 370/370 with no skips; API integration 30/30 files and 45/45 tests;
+upload test 1/1. Known Redis memory-overcommit warning only. No hosted DB,
+provider, deployment, or paid action. Next: provider-neutral Storage contract
+stub and controlled browser upload evidence under the spend lock.
+
 ## 2026-08-10 - M3.222 disposable actual parser-to-Core HTTP parity
 
 Added a test-only API Vitest resolver plus a cross-package integration harness.

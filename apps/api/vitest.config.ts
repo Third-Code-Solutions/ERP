@@ -13,6 +13,10 @@ export default defineConfig({
         __dirname,
         '../../packages/auth/src/server.ts'
       ),
+      '@third-code-erp/auth': resolve(
+        __dirname,
+        '../../packages/auth/src/index.ts'
+      ),
     },
   },
   test: {

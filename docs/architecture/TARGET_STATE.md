@@ -1,5 +1,14 @@
 # Target State
 
+## M3.223 Protected upload-complete runtime
+
+The upload-complete path must record the tenant-scoped document, download and
+parse the real file, and send authoritative evidence to protected Core. Core
+failure must remain visible as a terminal processing state with no legacy
+scope writer fallback. Disposable evidence now covers this runtime boundary;
+provider-backed Storage, browser behavior, and hosted release remain separate
+gates.
+
 ## M3.222 Disposable parser-to-Core HTTP parity
 
 The real Web CAD parser must emit strict worker evidence that crosses the
