@@ -34,4 +34,5 @@ credential, or paid action changed. Before any hosted canary, reconcile hosted
 parity, exact release identity/readiness, protected browser evidence, rollback,
 audit-recovery tenant, and billing approval.
 
-Implementation source-only commit/push SHA: recorded after commit.
+Implementation source-only commit/push SHA:
+`ee358dcb164bcead2a54995a51f64d55016c7c7c`.
