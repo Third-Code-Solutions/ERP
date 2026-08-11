@@ -1,5 +1,32 @@
 # Work Log
 
+## 2026-08-12 - M3.298 Core Purchase Order approval/issuance browser canary
+
+Added a guarded workflow fixture mode to the shared loopback harness and a
+real authenticated PO-detail browser proof. The canary creates one draft PO,
+drives PM approval, Commercial approval, SCM issuance, and replays the first
+idempotency key. It verifies four Core workflow requests, exact status and
+approval stamps, role-targeted notification deliveries, supplier outbox and
+confirmation session, semantic audits, request headers, and cleanup.
+
+The first run found a real Core parity defect: `scm_issue` set `issued` but
+left `scm_issued_at` and `scm_issued_by` null. Added those fields to the same
+transactional update and reran successfully. Workflow-only users/vendor email
+are opt-in so DocuSeal and other shared canaries retain their baseline; the
+DocuSeal run initially caught that fixture leakage and then passed after the
+isolation fix.
+
+No hosted Supabase SQL, Storage, Railway/Vercel deployment, credential,
+provider setting, or paid action changed.
+
+Validation: workflow browser 1/1; PO create, notifications, document, Togal,
+and DocuSeal browsers 1/1 each; API 176/772; Web 113/802; Web build/lint/
+typecheck; provider-spend, managed-parity, Web/DB boundary, gitleaks, and diff
+checks PASS.
+
+Exact next action: keep selectors closed and resolve the hosted PO duplicate
+owner-review gate before any migration or provider build.
+
 ## 2026-08-12 - M3.297 Core standalone Purchase Order browser canary
 
 Added a disposable authenticated PO proof to the shared loopback harness. It

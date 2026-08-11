@@ -389,6 +389,10 @@ export class PurchaseOrderWorkflowService {
         update.commercial_approved_at = now
         update.commercial_approved_by = authorizedPrincipal.userId
       }
+      if (parsedCommand.action === 'scm_issue') {
+        update.scm_issued_at = now
+        update.scm_issued_by = authorizedPrincipal.userId
+      }
 
       const [updated] = await transaction
         .update(purchaseOrders)

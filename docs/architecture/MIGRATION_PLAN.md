@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.298 - Purchase Order approval/issuance Core browser canary (completed source-only)
+
+1. Added workflow-only users/vendor email fixtures, guarded by a disposable
+   harness flag, plus state probes for workflow requests, notification
+   outbox/deliveries, supplier delivery evidence, confirmation sessions, and
+   approval timestamps.
+2. Added a Playwright config/spec and package script. The real authenticated
+   PO detail page drives all four approval/issuance actions through the Core
+   selector and replays the first idempotency key directly through the proxy.
+3. Asserted exact state sequence, stored replay, role-targeted deliveries,
+   supplier outbox/session, status audits, request forwarding, and cleanup.
+   Fixed Core to stamp `scm_issued_at` and `scm_issued_by` in the same
+   transaction as `scm_issue`.
+4. Validation: workflow browser 1/1; PO create, notifications, document,
+   Togal, and DocuSeal browsers 1/1 each; API 176/772; Web 113/802; Web
+   build/lint/typecheck; provider-spend, managed-parity, Web/DB boundary,
+   gitleaks, and diff checks PASS. No hosted migration, provider build, or
+   paid operation occurred.
+
+Source evidence: `apps/web/e2e/purchase-order-workflow-loopback.spec.ts`,
+the guarded shared loopback harness, and
+`apps/api/src/procurement/purchase-order-workflow.service.ts`.
+
+Exact next action: retain all PO workflow selectors false/empty and resolve
+the hosted PO duplicate owner-review gate before release review.
+
 ## M3.297 - standalone Purchase Order Core browser canary (completed source-only)
 
 1. Extended the disposable authenticated harness with same-tenant vendor and
