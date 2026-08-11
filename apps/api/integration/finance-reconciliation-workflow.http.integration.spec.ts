@@ -30,6 +30,7 @@ import {
 } from '../src/database/database.service'
 import { FinanceReconciliationWorkflowController } from '../src/finance/finance-reconciliation-workflow.controller'
 import { FinanceReconciliationWorkflowService } from '../src/finance/finance-reconciliation-workflow.service'
+import { BankStatementImportStorageService } from '../src/finance/bank-statement-import.storage'
 
 const integrationEnabled =
   Boolean(process.env.DATABASE_URL) &&
@@ -335,6 +336,12 @@ suite('Bank statement matching protected HTTP canary', () => {
           return fallback
         }),
       } as unknown as ConfigService
+      const storageSource = Buffer.from(
+        'date,reference,description,amount\n2026-07-02,DEP-2,Storage deposit,10.00\n'
+      )
+      const importStorage = {
+        readCsv: vi.fn(async () => storageSource),
+      }
       const moduleRef = await Test.createTestingModule({
         controllers: [FinanceReconciliationWorkflowController],
         providers: [
@@ -345,6 +352,7 @@ suite('Bank statement matching protected HTTP canary', () => {
             provide: DatabaseService,
             useValue: transactionBoundDatabase(transaction),
           },
+          { provide: BankStatementImportStorageService, useValue: importStorage },
           { provide: SupabaseIdentityService, useValue: identity },
           { provide: APP_GUARD, useClass: SupabaseJwtGuard },
           { provide: APP_GUARD, useClass: CapabilityGuard },
@@ -437,6 +445,36 @@ suite('Bank statement matching protected HTTP canary', () => {
           .send({ ...importBody, referenceNumber: `ST-IMPORT-OTHER-${suffix}` })
           .expect(409)
 
+        const storagePath = `${fixtureA.tenantId}/bank-statements/${suffix}.csv`
+        await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'import-storage-cross-tenant')
+          .send({
+            ...importBody,
+            sourceBase64: undefined,
+            sourceStoragePath: `${fixtureB.tenantId}/bank-statements/${suffix}.csv`,
+            referenceNumber: `ST-IMPORT-CROSS-${suffix}`,
+          })
+          .expect(403)
+        const importedFromStorage = await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'import-storage-1')
+          .send({
+            ...importBody,
+            sourceBase64: undefined,
+            sourceStoragePath: storagePath,
+            referenceNumber: `ST-IMPORT-STORAGE-${suffix}`,
+          })
+          .expect(200)
+        expect(importedFromStorage.body).toMatchObject({
+          tenantId: fixtureA.tenantId,
+          status: 'draft',
+          lineCount: 1,
+        })
+        expect(importStorage.readCsv).toHaveBeenCalledWith(storagePath)
+
         const [importRequestRow] = await transaction
           .select({
             state: bankStatementImportRequests.state,
@@ -455,10 +493,11 @@ suite('Bank statement matching protected HTTP canary', () => {
         expect(importRequestRow?.result).toEqual(imported.body)
 
         const [importedStatement] = await transaction
-          .select({
-            status: bankStatements.status,
-            sourceSha256: bankStatements.source_sha256,
-          })
+        .select({
+          status: bankStatements.status,
+          sourceSha256: bankStatements.source_sha256,
+          sourceStoragePath: bankStatements.source_storage_path,
+        })
           .from(bankStatements)
           .where(
             and(
@@ -468,6 +507,18 @@ suite('Bank statement matching protected HTTP canary', () => {
           )
         expect(importedStatement?.status).toBe('draft')
         expect(importedStatement?.sourceSha256).toMatch(/^[0-9a-f]{64}$/)
+        expect(importedStatement?.sourceStoragePath).toBeNull()
+
+        const [storageStatement] = await transaction
+          .select({ sourceStoragePath: bankStatements.source_storage_path })
+          .from(bankStatements)
+          .where(
+            and(
+              eq(bankStatements.id, importedFromStorage.body.statementId),
+              eq(bankStatements.tenant_id, fixtureA.tenantId)
+            )
+          )
+        expect(storageStatement?.sourceStoragePath).toBe(storagePath)
 
         const [importAudit] = await transaction
           .select({ diff: auditLog.diff })

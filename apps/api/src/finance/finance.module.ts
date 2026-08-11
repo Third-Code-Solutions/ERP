@@ -33,6 +33,7 @@ import { FinanceReconciliationController } from './finance-reconciliation.contro
 import { FinanceReconciliationService } from './finance-reconciliation.service'
 import { FinanceReconciliationWorkflowController } from './finance-reconciliation-workflow.controller'
 import { FinanceReconciliationWorkflowService } from './finance-reconciliation-workflow.service'
+import { BankStatementImportStorageService } from './bank-statement-import.storage'
 
 @Module({
   imports: [AuditModule],
@@ -71,6 +72,7 @@ import { FinanceReconciliationWorkflowService } from './finance-reconciliation-w
     FinanceCashService,
     FinanceReconciliationService,
     FinanceReconciliationWorkflowService,
+    BankStatementImportStorageService,
   ],
 })
 export class FinanceModule implements NestModule {

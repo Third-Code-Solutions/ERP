@@ -44,6 +44,16 @@ const sourceBase64 = z
     message: 'Source file encoding is invalid.',
   })
 
+const sourceStoragePath = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2_000)
+  .regex(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/bank-statements\/[^/]+$/i,
+    'Source storage path is invalid.'
+  )
+
 export const bankStatementImportBodySchema = z
   .object({
     cashAccountId: uuid,
@@ -53,13 +63,21 @@ export const bankStatementImportBodySchema = z
     statementEnd: isoDate,
     openingBalanceCents: signedCents,
     closingBalanceCents: signedCents,
-    sourceBase64,
+    sourceBase64: sourceBase64.optional(),
+    sourceStoragePath: sourceStoragePath.optional(),
   })
   .strict()
   .refine((value) => value.statementStart <= value.statementEnd, {
     message: 'Statement end must be on or after its start.',
     path: ['statementEnd'],
   })
+  .refine(
+    (value) => Boolean(value.sourceBase64) !== Boolean(value.sourceStoragePath),
+    {
+      message: 'Provide exactly one inline source or storage source.',
+      path: ['sourceBase64'],
+    }
+  )
 
 export const bankStatementImportCommandSchema = bankStatementImportBodySchema
 
@@ -73,6 +91,30 @@ export const bankStatementImportResultSchema = z
   })
   .strict()
 
+export const bankStatementImportUploadSignBodySchema = z
+  .object({
+    fileName: z
+      .string()
+      .trim()
+      .min(1)
+      .max(255)
+      .refine((value) => value.toLowerCase().endsWith('.csv'), {
+        message: 'Bank statement source must be a CSV file.',
+      }),
+    mimeType: z.string().trim().min(1).max(127).default('text/csv'),
+    sizeBytes: z.number().int().positive().max(2_000_000),
+  })
+  .strict()
+
+export const bankStatementImportUploadSignResultSchema = z
+  .object({
+    signedUrl: z.string().url(),
+    token: z.string().trim().min(1).max(4_000),
+    storagePath: sourceStoragePath,
+    originalFileName: z.string().trim().min(1).max(255),
+  })
+  .strict()
+
 export type BankStatementImportBody = z.infer<
   typeof bankStatementImportBodySchema
 >
@@ -81,4 +123,10 @@ export type BankStatementImportCommand = z.infer<
 >
 export type BankStatementImportResult = z.infer<
   typeof bankStatementImportResultSchema
+>
+export type BankStatementImportUploadSignBody = z.infer<
+  typeof bankStatementImportUploadSignBodySchema
+>
+export type BankStatementImportUploadSignResult = z.infer<
+  typeof bankStatementImportUploadSignResultSchema
 >

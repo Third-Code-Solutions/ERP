@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   select: vi.fn(),
   revalidatePath: vi.fn(),
+  financeReconciliationImportWritesUseCoreApi: vi.fn(),
+  createBankStatementThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -24,6 +26,12 @@ vi.mock('@third-code-erp/database', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  financeReconciliationImportWritesUseCoreApi:
+    mocks.financeReconciliationImportWritesUseCoreApi,
+  createBankStatementThroughCoreApi: mocks.createBankStatementThroughCoreApi,
 }))
 
 import {
@@ -62,6 +70,7 @@ describe('bank reconciliation actions', () => {
     vi.clearAllMocks()
     mocks.requireUserProfile.mockResolvedValue(PROFILE)
     mocks.requireCapability.mockImplementation(() => undefined)
+    mocks.financeReconciliationImportWritesUseCoreApi.mockReturnValue(false)
   })
 
   it('checks the cash capability before importing source evidence', async () => {
@@ -93,6 +102,25 @@ describe('bank reconciliation actions', () => {
       ok: false,
       error: 'Bank statement balances do not roll forward',
     })
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('treats a selected Core import failure as terminal with no Web fallback', async () => {
+    mocks.financeReconciliationImportWritesUseCoreApi.mockReturnValue(true)
+    mocks.createBankStatementThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No bank statement was imported.',
+      status: 503,
+    })
+
+    const result = await createBankStatement(validStatement)
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'ERP Core API is unavailable. No bank statement was imported.',
+    })
+    expect(mocks.createBankStatementThroughCoreApi).toHaveBeenCalledOnce()
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.transaction).not.toHaveBeenCalled()
   })

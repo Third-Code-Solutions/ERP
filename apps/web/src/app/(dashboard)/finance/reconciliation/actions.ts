@@ -13,6 +13,10 @@ import {
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { parseBankStatementCsv } from './bank-statement-csv'
+import {
+  createBankStatementThroughCoreApi,
+  financeReconciliationImportWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 
 export interface ReconciliationActionResult {
   ok: boolean
@@ -118,6 +122,25 @@ export async function createBankStatement(
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
     const parsed = statementSchema.parse(input)
+    if (financeReconciliationImportWritesUseCoreApi(profile.tenantId)) {
+      const idempotencyKey = `bank-import-${createHash('sha256')
+        .update(JSON.stringify(parsed))
+        .digest('hex')}`
+      const coreResult = await createBankStatementThroughCoreApi(
+        parsed,
+        idempotencyKey
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'ERP Core did not import the bank statement. Existing evidence was unchanged.',
+        }
+      }
+      revalidateReconciliation(coreResult.data.statementId)
+      return { ok: true, id: coreResult.data.statementId }
+    }
     const sourceBytes = Buffer.from(parsed.sourceBase64, 'base64')
     if (sourceBytes.length === 0 || sourceBytes.length > 2_000_000) {
       throw new Error('Source file must be 2 MB or smaller')

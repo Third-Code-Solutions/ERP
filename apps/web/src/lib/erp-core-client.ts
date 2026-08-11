@@ -58,6 +58,7 @@ import {
   financePayablesResultSchema,
   financeCashResultSchema,
   financeReconciliationResultSchema,
+  bankStatementImportResultSchema,
   notificationListResultSchema,
   notificationReadStateCommandSchema,
   notificationReadStateResultSchema,
@@ -173,6 +174,8 @@ import {
   type FinanceCashQuery,
   type FinanceCashResult,
   type FinanceReconciliationResult,
+  type BankStatementImportCommand,
+  type BankStatementImportResult,
   type NotificationListResult,
   type NotificationReadStateCommand,
   type NotificationReadStateResult,
@@ -713,6 +716,17 @@ export function financeReconciliationReadsUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_RECONCILIATION_READS_VIA_API,
     process.env.ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS
+  )
+}
+
+/** Bank-statement imports delegate only for an exact tenant canary. */
+export function financeReconciliationImportWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API,
+    process.env.ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -3242,6 +3256,70 @@ export async function getFinanceReconciliationThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Bank reconciliation was not read.',
+    }
+  }
+}
+
+/**
+ * Server-only bank-statement import adapter. Once selected, a Core error is
+ * terminal; the caller must not fall back to the legacy Web database write.
+ */
+export async function createBankStatementThroughCoreApi(
+  command: BankStatementImportCommand,
+  idempotencyKey: string
+): Promise<CoreResult<BankStatementImportResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/reconciliation/import`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Bank statement import details are invalid.'
+            : response.status === 403
+              ? 'You do not have permission to import bank statements.'
+              : response.status === 409
+                ? 'That bank statement import conflicts with existing evidence.'
+                : response.status === 503
+                  ? 'Bank statement import is not enabled for this tenant.'
+                  : 'Bank statement was not imported.',
+        status: response.status,
+      }
+    }
+    const parsed = bankStatementImportResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid bank statement import result.',
+        status: 502,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. No bank statement was imported.',
+      status: 503,
     }
   }
 }
