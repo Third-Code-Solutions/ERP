@@ -19,7 +19,7 @@ parallel five-second lane had one unrelated Cortex timeout, and that suite
 passed isolated. API typecheck, root lint, and production build PASS. No
 migration, hosted Supabase, Storage, Railway, Vercel, credential, provider,
 or paid change occurred. Keep draft-create flags/lists false/empty. Source/
-docs evidence SHA is recorded after push.
+docs evidence SHA: `47cfe8bb0ea0388b9e2807c4a454198061ea1249`.
 
 ## 2026-08-11 - M3.251 customer invoice draft-cancellation authority canary
 

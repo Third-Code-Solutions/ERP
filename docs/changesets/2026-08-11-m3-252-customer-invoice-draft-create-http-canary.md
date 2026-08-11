@@ -44,4 +44,5 @@ readiness, protected browser evidence, rollback, and spend gates pass.
 Keep `ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED=false` and
 `ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_TENANT_IDS` empty.
 
-Source/docs evidence SHA is recorded after push.
+Source/docs evidence SHA:
+`47cfe8bb0ea0388b9e2807c4a454198061ea1249` (pushed under `kurtgav`).

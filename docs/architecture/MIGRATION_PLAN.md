@@ -20,7 +20,8 @@
    passed.
 4. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
    or paid action changed. Keep draft-create writes disabled with an empty
-   tenant allowlist. Source/docs evidence SHA is recorded after push.
+   tenant allowlist. Source/docs evidence SHA:
+   `47cfe8bb0ea0388b9e2807c4a454198061ea1249`.
 
 Next: keep the selector closed and reconcile hosted parity, release identity,
 readiness, protected browser evidence, rollback, and spend gates before any
