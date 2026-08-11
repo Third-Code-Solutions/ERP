@@ -7074,3 +7074,21 @@ Source is pushed as `e8d4a6c181358756879435a76e8bd5a9317cc751`. GitHub run
 `30749461755` failed before executable steps because of account
 payment/spending-limit state. No hosted migration or provider mutation
 occurred; all four cancellation flags remain false/empty.
+
+## D-123 -- Protect reconciliation detail behind Core (2026-08-11)
+
+Decision: expose bank-statement detail through a tenant-scoped Nest read and
+adapt the existing Web page to consume it only for an exact closed-by-default
+canary. The response includes statement provenance, line matches, and bounded
+draft candidates using strict shared schemas. Cross-tenant statements return
+404, and selected Core failures do not invoke the direct SQL path.
+
+Rationale: the detail page currently combines several sensitive tenant reads;
+keeping that query in the browser-facing layer would make authorization and
+result bounds harder to audit. A protected read seam gives one place to enforce
+tenant scope and keeps later reconciliation writes independent. The legacy path
+remains for compatibility while parity is reviewed.
+
+Validation: shared 4/4, Web adapter 166/166, API unit/controller 8/8,
+disposable PostgreSQL HTTP canary 1/1, and API/Web typechecks passed. No
+hosted SQL or provider mutation occurred; the selector remains closed.

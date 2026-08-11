@@ -58,6 +58,7 @@ import {
   financePayablesResultSchema,
   financeCashResultSchema,
   financeReconciliationResultSchema,
+  financeReconciliationDetailResultSchema,
   bankStatementImportResultSchema,
   notificationListResultSchema,
   notificationReadStateCommandSchema,
@@ -174,6 +175,7 @@ import {
   type FinanceCashQuery,
   type FinanceCashResult,
   type FinanceReconciliationResult,
+  type FinanceReconciliationDetailResult,
   type BankStatementImportCommand,
   type BankStatementImportResult,
   type NotificationListResult,
@@ -3271,6 +3273,60 @@ export async function getFinanceReconciliationThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. Bank reconciliation was not read.',
+    }
+  }
+}
+
+export async function getFinanceReconciliationDetailThroughCoreApi(
+  statementId: string
+): Promise<CoreResult<FinanceReconciliationDetailResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/reconciliation/${encodeURIComponent(statementId)}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'x-request-id': randomUUID(),
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Bank statement identifier is invalid.'
+            : response.status === 403
+              ? 'You do not have permission to view bank reconciliation.'
+              : response.status === 404
+                ? 'Bank statement was not found.'
+                : 'Bank statement detail was not completed.',
+        status: response.status,
+      }
+    }
+
+    const parsed = financeReconciliationDetailResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid bank statement detail result.',
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. Bank statement detail was not read.',
     }
   }
 }

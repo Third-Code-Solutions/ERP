@@ -19,10 +19,12 @@ describe('Finance reconciliation HTTP contract', () => {
     close = undefined
   })
 
-  async function appFor(list = vi.fn()) {
+  async function appFor(list = vi.fn(), read = vi.fn()) {
     const moduleRef = await Test.createTestingModule({
       controllers: [FinanceReconciliationController],
-      providers: [{ provide: FinanceReconciliationService, useValue: { list } }],
+      providers: [
+        { provide: FinanceReconciliationService, useValue: { list, read } },
+      ],
     }).compile()
     const app = moduleRef.createNestApplication()
     app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -78,5 +80,36 @@ describe('Finance reconciliation HTTP contract', () => {
       { limit: 100 },
       expect.objectContaining({ tenantId: TENANT_ID, role: 'finance' })
     )
+  })
+
+  it('forwards a UUID detail read and verified finance principal', async () => {
+    const read = vi.fn().mockResolvedValue({
+      tenantId: TENANT_ID,
+      statement: {},
+      lines: [],
+      candidates: [],
+    })
+    const statementId = '33333333-3333-4333-8333-333333333333'
+    const app = await appFor(vi.fn(), read)
+
+    await request(app.getHttpServer())
+      .get(`/v1/finance/reconciliation/${statementId}`)
+      .expect(200)
+
+    expect(read).toHaveBeenCalledWith(
+      statementId,
+      expect.objectContaining({ tenantId: TENANT_ID, role: 'finance' })
+    )
+  })
+
+  it('rejects a non-UUID detail identifier before the service', async () => {
+    const read = vi.fn()
+    const app = await appFor(vi.fn(), read)
+
+    await request(app.getHttpServer())
+      .get('/v1/finance/reconciliation/not-a-uuid')
+      .expect(400)
+
+    expect(read).not.toHaveBeenCalled()
   })
 })

@@ -359,6 +359,37 @@ suite('Bank reconciliation protected HTTP canary', () => {
           )
         ).toBe(false)
 
+        const detail = await request(app.getHttpServer())
+          .get(`${route}/${fixtureA.statementIds[0]}`)
+          .set('Authorization', 'Bearer reconciliation-http-finance-a-token')
+          .expect(200)
+        expect(detail.body).toMatchObject({
+          tenantId: fixtureA.tenantId,
+          statement: {
+            id: fixtureA.statementIds[0],
+            referenceNumber: `ST-a-${suffix}-1`,
+            status: 'draft',
+            cashAccountId: fixtureA.cashAccountId,
+            cashAccountKind: 'bank',
+          },
+        })
+        expect(detail.body.lines).toHaveLength(2)
+        expect(detail.body.lines[0]).toMatchObject({
+          lineNumber: 1,
+          matchedCashTransactionId: null,
+        })
+        expect(detail.body.candidates).toEqual([])
+
+        await request(app.getHttpServer())
+          .get(`${route}/${fixtureB.statementIds[0]}`)
+          .set('Authorization', 'Bearer reconciliation-http-finance-a-token')
+          .expect(404)
+
+        await request(app.getHttpServer())
+          .get(`${route}/not-a-uuid`)
+          .set('Authorization', 'Bearer reconciliation-http-finance-a-token')
+          .expect(400)
+
         const [statementCount] = await transaction
           .select({ count: sql<number>`count(*)::int` })
           .from(bankStatements)

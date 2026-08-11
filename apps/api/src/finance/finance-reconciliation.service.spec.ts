@@ -120,4 +120,107 @@ describe('FinanceReconciliationService', () => {
     expect(querySql.sql).toContain('"bank_statements"."tenant_id" = $1')
     expect(querySql.params).toContain(TENANT_ID)
   })
+
+  it('returns tenant-scoped statement detail, lines, and draft candidates', async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: STATEMENT_ID,
+          reference_number: 'BANK-001',
+          source_file_name: 'statement.csv',
+          source_sha256: 'a'.repeat(64),
+          status: 'draft',
+          statement_start: '2026-08-01',
+          statement_end: '2026-08-31',
+          currency: 'PHP',
+          opening_balance_cents: '100000',
+          closing_balance_cents: '100500',
+          cash_account_id: CASH_ACCOUNT_ID,
+          cash_account_name: 'Operating bank',
+          cash_account_kind: 'bank',
+          reconciled_at: null,
+          voided_at: null,
+          void_reason: null,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: '55555555-5555-4555-8555-555555555555',
+          line_number: '1',
+          transaction_date: '2026-08-10',
+          reference_number: 'DEP-001',
+          description: 'Customer deposit',
+          amount_cents: '500',
+          matched_cash_transaction_id: null,
+          matched_at: null,
+          matched_internal_number: null,
+          matched_reference_number: null,
+          matched_transaction_date: null,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: '66666666-6666-4666-8666-666666666666',
+          internal_number: 'CT-001',
+          reference_number: 'DEP-001',
+          transaction_date: '2026-08-10',
+          direction: 'receipt',
+          amount_cents: '500',
+        },
+      ])
+    const config = {
+      get: vi.fn((key: string, fallback: unknown) => {
+        if (key === 'ERP_FINANCE_RECONCILIATION_READS_ENABLED') return true
+        if (key === 'ERP_FINANCE_RECONCILIATION_READS_TENANT_IDS') {
+          return [TENANT_ID]
+        }
+        return fallback
+      }),
+    } as unknown as ConfigService
+    const database = { client: { execute } } as unknown as DatabaseService
+    const service = new FinanceReconciliationService(config, database)
+
+    const result = await service.read(STATEMENT_ID, PRINCIPAL)
+
+    expect(result).toMatchObject({
+      tenantId: TENANT_ID,
+      statement: {
+        id: STATEMENT_ID,
+        referenceNumber: 'BANK-001',
+        openingBalanceCents: 100_000,
+        closingBalanceCents: 100_500,
+        cashAccountKind: 'bank',
+      },
+      lines: [
+        expect.objectContaining({
+          lineNumber: 1,
+          amountCents: 500,
+          referenceNumber: 'DEP-001',
+        }),
+      ],
+      candidates: [
+        expect.objectContaining({
+          id: '66666666-6666-4666-8666-666666666666',
+          amountCents: 500,
+          direction: 'receipt',
+        }),
+      ],
+    })
+    expect(execute).toHaveBeenCalledTimes(3)
+  })
+
+  it('fails closed before a detail database read', async () => {
+    const execute = vi.fn()
+    const config = {
+      get: vi.fn((_key: string, fallback: unknown) => fallback),
+    } as unknown as ConfigService
+    const database = { client: { execute } } as unknown as DatabaseService
+    const service = new FinanceReconciliationService(config, database)
+
+    await expect(service.read(STATEMENT_ID, PRINCIPAL)).rejects.toBeInstanceOf(
+      ServiceUnavailableException
+    )
+    expect(execute).not.toHaveBeenCalled()
+  })
 })

@@ -7875,3 +7875,17 @@ The Purchase Order duplicate gate has a read-only owner-review template
 generator. It writes only to an explicit secure path outside the repository,
 refuses overwrite, leaves replacement numbers blank, and never mutates hosted
 state.
+
+## M3.279 - Reconciliation detail read (completed source slice)
+
+1. Add strict shared detail/line/candidate schemas with exact cents and
+   tenant evidence.
+2. Add the closed-by-default Nest detail endpoint with tenant predicates,
+   bounded result sets, deterministic timestamps, and cross-tenant 404.
+3. Add the Web adapter and keep the legacy direct read as a compatibility path
+   for unselected tenants; selected Core errors fail closed.
+4. Pass focused contracts, unit/controller coverage, disposable PostgreSQL
+   HTTP canary, and typechecks before any hosted migration or provider action.
+
+Release gate: keep reconciliation read flags false/empty until hosted parity,
+exact-SHA CI, readiness, rollback, and spend-bounded owner approval are clear.

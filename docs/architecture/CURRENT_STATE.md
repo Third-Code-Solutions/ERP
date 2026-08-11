@@ -8528,3 +8528,23 @@ credential-gated. This is source-ready, not a hosted release.
   with 55 applied / 72 source migrations; cancellation columns and enum value
   are not hosted. No hosted SQL, demo-data repair, feature-flag enablement,
   Railway deployment, Vercel deployment, or provider-setting change occurred.
+
+## 2026-08-11 M3.279 reconciliation detail read boundary
+
+- Added strict shared contracts for tenant-scoped bank-statement detail,
+  statement lines, and exact-match candidates.
+- Added protected Nest `GET /v1/finance/reconciliation/:statementId`. The
+  service derives tenant scope from the authenticated principal, bounds detail
+  rows to 500, formats timestamps deterministically, and returns concealed
+  404s for another tenant. Draft candidates use the same account/currency,
+  posted, unmatched, amount, and direction constraints as the compatibility
+  page.
+- Added the Web Core detail adapter and selected-tenant compatibility branch.
+  The default flag remains closed; legacy direct SQL remains available for
+  unselected tenants. Selected Core failures do not fall back silently.
+- Local evidence: shared contract suite 4/4, Web Core client suite 166/166,
+  API reconciliation unit/controller suite 8/8, API detail HTTP canary 1/1,
+  API and Web typecheck passed. Production builds and full workspace gates are
+  pending this milestone.
+- Hosted state remains unchanged. No Supabase SQL/data, feature flag,
+  Railway deployment, Vercel deployment, or provider setting was changed.
