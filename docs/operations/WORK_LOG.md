@@ -11202,3 +11202,19 @@ hosted baseline, but not a promotion approval:
 - Source commit `412e90119a2df7a42d97832675aef696e1aaaf24` was pushed under
   `kurtgav`; local and remote SHAs match. No production deployment is
   authorized by this milestone.
+
+## 2026-08-12 - M3.287 public landing local browser contract
+
+- Added `playwright.landing-local.config.ts` and the
+  `test:e2e:landing-local` package command. The config starts one disposable
+  loopback Next server and does not contact Vercel, Railway, Supabase, or
+  analytics providers.
+- Updated the existing landing browser contract for the current five-node
+  JSON-LD graph and retained strict assertions for crawl metadata, responsive
+  layout, interaction state, CTA targets, mobile target sizes, and zero
+  console/page errors.
+- Verified: landing-local browser 1/1; Web unit tests 797/797; Web typecheck,
+  lint, production build (83 routes), and `git diff --check` passed.
+- Source commit `76986fb0543ca898ab81f341c1f14b979df8c963` was pushed under
+  `kurtgav`; local and remote SHAs match. No production deployment, provider
+  setting change, credential action, or paid build occurred.

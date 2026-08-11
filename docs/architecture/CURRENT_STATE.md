@@ -8628,6 +8628,27 @@ match. No production deployment was triggered.
 - Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
   credentials, and billing state remain unchanged.
 
+## 2026-08-12 M3.287 public landing local browser contract
+
+- Added a dedicated local-only Playwright configuration and package command for
+  the existing public landing contract. It starts one disposable Next dev
+  server on loopback, uses the installed Chrome executable when supplied, and
+  blocks service-worker traffic; it does not call Vercel, Railway, Supabase,
+  or an external analytics provider.
+- Corrected the browser contract to require the current five JSON-LD graph
+  types: `Organization`, `WebSite`, `WebPage`, `SoftwareApplication`, and
+  `FAQPage`. The proof covers canonical/robots/sitemap/manifest, interaction
+  state, CTA targets, 1440/768/390 layout bounds, mobile target sizes, and
+  zero console/page errors.
+- Focused landing browser proof passed 1/1. Web unit tests passed 797/797;
+  Web typecheck, lint, production build (83 routes), and `git diff --check`
+  passed. This is source-only evidence; no hosted promotion is implied.
+- Source commit `76986fb0543ca898ab81f341c1f14b979df8c963` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment was triggered.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
+
 ## 2026-08-12 M3.284 reconciliation statement void Core write boundary
 
 - Added the closed-by-default Web selector and server-only adapter for

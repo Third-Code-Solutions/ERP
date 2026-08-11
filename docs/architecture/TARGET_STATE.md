@@ -227,6 +227,17 @@ allowlist empty outside a disposable test. Do not promote this path to hosted
 Supabase, Railway, or Vercel until migration parity, Storage policy review,
 readiness, rollback, exact SHA, and spend-bounded approval are all clear.
 
+## M3.287 Public landing local browser contract (2026-08-12)
+
+The public landing contract now has a dedicated disposable Playwright config
+and package command. It exercises the real Next page on loopback only and
+asserts the current Organization/WebSite/WebPage/SoftwareApplication/FAQPage
+graph, crawl metadata, responsive bounds, interaction state, CTA destinations,
+mobile target sizes, and zero browser errors. Keep this contract local and
+source-gated; it does not authorize Vercel, Railway, Supabase, analytics, or
+other provider activity. The Vercel Git integration remains disconnected and
+provider spend remains explicitly bounded.
+
 ## M3.265 Bank-statement import authority (2026-08-11)
 
 Core owns the fail-closed import command at

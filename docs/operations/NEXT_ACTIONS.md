@@ -5530,6 +5530,21 @@ Git disconnected and do not create preview or duplicate production builds.
    rollback, exact SHA, and spend-bounded owner/provider approval. No
    paid/duplicate build is allowed to bypass those gates.
 
+## Exact next action after M3.287
+
+1. Keep `test:e2e:landing-local` as a source-only gate for the public landing;
+   run it against the disposable loopback server, not a Vercel preview.
+2. Keep Vercel Git disconnected and do not create a preview, duplicate build,
+   analytics request, Railway action, Supabase migration, or provider setting
+   change to validate this contract.
+3. Keep API and Web import Storage selector pairs false/empty outside the
+   disposable tenant. Review the M3.286 signed-upload/Core-read evidence before
+   any hosted Storage parity work.
+4. Hosted promotion remains blocked by migration parity, duplicate Purchase
+   Order mapping, audit-recovery approval, Storage-policy review, readiness,
+   rollback, exact SHA, and spend-bounded owner/provider approval. No paid
+   build is allowed to bypass those gates.
+
 ## Exact next action after M3.284
 
 1. Source commit `c4d618545495dd0c174c4ddd9d43655cc8cdcd38` is pushed under
