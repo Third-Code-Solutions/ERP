@@ -1,5 +1,24 @@
 # Third Code ERP landing behavior audit
 
+## 2026-08-12 live production recheck
+
+- Browser navigation reached `/` at 1440x900, 768x900, and 390x844.
+- Document heights were 8,720px, 8,474px, and 9,948px. Scroll/client widths
+  matched at 1,425px, 753px, and 375px; no horizontal overflow was observed.
+- H1 remained three visual lines. Measured desktop typography was Satoshi
+  72px/65.52px with `max-width: 1152px`; tablet was 48px/43.68px.
+- Fixed navigation measured 1,380x68px at desktop, 713x68px at tablet, and
+  355x62px at mobile. Its dark glass surface stayed unchanged while scrolling.
+- Capability accordion, native FAQ disclosure, and four-state priority controls
+  responded in the live browser. Desktop hero media faded to opacity 0.4188 at
+  scrollY 700; mobile kept media in normal flow.
+- Console sweep returned zero errors and zero warnings. Public `/dashboard`
+  redirected unauthenticated visitors to `/auth/login`.
+- JSON-LD graph contained Organization, SoftwareApplication, and FAQPage.
+
+Exact evidence: `docs/research/LIVE_LANDING_AUDIT_20260812.md`. This is
+read-only live evidence, not deployment or authenticated ERP proof.
+
 ## 2026-08-10 live production recheck
 
 - Browser proof at 1440x900, 768x900, and 390x844 found zero horizontal

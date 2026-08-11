@@ -1,5 +1,23 @@
 # Current State
 
+## M3.296 live landing browser audit (2026-08-12)
+
+Read-only Playwright evidence refreshed the public landing route at 1440,
+768, and 390 CSS pixels. The route renders Third Code ERP branding, three-line
+responsive hero copy, fixed glass navigation, capability/FAQ/priority
+interactions, JSON-LD Organization/SoftwareApplication/FAQPage, and no
+horizontal overflow. Console errors and warnings were zero. Unauthenticated
+`/dashboard` redirected to `/auth/login`.
+
+No UI source, hosted SQL, Storage object/policy, Vercel/Railway deployment,
+provider setting, credential, or paid action changed. The live audit does not
+prove authenticated dashboard health or migration readiness. Exact evidence:
+`docs/research/LIVE_LANDING_AUDIT_20260812.md`.
+
+Exact next action: keep production selectors closed; choose next Core seam
+only after PO duplicate remediation, managed parity, readiness, rollback,
+authenticated smoke, and spend gates.
+
 ## M3.295 Core DocuSeal webhook browser canary and lock-query repair (2026-08-12)
 
 The disposable provider-style webhook harness now proves the signed-BOM path

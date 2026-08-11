@@ -1,5 +1,17 @@
 # Target State
 
+## M3.296 public landing release evidence (2026-08-12)
+
+The public acquisition surface must preserve a clean Third Code ERP identity,
+responsive three-line hero, keyboard-usable disclosure controls, source-aware
+Cortex framing, valid JSON-LD, and zero horizontal overflow at desktop/tablet/
+mobile widths. Live evidence now confirms this behavior for the observation
+window, but does not authorize a release or imply authenticated ERP readiness.
+
+Keep provider deployments and Core/Web migration selectors closed until the
+hosted parity, PO duplicate, readiness, rollback, authenticated smoke, exact
+release identity, and spend gates pass.
+
 ## M3.295 Core DocuSeal webhook authority (2026-08-12)
 
 The target signature boundary verifies the provider secret in Next, then
