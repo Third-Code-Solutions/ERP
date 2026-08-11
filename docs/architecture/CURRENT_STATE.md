@@ -23,7 +23,8 @@ passes isolated. API typecheck, root lint, and production build pass. No
 schema, hosted Supabase SQL/data, Storage, Railway/Vercel deployment,
 provider setting, credential, or paid action changed. Keep
 `ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED=false` and
-`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_TENANT_IDS` empty.
+`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_TENANT_IDS` empty. Source/
+docs evidence SHA: `47cfe8bb0ea0388b9e2807c4a454198061ea1249`.
 
 ## M3.251 Customer invoice draft-cancellation authority (2026-08-11)
 
