@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-398 -- Prove Core notification read-state in the real browser (2026-08-12)
+
+Decision: add a disposable authenticated browser canary for the existing Core
+notification list/read-state branch, with exact tenant selectors enabled only
+for a random fixture tenant. Keep the compatibility route and all production
+selectors closed outside the harness.
+
+Rationale: service and route tests cannot prove the real Settings/topbar fetch,
+optimistic UI, Core bearer/request-id forwarding, transactional updates, audit
+rows, or tenant isolation. The loopback proof closes that seam without hosted
+SQL, provider builds, credentials, or spend. The same proof exposed and fixed
+two mobile overflow defects rather than weakening the assertion.
+
+Validation: browser 1/1, focused 180/180, Web 113/802, typecheck/build,
+provider-spend, Web/DB boundary, gitleaks, and diff checks pass; no hosted
+mutation.
+
 ## D-397 -- Gate hosted Supabase migration on authoritative read-only evidence (2026-08-12)
 
 Decision: record the connected Supabase project's current ledger, RLS

@@ -1,5 +1,17 @@
 # Target State
 
+## M3.291 Core notifications browser canary (2026-08-12)
+
+The target notification path is now browser-proven through the modular Nest
+authority: the authenticated Next adapter forwards the session bearer and
+request ID, Core derives tenant/user scope, PostgreSQL commits read-state in a
+transaction, and semantic audit evidence is retained. The compatibility route
+remains the default until managed parity and release gates pass.
+
+The topbar popover and Settings cards must remain usable at 390px without
+horizontal overflow. Keep both notification selectors closed outside the
+disposable canary; Python/AI remains advisory and cannot approve ERP state.
+
 ## M3.290 Managed parity gate (2026-08-12)
 
 The target release process treats Supabase as PostgreSQL source of truth but

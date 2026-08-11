@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-12 - M3.291 Core notifications browser canary and mobile shell hardening
+
+Added a disposable authenticated Playwright harness for the real Settings page.
+It seeds three same-tenant notifications and one foreign-tenant row, starts
+the compiled Nest API plus a request-recording Core proxy, and proves list,
+mark-read, mark-all-read, bearer/request-id forwarding, semantic audit rows,
+tenant isolation, cleanup, blocked external fonts, no console/page errors, and
+desktop/mobile overflow.
+
+The browser exposed a fixed-width notification popover and fixed two-column
+Settings grid on mobile. Both are now responsive with minimal inline-style
+changes. Production selectors remain closed; no hosted Supabase, Storage,
+Railway, Vercel, credential, provider, or paid action changed.
+
+Validation: notification browser 1/1; focused notification/Core tests 180/180;
+Web 113/802; Web e2e typecheck, Web typecheck, Web build, API build,
+provider-spend, Web/DB boundary, gitleaks, and diff checks PASS.
+
+Exact next action: retain the selector rollback posture and review the next
+direct Web write boundary only after managed parity and release gates pass.
+
 ## 2026-08-12 - M3.290 managed Supabase read-only parity and security audit
 
 Inspected the connected Supabase project `aqqrtkmtcsfkbyyqxowv` through the
