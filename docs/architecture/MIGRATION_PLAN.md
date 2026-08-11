@@ -17,7 +17,7 @@
 4. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
    or paid action changed. Keep reversal writes disabled with an empty tenant
    allowlist. Source/docs SHA:
-   `a1754bdb2aad1ecacaae79f1286893174a0a1515`.
+   `d2e8edf352be9feb39562d66a983c49565792c44`.
 
 Next: keep the selector closed and reconcile hosted parity, release identity,
 readiness, protected browser evidence, rollback, and spend gates before any

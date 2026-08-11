@@ -15,7 +15,8 @@ integration 45/45 files and 59 tests PASS with two explicit Redis-restart
 skips. API typecheck, root lint, and production build PASS. No migration,
 hosted Supabase, Storage, Railway, Vercel, credential, provider, or paid
 change occurred. Keep reversal flags/lists false/empty. Source/docs were
-pushed under `kurtgav`; the final SHA is recorded after this evidence update.
+pushed under `kurtgav`; evidence update SHA:
+`d2e8edf352be9feb39562d66a983c49565792c44`.
 
 ## 2026-08-11 - M3.249 customer invoice issuance authority canary
 
