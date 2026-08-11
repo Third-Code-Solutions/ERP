@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-362 -- Require protected HTTP evidence for customer invoice reversal (2026-08-11)
+
+Decision: use a disposable transaction-bound HTTP canary as the release gate
+for the existing `finance.issue_invoice` customer-invoice reversal command.
+Exercise real JWT identity/capability checks, strict reason/date and
+idempotency handling, tenant concealment, feature fail-closed behavior,
+cancelled invoice linkage, balanced reversal journal, semantic audit,
+replay/conflict, and rollback. Keep the reversal selector closed.
+
+Rationale: reversal unwinds official receivable/revenue evidence and must be
+exactly-once, tenant-scoped, and auditable. A unit test cannot prove that the
+PostgreSQL reversal function, immutable linkage, request ledger, and audit
+event commit together. Core owns the official transaction; Python/AI remains
+analysis-only.
+
+Validation: API typecheck and root lint passed. The guarded focused runtime
+canary was not run because disposable PostgreSQL/Redis was unavailable; WSL
+service restart timed out. No hosted/provider/paid action occurred.
+
 ## D-361 -- Require protected HTTP evidence for customer invoice issuance (2026-08-11)
 
 Decision: use a disposable transaction-bound HTTP canary as the release gate

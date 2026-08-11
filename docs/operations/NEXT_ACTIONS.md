@@ -1,12 +1,32 @@
 # Next Actions
 
+## Exact next action after M3.250 customer invoice reversal canary
+
+Keep `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED=false` and
+`ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS` empty. Restore the
+disposable PostgreSQL 17/Redis 7.4.9 lane and run
+`integration/customer-invoice-reverse.http.integration.spec.ts` with
+`DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`; the current guarded run
+was skipped and the WSL restart timed out. Do not apply hosted SQL or trigger
+Railway/Vercel builds while spend protection and the M3.248 hosted
+parity/security gate remain active. After runtime evidence, record the exact
+source/docs SHA and re-evaluate the next authority milestone.
+
+## M3.250 evidence boundary (source-only; runtime pending)
+
+The protected reversal canary source is present and statically typechecked.
+It covers auth/RBAC, strict input, disabled selector, tenant concealment,
+idempotency, cancellation, balanced reversal, audit, and rollback. Runtime
+proof is not claimed because the disposable DB/Redis lane was unavailable.
+No provider or paid action occurred.
+
 ## Exact next action after M3.249 customer invoice issuance canary
 
 Keep `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED=false` and
 `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. The reviewed
-source/docs are pushed under `kurtgav` at
-`205552c29c89b1e64b72c7c2d007764e6935bd66`; remote SHA and clean worktree were
-verified. Do not apply hosted SQL or trigger Railway/Vercel builds while
+source/docs are pushed under `kurtgav`; the final release SHA is recorded in
+the M3.250 follow-up; remote SHA and clean worktree were verified. Do not
+apply hosted SQL or trigger Railway/Vercel builds while
 spend protection and the M3.248 hosted parity/security gate remain active.
 The broad root test lane still needs a clean, non-contented rerun with the
 budget-schema selector and an explicit timeout policy before it can be called
@@ -17,9 +37,8 @@ authority canary, not a hosted cutover.
 
 The protected customer-invoice issuance canary passes 1/1 on disposable
 PostgreSQL. API integration passes 44/44 files and 58 tests; two Redis restart
-tests are explicit opt-in skips. Source/docs SHA:
-`205552c29c89b1e64b72c7c2d007764e6935bd66`. No provider or paid action
-occurred.
+tests are explicit opt-in skips. The final source/docs SHA is recorded in the
+M3.250 follow-up. No provider or paid action occurred.
 
 ## Exact next action after M3.248 managed Supabase parity/security audit
 

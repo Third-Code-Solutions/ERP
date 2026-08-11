@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.250 Customer invoice reversal authority (2026-08-11)
+
+The existing `finance.issue_invoice` Nest reversal command now has a
+rollback-only protected HTTP canary covering auth/RBAC, strict browser input,
+disabled-by-default behavior, cross-tenant concealment, idempotent replay and
+conflict, cancelled invoice linkage, balanced reversal journal, semantic
+audit, and rollback. Web adoption remains closed; keep
+`ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED=false` and its tenant
+list empty. Python/AI remains analysis-only and cannot reverse or finalize
+invoices.
+
+Validation: API typecheck PASS; root lint PASS. Focused runtime canary NOT
+RUN: local disposable PostgreSQL/Redis was unavailable and the guarded suite
+skipped without `DATABASE_URL`; a WSL restart attempt timed out. No hosted or
+paid action.
+
 ## M3.249 Customer invoice issuance authority (2026-08-11)
 
 The existing `finance.issue_invoice` Nest command now has protected
