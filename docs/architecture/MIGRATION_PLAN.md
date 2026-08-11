@@ -16,12 +16,11 @@
    budget-schema test selector; no invoice failure was observed.
 4. No schema or runtime selector changed. No hosted Supabase, Storage,
    Railway, Vercel, credential, or paid action occurred. Keep invoice issue
-   writes disabled with an empty tenant allowlist. Exact source commit will be
-   recorded after diff review and push.
+   writes disabled with an empty tenant allowlist. Source/docs commit:
+   `205552c29c89b1e64b72c7c2d007764e6935bd66`.
 
-Next: run focused source/policy gates, review the diff, commit and push under
-`kurtgav`, then verify the remote SHA and clean worktree. Do not apply hosted
-SQL or trigger provider builds.
+Next: keep the source-only branch under `kurtgav`; do not apply hosted SQL or
+trigger provider builds. Remote SHA matched and the worktree was clean.
 
 ## M3.248 Managed Supabase read-only parity/security audit (completed, no mutation)
 

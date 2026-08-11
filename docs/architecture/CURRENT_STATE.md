@@ -23,8 +23,8 @@ window. This is recorded as a validation limitation, not a change defect.
 No migration, hosted Supabase SQL/data, Storage, Railway/Vercel deployment,
 provider setting, credential, or paid action changed. Keep
 `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED=false` and
-`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. Source-only
-implementation remains pending commit/push at this milestone.
+`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. Source/docs are
+pushed at `205552c29c89b1e64b72c7c2d007764e6935bd66`.
 
 ## M3.248 Managed Supabase read-only parity/security audit (2026-08-10)
 
