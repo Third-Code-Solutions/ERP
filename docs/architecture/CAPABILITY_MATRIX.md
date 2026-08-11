@@ -1,5 +1,20 @@
 # Third Code ERP capability matrix
 
+## M3.253 Supplier Bill posting authority (2026-08-11)
+
+The existing `finance.post` Nest supplier-bill command now has protected
+transaction-bound HTTP evidence for auth/RBAC, strict browser input,
+disabled-by-default behavior, tenant-scoped bill preflight, cross-tenant
+concealment, idempotent replay/conflict, posted bill linkage, balanced journal
+posting, semantic audit, and rollback. Web adoption remains closed; keep
+`ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_ENABLED=false` and its tenant list empty.
+Python/AI remains analysis-only and cannot post or finalize supplier bills.
+
+Validation: focused canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9; API
+integration 48/48 files and 62 tests PASS with two explicit Redis-restart
+skips under `--testTimeout=15000`; API typecheck, root lint, production build,
+and provider/release policy gates PASS. No hosted or paid action.
+
 ## M3.252 Customer invoice draft-creation authority (2026-08-11)
 
 The existing `finance.issue_invoice` Nest draft-create command now has
