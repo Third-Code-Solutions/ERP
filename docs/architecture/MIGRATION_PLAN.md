@@ -1,5 +1,40 @@
 # Migration Plan
 
+## M3.266 Bank-statement storage source and Web/Core parity seam (completed source-only canary)
+
+1. Extended the shared import contract to accept exactly one bounded inline
+   base64 source or a UUID-prefixed `bank-statements` object path; added signed
+   upload request/result contracts.
+2. Added nullable `bank_statements.source_storage_path` with a tenant-shaped
+   format constraint in `20260812150000_bank_statement_storage_source.sql`.
+3. Added the server-only private Storage reader with signed URL creation,
+   timeout, streaming byte cap, and fail-closed error mapping. Core persists
+   the path and source hash only after source validation and before the single
+   draft statement transaction.
+4. Added the finance-capability Web signed-upload route with safe filenames,
+   tenant path construction, audit, and no direct ERP-table writes. The
+   existing browser form stays inline until a dedicated upload cutover.
+5. Added the exact-tenant Web/Core response adapter and terminal-error action
+   branch. A selected Core failure never falls back to the legacy Web write.
+6. Added shared/database/storage/route/action tests and a protected local
+   PostgreSQL HTTP canary covering both source forms, cross-tenant rejection,
+   persisted object path, and rollback.
+7. Root `pnpm test` exited 0: shared-types 55/55 files and 331/331 tests,
+   database 69/73 files with 241 passed and 143 environment-skipped tests, Web
+   112/112 files and 774/774 tests, and API 174/174 files and 760/760 tests.
+   Protected API integration passed 55/55 files with 69 passed and two
+   intentional Redis-restart skips. Typecheck, lint, production build,
+   database release, parity, Web/DB boundary, workflow-reference,
+   provider-spend, and actionlint gates passed. Source parity is 55/124
+   hosted/source migrations, 69 pending in 17 ordered review batches. The
+   migration was applied only to the disposable local CI database. No hosted
+   SQL/data, Storage object, Railway/Vercel deployment, provider setting,
+   credential, or paid action changed. Source evidence SHA: `2fe1e3a`.
+
+Exact next action: keep both import selectors false/empty and do not apply
+hosted SQL or trigger provider builds. Implement the browser upload cutover
+and protected browser proof as a separate milestone before changing authority.
+
 ## M3.265 Bank-statement import authority (completed source-only canary)
 
 1. Moved the pure bank-statement CSV parser into shared-types and kept the Web

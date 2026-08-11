@@ -1,5 +1,23 @@
 # Target State
 
+## M3.266 Bank-statement storage source and Web/Core parity seam (2026-08-11)
+
+The import contract supports either a bounded inline CSV or a private,
+tenant-prefixed object-storage source. Core is the only transaction authority:
+it validates the path against the authenticated tenant, downloads through a
+server-only signed URL reader capped at 2 MB, parses and balances the CSV,
+persists the source path and hash with the draft statement, and records the
+durable idempotency result and audit in one transaction. Storage credentials,
+object availability, size, and parser failures fail closed. The Web signed
+upload route never writes ERP tables and requires `finance.manage_cash`.
+
+The Web action has a typed Core adapter with terminal-error semantics and an
+exact-tenant selector. Keep both selectors closed until a separate UI/browser
+cutover proves upload, Core import, response mapping, protected access,
+rollback, and spend behavior. The current form remains the inline source
+compatibility path. Python/AI can inspect or recommend but cannot import,
+approve, or finalize ERP evidence.
+
 ## M3.265 Bank-statement import authority (2026-08-11)
 
 Core owns the fail-closed import command at

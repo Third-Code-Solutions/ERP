@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.266 bank-statement storage source and parity
+
+Keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED` and
+`ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS` false/empty, and keep
+`ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API` and its tenant list
+false/empty. Source parity is 55/124 with 69 pending migrations in 17 ordered
+review batches; managed Supabase and provider deployments remain untouched.
+The next source milestone is the browser upload cutover: exercise the signed
+upload route, Core storage import, response mapping, protected browser flow,
+rollback, and spend guard together. Only then consider a tenant canary. Do
+not apply hosted SQL or trigger Railway/Vercel builds.
+
 ## Exact next action after M3.265 bank-statement import authority
 
 Keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED=false` and
