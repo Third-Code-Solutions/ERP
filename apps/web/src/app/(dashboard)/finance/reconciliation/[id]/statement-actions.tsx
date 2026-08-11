@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
 import {
   autoMatchBankStatement,
   deleteBankStatementDraft,
@@ -61,6 +61,7 @@ export function BankStatementActions({
   const [voidReason, setVoidReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const autoMatchRetryKey = useRef<string | null>(null)
 
   const matchedCount = lines.filter(
     (line) => line.matched_cash_transaction_id
@@ -124,13 +125,20 @@ export function BankStatementActions({
             disabled={pending || unmatchedCount === 0}
             onClick={() =>
               runAction(
-                () => autoMatchBankStatement(statementId),
-                (result) =>
+                () =>
+                  autoMatchBankStatement(
+                    statementId,
+                    (autoMatchRetryKey.current ??=
+                      `auto-match-${globalThis.crypto.randomUUID()}`)
+                  ),
+                (result) => {
+                  autoMatchRetryKey.current = null
                   setNotice(
                     `${result.matchedCount ?? 0} exact matches added; ${
                       result.remainingCount ?? 0
                     } exceptions remain.`
                   )
+                }
               )
             }
           >

@@ -4543,3 +4543,19 @@ slice.
 The local browser canary now covers both register and detail reads, including
 the authenticated Core request boundary and responsive rendering. Browser
 evidence is disposable/local only and does not authorize hosted promotion.
+
+## Reconciliation auto-match authority (M3.281, 2026-08-12)
+
+Auto-match is a Nest-owned command at
+`POST /v1/finance/reconciliation/:statementId/auto-match`. The browser sends
+an empty strict body and one opaque retry key; Nest derives tenant and actor,
+rechecks `finance.manage_cash`, locks the same-tenant draft statement, claims
+the tenant-scoped idempotency request, invokes the exact-match database
+function, persists the result, and audits the operation in one transaction.
+
+The existing Web action is now a compatibility adapter. It selects Core only
+for exact `true` plus an exact UUID allowlist and fails closed after selection;
+unselected tenants retain the legacy path during migration. The browser canary
+proves the authenticated adapter boundary locally. Both API and Web selectors
+remain closed by default, and hosted promotion still requires parity,
+readiness, rollback, exact SHA, and spend-bounded approval.

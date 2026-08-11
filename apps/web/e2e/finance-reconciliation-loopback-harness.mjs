@@ -78,6 +78,7 @@ const profile = {
 
 const reconciliationRequests = []
 const reconciliationDetailRequests = []
+const reconciliationWorkflowRequests = []
 const unsupportedRequests = []
 let sql
 let webChild
@@ -293,6 +294,7 @@ authServer = createServer(async (request, response) => {
       tenantId: TENANT_ID,
       reconciliationRequests,
       reconciliationDetailRequests,
+      reconciliationWorkflowRequests,
       unsupportedRequests,
     })
   }
@@ -335,6 +337,15 @@ authServer = createServer(async (request, response) => {
 })
 
 proxyServer = createServer(async (request, response) => {
+  const requestBody =
+    request.method === 'POST'
+      ? await new Promise((resolveBody, rejectBody) => {
+          const chunks = []
+          request.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+          request.on('end', () => resolveBody(Buffer.concat(chunks)))
+          request.on('error', rejectBody)
+        })
+      : undefined
   const url = new URL(request.url ?? '/', PROXY_ORIGIN)
   if (request.method === 'GET' && url.pathname === '/v1/finance/reconciliation') {
     reconciliationRequests.push({
@@ -353,13 +364,29 @@ proxyServer = createServer(async (request, response) => {
       requestId: request.headers['x-request-id'] ?? '',
     })
   }
+  if (
+    request.method === 'POST' &&
+    /^\/v1\/finance\/reconciliation\/[^/]+\/auto-match$/.test(url.pathname)
+  ) {
+    reconciliationWorkflowRequests.push({
+      method: request.method,
+      path: url.pathname,
+      authorization: request.headers.authorization ?? '',
+      idempotencyKey: request.headers['idempotency-key'] ?? '',
+      requestId: request.headers['x-request-id'] ?? '',
+      body: requestBody?.toString('utf8') ?? '',
+    })
+  }
   try {
     const upstream = await fetch(`${API_ORIGIN}${url.pathname}${url.search}`, {
       method: request.method,
       headers: {
         authorization: request.headers.authorization ?? '',
         'x-request-id': request.headers['x-request-id'] ?? '',
+        'idempotency-key': request.headers['idempotency-key'] ?? '',
+        'content-type': request.headers['content-type'] ?? 'application/json',
       },
+      body: requestBody?.length ? requestBody : undefined,
     })
     const body = Buffer.from(await upstream.arrayBuffer())
     response.writeHead(upstream.status, {
@@ -475,6 +502,8 @@ const apiEnvironment = {
   ERP_API_CORS_ORIGINS: WEB_ORIGIN,
   ERP_FINANCE_RECONCILIATION_READS_ENABLED: 'true',
   ERP_FINANCE_RECONCILIATION_READS_TENANT_IDS: TENANT_ID,
+  ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED: 'true',
+  ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_TENANT_IDS: TENANT_ID,
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
   AI_PROVIDER_API_KEY: '',
@@ -514,6 +543,8 @@ webChild = spawn(
       ERP_CORE_API_URL: PROXY_ORIGIN,
       ERP_FINANCE_RECONCILIATION_READS_VIA_API: 'true',
       ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API: 'true',
+      ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECEIVABLES_READS_VIA_API: 'false',
       ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS: '',
       ERP_FINANCE_PAYABLES_READS_VIA_API: 'false',

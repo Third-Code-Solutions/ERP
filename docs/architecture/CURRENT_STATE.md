@@ -8559,3 +8559,24 @@ credential-gated. This is source-ready, not a hosted release.
   blocked. The test uses direct authenticated detail navigation to avoid a
   Next prefetch/fixture-cleanup race; the production route is unchanged.
 - No hosted DB, feature flag, Railway, Vercel, or provider setting changed.
+
+## 2026-08-12 M3.281 reconciliation auto-match Core write boundary
+
+- Added the closed-by-default Web selector and server-only Core adapter for
+  `POST /v1/finance/reconciliation/:statementId/auto-match`. The existing Nest
+  workflow remains authoritative for capability, tenant membership, row lock,
+  idempotency, exact counts, and audit; selected failures never invoke the
+  legacy Web database function.
+- The detail action panel now carries one opaque `auto-match-<uuid>` retry key
+  across a failed request and resets it only after success, so a lost response
+  can replay safely without silently re-running a different command.
+- Local evidence: focused Web tests 176/176, full workspace tests (shared
+  332, API 764, Web 787; database package passed), API/Web typecheck and
+  lint, API/Web production build, disposable PostgreSQL/Nest HTTP canary 1/1,
+  and authenticated loopback browser canary 1/1 passed. The browser canary
+  proved the strict `{}` POST, bearer, idempotency key, UUID request ID,
+  rendered counts, desktop/mobile overflow, zero console errors, and blocked
+  external requests. Policy/planner tests, Actionlint, Gitleaks,
+  provider-spend guard, and `git diff --check` also passed.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.

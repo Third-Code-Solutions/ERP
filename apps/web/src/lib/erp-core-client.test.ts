@@ -40,7 +40,9 @@ import {
   getFinanceCashThroughCoreApi,
   getFinanceReconciliationThroughCoreApi,
   getFinanceReconciliationDetailThroughCoreApi,
+  autoMatchBankStatementThroughCoreApi,
   createBankStatementThroughCoreApi,
+  financeReconciliationAutoMatchWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi,
   financeReconciliationStorageUploadsUseCoreApi,
   getNotificationsThroughCoreApi,
@@ -1001,6 +1003,28 @@ describe('ERP Core client', () => {
     )
   })
 
+  it('keeps bank auto-match on the legacy route unless an exact tenant gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(
+      financeReconciliationAutoMatchWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(true)
+
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(
+      financeReconciliationAutoMatchWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(false)
+    expect(financeReconciliationAutoMatchWritesUseCoreApi('not-a-uuid')).toBe(
+      false
+    )
+  })
+
   it('keeps bank storage upload closed unless both exact tenant gates match', () => {
     vi.stubEnv('ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API', 'true')
     vi.stubEnv(
@@ -1052,6 +1076,37 @@ describe('ERP Core client', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/finance/reconciliation/import',
       expect.objectContaining({ method: 'POST' })
+    )
+  })
+
+  it('maps the Core bank auto-match result without enabling a Web fallback', async () => {
+    const result = {
+      statementId: '33333333-3333-4333-8333-333333333333',
+      tenantId: RESULT.tenantId,
+      status: 'draft' as const,
+      matchedCount: 2,
+      remainingCount: 1,
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(result), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      autoMatchBankStatementThroughCoreApi(
+        result.statementId,
+        'auto-match-browser-retry-1'
+      )
+    ).resolves.toEqual({ ok: true, data: result, status: 200 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/finance/reconciliation/${result.statementId}/auto-match`,
+      expect.objectContaining({
+        method: 'POST',
+        body: '{}',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'auto-match-browser-retry-1',
+        }),
+      })
     )
   })
 
