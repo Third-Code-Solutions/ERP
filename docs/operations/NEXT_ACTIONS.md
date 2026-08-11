@@ -3,10 +3,10 @@
 ## Exact next action after M3.249 customer invoice issuance canary
 
 Keep `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED=false` and
-`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. Review the new
-HTTP canary and docs, run the focused source/policy gates, commit and push only
-the reviewed source/docs under `kurtgav`, and verify the remote SHA plus clean
-worktree. Do not apply hosted SQL or trigger Railway/Vercel builds while
+`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. The reviewed
+source/docs are pushed under `kurtgav` at
+`205552c29c89b1e64b72c7c2d007764e6935bd66`; remote SHA and clean worktree were
+verified. Do not apply hosted SQL or trigger Railway/Vercel builds while
 spend protection and the M3.248 hosted parity/security gate remain active.
 The broad root test lane still needs a clean, non-contented rerun with the
 budget-schema selector and an explicit timeout policy before it can be called
@@ -17,7 +17,9 @@ authority canary, not a hosted cutover.
 
 The protected customer-invoice issuance canary passes 1/1 on disposable
 PostgreSQL. API integration passes 44/44 files and 58 tests; two Redis restart
-tests are explicit opt-in skips. No provider or paid action occurred.
+tests are explicit opt-in skips. Source/docs SHA:
+`205552c29c89b1e64b72c7c2d007764e6935bd66`. No provider or paid action
+occurred.
 
 ## Exact next action after M3.248 managed Supabase parity/security audit
 

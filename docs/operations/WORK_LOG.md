@@ -14,8 +14,9 @@ timeouts; first local-DB attempt also exposed the existing requirement for
 `DATABASE_BUDGET_EXPECTED=1`, and a single-worker rerun exceeded the runner
 window. No invoice failure was observed. This milestone made no migration,
 hosted Supabase, Storage, Railway, Vercel, credential, or paid change. Keep
-the invoice issue selector and tenant list closed. Source-only commit/push is
-the next action.
+the invoice issue selector and tenant list closed. Source/docs were pushed at
+`205552c29c89b1e64b72c7c2d007764e6935bd66` under `kurtgav`; remote SHA and a
+clean worktree were verified.
 
 ## 2026-08-10 - M3.248 Managed Supabase read-only parity/security audit
 
