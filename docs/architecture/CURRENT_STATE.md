@@ -8585,6 +8585,32 @@ Source commit `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is pushed under
 `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
 match. No production deployment was triggered.
 
+## 2026-08-12 M3.284 reconciliation statement void Core write boundary
+
+- Added the closed-by-default Web selector and server-only adapter for
+  `POST /v1/finance/reconciliation/:statementId/void`. The existing Nest
+  workflow remains authoritative for capability, tenant membership, locking,
+  idempotency, trusted PostgreSQL transition, exact result schema, and
+  semantic audit.
+- The detail action panel now keeps one opaque void retry key across a failed
+  request and clears it only after success. Selected Core failures are
+  terminal and never invoke the legacy Web database function.
+- Local evidence: focused Web tests 186/186, API build, Web typecheck/lint,
+  API HTTP canary 1/1, and authenticated loopback browser canary 1/1 passed.
+  The browser proved reason transport, confirmation-protected voiding,
+  immutable voided rendering, desktop/mobile overflow, zero console errors,
+  and blocked external requests.
+- Full source gates passed: `pnpm test` reported shared-types 332, database
+  241 passed/143 skipped, API 764, and Web 797; `pnpm typecheck`, `pnpm lint`,
+  and `pnpm build` passed (83 Next pages). Migration/release/policy/parity,
+  web-database boundary, Actionlint, Gitleaks, provider-spend, and
+  `git diff --check` also passed. No hosted promotion is implied.
+- Source commit `c4d618545495dd0c174c4ddd9d43655cc8cdcd38` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment was triggered.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
+
 ## 2026-08-12 M3.283 reconciliation statement reconcile Core write boundary
 
 - Added the closed-by-default Web selector and server-only adapter for

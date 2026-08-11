@@ -241,7 +241,10 @@ Keep `ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED=false` and its tenant
 list empty until hosted parity, readiness, protected browser cutover,
 rollback, and spend evidence are approved. Python/AI may analyze evidence but
 cannot void, import, or finalize it. The existing Web action remains the
-compatibility path until a separate Web/Core response-parity proof.
+compatibility path until a separate Web/Core response-parity proof. The
+source-only Web adapter and browser proof now exist behind
+`ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API=false` with an empty tenant
+list by default; keep both selectors closed outside the disposable canary.
 
 ## M3.263 Bank-statement reconciliation authority (2026-08-11)
 
