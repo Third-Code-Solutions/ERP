@@ -37,7 +37,7 @@ production selectors and tenant lists remain false/empty. No hosted Supabase
 SQL/object, Vercel/Railway deployment, provider setting, credential, or paid
 action changed.
 
-Source evidence: pending source commit pin.
+Source evidence: `e0ebf23`.
 
 ## Next action
 
