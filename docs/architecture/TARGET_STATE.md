@@ -1,5 +1,20 @@
 # Target State
 
+## M3.294 Core Togal BOM commit canary (2026-08-12)
+
+The target BOM import boundary sends reviewed Togal lines from the Next
+compatibility adapter to Nest Core. Core derives tenant and role authority,
+locks the draft BOM, validates referenced records, calculates integer-centavo
+cost/TCV/GP totals, writes lines plus the idempotency ledger and semantic audit
+in one transaction, and replays an identical key without duplication.
+
+Keep `ERP_BOM_TOGAL_COMMIT_VIA_API` and
+`ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED` disabled with empty tenant lists outside
+the disposable proof. Python/AI may propose or analyze lines but cannot
+approve or finalize a BOM. Managed parity, release identity, rollback,
+authenticated smoke, and spend controls are still required before opening a
+real tenant.
+
 ## M3.293 Purchase Order uniqueness release gate (2026-08-12)
 
 The target release process fails closed when the first idempotency/uniqueness

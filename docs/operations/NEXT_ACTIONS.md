@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.294 Core Togal BOM browser canary
+
+Keep `ERP_BOM_TOGAL_COMMIT_VIA_API=false` and
+`ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS` empty; keep
+`ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED=false` and
+`ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS` empty outside disposable tests. The
+local browser proof covers exact BOM arithmetic, replay idempotency, tenant
+isolation, Core forwarding, audit, and cleanup. Do not open a real tenant,
+apply hosted SQL, or trigger Vercel/Railway builds until the managed parity
+ledger, PO duplicate owner review, readiness, rollback, authenticated smoke,
+exact release identity, and spend controls pass.
+
 ## Exact next action after M3.293 Purchase Order duplicate blocker
 
 Do not apply `20260801090000_purchase_order_create_idempotency.sql` or any

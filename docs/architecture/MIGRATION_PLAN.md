@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.294 - Core Togal BOM browser/HTTP canary (completed source-only)
+
+1. Extended the existing disposable authenticated harness with random tenant,
+   project, draft BOM, foreign BOM, BOM-line, and Togal idempotency probes.
+2. Added a Playwright config/spec and package script. The real authenticated
+   `/documents` page posts the compatibility route twice with one
+   `Idempotency-Key`; the Core proxy records bearer/request IDs/keys and the
+   route maps the typed Core result back to the legacy response shape.
+3. Asserted exact totals (2,000 cost; 2,600 TCV; 600 GP; 2,308 bps), one line,
+   one succeeded request ledger, one semantic audit, exact replay, foreign
+   BOM rejection, and zero fixture cleanup. No hosted migration or provider
+   build was run.
+4. Validation: Togal browser 1/1; notification browser 1/1; document browser
+   1/1; Web 113/802; API 176/772; focused Togal/Core 180/180; Web typecheck/
+   build; provider-spend; Web/DB boundary; gitleaks; diff check; parity
+   verifier PASS.
+
+Source evidence: local workspace; commit pending this milestone.
+
+Exact next action: retain both Togal selectors closed; do not deploy or apply
+hosted migrations while the PO duplicate owner-review gate is open.
+
 ## M3.293 - hosted migration preflight: Purchase Order duplicate blocker (completed read-only)
 
 1. Queried the connected Supabase project in read-only mode for the first

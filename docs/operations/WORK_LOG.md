@@ -1,5 +1,28 @@
 # Work Log
 
+## 2026-08-12 - M3.294 Core Togal BOM browser canary
+
+Added a disposable authenticated Togal BOM proof to the existing loopback
+harness. It seeds same-tenant and foreign draft BOMs, starts the compiled Nest
+API plus request-recording Core proxy, and exercises the real Next route. One
+commit writes one BOM line and exact totals; an identical retry replays the
+same result; the foreign BOM is rejected. The proxy captures bearer, request
+ID, and idempotency key; PostgreSQL confirms one succeeded ledger row and one
+semantic audit; cleanup removes all fixtures.
+
+Production selectors remain closed. No hosted Supabase SQL, Storage,
+Railway/Vercel deployment, credential, provider setting, or paid action
+changed.
+
+Validation: Togal browser 1/1; notification browser 1/1; document browser
+1/1; Web 113/802; API 176/772; focused Togal/Core 180/180; Web
+typecheck/build; provider-spend; Web/DB boundary; gitleaks; diff check; and
+managed-parity verifier PASS.
+
+Exact next action: keep this selector closed, keep the PO hosted migration
+blocked on owner remediation, and review the next direct Web write boundary
+only after readiness, rollback, authenticated smoke, and spend gates pass.
+
 ## 2026-08-12 - M3.293 hosted migration preflight: Purchase Order duplicate blocker
 
 Queried the connected Supabase database read-only for the first ordered
