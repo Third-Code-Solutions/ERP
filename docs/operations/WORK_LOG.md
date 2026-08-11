@@ -1,5 +1,22 @@
 # Work Log
 
+## 2026-08-11 - M3.249 customer invoice issuance authority canary
+
+Added `apps/api/integration/customer-invoice-issue.http.integration.spec.ts`.
+The rollback-only Nest HTTP canary uses real JWT identity/capability guards and
+a transaction-bound local PostgreSQL 17 client. It proves auth, strict body
+and idempotency handling, viewer denial, disabled selector, concealed
+cross-tenant access, durable replay/key conflict, posted journal balance,
+invoice state/linkage, semantic audit, and rollback. Focused canary: 1/1 PASS.
+Full API integration: 44/44 files, 58 PASS, 2 explicit Redis-restart skips.
+API typecheck: PASS. Root no-database parallel test: FAIL with nine API
+timeouts; first local-DB attempt also exposed the existing requirement for
+`DATABASE_BUDGET_EXPECTED=1`, and a single-worker rerun exceeded the runner
+window. No invoice failure was observed. This milestone made no migration,
+hosted Supabase, Storage, Railway, Vercel, credential, or paid change. Keep
+the invoice issue selector and tenant list closed. Source-only commit/push is
+the next action.
+
 ## 2026-08-10 - M3.248 Managed Supabase read-only parity/security audit
 
 Read-only Supabase connector audit of project `aqqrtkmtcsfkbyyqxowv` (`ERP`):

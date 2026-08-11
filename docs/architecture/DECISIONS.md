@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-361 -- Require protected HTTP evidence for customer invoice issuance (2026-08-11)
+
+Decision: use a disposable transaction-bound HTTP canary as the release gate
+for the existing `finance.issue_invoice` Core command. Exercise real JWT
+identity/capability checks, strict command and idempotency handling, tenant
+concealment, feature fail-closed behavior, posted journal balance, invoice
+linkage, semantic audit, replay/conflict, and rollback. Keep Web adoption and
+the invoice-issue selector closed.
+
+Rationale: issuance creates official receivable and revenue evidence. A unit
+or controller contract cannot prove that the PostgreSQL posting function,
+tenant request ledger, immutable invoice linkage, and audit event commit as
+one transaction. The canary makes those invariants executable without
+touching hosted demo data or consuming provider build budget.
+
+Validation: focused local PostgreSQL canary passed 1/1; API integration passed
+44/44 files and 58 tests with two explicit Redis-restart opt-in skips; API
+typecheck passed. The broad root parallel lane had unrelated timeout/budget
+selector limitations. No hosted/provider/paid action occurred.
+
 ## D-360 -- Treat managed Supabase parity and advisor WARNs as stop-ship (2026-08-10)
 
 Decision: keep managed Supabase read-only and all production selectors closed

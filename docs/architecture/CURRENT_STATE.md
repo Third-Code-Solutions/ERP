@@ -1,5 +1,31 @@
 # Current State
 
+## M3.249 Customer invoice issuance authority (2026-08-11)
+
+Added `apps/api/integration/customer-invoice-issue.http.integration.spec.ts`.
+The rollback-only canary boots the real Nest invoice issuance controller and
+service with JWT identity/capability guards against disposable PostgreSQL. It
+proves missing/invalid auth, strict command fields, viewer denial, closed
+feature behavior, concealed cross-tenant access, tenant-scoped idempotency
+replay and key mismatch, posted journal balance, invoice state, semantic
+audit, and outer rollback. Core remains the only authority that calls the
+posting function; no browser or Python path was changed.
+
+Focused canary passes 1/1 on local PostgreSQL 17. Full API integration passes
+44/44 files and 58 tests, with two explicit Redis-restart tests skipped because
+the restart opt-in was not set. API typecheck passes. The broad root `pnpm
+test` lane is not green in this runner: the no-database parallel run had nine
+API test timeouts (164/173 files and 743/752 tests passed), while the first
+database run required `DATABASE_BUDGET_EXPECTED=1` for the current budget
+schema; an isolated single-worker rerun exceeded the five-minute runner
+window. This is recorded as a validation limitation, not a change defect.
+
+No migration, hosted Supabase SQL/data, Storage, Railway/Vercel deployment,
+provider setting, credential, or paid action changed. Keep
+`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED=false` and
+`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. Source-only
+implementation remains pending commit/push at this milestone.
+
 ## M3.248 Managed Supabase read-only parity/security audit (2026-08-10)
 
 The connected managed project `aqqrtkmtcsfkbyyqxowv` (`ERP`) was inspected
