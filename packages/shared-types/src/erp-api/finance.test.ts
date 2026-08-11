@@ -29,6 +29,11 @@ import {
   bankStatementAutoMatchBodySchema,
   bankStatementAutoMatchCommandSchema,
   bankStatementAutoMatchResultSchema,
+  bankStatementLineMatchBodySchema,
+  bankStatementLineUnmatchBodySchema,
+  bankStatementLineMatchCommandSchema,
+  bankStatementLineUnmatchCommandSchema,
+  bankStatementLineMatchResultSchema,
 } from './finance'
 
 const JOURNAL_ID = '33333333-3333-4333-8333-333333333333'
@@ -440,6 +445,54 @@ describe('finance API contracts', () => {
         status: 'reconciled',
         matchedCount: 1,
         remainingCount: 0,
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps manual bank line match and unmatch commands strict', () => {
+    expect(
+      bankStatementLineMatchBodySchema.parse({ cashTransactionId: CASH_TRANSACTION_ID })
+    ).toEqual({ cashTransactionId: CASH_TRANSACTION_ID })
+    expect(bankStatementLineUnmatchBodySchema.parse({})).toEqual({})
+    expect(
+      bankStatementLineMatchCommandSchema.parse({
+        statementId: STATEMENT_ID,
+        lineId: INVOICE_ID,
+        cashTransactionId: CASH_TRANSACTION_ID,
+      })
+    ).toMatchObject({ statementId: STATEMENT_ID })
+    expect(
+      bankStatementLineUnmatchCommandSchema.parse({
+        statementId: STATEMENT_ID,
+        lineId: INVOICE_ID,
+      })
+    ).toEqual({ statementId: STATEMENT_ID, lineId: INVOICE_ID })
+    expect(
+      bankStatementLineMatchResultSchema.parse({
+        statementId: STATEMENT_ID,
+        lineId: INVOICE_ID,
+        tenantId: TENANT_ID,
+        status: 'matched',
+        matchedCashTransactionId: CASH_TRANSACTION_ID,
+      })
+    ).toMatchObject({ status: 'matched' })
+    expect(
+      bankStatementLineMatchResultSchema.parse({
+        statementId: STATEMENT_ID,
+        lineId: INVOICE_ID,
+        tenantId: TENANT_ID,
+        status: 'unmatched',
+        matchedCashTransactionId: null,
+      })
+    ).toMatchObject({ status: 'unmatched' })
+    expect(
+      bankStatementLineMatchBodySchema.safeParse({ tenantId: TENANT_ID }).success
+    ).toBe(false)
+    expect(
+      bankStatementLineUnmatchCommandSchema.safeParse({
+        statementId: STATEMENT_ID,
+        lineId: INVOICE_ID,
+        cashTransactionId: CASH_TRANSACTION_ID,
       }).success
     ).toBe(false)
   })

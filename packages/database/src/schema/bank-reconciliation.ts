@@ -166,6 +166,10 @@ export const bankStatementLines = pgTable(
       .defaultNow(),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex('ux_bank_statement_lines_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     statementLineIdx: uniqueIndex(
       'ux_bank_statement_lines_statement_line'
     ).on(table.bank_statement_id, table.line_number),

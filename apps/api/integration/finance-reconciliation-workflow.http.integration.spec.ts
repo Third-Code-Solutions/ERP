@@ -8,6 +8,7 @@ import { Test } from '@nestjs/testing'
 import {
   auditLog,
   bankStatementAutoMatchRequests,
+  bankStatementLineMatchRequests,
   bankStatementLines,
   bankStatements,
   db,
@@ -262,7 +263,7 @@ async function seedFixture(
   }
 }
 
-suite('Bank statement auto-match protected HTTP canary', () => {
+suite('Bank statement matching protected HTTP canary', () => {
   it('proves auth, tenant scope, idempotency, audit, and rollback', async () => {
     const suffix = randomUUID().slice(0, 12)
 
@@ -280,14 +281,22 @@ suite('Bank statement auto-match protected HTTP canary', () => {
           return userId ? { userId } : null
         }),
       }
-      const featureState = { enabled: true }
+      const featureState = { autoMatchEnabled: true, lineMatchEnabled: true }
       const config = {
         get: vi.fn((key: string, fallback?: unknown) => {
           if (key === 'ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED') {
-            return featureState.enabled
+            return featureState.autoMatchEnabled
           }
           if (
             key === 'ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_TENANT_IDS'
+          ) {
+            return [fixtureA.tenantId, fixtureB.tenantId]
+          }
+          if (key === 'ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED') {
+            return featureState.lineMatchEnabled
+          }
+          if (
+            key === 'ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_TENANT_IDS'
           ) {
             return [fixtureA.tenantId, fixtureB.tenantId]
           }
@@ -348,14 +357,14 @@ suite('Bank statement auto-match protected HTTP canary', () => {
           .send(command)
           .expect(403)
 
-        featureState.enabled = false
+        featureState.autoMatchEnabled = false
         await request(app.getHttpServer())
           .post(route)
           .set('Authorization', 'Bearer auto-match-http-finance-a-token')
           .set('Idempotency-Key', 'disabled-write')
           .send(command)
           .expect(503)
-        featureState.enabled = true
+        featureState.autoMatchEnabled = true
 
         await request(app.getHttpServer())
           .post(
@@ -365,6 +374,93 @@ suite('Bank statement auto-match protected HTTP canary', () => {
           .set('Idempotency-Key', 'cross-tenant')
           .send(command)
           .expect(404)
+
+        const lineMatchRoute = `/v1/finance/reconciliation/${fixtureA.statementId}/lines/${fixtureA.lineId}/match`
+        const lineMatchBody = {
+          cashTransactionId: fixtureA.cashTransactionId,
+        }
+        await request(app.getHttpServer())
+          .post(lineMatchRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .send(lineMatchBody)
+          .expect(400)
+        await request(app.getHttpServer())
+          .post(lineMatchRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'strict-line-body')
+          .send({ ...lineMatchBody, tenantId: fixtureA.tenantId })
+          .expect(400)
+        await request(app.getHttpServer())
+          .post(lineMatchRoute)
+          .set('Authorization', 'Bearer auto-match-http-viewer-a-token')
+          .set('Idempotency-Key', 'line-viewer-denied')
+          .send(lineMatchBody)
+          .expect(403)
+        featureState.lineMatchEnabled = false
+        await request(app.getHttpServer())
+          .post(lineMatchRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'line-disabled-write')
+          .send(lineMatchBody)
+          .expect(503)
+        featureState.lineMatchEnabled = true
+        await request(app.getHttpServer())
+          .post(
+            `/v1/finance/reconciliation/${fixtureB.statementId}/lines/${fixtureB.lineId}/match`
+          )
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'line-cross-tenant')
+          .send(lineMatchBody)
+          .expect(404)
+
+        const manualMatch = await request(app.getHttpServer())
+          .post(lineMatchRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', ' manual-match-1 ')
+          .send(lineMatchBody)
+          .expect(200)
+        expect(manualMatch.body).toEqual({
+          statementId: fixtureA.statementId,
+          lineId: fixtureA.lineId,
+          tenantId: fixtureA.tenantId,
+          status: 'matched',
+          matchedCashTransactionId: fixtureA.cashTransactionId,
+        })
+        const manualMatchReplay = await request(app.getHttpServer())
+          .post(lineMatchRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'manual-match-1')
+          .send(lineMatchBody)
+          .expect(200)
+        expect(manualMatchReplay.body).toEqual(manualMatch.body)
+
+        const lineUnmatchRoute = `/v1/finance/reconciliation/${fixtureA.statementId}/lines/${fixtureA.lineId}/unmatch`
+        await request(app.getHttpServer())
+          .post(lineUnmatchRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'manual-match-1')
+          .send({})
+          .expect(409)
+        const manualUnmatch = await request(app.getHttpServer())
+          .post(lineUnmatchRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', ' manual-unmatch-1 ')
+          .send({})
+          .expect(200)
+        expect(manualUnmatch.body).toEqual({
+          statementId: fixtureA.statementId,
+          lineId: fixtureA.lineId,
+          tenantId: fixtureA.tenantId,
+          status: 'unmatched',
+          matchedCashTransactionId: null,
+        })
+        const manualUnmatchReplay = await request(app.getHttpServer())
+          .post(lineUnmatchRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'manual-unmatch-1')
+          .send({})
+          .expect(200)
+        expect(manualUnmatchReplay.body).toEqual(manualUnmatch.body)
 
         const first = await request(app.getHttpServer())
           .post(route)
@@ -423,6 +519,26 @@ suite('Bank statement auto-match protected HTTP canary', () => {
         expect(requestRow?.state).toBe('succeeded')
         expect(requestRow?.result).toMatchObject({ matchedCount: 1 })
 
+        const [lineRequestRow] = await transaction
+          .select({
+            action: bankStatementLineMatchRequests.action,
+            state: bankStatementLineMatchRequests.state,
+            result: bankStatementLineMatchRequests.result,
+          })
+          .from(bankStatementLineMatchRequests)
+          .where(
+            and(
+              eq(bankStatementLineMatchRequests.tenant_id, fixtureA.tenantId),
+              eq(
+                bankStatementLineMatchRequests.idempotency_key,
+                'manual-unmatch-1'
+              )
+            )
+          )
+        expect(lineRequestRow?.action).toBe('unmatch')
+        expect(lineRequestRow?.state).toBe('succeeded')
+        expect(lineRequestRow?.result).toMatchObject({ status: 'unmatched' })
+
         const [audit] = await transaction
           .select({ action: auditLog.action, entityType: auditLog.entity_type })
           .from(auditLog)
@@ -432,8 +548,24 @@ suite('Bank statement auto-match protected HTTP canary', () => {
               eq(auditLog.entity_id, fixtureA.statementId),
               eq(auditLog.action, 'update')
             )
-          )
+        )
         expect(audit).toEqual({ action: 'update', entityType: 'bank_statement' })
+
+        const [lineAudit] = await transaction
+          .select({ action: auditLog.action, entityType: auditLog.entity_type })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, fixtureA.tenantId),
+              eq(auditLog.entity_id, fixtureA.lineId),
+              eq(auditLog.action, 'update'),
+              sql`${auditLog.diff}->>'operation' = 'unmatch'`
+            )
+          )
+        expect(lineAudit).toEqual({
+          action: 'update',
+          entityType: 'bank_statement_line',
+        })
       } finally {
         await app.close()
       }

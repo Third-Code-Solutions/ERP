@@ -437,6 +437,16 @@ export const bankStatementAutoMatchRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const bankStatementLineMatchActionEnum = pgEnum(
+  'bank_statement_line_match_action',
+  ['match', 'unmatch']
+)
+
+export const bankStatementLineMatchRequestStateEnum = pgEnum(
+  'bank_statement_line_match_request_state',
+  ['processing', 'succeeded']
+)
+
 export const stockReceiptStatusEnum = pgEnum('stock_receipt_status', [
   'draft',
   'posted',
