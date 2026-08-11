@@ -1,5 +1,30 @@
 # Architecture Decisions
 
+## D-374 -- Keep bank line match/unmatch Core-only and fail-closed (2026-08-11)
+
+Decision: add manual bank-statement line match and unmatch only as Nest Core
+commands. Each command re-authorizes `finance.manage_cash`, locks the
+tenant-scoped statement and line, calls the existing trusted PostgreSQL
+function, and records a durable tenant-scoped idempotency result plus
+semantic audit in one transaction. Keep the selector false with an empty
+tenant allowlist and leave the legacy Web path unchanged until Web/Core parity
+and protected browser cutover are separately proven.
+
+Rationale: matching changes sensitive financial evidence and retries must not
+duplicate or invert a line transition. A dedicated request ledger provides
+replay and action/key conflict evidence while tenant-matched foreign keys,
+force RLS, service-role-only grants, database constraints, and line/statement
+locks protect integrity. Python/AI remains advisory and cannot approve or
+finalize the transaction.
+
+Validation: local PostgreSQL rollback-only HTTP canary 1/1; shared 54/54
+files and 325/325 tests; database 66/70 files with 235 passed and 143
+environment-skipped tests; Web 111/111 files and 768/768 tests; API 173/173
+files and 754/754 tests; API integration 55/55 files with 69 passed and two
+intentional Redis-restart skips; typecheck, lint, direct builds, policy,
+parity, release, boundary, workflow, actionlint, and spend gates PASS. No
+hosted/provider/paid action occurred.
+
 ## D-373 -- Keep bank auto-match Core-only and fail-closed (2026-08-11)
 
 Decision: add only the bank-statement auto-match command in this milestone.

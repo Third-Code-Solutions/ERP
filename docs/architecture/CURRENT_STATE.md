@@ -1,5 +1,34 @@
 # Current State
 
+## M3.262 Bank-statement line match/unmatch authority (2026-08-11)
+
+Added source-only Nest Core commands at
+`POST /v1/finance/reconciliation/:statementId/lines/:lineId/match` and
+`POST /v1/finance/reconciliation/:statementId/lines/:lineId/unmatch`. Both
+accept strict bodies and an opaque idempotency key, require
+`finance.manage_cash`, re-authorize the tenant membership, lock the visible
+statement and line, call the trusted PostgreSQL match/unmatch functions, and
+persist a tenant-scoped force-RLS/service-role-only request result. A semantic
+audit event records the exact line transition in the same transaction. The
+new source migration also adds the composite tenant/line uniqueness needed for
+the tenant-matched foreign key. The selectors
+`ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED` and its tenant list are
+false/empty by default; the legacy Web manual-match path remains unchanged
+and not wired. Reconcile, void, import, browser cutover, hosted parity, and
+production release remain separate gates.
+
+Focused rollback-only HTTP canary: 1/1 PASS. Root `pnpm test` exited 0 with
+shared 54/54 files and 325/325 tests, database 66/70 files with 235 passed
+and 143 environment-skipped tests, Web 111/111 files and 768/768 tests, and
+API 173/173 files and 754/754 tests. Protected API integration: 55/55 files,
+69 passed and two intentional Redis-restart skips. Typecheck, lint, direct
+Nest/Next production builds, provider-spend, Supabase parity, database-release,
+Web/DB boundary, workflow-reference, and actionlint gates PASS. Source parity
+is 55/120 hosted/source migrations, 65 pending in 13 review batches. No
+hosted SQL/data, Storage, Railway/Vercel deployment, provider setting,
+credential, or paid action changed. Source evidence SHA:
+`271db56c6c973484877e09680eebcc99b70df950`.
+
 ## M3.261 Bank-statement auto-match command authority (2026-08-11)
 
 Added a source-only Nest Core command at

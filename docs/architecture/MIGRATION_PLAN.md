@@ -1,5 +1,40 @@
 # Migration Plan
 
+## M3.262 Bank-statement line match/unmatch authority (completed source-only canary)
+
+1. Added strict shared match/unmatch command/result schemas and fail-closed
+   environment selectors with empty tenant allowlists.
+2. Added the force-RLS/service-role-only
+   `bank_statement_line_match_requests` ledger with tenant-matched foreign
+   keys, action-target checks, durable result/replay, and idempotency conflict
+   detection. Added the composite tenant/line unique index required by the
+   tenant-preserving foreign key.
+3. Added Nest Core match and unmatch routes with capability guards, tenant
+   re-authorization, statement/line locks, trusted PostgreSQL function calls,
+   semantic audit, and strict input/header pipes. The legacy Web path remains
+   unchanged and selectors remain closed.
+4. Added the local PostgreSQL rollback-only HTTP canary covering auth/RBAC,
+   strict body/header handling, disabled selector, cross-tenant concealment,
+   match/unmatch mutations, replay and key conflict, audit, tenant isolation,
+   and rollback.
+5. Focused canary passed 1/1. Root `pnpm test` exited 0 with shared 54/54
+   files and 325/325 tests, database 66/70 files with 235 passed and 143
+   environment-skipped tests, Web 111/111 files and 768/768 tests, and API
+   173/173 files and 754/754 tests. API integration passed 55/55 files with
+   69 passed and two intentional Redis-restart skips. Typecheck, lint, direct
+   Nest/Next builds, provider-spend, parity, release, boundary, workflow,
+   and actionlint gates passed.
+6. Source parity is 55/120 hosted/source migrations, 65 pending in 13 review
+   batches. No hosted SQL/data, Storage, Railway/Vercel deployment,
+   provider setting, credential, or paid action occurred. Source SHA:
+   `271db56c6c973484877e09680eebcc99b70df950`.
+
+Next: keep line-match selectors disabled and do not apply the new migration to
+managed Supabase or trigger provider builds. Design the next reconcile/void or
+import authority only after the same local proof; then separately reconcile
+hosted parity, release identity, readiness, browser, rollback, and billing
+evidence.
+
 ## M3.261 Bank-statement auto-match authority (completed source-only canary)
 
 1. Added the strict shared command/result contract, environment selector, and
