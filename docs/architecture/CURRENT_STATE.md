@@ -1,5 +1,27 @@
 # Current State
 
+## M3.250 Customer invoice reversal authority (2026-08-11)
+
+Added `apps/api/integration/customer-invoice-reverse.http.integration.spec.ts`.
+The rollback-only canary boots the real Nest customer-invoice reversal
+controller and service with JWT identity/capability guards against a
+transaction-bound PostgreSQL client. It is designed to prove strict command
+and idempotency handling, viewer denial, disabled-by-default behavior,
+cross-tenant concealment, cancellation state, balanced reversal journal,
+semantic audit, replay/conflict, and outer rollback. Core remains the only
+authority that calls the PostgreSQL reversal function; Python/AI cannot
+reverse or finalize an invoice.
+
+Static API typecheck and root lint pass. The focused runtime canary was not
+executed: the disposable WSL PostgreSQL/Redis services were unavailable and a
+local restart attempt timed out; without `DATABASE_URL` Vitest correctly
+skipped the guarded suite. This is an explicit verification limitation, not
+runtime evidence. No schema, hosted Supabase SQL/data, Storage,
+Railway/Vercel deployment, provider setting, credential, or paid action
+changed. Keep
+`ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED=false` and
+`ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS` empty.
+
 ## M3.249 Customer invoice issuance authority (2026-08-11)
 
 Added `apps/api/integration/customer-invoice-issue.http.integration.spec.ts`.
@@ -23,8 +45,9 @@ window. This is recorded as a validation limitation, not a change defect.
 No migration, hosted Supabase SQL/data, Storage, Railway/Vercel deployment,
 provider setting, credential, or paid action changed. Keep
 `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED=false` and
-`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. Source/docs are
-pushed at `205552c29c89b1e64b72c7c2d007764e6935bd66`.
+`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. Source/docs were
+pushed under `kurtgav`; the final release SHA is recorded in the M3.250
+changeset follow-up.
 
 ## M3.248 Managed Supabase read-only parity/security audit (2026-08-10)
 

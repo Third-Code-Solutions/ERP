@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.250 Customer invoice reversal authority (source-only, runtime pending)
+
+1. Added a protected rollback-only HTTP canary around the existing Core
+   customer-invoice reversal controller/service with real JWT identity and
+   capability guards, two tenants, finance/viewer roles, an issued invoice,
+   and transaction-bound PostgreSQL.
+2. The canary covers strict body/header handling, auth/RBAC, disabled selector,
+   concealed cross-tenant access, invalid reason, idempotent replay and key
+   conflict, cancelled invoice linkage, balanced posted reversal journal,
+   semantic audit, tenant isolation, and outer rollback.
+3. API typecheck and root lint pass. Runtime was not run because the local
+   disposable PostgreSQL/Redis lane was unavailable; the guarded Vitest suite
+   skipped without `DATABASE_URL`, and a WSL service restart timed out. Do not
+   treat this source evidence as a passed release canary.
+4. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
+   or paid action changed. Keep reversal writes disabled with an empty tenant
+   allowlist. The final source/docs SHA is recorded after the push.
+
+Next: restore the disposable PostgreSQL/Redis lane and run the focused
+reversal canary before any selector, hosted SQL, or provider action.
+
 ## M3.249 Customer invoice issuance authority (completed source-only canary)
 
 1. Added a protected HTTP canary around the existing customer-invoice issue
@@ -17,7 +38,7 @@
 4. No schema or runtime selector changed. No hosted Supabase, Storage,
    Railway, Vercel, credential, or paid action occurred. Keep invoice issue
    writes disabled with an empty tenant allowlist. Source/docs commit:
-   `205552c29c89b1e64b72c7c2d007764e6935bd66`.
+   final release SHA recorded in the M3.250 follow-up documentation.
 
 Next: keep the source-only branch under `kurtgav`; do not apply hosted SQL or
 trigger provider builds. Remote SHA matched and the worktree was clean.

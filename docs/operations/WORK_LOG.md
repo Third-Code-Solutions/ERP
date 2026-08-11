@@ -1,5 +1,22 @@
 # Work Log
 
+## 2026-08-11 - M3.250 customer invoice reversal authority canary
+
+Added `apps/api/integration/customer-invoice-reverse.http.integration.spec.ts`.
+The rollback-only Nest HTTP canary uses real JWT identity/capability guards,
+two tenants, finance/viewer roles, an issued invoice, and transaction-bound
+PostgreSQL. It covers auth, strict body and idempotency handling, viewer
+denial, disabled selector, concealed cross-tenant access, invalid reason,
+durable replay/key conflict, cancelled invoice linkage, balanced reversal
+journal, semantic audit, tenant isolation, and rollback.
+
+API typecheck PASS; root lint PASS. Focused runtime: NOT RUN. `DATABASE_URL`
+was unavailable, so Vitest skipped the guarded suite; a non-destructive WSL
+PostgreSQL/Redis restart attempt timed out. No migration, hosted Supabase,
+Storage, Railway, Vercel, credential, provider, or paid change occurred.
+Keep reversal flags/lists false/empty. Source/docs push and final SHA are
+recorded in the M3.250 changeset follow-up.
+
 ## 2026-08-11 - M3.249 customer invoice issuance authority canary
 
 Added `apps/api/integration/customer-invoice-issue.http.integration.spec.ts`.
@@ -14,9 +31,9 @@ timeouts; first local-DB attempt also exposed the existing requirement for
 `DATABASE_BUDGET_EXPECTED=1`, and a single-worker rerun exceeded the runner
 window. No invoice failure was observed. This milestone made no migration,
 hosted Supabase, Storage, Railway, Vercel, credential, or paid change. Keep
-the invoice issue selector and tenant list closed. Source/docs were pushed at
-`205552c29c89b1e64b72c7c2d007764e6935bd66` under `kurtgav`; remote SHA and a
-clean worktree were verified.
+the invoice issue selector and tenant list closed. Source/docs were pushed
+under `kurtgav`; the final release SHA is recorded in the M3.250 changeset
+follow-up; remote SHA and a clean worktree were verified.
 
 ## 2026-08-10 - M3.248 Managed Supabase read-only parity/security audit
 

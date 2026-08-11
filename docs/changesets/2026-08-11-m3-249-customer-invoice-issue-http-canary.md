@@ -26,8 +26,9 @@ capability guards, the Core service, and a rollback-only database transaction.
 - no hosted Supabase SQL/data, Storage, Railway/Vercel deployment, provider
   setting, credential, or paid action.
 
-Source/docs commit: `205552c29c89b1e64b72c7c2d007764e6935bd66` (pushed under
-`kurtgav`; remote SHA matched and the worktree was clean).
+Implementation commit: `205552c29c89b1e64b72c7c2d007764e6935bd66`.
+Follow-up documentation commit: `3d8bf10756bdf7fed78dac2898e64eb31637521b`
+(pushed under `kurtgav`; remote SHA matched and the worktree was clean).
 
 ## Release boundary
 
