@@ -20,7 +20,7 @@
 Production selectors and tenant lists remain false/empty. No hosted SQL,
 provider setting, credential, or deployment changed.
 
-Source evidence: pending source commit pin.
+Source evidence: `b515034`.
 
 Exact next action: keep the payables selectors closed; require hosted/source
 parity, readiness, exact release identity, authenticated production smoke,

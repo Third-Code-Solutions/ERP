@@ -17,7 +17,7 @@ typecheck, lint, production build, provider-spend, Web/DB boundary, workflow,
 actionlint, gitleaks, database-release, and managed-parity-plan gates pass.
 Selectors remain false/empty outside the disposable harness. No hosted SQL,
 Supabase object, Vercel/Railway deployment, provider setting, credential, or
-paid action changed. Source evidence is the pending M3.275 source commit.
+paid action changed. Source evidence: `b515034`.
 
 Exact next action: keep the payables selectors closed and require
 hosted/source parity, readiness, exact release identity, authenticated

@@ -35,7 +35,7 @@ payables selectors remain false/empty outside the harness. No hosted Supabase
 SQL/object, Vercel/Railway deployment, provider setting, credential, or paid
 action changed.
 
-Source evidence: pending source commit pin.
+Source evidence: `b515034`.
 
 ## Next action
 
