@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.260 Repository test baseline repair (completed source-only)
+
+1. Reproduced the repository-wide failure in
+   `customer-invoice-draft-create.service.spec.ts` and the focused spec.
+2. Confirmed the failure was a stale mock sequence: the service locks the
+   tenant-scoped project before claiming idempotency, but the replay fixture
+   supplied only membership and request rows.
+3. Added the project-lock result to the fixture; no service, schema, API, or
+   production behavior changed.
+4. Focused spec passed 3/3; root tests passed 173/173 files and 752/752 tests.
+   API integration passed 54/54 files and 68 tests with two explicit
+   Redis-restart skips; typecheck, lint, build, and policy gates passed.
+5. No hosted Supabase, Storage, Railway, Vercel, credential, provider, or
+   paid action changed. Source evidence SHA:
+   `4abbf75baa9dbbf019b38b3b0bc5678c933f367f`.
+
+Next: proceed to the next source-only bank-reconciliation command boundary;
+keep all hosted/provider selectors closed until parity, readiness, protected
+browser, rollback, and spend evidence are separately reconciled.
+
 ## M3.259 Bank reconciliation read authority (completed source-only canary)
 
 1. Added `apps/api/integration/finance-reconciliation.http.integration.spec.ts`

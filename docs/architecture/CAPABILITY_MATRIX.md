@@ -1,5 +1,16 @@
 # Third Code ERP capability matrix
 
+## M3.260 Repository test baseline repair (2026-08-11)
+
+The customer-invoice draft capability retains the same Core authority,
+tenant-scoped project lock, idempotency claim, and finance authorization. Only
+the replay fixture was corrected to provide the project-lock result before the
+request claim; no capability or production behavior changed.
+
+Validation: focused spec 3/3; root tests 173/173 files and 752/752 tests;
+API integration 54/54 files and 68 tests with two explicit Redis-restart
+skips; typecheck, lint, build, and policy gates PASS. No hosted or paid action.
+
 ## M3.259 Bank reconciliation read authority (2026-08-11)
 
 The existing `finance.read` Nest projection now has protected transaction-bound

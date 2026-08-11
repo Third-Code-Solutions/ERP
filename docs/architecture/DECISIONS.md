@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-372 -- Keep test fixtures aligned with Core transaction ordering (2026-08-11)
+
+Decision: unit fixtures for Core finance commands must model every
+tenant-scoped lock/query that occurs before idempotency claim. Repair the
+customer-invoice-draft replay fixture by supplying the locked project result;
+do not reorder production code or relax authorization to satisfy a stale mock.
+
+Rationale: a passing replay test must prove the actual transaction boundary,
+including membership authorization and project locking, before request-ledger
+claim. Keeping the test sequence faithful protects tenant isolation and
+prevents future service changes from being hidden by incomplete mocks.
+
+Validation: focused invoice-draft spec 3/3; root tests 173/173 files and
+752/752 tests; API integration 54/54 files and 68 tests with two explicit
+Redis-restart skips; typecheck, lint, build, and policy gates PASS. No
+hosted/provider/paid action occurred.
+
 ## D-371 -- Require protected HTTP evidence for reconciliation reads (2026-08-11)
 
 Decision: keep `GET /v1/finance/reconciliation` as a Core-owned, read-only

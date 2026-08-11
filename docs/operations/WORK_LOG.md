@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-08-11 - M3.260 invoice-draft test baseline repair
+
+Reproduced the repository-wide invoice-draft replay failure. The service
+locks the tenant-scoped project before idempotency claim; the unit fixture
+omitted that select result, so the third `select().from()` crashed. Added the
+project result to the mock sequence only; production code and database schema
+remain unchanged.
+
+Focused spec 3/3 and root tests 173/173 files / 752/752 tests PASS. API
+integration 54/54 files and 68 tests PASS with two explicit Redis-restart
+skips. Typecheck, lint, production build, provider-spend, parity, release,
+Web/DB boundary, workflow references, and actionlint PASS. No hosted Supabase,
+Storage, Railway/Vercel, credential, provider, or paid change occurred.
+Source evidence SHA: `4abbf75baa9dbbf019b38b3b0bc5678c933f367f`.
+
 ## 2026-08-11 - M3.259 bank reconciliation read authority canary
 
 Added `apps/api/integration/finance-reconciliation.http.integration.spec.ts`.
