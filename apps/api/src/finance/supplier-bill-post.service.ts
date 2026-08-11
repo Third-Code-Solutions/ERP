@@ -137,18 +137,6 @@ export class SupplierBillPostService {
         transaction,
         principal
       )
-      await this.audit.stampActor(transaction, authorizedPrincipal)
-      const request = await this.claimRequest(
-        transaction,
-        authorizedPrincipal,
-        supplierBillId,
-        idempotencyKey,
-        requestHash
-      )
-      if (request.state === 'succeeded') {
-        return replayResult(request.result)
-      }
-
       const [bill] = await transaction
         .select({
           id: supplierBills.id,
@@ -165,6 +153,18 @@ export class SupplierBillPostService {
         .limit(1)
         .for('update')
       if (!bill) throw new NotFoundException('Supplier bill not found')
+
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+      const request = await this.claimRequest(
+        transaction,
+        authorizedPrincipal,
+        supplierBillId,
+        idempotencyKey,
+        requestHash
+      )
+      if (request.state === 'succeeded') {
+        return replayResult(request.result)
+      }
 
       let rows: Array<{
         journal_entry_id: string
