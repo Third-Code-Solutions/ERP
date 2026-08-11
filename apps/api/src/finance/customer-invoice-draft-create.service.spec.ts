@@ -124,6 +124,12 @@ describe('CustomerInvoiceDraftCreateService', () => {
       state: 'succeeded' as const,
       result,
     }
+    const project = selectQuery([
+      {
+        id: PROJECT_ID,
+        accountId: '66666666-6666-4666-8666-666666666666',
+      },
+    ])
     const requestQuery = selectQuery([request])
     const insertValues = vi.fn().mockImplementation((values) => {
       request.requestHash = values.request_hash
@@ -133,6 +139,7 @@ describe('CustomerInvoiceDraftCreateService', () => {
       select: vi
         .fn()
         .mockReturnValueOnce({ from: membership.from })
+        .mockReturnValueOnce({ from: project.from })
         .mockReturnValueOnce({ from: requestQuery.from }),
       insert: vi.fn().mockReturnValue({ values: insertValues }),
     }
