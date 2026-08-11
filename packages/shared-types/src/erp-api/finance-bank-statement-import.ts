@@ -115,6 +115,19 @@ export const bankStatementImportUploadSignResultSchema = z
   })
   .strict()
 
+/** Server-authorized cleanup request for an abandoned signed source upload. */
+export const bankStatementImportStorageCleanupBodySchema = z
+  .object({
+    storagePath: sourceStoragePath,
+  })
+  .strict()
+
+export const bankStatementImportStorageCleanupResultSchema = z
+  .object({
+    ok: z.literal(true),
+  })
+  .strict()
+
 export type BankStatementImportBody = z.infer<
   typeof bankStatementImportBodySchema
 >
@@ -129,4 +142,10 @@ export type BankStatementImportUploadSignBody = z.infer<
 >
 export type BankStatementImportUploadSignResult = z.infer<
   typeof bankStatementImportUploadSignResultSchema
+>
+export type BankStatementImportStorageCleanupBody = z.infer<
+  typeof bankStatementImportStorageCleanupBodySchema
+>
+export type BankStatementImportStorageCleanupResult = z.infer<
+  typeof bankStatementImportStorageCleanupResultSchema
 >

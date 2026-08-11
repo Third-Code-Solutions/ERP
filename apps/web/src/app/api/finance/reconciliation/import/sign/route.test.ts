@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   writeAuditLog: vi.fn(),
   storageUploadsEnabled: vi.fn(),
+  storageUploadsViaCore: vi.fn(),
+  signStorageThroughCore: vi.fn(),
+  cleanupStorageThroughCore: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -28,6 +31,9 @@ vi.mock('@third-code-erp/database', () => ({
 vi.mock('@/lib/audit', () => ({ writeAuditLog: mocks.writeAuditLog }))
 vi.mock('@/lib/erp-core-client', () => ({
   financeReconciliationStorageUploadsUseCoreApi: mocks.storageUploadsEnabled,
+  financeReconciliationStorageUploadsViaCoreApi: mocks.storageUploadsViaCore,
+  signBankStatementStorageThroughCoreApi: mocks.signStorageThroughCore,
+  cleanupBankStatementStorageThroughCoreApi: mocks.cleanupStorageThroughCore,
 }))
 
 import { DELETE, POST } from './route'
@@ -41,6 +47,7 @@ describe('bank statement signed upload route', () => {
     mocks.getUser.mockResolvedValue({ id: USER_ID })
     mocks.can.mockReturnValue(true)
     mocks.storageUploadsEnabled.mockReturnValue(true)
+    mocks.storageUploadsViaCore.mockReturnValue(false)
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })
     mocks.where.mockResolvedValue([{ tenant_id: TENANT_ID, role: 'finance' }])
@@ -116,6 +123,33 @@ describe('bank statement signed upload route', () => {
     )
   })
 
+  it('delegates signing to Core without falling back when the separate Core gate is selected', async () => {
+    mocks.storageUploadsEnabled.mockReturnValue(false)
+    mocks.storageUploadsViaCore.mockReturnValue(true)
+    mocks.signStorageThroughCore.mockResolvedValue({
+      ok: true,
+      data: {
+        signedUrl: 'https://storage.example.test/core-upload',
+        token: 'core-token',
+        storagePath: `${TENANT_ID}/bank-statements/core.csv`,
+        originalFileName: 'core.csv',
+      },
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/finance/reconciliation/import/sign', {
+        method: 'POST',
+        body: JSON.stringify({ fileName: 'core.csv', sizeBytes: 90 }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ token: 'core-token' })
+    expect(mocks.signStorageThroughCore).toHaveBeenCalledOnce()
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
+  })
+
   it('rejects oversize or non-CSV sources before Storage work', async () => {
     for (const body of [
       { fileName: 'statement.pdf', sizeBytes: 1_024 },
@@ -158,6 +192,26 @@ describe('bank statement signed upload route', () => {
     expect(mocks.writeAuditLog.mock.invocationCallOrder[0]!).toBeLessThan(
       mocks.remove.mock.invocationCallOrder[0]!
     )
+  })
+
+  it('delegates cleanup to Core without falling back when selected', async () => {
+    mocks.storageUploadsViaCore.mockReturnValue(true)
+    mocks.cleanupStorageThroughCore.mockResolvedValue({
+      ok: true,
+      data: { ok: true },
+    })
+    const storagePath = `${TENANT_ID}/bank-statements/core-failed.csv`
+    const response = await DELETE(
+      new NextRequest('http://localhost/api/finance/reconciliation/import/sign', {
+        method: 'DELETE',
+        body: JSON.stringify({ storagePath }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.cleanupStorageThroughCore).toHaveBeenCalledWith({ storagePath })
+    expect(mocks.remove).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
   it('rejects cross-tenant cleanup before Storage work', async () => {

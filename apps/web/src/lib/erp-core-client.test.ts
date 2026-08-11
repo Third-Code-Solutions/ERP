@@ -46,12 +46,15 @@ import {
   voidBankStatementThroughCoreApi,
   unmatchBankStatementLineThroughCoreApi,
   createBankStatementThroughCoreApi,
+  signBankStatementStorageThroughCoreApi,
+  cleanupBankStatementStorageThroughCoreApi,
   financeReconciliationAutoMatchWritesUseCoreApi,
   financeReconciliationLineMatchWritesUseCoreApi,
   financeReconciliationReconcileWritesUseCoreApi,
   financeReconciliationVoidWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi,
   financeReconciliationStorageUploadsUseCoreApi,
+  financeReconciliationStorageUploadsViaCoreApi,
   getNotificationsThroughCoreApi,
   markNotificationReadStateThroughCoreApi,
   processDocuSealWebhookThroughCoreApi,
@@ -1116,6 +1119,27 @@ describe('ERP Core client', () => {
     )
   })
 
+  it('keeps bank Storage signing on Web unless its separate exact Core gate matches', () => {
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API',
+      'true'
+    )
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(
+      financeReconciliationStorageUploadsViaCoreApi(RESULT.tenantId)
+    ).toBe(true)
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(
+      financeReconciliationStorageUploadsViaCoreApi(RESULT.tenantId)
+    ).toBe(false)
+  })
+
   it('maps the Core bank import result without enabling a Web fallback', async () => {
     const result = {
       statementId: '33333333-3333-4333-8333-333333333333',
@@ -1147,6 +1171,60 @@ describe('ERP Core client', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/finance/reconciliation/import',
       expect.objectContaining({ method: 'POST' })
+    )
+  })
+
+  it('maps Core bank Storage signing and preserves the signed source contract', async () => {
+    const result = {
+      signedUrl: 'https://storage.example.test/upload?token=signed',
+      token: 'signed-token',
+      storagePath: `${RESULT.tenantId}/bank-statements/upload.csv`,
+      originalFileName: 'upload.csv',
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(result), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      signBankStatementStorageThroughCoreApi({
+        fileName: 'upload.csv',
+        mimeType: 'text/csv',
+        sizeBytes: 120,
+      })
+    ).resolves.toEqual({ ok: true, data: result, status: 200 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/finance/reconciliation/import/storage/sign',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          fileName: 'upload.csv',
+          mimeType: 'text/csv',
+          sizeBytes: 120,
+        }),
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('maps Core bank Storage cleanup as a terminal operation', async () => {
+    const storagePath = `${RESULT.tenantId}/bank-statements/abandoned.csv`
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      cleanupBankStatementStorageThroughCoreApi({ storagePath })
+    ).resolves.toEqual({ ok: true, data: { ok: true }, status: 200 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/finance/reconciliation/import/storage',
+      expect.objectContaining({
+        method: 'DELETE',
+        body: JSON.stringify({ storagePath }),
+      })
     )
   })
 
