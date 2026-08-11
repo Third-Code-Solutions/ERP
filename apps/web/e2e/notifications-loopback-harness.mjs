@@ -19,6 +19,7 @@ const DATABASE_URL =
   'postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci'
 const USER_ID = randomUUID()
 const TENANT_ID = randomUUID()
+const PROJECT_ID = randomUUID()
 const FOREIGN_TENANT_ID = randomUUID()
 const FOREIGN_USER_ID = randomUUID()
 const FOREIGN_NOTIFICATION_ID = randomUUID()
@@ -137,6 +138,13 @@ async function seedDatabase() {
     values (${USER_ID}, ${TENANT_ID}, ${user.email}, ${profile.full_name}, 'admin')
   `
   await sql`
+    insert into projects(id, tenant_id, name, client, status, created_by)
+    values (
+      ${PROJECT_ID}, ${TENANT_ID}, 'Local document intake project',
+      'Local document intake client', 'lead', ${USER_ID}
+    )
+  `
+  await sql`
     insert into notifications(
       id, tenant_id, recipient_user_id, channel, subject, body, link_url,
       is_read, created_at
@@ -197,7 +205,8 @@ const authServer = createServer(async (request, response) => {
     })
   }
   if (url.pathname === '/__harness__/state') {
-    const [notifications, foreign, auditEntries] = await Promise.all([
+    const [notifications, foreign, documents, intakeRequests, auditEntries] =
+      await Promise.all([
       sql`
         select id, subject, is_read, read_at::text
         from notifications
@@ -210,17 +219,32 @@ const authServer = createServer(async (request, response) => {
         where id = ${FOREIGN_NOTIFICATION_ID}
       `,
       sql`
+        select id, file_name, storage_path, document_type, size_bytes::int as size_bytes
+        from documents
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
+        select id, project_id, idempotency_key, request_hash, state, result
+        from document_intake_requests
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
         select entity_type, entity_id, action, diff
         from audit_log
         where tenant_id = ${TENANT_ID}
         order by id asc
       `,
-    ])
+      ])
     return json(response, 200, {
       tenantId: TENANT_ID,
       userId: USER_ID,
+      projectId: PROJECT_ID,
       notifications,
       foreignNotificationIsRead: foreign[0]?.is_read ?? null,
+      documents,
+      intakeRequests,
       coreRequests,
       auditEntries,
     })
@@ -265,7 +289,10 @@ const authServer = createServer(async (request, response) => {
 proxyServer = createServer(async (request, response) => {
   const body = await requestBody(request)
   const url = new URL(request.url ?? '/', PROXY_ORIGIN)
-  if (url.pathname === '/v1/notifications') {
+  if (
+    url.pathname === '/v1/notifications' ||
+    url.pathname === '/v1/documents'
+  ) {
     coreRequests.push({
       method: request.method ?? 'GET',
       path: url.pathname,
@@ -281,6 +308,7 @@ proxyServer = createServer(async (request, response) => {
       headers: {
         authorization: request.headers.authorization ?? '',
         'x-request-id': request.headers['x-request-id'] ?? '',
+        'idempotency-key': request.headers['idempotency-key'] ?? '',
         'content-type': request.headers['content-type'] ?? 'application/json',
         accept: request.headers.accept ?? 'application/json',
       },
@@ -370,6 +398,8 @@ const apiEnvironment = {
   ERP_API_CORS_ORIGINS: WEB_ORIGIN,
   ERP_NOTIFICATION_READ_STATE_ENABLED: 'true',
   ERP_NOTIFICATION_READ_STATE_TENANT_IDS: TENANT_ID,
+  ERP_DOCUMENT_INTAKE_WRITES_ENABLED: 'true',
+  ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS: TENANT_ID,
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
   AI_PROVIDER_API_KEY: '',
@@ -410,6 +440,8 @@ webChild = spawn(
       ERP_CORE_API_URL: PROXY_ORIGIN,
       ERP_NOTIFICATION_READ_STATE_VIA_API: 'true',
       ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_DOCUMENT_INTAKE_WRITES_VIA_API: 'true',
+      ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       AI_WORKER_URL: '',
       AI_WORKER_SHARED_SECRET: '',
       AI_WORKER_TIMEOUT_MS: '',

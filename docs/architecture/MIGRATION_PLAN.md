@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.292 - Core document-intake browser/HTTP canary (completed source-only)
+
+1. Extended the disposable Core browser harness with a tenant/project fixture,
+   document and idempotency state probes, Core request recording, and the
+   document-intake feature selectors. The selectors are enabled only for the
+   random fixture tenant.
+2. Exercised the real authenticated `/documents` page and Web
+   `/api/upload/complete` route for a non-extractor text file. Asserted
+   canonical response mapping, bearer/request-id/`Idempotency-Key` forwarding,
+   one document row across two retries, one succeeded request ledger, semantic
+   audit, foreign-path 403 before Core, and cleanup.
+3. Kept CAD, PDF, image, spreadsheet, CSV, and DOCX extractor paths outside
+   this canary; no Storage object or hosted migration was touched.
+4. Validation: document browser 1/1, notification browser 1/1, focused
+   upload/Core tests 187/187, Web typecheck/build, API build, provider-spend,
+   Web/DB boundary, gitleaks, and diff checks PASS.
+
+Source evidence: local workspace; commit pending this milestone.
+
+Exact next action: review extractor/Storage response parity in a separate
+   bounded canary; keep the document selector closed and do not deploy.
+
 ## M3.291 - Core notifications browser canary and mobile shell hardening (completed source-only)
 
 1. Added a dedicated Playwright config, script, TypeScript spec, and loopback

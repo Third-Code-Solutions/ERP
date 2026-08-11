@@ -1,5 +1,25 @@
 # Current State
 
+## M3.292 Core document-intake browser/HTTP canary (2026-08-12)
+
+The disposable authenticated loopback harness now proves the non-extractor
+`/api/upload/complete` branch through Nest Core. A tenant/project-scoped
+`notes.txt` command records one canonical `documents` row and one succeeded
+idempotency ledger row across two identical retries; the second response is a
+replay, not a duplicate. A foreign tenant-prefixed path is rejected before a
+Core request. Bearer, request IDs, and `Idempotency-Key` forwarding are
+recorded; semantic document audit is present; cleanup leaves no fixture rows.
+
+Production document selectors remain false/empty. No hosted SQL, Storage
+object/policy, Vercel/Railway deployment, provider setting, credential, or paid
+action changed. Validation: document canary 1/1, notification canary 1/1,
+upload/Core focused tests 187/187, Web typecheck/build, API build,
+provider-spend, Web/DB boundary, gitleaks, and diff checks pass.
+
+Exact next action: keep document intake closed outside disposable proof and
+review extractor/Storage parity separately; do not open CAD/AI formats or
+apply hosted migrations until readiness, rollback, audit, and spend gates pass.
+
 ## M3.291 Core notifications browser canary and mobile shell hardening (2026-08-12)
 
 The real authenticated Settings page now has a disposable browser proof for
