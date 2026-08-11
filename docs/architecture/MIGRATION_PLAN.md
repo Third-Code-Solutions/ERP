@@ -18,6 +18,8 @@
 Production selectors and tenant lists remain false/empty. No hosted SQL,
 provider setting, credential, or deployment changed.
 
+Source evidence: `fea91dc`.
+
 Exact next action: keep payables selectors closed; prove the real Web
 `/finance/payables` browser branch with a disposable authenticated tenant,
 then run hosted parity, readiness, release identity, rollback, and spend
