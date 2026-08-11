@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-395 -- Move bank-statement Storage sign/cleanup authority into Core (2026-08-12)
+
+Decision: implement original Nest sign and cleanup endpoints for bank-statement
+Storage and keep them disabled by default behind exact API and Web selectors.
+Next delegates to Core only for an exact selected tenant and treats Core errors
+as terminal; the existing direct Web Storage route remains the compatibility
+path until a browser canary and managed parity review pass.
+
+Rationale: Storage source evidence is a sensitive tenant-scoped operation. The
+same Core boundary must own capability checks, tenant-prefix validation,
+server-only service-role use, and semantic audit writes before a later Core
+import command can treat the object as authoritative input. A separate selector
+preserves rollback and the current local browser harness without changing the
+public route contract or triggering hosted builds.
+
+Validation: focused Web 185, API 111, shared-types 4; full Web 113/802,
+API 176/772, shared-types 55/332, typecheck, lint, local production builds,
+provider-spend, Web/DB boundary, actionlint, gitleaks, and diff checks pass.
+Source commit `42dbfbf`; no hosted mutation or paid provider action.
+
 ## D-394 -- Run the public landing proof on a disposable local server (2026-08-12)
 
 Decision: add a dedicated Playwright configuration and package command for the

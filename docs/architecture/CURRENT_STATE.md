@@ -1,5 +1,28 @@
 # Current State
 
+## M3.288 Core bank-statement Storage authority seam (2026-08-12)
+
+Nest Core now owns the closed-by-default bank-statement Storage sign/cleanup
+authority. `POST /v1/finance/reconciliation/import/storage/sign` and
+`DELETE /v1/finance/reconciliation/import/storage` validate shared contracts,
+recheck `finance.manage_cash`, enforce exact tenant-prefixed paths, use the
+server-only Supabase service role, and write semantic audit rows. Next keeps
+the existing direct Web path as the default and delegates only when the
+separate exact-tenant `*_VIA_API` selector is enabled; Core failures are
+terminal and never fall back to Web Storage writes.
+
+Focused Web 185, API 111, shared-types 4; full Web 113/802, API 176/772,
+shared-types 55/332, typecheck, lint, local Web/API production builds,
+provider-spend, Web/DB boundary, actionlint, gitleaks, and diff checks pass.
+All selectors remain false/empty. No hosted SQL, Storage object/policy,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Source evidence: `42dbfbf`.
+
+Exact next action: add the disposable authenticated browser proof for the
+Core sign/cleanup branch, then review managed Storage RLS/key/readiness parity,
+release identity, rollback, authenticated smoke, and spend controls before a
+tenant canary. Keep production selectors closed.
+
 ## M3.278 Protected bank-reconciliation Web/Core browser canary (2026-08-11)
 
 The real Next `/finance/reconciliation` page now has a repeatable local browser
