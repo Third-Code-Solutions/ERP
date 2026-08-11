@@ -8604,8 +8604,10 @@ match. No production deployment was triggered.
   241 passed/143 skipped, API 764, and Web 794; `pnpm typecheck`, `pnpm lint`,
   and `pnpm build` passed (83 Next pages). Migration/release/policy/parity,
   web-database boundary, Actionlint, Gitleaks, provider-spend, and
-  `git diff --check` also passed. Source/docs push is pending this evidence
-  update; no hosted promotion is implied.
+  `git diff --check` also passed. No hosted promotion is implied.
+- Source/docs commit `2e6ca43972b0b5900e471b0d847c0608491d8ac9` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment was triggered.
 - Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
   credentials, and billing state remain unchanged.
 
