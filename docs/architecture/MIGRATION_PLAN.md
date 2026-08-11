@@ -22,7 +22,7 @@
 Production selectors and tenant lists remain false/empty. No hosted SQL,
 provider setting, credential, or deployment changed.
 
-Source evidence: `6092fa5`.
+Source evidence: `6092fa5`; fixture-scope hardening: `9e498d5`.
 
 Exact next action: keep reconciliation selectors closed; require hosted/source
 parity, readiness, release identity, authenticated production smoke, rollback,
