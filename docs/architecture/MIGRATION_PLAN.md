@@ -15,7 +15,8 @@
    passed.
 4. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
    or paid action changed. Keep cancellation writes disabled with an empty
-   tenant allowlist. Source/docs evidence SHA is recorded after push.
+   tenant allowlist. Source/docs evidence SHA:
+   `7459cb8d70e50851d82f7562bdc6fb1ac6bd51a5`.
 
 Next: keep the selector closed and reconcile hosted parity, release identity,
 readiness, protected browser evidence, rollback, and spend gates before any

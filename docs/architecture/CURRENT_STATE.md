@@ -19,7 +19,8 @@ root lint, and production build pass. No schema, hosted Supabase SQL/data,
 Storage, Railway/Vercel deployment, provider setting, credential, or paid
 action changed. Keep
 `ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_ENABLED=false` and
-`ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_TENANT_IDS` empty.
+`ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_TENANT_IDS` empty. Source/docs
+evidence SHA: `7459cb8d70e50851d82f7562bdc6fb1ac6bd51a5`.
 
 ## M3.250 Customer invoice reversal authority (2026-08-11)
 
