@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.274 protected finance-payables Core HTTP canary
+
+Keep `ERP_FINANCE_PAYABLES_READS_VIA_API=false` and
+`ERP_FINANCE_PAYABLES_READS_VIA_API_TENANT_IDS` empty; keep
+`ERP_FINANCE_PAYABLES_READS_ENABLED=false` and
+`ERP_FINANCE_PAYABLES_READS_TENANT_IDS` empty. The disposable Nest HTTP
+canary proves auth/RBAC, invalid-query and selector failure, exact payable
+balances and aging, status/date/vendor/project filters, pagination, database
+posting authority, tenant isolation, and rollback. Source parity remains
+55/124 with 69 pending migrations in 17 ordered review batches. Next add a
+separate authenticated browser proof for the real `/finance/payables` page,
+then require hosted/source parity, readiness, exact release identity,
+rollback, and spend evidence before any tenant canary or provider action. Do
+not apply hosted SQL or trigger Vercel, Railway, or provider builds.
+
 ## Exact next action after M3.273 protected finance-receivables Web/Core browser canary
 
 Keep `ERP_FINANCE_RECEIVABLES_READS_VIA_API=false` and

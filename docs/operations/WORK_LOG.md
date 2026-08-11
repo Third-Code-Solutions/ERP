@@ -1,5 +1,25 @@
 # Work Log
 
+## 2026-08-11 - M3.274 protected finance-payables Core HTTP canary
+
+Added an opt-in local HTTP proof for the Nest supplier-payables read path. The
+disposable fixture creates two tenant-scoped vendors, projects, purchase
+orders, and supplier bills; posted bills go through `post_supplier_bill`.
+The route proves JWT/capability boundaries, invalid-query and closed-selector
+failures, exact centavo/paid/open totals, overdue and aging math,
+draft/posted counts, status/date/vendor/project filters, pagination,
+foreign-tenant invisibility, and transaction rollback. Final matching fixture
+count is zero.
+
+Payables HTTP 1/1, API 174/760, root tests/typecheck/lint/build,
+provider-spend, boundary, workflow, actionlint, gitleaks, release, and
+managed-parity gates pass. No hosted Supabase, Storage, Railway, Vercel,
+credential, provider, or paid action changed.
+
+Exact next action: keep provider/deployment selectors closed; add the
+authenticated payables browser proof, then separately reconcile hosted parity,
+readiness, release identity, rollback, and spend evidence.
+
 ## 2026-08-11 - M3.273 protected finance-receivables Web/Core browser canary
 
 Added a closed-by-default Playwright proof for the real Next receivables page.

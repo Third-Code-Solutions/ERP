@@ -1,5 +1,30 @@
 # Current State
 
+## M3.274 Protected finance-payables Core HTTP canary (2026-08-11)
+
+The Nest `/v1/finance/payables` read boundary now has a disposable protected
+HTTP proof. Two random tenants create supplier purchase orders and bills; the
+posted bills are finalized through `public.post_supplier_bill`, then the real
+JWT/capability guards, query pipe, service, and database joins prove exact
+centavo totals, paid/open balances, overdue and aging buckets, draft/posted
+counts, bounded pagination, status/date/vendor/project filters, and tenant
+isolation. Missing/unknown auth, viewer denial, invalid ranges, and the closed
+selector are covered by 401/403/400/503 assertions. The outer transaction
+rolls back and leaves zero matching fixtures.
+
+Payables HTTP 1/1, API 174/760, root tests/typecheck/lint/build,
+provider-spend, Web/DB boundary, workflow, actionlint, gitleaks,
+database-release, and managed-parity-plan gates pass. Production selectors
+remain false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed. Source evidence is the
+pending M3.274 source commit.
+
+Exact next action: keep `ERP_FINANCE_PAYABLES_READS_ENABLED=false` and
+`ERP_FINANCE_PAYABLES_READS_VIA_API=false` with empty tenant lists; add the
+authenticated `/finance/payables` browser proof, then require hosted/source
+parity, readiness, exact release identity, authenticated smoke, rollback, and
+spend evidence before any tenant canary or provider action.
+
 ## M3.273 Protected finance-receivables Web/Core browser canary (2026-08-11)
 
 The real Next `/finance/receivables` page now has a repeatable local browser

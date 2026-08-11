@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-386 -- Prove finance payables through protected Nest HTTP (2026-08-11)
+
+Decision: add a closed-by-default, opt-in HTTP canary around the real Nest
+supplier-payables read route. Use a disposable two-tenant PostgreSQL
+transaction, create supplier bills through `public.post_supplier_bill`, and
+assert guards, exact centavo totals, draft/posted status, aging, filters,
+pagination, foreign-tenant isolation, selector failure, and rollback.
+
+Rationale: service tests alone cannot prove the HTTP trust boundary or the
+database-authoritative supplier-bill evidence. The local canary closes that
+gap without managed Supabase, Vercel, Railway, credentials, or spend. Exact
+tenant allowlists and default-off selectors keep the production cutover
+reversible; a separate browser canary is still required for Web selection and
+rendering.
+
+Validation: payables HTTP 1/1, API 174/760, root tests/typecheck/lint/build,
+provider-spend, Web/DB boundary, workflow refs, actionlint, gitleaks,
+database-release, and managed-parity-plan PASS. Production selectors remain
+false/empty.
+
 ## D-385 -- Prove finance receivables Web/Core selection in a disposable browser (2026-08-11)
 
 Decision: validate the real Next receivables page with an authenticated
