@@ -1,5 +1,17 @@
 # Third Code ERP capability matrix
 
+## M3.268 Bank-statement browser Storage canary proof (2026-08-11)
+
+The closed Storage path has authenticated local browser evidence: signed URL,
+private-bucket PUT, tenant-shaped Core handoff with idempotency/bearer
+headers, terminal response mapping, audited cleanup, zero statement writes,
+no external provider traffic, no unblocked console errors, and responsive
+desktop/mobile checks. The Core response was intentionally disabled, so a
+successful draft/detail path and cross-tenant cleanup denial remain open.
+Selectors stay false/empty and no hosted/provider action occurred.
+Source evidence SHA: `4f68cac`.
+
+## M3.267 Bank-statement browser Storage handoff (2026-08-11)
 ## M3.267 Bank-statement browser Storage handoff (2026-08-11)
 
 The bank-statement form now has an exact-tenant, closed-by-default Storage

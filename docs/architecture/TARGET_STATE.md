@@ -1,5 +1,20 @@
 # Target State
 
+## M3.268 Bank-statement browser Storage canary proof (2026-08-11)
+
+The browser Storage handoff now has a repeatable local proof: an authenticated
+tenant can request a signed private upload, PUT the CSV directly through the
+Supabase Storage client, submit only the tenant-prefixed path to Core, and
+clean up on a terminal response. The proof uses a disposable PostgreSQL
+tenant, loopback auth/Storage, a controlled Core failure, exact idempotency
+and bearer assertions, audit evidence, no ERP-table write, and desktop/mobile
+browser checks. This is source evidence only; all production selectors remain
+closed and no provider traffic is allowed by the test boundary.
+
+Successful Core response/detail rendering, real object retrieval, and
+cross-tenant cleanup denial are the next proof gates. Python/AI remains
+advisory and cannot approve or finalize financial evidence.
+
 ## M3.267 Bank-statement browser Storage handoff (2026-08-11)
 
 The bank-statement form has a closed-by-default browser Storage path. When the

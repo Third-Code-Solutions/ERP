@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-11 - M3.268 bank-statement browser Storage canary proof
+
+Added a loopback Playwright harness and browser proof for the closed
+bank-statement Storage path. A disposable tenant drives the real Next form and
+Supabase client through signed URL creation, browser PUT, Core handoff, typed
+terminal 503 mapping, audited cleanup, and database no-write assertions. The
+test blocks non-loopback browser requests, suppresses only expected blocked
+resource console noise, checks no unblocked console/page errors, and captures
+desktop/mobile overflow. It passed 1/1; the signed-upload route regression
+suite passed 6/6 and Web typecheck passed.
+
+The proof exposed and fixed a UUID audit-key mismatch: full Storage paths are
+now retained in `diff`, while audit `entity_id` is a valid upload/tenant UUID.
+Selectors remain false/empty. No hosted Supabase, Storage, Railway, Vercel,
+credential, provider, or paid action changed.
+Source evidence SHA: `4f68cac`.
+
+Exact next action: add successful Core response/detail and cross-tenant cleanup
+browser evidence, then repeat release, parity, readiness, rollback, and spend
+gates before any canary.
+
 ## 2026-08-11 - M3.267 bank-statement browser Storage handoff
 
 Added the closed-by-default browser Storage handoff for bank-statement import.

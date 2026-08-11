@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.268 Bank-statement browser Storage canary proof (completed source-only)
+
+1. Added a loopback Playwright harness with a disposable PostgreSQL tenant,
+   fake Supabase-compatible auth/Storage endpoints, and a controlled Nest Core
+   503 response. The harness seeds only the minimum ledger/Cash Account rows
+   needed by the real Next form and removes the tenant on shutdown.
+2. Added an authenticated browser proof for redirect, signed upload, browser
+   PUT, exact Core request/body/idempotency/bearer contract, terminal response,
+   audited cleanup, zero bank-statement writes, no external provider traffic,
+   console/page-error capture, and desktop/mobile overflow.
+3. Corrected the signed-upload audit route to satisfy the UUID `audit_log`
+   entity key; full Storage paths stay in the audit diff for traceability.
+4. Added a route regression assertion for UUID audit IDs and a dedicated
+   `test:e2e:bank-statement-storage-local` command. Selectors remain
+   false/empty; no migration, hosted SQL, Storage object, provider setting, or
+   deployment changed.
+5. Validation: browser proof 1/1, signed-upload route 6/6, Web typecheck, and
+   the previously recorded full root/API/policy gates. Successful Core
+   response/detail navigation and cross-tenant browser denial remain pending.
+
+Source evidence SHA: `4f68cac`.
+
+Exact next action: prove successful Core response/detail rendering and
+cross-tenant cleanup denial in the disposable harness, then require hosted
+parity, readiness, rollback, exact release identity, and spend gates before a
+tenant canary.
+
 ## M3.267 Bank-statement browser Storage handoff (completed source-only)
 
 1. Added an exact-tenant browser Storage selector that requires the existing
