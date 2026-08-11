@@ -5488,6 +5488,17 @@ Git disconnected and do not create preview or duplicate production builds.
    Vercel production action. Keep Vercel Git disconnected; avoid previews and
    duplicate builds; verify live browser/API/logs before declaring green.
 
+## Exact next action after M3.280
+
+1. Run API/Web build, typecheck, lint, focused tests, and `git diff --check` on
+   the reviewed browser slice.
+2. Commit and push the browser canary/docs under `kurtgav`; verify exact remote
+   SHA. Do not deploy or reconnect Vercel Git.
+3. Keep both reconciliation read selectors false/empty outside the disposable
+   tenant. Next design slice is reconciliation action authority (auto-match,
+   line match/unmatch, reconcile, void) behind separate idempotent Core
+   commands.
+
 ## Exact next action after M3.279
 
 1. Run the full source gates: shared/database/API/Web tests, lint, typecheck,

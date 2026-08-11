@@ -21,6 +21,11 @@ interface HarnessState {
     authorization: string
     requestId: string
   }>
+  reconciliationDetailRequests: Array<{
+    path: string
+    authorization: string
+    requestId: string
+  }>
   unsupportedRequests: Array<{ method: string; path: string }>
 }
 
@@ -181,6 +186,45 @@ test('proves authenticated Web reconciliation page uses Core and preserves tenan
   ).searchParams
   expect(query.get('limit')).toBe('500')
   expect(query.get('status')).toBeNull()
+
+  const draftLink = page.getByRole('link', {
+    name: 'ST-LOOPBACK-RECON-DRAFT',
+    exact: true,
+  })
+  const draftHref = await draftLink.getAttribute('href')
+  expect(draftHref).toMatch(/^\/finance\/reconciliation\/[0-9a-f-]+$/i)
+  const detailResponse = await page.goto(`${WEB_ORIGIN}${draftHref}`, {
+    waitUntil: 'domcontentloaded',
+  })
+  expect(detailResponse?.status()).toBe(200)
+  await expect(
+    page.getByRole('heading', { name: 'ST-LOOPBACK-RECON-DRAFT', exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByText('Imported file evidence', { exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByText('Line-by-line proof', { exact: true })
+  ).toBeVisible()
+  await expect(page.getByText('Customer deposit', { exact: true })).toBeVisible()
+  await expect(page.getByText('Bank service fee', { exact: true })).toBeVisible()
+  await expect(page.getByText('0 / 2', { exact: true })).toBeVisible()
+
+  const detailStateResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(detailStateResponse.ok()).toBe(true)
+  const detailSnapshot = (await detailStateResponse.json()) as HarnessState
+  expect(detailSnapshot.reconciliationDetailRequests).toHaveLength(1)
+  expect(detailSnapshot.reconciliationDetailRequests[0]?.path).toBe(
+    draftHref?.replace('/finance/reconciliation/', '/v1/finance/reconciliation/')
+  )
+  expect(detailSnapshot.reconciliationDetailRequests[0]?.authorization).toBe(
+    `Bearer ${session.accessToken}`
+  )
+  expect(detailSnapshot.reconciliationDetailRequests[0]?.requestId).toMatch(
+    /^[0-9a-f-]{36}$/i
+  )
 
   expect(
     state.unsupportedRequests.some(

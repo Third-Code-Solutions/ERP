@@ -77,6 +77,7 @@ const profile = {
 }
 
 const reconciliationRequests = []
+const reconciliationDetailRequests = []
 const unsupportedRequests = []
 let sql
 let webChild
@@ -291,6 +292,7 @@ authServer = createServer(async (request, response) => {
       userId: USER_ID,
       tenantId: TENANT_ID,
       reconciliationRequests,
+      reconciliationDetailRequests,
       unsupportedRequests,
     })
   }
@@ -337,6 +339,16 @@ proxyServer = createServer(async (request, response) => {
   if (request.method === 'GET' && url.pathname === '/v1/finance/reconciliation') {
     reconciliationRequests.push({
       path: `${url.pathname}${url.search}`,
+      authorization: request.headers.authorization ?? '',
+      requestId: request.headers['x-request-id'] ?? '',
+    })
+  }
+  if (
+    request.method === 'GET' &&
+    /^\/v1\/finance\/reconciliation\/[^/]+$/.test(url.pathname)
+  ) {
+    reconciliationDetailRequests.push({
+      path: url.pathname,
       authorization: request.headers.authorization ?? '',
       requestId: request.headers['x-request-id'] ?? '',
     })
