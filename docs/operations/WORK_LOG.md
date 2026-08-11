@@ -11162,3 +11162,22 @@ hosted baseline, but not a promotion approval:
 - Source commit `c4d618545495dd0c174c4ddd9d43655cc8cdcd38` was pushed under
   `kurtgav`; local and remote SHAs match. No production deployment is
   authorized by this milestone.
+
+## 2026-08-12 - M3.285 reconciliation statement import browser canary
+
+- Extended the loopback harness and authenticated Playwright flow to submit a
+  real CSV through the existing Core import adapter for a random disposable
+  tenant. No application schema or hosted data changed.
+- Verified: browser canary 1/1 proved integer-cent balance conversion, exact
+  source metadata, base64 source transport, deterministic idempotency key,
+  bearer, UUID request ID, redirected draft rendering, responsive overflow,
+  zero console errors, and blocked external requests.
+- Full gates passed: `pnpm test` (shared-types 332; database 241 passed/143
+  skipped; API 764; Web 797), `pnpm typecheck`, `pnpm lint`, `pnpm build`
+  (83 Next pages), migration/release/policy/parity checks, web-database
+  boundary, Actionlint, Gitleaks, provider-spend guard, and `git diff --check`.
+- Hosted Supabase, Storage, Railway, Vercel, flags, provider settings,
+  credentials, and billing remain unchanged.
+- Source commit `d127523bf99fac74ac9dffbe6c0527e0af2dbe33` was pushed under
+  `kurtgav`; local and remote SHAs match. No production deployment is
+  authorized by this milestone.

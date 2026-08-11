@@ -5504,6 +5504,19 @@ Git disconnected and do not create preview or duplicate production builds.
    do not deploy or reconnect Vercel Git without a new explicit, bounded
    release approval.
 
+## Exact next action after M3.285
+
+1. Source commit `d127523bf99fac74ac9dffbe6c0527e0af2dbe33` is pushed under
+   `kurtgav` and its exact remote SHA matches. Do not deploy, reconnect Vercel
+   Git, or change provider plans.
+2. Keep API and Web import selector pairs false/empty outside the disposable
+   tenant. Review the source-only import evidence before any storage-upload or
+   hosted-parity work.
+3. Hosted promotion remains blocked by migration parity, duplicate Purchase
+   Order mapping, audit-recovery approval, readiness, rollback, exact SHA, and
+   spend-bounded owner/provider approval. No paid/duplicate build is allowed
+   to bypass those gates.
+
 ## Exact next action after M3.284
 
 1. Source commit `c4d618545495dd0c174c4ddd9d43655cc8cdcd38` is pushed under

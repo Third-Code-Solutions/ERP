@@ -8018,3 +8018,29 @@ under `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote
 SHAs match. Hosted promotion remains blocked by the existing parity,
 data-quality, readiness, rollback, exact-SHA, and spend approval gates. The
 next implementation slice is bank-statement import authority.
+
+## M3.285 - Reconciliation statement import browser canary (completed proof slice)
+
+1. Enable the existing Core import selector only for the random disposable
+   loopback tenant and capture `/v1/finance/reconciliation/import` at the
+   protected proxy boundary.
+2. Submit a real signed-amount CSV through the authenticated Web form and
+   assert integer-cent balance conversion, exact source-file metadata,
+   deterministic `bank-import-<sha256>` idempotency, bearer, and UUID request
+   ID.
+3. Follow the created draft detail page and retain responsive, console, and
+   external-request assertions. Keep hosted import selectors false/empty.
+
+Validation: authenticated browser canary 1/1 passed. Full `pnpm test` passed
+with shared-types 332, database 241 passed/143 skipped, API 764, and Web 797;
+`pnpm typecheck`, `pnpm lint`, `pnpm build` (83 Next pages), migration/release/
+policy/parity checks, web-database boundary, Actionlint, Gitleaks,
+provider-spend guard, and `git diff --check` also passed. No hosted migration,
+deployment, provider setting, credential, or paid action occurred.
+
+Evidence: source commit `d127523bf99fac74ac9dffbe6c0527e0af2dbe33` is pushed
+under `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote
+SHAs match. Hosted promotion remains blocked by the existing parity,
+data-quality, readiness, rollback, exact-SHA, and spend approval gates. The
+next work is review of the source-only import evidence before storage-upload or
+hosted-parity work.
