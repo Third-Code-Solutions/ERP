@@ -1,5 +1,38 @@
 # Current State
 
+## M3.269 Successful bank-statement Core browser proof (2026-08-11)
+
+The disposable browser canary now starts the compiled Nest API instead of a
+controlled Core stub. An authenticated tenant submits a signed Storage upload;
+the real `POST /v1/finance/reconciliation/import` path re-reads the uploaded
+CSV through a server-only signed URL, validates it, creates the draft statement,
+line, idempotency record, and audit in PostgreSQL, and returns the typed result.
+The browser then renders the tenant-scoped detail page with source provenance
+and validated roll-forward evidence. A second request attempts cleanup for a
+different tenant path and is denied with 403 before Storage deletion; no remove
+request is issued.
+
+The proof also checks auth redirect/RBAC, exact Storage path and service-role
+reader usage, no external provider traffic, no unblocked console/page errors,
+and desktop/mobile overflow. The loopback Storage adapter now extracts the
+actual CSV bytes from Supabase's multipart signed-upload envelope, so the Core
+hash/parser see the uploaded file rather than the transport wrapper. A small
+responsive fix prevents visually-hidden labels and long SHA-256 provenance from
+creating mobile horizontal overflow.
+
+Focused browser proof 1/1, signed-upload route 6/6, Web typecheck, root tests,
+root typecheck, lint, production build, provider-spend, Web/DB boundary,
+workflow refs, actionlint, gitleaks, database release, and managed-parity plan
+gates pass. The API integration lane remains explicitly skipped because its
+required environment gate is unset. All production selectors remain
+false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed.
+Source evidence SHA: `e6f9275`.
+
+Exact next action: keep the API/Web/Storage selectors closed and run the
+separate hosted-parity, readiness, exact-release, rollback, and spend gates
+before considering any tenant canary or provider deployment.
+
 ## M3.268 Bank-statement browser Storage canary proof (2026-08-11)
 
 Proved the guarded browser path locally against a disposable authenticated

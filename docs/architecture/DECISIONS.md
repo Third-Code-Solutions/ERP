@@ -1,5 +1,29 @@
 # Architecture Decisions
 
+## D-381 -- Use the real Nest Core in the successful browser canary (2026-08-11)
+
+Decision: make the disposable bank-statement browser proof start the compiled
+Nest API and exercise its authenticated `finance.manage_cash` import command,
+server-only signed Storage read, PostgreSQL transaction, idempotency record,
+and audit. Keep the API/Web/Storage selectors false/empty outside the harness.
+Model Supabase's multipart signed-upload and signed-read contracts in the
+loopback boundary, and deny cross-tenant cleanup before any Storage delete.
+
+Rationale: a controlled 503 proves terminal failure and cleanup, but cannot
+prove Core response shape, parser input, transaction persistence, or detail
+navigation. The real local API closes that evidence gap without touching
+managed Supabase, Vercel, Railway, provider credentials, or paid resources.
+Keeping the loopback tenant random and disposable prevents a browser proof from
+becoming an accidental production canary. Wrapping long evidence and fixing
+screen-reader-only positioning preserves responsive/accessibility behavior
+without changing authority.
+
+Validation: browser 1/1, signed-upload route 6/6, root tests/typecheck/lint/
+build, provider-spend, Web/DB boundary, workflow refs, actionlint, gitleaks,
+database release, and managed-parity plan PASS. The protected API integration
+lane was skipped because its explicit environment gate is unset. Source
+evidence SHA: `e6f9275`.
+
 ## D-380 -- Prove browser Storage with a disposable loopback boundary (2026-08-11)
 
 Decision: validate the enabled browser handoff with a real Next page and

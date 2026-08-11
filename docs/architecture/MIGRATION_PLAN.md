@@ -1,5 +1,37 @@
 # Migration Plan
 
+## M3.269 Successful bank-statement Core browser proof (completed source-only)
+
+1. Replaced the local bank browser harness's controlled Core response with the
+   compiled Nest API, loopback Supabase-compatible auth/Storage, and a
+   disposable PostgreSQL tenant. The API import selector is enabled only for
+   the random test tenant inside the harness; repository and hosted selectors
+   remain closed.
+2. Made the fake Storage boundary preserve the real uploaded CSV bytes from
+   Supabase's multipart signed-upload request, then serve those bytes through
+   the exact signed-read contract used by the Core storage service.
+3. Extended the Playwright proof to assert successful detail navigation,
+   source-file evidence, validated roll-forward, one statement/line/import
+   request, two Storage reads, and a cross-tenant cleanup 403 with zero remove
+   requests. It still blocks non-loopback provider traffic and checks console,
+   page-error, and desktop/mobile overflow behavior.
+4. Hardened mobile presentation for long SHA-256 provenance and visually hidden
+   labels without changing ERP authority or public contracts. No migration or
+   hosted object was added.
+5. Validation: browser 1/1, signed-upload route 6/6, root tests (shared-types
+   55/55 files and 331 tests; database 69/73 files with 241 passed and 143
+   environment-skipped; Web 113/113 files and 782 tests; API 174/174 files and
+   760 tests), root typecheck, lint, production build, provider-spend,
+   Web/DB boundary, workflow refs, actionlint, gitleaks, database release, and
+   managed-parity plan PASS. Protected API integration was not run because its
+   explicit environment gate is unset.
+
+Source evidence SHA: `e6f9275`.
+
+Exact next action: keep all import/Storage selectors false/empty and require
+hosted parity, readiness, exact release identity, rollback, and spend gates
+before any tenant canary or provider action.
+
 ## M3.268 Bank-statement browser Storage canary proof (completed source-only)
 
 1. Added a loopback Playwright harness with a disposable PostgreSQL tenant,
