@@ -34,6 +34,7 @@ deployment, provider setting, credential, or paid action changed.
 
 ## Next action
 
-Review and push source/docs under `kurtgav`, verify the exact remote SHA, and
-keep the reconcile selector closed outside the disposable tenant. Statement
-voiding remains a separate next slice.
+Source/docs commit `2e6ca43972b0b5900e471b0d847c0608491d8ac9` is pushed under
+`kurtgav` with a matching remote SHA. Keep the reconcile selector closed
+outside the disposable tenant. Statement voiding remains a separate next
+slice.

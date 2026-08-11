@@ -11138,5 +11138,7 @@ hosted baseline, but not a promotion approval:
   (83 Next pages), migration/release/policy/parity checks, web-database
   boundary, Actionlint, Gitleaks, provider-spend guard, and `git diff --check`.
 - Hosted Supabase, Storage, Railway, Vercel, flags, provider settings,
-  credentials, and billing remain unchanged. Source/docs push is the next
-  action; no production deployment is authorized by this milestone.
+  credentials, and billing remain unchanged.
+- Source/docs commit `2e6ca43972b0b5900e471b0d847c0608491d8ac9` was pushed
+  under `kurtgav`; local and remote SHAs match. No production deployment is
+  authorized by this milestone.
