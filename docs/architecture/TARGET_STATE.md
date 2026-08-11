@@ -1,5 +1,21 @@
 # Target State
 
+## M3.262 Bank-statement line match/unmatch authority (2026-08-11)
+
+Core owns the fail-closed manual line commands at
+`POST /v1/finance/reconciliation/:statementId/lines/:lineId/match` and
+`/unmatch`. The browser sends a strict cash-transaction body for match or an
+empty strict body for unmatch plus an opaque idempotency key. Core derives and
+rechecks tenant, actor, role, and line visibility, locks the statement and
+line, calls PostgreSQL's trusted state transition, stores a durable tenant-
+scoped replay/conflict result, and emits semantic audit in one transaction.
+Keep `ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED=false` and its
+tenant list empty until hosted parity, readiness, protected browser cutover,
+rollback, and spend evidence are reconciled. Python/AI may analyze evidence
+but cannot match, unmatch, reconcile, void, import, or finalize it. The
+existing Web manual-match behavior remains the compatibility path until a
+separate Web/Core response-parity proof.
+
 ## M3.261 Bank-statement auto-match command authority (2026-08-11)
 
 Core owns the fail-closed auto-match command at

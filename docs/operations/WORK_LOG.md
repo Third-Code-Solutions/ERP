@@ -1,5 +1,33 @@
 # Work Log
 
+## 2026-08-11 - M3.262 bank-statement line match/unmatch authority
+
+Added the strict Nest Core match and unmatch commands, the tenant-scoped
+force-RLS request ledger migration
+`20260812110000_bank_statement_line_match_workflow.sql`, shared/database
+contracts, and the composite tenant/line uniqueness prerequisite. Core now
+locks the statement and line, calls the trusted PostgreSQL function, stores
+durable replay/conflict evidence, and writes semantic audit in one transaction.
+The existing Web manual-match path is unchanged; selectors remain disabled.
+
+The rollback-only local PostgreSQL HTTP canary passed 1/1 across auth/RBAC,
+strict body/header handling, disabled selector, cross-tenant concealment,
+match/unmatch, replay/key conflict, audit, tenant isolation, and rollback.
+Root `pnpm test` exited 0 with shared 54/54 files and 325/325 tests, database
+66/70 files with 235 passed and 143 environment-skipped tests, Web 111/111
+files and 768/768 tests, and API 173/173 files and 754/754 tests. API
+integration passed 55/55 files with 69 passed and two intentional
+Redis-restart skips. Typecheck, lint, direct production builds, provider
+spend, parity, release, Web/DB boundary, workflow references, and actionlint
+passed. Source parity is 55/120 hosted/source migrations with 65 pending in
+13 review batches. No hosted Supabase, Storage, Railway, Vercel, credential,
+provider, or paid action changed. Source SHA:
+`271db56c6c973484877e09680eebcc99b70df950`.
+
+Exact next action: keep the line-match selector and tenant list false/empty;
+do not apply hosted SQL or trigger provider builds. Define the next
+reconcile/void/import authority boundary only after a separate local proof.
+
 ## 2026-08-11 - M3.261 bank-statement auto-match authority
 
 Added `POST /v1/finance/reconciliation/:statementId/auto-match` as a

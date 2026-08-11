@@ -1,5 +1,25 @@
 # Third Code ERP capability matrix
 
+## M3.262 Bank-statement line match/unmatch authority (2026-08-11)
+
+The `finance.manage_cash` Core line match/unmatch commands now have protected
+transaction-bound HTTP evidence for strict body/header handling,
+JWT authentication, Finance/viewer authorization, closed-by-default selector
+behavior, exact tenant-scoped statement/line locking, cross-tenant
+concealment, trusted PostgreSQL transitions, durable replay/key conflict,
+semantic audit, and rollback. Web adoption remains closed; keep
+`ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED=false` and its tenant
+list empty. Python/AI remains analysis-only and cannot match or finalize bank
+evidence.
+
+Validation: focused canary 1/1; shared 54/54 files and 325/325 tests;
+database 66/70 files with 235 passed and 143 environment-skipped tests; API
+173/173 files and 754/754 tests; Web 111/111 files and 768/768 tests; API
+integration 55/55 files with 69 passed and two intentional Redis-restart
+skips; typecheck, lint, direct builds, and provider, release, parity,
+boundary, workflow, actionlint, and spend gates PASS. Source is 120
+migrations; hosted remains 55 applied/65 pending. No hosted or paid action.
+
 ## M3.261 Bank-statement auto-match authority (2026-08-11)
 
 The `finance.manage_cash` Core auto-match command now has protected
