@@ -1,5 +1,21 @@
 # Target State
 
+## M3.274 Protected finance-payables Core HTTP canary (2026-08-11)
+
+The local evidence now covers the guarded Nest supplier-payables read seam:
+PostgreSQL remains authoritative, supplier bills are posted by the database
+function, and Core returns exact centavo balances under an exact tenant
+allowlist. Auth/RBAC, fail-closed selector behavior, invalid ranges, filters,
+pagination, aging math, draft/posted totals, foreign-tenant isolation, and
+rollback are proven in a disposable transaction.
+
+Keep `ERP_FINANCE_PAYABLES_READS_ENABLED=false` and its tenant list empty, and
+keep `ERP_FINANCE_PAYABLES_READS_VIA_API=false` with an empty tenant list
+outside local proof. The Web/Core selector remains closed until a separate
+authenticated browser proof exists. Python/AI remains advisory and cannot
+approve or finalize financial transactions. Hosted parity, readiness, release
+identity, rollback, and spend evidence remain required.
+
 ## M3.273 Protected finance-receivables Web/Core browser canary (2026-08-11)
 
 The local evidence now covers the user-facing receivables seam: an

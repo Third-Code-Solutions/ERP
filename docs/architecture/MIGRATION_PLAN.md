@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.274 Protected finance-payables Core HTTP canary (completed source-only)
+
+1. Added an opt-in integration canary around the real Nest
+   `FinancePayablesController`, service, JWT guard, capability guard, and
+   validation pipe.
+2. Seeded two random tenants with supplier purchase orders and bills, posting
+   the posted fixtures through `public.post_supplier_bill` so the proof uses
+   database authority instead of bypassing the posting workflow.
+3. Asserted 401/403/400/503 boundaries, exact centavo totals and aging,
+   draft/posted counts, bounded pagination, status and due-date filters,
+   vendor/project dimensions, foreign-tenant invisibility, and rollback.
+4. Validation: payables HTTP 1/1, API 174/760 tests, root tests/typecheck/
+   lint/build, provider-spend, Web/DB boundary, workflow refs, actionlint,
+   gitleaks, database-release, and managed-parity-plan PASS.
+
+Production selectors and tenant lists remain false/empty. No hosted SQL,
+provider setting, credential, or deployment changed.
+
+Exact next action: keep payables selectors closed; prove the real Web
+`/finance/payables` browser branch with a disposable authenticated tenant,
+then run hosted parity, readiness, release identity, rollback, and spend
+gates.
+
 ## M3.273 Protected finance-receivables Web/Core browser canary (completed source-only)
 
 1. Added a dedicated Playwright config, TypeScript project, and loopback
