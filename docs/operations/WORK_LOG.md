@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-08-11 - M3.261 bank-statement auto-match authority
+
+Added `POST /v1/finance/reconciliation/:statementId/auto-match` as a
+fail-closed Nest Core command. The command validates strict input, rechecks
+tenant Finance membership, locks the statement, calls the trusted PostgreSQL
+function, persists a tenant-scoped request ledger for replay/conflict, and
+writes semantic audit in one transaction. Added the force-RLS/service-only
+request ledger migration `20260812100000_bank_statement_auto_match_workflow.sql`
+and shared/database contracts. The existing Web action remains unchanged.
+
+The rollback-only local PostgreSQL HTTP canary passed 1/1 across auth/RBAC,
+disabled selector, cross-tenant concealment, match result, replay, key
+conflict, audit, and rollback. Root tests passed 173/173 files and 753/753
+tests; API integration passed 55/55 files and 69 tests with two explicit
+Redis-restart skips. Typecheck, lint, production build, provider-spend,
+parity, database-release, Web/DB boundary, workflow references, and actionlint
+passed. Source parity is 55/119 hosted/source migrations with 64 pending in
+12 review batches. No hosted Supabase, Storage, Railway, Vercel, credential,
+provider, or paid action changed. Source SHA:
+`ea8957057db8d8a4ba4cb4695b9c560d8624b9e9`.
+
+Exact next action: design the manual match/unmatch Core request ledger and
+protected rollback canary; keep auto-match disabled and do not trigger a
+provider build.
+
 ## 2026-08-11 - M3.260 invoice-draft test baseline repair
 
 Reproduced the repository-wide invoice-draft replay failure. The service

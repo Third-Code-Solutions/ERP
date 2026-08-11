@@ -1,5 +1,24 @@
 # Third Code ERP capability matrix
 
+## M3.261 Bank-statement auto-match authority (2026-08-11)
+
+The `finance.manage_cash` Core auto-match command now has protected
+transaction-bound HTTP evidence for strict empty-body/idempotency handling,
+JWT authentication, Finance/viewer authorization, closed-by-default selector
+behavior, exact tenant-scoped statement locking, cross-tenant concealment,
+trusted PostgreSQL matching, durable replay/key conflict, semantic audit, and
+rollback. Web adoption remains closed; keep
+`ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED=false` and its tenant
+list empty. Python/AI remains analysis-only and cannot match or finalize bank
+evidence.
+
+Validation: focused canary 1/1; shared/database/API contracts pass; root tests
+173/173 files and 753/753 tests; API integration 55/55 files and 69 tests with
+two explicit Redis-restart skips; typecheck, lint, build, and provider,
+release, parity, boundary, workflow, actionlint, and spend gates PASS. Source
+is 119 migrations; hosted remains 55 applied/64 pending. No hosted or paid
+action.
+
 ## M3.260 Repository test baseline repair (2026-08-11)
 
 The customer-invoice draft capability retains the same Core authority,

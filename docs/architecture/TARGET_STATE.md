@@ -1,5 +1,21 @@
 # Target State
 
+## M3.261 Bank-statement auto-match command authority (2026-08-11)
+
+Core owns the fail-closed auto-match command at
+`POST /v1/finance/reconciliation/:statementId/auto-match`. The browser
+contract is an empty strict body plus an opaque idempotency key; Core derives
+tenant, actor, role, and statement visibility, locks the statement, and calls
+PostgreSQL's trusted matching function. A tenant-scoped force-RLS request
+ledger stores the exact result for replay and key-conflict detection, while a
+semantic audit event records the match counts. Python/AI may analyze evidence
+but cannot match, reconcile, void, import, or finalize it. Keep
+`ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED=false` and its tenant
+list empty until hosted parity, readiness, protected browser cutover,
+rollback, and spend evidence are reconciled. The existing Web auto-match
+action remains the compatibility path until a separate Web/Core response
+parity proof.
+
 ## M3.260 Repository test baseline repair (2026-08-11)
 
 Repository tests must model the same authorization and locking sequence as Core

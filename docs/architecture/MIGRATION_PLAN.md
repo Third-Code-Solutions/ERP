@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.261 Bank-statement auto-match authority (completed source-only canary)
+
+1. Added the strict shared command/result contract, environment selector, and
+   tenant-scoped request-ledger schema/migration.
+2. Added the Nest controller/service with JWT/capability guards, tenant
+   membership re-authorization, statement lock, idempotency replay/conflict,
+   trusted `auto_match_bank_statement` call, semantic audit, and fail-closed
+   selector. The existing Web Server Action remains unchanged.
+3. Added the database migration contract and rollback-only HTTP canary using
+   two tenants and Finance/viewer identities. The canary covers authentication,
+   strict input/header handling, disabled behavior, cross-tenant concealment,
+   match result, replay, key conflict, audit, and rollback.
+4. Focused canary and contracts pass; root tests pass 173/173 files and
+   753/753 tests; API integration passes 55/55 files and 69 tests with two
+   explicit Redis-restart skips. Typecheck, lint, build, policy, parity,
+   release, boundary, workflow, actionlint, and spend gates pass.
+5. Source migration ledger is 119 files through `20260812100000`; managed
+   Supabase remains 55 applied with 64 pending in 12 review batches. No
+   hosted/provider/paid action occurred. Source SHA:
+   `ea8957057db8d8a4ba4cb4695b9c560d8624b9e9`.
+
+Next: add the manual match/unmatch Core boundary only after its own request
+ledger/result contract and protected rollback canary are designed. Keep the
+auto-match selector disabled and do not apply the migration to managed
+Supabase or trigger Railway/Vercel builds.
+
 ## M3.260 Repository test baseline repair (completed source-only)
 
 1. Reproduced the repository-wide failure in

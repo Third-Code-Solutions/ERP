@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-373 -- Keep bank auto-match Core-only and fail-closed (2026-08-11)
+
+Decision: add only the bank-statement auto-match command in this milestone.
+The Nest route re-authorizes `finance.manage_cash`, locks the visible
+tenant-scoped statement, calls the existing trusted PostgreSQL function, and
+records a durable tenant-scoped idempotency result plus semantic audit in one
+transaction. Keep the new selector false with an empty tenant allowlist and
+leave the legacy Web Server Action unchanged until Web/Core response parity
+and protected browser cutover are separately proven.
+
+Rationale: auto-match mutates sensitive financial evidence and is retryable;
+direct browser SQL without a durable request ledger could duplicate work or
+cross a tenant boundary. A dedicated ledger keeps the first migration small,
+reversible by disabling the selector, and independent of the later manual
+match, reconcile, void, and import commands. Python/AI remains advisory only.
+
+Validation: local PostgreSQL rollback-only HTTP canary 1/1; shared/database
+contracts pass; root tests 173/173 files and 753/753 tests; API integration
+55/55 files and 69 tests with two explicit Redis-restart skips; typecheck,
+lint, build, policy, parity, release, boundary, workflow, actionlint, and
+spend gates PASS. No hosted/provider/paid action occurred.
+
 ## D-372 -- Keep test fixtures aligned with Core transaction ordering (2026-08-11)
 
 Decision: unit fixtures for Core finance commands must model every

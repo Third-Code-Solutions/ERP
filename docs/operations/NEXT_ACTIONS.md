@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.261 auto-match authority
+
+Keep `ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED=false` and
+`ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_TENANT_IDS` empty. The Core
+auto-match canary, contracts, root tests, API integration, typecheck, lint,
+build, policy, parity, release, boundary, workflow, actionlint, and spend
+gates pass. Source parity is 55/119 with 64 pending in 12 ordered batches;
+managed Supabase and provider deployments remain untouched. Next source
+milestone: manual match/unmatch authority with its own idempotency/result
+ledger and protected rollback canary. After that, separately design reconcile,
+void, import, Web cutover, hosted parity, release identity, readiness,
+rollback, and billing evidence.
+
 ## Exact next action after M3.260 test baseline repair
 
 Root tests are green: 173/173 files and 752/752 tests. Keep all provider and

@@ -1,5 +1,29 @@
 # Current State
 
+## M3.261 Bank-statement auto-match command authority (2026-08-11)
+
+Added a source-only Nest Core command at
+`POST /v1/finance/reconciliation/:statementId/auto-match`. It validates a
+strict empty body and opaque idempotency key, re-authorizes the tenant Finance
+membership, locks the tenant-scoped statement, calls the trusted PostgreSQL
+auto-match function, persists a tenant-scoped request result, and writes a
+semantic audit event in one transaction. The new request ledger is force-RLS
+and service-role-only. The selector
+`ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED` and its tenant list are
+false/empty by default. The legacy Web Server Action remains unchanged and is
+not yet wired to this route; import, manual match, reconcile, void, browser
+cutover, hosted parity, and production release remain separate gates.
+
+Focused shared/database/API contracts and the local PostgreSQL rollback-only
+HTTP canary pass. Root `pnpm test`: 173/173 files and 753/753 tests PASS. API
+integration: 55/55 files and 69 tests PASS with two explicit Redis-restart
+skips. Typecheck, lint, production build, provider-spend, Supabase parity,
+database-release, Web/DB boundary, workflow action-reference, and actionlint
+gates PASS. Source parity is 55/119 hosted/source migrations, 64 pending in
+12 review batches. No hosted SQL/data, Storage, Railway/Vercel deployment,
+provider setting, credential, or paid action changed. Source evidence SHA:
+`ea8957057db8d8a4ba4cb4695b9c560d8624b9e9`.
+
 ## M3.260 Repository test baseline repair (2026-08-11)
 
 Repaired the customer-invoice-draft replay unit fixture. The Core service locks

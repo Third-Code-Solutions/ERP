@@ -1,14 +1,14 @@
 {
   "version": 1,
   "snapshot": {
-    "capturedOn": "2026-08-10",
+    "capturedOn": "2026-08-11",
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
     "postgresMajor": 17,
     "appliedCount": 55,
-    "sourceCount": 118,
-    "pendingCount": 63,
+    "sourceCount": 119,
+    "pendingCount": 64,
     "appliedHead": "20260729233017",
-    "sourceHead": "20260811180000",
+    "sourceHead": "20260812100000",
     "ledgerStatus": "review_required"
   },
   "policy": {
@@ -145,6 +145,13 @@
       "purpose": "Forward-only repair allowing Core-authorized draft cash deletion to pass database guards.",
       "migrations": [
         "20260811180000_cash_draft_delete_trigger_fix.sql"
+      ]
+    },
+    {
+      "id": "12-bank-statement-auto-match-authority",
+      "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core bank-statement auto-match command.",
+      "migrations": [
+        "20260812100000_bank_statement_auto_match_workflow.sql"
       ]
     }
   ]
