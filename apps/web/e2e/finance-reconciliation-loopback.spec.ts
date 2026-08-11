@@ -390,6 +390,36 @@ test('proves authenticated Web reconciliation page uses Core and preserves tenan
     reconciledWorkflowState.reconciliationWorkflowRequests[5]?.idempotencyKey
   ).toMatch(/^reconcile-[0-9a-f-]{36}$/i)
 
+  await page.getByLabel('Void reason').fill('Imported wrong institution period')
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Void reconciliation', exact: true }).click()
+  await expect(
+    page.getByText(
+      'Voided reconciliation. Source lines and original match evidence remain immutable and queryable.',
+      { exact: true }
+    )
+  ).toBeVisible()
+
+  const voidedWorkflowResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(voidedWorkflowResponse.ok()).toBe(true)
+  const voidedWorkflowState =
+    (await voidedWorkflowResponse.json()) as HarnessState
+  expect(voidedWorkflowState.reconciliationWorkflowRequests).toHaveLength(7)
+  expect(voidedWorkflowState.reconciliationWorkflowRequests[6]).toMatchObject({
+    method: 'POST',
+    path: /\/void$/i,
+    authorization: `Bearer ${session.accessToken}`,
+    body: JSON.stringify({ reason: 'Imported wrong institution period' }),
+  })
+  expect(
+    voidedWorkflowState.reconciliationWorkflowRequests[6]?.idempotencyKey
+  ).toMatch(/^void-[0-9a-f-]{36}$/i)
+  expect(
+    voidedWorkflowState.reconciliationWorkflowRequests[6]?.requestId
+  ).toMatch(/^[0-9a-f-]{36}$/i)
+
   expect(
     state.unsupportedRequests.some(
       (request) => request.path !== '/realtime/v1/websocket'
