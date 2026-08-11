@@ -23,7 +23,8 @@ workflow-reference, provider-spend, and actionlint passed. The migration was
 applied only to the disposable local CI database. Source parity is 55/124
 hosted/source migrations with 69 pending in 17 ordered review batches. No
 hosted Supabase, Storage, Railway, Vercel, credential, provider, or paid
-action changed. Source evidence SHA: `2fe1e3a`.
+action changed. Source evidence SHA:
+`2fe1e3a919c66345c70b0466ec07ff479ba1a43e`.
 
 Exact next action: keep both import selectors false/empty; do not apply hosted
 SQL or trigger provider builds. Implement the browser upload cutover and
