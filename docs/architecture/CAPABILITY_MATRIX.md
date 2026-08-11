@@ -1,5 +1,20 @@
 # Third Code ERP capability matrix
 
+## M3.249 Customer invoice issuance authority (2026-08-11)
+
+The existing `finance.issue_invoice` Nest command now has protected
+transaction-bound HTTP evidence for auth/RBAC, strict browser input,
+disabled-by-default behavior, cross-tenant concealment, tenant-scoped
+idempotency replay and conflict, balanced journal posting, invoice linkage,
+semantic audit, and rollback. Web adoption remains closed; keep
+`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED=false` and its tenant list
+empty. Python/AI remains analysis-only and cannot issue or finalize invoices.
+
+Validation: focused canary 1/1; API integration 44/44 files and 58 tests with
+two explicit Redis-restart opt-in skips; API typecheck PASS. Root parallel
+tests are not claimed green because of unrelated timeout/budget-schema
+environment evidence. No hosted or paid action.
+
 ## M3.248 Managed Supabase parity/security gate (2026-08-10)
 
 Managed `ERP` provider evidence is now recorded without mutation. Hosted

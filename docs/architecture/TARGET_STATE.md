@@ -1,5 +1,18 @@
 # Target State
 
+## M3.249 Customer invoice issuance authority
+
+Customer invoice issuance is a Core-owned finance command. The browser sends
+only a posting date and opaque idempotency key; Core derives tenant, actor,
+role, invoice, business account, control accounts, fiscal period, and journal
+authority from locked server state. One PostgreSQL transaction owns the
+tenant-scoped request ledger, journal posting, invoice transition, semantic
+audit, and rollback. Replays return the durable result without another
+posting; a reused key with a different command conflicts; cross-tenant access
+is concealed. Keep the write selector disabled until hosted parity, release
+identity, readiness, protected browser evidence, rollback, and spend approval
+are independently complete.
+
 ## M3.248 Managed Supabase parity/security release gate
 
 The managed `ERP` project must be a verified linear prefix of the repository:

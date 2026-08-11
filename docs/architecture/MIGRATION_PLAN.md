@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.249 Customer invoice issuance authority (completed source-only canary)
+
+1. Added a protected HTTP canary around the existing customer-invoice issue
+   controller/service with real JWT identity and capability guards, a
+   transaction-bound PostgreSQL client, two tenants, finance/viewer roles,
+   accounts, projects, fiscal periods, control accounts, and draft invoices.
+2. Proved 401/400/403/404/409/503 boundaries, strict browser input, feature
+   fail-closed behavior, cross-tenant concealment, idempotent replay/key
+   conflict, balanced posted journal, issued invoice linkage, one semantic
+   audit event, and outer transaction rollback.
+3. Focused canary passed 1/1; API integration passed 44/44 files and 58
+   tests with two explicit Redis-restart opt-in skips; API typecheck passed.
+   Root parallel tests remain environment-limited by API timeouts and the
+   budget-schema test selector; no invoice failure was observed.
+4. No schema or runtime selector changed. No hosted Supabase, Storage,
+   Railway, Vercel, credential, or paid action occurred. Keep invoice issue
+   writes disabled with an empty tenant allowlist. Exact source commit will be
+   recorded after diff review and push.
+
+Next: run focused source/policy gates, review the diff, commit and push under
+`kurtgav`, then verify the remote SHA and clean worktree. Do not apply hosted
+SQL or trigger provider builds.
+
 ## M3.248 Managed Supabase read-only parity/security audit (completed, no mutation)
 
 1. Queried the connected `ERP` project `aqqrtkmtcsfkbyyqxowv` read-only for
