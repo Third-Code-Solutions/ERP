@@ -34,6 +34,8 @@ receivables selectors remain false/empty outside the harness. No hosted
 Supabase SQL/object, Vercel/Railway deployment, provider setting, credential,
 or paid action changed.
 
+Source evidence: `f89c401`.
+
 ## Next action
 
 Keep `ERP_FINANCE_RECEIVABLES_READS_VIA_API=false`, its tenant list empty,
