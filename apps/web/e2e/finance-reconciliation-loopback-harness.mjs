@@ -85,7 +85,11 @@ const profile = {
 const reconciliationRequests = []
 const reconciliationDetailRequests = []
 const reconciliationWorkflowRequests = []
+const storageRequests = []
 const unsupportedRequests = []
+const storageObjects = new Map()
+const storageUploadTokens = new Map()
+const storageReadTokens = new Map()
 let sql
 let webChild
 let apiChild
@@ -101,8 +105,8 @@ function corsHeaders(origin) {
     'access-control-allow-origin': origin,
     'access-control-allow-credentials': 'true',
     'access-control-allow-headers':
-      'apikey, authorization, content-type, x-client-info, x-request-id',
-    'access-control-allow-methods': 'GET, OPTIONS, POST',
+      'apikey, authorization, content-type, x-client-info, x-request-id, x-upsert, x-metadata, cache-control',
+    'access-control-allow-methods': 'GET, OPTIONS, POST, PUT, DELETE',
   }
 }
 
@@ -116,6 +120,38 @@ function bearer(request) {
   return authorization.startsWith('Bearer ')
     ? authorization.slice('Bearer '.length)
     : ''
+}
+
+function readRequestBody(request) {
+  return new Promise((resolveBody, rejectBody) => {
+    const chunks = []
+    request.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+    request.on('end', () => resolveBody(Buffer.concat(chunks)))
+    request.on('error', rejectBody)
+  })
+}
+
+function storagePathFromRequest(url, prefix) {
+  const rawPath = url.pathname.slice(prefix.length)
+  return decodeURIComponent(rawPath)
+}
+
+function storageAuthAllowed(request) {
+  const apikey = request.headers.apikey ?? ''
+  const authorization = bearer(request)
+  return (
+    (apikey === ANON_KEY && authorization === ACCESS_TOKEN) ||
+    (apikey === SERVICE_ROLE_KEY && authorization === SERVICE_ROLE_KEY)
+  )
+}
+
+function multipartFileBytes(body) {
+  // Supabase's browser client sends a cache-control field before the file;
+  // use the last header delimiter so only the file payload is stored.
+  const headerEnd = body.lastIndexOf(Buffer.from('\r\n\r\n'))
+  const footerStart = body.lastIndexOf(Buffer.from('\r\n--'))
+  if (headerEnd < 0 || footerStart <= headerEnd) return null
+  return body.subarray(headerEnd + 4, footerStart)
 }
 
 async function seedDatabase() {
@@ -389,6 +425,7 @@ authServer = createServer(async (request, response) => {
       reconciliationRequests,
       reconciliationDetailRequests,
       reconciliationWorkflowRequests,
+      storageRequests,
       unsupportedRequests,
     })
   }
@@ -420,6 +457,102 @@ authServer = createServer(async (request, response) => {
     }
     return json(response, 200, profile)
   }
+
+  const uploadSignPrefix = '/storage/v1/object/upload/sign/documents/'
+  const signedReadPrefix = '/storage/v1/object/sign/documents/'
+  const uploadPath = url.pathname.startsWith(uploadSignPrefix)
+    ? storagePathFromRequest(url, uploadSignPrefix)
+    : null
+  const readPath = url.pathname.startsWith(signedReadPrefix)
+    ? storagePathFromRequest(url, signedReadPrefix)
+    : null
+
+  if (request.method === 'POST' && uploadPath && storageAuthAllowed(request)) {
+    const token = `upload-${randomUUID()}`
+    storageUploadTokens.set(token, uploadPath)
+    storageRequests.push({
+      operation: 'sign-upload',
+      storagePath: uploadPath,
+      authorization: request.headers.authorization ?? '',
+    })
+    return json(response, 200, {
+      url: `/object/upload/sign/documents/${uploadPath}?token=${token}`,
+    })
+  }
+
+  if (request.method === 'PUT' && uploadPath && storageAuthAllowed(request)) {
+    const token = url.searchParams.get('token') ?? ''
+    if (storageUploadTokens.get(token) !== uploadPath) {
+      return json(response, 403, { error: 'Invalid local upload token' })
+    }
+    const bytes = multipartFileBytes(await readRequestBody(request))
+    if (!bytes) return json(response, 400, { error: 'Invalid local upload body' })
+    storageObjects.set(uploadPath, Buffer.from(bytes))
+    storageRequests.push({
+      operation: 'upload',
+      storagePath: uploadPath,
+      authorization: request.headers.authorization ?? '',
+      bytes: bytes.byteLength,
+    })
+    return json(response, 200, { Key: uploadPath })
+  }
+
+  if (request.method === 'POST' && readPath && storageAuthAllowed(request)) {
+    const token = `read-${randomUUID()}`
+    storageReadTokens.set(token, readPath)
+    storageRequests.push({
+      operation: 'sign-read',
+      storagePath: readPath,
+      authorization: request.headers.authorization ?? '',
+    })
+    return json(response, 200, {
+      signedURL: `/object/sign/documents/${readPath}?token=${token}`,
+    })
+  }
+
+  if (request.method === 'GET' && readPath) {
+    const token = url.searchParams.get('token') ?? ''
+    if (storageReadTokens.get(token) !== readPath) {
+      return json(response, 403, { error: 'Invalid local read token' })
+    }
+    const bytes = storageObjects.get(readPath)
+    if (!bytes) return json(response, 404, { error: 'Local object not found' })
+    storageRequests.push({
+      operation: 'read',
+      storagePath: readPath,
+      bytes: bytes.byteLength,
+    })
+    response.writeHead(200, {
+      'cache-control': 'no-store',
+      'content-type': 'text/csv',
+      'content-length': String(bytes.byteLength),
+    })
+    return response.end(bytes)
+  }
+
+  if (
+    request.method === 'DELETE' &&
+    url.pathname === '/storage/v1/object/documents' &&
+    storageAuthAllowed(request)
+  ) {
+    let body
+    try {
+      body = JSON.parse((await readRequestBody(request)).toString('utf8'))
+    } catch {
+      return json(response, 400, { error: 'Invalid local delete body' })
+    }
+    const prefixes = Array.isArray(body?.prefixes) ? body.prefixes : []
+    for (const storagePath of prefixes) {
+      if (typeof storagePath === 'string') storageObjects.delete(storagePath)
+    }
+    storageRequests.push({
+      operation: 'delete',
+      storagePaths: prefixes,
+      authorization: request.headers.authorization ?? '',
+    })
+    return json(response, 200, {})
+  }
+
   unsupportedRequests.push({
     method: request.method ?? 'GET',
     path: url.pathname,
@@ -530,6 +663,9 @@ function quoteIdentifier(value) {
 }
 
 async function cleanup() {
+  storageObjects.clear()
+  storageUploadTokens.clear()
+  storageReadTokens.clear()
   if (!sql) return
   const connection = sql
   try {
@@ -609,6 +745,8 @@ const apiEnvironment = {
   ERP_FINANCE_RECONCILIATION_VOID_WRITES_TENANT_IDS: TENANT_ID,
   ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED: 'true',
   ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS: 'true',
+  ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS: TENANT_ID,
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
   AI_PROVIDER_API_KEY: '',
@@ -658,6 +796,8 @@ webChild = spawn(
       ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API: 'true',
       ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS: 'true',
+      ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECEIVABLES_READS_VIA_API: 'false',
       ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS: '',
       ERP_FINANCE_PAYABLES_READS_VIA_API: 'false',

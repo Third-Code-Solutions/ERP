@@ -34,6 +34,13 @@ interface HarnessState {
     requestId: string
     body: string
   }>
+  storageRequests: Array<{
+    operation: string
+    storagePath?: string
+    storagePaths?: string[]
+    authorization?: string
+    bytes?: number
+  }>
   unsupportedRequests: Array<{ method: string; path: string }>
 }
 
@@ -471,12 +478,38 @@ test('proves authenticated Web reconciliation page uses Core and preserves tenan
     openingBalanceCents: 100_000,
     closingBalanceCents: 101_250,
   })
-  expect(importBody.sourceBase64).toEqual(
-    Buffer.from(
-      'date,reference,description,amount\n2026-08-05,DEP-LOOPBACK-IMPORTED,Imported deposit,12.50\n',
-      'utf8'
-    ).toString('base64')
+  expect(importBody.sourceBase64).toBeUndefined()
+  expect(importBody.sourceStoragePath).toMatch(
+    new RegExp(`^${importedWorkflowState.tenantId}/bank-statements/[0-9a-f-]{36}-statement-loopback-recon-imported\\.csv$`, 'i')
   )
+  expect(importedWorkflowState.storageRequests).toHaveLength(4)
+  expect(importedWorkflowState.storageRequests.map((request) => request.operation)).toEqual([
+    'sign-upload',
+    'upload',
+    'sign-read',
+    'read',
+  ])
+  expect(importedWorkflowState.storageRequests[0]).toMatchObject({
+    operation: 'sign-upload',
+    authorization: 'Bearer third-code-local-service-role-key',
+    storagePath: importBody.sourceStoragePath,
+  })
+  expect(importedWorkflowState.storageRequests[1]).toMatchObject({
+    operation: 'upload',
+    authorization: `Bearer ${session.accessToken}`,
+    storagePath: importBody.sourceStoragePath,
+    bytes: 90,
+  })
+  expect(importedWorkflowState.storageRequests[2]).toMatchObject({
+    operation: 'sign-read',
+    authorization: 'Bearer third-code-local-service-role-key',
+    storagePath: importBody.sourceStoragePath,
+  })
+  expect(importedWorkflowState.storageRequests[3]).toMatchObject({
+    operation: 'read',
+    storagePath: importBody.sourceStoragePath,
+    bytes: 90,
+  })
 
   expect(
     state.unsupportedRequests.some(
