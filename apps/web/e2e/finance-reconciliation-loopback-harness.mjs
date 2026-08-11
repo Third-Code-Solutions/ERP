@@ -460,9 +460,10 @@ proxyServer = createServer(async (request, response) => {
   }
   if (
     request.method === 'POST' &&
-    /^\/v1\/finance\/reconciliation\/[^/]+(?:\/auto-match|\/reconcile|\/void|\/lines\/[^/]+\/(?:match|unmatch))$/.test(
-      url.pathname
-    )
+    (url.pathname === '/v1/finance/reconciliation/import' ||
+      /^\/v1\/finance\/reconciliation\/[^/]+(?:\/auto-match|\/reconcile|\/void|\/lines\/[^/]+\/(?:match|unmatch))$/.test(
+        url.pathname
+      ))
   ) {
     reconciliationWorkflowRequests.push({
       method: request.method,
@@ -606,6 +607,8 @@ const apiEnvironment = {
   ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_TENANT_IDS: TENANT_ID,
   ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED: 'true',
   ERP_FINANCE_RECONCILIATION_VOID_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED: 'true',
+  ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS: TENANT_ID,
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
   AI_PROVIDER_API_KEY: '',
@@ -653,6 +656,8 @@ webChild = spawn(
       ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API: 'true',
       ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API: 'true',
+      ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECEIVABLES_READS_VIA_API: 'false',
       ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS: '',
       ERP_FINANCE_PAYABLES_READS_VIA_API: 'false',
