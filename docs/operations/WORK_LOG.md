@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-11 - M3.271 protected finance-ledger Web/Core browser canary
+
+Added a closed-by-default Playwright proof for the real Next general-ledger
+page. The harness starts disposable PostgreSQL, the compiled Nest API, a
+loopback auth/profile service, and a request-recording Core proxy. The browser
+proves redirect/RBAC, authenticated Core bearer and query forwarding, two
+posted lines, exact PHP totals, account filtering, blocked external traffic,
+zero unblocked console/page errors, and desktop/mobile overflow.
+
+The fixture cleanup endpoint runs after every test and removes the random
+tenant, including its intentionally immutable posted journal; the final local
+fixture count is zero. Browser 1/1, Web 113/113 files/782/782 tests, protected
+API ledger 1/1, root tests, typecheck, lint, build, provider-spend, boundary,
+workflow, actionlint, gitleaks, release, and managed-parity gates pass. No
+hosted Supabase, Storage, Railway, Vercel, credential, provider, or paid action
+changed. Source SHA: `dc20c17`.
+
+Exact next action: keep provider/deployment selectors closed and separately
+reconcile hosted parity, readiness, release identity, rollback, and spend
+evidence before any tenant canary.
+
 ## 2026-08-11 - M3.270 protected finance-ledger Core HTTP canary
 
 Added an opt-in local HTTP canary for the real Nest finance-ledger read path.

@@ -1,5 +1,21 @@
 # Target State
 
+## M3.271 Protected finance-ledger Web/Core browser canary (2026-08-11)
+
+The local evidence now covers the user-facing ledger boundary: an authenticated
+Next page selects Core only for an exact tenant, forwards the session bearer
+token through a server-only adapter, renders immutable posted lines and
+centavo totals, and preserves filter behavior. The browser proof also covers
+redirect, request provenance, responsive layout, and terminal contract noise.
+The selector remains closed outside the disposable harness; this is not a
+production canary.
+
+Keep `ERP_FINANCE_LEDGER_READS_VIA_API=false` and its tenant list empty, and
+keep `ERP_FINANCE_LEDGER_READS_ENABLED=false` with an empty Core allowlist
+outside local proof. PostgreSQL remains authoritative; Python/AI remains
+advisory and cannot approve or finalize ledger transactions. Hosted parity,
+readiness, release identity, rollback, and spend evidence remain required.
+
 ## M3.270 Protected finance-ledger Core HTTP canary (2026-08-11)
 
 The local evidence now covers the read side of the finance ledger boundary:

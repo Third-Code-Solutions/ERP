@@ -1,5 +1,31 @@
 # Current State
 
+## M3.271 Protected finance-ledger Web/Core browser canary (2026-08-11)
+
+The real Next general-ledger page now has a repeatable local browser proof for
+its closed Core branch. A disposable authenticated tenant signs in through a
+loopback Supabase-compatible boundary; the page renders the compiled Nest API
+result through a request-recording Core proxy, shows both posted lines and
+exact PHP totals, then re-renders an account filter. The proof asserts the
+Core bearer contract, query parameters, unauthenticated redirect, no
+unexpected local contracts, no unblocked console errors, blocked external
+font traffic, and desktop/mobile overflow. The harness cleans its random
+tenant through an explicit afterEach endpoint and leaves zero matching
+fixtures.
+
+Browser canary 1/1, Web tests 113 files/782 tests, protected API ledger 1/1,
+forced root tests (4 package tasks), typecheck, lint, production build,
+provider-spend, Web/DB boundary, workflow refs, actionlint, gitleaks,
+database-release, and managed-parity-plan gates pass. The Web and API Core
+selectors are enabled only inside the loopback harness; production selectors
+remain false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed.
+Source evidence: `dc20c17`.
+
+Exact next action: keep both ledger selectors closed and require hosted/source
+parity, readiness, exact release identity, rollback, and spend evidence before
+any tenant canary or provider action.
+
 ## M3.270 Protected finance-ledger Core HTTP canary (2026-08-11)
 
 The disposable PostgreSQL canary now starts the real Nest finance-ledger
