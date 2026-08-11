@@ -31,7 +31,7 @@ intentional Redis-restart skips. Typecheck, lint, production build, database
 release, parity, Web/DB boundary, workflow-reference, provider-spend, and
 actionlint gates PASS. The migration is source-only: 55/124 hosted/source
 migrations, 69 pending in 17 ordered review batches.
-Source evidence SHA: `2fe1e3a`.
+Source evidence SHA: `2fe1e3a919c66345c70b0466ec07ff479ba1a43e`.
 
 Exact next action: keep
 `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED=false`,

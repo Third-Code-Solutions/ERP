@@ -25,7 +25,8 @@ and 143 environment-skipped, Web 112/112 files and 774 tests, and API 174/174
 files and 760 tests. API integration passed 55/55 files with 69 passed and two
 intentional Redis-restart skips; typecheck, lint, build, policy, parity,
 release, boundary, workflow, actionlint, and spend gates PASS. No
-hosted/provider/paid action occurred. Source evidence SHA: `2fe1e3a`.
+hosted/provider/paid action occurred. Source evidence SHA:
+`2fe1e3a919c66345c70b0466ec07ff479ba1a43e`.
 
 ## D-377 -- Keep bank-statement import Core-only and fail-closed (2026-08-11)
 
