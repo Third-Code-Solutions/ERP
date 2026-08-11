@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.299 - approved BOM to Purchase Order Core browser canary (completed source-only)
+
+1. Added opt-in approved-BOM and line fixtures to the disposable loopback
+   harness, with state probes for BOM lock, copied line provenance, PO
+   idempotency, audit, and Core request forwarding.
+2. Added a Playwright config/spec and package script. The real authenticated
+   project BOM page opens Generate PO, selects the tenant vendor, and posts
+   through the existing Server Action/Core adapter.
+3. Asserted exact centavo totals, copied `bom_line_item_id`, approved-BOM lock,
+   succeeded result, replay without duplication, foreign-BOM 404/no-write,
+   audit rows, and cleanup. The fixture flag keeps existing canaries isolated.
+4. Validation: BOM-PO browser 1/1; PO workflow/create, notifications,
+   document, Togal, and DocuSeal browsers 1/1 each; API 176/772; Web 113/802;
+   Web build/lint/typecheck; provider-spend, managed-parity, Web/DB boundary,
+   gitleaks, and diff checks PASS. No hosted migration, provider build, or
+   paid operation occurred.
+
+Source evidence: `apps/web/e2e/purchase-order-from-bom-loopback.spec.ts`, the
+opt-in shared loopback harness, and existing Core BOM-PO controller/service.
+
+Exact next action: retain BOM-PO selectors false/empty and resolve the hosted
+PO duplicate owner-review gate before release review.
+
 ## M3.298 - Purchase Order approval/issuance Core browser canary (completed source-only)
 
 1. Added workflow-only users/vendor email fixtures, guarded by a disposable
