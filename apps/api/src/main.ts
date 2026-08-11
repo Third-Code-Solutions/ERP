@@ -10,14 +10,15 @@ import { corsOrigins } from './config/environment'
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
-    // Public canvas signatures are bounded to 512 KiB of PNG bytes plus
-    // base64/JSON overhead. Keep the parser limit explicit rather than using
-    // an unbounded body parser.
+    // Public signatures and bank-statement CSV imports are bounded payloads.
+    // The import contract caps source bytes at 2 MB (about 2.7 MB base64), so
+    // keep JSON parsing explicitly bounded rather than using an unbounded
+    // body parser.
     bodyParser: false,
   })
   const config = app.get(ConfigService)
 
-  app.use(json({ limit: '1mb' }))
+  app.use(json({ limit: '4mb' }))
 
   app.use(helmet())
   app.enableCors({

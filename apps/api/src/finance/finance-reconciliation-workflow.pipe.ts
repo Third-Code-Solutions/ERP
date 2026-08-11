@@ -5,11 +5,13 @@ import {
   bankStatementLineUnmatchBodySchema,
   bankStatementReconcileBodySchema,
   bankStatementVoidBodySchema,
+  bankStatementImportBodySchema,
   type BankStatementAutoMatchBody,
   type BankStatementLineMatchBody,
   type BankStatementLineUnmatchBody,
   type BankStatementReconcileBody,
   type BankStatementVoidBody,
+  type BankStatementImportBody,
 } from '@third-code-erp/shared-types'
 
 @Injectable()
@@ -85,6 +87,22 @@ export class FinanceReconciliationVoidPipe
     if (!parsed.success) {
       throw new BadRequestException({
         message: 'Invalid bank statement void command',
+        errors: parsed.error.flatten(),
+      })
+    }
+    return parsed.data
+  }
+}
+
+@Injectable()
+export class FinanceReconciliationImportPipe
+  implements PipeTransform<unknown, BankStatementImportBody>
+{
+  transform(value: unknown): BankStatementImportBody {
+    const parsed = bankStatementImportBodySchema.safeParse(value)
+    if (!parsed.success) {
+      throw new BadRequestException({
+        message: 'Invalid bank statement import command',
         errors: parsed.error.flatten(),
       })
     }

@@ -571,6 +571,23 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Bank-statement import writes stay fail-closed until the request ledger,
+  // parser parity, trusted transaction, and protected tenant canary are
+  // approved.
+  ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Project creation authority stays fail-closed until idempotency and a
   // tenant-scoped canary are approved.
   ERP_PROJECT_CREATE_WRITES_ENABLED: z
