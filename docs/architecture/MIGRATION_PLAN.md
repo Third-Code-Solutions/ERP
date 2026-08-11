@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.277 Protected finance-cash Web/Core browser canary (completed source-only)
+
+1. Added a dedicated Playwright config, TypeScript project, package script, and
+   loopback harness for the real `/finance/cash` Next page.
+2. Started the compiled Nest API with cash reads enabled for one random tenant,
+   seeded posted receipt/disbursement plus draft/reversed evidence through
+   disposable PostgreSQL, and placed a request-recording Core proxy between
+   Web and Core.
+3. Added Supabase-compatible auth/profile endpoints, bearer/request-id/query
+   assertions, exact cash KPI/table rendering, redirect/RBAC, blocked-provider,
+   console/page-error, responsive overflow, and cleanup checks.
+4. Validation: cash browser 1/1 by direct config and package script, Web
+   113/782 tests, forced root tests, typecheck, lint, production build,
+   provider-spend, Web/DB boundary, workflow refs, actionlint, gitleaks,
+   database-release, and managed-parity-plan PASS. Final matching fixture
+   count is zero.
+
+Production selectors and tenant lists remain false/empty. No hosted SQL,
+provider setting, credential, or deployment changed.
+
+Source evidence: `afa659b`.
+
+Exact next action: keep cash selectors closed; require hosted/source parity,
+readiness, release identity, authenticated production smoke, rollback, and
+spend gates before any tenant canary or provider action.
+
 ## M3.276 Protected finance-cash Core HTTP canary (completed source-only)
 
 1. Added an opt-in integration canary around the real Nest
