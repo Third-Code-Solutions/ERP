@@ -1,5 +1,21 @@
 # Target State
 
+## M3.275 Protected finance-payables Web/Core browser canary (2026-08-11)
+
+The local evidence now covers the user-facing payables seam: an authenticated
+Next page selects Core only for an exact tenant, forwards the server-only
+session bearer and bounded query, maps typed supplier-bill data into KPI,
+aging, and table rows, and remains responsive. The disposable browser also
+proves redirect/RBAC, blocked provider traffic, terminal contract noise, and
+cleanup.
+
+Keep `ERP_FINANCE_PAYABLES_READS_VIA_API=false` with an empty tenant list and
+keep `ERP_FINANCE_PAYABLES_READS_ENABLED=false` with an empty Core allowlist
+outside local proof. PostgreSQL remains authoritative; Python/AI remains
+advisory and cannot approve or finalize financial transactions. Hosted parity,
+readiness, release identity, authenticated smoke, rollback, and spend
+evidence remain required.
+
 ## M3.274 Protected finance-payables Core HTTP canary (2026-08-11)
 
 The local evidence now covers the guarded Nest supplier-payables read seam:

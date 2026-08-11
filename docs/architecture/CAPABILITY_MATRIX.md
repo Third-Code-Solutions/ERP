@@ -1,5 +1,18 @@
 # Third Code ERP capability matrix
 
+## M3.275 Protected finance-payables Web/Core browser canary (2026-08-11)
+
+The local closed-canary evidence covers the user-facing payables cutover:
+authenticated Next rendering through Core, bearer/request-id/query provenance,
+exact PHP payable/KPI/aging mapping, posted/draft ordering, redirect/RBAC, no
+unexpected contracts, blocked provider traffic, console/page-error checks,
+responsive desktop/mobile layout, and cleanup. The random fixture is explicitly
+cleaned and leaves zero matching tenants. Production selectors remain
+false/empty; hosted or provider action is not proven.
+
+Payables browser 1/1, Web 113/782, root tests, typecheck, lint, build, release,
+parity, boundary, workflow, provider-spend, actionlint, and gitleaks PASS.
+
 ## M3.274 Protected finance-payables Core HTTP canary (2026-08-11)
 
 The local closed-canary evidence covers the Nest supplier-payables read
