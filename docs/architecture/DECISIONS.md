@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-382 -- Prove finance-ledger read authority through protected Nest HTTP (2026-08-11)
+
+Decision: add a closed-by-default, opt-in HTTP canary around the real Nest
+finance-ledger controller/service and guards. Seed a disposable two-tenant
+fixture, post journals through the database function, read through the
+transaction-bound Core service, and force an outer rollback after asserting
+authorization, tenant isolation, exact centavo totals, filters, pagination,
+and selector failure behavior.
+
+Rationale: service-only tests do not prove the HTTP trust boundary, while
+directly inserting posted lines would bypass the database immutability trigger.
+The disposable transaction proves the route and database authority together
+without touching managed Supabase, Vercel, Railway, provider credentials, or
+paid resources. The allowlist and default-off selector keep the production
+cutover reversible.
+
+Validation: ledger HTTP 1/1, journal HTTP 1/1, forced root tests, API 174/174
+files and 760/760 tests, typecheck, lint, build, provider-spend, Web/DB
+boundary, workflow refs, actionlint, gitleaks, database-release, and
+managed-parity-plan PASS. Source evidence: `d5d4277`.
+
 ## D-381 -- Use the real Nest Core in the successful browser canary (2026-08-11)
 
 Decision: make the disposable bank-statement browser proof start the compiled

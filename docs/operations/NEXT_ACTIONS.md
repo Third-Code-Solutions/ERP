@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.270 protected finance-ledger HTTP canary
+
+Keep `ERP_FINANCE_LEDGER_READS_ENABLED=false` and
+`ERP_FINANCE_LEDGER_READS_TENANT_IDS` empty. The local Nest HTTP canary proves
+auth/RBAC, tenant isolation, exact centavo totals, filters, pagination,
+selector failure, and rollback only against disposable PostgreSQL. Source
+parity remains 55/124 with 69 pending migrations in 17 ordered review batches.
+Next gates are hosted/source parity, readiness, exact release identity,
+rollback, and spend control. Do not apply hosted SQL or trigger Vercel,
+Railway, or provider builds.
+
 ## Exact next action after M3.269 successful Core browser proof
 
 Keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED` and its tenant list

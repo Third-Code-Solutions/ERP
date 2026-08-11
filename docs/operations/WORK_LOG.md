@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-11 - M3.270 protected finance-ledger Core HTTP canary
+
+Added an opt-in local HTTP canary for the real Nest finance-ledger read path.
+It uses disposable PostgreSQL, random two-tenant fixtures, Supabase identity
+mapping, JWT/capability guards, exact centavo assertions, account filtering,
+pagination, foreign-tenant denial, closed-selector 503, and an outer rollback.
+Posted rows are created by `public.post_journal_entry`, so the test respects
+the database's immutable-posted-line trigger.
+
+Ledger HTTP 1/1 and the related journal HTTP 1/1 pass. Forced root tests,
+API tests (174 files/760 tests), typecheck, lint, production build, provider
+spend, Web/DB boundary, workflow refs, actionlint, gitleaks, release, and
+managed-parity gates pass. The integration selector is enabled only for local
+disposable PostgreSQL; all production selectors remain false/empty. No hosted
+Supabase, Storage, Railway, Vercel, credential, provider, or paid action
+changed.
+
+Exact next action: keep the ledger selector closed and separately reconcile
+hosted parity, readiness, release identity, rollback, and spend evidence
+before any tenant canary or provider action.
+
 ## 2026-08-11 - M3.269 successful bank-statement Core browser proof
 
 Changed the disposable browser harness from a controlled Core 503 stub to the
