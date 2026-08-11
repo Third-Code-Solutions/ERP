@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-370 -- Preserve Core cash-draft deletion semantics (2026-08-11)
+
+Decision: keep cash draft deletion Core-only and require explicit child
+allocation deletion before parent deletion. Add a forward-only trigger repair
+that returns `OLD` from `guard_cash_transaction` on `BEFORE DELETE`. Retain
+tenant-scoped idempotency evidence after deletion and keep the selector
+closed.
+
+Rationale: the prior trigger returned `NEW` for DELETE, which is NULL and
+silently cancelled every parent delete. Relying on FK cascade then caused the
+allocation guard to see a missing parent and reject the operation. Explicit
+ordered deletion preserves both database invariants and durable replay/audit;
+Python/AI remains analysis-only.
+
+Validation: focused local HTTP canary passed 1/1; migration regression 3/3;
+API integration passed 53/53 files and 67 tests with two explicit
+Redis-restart skips; API/database typecheck, root lint, production build, and
+provider/release policy gates passed. No hosted/provider/paid action occurred.
+
 ## D-369 -- Require protected HTTP evidence for cash workflow (2026-08-11)
 
 Decision: require cash transaction post and reverse to remain Core-only

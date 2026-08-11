@@ -1,5 +1,31 @@
 # Current State
 
+## M3.258 Cash draft delete authority (2026-08-11)
+
+Added a protected rollback-only HTTP canary for cash draft create, update, and
+delete. It boots the real Nest controller/service with JWT identity and
+capability guards against transaction-bound PostgreSQL and proves strict
+body/header handling, finance/viewer authorization, closed-selector behavior,
+tenant-scoped target validation, idempotent replay/key conflict, concealed
+cross-tenant update/delete, allocation replacement, durable delete replay,
+semantic audit, tenant isolation, and rollback.
+
+The canary exposed two real defects. Forward migration
+`20260811180000_cash_draft_delete_trigger_fix.sql` makes the cash transaction
+`BEFORE DELETE` guard return `OLD`; Core now explicitly deletes draft
+allocations before the parent so the allocation guard does not reject an FK
+cascade after the parent disappears.
+
+Focused canary: 1/1 PASS; database migration regression: 3/3 PASS; API
+integration: 53/53 files and 67 tests PASS with two explicit Redis-restart
+skips. API/database typecheck, root lint, production build, provider-spend,
+Supabase parity, database-release, Web/DB boundary, workflow action-reference,
+and actionlint gates PASS. Source parity is now 55/118 hosted/source
+migrations, 63 pending in 11 review batches. No hosted SQL/data, Storage,
+Railway/Vercel deployment, provider setting, credential, or paid action
+changed. Keep cash draft writes disabled and its tenant allowlist empty.
+Source evidence SHA: 2c59e6886214e42b646b4ad32938db5f5440ef10.
+
 ## M3.257 Cash transaction workflow authority (2026-08-11)
 
 Added a protected rollback-only HTTP canary for cash transaction post and

@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.258 cash-draft delete canary
+
+Keep `ERP_FINANCE_CASH_DRAFT_WRITES_ENABLED=false` and
+`ERP_FINANCE_CASH_DRAFT_WRITES_TENANT_IDS` empty. Focused canary passes 1/1;
+database migration regression passes 3/3; API integration passes 53/53 files
+and 67 tests with two explicit Redis-restart skips; static, build, release,
+boundary, workflow, actionlint, parity, and spend gates pass. Source parity is
+55/118 hosted/source migrations with 63 pending in 11 review batches. Do not
+apply hosted SQL or trigger Railway/Vercel builds while spend protection and
+the hosted parity/security gate remain active. Next source boundary: bank-
+reconciliation authority, then reconcile hosted parity, release identity,
+readiness, protected browser evidence, rollback, and billing gates.
+
+## M3.258 evidence boundary (completed source-only canary)
+
+Cash draft create/update/delete now has protected HTTP evidence and a tested
+forward-only trigger repair. Core deletes allocations before draft parent;
+request ledger retains deleted UUID/result for replay. No provider or paid
+action occurred.
+
 ## Exact next action after M3.257 cash workflow canary
 
 Keep `ERP_FINANCE_CASH_WORKFLOW_WRITES_ENABLED=false` and

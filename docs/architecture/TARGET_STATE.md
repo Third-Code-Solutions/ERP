@@ -1,5 +1,17 @@
 # Target State
 
+## M3.258 Cash draft delete authority (2026-08-11)
+
+The Core owns cash draft create/update/delete. Draft deletion locks the
+tenant-scoped draft, removes allocations while the draft guard still permits
+child deletion, then deletes the parent; PostgreSQL's before-delete guard
+returns `OLD` so the command cannot be silently cancelled. The request ledger
+retains the deleted UUID and durable result for replay, while cross-tenant
+identifiers remain concealed. Python/AI may analyze but cannot mutate cash
+drafts. Keep `ERP_FINANCE_CASH_DRAFT_WRITES_ENABLED=false` and its tenant list
+empty until hosted parity, readiness, browser, rollback, and cost gates are
+reconciled.
+
 ## M3.257 Cash transaction workflow authority (2026-08-11)
 
 The Core owns POST /v1/finance/cash-transactions/:cashTransactionId/post and

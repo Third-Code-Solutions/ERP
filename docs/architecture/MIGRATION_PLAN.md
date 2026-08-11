@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.258 Cash draft delete authority (completed source-only canary)
+
+1. Added a protected rollback-only HTTP canary around the existing Core cash
+   draft create/update/delete controller and service with two tenants,
+   finance/viewer identities, posted supplier-bill targets, real JWT/
+   capability guards, and transaction-bound PostgreSQL.
+2. The canary covers strict body/header handling, authentication/RBAC,
+   closed selector, tenant-scoped target validation, idempotent replay/key
+   conflict, concealed cross-tenant update/delete, allocation replacement,
+   durable delete replay, semantic audit, tenant isolation, and rollback.
+3. The canary exposed that the existing `guard_cash_transaction` returned
+   `NEW` for `BEFORE DELETE` (`NULL`), silently cancelling draft deletion. A
+   forward-only migration now returns `OLD`; Core explicitly removes draft
+   allocations before parent deletion so the allocation guard remains valid.
+4. Focused canary passed 1/1; database migration regression passed 3/3; API
+   integration passed 53/53 files and 67 tests with two explicit Redis-restart
+   skips. API/database typecheck, root lint, production build, and all policy
+   gates passed.
+5. Source parity is now 55/118 hosted/source migrations with 63 pending in 11
+   review batches. No hosted Supabase, Storage, Railway, Vercel, credential,
+   provider, or paid action changed. Keep cash-draft writes disabled with an
+   empty tenant allowlist. Source evidence SHA:
+   2c59e6886214e42b646b4ad32938db5f5440ef10.
+
+Next: keep the selector closed and reconcile hosted parity, release identity,
+readiness, protected browser evidence, rollback, and spend gates before any
+selector, hosted SQL, or provider action.
+
 ## M3.257 Cash transaction workflow authority (completed source-only canary)
 
 1. Added a protected rollback-only HTTP canary around the existing Core cash
