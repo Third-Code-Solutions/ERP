@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.252 Customer invoice draft-creation authority (2026-08-11)
+
+The existing `finance.issue_invoice` Nest draft-create command now has
+protected transaction-bound HTTP evidence for auth/RBAC, strict browser
+input, disabled-by-default behavior, tenant-scoped project preflight,
+cross-tenant concealment, approved/draft BOM rules, exact centavo
+calculation, idempotent replay/conflict, invoice/request-ledger linkage,
+semantic audit, and rollback. The preflight fix prevents a composite-FK 500
+before any ledger claim. Web adoption remains closed; keep
+`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED=false` and its
+tenant list empty. Python/AI remains analysis-only.
+
+Validation: focused canary 1/1 PASS; API integration 47/47 files and 61 tests
+PASS with two explicit Redis-restart skips under `--testTimeout=15000`; API
+typecheck, root lint, and production build PASS. No hosted or paid action.
+
 ## M3.251 Customer invoice draft-cancellation authority (2026-08-11)
 
 The existing `finance.issue_invoice` Nest cancellation command now has

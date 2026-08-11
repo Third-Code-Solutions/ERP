@@ -1,5 +1,18 @@
 # Target State
 
+## M3.252 Customer invoice draft-creation authority
+
+Draft customer-invoice creation is a Core-owned command at
+`POST /v1/projects/:projectId/customer-invoices`. The browser sends only
+strict billing inputs and an opaque idempotency key; Core derives tenant,
+actor, role, project/account, approved BOM, invoice number, exact centavo
+amounts, and audit authority from locked server state. The transaction owns
+the tenant-scoped project preflight, request ledger, draft invoice, semantic
+audit, and rollback. Cross-tenant project ids are concealed before ledger
+claim; replay returns the durable result; changed commands conflict. Keep the
+selector disabled until hosted parity, release identity, readiness, protected
+browser evidence, rollback, and spend approval are independently complete.
+
 ## M3.251 Customer invoice draft-cancellation authority
 
 Draft customer invoice cancellation is a Core-owned finance command at

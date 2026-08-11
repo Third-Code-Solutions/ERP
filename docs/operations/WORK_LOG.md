@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-11 - M3.252 customer invoice draft-creation authority canary
+
+Added `apps/api/integration/customer-invoice-draft-create.http.integration.spec.ts`
+and moved the Core project preflight ahead of request-ledger claim in
+`customer-invoice-draft-create.service.ts`. The protected canary uses real
+JWT identity/capability guards, two tenants, finance/viewer roles, approved
+and draft BOMs, and transaction-bound PostgreSQL. It covers auth, strict body
+and idempotency handling, viewer denial, disabled selector, cross-tenant
+concealment, BOM rules, exact billing/tax/retention math, replay/key conflict,
+invoice and request-ledger linkage, semantic audit, and rollback.
+
+The first canary exposed a real cross-tenant ordering defect that returned a
+composite-FK 500; preflight now returns concealed 404 before audit/claim.
+Focused canary 1/1 PASS. API integration 47/47 files and 61 tests PASS with
+two explicit Redis-restart skips under `--testTimeout=15000`; the default
+parallel five-second lane had one unrelated Cortex timeout, and that suite
+passed isolated. API typecheck, root lint, and production build PASS. No
+migration, hosted Supabase, Storage, Railway, Vercel, credential, provider,
+or paid change occurred. Keep draft-create flags/lists false/empty. Source/
+docs evidence SHA is recorded after push.
+
 ## 2026-08-11 - M3.251 customer invoice draft-cancellation authority canary
 
 Added `apps/api/integration/customer-invoice-cancel.http.integration.spec.ts`.

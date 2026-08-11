@@ -125,6 +125,19 @@ export class CustomerInvoiceDraftCreateService {
         transaction,
         principal
       )
+      const [project] = await transaction
+        .select({ id: projects.id, accountId: projects.account_id })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.id, projectId),
+            eq(projects.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!project) throw new NotFoundException('Project not found')
+
       await this.audit.stampActor(transaction, authorizedPrincipal)
 
       const request = await this.claimRequest(
@@ -140,19 +153,6 @@ export class CustomerInvoiceDraftCreateService {
           'Customer invoice draft idempotency record has an unsupported state'
         )
       }
-
-      const [project] = await transaction
-        .select({ id: projects.id, accountId: projects.account_id })
-        .from(projects)
-        .where(
-          and(
-            eq(projects.id, projectId),
-            eq(projects.tenant_id, authorizedPrincipal.tenantId)
-          )
-        )
-        .limit(1)
-        .for('update')
-      if (!project) throw new NotFoundException('Project not found')
 
       let bom: { id: string; projectId: string; status: string; tcvCents: number } | undefined
       if (parsedBody.bomId) {
