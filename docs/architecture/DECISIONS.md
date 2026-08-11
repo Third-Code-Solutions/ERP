@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-397 -- Gate hosted Supabase migration on authoritative read-only evidence (2026-08-12)
+
+Decision: record the connected Supabase project's current ledger, RLS
+observation, and advisor findings in the managed parity snapshot, but do not
+apply its 69-migration source suffix or auto-fix advisor findings.
+
+Rationale: the target is healthy yet materially behind source. A blind suffix
+could cross unfinished security/workflow boundaries, and advisor output needs
+schema-aware review. A read-only `DATABASE_URL` plan, ordered local replay,
+rollback evidence, tenant/audit review, and exact release identity are safer
+than treating the provider's healthy status as migration approval. Keeping
+provider actions closed also respects the Vercel spend limit.
+
+Validation: Supabase read-only project/migration/table/advisor calls PASS;
+source parity manifest PASS; database release planner BLOCKED without
+`DATABASE_URL`; no hosted or paid mutation.
+
 ## D-396 -- Prove the Core bank-statement Storage branch in a disposable browser (2026-08-12)
 
 Decision: extend the existing bank-import browser harness with a local

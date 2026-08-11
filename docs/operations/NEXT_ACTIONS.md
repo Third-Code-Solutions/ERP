@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.290 managed Supabase read-only audit
+
+Keep all Core/Web migration selectors false with empty tenant allowlists. The
+connected project is healthy but only has the source prefix through
+`20260729233017` (55/124); 69 migrations remain pending. Before any hosted
+apply, obtain a read-only `DATABASE_URL` plan, reconcile the 14 security and
+253 performance advisor findings, and review the 17 ordered batches for
+rollback, readiness, tenant isolation, and audit effects. Do not run a blind
+suffix apply or trigger Vercel/Railway builds; this preserves the user's
+Vercel spend ceiling.
+
 ## Exact next action after M3.289 Core bank-statement Storage browser canary
 
 Keep the API

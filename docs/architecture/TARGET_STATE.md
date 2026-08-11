@@ -1,5 +1,18 @@
 # Target State
 
+## M3.290 Managed parity gate (2026-08-12)
+
+The target release process treats Supabase as PostgreSQL source of truth but
+requires an authoritative, read-only ledger and advisor review before a
+hosted migration. The connected project is healthy and RLS-enabled, yet its
+55/124 migration prefix and advisor findings mean the 69-migration suffix is
+not a deployable unit. Each ordered batch must have a tested rollback,
+readiness check, tenant/audit review, and explicit release identity. No
+provider build is part of this gate.
+
+Keep AI/Python advisory and all Core/Web selectors closed until a batch has
+passed local replay and the hosted release gate.
+
 ## M3.289 Core bank-statement Storage browser canary (2026-08-12)
 
 The local target proof now covers the user journey through the Core Storage

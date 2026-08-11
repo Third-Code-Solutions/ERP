@@ -1,5 +1,28 @@
 # Current State
 
+## M3.290 Managed Supabase read-only parity and security audit (2026-08-12)
+
+The connected project `aqqrtkmtcsfkbyyqxowv` was inspected without SQL or
+provider mutation. Supabase reports `ACTIVE_HEALTHY`, region `ap-northeast-2`,
+PostgreSQL `17.6.1.121`; every listed public table has RLS enabled. Hosted
+history is a linear prefix of source through `20260729233017`: 55/124 applied,
+69 pending in 17 ordered review batches, source head `20260812150000`.
+
+The security advisor returned 14 findings (11 WARN, 3 INFO): three RLS-enabled
+tables without policies, nine exposed SECURITY DEFINER RPC grants, `vector` in
+`public`, and leaked-password protection disabled. Performance returned 253
+findings (one WARN, 252 INFO): 148 unindexed foreign keys, 103 unused indexes,
+one duplicate tenant slug index, and an absolute Auth connection allocation.
+These are review inputs, not authorization to change hosted state.
+
+No hosted SQL, Storage object/policy, Vercel/Railway deployment, provider
+setting, credential, or paid action changed. Snapshot evidence is recorded in
+`docs/operations/managed-supabase-parity-plan.json`.
+
+Exact next action: obtain a read-only `DATABASE_URL` release plan and review
+the pending migrations/security findings in small reversible batches. Keep all
+production selectors closed; do not apply the 69-migration suffix blindly.
+
 ## M3.289 Core bank-statement Storage browser canary (2026-08-12)
 
 The existing local bank-import browser now exercises the new Core Storage
