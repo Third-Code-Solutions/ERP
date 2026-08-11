@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-08-12 - M3.290 managed Supabase read-only parity and security audit
+
+Inspected the connected Supabase project `aqqrtkmtcsfkbyyqxowv` through the
+read-only project, migration, table, and advisor surfaces. It is healthy on
+PostgreSQL 17.6.1 in `ap-northeast-2`; all listed public tables have RLS. The
+hosted migration ledger is the source prefix through `20260729233017` (55/124),
+leaving 69 migrations in 17 ordered review batches through source head
+`20260812150000`.
+
+Recorded 14 security advisor findings (11 WARN, 3 INFO) and 253 performance
+findings (one WARN, 252 INFO) in the managed parity snapshot. The findings
+include no-policy RLS tables, exposed SECURITY DEFINER RPCs, disabled leaked
+password protection, unindexed foreign keys, unused indexes, a duplicate
+tenant slug index, and absolute Auth connection allocation. No SQL, Storage,
+provider, credential, deployment, or paid action changed.
+
+Validation: Supabase MCP read-only project/migrations/tables/advisors PASS;
+source parity manifest PASS; hosted release planner BLOCKED because no
+`DATABASE_URL` is configured; no migration was executed.
+
+Exact next action: run the read-only database release planner with an approved
+connection, review one ordered migration batch at a time, and keep hosted
+apply plus production selectors closed until rollback/readiness/security gates
+pass.
+
 ## 2026-08-12 - M3.289 Core bank-statement Storage browser canary
 
 Extended the disposable bank-import browser harness with a request-recording

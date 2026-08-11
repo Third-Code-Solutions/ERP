@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.290 - managed Supabase read-only parity and security audit (completed source-only)
+
+1. Queried the connected project, migration ledger, public table/RLS catalog,
+   and security/performance advisors through read-only Supabase surfaces.
+2. Confirmed a healthy PostgreSQL 17 target with a linear 55/124 source
+   prefix; 69 migrations remain in 17 ordered review batches.
+3. Recorded advisor evidence: 14 security findings and 253 performance
+   findings. Treat exposed SECURITY DEFINER grants, no-policy RLS tables,
+   disabled leaked-password protection, and index/connection findings as
+   explicit review blockers or follow-up items—not automatic hosted fixes.
+4. Updated the managed parity snapshot and six architecture/operations
+   memory files. No hosted SQL, Storage policy/object, deployment, credential,
+   provider setting, or paid action changed.
+
+Validation: read-only Supabase project/migration/table/advisor calls PASS;
+`pnpm verify:managed-supabase-parity-plan` PASS; `pnpm plan:database-release`
+BLOCKED without `DATABASE_URL` and therefore no SQL ran.
+
+Exact next action: run the release planner against an approved read-only
+connection, then review the first migration batch locally before any hosted
+apply. Do not deploy the full suffix.
+
 ## M3.289 - Core bank-statement Storage browser canary (completed source-only)
 
 1. Extended the existing bank-import loopback harness with a request-recording
