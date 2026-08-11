@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.275 Protected finance-payables Web/Core browser canary (completed source-only)
+
+1. Added a dedicated Playwright config, TypeScript project, package script, and
+   loopback harness for the real `/finance/payables` Next page.
+2. Started the compiled Nest API with the payables selector enabled for one
+   random tenant, seeded two posted and one draft supplier bills through the
+   database posting function, and placed a request-recording Core proxy
+   between Web and Core.
+3. Added Supabase-compatible auth/profile endpoints, bearer/request-id/query
+   assertions, exact KPI/aging/table rendering, redirect/RBAC,
+   blocked-provider, console/page-error, and desktop/mobile overflow checks.
+4. Added explicit cleanup plus signal fallback; the final local fixture count
+   is zero. Validation: payables browser 1/1, Web 113/782 tests, forced root
+   tests (4 package tasks), typecheck, lint, production build, provider-spend,
+   Web/DB boundary, workflow refs, actionlint, gitleaks, database-release,
+   and managed-parity-plan PASS.
+
+Production selectors and tenant lists remain false/empty. No hosted SQL,
+provider setting, credential, or deployment changed.
+
+Source evidence: pending source commit pin.
+
+Exact next action: keep the payables selectors closed; require hosted/source
+parity, readiness, exact release identity, authenticated production smoke,
+rollback, and spend evidence before any tenant canary or provider action.
+
 ## M3.274 Protected finance-payables Core HTTP canary (completed source-only)
 
 1. Added an opt-in integration canary around the real Nest

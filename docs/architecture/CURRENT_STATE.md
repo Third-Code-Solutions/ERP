@@ -1,5 +1,29 @@
 # Current State
 
+## M3.275 Protected finance-payables Web/Core browser canary (2026-08-11)
+
+The real Next `/finance/payables` page now has a repeatable local browser proof
+for its closed Core branch. A random authenticated tenant signs in through
+loopback Supabase-compatible endpoints; the page renders two posted supplier
+bills, one draft bill, exact PHP balances, KPI totals, and aging cards from the
+compiled Nest API through a request-recording proxy. The proof checks
+bearer/request-id/query forwarding, redirect/RBAC, bill ordering/statuses,
+blocked external font traffic, no unexpected contracts, console/page errors,
+desktop/mobile overflow, and cleanup. The harness leaves zero matching
+fixtures.
+
+Payables browser 1/1, Web 113/782, forced root tests (4 package tasks),
+typecheck, lint, production build, provider-spend, Web/DB boundary, workflow,
+actionlint, gitleaks, database-release, and managed-parity-plan gates pass.
+Selectors remain false/empty outside the disposable harness. No hosted SQL,
+Supabase object, Vercel/Railway deployment, provider setting, credential, or
+paid action changed. Source evidence is the pending M3.275 source commit.
+
+Exact next action: keep the payables selectors closed and require
+hosted/source parity, readiness, exact release identity, authenticated
+production smoke, rollback, and spend evidence before any tenant canary or
+provider action.
+
 ## M3.274 Protected finance-payables Core HTTP canary (2026-08-11)
 
 The Nest `/v1/finance/payables` read boundary now has a disposable protected
