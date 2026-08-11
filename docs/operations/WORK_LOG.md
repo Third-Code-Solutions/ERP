@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-11 - M3.272 protected finance-receivables Core HTTP canary
+
+Added an opt-in local HTTP proof for the Nest customer-receivables read path.
+The disposable fixture creates two tenant-scoped customers/projects and
+issues invoices through `public.issue_customer_invoice`; the route then proves
+JWT/capability boundaries, invalid-query and closed-selector failures, exact
+centavo/overdue totals, date and account/project filters, pagination, foreign-
+tenant invisibility, and transaction rollback. Final matching fixture count is
+zero.
+
+The first run exposed a real raw-SQL driver defect: a JavaScript Date was bound
+inside the overdue aggregation and caused a 500. The service now binds an ISO
+timestamp string, with a unit regression assertion. Receivables HTTP 2/2,
+API 174/760, root typecheck/lint/tests/build, provider-spend, boundary,
+workflow, actionlint, gitleaks, release, and managed-parity gates pass. No
+hosted Supabase, Storage, Railway, Vercel, credential, provider, or paid
+action changed.
+
+Exact next action: keep provider/deployment selectors closed; add the
+authenticated receivables browser proof, then separately reconcile hosted
+parity, readiness, release identity, rollback, and spend evidence.
+
 ## 2026-08-11 - M3.271 protected finance-ledger Web/Core browser canary
 
 Added a closed-by-default Playwright proof for the real Next general-ledger

@@ -1,5 +1,21 @@
 # Target State
 
+## M3.272 Protected finance-receivables Core HTTP canary (2026-08-11)
+
+The local evidence now covers the guarded Nest receivables read seam:
+PostgreSQL remains the financial source of truth, invoice issuance is posted by
+the database function, and Core returns exact centavo balances under an exact
+tenant allowlist. Auth/RBAC, fail-closed selector behavior, filters,
+pagination, overdue math, foreign-tenant isolation, and rollback are proven in
+a disposable transaction. The raw SQL date bind is driver-safe and regression
+covered.
+
+Keep `ERP_FINANCE_RECEIVABLES_READS_ENABLED=false` and its tenant list empty
+outside local proof. The Web/Core selector remains closed until a separate
+authenticated browser proof exists. Python/AI remains advisory and cannot
+approve or finalize financial transactions. Hosted parity, readiness, release
+identity, rollback, and spend evidence remain required.
+
 ## M3.271 Protected finance-ledger Web/Core browser canary (2026-08-11)
 
 The local evidence now covers the user-facing ledger boundary: an authenticated

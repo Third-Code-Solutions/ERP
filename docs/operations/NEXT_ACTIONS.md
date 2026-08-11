@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.272 protected finance-receivables Core HTTP canary
+
+Keep `ERP_FINANCE_RECEIVABLES_READS_ENABLED=false` and
+`ERP_FINANCE_RECEIVABLES_READS_TENANT_IDS` empty. The disposable Nest HTTP
+canary proves auth/RBAC, invalid-query and selector failure, exact invoice
+balances and overdue math, tenant isolation, filters, pagination, database
+posting authority, and rollback; the raw SQL date bind is now driver-safe.
+Next add a separate authenticated browser proof for the real
+`/finance/receivables` page. Source parity remains 55/124 with 69 pending
+migrations in 17 ordered review batches. Require hosted/source parity,
+readiness, exact release identity, rollback, and spend evidence before any
+tenant canary or provider action. Do not apply hosted SQL or trigger Vercel,
+Railway, or provider builds.
+
 ## Exact next action after M3.271 protected finance-ledger Web/Core browser canary
 
 Keep `ERP_FINANCE_LEDGER_READS_VIA_API=false` and

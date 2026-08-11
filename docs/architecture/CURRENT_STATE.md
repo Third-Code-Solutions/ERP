@@ -1,5 +1,28 @@
 # Current State
 
+## M3.272 Protected finance-receivables Core HTTP canary (2026-08-11)
+
+The Nest customer-receivables read boundary now has a disposable protected
+HTTP proof. Two random tenants issue invoices through the database-authoritative
+`public.issue_customer_invoice` function; the real JWT/capability guards and
+service prove 401/403/400/503 boundaries, exact centavo totals, overdue
+aggregation, account/project and date filters, bounded pagination, foreign-
+tenant invisibility, and rollback. The canary leaves zero matching fixtures.
+
+The proof also fixed a production-relevant driver defect: raw SQL overdue
+aggregation now binds an ISO timestamp string rather than a JavaScript Date,
+which the postgres wire serializer rejects. Focused HTTP 2/2, API 174/760,
+root typecheck/lint/tests/build, provider-spend, Web/DB boundary, workflow,
+actionlint, gitleaks, database-release, and managed-parity-plan gates pass.
+Production selectors remain false/empty. No hosted SQL, Supabase object,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Source evidence: local M3.272 changes.
+
+Exact next action: keep `ERP_FINANCE_RECEIVABLES_READS_ENABLED=false` and its
+tenant list empty; add the authenticated `/finance/receivables` browser proof,
+then require hosted/source parity, readiness, exact release identity,
+rollback, and spend evidence before any tenant canary or provider action.
+
 ## M3.271 Protected finance-ledger Web/Core browser canary (2026-08-11)
 
 The real Next general-ledger page now has a repeatable local browser proof for

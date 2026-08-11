@@ -1,5 +1,18 @@
 # Third Code ERP capability matrix
 
+## M3.272 Protected finance-receivables Core HTTP canary (2026-08-11)
+
+The local closed-canary evidence now covers the Nest receivables read boundary:
+authenticated finance access, viewer denial, invalid-query and disabled-selector
+failure, exact current/retention/withholding and overdue totals, date and
+account/project filters, deterministic pagination, foreign-tenant invisibility,
+database-authoritative invoice issuance, and rollback. Production selectors
+remain false/empty; hosted/provider action is not proven. The raw SQL overdue
+timestamp is bound as a driver-safe ISO string and regression covered.
+
+Receivables HTTP 2/2, API 174/760, root tests/typecheck/lint/build, release,
+parity, boundary, workflow, provider-spend, actionlint, and gitleaks PASS.
+
 ## M3.271 Protected finance-ledger Web/Core browser canary (2026-08-11)
 
 The local closed-canary evidence covers the user-facing ledger cutover:

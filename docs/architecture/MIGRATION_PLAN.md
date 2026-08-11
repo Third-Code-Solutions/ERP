@@ -1,5 +1,29 @@
 # Migration Plan
 
+## M3.272 Protected finance-receivables Core HTTP canary (completed source-only)
+
+1. Added an opt-in integration canary around the real Nest
+   `FinanceReceivablesController`, service, JWT guard, capability guard, and
+   transaction-bound `DatabaseService`.
+2. Seeded two random tenants with accounts, projects, control ledger accounts,
+   and draft invoices; issued them through `public.issue_customer_invoice` so
+   the read proof respects database posting authority and immutable evidence.
+3. Asserted 401/403/400/503 boundaries, exact current/retention/withholding and
+   overdue totals, date and account/project filters, deterministic pagination,
+   foreign-tenant invisibility, and outer rollback.
+4. Fixed the raw SQL overdue-date bind to use an ISO string and added a unit
+   regression assertion that no JavaScript Date reaches a raw SQL parameter.
+5. Validation: receivables HTTP 2/2, API 174/760 tests, root typecheck, lint,
+   forced tests, production build, provider-spend, Web/DB boundary, workflow
+   refs, actionlint, gitleaks, database-release, and managed-parity-plan PASS.
+
+Production selectors and tenant lists remain false/empty. No hosted SQL,
+provider setting, credential, or deployment changed.
+
+Exact next action: keep the receivables selector closed; prove the real Web
+`/finance/receivables` browser branch with a disposable authenticated tenant,
+then run hosted parity, readiness, release identity, rollback, and spend gates.
+
 ## M3.271 Protected finance-ledger Web/Core browser canary (completed source-only)
 
 1. Added a dedicated Playwright config, TypeScript project, and loopback
