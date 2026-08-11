@@ -15,9 +15,10 @@ PostgreSQL reversal function, immutable linkage, request ledger, and audit
 event commit together. Core owns the official transaction; Python/AI remains
 analysis-only.
 
-Validation: API typecheck and root lint passed. The guarded focused runtime
-canary was not run because disposable PostgreSQL/Redis was unavailable; WSL
-service restart timed out. No hosted/provider/paid action occurred.
+Validation: focused local PostgreSQL 17/Redis 7.4.9 canary passed 1/1; API
+integration passed 45/45 files and 59 tests with two explicit Redis-restart
+opt-in skips; API typecheck, root lint, and production build passed. No
+hosted/provider/paid action occurred.
 
 ## D-361 -- Require protected HTTP evidence for customer invoice issuance (2026-08-11)
 

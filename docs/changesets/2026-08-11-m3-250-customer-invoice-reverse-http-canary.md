@@ -24,15 +24,16 @@ outer rollback.
 
 - API typecheck: PASS;
 - root lint: PASS;
-- focused runtime canary: NOT RUN; `DATABASE_URL` was unavailable, so Vitest
-  skipped the guarded suite, and a non-destructive WSL PostgreSQL/Redis
-  restart attempt timed out;
+- focused runtime canary: 1/1 PASS on local PostgreSQL 17/Redis 7.4.9;
+- API integration: 45/45 files, 59 PASS, 2 explicit Redis-restart opt-in
+  skips;
+- API typecheck, root lint, and production build: PASS;
 - no hosted Supabase SQL/data, Storage, Railway/Vercel deployment, provider
   setting, credential, or paid action.
 
-This source evidence is not a passed release canary. Restore the disposable
-PostgreSQL 17/Redis 7.4.9 lane and run the focused test before enabling any
-tenant or applying hosted SQL.
+This disposable evidence is not hosted readiness or deployment approval.
+Keep the production selector closed until hosted parity, release identity,
+readiness, protected browser evidence, rollback, and spend gates pass.
 
 ## Release boundary
 
@@ -41,5 +42,4 @@ Keep `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED=false` and
 parity/security, backup/restore, readiness, exact release identity, protected
 browser evidence, rollback, and spend approval before any production canary.
 
-Source/docs release SHA:
-`a1754bdb2aad1ecacaae79f1286893174a0a1515` (pushed under `kurtgav`).
+Source/docs release SHA is recorded after this evidence update.

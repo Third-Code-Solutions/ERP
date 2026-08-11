@@ -10,12 +10,12 @@ denial, disabled selector, concealed cross-tenant access, invalid reason,
 durable replay/key conflict, cancelled invoice linkage, balanced reversal
 journal, semantic audit, tenant isolation, and rollback.
 
-API typecheck PASS; root lint PASS. Focused runtime: NOT RUN. `DATABASE_URL`
-was unavailable, so Vitest skipped the guarded suite; a non-destructive WSL
-PostgreSQL/Redis restart attempt timed out. No migration, hosted Supabase,
-Storage, Railway, Vercel, credential, provider, or paid change occurred.
-Keep reversal flags/lists false/empty. Source/docs were pushed under
-`kurtgav` at `a1754bdb2aad1ecacaae79f1286893174a0a1515`.
+Focused runtime canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. Full API
+integration 45/45 files and 59 tests PASS with two explicit Redis-restart
+skips. API typecheck, root lint, and production build PASS. No migration,
+hosted Supabase, Storage, Railway, Vercel, credential, provider, or paid
+change occurred. Keep reversal flags/lists false/empty. Source/docs were
+pushed under `kurtgav`; the final SHA is recorded after this evidence update.
 
 ## 2026-08-11 - M3.249 customer invoice issuance authority canary
 

@@ -12,13 +12,12 @@ semantic audit, replay/conflict, and outer rollback. Core remains the only
 authority that calls the PostgreSQL reversal function; Python/AI cannot
 reverse or finalize an invoice.
 
-Static API typecheck and root lint pass. The focused runtime canary was not
-executed: the disposable WSL PostgreSQL/Redis services were unavailable and a
-local restart attempt timed out; without `DATABASE_URL` Vitest correctly
-skipped the guarded suite. This is an explicit verification limitation, not
-runtime evidence. No schema, hosted Supabase SQL/data, Storage,
-Railway/Vercel deployment, provider setting, credential, or paid action
-changed. Keep
+Focused runtime canary passes 1/1 on the local PostgreSQL 17/Redis 7.4.9
+lane. Full API integration passes 45/45 files and 59 tests, with two explicit
+Redis-restart tests skipped because restart opt-in was not set. API typecheck,
+root lint, and production build pass. No schema, hosted Supabase SQL/data,
+Storage, Railway/Vercel deployment, provider setting, credential, or paid
+action changed. Keep
 `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED=false` and
 `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS` empty.
 

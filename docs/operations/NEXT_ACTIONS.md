@@ -3,22 +3,21 @@
 ## Exact next action after M3.250 customer invoice reversal canary
 
 Keep `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED=false` and
-`ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS` empty. Restore the
-disposable PostgreSQL 17/Redis 7.4.9 lane and run
-`integration/customer-invoice-reverse.http.integration.spec.ts` with
-`DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`; the current guarded run
-was skipped and the WSL restart timed out. Do not apply hosted SQL or trigger
-Railway/Vercel builds while spend protection and the M3.248 hosted
-parity/security gate remain active. After runtime evidence, record the exact
-source/docs SHA and re-evaluate the next authority milestone.
+`ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS` empty. The focused
+canary now passes 1/1 on local PostgreSQL 17/Redis 7.4.9; API integration
+passes 45/45 files and 59 tests with two explicit Redis-restart skips. Do not
+apply hosted SQL or trigger Railway/Vercel builds while spend protection and
+the M3.248 hosted parity/security gate remain active. Next, reconcile hosted
+parity, release identity, readiness, protected browser evidence, rollback,
+and spend gates.
 
-## M3.250 evidence boundary (source-only; runtime pending)
+## M3.250 evidence boundary (completed source-only canary)
 
-The protected reversal canary source is present and statically typechecked.
-It covers auth/RBAC, strict input, disabled selector, tenant concealment,
-idempotency, cancellation, balanced reversal, audit, and rollback. Runtime
-proof is not claimed because the disposable DB/Redis lane was unavailable.
-No provider or paid action occurred.
+The protected reversal canary passes 1/1 and the API integration lane passes
+45/45 files and 59 tests with two explicit Redis-restart skips. It covers
+auth/RBAC, strict input, disabled selector, tenant concealment, idempotency,
+cancellation, balanced reversal, audit, and rollback. No provider or paid
+action occurred.
 
 ## Exact next action after M3.249 customer invoice issuance canary
 

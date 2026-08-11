@@ -11,10 +11,10 @@ audit, and rollback. Web adoption remains closed; keep
 list empty. Python/AI remains analysis-only and cannot reverse or finalize
 invoices.
 
-Validation: API typecheck PASS; root lint PASS. Focused runtime canary NOT
-RUN: local disposable PostgreSQL/Redis was unavailable and the guarded suite
-skipped without `DATABASE_URL`; a WSL restart attempt timed out. No hosted or
-paid action.
+Validation: focused canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9; API
+integration 45/45 files and 59 tests PASS with two explicit Redis-restart
+opt-in skips; API typecheck, root lint, and production build PASS. No hosted
+or paid action.
 
 ## M3.249 Customer invoice issuance authority (2026-08-11)
 
