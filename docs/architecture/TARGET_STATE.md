@@ -1,5 +1,19 @@
 # Target State
 
+## M3.253 Supplier Bill posting authority
+
+Supplier-bill posting is a Core-owned finance command at
+`POST /v1/finance/supplier-bills/:supplierBillId/post`. The browser sends only
+the strict posting date and an opaque idempotency key; Core derives tenant,
+actor, role, supplier bill, purchase-order controls, fiscal period, control
+accounts, internal bill number, and journal authority from locked server state.
+The transaction preflights and locks the tenant-scoped bill before audit or
+request-ledger claim, then owns the PostgreSQL posting function, result ledger,
+semantic audit, and rollback. Replays return the durable result; changed
+commands conflict; cross-tenant ids are concealed. Keep the write selector
+disabled until hosted parity, release identity, readiness, protected browser
+evidence, rollback, and spend approval are independently complete.
+
 ## M3.252 Customer invoice draft-creation authority
 
 Draft customer-invoice creation is a Core-owned command at

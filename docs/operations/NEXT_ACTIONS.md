@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.253 supplier-bill posting canary
+
+Keep `ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_ENABLED=false` and
+`ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_TENANT_IDS` empty. Focused canary passes
+1/1; API integration passes 48/48 files and 62 tests with two explicit
+Redis-restart skips under `--testTimeout=15000`; static, build, release,
+boundary, workflow, actionlint, and spend gates pass. Do not apply hosted SQL
+or trigger Railway/Vercel builds while spend protection and the M3.248 hosted
+parity/security gate remain active. Next source boundary: supplier-bill
+reversal, then reconcile hosted parity, release identity, readiness, protected
+browser evidence, rollback, and billing gates.
+
+## M3.253 evidence boundary (completed source-only canary)
+
+The protected supplier-bill post canary passes 1/1 and the API integration lane
+passes 48/48 files and 62 tests with two explicit Redis-restart skips under the
+explicit timeout. It covers tenant preflight, strict input, auth/RBAC,
+disabled selector, cross-tenant concealment, idempotency, balanced journal,
+audit, tenant isolation, and rollback. No provider or paid action occurred.
+
 ## Exact next action after M3.252 customer invoice draft-create canary
 
 Keep `ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED=false` and

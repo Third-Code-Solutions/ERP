@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.253 Supplier Bill posting authority (completed source-only canary)
+
+1. Added a protected rollback-only HTTP canary around the existing Core
+   supplier-bill posting controller/service with two tenants, finance/viewer
+   identities, purchase-order/bill fixtures, real JWT/capability guards, and
+   transaction-bound PostgreSQL.
+2. The canary covers strict input/header handling, auth/RBAC, disabled selector,
+   concealed cross-tenant access, idempotent replay/key conflict, posted bill
+   state, balanced journal lines, semantic audit, tenant isolation, and outer
+   rollback.
+3. The service now locks and preflights the tenant-scoped supplier bill before
+   audit or request-ledger claim, preventing a cross-tenant composite-FK error
+   from escaping the HTTP boundary.
+4. Focused canary passed 1/1. API integration passed 48/48 files and 62 tests
+   with two explicit Redis-restart skips under `--testTimeout=15000`; API
+   typecheck, root lint, production build, and release/spend policy gates
+   passed.
+5. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
+   or paid action changed. Keep supplier-bill posting writes disabled with an
+   empty tenant allowlist. Source evidence SHA:
+   `87dc8247f233e8bfc66ba4f56115c269204a6c66`.
+
+Next: keep the selector closed and reconcile hosted parity, release identity,
+readiness, protected browser evidence, rollback, and spend gates before any
+selector, hosted SQL, or provider action.
+
 ## M3.252 Customer invoice draft-creation authority (completed source-only canary)
 
 1. Added a protected rollback-only HTTP canary around the existing Core

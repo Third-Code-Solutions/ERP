@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-11 - M3.253 supplier-bill posting authority canary
+
+Added `apps/api/integration/supplier-bill-post.http.integration.spec.ts` and
+moved the Core supplier-bill post service's tenant-scoped bill preflight ahead
+of audit and request-ledger claim. The rollback-only Nest HTTP canary uses real
+JWT identity/capability guards, two tenants, finance/viewer roles, issued
+purchase-order/bill fixtures, and transaction-bound PostgreSQL. It covers
+auth, strict body/header and idempotency handling, viewer denial, disabled
+selector, concealed cross-tenant access, durable replay/key conflict, posted
+bill state, balanced journal lines, semantic audit, tenant isolation, and
+rollback.
+
+Focused canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. Full API
+integration 48/48 files and 62 tests PASS with two explicit Redis-restart
+skips under `--testTimeout=15000`. API typecheck, root lint, production build,
+provider-spend, Supabase parity, database-release, Web/DB boundary, workflow
+action-reference, and actionlint gates PASS. No migration, hosted Supabase,
+Storage, Railway, Vercel, credential, provider, or paid change occurred. Keep
+supplier-bill post flags/lists false/empty. Source evidence SHA:
+`87dc8247f233e8bfc66ba4f56115c269204a6c66`.
+
 ## 2026-08-11 - M3.252 customer invoice draft-creation authority canary
 
 Added `apps/api/integration/customer-invoice-draft-create.http.integration.spec.ts`

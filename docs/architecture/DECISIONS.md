@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-365 -- Preflight supplier bill before posting request claim (2026-08-11)
+
+Decision: require the Core supplier-bill posting command to lock and resolve
+the tenant-scoped bill before writing audit state or claiming its idempotency
+row. Add a protected transaction-bound HTTP canary for strict input, real
+JWT/capability authorization, disabled behavior, cross-tenant concealment,
+replay/conflict, balanced journal posting, audit, tenant isolation, and
+rollback. Keep the posting selector closed.
+
+Rationale: the request ledger has a composite tenant/bill foreign key. A
+cross-tenant bill id must be a concealed 404 with no ledger or audit side
+effect, never a raw constraint 500. Core remains the only authority for
+supplier-bill posting and journal creation; Python/AI remains analysis-only.
+
+Validation: focused local PostgreSQL 17/Redis 7.4.9 canary passed 1/1; API
+integration passed 48/48 files and 62 tests with two explicit Redis-restart
+opt-in skips under `--testTimeout=15000`; API typecheck, root lint, production
+build, and provider/release policy gates passed. No hosted/provider/paid action
+occurred.
+
 ## D-364 -- Preflight tenant scope before draft-invoice request claim (2026-08-11)
 
 Decision: make the Core draft-invoice creation command lock and resolve the
