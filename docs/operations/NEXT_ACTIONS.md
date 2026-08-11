@@ -5517,6 +5517,19 @@ Git disconnected and do not create preview or duplicate production builds.
    spend-bounded owner/provider approval. No paid/duplicate build is allowed
    to bypass those gates.
 
+## Exact next action after M3.286
+
+1. Source commit `412e90119a2df7a42d97832675aef696e1aaaf24` is pushed under
+   `kurtgav` and its exact remote SHA matches. Do not deploy, reconnect Vercel
+   Git, change provider plans, or apply a hosted Storage policy.
+2. Keep API and Web import Storage selector pairs false/empty outside the
+   disposable tenant. Review the local signed upload, Core signed read, and
+   cleanup evidence before any hosted Storage parity work.
+3. Hosted promotion remains blocked by migration parity, duplicate Purchase
+   Order mapping, audit-recovery approval, Storage-policy review, readiness,
+   rollback, exact SHA, and spend-bounded owner/provider approval. No
+   paid/duplicate build is allowed to bypass those gates.
+
 ## Exact next action after M3.284
 
 1. Source commit `c4d618545495dd0c174c4ddd9d43655cc8cdcd38` is pushed under
