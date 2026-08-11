@@ -1,5 +1,21 @@
 # Target State
 
+## M3.270 Protected finance-ledger Core HTTP canary (2026-08-11)
+
+The local evidence now covers the read side of the finance ledger boundary:
+Nest authenticates and authorizes the caller, applies an exact tenant allowlist,
+reads immutable posted lines with exact centavo arithmetic, and returns
+bounded account filters and pagination. A disabled selector fails closed with
+503, a viewer cannot read finance data, a foreign tenant is invisible, and the
+database transaction is rolled back after the proof. This is source and
+disposable-environment evidence, not a production canary.
+
+Keep `ERP_FINANCE_LEDGER_READS_ENABLED=false` with an empty tenant list outside
+the harness. PostgreSQL remains authoritative; Python/AI remains advisory and
+cannot approve or finalize ledger transactions. Hosted parity, readiness,
+release identity, rollback, and spend evidence remain required before opening
+one tenant.
+
 ## M3.269 Successful bank-statement Core browser proof (2026-08-11)
 
 The intended boundary is now proven locally: the browser uploads only to a

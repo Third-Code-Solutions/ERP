@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.270 Protected finance-ledger Core HTTP canary (2026-08-11)
+
+The local closed-canary evidence covers the Nest ledger read boundary:
+authenticated finance access, viewer denial, disabled-selector 503, exact
+tenant and account filtering, exact centavo totals, deterministic pagination,
+foreign-tenant invisibility, database-posted immutable lines, and rollback.
+The proof uses only disposable PostgreSQL; production selectors remain
+false/empty and hosted/provider action is not proven.
+
+Focused ledger HTTP 1/1, journal HTTP 1/1, forced root tests, API 174/174
+files and 760/760 tests, typecheck, lint, build, release, parity, boundary,
+workflow, provider-spend, actionlint, and gitleaks PASS. Source evidence is
+`d5d4277`.
+
 ## M3.269 Successful bank-statement Core browser proof (2026-08-11)
 
 The local closed-canary evidence now covers the complete guarded path:

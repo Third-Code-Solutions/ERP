@@ -1,5 +1,30 @@
 # Current State
 
+## M3.270 Protected finance-ledger Core HTTP canary (2026-08-11)
+
+The disposable PostgreSQL canary now starts the real Nest finance-ledger
+controller/service with JWT and capability guards over a transaction-bound
+database. It seeds two tenants, posts each draft journal through the real
+`public.post_journal_entry` function, and proves missing/unknown auth (401),
+viewer denial (403), closed selector (503), exact tenant filtering, account
+filtering, centavo totals, bounded pagination, and foreign-tenant invisibility.
+The outer transaction always rolls back and the seeded tenant is absent after
+the request, so the proof cannot leave ERP data behind.
+
+Focused ledger HTTP canary 1/1, related journal HTTP canary 1/1, forced root
+tests (4 package tasks), API tests (174 files/760 tests), typecheck, lint,
+production build, provider-spend, Web/DB boundary, workflow refs, actionlint,
+gitleaks, database-release, and managed-parity-plan gates pass. The ledger
+integration suite is opt-in and was run only against local disposable
+PostgreSQL with `ERP_API_INTEGRATION_EXPECTED=1`; production selectors remain
+false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed.
+Source evidence: `d5d4277`.
+
+Exact next action: keep the ledger selector closed and require hosted/source
+parity, readiness, exact release identity, rollback, and spend evidence before
+any tenant canary or provider action.
+
 ## M3.269 Successful bank-statement Core browser proof (2026-08-11)
 
 The disposable browser canary now starts the compiled Nest API instead of a

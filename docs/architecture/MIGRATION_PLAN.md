@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.270 Protected finance-ledger Core HTTP canary (completed source-only)
+
+1. Added an opt-in integration canary that starts the real Nest
+   `FinanceLedgerController`, service, JWT guard, capability guard, and
+   transaction-bound `DatabaseService` against disposable PostgreSQL.
+2. Seeded two random tenants with draft journals and posted them through the
+   real database `post_journal_entry` function, preserving the immutable-posted
+   line invariant instead of bypassing database authority.
+3. Asserted 401/403/503 failure boundaries, exact tenant and account filters,
+   exact centavo totals, deterministic pagination, foreign-tenant invisibility,
+   and rollback with no leaked tenant after the request.
+4. Kept the production selector and tenant allowlist closed; no migration,
+   hosted SQL/object, provider setting, credential, or deployment changed.
+5. Validation: focused ledger HTTP 1/1, related journal HTTP 1/1, forced root
+   tests (4 package tasks), API 174/174 files and 760/760 tests, typecheck,
+   lint, production build, provider-spend, Web/DB boundary, workflow refs,
+   actionlint, gitleaks, database-release, and managed-parity-plan PASS.
+
+Source evidence: `d5d4277`. The integration lane requires
+`DATABASE_URL` plus `ERP_API_INTEGRATION_EXPECTED=1` and was run only against
+the local disposable database.
+
+Exact next action: keep `ERP_FINANCE_LEDGER_READS_ENABLED=false` and its tenant
+list empty; reconcile hosted parity, readiness, exact release identity,
+rollback, and spend evidence before any tenant canary or provider action.
+
 ## M3.269 Successful bank-statement Core browser proof (completed source-only)
 
 1. Replaced the local bank browser harness's controlled Core response with the
