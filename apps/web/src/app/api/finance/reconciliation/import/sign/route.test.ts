@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   createSupabaseAdminClient: vi.fn(),
   storageFrom: vi.fn(),
   createSignedUploadUrl: vi.fn(),
+  remove: vi.fn(),
   writeAuditLog: vi.fn(),
+  storageUploadsEnabled: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -24,8 +26,11 @@ vi.mock('@third-code-erp/database', () => ({
   db: { select: mocks.select },
 }))
 vi.mock('@/lib/audit', () => ({ writeAuditLog: mocks.writeAuditLog }))
+vi.mock('@/lib/erp-core-client', () => ({
+  financeReconciliationStorageUploadsUseCoreApi: mocks.storageUploadsEnabled,
+}))
 
-import { POST } from './route'
+import { DELETE, POST } from './route'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -35,11 +40,13 @@ describe('bank statement signed upload route', () => {
     vi.clearAllMocks()
     mocks.getUser.mockResolvedValue({ id: USER_ID })
     mocks.can.mockReturnValue(true)
+    mocks.storageUploadsEnabled.mockReturnValue(true)
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })
     mocks.where.mockResolvedValue([{ tenant_id: TENANT_ID, role: 'finance' }])
     mocks.storageFrom.mockReturnValue({
       createSignedUploadUrl: mocks.createSignedUploadUrl,
+      remove: mocks.remove,
     })
     mocks.createSupabaseAdminClient.mockReturnValue({
       storage: { from: mocks.storageFrom },
@@ -53,6 +60,7 @@ describe('bank statement signed upload route', () => {
       error: null,
     }))
     mocks.writeAuditLog.mockResolvedValue(undefined)
+    mocks.remove.mockResolvedValue({ data: [], error: null })
   })
 
   it('rejects a non-finance role before Storage work', async () => {
@@ -64,6 +72,18 @@ describe('bank statement signed upload route', () => {
       })
     )
     expect(response.status).toBe(403)
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('keeps the signed-upload route closed unless the exact tenant canary is on', async () => {
+    mocks.storageUploadsEnabled.mockReturnValue(false)
+    const response = await POST(
+      new NextRequest('http://localhost/api/finance/reconciliation/import/sign', {
+        method: 'POST',
+        body: JSON.stringify({ fileName: 'statement.csv', sizeBytes: 1_024 }),
+      })
+    )
+    expect(response.status).toBe(503)
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
   })
 
@@ -101,5 +121,39 @@ describe('bank statement signed upload route', () => {
       expect(response.status).toBe(400)
     }
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+  })
+
+  it('cleans only an authorized tenant path and audits the deletion', async () => {
+    const response = await DELETE(
+      new NextRequest('http://localhost/api/finance/reconciliation/import/sign', {
+        method: 'DELETE',
+        body: JSON.stringify({
+          storagePath: `${TENANT_ID}/bank-statements/failed.csv`,
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(mocks.remove).toHaveBeenCalledWith([
+      `${TENANT_ID}/bank-statements/failed.csv`,
+    ])
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'delete' })
+    )
+    expect(mocks.writeAuditLog.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.remove.mock.invocationCallOrder[0]!
+    )
+  })
+
+  it('rejects cross-tenant cleanup before Storage work', async () => {
+    const response = await DELETE(
+      new NextRequest('http://localhost/api/finance/reconciliation/import/sign', {
+        method: 'DELETE',
+        body: JSON.stringify({
+          storagePath: `33333333-3333-4333-8333-333333333333/bank-statements/failed.csv`,
+        }),
+      })
+    )
+    expect(response.status).toBe(403)
+    expect(mocks.remove).not.toHaveBeenCalled()
   })
 })

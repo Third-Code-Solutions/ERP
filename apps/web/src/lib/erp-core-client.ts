@@ -730,6 +730,21 @@ export function financeReconciliationImportWritesUseCoreApi(
   )
 }
 
+/** Storage-backed bank imports stay closed unless upload and Core authority
+ * are both explicitly enabled for the exact tenant. */
+export function financeReconciliationStorageUploadsUseCoreApi(
+  tenantId: string
+): boolean {
+  return (
+    financeReconciliationImportWritesUseCoreApi(tenantId) &&
+    tenantEnabledForExactCoreApi(
+      tenantId,
+      process.env.ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS,
+      process.env.ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS
+    )
+  )
+}
+
 /** Notification list/read-state authority remains closed until user-scope parity is approved. */
 export function notificationReadStateUseCoreApi(tenantId: string): boolean {
   return tenantEnabledForExactCoreApi(

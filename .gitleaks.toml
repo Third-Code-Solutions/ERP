@@ -20,3 +20,9 @@ regexes = [
   '''delivery-schedule-2''',
   '''delivery-in-transit-1''',
 ]
+
+[[allowlists]]
+description = "Historical architecture prose; not a credential"
+paths = ['''^docs/architecture/CURRENT_STATE\.md$''']
+regexTarget = "line"
+regexes = ['''idempotent replay/key conflict, journal/ledger/PO quantity side effects''']

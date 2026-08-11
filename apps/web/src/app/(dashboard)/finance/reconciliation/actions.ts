@@ -16,6 +16,7 @@ import { parseBankStatementCsv } from './bank-statement-csv'
 import {
   createBankStatementThroughCoreApi,
   financeReconciliationImportWritesUseCoreApi,
+  financeReconciliationStorageUploadsUseCoreApi,
 } from '@/lib/erp-core-client'
 
 export interface ReconciliationActionResult {
@@ -48,11 +49,26 @@ const statementSchema = z
       .regex(/^[A-Za-z0-9+/]+={0,2}$/)
       .refine((value) => value.length % 4 === 0, {
         message: 'Source file encoding is invalid.',
-      }),
+      })
+      .optional(),
+    sourceStoragePath: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2_000)
+      .regex(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/bank-statements\/[^/]+$/i,
+        'Source storage path is invalid.'
+      )
+      .optional(),
   })
   .refine((value) => value.statementStart <= value.statementEnd, {
     message: 'Statement end must be on or after its start.',
   })
+  .refine(
+    (value) => Boolean(value.sourceBase64) !== Boolean(value.sourceStoragePath),
+    { message: 'Provide exactly one inline source or storage source.' }
+  )
 
 function safeReconciliationError(error: unknown): string {
   if (error instanceof z.ZodError) {
@@ -70,6 +86,8 @@ function safeReconciliationError(error: unknown): string {
     'A statement can contain at most 5,000 lines',
     'Source file encoding is invalid',
     'Source file must be 2 MB or smaller',
+    'Storage-backed bank import requires Core authority',
+    'Storage-backed bank import is not enabled for this tenant',
     'Active bank or e-wallet Cash Account is required',
     'Bank statement line must match its tenant and date range',
     'Bank statement match does not agree with posted cash',
@@ -122,6 +140,12 @@ export async function createBankStatement(
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
     const parsed = statementSchema.parse(input)
+    if (
+      parsed.sourceStoragePath &&
+      !financeReconciliationStorageUploadsUseCoreApi(profile.tenantId)
+    ) {
+      throw new Error('Storage-backed bank import is not enabled for this tenant')
+    }
     if (financeReconciliationImportWritesUseCoreApi(profile.tenantId)) {
       const idempotencyKey = `bank-import-${createHash('sha256')
         .update(JSON.stringify(parsed))
@@ -140,6 +164,12 @@ export async function createBankStatement(
       }
       revalidateReconciliation(coreResult.data.statementId)
       return { ok: true, id: coreResult.data.statementId }
+    }
+    if (parsed.sourceStoragePath) {
+      throw new Error('Storage-backed bank import requires Core authority')
+    }
+    if (!parsed.sourceBase64) {
+      throw new Error('Provide exactly one import source')
     }
     const sourceBytes = Buffer.from(parsed.sourceBase64, 'base64')
     if (sourceBytes.length === 0 || sourceBytes.length > 2_000_000) {
