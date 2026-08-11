@@ -1,5 +1,36 @@
 # Current State
 
+## M3.268 Bank-statement browser Storage canary proof (2026-08-11)
+
+Proved the guarded browser path locally against a disposable authenticated
+tenant, loopback Supabase-compatible auth/Storage endpoints, a stubbed Nest
+Core endpoint, and the disposable PostgreSQL database. The browser reached the
+real Next form, requested a tenant-shaped signed URL, uploaded the CSV with a
+real Supabase Storage client, sent only `sourceStoragePath` plus the typed
+import contract to Core with bearer/idempotency headers, mapped the controlled
+503 terminal response, and removed the object through the audited DELETE path.
+The disposable database recorded no bank statement and exactly two
+`bank_statement_upload` audit events; the source path remained tenant-scoped.
+
+The Playwright proof also checks unauthenticated redirect, auth/RBAC, no
+external provider traffic (font CSS is blocked at the browser boundary), no
+unblocked console/page errors, and desktop/mobile horizontal overflow. The
+Core response was intentionally controlled-disabled, so successful Core
+import/detail rendering and a real object read remain unproven. A source bug
+found during the proof was corrected: audit rows now use the upload UUID (or
+tenant UUID for legacy cleanup paths) in the UUID `entity_id` column while
+retaining the full Storage path in `diff`.
+
+Focused signed-upload route 6/6, Web typecheck, and the authenticated local
+browser proof 1/1 pass. All selectors remain false/empty by default. No
+hosted SQL, Supabase object, Vercel/Railway deployment, provider setting,
+credential, or paid action changed.
+Source evidence SHA: `4f68cac`.
+
+Exact next action: add a successful disposable Core response/detail proof and
+cross-tenant cleanup denial, then repeat the full release, hosted-parity,
+readiness, rollback, and spend gates before considering any tenant canary.
+
 ## M3.267 Bank-statement browser Storage handoff (2026-08-11)
 
 Added the opt-in browser handoff for the existing guarded bank-statement

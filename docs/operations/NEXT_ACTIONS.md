@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.268 bank-statement browser Storage proof
+
+Keep every bank-import/Core/Storage selector false/empty and keep managed
+Supabase, Storage objects, Vercel, Railway, and provider deployments
+untouched. The disposable browser proof passes signed URL, browser PUT, exact
+Core terminal handoff, audited cleanup, no ERP-table write, no provider
+traffic, console, and responsive checks. Next add a successful disposable Core
+response/detail path and cross-tenant cleanup denial, then rerun hosted parity,
+readiness, release identity, rollback, and spend guards. Do not apply hosted
+SQL or trigger a provider build.
+
 ## Exact next action after M3.267 bank-statement browser Storage handoff
 
 Keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED` and

@@ -1,5 +1,27 @@
 # Architecture Decisions
 
+## D-380 -- Prove browser Storage with a disposable loopback boundary (2026-08-11)
+
+Decision: validate the enabled browser handoff with a real Next page and
+Supabase client, but use a disposable PostgreSQL tenant, loopback auth/Storage,
+and a controlled Core response. Block every non-loopback browser request and
+keep all production selectors false/empty. Treat a Core 503 as terminal, assert
+cleanup and audit, and prove no bank-statement row was written.
+
+During the proof, correct the route's audit identity boundary: `audit_log` has
+a UUID `entity_id`, so use the upload UUID (or tenant UUID for legacy cleanup
+paths) and retain the full Storage path in the JSON diff. This keeps relational
+audit integrity without losing object traceability.
+
+Rationale: a successful browser upload alone does not prove Core authority or
+rollback. The loopback boundary exercises the actual form, route, Storage SDK,
+server action, and Core adapter without Supabase/Vercel/Railway mutations or
+paid provider traffic. A successful Core response/detail path is deliberately
+left as the next gate.
+
+Validation: Playwright 1/1, signed-upload route 6/6, Web typecheck; no hosted
+or paid action occurred. Source evidence SHA: `4f68cac`.
+
 ## D-379 -- Keep browser bank-statement Storage handoff opt-in (2026-08-11)
 
 Decision: add the browser Storage handoff as a closed-by-default Web feature.
