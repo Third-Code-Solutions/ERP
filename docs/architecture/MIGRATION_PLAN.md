@@ -1,5 +1,27 @@
 # Migration Plan
 
+## M3.297 - standalone Purchase Order Core browser canary (completed source-only)
+
+1. Extended the disposable authenticated harness with same-tenant vendor and
+   material cost-code fixtures, PO/line/idempotency state probes, Core request
+   recording, and cascade cleanup.
+2. Added a Playwright config/spec and package script. The real authenticated
+   `/purchase-orders` form posts through the existing Server Action and Core
+   adapter for a random tenant; a direct foreign-project command checks tenant
+   isolation.
+3. Asserted exact centavo totals, PO number/status, line and cost-code data,
+   succeeded idempotency result, semantic audit, bearer/request/key forwarding,
+   and 404/no-write foreign-project behavior. Production selectors stay closed.
+4. Validation: PO browser 1/1; API 176/772; Web typecheck; provider-spend,
+   managed-parity, Web/DB boundary, gitleaks, and diff checks PASS. No hosted
+   migration, provider build, or paid operation occurred.
+
+Source evidence: `apps/web/e2e/purchase-order-loopback.spec.ts` and the shared
+loopback harness.
+
+Exact next action: retain PO selectors false/empty and resolve the hosted PO
+duplicate owner-review gate before release review.
+
 ## M3.296 - live landing browser audit (completed read-only)
 
 1. Rechecked `https://thirdcode-erp.vercel.app/` at 1440x900, 768x900, and

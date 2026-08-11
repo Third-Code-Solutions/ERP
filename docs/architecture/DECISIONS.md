@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-404 -- Prove standalone PO creation through Core before opening selector (2026-08-12)
+
+Decision: keep the existing Purchase Order Server Action as a compatibility
+adapter and enable its Core selector only in the disposable random-tenant
+canary. Nest Core remains the sole official writer and enforces exact-centavo
+arithmetic, role/tenant scope, idempotency, transaction, PO numbering, and
+semantic audit.
+
+Rationale: the browser proof reaches the real form and verifies persisted
+business state, replay metadata, request forwarding, and a foreign-project
+rejection without hosted writes or provider spend. A compile/unit pass alone
+would not prove the adapter branch or tenant boundary. The hosted duplicate PO
+gate and production selector remain closed.
+
+Validation: PO browser 1/1; API 176/772; Web typecheck; provider-spend,
+managed-parity, Web/DB boundary, gitleaks, and diff checks PASS.
+
 ## D-403 -- Treat live landing evidence as release evidence, not deployment proof (2026-08-12)
 
 Decision: record a fresh browser audit for the public landing surface without

@@ -21,6 +21,8 @@ const USER_ID = randomUUID()
 const TENANT_ID = randomUUID()
 const PROJECT_ID = randomUUID()
 const BOM_ID = randomUUID()
+const VENDOR_ID = randomUUID()
+const COST_CODE_ID = randomUUID()
 const DOCUSEAL_SUBMISSION_ID = `submission-${randomUUID()}`
 const FOREIGN_TENANT_ID = randomUUID()
 const FOREIGN_USER_ID = randomUUID()
@@ -150,6 +152,17 @@ async function seedDatabase() {
     )
   `
   await sql`
+    insert into vendors(id, tenant_id, name)
+    values (${VENDOR_ID}, ${TENANT_ID}, 'Local Core PO supplier')
+  `
+  await sql`
+    insert into cost_codes(id, tenant_id, code, name, category, created_by)
+    values (
+      ${COST_CODE_ID}, ${TENANT_ID}, 'MAT-CORE-PO',
+      'Core PO materials', 'material', ${USER_ID}
+    )
+  `
+  await sql`
     insert into boms(
       id, tenant_id, project_id, created_by, label, status,
       total_cost_cents, tcv_cents, gp_cents, gp_margin_bps
@@ -257,7 +270,7 @@ const authServer = createServer(async (request, response) => {
     })
   }
   if (url.pathname === '/__harness__/state') {
-    const [notifications, foreign, documents, intakeRequests, boms, bomLines, togalRequests, portalTokens, foreignBom, auditEntries] =
+    const [notifications, foreign, documents, intakeRequests, boms, bomLines, togalRequests, portalTokens, foreignBom, purchaseOrders, purchaseOrderLines, purchaseOrderCreateRequests, auditEntries] =
       await Promise.all([
       sql`
         select id, subject, is_read, read_at::text
@@ -317,6 +330,30 @@ const authServer = createServer(async (request, response) => {
         where id = ${FOREIGN_BOM_ID}
       `,
       sql`
+        select id, po_number, status, project_id, vendor_id,
+          subtotal_cents::int as subtotal_cents,
+          vat_cents::int as vat_cents,
+          withholding_tax_cents::int as withholding_tax_cents,
+          total_cents::int as total_cents
+        from purchase_orders
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
+        select id, po_id, description, quantity,
+          unit_cost_cents::int as unit_cost_cents,
+          line_total_cents::int as line_total_cents, cost_code_id
+        from po_line_items
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
+        select id, idempotency_key, state, purchase_order_id, result
+        from purchase_order_create_requests
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
         select entity_type, entity_id, action, diff
         from audit_log
         where tenant_id = ${TENANT_ID}
@@ -327,6 +364,9 @@ const authServer = createServer(async (request, response) => {
       tenantId: TENANT_ID,
       userId: USER_ID,
       projectId: PROJECT_ID,
+      vendorId: VENDOR_ID,
+      costCodeId: COST_CODE_ID,
+      foreignProjectId: FOREIGN_PROJECT_ID,
       foreignBomId: FOREIGN_BOM_ID,
       notifications,
       foreignNotificationIsRead: foreign[0]?.is_read ?? null,
@@ -337,6 +377,9 @@ const authServer = createServer(async (request, response) => {
       togalRequests,
       portalTokens,
       foreignBom: foreignBom[0] ?? null,
+      purchaseOrders,
+      purchaseOrderLines,
+      purchaseOrderCreateRequests,
       coreRequests,
       auditEntries,
     })
@@ -385,6 +428,7 @@ proxyServer = createServer(async (request, response) => {
     url.pathname === '/v1/notifications' ||
     url.pathname === '/v1/documents' ||
     url.pathname === '/v1/procurement/boms/togal-commit' ||
+    url.pathname === '/v1/procurement/purchase-orders' ||
     url.pathname === '/v1/webhooks/docuseal'
   ) {
     coreRequests.push({
@@ -499,6 +543,8 @@ const apiEnvironment = {
   ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS: TENANT_ID,
   ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED: 'true',
   ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_PO_CREATE_WRITES_ENABLED: 'true',
+  ERP_PO_CREATE_WRITES_TENANT_IDS: TENANT_ID,
   ERP_DOCUSEAL_WEBHOOK_ENABLED: 'true',
   ERP_DOCUSEAL_WEBHOOK_TENANT_IDS: TENANT_ID,
   ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',
@@ -546,6 +592,8 @@ webChild = spawn(
       ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_BOM_TOGAL_COMMIT_VIA_API: 'true',
       ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_PO_CREATE_WRITES_VIA_API: 'true',
+      ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_DOCUSEAL_WEBHOOK_VIA_API: 'true',
       ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',
