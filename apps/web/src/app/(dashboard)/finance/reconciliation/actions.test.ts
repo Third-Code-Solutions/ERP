@@ -8,9 +8,12 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   revalidatePath: vi.fn(),
   financeReconciliationAutoMatchWritesUseCoreApi: vi.fn(),
+  financeReconciliationLineMatchWritesUseCoreApi: vi.fn(),
   financeReconciliationImportWritesUseCoreApi: vi.fn(),
   financeReconciliationStorageUploadsUseCoreApi: vi.fn(),
   autoMatchBankStatementThroughCoreApi: vi.fn(),
+  matchBankStatementLineThroughCoreApi: vi.fn(),
+  unmatchBankStatementLineThroughCoreApi: vi.fn(),
   createBankStatementThroughCoreApi: vi.fn(),
 }))
 
@@ -34,18 +37,26 @@ vi.mock('next/cache', () => ({
 vi.mock('@/lib/erp-core-client', () => ({
   financeReconciliationAutoMatchWritesUseCoreApi:
     mocks.financeReconciliationAutoMatchWritesUseCoreApi,
+  financeReconciliationLineMatchWritesUseCoreApi:
+    mocks.financeReconciliationLineMatchWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi:
     mocks.financeReconciliationImportWritesUseCoreApi,
   financeReconciliationStorageUploadsUseCoreApi:
     mocks.financeReconciliationStorageUploadsUseCoreApi,
   autoMatchBankStatementThroughCoreApi:
     mocks.autoMatchBankStatementThroughCoreApi,
+  matchBankStatementLineThroughCoreApi:
+    mocks.matchBankStatementLineThroughCoreApi,
+  unmatchBankStatementLineThroughCoreApi:
+    mocks.unmatchBankStatementLineThroughCoreApi,
   createBankStatementThroughCoreApi: mocks.createBankStatementThroughCoreApi,
 }))
 
 import {
   autoMatchBankStatement,
   createBankStatement,
+  matchBankStatementLine,
+  unmatchBankStatementLine,
   voidBankStatement,
 } from './actions'
 
@@ -80,6 +91,7 @@ describe('bank reconciliation actions', () => {
     mocks.requireUserProfile.mockResolvedValue(PROFILE)
     mocks.requireCapability.mockImplementation(() => undefined)
     mocks.financeReconciliationAutoMatchWritesUseCoreApi.mockReturnValue(false)
+    mocks.financeReconciliationLineMatchWritesUseCoreApi.mockReturnValue(false)
     mocks.financeReconciliationImportWritesUseCoreApi.mockReturnValue(false)
     mocks.financeReconciliationStorageUploadsUseCoreApi.mockReturnValue(false)
   })
@@ -213,6 +225,76 @@ describe('bank reconciliation actions', () => {
         'Retry token is required for the bank statement auto-match command.',
     })
     expect(mocks.autoMatchBankStatementThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('delegates selected manual line match to Core without a Web fallback', async () => {
+    mocks.financeReconciliationLineMatchWritesUseCoreApi.mockReturnValue(true)
+    mocks.matchBankStatementLineThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        statementId: STATEMENT_ID,
+        lineId: '55555555-5555-4555-8555-555555555555',
+        tenantId: PROFILE.tenantId,
+        status: 'matched',
+        matchedCashTransactionId: '66666666-6666-4666-8666-666666666666',
+      },
+      status: 200,
+    })
+
+    const result = await matchBankStatementLine({
+      statementId: STATEMENT_ID,
+      lineId: '55555555-5555-4555-8555-555555555555',
+      cashTransactionId: '66666666-6666-4666-8666-666666666666',
+      idempotencyKey: 'line-match-browser-retry-1',
+    })
+
+    expect(result).toEqual({ ok: true, id: STATEMENT_ID })
+    expect(mocks.matchBankStatementLineThroughCoreApi).toHaveBeenCalledWith(
+      STATEMENT_ID,
+      '55555555-5555-4555-8555-555555555555',
+      '66666666-6666-4666-8666-666666666666',
+      'line-match-browser-retry-1'
+    )
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('delegates selected manual line unmatch to Core and requires a retry token', async () => {
+    mocks.financeReconciliationLineMatchWritesUseCoreApi.mockReturnValue(true)
+
+    const missingKey = await unmatchBankStatementLine({
+      statementId: STATEMENT_ID,
+      lineId: '55555555-5555-4555-8555-555555555555',
+    })
+    expect(missingKey).toEqual({
+      ok: false,
+      error:
+        'Retry token is required for the bank statement line unmatch command.',
+    })
+
+    mocks.unmatchBankStatementLineThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        statementId: STATEMENT_ID,
+        lineId: '55555555-5555-4555-8555-555555555555',
+        tenantId: PROFILE.tenantId,
+        status: 'unmatched',
+        matchedCashTransactionId: null,
+      },
+      status: 200,
+    })
+    const result = await unmatchBankStatementLine({
+      statementId: STATEMENT_ID,
+      lineId: '55555555-5555-4555-8555-555555555555',
+      idempotencyKey: 'line-unmatch-browser-retry-1',
+    })
+
+    expect(result).toEqual({ ok: true, id: STATEMENT_ID })
+    expect(mocks.unmatchBankStatementLineThroughCoreApi).toHaveBeenCalledWith(
+      STATEMENT_ID,
+      '55555555-5555-4555-8555-555555555555',
+      'line-unmatch-browser-retry-1'
+    )
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 

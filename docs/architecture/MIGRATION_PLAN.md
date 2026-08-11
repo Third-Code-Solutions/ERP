@@ -7921,3 +7921,29 @@ Evidence: source `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is pushed under
 `kurtgav`; local full suites, builds, typechecks, lint, disposable HTTP/browser
 canaries, policy/security checks, and the provider-spend guard passed. Hosted
 promotion remains blocked. Next slice is manual line match/unmatch authority.
+
+## M3.282 - Reconciliation line match/unmatch Core write (completed source slice)
+
+1. Reuse the existing Nest line workflow and strict discriminated result; add
+   Web adapters with one exact-tenant, closed-by-default selector for both
+   match and unmatch.
+2. Require one opaque retry key per line/action in the selected Server Actions,
+   keep it stable through a failed request, and fail closed after a Core error.
+3. Extend the disposable loopback proof to perform both successful UI flows
+   and assert the authenticated POST paths, strict bodies, bearer, UUID request
+   IDs, idempotency keys, rendered counts, and responsive behavior.
+4. Keep API flags
+   `ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED` and
+   `ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_TENANT_IDS`, plus Web flags
+   `ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API` and
+   `ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API_TENANT_IDS`,
+   false/empty outside the disposable canary. Do not migrate or deploy hosted
+   state until parity, rollback, readiness, exact SHA, and spend gates clear.
+
+Validation: focused Web tests 180/180, disposable PostgreSQL/Nest HTTP canary
+1/1, and authenticated browser canary 1/1 passed. Full `pnpm test` passed with
+shared-types 332, database 241 passed/143 skipped, API 764, and Web 791;
+`pnpm typecheck`, `pnpm lint`, `pnpm build` (83 Next pages), migration/release/
+policy/parity checks, web-database boundary, Actionlint, Gitleaks,
+provider-spend guard, and `git diff --check` also passed. No hosted migration,
+deployment, provider setting, credential, or paid action occurred.

@@ -21,6 +21,10 @@ const USER_ID = randomUUID()
 const TENANT_ID = randomUUID()
 const LEDGER_ID = randomUUID()
 const CASH_ACCOUNT_ID = randomUUID()
+const MANUAL_ACCOUNT_ID = randomUUID()
+const MANUAL_PERIOD_ID = randomUUID()
+const MANUAL_JOURNAL_ID = randomUUID()
+const MANUAL_CASH_TRANSACTION_ID = randomUUID()
 const DRAFT_STATEMENT_ID = randomUUID()
 const RECONCILED_STATEMENT_ID = randomUUID()
 const VOIDED_STATEMENT_ID = randomUUID()
@@ -86,6 +90,7 @@ let apiChild
 let authServer
 let proxyServer
 let stopping = false
+let manualCashEvidenceSeeded = false
 
 function corsHeaders(origin) {
   return {
@@ -268,6 +273,56 @@ async function seedDatabase() {
   })
 }
 
+async function seedManualCashEvidence() {
+  if (manualCashEvidenceSeeded) {
+    return { cashTransactionId: MANUAL_CASH_TRANSACTION_ID }
+  }
+  await sql.begin(async (transaction) => {
+    await transaction`
+      insert into accounts(id, tenant_id, name, created_by)
+      values (
+        ${MANUAL_ACCOUNT_ID}, ${TENANT_ID}, 'Loopback manual-match customer',
+        ${USER_ID}
+      )
+    `
+    await transaction`
+      insert into fiscal_periods(
+        id, tenant_id, name, starts_on, ends_on, status, created_by
+      )
+      values (
+        ${MANUAL_PERIOD_ID}, ${TENANT_ID}, 'FY 2026 loopback manual-match',
+        '2026-01-01', '2026-12-31', 'open', ${USER_ID}
+      )
+    `
+    await transaction`
+      insert into journal_entries(
+        id, tenant_id, fiscal_period_id, entry_number, status, source_type,
+        posting_date, description, currency, created_by, posted_by, posted_at
+      )
+      values (
+        ${MANUAL_JOURNAL_ID}, ${TENANT_ID}, ${MANUAL_PERIOD_ID},
+        'JE-LOOPBACK-MANUAL-MATCH', 'posted', 'system', '2026-08-05',
+        'Loopback manual-match evidence', 'PHP', ${USER_ID}, ${USER_ID}, now()
+      )
+    `
+    await transaction`
+      insert into cash_transactions(
+        id, tenant_id, cash_account_id, direction, business_account_id,
+        reference_number, internal_number, status, transaction_date, currency,
+        amount_cents, posting_journal_entry_id, posted_by, posted_at, created_by
+      )
+      values (
+        ${MANUAL_CASH_TRANSACTION_ID}, ${TENANT_ID}, ${CASH_ACCOUNT_ID},
+        'receipt', ${MANUAL_ACCOUNT_ID}, 'DEP-LOOPBACK-001',
+        'CT-LOOPBACK-MANUAL-001', 'posted', '2026-08-05', 'PHP', 750,
+        ${MANUAL_JOURNAL_ID}, ${USER_ID}, now(), ${USER_ID}
+      )
+    `
+  })
+  manualCashEvidenceSeeded = true
+  return { cashTransactionId: MANUAL_CASH_TRANSACTION_ID }
+}
+
 authServer = createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', AUTH_ORIGIN)
   if (request.method === 'OPTIONS') {
@@ -287,6 +342,12 @@ authServer = createServer(async (request, response) => {
   if (request.method === 'POST' && url.pathname === '/__harness__/cleanup') {
     await cleanup()
     return json(response, 200, { cleaned: true })
+  }
+  if (
+    request.method === 'POST' &&
+    url.pathname === '/__harness__/seed-line-match'
+  ) {
+    return json(response, 200, await seedManualCashEvidence())
   }
   if (url.pathname === '/__harness__/state') {
     return json(response, 200, {
@@ -366,7 +427,9 @@ proxyServer = createServer(async (request, response) => {
   }
   if (
     request.method === 'POST' &&
-    /^\/v1\/finance\/reconciliation\/[^/]+\/auto-match$/.test(url.pathname)
+    /^\/v1\/finance\/reconciliation\/[^/]+(?:\/auto-match|\/lines\/[^/]+\/(?:match|unmatch))$/.test(
+      url.pathname
+    )
   ) {
     reconciliationWorkflowRequests.push({
       method: request.method,
@@ -504,6 +567,8 @@ const apiEnvironment = {
   ERP_FINANCE_RECONCILIATION_READS_TENANT_IDS: TENANT_ID,
   ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED: 'true',
   ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED: 'true',
+  ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_TENANT_IDS: TENANT_ID,
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
   AI_PROVIDER_API_KEY: '',
@@ -545,6 +610,8 @@ webChild = spawn(
       ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API: 'true',
       ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API: 'true',
+      ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECEIVABLES_READS_VIA_API: 'false',
       ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS: '',
       ERP_FINANCE_PAYABLES_READS_VIA_API: 'false',

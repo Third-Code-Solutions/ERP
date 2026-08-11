@@ -62,6 +62,16 @@ export function BankStatementActions({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const autoMatchRetryKey = useRef<string | null>(null)
+  const lineRetryKeys = useRef<Record<string, string>>({})
+
+  function lineRetryKey(action: 'match' | 'unmatch', lineId: string): string {
+    const key = `${action}:${lineId}`
+    return (lineRetryKeys.current[key] ??= `line-${action}-${globalThis.crypto.randomUUID()}`)
+  }
+
+  function clearLineRetryKey(action: 'match' | 'unmatch', lineId: string) {
+    delete lineRetryKeys.current[`${action}:${lineId}`]
+  }
 
   const matchedCount = lines.filter(
     (line) => line.matched_cash_transaction_id
@@ -211,7 +221,12 @@ export function BankStatementActions({
                                 unmatchBankStatementLine({
                                   lineId: line.id,
                                   statementId,
-                                })
+                                  idempotencyKey: lineRetryKey(
+                                    'unmatch',
+                                    line.id
+                                  ),
+                                }),
+                                () => clearLineRetryKey('unmatch', line.id)
                               )
                             }
                           >
@@ -252,13 +267,18 @@ export function BankStatementActions({
                           className="finance-secondary-button"
                           disabled={pending || !selected[line.id]}
                           onClick={() =>
-                            runAction(() =>
-                              matchBankStatementLine({
-                                lineId: line.id,
-                                statementId,
-                                cashTransactionId: selected[line.id]!,
-                              })
-                            )
+                              runAction(() =>
+                                matchBankStatementLine({
+                                  lineId: line.id,
+                                  statementId,
+                                  cashTransactionId: selected[line.id]!,
+                                  idempotencyKey: lineRetryKey(
+                                    'match',
+                                    line.id
+                                  ),
+                                }),
+                                () => clearLineRetryKey('match', line.id)
+                              )
                           }
                         >
                           Match

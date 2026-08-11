@@ -61,6 +61,7 @@ import {
   financeReconciliationDetailResultSchema,
   bankStatementImportResultSchema,
   bankStatementAutoMatchResultSchema,
+  bankStatementLineMatchResultSchema,
   notificationListResultSchema,
   notificationReadStateCommandSchema,
   notificationReadStateResultSchema,
@@ -180,6 +181,7 @@ import {
   type BankStatementImportCommand,
   type BankStatementImportResult,
   type BankStatementAutoMatchResult,
+  type BankStatementLineMatchResult,
   type NotificationListResult,
   type NotificationReadStateCommand,
   type NotificationReadStateResult,
@@ -742,6 +744,17 @@ export function financeReconciliationAutoMatchWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API,
     process.env.ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+/** Manual bank-statement line match/unmatch writes delegate only for an exact tenant canary. */
+export function financeReconciliationLineMatchWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API,
+    process.env.ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -3474,6 +3487,116 @@ export async function autoMatchBankStatementThroughCoreApi(
       status: 503,
     }
   }
+}
+
+/** Server-only manual bank-statement line match adapter. */
+export async function matchBankStatementLineThroughCoreApi(
+  statementId: string,
+  lineId: string,
+  cashTransactionId: string,
+  idempotencyKey: string
+): Promise<CoreResult<BankStatementLineMatchResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/reconciliation/${encodeURIComponent(statementId)}/lines/${encodeURIComponent(lineId)}/match`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify({ cashTransactionId }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    return parseBankStatementLineMatchResponse(response, 'match')
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. The bank statement line was not matched.',
+      status: 503,
+    }
+  }
+}
+
+/** Server-only manual bank-statement line unmatch adapter. */
+export async function unmatchBankStatementLineThroughCoreApi(
+  statementId: string,
+  lineId: string,
+  idempotencyKey: string
+): Promise<CoreResult<BankStatementLineMatchResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/reconciliation/${encodeURIComponent(statementId)}/lines/${encodeURIComponent(lineId)}/unmatch`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify({}),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    return parseBankStatementLineMatchResponse(response, 'unmatch')
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. The bank statement line was not unmatched.',
+      status: 503,
+    }
+  }
+}
+
+async function parseBankStatementLineMatchResponse(
+  response: Response,
+  action: 'match' | 'unmatch'
+): Promise<CoreResult<BankStatementLineMatchResult>> {
+  const body = (await response.json().catch(() => null)) as
+    | Record<string, unknown>
+    | null
+  if (!response.ok) {
+    const subject = action === 'match' ? 'match' : 'unmatch'
+    return {
+      ok: false,
+      error:
+        response.status === 400
+          ? `Bank statement line ${subject} details are invalid.`
+          : response.status === 403
+            ? `You do not have permission to ${subject} bank statement lines.`
+            : response.status === 404
+              ? 'Bank statement line was not found.'
+              : response.status === 409
+                ? `Bank statement line ${subject} conflicts with existing evidence.`
+                : response.status === 503
+                  ? 'Bank statement line matching is not enabled for this tenant.'
+                  : `Bank statement line was not ${subject}ed.`,
+      status: response.status,
+    }
+  }
+  const parsed = bankStatementLineMatchResultSchema.safeParse(body)
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: 'ERP Core API returned an invalid bank statement line result.',
+      status: 502,
+    }
+  }
+  return { ok: true, data: parsed.data, status: response.status }
 }
 
 export async function getNotificationsThroughCoreApi(): Promise<

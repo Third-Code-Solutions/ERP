@@ -4544,6 +4544,21 @@ The local browser canary now covers both register and detail reads, including
 the authenticated Core request boundary and responsive rendering. Browser
 evidence is disposable/local only and does not authorize hosted promotion.
 
+## Reconciliation line match/unmatch authority (M3.282, 2026-08-12)
+
+Manual line matching is a Nest-owned command at
+`POST /v1/finance/reconciliation/:statementId/lines/:lineId/match`; unmatching
+uses the same boundary with an empty strict body. The browser sends a
+per-line/action opaque retry key. Nest derives and rechecks tenant and
+capability, locks the statement and line, claims the tenant-scoped idempotency
+request, invokes the trusted PostgreSQL transition, stores the exact result,
+and writes semantic audit in one transaction.
+
+The Web action remains a compatibility adapter selected only for exact `true`
+plus an exact UUID allowlist; selected errors fail closed. API and Web line
+selectors remain false/empty by default, and hosted promotion still requires
+parity, readiness, rollback, exact SHA, and spend-bounded approval.
+
 ## Reconciliation auto-match authority (M3.281, 2026-08-12)
 
 Auto-match is a Nest-owned command at

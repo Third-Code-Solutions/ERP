@@ -41,8 +41,11 @@ import {
   getFinanceReconciliationThroughCoreApi,
   getFinanceReconciliationDetailThroughCoreApi,
   autoMatchBankStatementThroughCoreApi,
+  matchBankStatementLineThroughCoreApi,
+  unmatchBankStatementLineThroughCoreApi,
   createBankStatementThroughCoreApi,
   financeReconciliationAutoMatchWritesUseCoreApi,
+  financeReconciliationLineMatchWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi,
   financeReconciliationStorageUploadsUseCoreApi,
   getNotificationsThroughCoreApi,
@@ -1025,6 +1028,28 @@ describe('ERP Core client', () => {
     )
   })
 
+  it('keeps manual bank line writes on the legacy route unless an exact tenant gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(
+      financeReconciliationLineMatchWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(true)
+
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(
+      financeReconciliationLineMatchWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(false)
+    expect(financeReconciliationLineMatchWritesUseCoreApi('not-a-uuid')).toBe(
+      false
+    )
+  })
+
   it('keeps bank storage upload closed unless both exact tenant gates match', () => {
     vi.stubEnv('ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API', 'true')
     vi.stubEnv(
@@ -1105,6 +1130,69 @@ describe('ERP Core client', () => {
         body: '{}',
         headers: expect.objectContaining({
           'Idempotency-Key': 'auto-match-browser-retry-1',
+        }),
+      })
+    )
+  })
+
+  it('maps Core manual bank line match and unmatch results without a Web fallback', async () => {
+    const lineId = '55555555-5555-4555-8555-555555555555'
+    const cashTransactionId = '66666666-6666-4666-8666-666666666666'
+    const matched = {
+      statementId: '33333333-3333-4333-8333-333333333333',
+      lineId,
+      tenantId: RESULT.tenantId,
+      status: 'matched' as const,
+      matchedCashTransactionId: cashTransactionId,
+    }
+    const unmatched = {
+      ...matched,
+      status: 'unmatched' as const,
+      matchedCashTransactionId: null,
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(matched), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(unmatched), { status: 200 })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      matchBankStatementLineThroughCoreApi(
+        matched.statementId,
+        lineId,
+        cashTransactionId,
+        'line-match-test-1'
+      )
+    ).resolves.toEqual({ ok: true, data: matched, status: 200 })
+    await expect(
+      unmatchBankStatementLineThroughCoreApi(
+        matched.statementId,
+        lineId,
+        'line-unmatch-test-1'
+      )
+    ).resolves.toEqual({ ok: true, data: unmatched, status: 200 })
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `https://erp-api.example.test/v1/finance/reconciliation/${matched.statementId}/lines/${lineId}/match`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ cashTransactionId }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'line-match-test-1',
+        }),
+      })
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `https://erp-api.example.test/v1/finance/reconciliation/${matched.statementId}/lines/${lineId}/unmatch`,
+      expect.objectContaining({
+        method: 'POST',
+        body: '{}',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'line-unmatch-test-1',
         }),
       })
     )
