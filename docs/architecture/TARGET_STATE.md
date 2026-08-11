@@ -1,5 +1,16 @@
 # Target State
 
+## M3.254 Supplier Bill reversal authority (2026-08-11)
+
+The Core owns POST /v1/finance/supplier-bills/:supplierBillId/reverse. The
+browser sends an opaque idempotency key plus reversal reason and posting date;
+Nest authorization resolves tenant and actor, locks the tenant-scoped bill,
+and PostgreSQL atomically records the reversal link, balanced journal unwind,
+request ledger, and semantic audit. Replays return the original result, key
+reuse with a different command conflicts, and cross-tenant records remain
+concealed. The write selector stays closed until hosted parity, readiness,
+browser, rollback, and cost gates are reconciled.
+
 ## M3.253 Supplier Bill posting authority
 
 Supplier-bill posting is a Core-owned finance command at

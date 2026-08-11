@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-11 - M3.254 supplier-bill reversal authority canary
+
+Added `apps/api/integration/supplier-bill-reverse.http.integration.spec.ts`.
+The rollback-only Nest HTTP canary boots the real controller/service with JWT
+identity and capability guards, two tenants, finance/viewer roles, complete
+purchase-order and supplier-bill fixtures, and transaction-bound PostgreSQL.
+It covers auth, strict body/header and idempotency handling, viewer denial,
+disabled selector, concealed cross-tenant access, invalid reason/state,
+durable replay/key conflict, reversed bill state, balanced reversal journal,
+semantic audit, tenant isolation, and rollback. No product defect required a
+source change.
+
+Focused canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. Full API
+integration 49/49 files and 63 tests PASS with two explicit Redis-restart
+skips under the 15-second timeout. API typecheck, root lint, production
+build, provider-spend, Supabase parity, database-release, Web/DB boundary,
+workflow action-reference, and actionlint gates PASS. No migration, hosted
+Supabase, Storage, Railway, Vercel, credential, provider, or paid change
+occurred. Keep supplier-bill reverse flags/lists false/empty. Source evidence
+SHA: 1463c80.
+
 ## 2026-08-11 - M3.253 supplier-bill posting authority canary
 
 Added `apps/api/integration/supplier-bill-post.http.integration.spec.ts` and

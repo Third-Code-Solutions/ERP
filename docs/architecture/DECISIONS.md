@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-366 -- Require protected HTTP evidence for supplier bill reversal (2026-08-11)
+
+Decision: require supplier-bill reversal to remain a Core-only command with a
+protected transaction-bound HTTP canary. The boundary must enforce strict
+input and idempotency headers, JWT/capability authorization, closed-selector
+behavior, concealed cross-tenant access, legal reversal state/reason,
+replay/conflict semantics, balanced journal unwind, semantic audit, tenant
+isolation, and rollback. Keep the write selector closed.
+
+Rationale: reversing a posted bill is an official financial transaction. The
+server, not the browser or Python/AI, must lock the tenant-scoped bill and
+atomically own the reversal linkage, journal, audit, and request ledger.
+
+Validation: focused local PostgreSQL 17/Redis 7.4.9 canary passed 1/1; API
+integration passed 49/49 files and 63 tests with two explicit Redis-restart
+opt-in skips; typecheck, root lint, production build, and provider/release
+policy gates passed. No hosted/provider/paid action occurred.
+
 ## D-365 -- Preflight supplier bill before posting request claim (2026-08-11)
 
 Decision: require the Core supplier-bill posting command to lock and resolve
