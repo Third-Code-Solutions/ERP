@@ -7158,3 +7158,25 @@ Gitleaks, provider-spend guard, and `git diff --check` also passed. No hosted
 or provider mutation occurred. Source/docs commit
 `831fc43fe993aaead9f4dda4b571180e50698797` is pushed under `kurtgav` with a
 matching remote SHA; this remains a source-only migration slice.
+
+## D-129 -- Route reconciliation statement finalization through Core (2026-08-12)
+
+Decision: reuse the existing tenant-scoped Nest reconcile workflow and expose
+the statement-finalize command through the Web compatibility action only for an
+exact closed-by-default tenant canary. The detail panel owns one opaque
+`reconcile-<uuid>` retry key; selected Core failures are terminal and never
+invoke the legacy SQL writer.
+
+Rationale: locking and finalizing official bank evidence must share one
+authorization, line/state validation, idempotency record, database transaction,
+and audit boundary. Stable retries prevent a network retry from creating a
+second command, while clearing only after success preserves safe recovery. The
+void command remains separate so reversal authority is reviewed independently.
+
+Validation: focused Web Core/action tests 183/183, API HTTP canary 1/1, API
+build, Web typecheck/lint, and authenticated browser canary 1/1 passed. Full
+`pnpm test` passed with shared-types 332, database 241 passed/143 skipped, API
+764, and Web 794; workspace typecheck, lint, production build (83 Next pages),
+migration/release/policy/parity checks, web-database boundary, Actionlint,
+Gitleaks, provider-spend guard, and `git diff --check` also passed. No hosted
+or provider mutation occurred.

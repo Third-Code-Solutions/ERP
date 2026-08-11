@@ -235,7 +235,7 @@ test('proves authenticated Web reconciliation page uses Core and preserves tenan
   )
 
   await page.getByRole('button', { name: 'Run exact auto-match' }).click()
-  await expect(page.locator('[role="status"]')).toHaveText(
+  await expect(page.locator('p[role="status"]')).toHaveText(
     '0 exact matches added; 2 exceptions remain.'
   )
   const workflowStateResponse = await page.request.get(
@@ -263,6 +263,7 @@ test('proves authenticated Web reconciliation page uses Core and preserves tenan
   expect(seedMatchResponse.ok()).toBe(true)
   const seededMatch = (await seedMatchResponse.json()) as {
     cashTransactionId: string
+    secondCashTransactionId: string
   }
   await page.reload({ waitUntil: 'domcontentloaded' })
   const firstLine = page.locator('tbody tr').first()
@@ -309,6 +310,85 @@ test('proves authenticated Web reconciliation page uses Core and preserves tenan
   expect(
     unmatchedWorkflowState.reconciliationWorkflowRequests[2]?.idempotencyKey
   ).toMatch(/^line-unmatch-[0-9a-f-]{36}$/i)
+
+  await firstLine.locator('select').selectOption(seededMatch.cashTransactionId)
+  await firstLine.getByRole('button', { name: 'Match' }).click()
+  await expect(page.getByText('1 / 2', { exact: true })).toBeVisible()
+  const rematchedWorkflowResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(rematchedWorkflowResponse.ok()).toBe(true)
+  const rematchedWorkflowState =
+    (await rematchedWorkflowResponse.json()) as HarnessState
+  expect(rematchedWorkflowState.reconciliationWorkflowRequests).toHaveLength(4)
+  expect(
+    rematchedWorkflowState.reconciliationWorkflowRequests[3]
+  ).toMatchObject({
+    method: 'POST',
+    path: /\/lines\/[0-9a-f-]+\/match$/i,
+    authorization: `Bearer ${session.accessToken}`,
+    body: JSON.stringify({ cashTransactionId: seededMatch.cashTransactionId }),
+  })
+  expect(
+    rematchedWorkflowState.reconciliationWorkflowRequests[3]?.idempotencyKey
+  ).toMatch(/^line-match-[0-9a-f-]{36}$/i)
+
+  const secondLine = page.locator('tbody tr').nth(1)
+  await secondLine
+    .locator('select')
+    .selectOption(seededMatch.secondCashTransactionId)
+  await secondLine.getByRole('button', { name: 'Match' }).click()
+  await expect(page.getByText('2 / 2', { exact: true })).toBeVisible()
+  const fullyMatchedWorkflowResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(fullyMatchedWorkflowResponse.ok()).toBe(true)
+  const fullyMatchedWorkflowState =
+    (await fullyMatchedWorkflowResponse.json()) as HarnessState
+  expect(fullyMatchedWorkflowState.reconciliationWorkflowRequests).toHaveLength(5)
+  expect(
+    fullyMatchedWorkflowState.reconciliationWorkflowRequests[4]
+  ).toMatchObject({
+    method: 'POST',
+    path: /\/lines\/[0-9a-f-]+\/match$/i,
+    authorization: `Bearer ${session.accessToken}`,
+    body: JSON.stringify({
+      cashTransactionId: seededMatch.secondCashTransactionId,
+    }),
+  })
+  expect(
+    fullyMatchedWorkflowState.reconciliationWorkflowRequests[4]?.idempotencyKey
+  ).toMatch(/^line-match-[0-9a-f-]{36}$/i)
+
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Reconcile statement' }).click()
+  await expect(
+    page.getByRole('heading', {
+      name: 'ST-LOOPBACK-RECON-DRAFT',
+      exact: true,
+    })
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Void reconciliation', exact: true })
+  ).toBeVisible()
+  const reconciledWorkflowResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(reconciledWorkflowResponse.ok()).toBe(true)
+  const reconciledWorkflowState =
+    (await reconciledWorkflowResponse.json()) as HarnessState
+  expect(reconciledWorkflowState.reconciliationWorkflowRequests).toHaveLength(6)
+  expect(
+    reconciledWorkflowState.reconciliationWorkflowRequests[5]
+  ).toMatchObject({
+    method: 'POST',
+    path: /\/reconcile$/i,
+    authorization: `Bearer ${session.accessToken}`,
+    body: '{}',
+  })
+  expect(
+    reconciledWorkflowState.reconciliationWorkflowRequests[5]?.idempotencyKey
+  ).toMatch(/^reconcile-[0-9a-f-]{36}$/i)
 
   expect(
     state.unsupportedRequests.some(

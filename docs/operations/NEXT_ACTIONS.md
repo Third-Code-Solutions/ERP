@@ -5504,6 +5504,19 @@ Git disconnected and do not create preview or duplicate production builds.
    do not deploy or reconnect Vercel Git without a new explicit, bounded
    release approval.
 
+## Exact next action after M3.283
+
+1. The full M3.283 gate set is green. Review the reconcile source/docs diff,
+   commit and push under `kurtgav`, then verify the exact remote SHA. Do not
+   deploy, reconnect Vercel Git, or change provider plans.
+2. Keep API and Web reconcile selector pairs false/empty outside the disposable
+   tenant. The next reconciliation authority slice is statement void, as a
+   separate idempotent reversal command.
+3. Hosted promotion remains blocked by migration parity, duplicate Purchase
+   Order mapping, audit-recovery approval, readiness, rollback, exact SHA, and
+   spend-bounded owner/provider approval. No paid/duplicate build is allowed
+   to bypass those gates.
+
 ## Exact next action after M3.282
 
 1. Source/docs commit `831fc43fe993aaead9f4dda4b571180e50698797` is pushed

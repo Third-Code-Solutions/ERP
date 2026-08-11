@@ -8580,9 +8580,34 @@ credential-gated. This is source-ready, not a hosted release.
   provider-spend guard, and `git diff --check` also passed.
 - Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
   credentials, and billing state remain unchanged.
-- Source commit `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is pushed under
-  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
-  match. No production deployment was triggered.
+
+Source commit `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is pushed under
+`kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+match. No production deployment was triggered.
+
+## 2026-08-12 M3.283 reconciliation statement reconcile Core write boundary
+
+- Added the closed-by-default Web selector and server-only adapter for
+  `POST /v1/finance/reconciliation/:statementId/reconcile`. The existing Nest
+  workflow remains authoritative for capability, tenant membership, statement
+  locking, idempotency, trusted PostgreSQL transition, exact result schema, and
+  semantic audit.
+- The detail action panel now keeps one opaque reconcile retry key across a
+  failed request and clears it only after success. Selected Core failures are
+  terminal and never invoke the legacy Web database function.
+- Local evidence: focused Web tests 183/183, API build, Web typecheck/lint,
+  API HTTP canary 1/1, and authenticated loopback browser canary 1/1 passed.
+  The browser proved both line matches, confirmation-protected reconcile,
+  exact request boundaries, rendered reconciled state, desktop/mobile overflow,
+  zero console errors, and blocked external requests.
+- Full source gates passed: `pnpm test` reported shared-types 332, database
+  241 passed/143 skipped, API 764, and Web 794; `pnpm typecheck`, `pnpm lint`,
+  and `pnpm build` passed (83 Next pages). Migration/release/policy/parity,
+  web-database boundary, Actionlint, Gitleaks, provider-spend, and
+  `git diff --check` also passed. Source/docs push is pending this evidence
+  update; no hosted promotion is implied.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
 
 ## 2026-08-12 M3.282 reconciliation line match/unmatch Core write boundary
 

@@ -42,10 +42,12 @@ import {
   getFinanceReconciliationDetailThroughCoreApi,
   autoMatchBankStatementThroughCoreApi,
   matchBankStatementLineThroughCoreApi,
+  reconcileBankStatementThroughCoreApi,
   unmatchBankStatementLineThroughCoreApi,
   createBankStatementThroughCoreApi,
   financeReconciliationAutoMatchWritesUseCoreApi,
   financeReconciliationLineMatchWritesUseCoreApi,
+  financeReconciliationReconcileWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi,
   financeReconciliationStorageUploadsUseCoreApi,
   getNotificationsThroughCoreApi,
@@ -1050,6 +1052,28 @@ describe('ERP Core client', () => {
     )
   })
 
+  it('keeps statement reconcile on the legacy route unless an exact tenant gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(
+      financeReconciliationReconcileWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(true)
+
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(
+      financeReconciliationReconcileWritesUseCoreApi(RESULT.tenantId)
+    ).toBe(false)
+    expect(financeReconciliationReconcileWritesUseCoreApi('not-a-uuid')).toBe(
+      false
+    )
+  })
+
   it('keeps bank storage upload closed unless both exact tenant gates match', () => {
     vi.stubEnv('ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API', 'true')
     vi.stubEnv(
@@ -1193,6 +1217,35 @@ describe('ERP Core client', () => {
         body: '{}',
         headers: expect.objectContaining({
           'Idempotency-Key': 'line-unmatch-test-1',
+        }),
+      })
+    )
+  })
+
+  it('maps the Core bank reconcile result without enabling a Web fallback', async () => {
+    const result = {
+      statementId: '33333333-3333-4333-8333-333333333333',
+      tenantId: RESULT.tenantId,
+      status: 'reconciled' as const,
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(result), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      reconcileBankStatementThroughCoreApi(
+        result.statementId,
+        'reconcile-browser-retry-1'
+      )
+    ).resolves.toEqual({ ok: true, data: result, status: 200 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/finance/reconciliation/${result.statementId}/reconcile`,
+      expect.objectContaining({
+        method: 'POST',
+        body: '{}',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'reconcile-browser-retry-1',
         }),
       })
     )

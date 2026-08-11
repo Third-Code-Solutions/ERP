@@ -9,10 +9,12 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   financeReconciliationAutoMatchWritesUseCoreApi: vi.fn(),
   financeReconciliationLineMatchWritesUseCoreApi: vi.fn(),
+  financeReconciliationReconcileWritesUseCoreApi: vi.fn(),
   financeReconciliationImportWritesUseCoreApi: vi.fn(),
   financeReconciliationStorageUploadsUseCoreApi: vi.fn(),
   autoMatchBankStatementThroughCoreApi: vi.fn(),
   matchBankStatementLineThroughCoreApi: vi.fn(),
+  reconcileBankStatementThroughCoreApi: vi.fn(),
   unmatchBankStatementLineThroughCoreApi: vi.fn(),
   createBankStatementThroughCoreApi: vi.fn(),
 }))
@@ -39,6 +41,8 @@ vi.mock('@/lib/erp-core-client', () => ({
     mocks.financeReconciliationAutoMatchWritesUseCoreApi,
   financeReconciliationLineMatchWritesUseCoreApi:
     mocks.financeReconciliationLineMatchWritesUseCoreApi,
+  financeReconciliationReconcileWritesUseCoreApi:
+    mocks.financeReconciliationReconcileWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi:
     mocks.financeReconciliationImportWritesUseCoreApi,
   financeReconciliationStorageUploadsUseCoreApi:
@@ -47,6 +51,8 @@ vi.mock('@/lib/erp-core-client', () => ({
     mocks.autoMatchBankStatementThroughCoreApi,
   matchBankStatementLineThroughCoreApi:
     mocks.matchBankStatementLineThroughCoreApi,
+  reconcileBankStatementThroughCoreApi:
+    mocks.reconcileBankStatementThroughCoreApi,
   unmatchBankStatementLineThroughCoreApi:
     mocks.unmatchBankStatementLineThroughCoreApi,
   createBankStatementThroughCoreApi: mocks.createBankStatementThroughCoreApi,
@@ -56,6 +62,7 @@ import {
   autoMatchBankStatement,
   createBankStatement,
   matchBankStatementLine,
+  reconcileBankStatement,
   unmatchBankStatementLine,
   voidBankStatement,
 } from './actions'
@@ -92,6 +99,7 @@ describe('bank reconciliation actions', () => {
     mocks.requireCapability.mockImplementation(() => undefined)
     mocks.financeReconciliationAutoMatchWritesUseCoreApi.mockReturnValue(false)
     mocks.financeReconciliationLineMatchWritesUseCoreApi.mockReturnValue(false)
+    mocks.financeReconciliationReconcileWritesUseCoreApi.mockReturnValue(false)
     mocks.financeReconciliationImportWritesUseCoreApi.mockReturnValue(false)
     mocks.financeReconciliationStorageUploadsUseCoreApi.mockReturnValue(false)
   })
@@ -305,6 +313,37 @@ describe('bank reconciliation actions', () => {
     })
 
     expect(result.ok).toBe(false)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('delegates selected statement reconcile to Core and requires a retry token', async () => {
+    mocks.financeReconciliationReconcileWritesUseCoreApi.mockReturnValue(true)
+
+    const missingKey = await reconcileBankStatement(STATEMENT_ID)
+    expect(missingKey).toEqual({
+      ok: false,
+      error: 'Retry token is required for the bank statement reconcile command.',
+    })
+
+    mocks.reconcileBankStatementThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        statementId: STATEMENT_ID,
+        tenantId: PROFILE.tenantId,
+        status: 'reconciled',
+      },
+      status: 200,
+    })
+    const result = await reconcileBankStatement(
+      STATEMENT_ID,
+      'reconcile-browser-retry-1'
+    )
+
+    expect(result).toEqual({ ok: true, id: STATEMENT_ID })
+    expect(mocks.reconcileBankStatementThroughCoreApi).toHaveBeenCalledWith(
+      STATEMENT_ID,
+      'reconcile-browser-retry-1'
+    )
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 })
