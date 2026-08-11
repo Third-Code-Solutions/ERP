@@ -1,5 +1,25 @@
 # Current State
 
+## M3.256 Journal reversal authority (2026-08-11)
+
+Added the journal-reverse protected HTTP canary. It boots the real Nest
+controller/service with JWT identity and capability guards against
+transaction-bound PostgreSQL and proves strict body/header handling,
+finance/viewer authorization, closed-selector behavior, concealed
+cross-tenant access, invalid reason/state handling, idempotent replay/key
+conflict, balanced reversal journal linkage, semantic audit, tenant
+isolation, and rollback. The existing Core visibility preflight was verified
+before audit and request claim; no product ordering fix was required.
+
+Focused canary: 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. API integration:
+51/51 files and 65 tests PASS with two explicit Redis-restart skips under the
+15-second timeout. Typecheck, root lint, production build, provider-spend,
+Supabase parity, database-release, Web/DB boundary, workflow action-reference,
+and actionlint gates PASS. No hosted SQL/data, Storage, Railway/Vercel
+deployment, provider setting, credential, or paid action changed. Keep
+journal-reversal writes disabled and its tenant allowlist empty. Source
+evidence SHA: 0404076acf70ac557c6f89047855810718181cc0.
+
 ## M3.255 Journal posting authority (2026-08-11)
 
 Added the journal-post protected HTTP canary and moved the Core journal

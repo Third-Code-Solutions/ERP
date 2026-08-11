@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.256 Journal reversal authority (completed source-only canary)
+
+1. Added a protected rollback-only HTTP canary around the existing Core
+   journal-reverse controller/service with two tenants, finance/viewer
+   identities, posted journal fixtures, real JWT/capability guards, and
+   transaction-bound PostgreSQL.
+2. The canary covers strict body/header handling, authentication/RBAC, closed
+   selector, concealed cross-tenant access, invalid reason/state, idempotent
+   replay/key conflict, balanced reversal journal linkage, semantic audit,
+   tenant isolation, and outer rollback.
+3. The service's existing tenant-scoped visibility preflight was verified to
+   run before audit or request-ledger claim; no product source change was
+   needed. Cross-tenant access remains a concealed 404 with no ledger side
+   effect.
+4. Focused canary passed 1/1. API integration passed 51/51 files and 65 tests
+   with two explicit Redis-restart skips under the 15-second timeout; API
+   typecheck, root lint, production build, and all policy gates passed.
+5. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
+   or paid action changed. Keep journal-reversal writes disabled with an
+   empty tenant allowlist. Source evidence SHA:
+   0404076acf70ac557c6f89047855810718181cc0.
+
+Next: keep the selector closed and reconcile hosted parity, release identity,
+readiness, protected browser evidence, rollback, and spend gates before any
+selector, hosted SQL, or provider action.
+
 ## M3.255 Journal posting authority (completed source-only canary)
 
 1. Added a protected rollback-only HTTP canary around the existing Core
