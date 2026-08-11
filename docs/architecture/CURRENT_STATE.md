@@ -1,5 +1,25 @@
 # Current State
 
+## M3.289 Core bank-statement Storage browser canary (2026-08-12)
+
+The existing local bank-import browser now exercises the new Core Storage
+branch, not only the legacy Web handoff. A request-recording Core proxy proves
+typed sign, import, and cleanup calls carry the authenticated bearer and fresh
+request IDs; the real Nest service audits sign/cleanup, rejects a foreign
+tenant path before deletion, and removes the disposable tenant object through
+the server-side Storage boundary. The page still renders the imported detail
+and source evidence.
+
+Browser 1/1, Web typecheck, JavaScript harness syntax, and diff checks pass;
+the prior full Web/API/shared-types suites and local builds remain green.
+Selectors are enabled only inside the disposable harness. No hosted SQL,
+Storage object/policy, Vercel/Railway deployment, provider setting,
+credential, or paid action changed. Source evidence: `10322f0`.
+
+Exact next action: keep production selectors closed; review managed Storage
+RLS/key/readiness parity and release/rollback/smoke/spend gates before any
+tenant canary or provider action.
+
 ## M3.288 Core bank-statement Storage authority seam (2026-08-12)
 
 Nest Core now owns the closed-by-default bank-statement Storage sign/cleanup

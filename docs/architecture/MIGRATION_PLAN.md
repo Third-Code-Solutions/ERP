@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.289 - Core bank-statement Storage browser canary (completed source-only)
+
+1. Extended the existing bank-import loopback harness with a request-recording
+   Core proxy and enabled the new API/Web Storage selectors for one random
+   tenant only.
+2. Exercised the real Next import form, Nest sign/import/cleanup adapters,
+   Supabase-compatible Storage envelope, audit rows, source re-read, detail
+   rendering, and tenant-scoped cleanup. The foreign cleanup path remains 403
+   with no deletion request.
+3. Asserted bearer/request-id/body forwarding for Core sign/import/cleanup,
+   service-role use only at the server-side Storage boundary, exact object
+   path, audit action ordering, responsive desktop/mobile rendering, blocked
+   external fonts, and no console/page errors. Cleanup leaves zero fixture
+   rows/objects.
+4. Validation: browser 1/1, Web typecheck, harness syntax, and diff checks
+   PASS. The previous full Web 113/802, API 176/772, shared-types 55/332,
+   typecheck, lint, builds, provider-spend, boundary, actionlint, and
+   gitleaks gates remain the source baseline.
+
+Source evidence: `10322f0`.
+
+Exact next action: keep selectors closed and reconcile managed Storage
+RLS/key/readiness parity, exact release identity, rollback, authenticated
+smoke, and spend evidence before any tenant canary. No hosted mutation.
+
 ## M3.288 - Core bank-statement Storage authority seam (completed source slice)
 
 1. Added shared strict sign/cleanup request and result contracts, including the

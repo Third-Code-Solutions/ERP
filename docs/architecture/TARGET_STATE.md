@@ -1,5 +1,19 @@
 # Target State
 
+## M3.289 Core bank-statement Storage browser canary (2026-08-12)
+
+The local target proof now covers the user journey through the Core Storage
+authority: Next selects the exact tenant branch, the server adapter forwards
+the session bearer and request ID, Core signs and audits the private
+tenant-prefixed object, the import remains PostgreSQL-authorized, and terminal
+cleanup is audited and tenant-scoped. A foreign path is denied before any
+object deletion and the disposable object is removed after the proof.
+
+Keep both Core Storage selectors and the Web `*_VIA_API` selector false with
+empty tenant lists outside the harness. This remains source/disposable evidence
+only; managed Storage policy/key parity, readiness, release identity,
+rollback, authenticated smoke, and spend evidence remain required.
+
 ## M3.288 Core bank-statement Storage authority seam (2026-08-12)
 
 The target boundary has an original, typed Nest authority for private bank

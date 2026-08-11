@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-396 -- Prove the Core bank-statement Storage branch in a disposable browser (2026-08-12)
+
+Decision: extend the existing bank-import browser harness with a local
+request-recording Core proxy and enable the new API/Web Storage selectors only
+for one random fixture tenant. Assert the real sign/import/cleanup journey,
+bearer/request-id/body forwarding, audit evidence, foreign-tenant denial,
+responsive rendering, and fixture cleanup.
+
+Rationale: unit tests prove service logic but cannot prove that the real Next
+form chooses Core, preserves the route contract, or cleans up an object after
+a terminal workflow. A disposable proxy closes that seam without managed
+Supabase, Vercel, Railway, credentials, or spend. Exact selectors preserve
+rollback.
+
+Validation: browser 1/1, Web typecheck, harness syntax, and diff checks pass;
+source baseline full Web 113/802, API 176/772, shared-types 55/332, builds,
+lint, provider-spend, boundary, actionlint, and gitleaks pass. Source commit
+`10322f0`; no hosted mutation.
+
 ## D-395 -- Move bank-statement Storage sign/cleanup authority into Core (2026-08-12)
 
 Decision: implement original Nest sign and cleanup endpoints for bank-statement
