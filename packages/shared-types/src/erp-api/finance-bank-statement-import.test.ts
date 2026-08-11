@@ -4,6 +4,8 @@ import {
   bankStatementImportResultSchema,
   bankStatementImportUploadSignBodySchema,
   bankStatementImportUploadSignResultSchema,
+  bankStatementImportStorageCleanupBodySchema,
+  bankStatementImportStorageCleanupResultSchema,
 } from './finance-bank-statement-import'
 
 const CASH_ACCOUNT_ID = '11111111-1111-4111-8111-111111111111'
@@ -114,5 +116,14 @@ describe('bank statement import API contracts', () => {
         originalFileName: 'statement.csv',
       }).storagePath
     ).toBe(SOURCE_STORAGE_PATH)
+    expect(
+      bankStatementImportStorageCleanupBodySchema.parse({
+        storagePath: SOURCE_STORAGE_PATH,
+      }).storagePath
+    ).toBe(SOURCE_STORAGE_PATH)
+    expect(
+      bankStatementImportStorageCleanupResultSchema.safeParse({ ok: true })
+        .success
+    ).toBe(true)
   })
 })

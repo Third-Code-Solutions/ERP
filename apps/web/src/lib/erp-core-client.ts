@@ -60,6 +60,8 @@ import {
   financeReconciliationResultSchema,
   financeReconciliationDetailResultSchema,
   bankStatementImportResultSchema,
+  bankStatementImportUploadSignResultSchema,
+  bankStatementImportStorageCleanupResultSchema,
   bankStatementAutoMatchResultSchema,
   bankStatementLineMatchResultSchema,
   bankStatementReconcileResultSchema,
@@ -182,6 +184,10 @@ import {
   type FinanceReconciliationDetailResult,
   type BankStatementImportCommand,
   type BankStatementImportResult,
+  type BankStatementImportUploadSignBody,
+  type BankStatementImportUploadSignResult,
+  type BankStatementImportStorageCleanupBody,
+  type BankStatementImportStorageCleanupResult,
   type BankStatementAutoMatchResult,
   type BankStatementLineMatchResult,
   type BankStatementReconcileResult,
@@ -796,6 +802,18 @@ export function financeReconciliationStorageUploadsUseCoreApi(
       process.env.ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS,
       process.env.ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS
     )
+  )
+}
+
+/** Storage signing/cleanup delegates only for a separate exact-tenant canary. */
+export function financeReconciliationStorageUploadsViaCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API,
+    process.env
+      .ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API_TENANT_IDS
   )
 }
 
@@ -3442,6 +3460,124 @@ export async function createBankStatementThroughCoreApi(
     return {
       ok: false,
       error: 'ERP Core API is unavailable. No bank statement was imported.',
+      status: 503,
+    }
+  }
+}
+
+/** Server-only bank-statement Storage signing adapter. */
+export async function signBankStatementStorageThroughCoreApi(
+  body: BankStatementImportUploadSignBody
+): Promise<CoreResult<BankStatementImportUploadSignResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/reconciliation/import/storage/sign`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(body),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const responseBody = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Invalid bank statement upload request.'
+            : response.status === 403
+              ? 'You do not have permission to upload bank statements.'
+              : response.status === 503
+                ? 'Bank statement Storage authority is not enabled for this tenant.'
+                : 'Bank statement upload signing failed.',
+        status: response.status,
+      }
+    }
+    const parsed = bankStatementImportUploadSignResultSchema.safeParse(
+      responseBody
+    )
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid bank statement upload result.',
+        status: 502,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Bank statement upload was not signed.',
+      status: 503,
+    }
+  }
+}
+
+/** Server-only cleanup adapter for abandoned bank-statement uploads. */
+export async function cleanupBankStatementStorageThroughCoreApi(
+  body: BankStatementImportStorageCleanupBody
+): Promise<CoreResult<BankStatementImportStorageCleanupResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/reconciliation/import/storage`,
+      {
+        method: 'DELETE',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify(body),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const responseBody = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Invalid bank statement storage path.'
+            : response.status === 403
+              ? 'You do not have permission to clean up bank statements.'
+              : response.status === 503
+                ? 'Bank statement Storage authority is not enabled for this tenant.'
+                : 'Bank statement source cleanup failed.',
+        status: response.status,
+      }
+    }
+    const parsed = bankStatementImportStorageCleanupResultSchema.safeParse(
+      responseBody
+    )
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid bank statement cleanup result.',
+        status: 502,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. Source cleanup was not completed.',
       status: 503,
     }
   }

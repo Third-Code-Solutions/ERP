@@ -323,8 +323,12 @@ upload route/form; Core remains the only ERP transaction authority.
 | `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS` | when selected | Railway API | Strict exact UUID allowlist; default empty |
 | `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API` | no | Next server | Selects the Web Core import adapter; exact `true` only |
 | `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS` | when selected | Next server | Strict exact UUID allowlist; default empty |
+| `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_ENABLED` | no | Railway API | Enables Core signed Storage sign/cleanup authority; exact `true` only |
+| `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS` | when selected | Railway API | Strict exact UUID allowlist; default empty |
 | `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS` | no | Next server | Enables signed browser Storage handoff; exact `true` only |
 | `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS` | when selected | Next server | Strict exact UUID allowlist; default empty |
+| `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API` | no | Next server | Selects Nest Core sign/cleanup adapter; exact `true` only |
+| `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API_TENANT_IDS` | when selected | Next server | Strict exact UUID allowlist; default empty |
 
 ## Project detail read cutover (NestJS, disabled by default)
 

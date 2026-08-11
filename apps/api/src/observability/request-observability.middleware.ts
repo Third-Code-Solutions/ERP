@@ -180,6 +180,18 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
     }
     if (
       request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/reconciliation/import/storage/sign')
+    ) {
+      return 'finance.bank_statement_storage_sign'
+    }
+    if (
+      request.method === 'DELETE' &&
+      routePath.endsWith('/v1/finance/reconciliation/import/storage')
+    ) {
+      return 'finance.bank_statement_storage_cleanup'
+    }
+    if (
+      request.method === 'POST' &&
       routePath.endsWith('/v1/projects/:projectId/customer-invoices')
     ) {
       return 'finance.customer_invoice_draft_create'

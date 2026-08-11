@@ -32,8 +32,10 @@ import { FinanceCashService } from './finance-cash.service'
 import { FinanceReconciliationController } from './finance-reconciliation.controller'
 import { FinanceReconciliationService } from './finance-reconciliation.service'
 import { FinanceReconciliationWorkflowController } from './finance-reconciliation-workflow.controller'
+import { FinanceReconciliationStorageController } from './finance-reconciliation-storage.controller'
 import { FinanceReconciliationWorkflowService } from './finance-reconciliation-workflow.service'
 import { BankStatementImportStorageService } from './bank-statement-import.storage'
+import { BankStatementImportStorageAuthorityService } from './bank-statement-import-storage-authority.service'
 
 @Module({
   imports: [AuditModule],
@@ -54,6 +56,7 @@ import { BankStatementImportStorageService } from './bank-statement-import.stora
     FinanceCashController,
     FinanceReconciliationController,
     FinanceReconciliationWorkflowController,
+    FinanceReconciliationStorageController,
   ],
   providers: [
     JournalPostService,
@@ -73,6 +76,7 @@ import { BankStatementImportStorageService } from './bank-statement-import.stora
     FinanceReconciliationService,
     FinanceReconciliationWorkflowService,
     BankStatementImportStorageService,
+    BankStatementImportStorageAuthorityService,
   ],
 })
 export class FinanceModule implements NestModule {
@@ -95,7 +99,8 @@ export class FinanceModule implements NestModule {
         FinancePayablesController,
         FinanceCashController,
         FinanceReconciliationController,
-        FinanceReconciliationWorkflowController
+        FinanceReconciliationWorkflowController,
+        FinanceReconciliationStorageController
       )
   }
 }

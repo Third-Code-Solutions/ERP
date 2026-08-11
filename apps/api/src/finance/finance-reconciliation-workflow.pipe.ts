@@ -6,12 +6,16 @@ import {
   bankStatementReconcileBodySchema,
   bankStatementVoidBodySchema,
   bankStatementImportBodySchema,
+  bankStatementImportStorageCleanupBodySchema,
+  bankStatementImportUploadSignBodySchema,
   type BankStatementAutoMatchBody,
   type BankStatementLineMatchBody,
   type BankStatementLineUnmatchBody,
   type BankStatementReconcileBody,
   type BankStatementVoidBody,
   type BankStatementImportBody,
+  type BankStatementImportStorageCleanupBody,
+  type BankStatementImportUploadSignBody,
 } from '@third-code-erp/shared-types'
 
 @Injectable()
@@ -103,6 +107,38 @@ export class FinanceReconciliationImportPipe
     if (!parsed.success) {
       throw new BadRequestException({
         message: 'Invalid bank statement import command',
+        errors: parsed.error.flatten(),
+      })
+    }
+    return parsed.data
+  }
+}
+
+@Injectable()
+export class FinanceReconciliationStorageSignPipe
+  implements PipeTransform<unknown, BankStatementImportUploadSignBody>
+{
+  transform(value: unknown): BankStatementImportUploadSignBody {
+    const parsed = bankStatementImportUploadSignBodySchema.safeParse(value)
+    if (!parsed.success) {
+      throw new BadRequestException({
+        message: 'Invalid bank statement upload request',
+        errors: parsed.error.flatten(),
+      })
+    }
+    return parsed.data
+  }
+}
+
+@Injectable()
+export class FinanceReconciliationStorageCleanupPipe
+  implements PipeTransform<unknown, BankStatementImportStorageCleanupBody>
+{
+  transform(value: unknown): BankStatementImportStorageCleanupBody {
+    const parsed = bankStatementImportStorageCleanupBodySchema.safeParse(value)
+    if (!parsed.success) {
+      throw new BadRequestException({
+        message: 'Invalid bank statement storage path',
         errors: parsed.error.flatten(),
       })
     }

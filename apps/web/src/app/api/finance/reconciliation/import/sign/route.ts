@@ -10,7 +10,12 @@ import {
 } from '@third-code-erp/shared-types'
 import { eq } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
-import { financeReconciliationStorageUploadsUseCoreApi } from '@/lib/erp-core-client'
+import {
+  cleanupBankStatementStorageThroughCoreApi,
+  financeReconciliationStorageUploadsUseCoreApi,
+  financeReconciliationStorageUploadsViaCoreApi,
+  signBankStatementStorageThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 function safeFileName(fileName: string): string {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200)
@@ -45,7 +50,13 @@ export async function POST(req: NextRequest) {
   if (!can(userRow.role, 'finance.manage_cash')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  if (!financeReconciliationStorageUploadsUseCoreApi(userRow.tenant_id)) {
+  const storageUploadsViaCoreApi = financeReconciliationStorageUploadsViaCoreApi(
+    userRow.tenant_id
+  )
+  if (
+    !financeReconciliationStorageUploadsUseCoreApi(userRow.tenant_id) &&
+    !storageUploadsViaCoreApi
+  ) {
     return NextResponse.json(
       { error: 'Storage-backed bank import is not enabled for this tenant' },
       { status: 503 }
@@ -64,6 +75,17 @@ export async function POST(req: NextRequest) {
       { error: 'Invalid bank statement upload request', details: parsed.error.flatten() },
       { status: 400 }
     )
+  }
+
+  if (storageUploadsViaCoreApi) {
+    const coreResult = await signBankStatementStorageThroughCoreApi(parsed.data)
+    if (!coreResult.ok || !coreResult.data) {
+      return NextResponse.json(
+        { error: coreResult.error ?? 'Bank statement upload signing failed.' },
+        { status: coreResult.status ?? 503 }
+      )
+    }
+    return NextResponse.json(coreResult.data)
   }
 
   const storagePath = `${userRow.tenant_id}/bank-statements/${crypto.randomUUID()}-${safeFileName(parsed.data.fileName)}`
@@ -151,6 +173,17 @@ export async function DELETE(req: NextRequest) {
     parsed.data.storagePath.includes('..')
   ) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  if (financeReconciliationStorageUploadsViaCoreApi(userRow.tenant_id)) {
+    const coreResult = await cleanupBankStatementStorageThroughCoreApi(parsed.data)
+    if (!coreResult.ok || !coreResult.data) {
+      return NextResponse.json(
+        { error: coreResult.error ?? 'Bank statement source cleanup failed.' },
+        { status: coreResult.status ?? 503 }
+      )
+    }
+    return NextResponse.json(coreResult.data)
   }
 
   try {
