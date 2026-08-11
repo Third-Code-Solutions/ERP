@@ -1,5 +1,15 @@
 # Managed Supabase parity plan
 
+## M3.264 bank-statement void authority (source-only)
+
+The source ledger now has 122 migrations through
+`20260812130000_bank_statement_void_workflow.sql`; the managed project remains
+at 55 applied migrations through `20260729233017`, leaving 67 ordered pending
+migrations in fifteen review batches. The new migration adds the
+force-RLS/service-role-only request ledger for the disabled Core
+`POST /v1/finance/reconciliation/:statementId/void` command. No hosted SQL,
+data, provider setting, deployment, or paid action changed.
+
 - Status: `review_required`
 - Snapshot: 2026-08-11 source-ledger refresh; managed boundary unchanged
 - Target: `aqqrtkmtcsfkbyyqxowv` (`ERP`, `ap-northeast-2`)
@@ -9,13 +19,13 @@
 
 - Managed PostgreSQL: 17.6, `ACTIVE_HEALTHY`.
 - Managed ledger: 55 migrations through `20260729233017`.
-- Source ledger: 121 migrations through `20260812120000`.
-- Ledger shape: exact linear prefix; 66 missing, zero unexpected, zero applied
+- Source ledger: 122 migrations through `20260812130000`.
+- Ledger shape: exact linear prefix; 67 missing, zero unexpected, zero applied
   after the first gap.
 - Prior 2026-08-07 suffix scan reported 39 `drop-object`, 12 explicit
   transaction-control, and four with neither scanner flag. Those counts are
   historical; this source-ledger refresh does not claim a new SQL-risk scan.
-  Any release review must recompute them against all 66 pending files.
+  Any release review must recompute them against all 67 pending files.
 - First pending migration refuses to continue while duplicate tenant Purchase
   Order numbers exist. Current redacted read-only result: one group, 12 rows.
 - Managed catalog still reports 213 anonymous table-privilege rows and 209
@@ -38,8 +48,10 @@
   source-only tenant-scoped ledger for manual line match/unmatch commands.
   M3.263 adds the source-only tenant-scoped ledger for the fail-closed Core
   bank-statement reconciliation command.
-  The managed applied boundary remains 55 migrations through
-  `20260729233017`; no hosted SQL or migration-history row changed.
+  M3.264 adds the source-only tenant-scoped ledger for the fail-closed Core
+  bank-statement void command. The managed applied boundary remains 55
+  migrations through `20260729233017`; no hosted SQL or migration-history row
+  changed.
 
 Machine source: `managed-supabase-parity-plan.json`. Run:
 
@@ -63,7 +75,7 @@ longer equal the exact pending suffix.
 
 ## Ordered review batches
 
-The fourteen manifest batches are review checkpoints only. They do not authorize
+The fifteen manifest batches are review checkpoints only. They do not authorize
 independent production deployments and must never reorder the migration
 ledger. A production failure after any committed migration is a partial apply
 and invokes the database recovery plan.
@@ -84,6 +96,7 @@ and invokes the database recovery plan.
 12. Bank-statement auto-match authority: 1 migration.
 13. Bank-statement line match authority: 1 migration.
 14. Bank-statement reconcile authority: 1 migration.
+15. Bank-statement void authority: 1 migration.
 
 Exact filenames live in the machine manifest and are checked against
 `supabase/migrations`.
@@ -100,7 +113,7 @@ Exact filenames live in the machine manifest and are checked against
    or managed schemas.
 4. Apply the owner-approved mapping only to the isolated clone. Never use a
    synthetic rename as production evidence.
-5. Apply all 66 migrations to the clone in source order, pausing only for
+5. Apply all 67 migrations to the clone in source order, pausing only for
    review evidence. Run no-skip database/API integration, schema/catalog diff,
    RLS/privilege checks, tenant isolation, audit recovery, Redis recovery, and
    protected workflow/browser smoke checks.
@@ -126,7 +139,7 @@ All must be true:
 - Duplicate mapping owner-approved and replayed without collision.
 - Managed backup/PITR point plus successful isolated restore drill.
 - Separate Storage object recovery evidence.
-- Exact 121-migration rehearsal with zero skips and no catalog/data drift.
+- Exact 122-migration rehearsal with zero skips and no catalog/data drift.
 - Auth/public-user identity, tenant isolation, semantic audit, and privilege
   closure proven.
 - Security notices triaged; `auth_tenant_id()` anonymous execution removed by

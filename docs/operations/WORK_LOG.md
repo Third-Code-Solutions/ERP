@@ -1,5 +1,35 @@
 # Work Log
 
+## 2026-08-11 - M3.264 bank-statement void authority
+
+Added the strict Nest Core void command, the tenant-scoped force-RLS request
+ledger migration `20260812130000_bank_statement_void_workflow.sql`, shared/
+database contracts, and the fail-closed environment selector. Core now locks
+the reconciled statement, invokes the trusted PostgreSQL void function, stores
+durable replay/conflict evidence, and writes semantic audit in one
+transaction. The existing Web action is unchanged; the selector remains
+disabled.
+
+The rollback-only local PostgreSQL HTTP canary passed 1/1 across auth/RBAC,
+strict reason/header handling, disabled selector, cross-tenant concealment,
+pre-reconcile rejection, successful void, replay/key conflict, ledger state,
+audit, and rollback. Root `pnpm test` exited 0 with shared 54/54 files and
+327/327 tests, database 68/72 files with 239 passed and 143 environment-
+skipped tests, Web 111/111 files and 768/768 tests, and API 173/173 files and
+756/756 tests. API integration passed 55/55 files with 69 passed and two
+intentional Redis-restart skips. Typecheck, lint, production build, database
+contract, provider spend, parity, release, Web/DB boundary, workflow
+references, and actionlint passed. Source parity is 55/122 hosted/source
+migrations with 67 pending in 15 review batches. The migration was applied
+only to the disposable local CI database. No hosted Supabase, Storage,
+Railway, Vercel, credential, provider, or paid action changed.
+Source evidence SHA: `04fdf12fb90ae30b97f0655ca2a37d6a720741f3`.
+
+Exact next action: keep `ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED`
+false and its tenant list empty; do not apply hosted SQL or trigger provider
+builds. Define the next import authority boundary only after a separate local
+proof.
+
 ## 2026-08-11 - M3.263 bank-statement reconciliation authority
 
 Added the strict Nest Core reconcile command, the tenant-scoped force-RLS

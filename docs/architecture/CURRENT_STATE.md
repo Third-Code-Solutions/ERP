@@ -1,5 +1,36 @@
 # Current State
 
+## M3.264 Bank-statement void authority (2026-08-11)
+
+Added the source-only Nest Core command
+`POST /v1/finance/reconciliation/:statementId/void`. It accepts a strict
+reason body (3-500 trimmed characters) and opaque idempotency key, requires
+`finance.manage_cash`, re-authorizes the tenant membership, locks the visible
+statement, calls the trusted PostgreSQL void function, persists a
+tenant-scoped force-RLS request result, and records a semantic audit event in
+one transaction. Replays return the durable result and key reuse for another
+statement conflicts. The selector
+`ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED` and its tenant list are
+false/empty by default; the legacy Web action remains unchanged. Python/AI
+remains analysis-only and cannot void or finalize bank evidence.
+
+Rollback-only local PostgreSQL HTTP canary: 1/1 PASS. Root `pnpm test` exited
+0 with shared 54/54 files and 327/327 tests, database 68/72 files with 239
+passed and 143 environment-skipped tests, Web 111/111 files and 768/768
+tests, and API 173/173 files and 756/756 tests. Protected API integration:
+55/55 files, 69 passed and two intentional Redis-restart skips. Typecheck,
+lint, production build, database contract, provider-spend, parity,
+database-release, Web/DB boundary, workflow-reference, and actionlint gates
+PASS. Source parity is 55/122 hosted/source migrations, 67 pending in 15
+review batches. The migration was applied only to the disposable local CI
+database; no hosted SQL/data, Storage, Railway/Vercel deployment, provider
+setting, credential, or paid action changed.
+Source evidence SHA: `04fdf12fb90ae30b97f0655ca2a37d6a720741f3`.
+
+Exact next action: keep `ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED=false`
+and its tenant list empty; do not apply hosted SQL or trigger provider builds.
+Define the next import authority boundary only after a separate local proof.
+
 ## M3.263 Bank-statement reconciliation authority (2026-08-11)
 
 Added the source-only Nest Core command
