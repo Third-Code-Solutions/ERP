@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.254 Supplier Bill reversal authority (completed source-only canary)
+
+1. Added a protected rollback-only HTTP canary around the existing Core
+   supplier-bill reversal controller/service with two tenants, finance/viewer
+   identities, full purchase-order and bill fixtures, real JWT/capability
+   guards, and transaction-bound PostgreSQL.
+2. The canary covers strict body/header handling, authorization, closed
+   selector, concealed cross-tenant access, invalid state/reason, idempotent
+   replay/key conflict, posted-to-reversed state, balanced reversal journal,
+   semantic audit, tenant isolation, and outer rollback.
+3. Focused canary passed 1/1. API integration passed 49/49 files and 63 tests
+   with two explicit Redis-restart skips under the 15-second timeout; API
+   typecheck, root lint, production build, and all policy gates passed.
+4. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
+   or paid action changed. Keep supplier-bill reversal writes disabled with an
+   empty tenant allowlist. Source evidence SHA: 1463c80.
+
+Next: keep the selector closed and reconcile hosted parity, release identity,
+readiness, protected browser evidence, rollback, and spend gates before any
+selector, hosted SQL, or provider action.
+
 ## M3.253 Supplier Bill posting authority (completed source-only canary)
 
 1. Added a protected rollback-only HTTP canary around the existing Core
