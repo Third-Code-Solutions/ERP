@@ -42,4 +42,5 @@ Keep `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED=false` and
 parity/security, backup/restore, readiness, exact release identity, protected
 browser evidence, rollback, and spend approval before any production canary.
 
-Source/docs release SHA is recorded after this evidence update.
+Source/docs evidence update SHA:
+`d2e8edf352be9feb39562d66a983c49565792c44` (pushed under `kurtgav`).

@@ -19,7 +19,8 @@ root lint, and production build pass. No schema, hosted Supabase SQL/data,
 Storage, Railway/Vercel deployment, provider setting, credential, or paid
 action changed. Keep
 `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED=false` and
-`ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS` empty.
+`ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS` empty. Evidence
+update SHA: `d2e8edf352be9feb39562d66a983c49565792c44`.
 
 ## M3.249 Customer invoice issuance authority (2026-08-11)
 
