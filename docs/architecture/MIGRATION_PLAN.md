@@ -1,5 +1,25 @@
 # Migration Plan
 
+## M3.296 - live landing browser audit (completed read-only)
+
+1. Rechecked `https://thirdcode-erp.vercel.app/` at 1440x900, 768x900, and
+   390x844 with browser automation; recorded route identity, section bounds,
+   responsive measurements, interactions, and scroll-linked media state.
+2. Confirmed zero console errors/warnings, no horizontal overflow, clean Third
+   Code ERP branding, JSON-LD graph types, and unauthenticated dashboard
+   redirect to login. No transaction, AI, email, Storage, or database request
+   was triggered by the public route.
+3. Added `docs/research/LIVE_LANDING_AUDIT_20260812.md` and refreshed behavior
+   and topology evidence. No UI implementation was changed because observed
+   public behavior passed the current contract.
+
+Validation: live browser route/interaction/responsive sweep PASS; source tests
+were not rerun because this milestone changed documentation only. No hosted
+migration, provider build, credential, or paid operation occurred.
+
+Exact next action: keep selectors false/empty and review the next Core seam
+after the hosted Purchase Order duplicate gate and release controls clear.
+
 ## M3.295 - Core DocuSeal webhook browser/HTTP canary (completed source-only)
 
 1. Extended the disposable provider-style harness with one primary portal

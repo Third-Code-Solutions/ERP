@@ -1,5 +1,19 @@
 # Architecture Decisions
 
+## D-403 -- Treat live landing evidence as release evidence, not deployment proof (2026-08-12)
+
+Decision: record a fresh browser audit for the public landing surface without
+triggering a provider build. Use it to verify responsive UX, clean-room
+branding, interaction behavior, metadata, and unauthenticated redirect only.
+
+Rationale: the public route can be validated read-only while Vercel spend is
+already high and hosted Supabase parity is incomplete. A live page passing does
+not prove authenticated dashboard, database, Core selector, or release health.
+
+Validation: 1440/768/390 browser sweep, interaction checks, zero console
+errors/warnings, zero horizontal overflow, JSON-LD graph inspection, and
+`/dashboard` redirect PASS. No provider or database mutation.
+
 ## D-402 -- Lock DocuSeal BOM transactions through a non-null project join (2026-08-12)
 
 Decision: the Core DocuSeal webhook locks the BOM and its required project via

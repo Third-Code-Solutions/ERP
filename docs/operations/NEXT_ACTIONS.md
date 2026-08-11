@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.296 live landing browser audit
+
+Keep Vercel Git/deploy automation and Railway builds disabled while spend is
+high. Keep every Core/Web migration selector false with empty tenant lists.
+The public landing is responsive and error-free in the latest read-only sweep,
+but this does not prove authenticated dashboard or database readiness. Resolve
+the hosted Purchase Order duplicate owner-review gate, reconcile managed
+parity/readiness/rollback, then choose one next Core seam and run its local
+authenticated browser canary before any tenant opening or provider build.
+
+Evidence: `docs/research/LIVE_LANDING_AUDIT_20260812.md`.
+
 ## Exact next action after M3.295 Core DocuSeal webhook browser canary
 
 Keep `ERP_DOCUSEAL_WEBHOOK_VIA_API=false` and

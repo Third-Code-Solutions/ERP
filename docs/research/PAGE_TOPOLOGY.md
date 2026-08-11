@@ -1,5 +1,15 @@
 # Third Code ERP landing page topology
 
+## 2026-08-12 live topology recheck
+
+The public route was rechecked with browser automation at 1440x900, 768x900,
+and 390x844. It retained fixed navigation, hero, proof rail, platform bento,
+Cortex capability accordion, workflow stack, priority carousel, FAQ, CTA, and
+footer order. Scroll/client widths matched at every viewport and console errors
+were absent. `/dashboard` redirected to login without a session.
+
+Fresh evidence: `docs/research/LIVE_LANDING_AUDIT_20260812.md`.
+
 ## 2026-08-10 live topology recheck
 
 Playwright reconfirmed the public route at 1440x900, 768x900, and 390x844.

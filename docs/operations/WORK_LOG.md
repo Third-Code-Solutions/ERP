@@ -1,5 +1,25 @@
 # Work Log
 
+## 2026-08-12 - M3.296 live landing browser audit
+
+Rechecked the public production landing route at 1440x900, 768x900, and
+390x844. It rendered Third Code ERP identity, responsive hero/nav/layout,
+capability accordion, priority carousel, FAQ disclosure, and structured-data
+graph. Scroll/client widths matched at all viewports; console errors and
+warnings were zero. Unauthenticated `/dashboard` redirected to `/auth/login`.
+
+Recorded exact observations in `docs/research/LIVE_LANDING_AUDIT_20260812.md`
+and refreshed `BEHAVIORS.md`/`PAGE_TOPOLOGY.md`. No source UI code, hosted SQL,
+Storage, provider setting, credential, deployment, or paid action changed.
+
+Validation: live browser route/responsive/interaction sweep PASS;
+source/build tests NOT RUN because documentation-only milestone. Remaining
+risks: authenticated dashboard health, hosted migration parity, PO duplicate
+gate, and deployment spend controls remain unresolved.
+
+Exact next action: keep provider and migration selectors closed and select the
+next bounded Core authority seam after release gates clear.
+
 ## 2026-08-12 - M3.295 Core DocuSeal webhook browser canary and lock-query repair
 
 Added a disposable provider-style DocuSeal proof to the shared loopback
