@@ -148,7 +148,10 @@ export class FinanceReceivablesService {
     }
     const whereClause = and(...conditions)
     const asOfDate = new Date().toISOString().slice(0, 10)
-    const asOfTimestamp = new Date(`${asOfDate}T00:00:00.000Z`)
+    // Keep the bind value as an ISO string. The postgres driver accepts Date
+    // values for ordinary column inserts, but raw SQL template parameters are
+    // serialized as wire values and reject a JavaScript Date instance.
+    const asOfTimestamp = `${asOfDate}T00:00:00.000Z`
     const currentAllocated = allocationAmount('customer_current_due')
     const retentionAllocated = allocationAmount('customer_retention')
     const currentOpen = sql<number>`greatest(

@@ -134,5 +134,6 @@ describe('FinanceReceivablesService', () => {
     expect(querySql.params).toContain(TENANT_ID)
     expect(querySql.params).toContain('partial_payment')
     expect(querySql.params).toContain(ACCOUNT_ID)
+    expect(querySql.params.some((value) => value instanceof Date)).toBe(false)
   })
 })

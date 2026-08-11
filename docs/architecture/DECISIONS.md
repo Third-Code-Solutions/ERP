@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-384 -- Prove finance receivables through protected Nest HTTP (2026-08-11)
+
+Decision: add a closed-by-default, opt-in HTTP canary around the real Nest
+customer-receivables read route. Use a disposable two-tenant PostgreSQL
+transaction, issue invoices through `public.issue_customer_invoice`, and
+assert guards, exact centavo totals, filters, pagination, overdue math,
+foreign-tenant isolation, selector failure, and rollback. Bind the raw SQL
+overdue timestamp as an ISO string rather than a JavaScript Date.
+
+Rationale: service tests alone cannot prove the HTTP trust boundary or the
+database-authoritative invoice evidence. The local canary closes that gap
+without managed Supabase, Vercel, Railway, credentials, or spend. The Date
+change is required because the postgres wire serializer rejects Date instances
+inside raw SQL template parameters; the unit regression prevents recurrence.
+
+Validation: receivables HTTP 2/2, API 174/760 tests, root typecheck/lint/tests/
+build, provider-spend, Web/DB boundary, workflow refs, actionlint, gitleaks,
+database-release, and managed-parity-plan PASS. Production selectors remain
+false/empty.
+
 ## D-383 -- Prove the finance ledger Web/Core cutover in a disposable browser (2026-08-11)
 
 Decision: validate the real Next ledger page with an authenticated loopback
