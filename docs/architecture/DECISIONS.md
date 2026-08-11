@@ -7159,6 +7159,28 @@ or provider mutation occurred. Source/docs commit
 `831fc43fe993aaead9f4dda4b571180e50698797` is pushed under `kurtgav` with a
 matching remote SHA; this remains a source-only migration slice.
 
+## D-393 -- Prove bank import Storage handoff in a disposable browser (2026-08-12)
+
+Decision: extend only the disposable loopback harness to model the existing
+tenant-scoped Storage handoff. Enable the Web/Core Storage selectors for the
+random canary tenant, capture service-role signing, bearer-authorized upload,
+Core's server-only signed read, exact `sourceStoragePath`, and source bytes;
+keep hosted Storage selectors false/empty.
+
+Rationale: inline base64 import proof did not exercise the private object path
+used for larger or server-retrieved evidence. A local in-memory fixture proves
+the actual browser and Core boundaries without credentials, hosted data,
+Storage policy changes, deployments, previews, or paid provider usage. Core
+remains the only authority that reads, parses, validates, and commits the
+financial draft.
+
+Validation: authenticated browser canary 1/1, full `pnpm test`, workspace
+typecheck, lint, production build (83 Next pages), migration/release/policy/
+parity checks, web-database boundary, Actionlint, Gitleaks, provider-spend
+guard, and `git diff --check` passed. No hosted or provider mutation occurred.
+Source commit `412e90119a2df7a42d97832675aef696e1aaaf24` is pushed under
+`kurtgav` with a matching remote SHA; this remains source-only evidence.
+
 ## D-392 -- Prove the Core bank import adapter in a disposable browser (2026-08-12)
 
 Decision: enable the existing Web/Core bank-import selector only for the random

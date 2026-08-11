@@ -11181,3 +11181,24 @@ hosted baseline, but not a promotion approval:
 - Source commit `d127523bf99fac74ac9dffbe6c0527e0af2dbe33` was pushed under
   `kurtgav`; local and remote SHAs match. No production deployment is
   authorized by this milestone.
+
+## 2026-08-12 - M3.286 reconciliation statement Storage browser canary
+
+- Extended only the disposable loopback harness and authenticated Playwright
+  flow. The local fixture models signed upload, bearer-authorized multipart
+  upload, private signed read, and tenant-scoped object cleanup in memory; no
+  application schema or hosted data changed.
+- Verified: browser canary 1/1 proved service-role upload signing, tenant path
+  isolation, authenticated browser upload, Core's server-only signed read,
+  exact `sourceStoragePath` transport, 90-byte CSV integrity, redirected draft
+  rendering, responsive overflow, zero console errors, and blocked external
+  requests. Hosted selectors remain false/empty.
+- Full gates passed: `pnpm test` (shared-types 332; database 241 passed/143
+  skipped; API 764; Web 797), `pnpm typecheck`, `pnpm lint`, `pnpm build`
+  (83 Next pages), migration/release/policy/parity checks, web-database
+  boundary, Actionlint, Gitleaks, provider-spend guard, and `git diff --check`.
+- Hosted Supabase, Storage, Railway, Vercel, flags, provider settings,
+  credentials, and billing remain unchanged.
+- Source commit `412e90119a2df7a42d97832675aef696e1aaaf24` was pushed under
+  `kurtgav`; local and remote SHAs match. No production deployment is
+  authorized by this milestone.

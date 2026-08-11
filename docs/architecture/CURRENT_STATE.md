@@ -8606,6 +8606,28 @@ match. No production deployment was triggered.
 - Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
   credentials, and billing state remain unchanged.
 
+## 2026-08-12 M3.286 reconciliation statement Storage browser canary
+
+- Extended only the disposable loopback fixture and authenticated browser proof;
+  no application schema or hosted data changed. The fixture models signed
+  upload, private signed read, bounded CSV bytes, and cleanup without calling
+  hosted Supabase Storage.
+- The browser proved service-role signing, bearer-authorized tenant upload,
+  Core's server-only signed read, exact `sourceStoragePath` transport, and
+  90-byte source integrity before the draft was rendered. Hosted API and Web
+  Storage selectors remain false/empty.
+- Full source gates passed: `pnpm test` reported shared-types 332, database
+  241 passed/143 skipped, API 764, and Web 797; the focused authenticated
+  browser canary passed 1/1; `pnpm typecheck`, `pnpm lint`, and `pnpm build`
+  passed (83 Next pages). Migration/release/policy/parity, web-database
+  boundary, Actionlint, Gitleaks, provider-spend, and `git diff --check` also
+  passed. No hosted promotion is implied.
+- Source commit `412e90119a2df7a42d97832675aef696e1aaaf24` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment was triggered.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
+
 ## 2026-08-12 M3.284 reconciliation statement void Core write boundary
 
 - Added the closed-by-default Web selector and server-only adapter for

@@ -205,11 +205,27 @@ object availability, size, and parser failures fail closed. The Web signed
 upload route never writes ERP tables and requires `finance.manage_cash`.
 
 The Web action has a typed Core adapter with terminal-error semantics and an
-exact-tenant selector. Keep both selectors closed until a separate UI/browser
-cutover proves upload, Core import, response mapping, protected access,
-rollback, and spend behavior. The current form remains the inline source
-compatibility path. Python/AI can inspect or recommend but cannot import,
-approve, or finalize ERP evidence.
+exact-tenant selector. A disposable UI/browser proof now covers signed upload,
+Core import, response mapping, protected access, and source-byte integrity;
+both selectors remain closed until hosted parity, rollback, readiness, and
+spend evidence are approved. The current form remains the inline source
+compatibility path for hosted tenants. Python/AI can inspect or recommend but
+cannot import, approve, or finalize ERP evidence.
+
+## M3.286 Bank-statement storage browser proof (2026-08-12)
+
+The disposable browser contract proves the private Storage handoff without
+opening a hosted tenant: the Web server signs a tenant-prefixed path using the
+service role, the browser uploads with the signed token, and Core reads the
+object through its own short-lived signed URL before parsing and committing the
+draft. The proof captures exact path, actor credentials, and source bytes;
+cleanup remains an explicit failure path and is tenant-prefix checked before
+the Storage delete.
+
+Keep `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS=false` and its tenant
+allowlist empty outside a disposable test. Do not promote this path to hosted
+Supabase, Railway, or Vercel until migration parity, Storage policy review,
+readiness, rollback, exact SHA, and spend-bounded approval are all clear.
 
 ## M3.265 Bank-statement import authority (2026-08-11)
 

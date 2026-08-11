@@ -8044,3 +8044,30 @@ SHAs match. Hosted promotion remains blocked by the existing parity,
 data-quality, readiness, rollback, exact-SHA, and spend approval gates. The
 next work is review of the source-only import evidence before storage-upload or
 hosted-parity work.
+
+## M3.286 - Reconciliation statement Storage browser canary (completed proof slice)
+
+1. Add an in-memory Storage contract to the disposable loopback fixture. Model
+   signed upload, bearer-authorized multipart upload, signed private read, and
+   tenant-scoped cleanup without calling hosted Supabase Storage.
+2. Enable the existing Storage/Core selectors only for the random disposable
+   tenant. Submit the same bounded CSV through the real Web form and assert
+   `sourceStoragePath`, service-role signing, authenticated browser upload,
+   Core's signed read, and exact source bytes.
+3. Keep hosted API and Web Storage selectors false/empty. Do not apply a hosted
+   Storage policy or migration, deploy, reconnect Vercel Git, or incur a paid
+   provider action from this slice.
+
+Validation: authenticated browser canary 1/1 passed. Full `pnpm test` passed
+with shared-types 332, database 241 passed/143 skipped, API 764, and Web 797;
+`pnpm typecheck`, `pnpm lint`, `pnpm build` (83 Next pages), migration/release/
+policy/parity checks, web-database boundary, Actionlint, Gitleaks,
+provider-spend guard, and `git diff --check` also passed. No hosted migration,
+deployment, provider setting, credential, or paid action occurred.
+
+Evidence: source commit `412e90119a2df7a42d97832675aef696e1aaaf24` is pushed
+under `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote
+SHAs match. Hosted promotion remains blocked by the existing parity,
+data-quality, Storage-policy, readiness, rollback, exact-SHA, and spend
+approval gates. The next work is review of this source-only Storage evidence
+before any hosted parity or provider action.
