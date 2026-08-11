@@ -5490,19 +5490,19 @@ Git disconnected and do not create preview or duplicate production builds.
 
 ## Exact next action after M3.281
 
-1. Review the complete auto-match source/docs diff, commit, and push under
-   `kurtgav`; verify the exact remote SHA. Do not deploy, reconnect Vercel Git,
-   or change provider plans.
-2. Preserve the passing local evidence: full tests/build/typecheck/lint,
+1. Preserve the passing local evidence: full tests/build/typecheck/lint,
    disposable HTTP/browser canaries, policy/security/spend guards, and diff
    checks.
-3. Keep both auto-match selector pairs false/empty outside the disposable
+2. Keep both auto-match selector pairs false/empty outside the disposable
    tenant. The next reconciliation authority slice is manual line
    match/unmatch, then reconcile and void as separate idempotent commands.
-4. Hosted promotion remains blocked by migration parity, duplicate Purchase
+3. Hosted promotion remains blocked by migration parity, duplicate Purchase
    Order mapping, audit-recovery approval, readiness, rollback, exact SHA, and
    spend-bounded owner/provider approval. No paid/duplicate build is allowed
    to bypass those gates.
+4. Source `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is pushed and verified;
+   do not deploy or reconnect Vercel Git without a new explicit, bounded
+   release approval.
 
 ## Exact next action after M3.280
 
