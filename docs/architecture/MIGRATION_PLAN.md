@@ -1,6 +1,6 @@
 # Migration Plan
 
-## M3.250 Customer invoice reversal authority (source-only, runtime pending)
+## M3.250 Customer invoice reversal authority (completed source-only canary)
 
 1. Added a protected rollback-only HTTP canary around the existing Core
    customer-invoice reversal controller/service with real JWT identity and
@@ -10,17 +10,18 @@
    concealed cross-tenant access, invalid reason, idempotent replay and key
    conflict, cancelled invoice linkage, balanced posted reversal journal,
    semantic audit, tenant isolation, and outer rollback.
-3. API typecheck and root lint pass. Runtime was not run because the local
-   disposable PostgreSQL/Redis lane was unavailable; the guarded Vitest suite
-   skipped without `DATABASE_URL`, and a WSL service restart timed out. Do not
-   treat this source evidence as a passed release canary.
+3. Focused runtime canary passed 1/1 on local PostgreSQL 17/Redis 7.4.9. Full
+   API integration passed 45/45 files and 59 tests with two explicit
+   Redis-restart opt-in skips. API typecheck, root lint, and production build
+   passed.
 4. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
    or paid action changed. Keep reversal writes disabled with an empty tenant
    allowlist. Source/docs SHA:
    `a1754bdb2aad1ecacaae79f1286893174a0a1515`.
 
-Next: restore the disposable PostgreSQL/Redis lane and run the focused
-reversal canary before any selector, hosted SQL, or provider action.
+Next: keep the selector closed and reconcile hosted parity, release identity,
+readiness, protected browser evidence, rollback, and spend gates before any
+selector, hosted SQL, or provider action.
 
 ## M3.249 Customer invoice issuance authority (completed source-only canary)
 

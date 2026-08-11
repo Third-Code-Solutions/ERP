@@ -29,6 +29,7 @@ pnpm --filter @third-code-erp/api exec vitest run `
   integration/customer-invoice-reverse.http.integration.spec.ts --reporter=dot
 ```
 
-M3.250 static checks pass, but the focused runtime canary was not run because
-the disposable PostgreSQL/Redis lane was unavailable. Do not treat a skipped
-guarded suite as hosted readiness or deployment approval.
+M3.250 focused runtime canary passes 1/1 on disposable PostgreSQL 17/Redis
+7.4.9; the API integration lane passes 45/45 files and 59 tests with two
+explicit Redis-restart skips. Do not treat disposable evidence as hosted
+readiness or deployment approval.
