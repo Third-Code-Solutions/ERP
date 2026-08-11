@@ -1,5 +1,32 @@
 # Current State
 
+## M3.252 Customer invoice draft-creation authority (2026-08-11)
+
+Added `apps/api/integration/customer-invoice-draft-create.http.integration.spec.ts`
+and hardened `apps/api/src/finance/customer-invoice-draft-create.service.ts`.
+The rollback-only canary boots the real Nest draft-creation controller and
+service with JWT identity/capability guards against transaction-bound
+PostgreSQL. It proves strict command/header handling, finance/viewer
+authorization, disabled-by-default behavior, concealed cross-tenant project
+access, approved/draft BOM rules, exact integer money calculation,
+tenant-scoped idempotent replay/key conflict, invoice/request-ledger linkage,
+semantic audit, and outer rollback.
+
+The canary found a real boundary defect: the service claimed the idempotency
+row before tenant-scoping the project, allowing a cross-tenant composite-FK
+500. Core now locks and preflights the tenant-scoped project before audit or
+request-ledger claim; the boundary is a concealed 404. Focused canary passes
+1/1. Full API integration passes 47/47 files and 61 tests with two explicit
+Redis-restart skips when run with `--testTimeout=15000`; the default 5-second
+parallel attempt had one unrelated Cortex contention timeout, and that suite
+passes isolated. API typecheck, root lint, and production build pass. No
+schema, hosted Supabase SQL/data, Storage, Railway/Vercel deployment,
+provider setting, credential, or paid action changed. Keep
+`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED=false` and
+`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_TENANT_IDS` empty.
+
+## M3.251 Customer invoice draft-cancellation authority (2026-08-11)
+
 ## M3.251 Customer invoice draft-cancellation authority (2026-08-11)
 
 Added `apps/api/integration/customer-invoice-cancel.http.integration.spec.ts`.

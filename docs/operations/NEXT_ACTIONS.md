@@ -1,5 +1,24 @@
 # Next Actions
 
+## Exact next action after M3.252 customer invoice draft-create canary
+
+Keep `ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED=false` and
+`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_TENANT_IDS` empty. Focused
+canary passes 1/1; API integration passes 47/47 files and 61 tests with two
+explicit Redis-restart skips under `--testTimeout=15000`. Do not apply hosted
+SQL or trigger Railway/Vercel builds while spend protection and the M3.248
+hosted parity/security gate remain active. Next, reconcile hosted parity,
+release identity, readiness, protected browser evidence, rollback, and spend
+gates.
+
+## M3.252 evidence boundary (completed source-only canary)
+
+The protected draft-create canary passes 1/1 and the API integration lane
+passes 47/47 files and 61 tests with two explicit Redis-restart skips under
+the explicit timeout. It covers tenant preflight, strict input, auth/RBAC,
+disabled selector, BOM/money rules, idempotency, audit, and rollback. No
+provider or paid action occurred.
+
 ## Exact next action after M3.251 customer invoice cancellation canary
 
 Keep `ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_ENABLED=false` and

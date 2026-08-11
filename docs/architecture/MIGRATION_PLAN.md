@@ -1,5 +1,31 @@
 # Migration Plan
 
+## M3.252 Customer invoice draft-creation authority (completed source-only canary)
+
+1. Added a protected rollback-only HTTP canary around the existing Core
+   customer-invoice draft-create controller/service with real JWT identity and
+   capability guards, two tenants, finance/viewer roles, projects, approved
+   and draft BOMs, and a transaction-bound PostgreSQL client.
+2. The canary covers strict body/header handling, auth/RBAC, disabled selector,
+   concealed cross-tenant project access, BOM status rules, exact integer
+   billing/tax/retention calculation, idempotent replay and key conflict,
+   invoice/request-ledger linkage, semantic audit, and outer rollback.
+3. The canary exposed a real ordering defect: request-ledger claim preceded
+   tenant-scoped project preflight and could return a composite-FK 500. The
+   service now locks/preflights the project before audit or claim; the attack
+   returns concealed 404. Focused canary passed 1/1. API integration passed
+   47/47 files and 61 tests with two explicit Redis-restart skips under
+   `--testTimeout=15000`; the isolated Cortex baseline passed after one
+   default-timeout contention failure. API typecheck, root lint, and build
+   passed.
+4. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
+   or paid action changed. Keep draft-create writes disabled with an empty
+   tenant allowlist. Source/docs evidence SHA is recorded after push.
+
+Next: keep the selector closed and reconcile hosted parity, release identity,
+readiness, protected browser evidence, rollback, and spend gates before any
+selector, hosted SQL, or provider action.
+
 ## M3.251 Customer invoice draft-cancellation authority (completed source-only canary)
 
 1. Added a protected rollback-only HTTP canary around the existing Core

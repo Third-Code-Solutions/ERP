@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-364 -- Preflight tenant scope before draft-invoice request claim (2026-08-11)
+
+Decision: make the Core draft-invoice creation command lock and resolve the
+tenant-scoped project before writing audit or claiming its idempotency row.
+Require a protected HTTP canary for strict input, auth/RBAC, disabled
+behavior, cross-tenant concealment, BOM rules, exact money calculation,
+replay/conflict, audit, and rollback. Keep the draft-create selector closed.
+
+Rationale: the request ledger has a composite tenant/project foreign key. A
+cross-tenant project id must be a concealed 404, never a raw constraint 500,
+and must not create an audit or ledger side effect. Core remains the only
+authority for invoice numbering and centavo calculations; Python/AI remains
+analysis-only.
+
+Validation: focused local PostgreSQL 17/Redis 7.4.9 canary passed 1/1; API
+integration passed 47/47 files and 61 tests with two explicit Redis-restart
+opt-in skips under `--testTimeout=15000`; API typecheck, root lint, and
+production build passed. No hosted/provider/paid action occurred.
+
 ## D-363 -- Require protected HTTP evidence for draft invoice cancellation (2026-08-11)
 
 Decision: use a disposable transaction-bound HTTP canary as the release gate
