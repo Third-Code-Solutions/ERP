@@ -1,5 +1,25 @@
 # Work Log
 
+## 2026-08-11 - M3.273 protected finance-receivables Web/Core browser canary
+
+Added a closed-by-default Playwright proof for the real Next receivables page.
+The harness starts disposable PostgreSQL, the compiled Nest API, loopback
+Supabase-compatible auth/profile, and a request-recording Core proxy. An
+authenticated tenant renders two database-issued invoices and exact PHP KPI
+balances; the browser asserts bearer/request-id/query forwarding, redirect,
+RBAC, blocked font traffic, no unexpected contracts or console/page errors,
+and desktop/mobile overflow. Explicit afterEach cleanup leaves zero matching
+fixtures. The existing ledger browser proof was rerun 1/1.
+
+Receivables browser 1/1, Web 113/782, root tests/typecheck/lint/build,
+provider-spend, boundary, workflow, actionlint, gitleaks, release, and
+managed-parity gates pass. No hosted Supabase, Storage, Railway, Vercel,
+credential, provider, or paid action changed.
+
+Exact next action: keep provider/deployment selectors closed; separately
+reconcile hosted parity, readiness, release identity, authenticated smoke,
+rollback, and spend evidence before any tenant canary.
+
 ## 2026-08-11 - M3.272 protected finance-receivables Core HTTP canary
 
 Added an opt-in local HTTP proof for the Nest customer-receivables read path.

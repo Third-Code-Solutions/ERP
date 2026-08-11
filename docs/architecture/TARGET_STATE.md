@@ -1,5 +1,20 @@
 # Target State
 
+## M3.273 Protected finance-receivables Web/Core browser canary (2026-08-11)
+
+The local evidence now covers the user-facing receivables seam: an
+authenticated Next page selects Core only for an exact tenant, forwards the
+server-only session bearer and bounded query, maps the typed result into KPI
+and invoice rows, and remains responsive. The disposable browser also proves
+redirect/RBAC, blocked provider traffic, terminal contract noise, and cleanup.
+
+Keep `ERP_FINANCE_RECEIVABLES_READS_VIA_API=false` with an empty tenant list,
+and keep `ERP_FINANCE_RECEIVABLES_READS_ENABLED=false` with an empty Core
+allowlist outside local proof. PostgreSQL remains authoritative; Python/AI
+remains advisory and cannot approve or finalize financial transactions.
+Hosted parity, readiness, release identity, authenticated smoke, rollback,
+and spend evidence remain required.
+
 ## M3.272 Protected finance-receivables Core HTTP canary (2026-08-11)
 
 The local evidence now covers the guarded Nest receivables read seam:
