@@ -983,6 +983,7 @@ a { color: inherit; }
 /* Visually hide content while keeping it accessible to screen readers */
 .sr-only {
   position: absolute;
+  inset: 0 auto auto 0;
   width: 1px;
   height: 1px;
   padding: 0;
@@ -3464,7 +3465,12 @@ a { color: inherit; }
 }
 
 .reconciliation-proof-grid code {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
   font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .reconciliation-toolbar,

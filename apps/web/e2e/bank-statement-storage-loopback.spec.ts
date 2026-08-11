@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { randomUUID } from 'node:crypto'
 
 const AUTH_ORIGIN = 'http://127.0.0.1:4348'
 const WEB_ORIGIN = 'http://127.0.0.1:4347'
@@ -22,22 +23,24 @@ interface HarnessState {
     token: string
     bytes: number
   }>
+  storageReadRequests: Array<{
+    storagePath: string
+    token: string
+    method: string
+    authorization?: string
+  }>
   removeRequests: Array<{
     prefixes: string[]
   }>
-  coreRequests: Array<{
-    body: Record<string, unknown>
-    authorization: string
-    idempotencyKey: string
-    requestId: string
-  }>
   foreignRequests: Array<Record<string, unknown>>
   bankStatementCount: number
+  bankStatementLineCount: number
+  importRequestCount: number
   auditCount: number
   auditEntries: Array<Record<string, unknown>>
 }
 
-test('proves guarded bank-statement Storage handoff without provider traffic', async ({
+test('proves successful Core bank-statement import, detail rendering, and cross-tenant cleanup denial', async ({
   page,
 }, testInfo) => {
   testInfo.setTimeout(120_000)
@@ -169,12 +172,27 @@ test('proves guarded bank-statement Storage handoff without provider traffic', a
   ).toBeEnabled()
 
   await page.getByRole('button', { name: 'Import statement draft' }).click()
-  const inlineAlert = page.locator('p[role="alert"]')
-  await expect(inlineAlert).toBeVisible()
-  await expect(inlineAlert).toHaveText(
-    'Bank statement import is not enabled for this tenant.'
+  await expect(page).toHaveURL(
+    new RegExp('/finance/reconciliation/[0-9a-f-]{36}$'),
+    { timeout: 30_000 }
   )
-  expect(new URL(page.url()).pathname).toBe('/finance/reconciliation/new')
+  await expect(
+    page.getByRole('heading', { name: 'CONTROLLED-001', exact: true })
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Imported file evidence' })).toBeVisible()
+  await expect(page.getByText('controlled.csv', { exact: true })).toBeVisible()
+  await expect(page.getByText('Validated roll-forward', { exact: true })).toBeVisible()
+  await expect(page.getByText('0 / 1', { exact: true })).toBeVisible()
+
+  const foreignCleanup = await page.request.delete(
+    `${WEB_ORIGIN}/api/finance/reconciliation/import/sign`,
+    {
+      data: {
+        storagePath: `${randomUUID()}/bank-statements/foreign.csv`,
+      },
+    }
+  )
+  expect(foreignCleanup.status()).toBe(403)
 
   const stateResponse = await page.request.get(`${AUTH_ORIGIN}/__harness__/state`)
   expect(stateResponse.ok()).toBe(true)
@@ -182,15 +200,17 @@ test('proves guarded bank-statement Storage handoff without provider traffic', a
 
   expect(state.signRequests).toHaveLength(1)
   expect(state.uploadRequests).toHaveLength(1)
-  expect(state.removeRequests).toHaveLength(1)
-  expect(state.coreRequests).toHaveLength(1)
+  expect(state.storageReadRequests).toHaveLength(2)
+  expect(state.removeRequests).toHaveLength(0)
   expect(state.foreignRequests).toEqual([])
-  expect(state.bankStatementCount).toBe(0)
+  expect(state.bankStatementCount).toBe(1)
+  expect(state.bankStatementLineCount).toBe(1)
+  expect(state.importRequestCount).toBe(1)
   const uploadAudits = state.auditEntries.filter(
     (entry) => entry.entity_type === 'bank_statement_upload'
   )
-  expect(uploadAudits).toHaveLength(2)
-  expect(uploadAudits.map((entry) => entry.action)).toEqual(['query', 'delete'])
+  expect(uploadAudits).toHaveLength(1)
+  expect(uploadAudits.map((entry) => entry.action)).toEqual(['query'])
 
   const storagePath = state.signRequests[0]!.storagePath
   expect(storagePath).toMatch(
@@ -201,27 +221,17 @@ test('proves guarded bank-statement Storage handoff without provider traffic', a
     token: state.signRequests[0]!.token,
   })
   expect(state.uploadRequests[0]!.bytes).toBeGreaterThan(0)
-  expect(state.removeRequests[0]!.prefixes).toEqual([storagePath])
-
-  const coreBody = state.coreRequests[0]!.body
-  expect(coreBody).toMatchObject({
-    cashAccountId: state.cashAccountId,
-    referenceNumber: 'CONTROLLED-001',
-    sourceFileName: 'controlled.csv',
-    statementStart: '2026-08-01',
-    statementEnd: '2026-08-31',
-    openingBalanceCents: 10_000,
-    closingBalanceCents: 12_500,
-    sourceStoragePath: storagePath,
+  expect(state.storageReadRequests[0]).toMatchObject({
+    storagePath,
+    method: 'sign',
   })
-  expect(coreBody).not.toHaveProperty('sourceBase64')
-  expect(state.coreRequests[0]!.authorization).toBe(
-    `Bearer ${session.accessToken}`
+  expect(state.storageReadRequests[0]!.authorization).toBe(
+    `Bearer ${'third-code-local-service-role-key'}`
   )
-  expect(state.coreRequests[0]!.idempotencyKey).toMatch(/^bank-import-[0-9a-f]{64}$/)
-  expect(state.coreRequests[0]!.requestId).toMatch(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-  )
+  expect(state.storageReadRequests[1]).toMatchObject({
+    storagePath,
+    method: 'read',
+  })
 
   expect(consoleErrors).toEqual([])
   expect(blockedExternalRequests).toEqual(

@@ -2,16 +2,17 @@ import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
+import { existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const HOST = '127.0.0.1'
 const AUTH_PORT = 4348
 const WEB_PORT = 4347
-const CORE_PORT = 4350
+const API_PORT = 4350
 const AUTH_ORIGIN = `http://${HOST}:${AUTH_PORT}`
 const WEB_ORIGIN = `http://${HOST}:${WEB_PORT}`
-const CORE_ORIGIN = `http://${HOST}:${CORE_PORT}`
+const API_ORIGIN = `http://${HOST}:${API_PORT}`
 const DATABASE_URL =
   'postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci'
 const USER_ID = randomUUID()
@@ -32,6 +33,18 @@ const ACCESS_TOKEN = [
   ).toString('base64url'),
   'local-bank-statement-storage-signature',
 ].join('.')
+
+const repositoryRoot = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..'
+)
+const webRoot = resolve(repositoryRoot, 'apps', 'web')
+const apiEntry = resolve(repositoryRoot, 'apps', 'api', 'dist', 'main.js')
+if (!existsSync(apiEntry)) {
+  throw new Error('Build @third-code-erp/api before running bank statement browser proof')
+}
 
 const user = {
   id: USER_ID,
@@ -59,11 +72,13 @@ const profile = {
 
 const signRequests = []
 const uploadRequests = []
+const storageReadRequests = []
 const removeRequests = []
-const coreRequests = []
 const foreignRequests = []
+const uploadedObjects = new Map()
 let sql
-let child
+let webChild
+let apiChild
 let stopping = false
 
 function corsHeaders(origin) {
@@ -102,6 +117,34 @@ function parseJson(raw) {
   } catch {
     return null
   }
+}
+
+function extractMultipartFile(body, contentType) {
+  const boundaryMatch = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(
+    contentType
+  )
+  const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2]
+  if (!boundary) return body
+  const marker = Buffer.from(`--${boundary}`)
+  const chunks = []
+  let cursor = 0
+  while (true) {
+    const start = body.indexOf(marker, cursor)
+    if (start < 0) break
+    const partStart = start + marker.length
+    const next = body.indexOf(marker, partStart)
+    if (next < 0) break
+    const part = body.subarray(partStart, next)
+    const separator = part.indexOf(Buffer.from('\r\n\r\n'))
+    if (separator >= 0) {
+      const payload = part
+        .subarray(separator + 4)
+        .subarray(0, Math.max(0, part.length - separator - 6))
+      if (payload.length > 0) chunks.push(payload)
+    }
+    cursor = next
+  }
+  return chunks.at(-1) ?? body
 }
 
 function storagePathFromUploadUrl(pathname) {
@@ -162,10 +205,26 @@ const authServer = createServer(async (request, response) => {
     })
   }
   if (url.pathname === '/__harness__/state') {
-    const [statementCount, auditCount, auditEntries] = await Promise.all([
+    const [
+      statementCount,
+      lineCount,
+      importRequestCount,
+      auditCount,
+      auditEntries,
+    ] = await Promise.all([
       sql`
         select count(*)::int as count
         from bank_statements
+        where tenant_id = ${TENANT_ID}
+      `,
+      sql`
+        select count(*)::int as count
+        from bank_statement_lines
+        where tenant_id = ${TENANT_ID}
+      `,
+      sql`
+        select count(*)::int as count
+        from bank_statement_import_requests
         where tenant_id = ${TENANT_ID}
       `,
       sql`
@@ -186,10 +245,12 @@ const authServer = createServer(async (request, response) => {
       cashAccountId: CASH_ACCOUNT_ID,
       signRequests,
       uploadRequests,
+      storageReadRequests,
       removeRequests,
-      coreRequests,
       foreignRequests,
       bankStatementCount: statementCount[0]?.count ?? 0,
+      bankStatementLineCount: lineCount[0]?.count ?? 0,
+      importRequestCount: importRequestCount[0]?.count ?? 0,
       auditCount: auditCount[0]?.count ?? 0,
       auditEntries,
     })
@@ -258,6 +319,10 @@ const authServer = createServer(async (request, response) => {
   ) {
     const storagePath = storagePathFromUploadUrl(url.pathname)
     const body = await requestBody(request)
+    uploadedObjects.set(
+      storagePath,
+      extractMultipartFile(body, String(request.headers['content-type'] ?? ''))
+    )
     uploadRequests.push({
       storagePath,
       token: url.searchParams.get('token') ?? '',
@@ -270,6 +335,60 @@ const authServer = createServer(async (request, response) => {
       { Key: `documents/${storagePath}` },
       WEB_ORIGIN
     )
+  }
+
+  if (
+    request.method === 'POST' &&
+    url.pathname.startsWith('/storage/v1/object/sign/documents/')
+  ) {
+    const storagePath = decodeURIComponent(
+      url.pathname.slice('/storage/v1/object/sign/documents/'.length)
+    )
+    const token = `local-read-${randomUUID()}`
+    storageReadRequests.push({
+      storagePath,
+      token,
+      method: 'sign',
+      authorization: request.headers.authorization ?? '',
+    })
+    return json(
+      response,
+      200,
+      {
+        // storage-js applies encodeURI to this path; keep the object path
+        // unescaped here so slashes are not double-encoded as %252F.
+        signedURL: `/object/sign/documents/${storagePath}?token=${encodeURIComponent(token)}`,
+      },
+      AUTH_ORIGIN
+    )
+  }
+
+  if (
+    request.method === 'GET' &&
+    url.pathname.startsWith('/storage/v1/object/sign/documents/')
+  ) {
+    const storagePath = decodeURIComponent(
+      url.pathname.slice('/storage/v1/object/sign/documents/'.length)
+    )
+    const body = uploadedObjects.get(storagePath)
+    storageReadRequests.push({
+      storagePath,
+      token: url.searchParams.get('token') ?? '',
+      method: 'read',
+    })
+    if (!body) {
+      response.writeHead(404, {
+        'cache-control': 'no-store',
+        'content-type': 'application/json; charset=utf-8',
+      })
+      return response.end(JSON.stringify({ error: 'object_not_found' }))
+    }
+    response.writeHead(200, {
+      'cache-control': 'no-store',
+      'content-type': 'text/csv; charset=utf-8',
+      'content-length': String(body.byteLength),
+    })
+    return response.end(body)
   }
 
   if (
@@ -296,32 +415,6 @@ const authServer = createServer(async (request, response) => {
   })
 })
 
-const coreServer = createServer(async (request, response) => {
-  const url = new URL(request.url ?? '/', CORE_ORIGIN)
-  if (request.method === 'OPTIONS') {
-    response.writeHead(204, corsHeaders(WEB_ORIGIN))
-    return response.end()
-  }
-  if (
-    request.method === 'POST' &&
-    url.pathname === '/v1/finance/reconciliation/import'
-  ) {
-    const body = parseJson(await requestBody(request))
-    coreRequests.push({
-      body,
-      authorization: request.headers.authorization ?? '',
-      idempotencyKey: request.headers['idempotency-key'] ?? '',
-      requestId: request.headers['x-request-id'] ?? '',
-    })
-    return json(
-      response,
-      503,
-      { error: 'controlled_core_canary_disabled' },
-      CORE_ORIGIN
-    )
-  }
-  return json(response, 404, { error: 'unsupported_core_contract' }, CORE_ORIGIN)
-})
 
 function listen(server, port) {
   return new Promise((resolveListen, reject) => {
@@ -333,9 +426,26 @@ function listen(server, port) {
   })
 }
 
+async function waitForHttp(url, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs
+  let lastError = 'not attempted'
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url)
+      if (response.ok) return
+      lastError = `HTTP ${response.status}`
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error)
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100))
+  }
+  throw new Error(`Timed out waiting for ${url}: ${lastError}`)
+}
+
 async function cleanup() {
   if (!sql) return
   try {
+    await sql`delete from audit_log where tenant_id = ${TENANT_ID}`
     await sql`delete from tenants where id = ${TENANT_ID}`
   } catch (error) {
     console.error('[bank-import-loopback] cleanup failed', error)
@@ -347,22 +457,53 @@ async function cleanup() {
 async function stop(exitCode = 0) {
   if (stopping) return
   stopping = true
-  if (child && !child.killed) child.kill('SIGTERM')
-  await Promise.all([
-    new Promise((resolveClose) => authServer.close(() => resolveClose())),
-    new Promise((resolveClose) => coreServer.close(() => resolveClose())),
-  ])
+  if (webChild && !webChild.killed) webChild.kill('SIGTERM')
+  if (apiChild && !apiChild.killed) apiChild.kill('SIGTERM')
+  await new Promise((resolveClose) => authServer.close(() => resolveClose()))
   await cleanup()
   process.exitCode = exitCode
 }
 
 await seedDatabase()
-await Promise.all([listen(authServer, AUTH_PORT), listen(coreServer, CORE_PORT)])
+await listen(authServer, AUTH_PORT)
 
 const require = createRequire(import.meta.url)
 const nextBin = require.resolve('next/dist/bin/next')
-const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-child = spawn(
+const apiEnvironment = {
+  ...process.env,
+  NODE_ENV: 'test',
+  PORT: String(API_PORT),
+  DATABASE_URL,
+  REDIS_URL: 'redis://127.0.0.1:6379',
+  SUPABASE_URL: AUTH_ORIGIN,
+  SUPABASE_ANON_KEY: ANON_KEY,
+  SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
+  ERP_API_CORS_ORIGINS: WEB_ORIGIN,
+  ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED: 'true',
+  ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS: TENANT_ID,
+  OPENAI_API_KEY: '',
+  AI_GATEWAY_API_KEY: '',
+  AI_PROVIDER_API_KEY: '',
+  INNGEST_EVENT_KEY: '',
+  NEXT_TELEMETRY_DISABLED: '1',
+}
+delete apiEnvironment.AI_WORKER_URL
+delete apiEnvironment.AI_WORKER_SHARED_SECRET
+apiChild = spawn(process.execPath, [apiEntry], {
+  cwd: repositoryRoot,
+  env: apiEnvironment,
+  stdio: 'inherit',
+})
+apiChild.on('error', (error) => {
+  console.error('[bank-import-loopback] API process failed', error)
+  void stop(1)
+})
+apiChild.on('exit', (code) => {
+  if (!stopping) void stop(code ?? 1)
+})
+await waitForHttp(`${API_ORIGIN}/ready`)
+
+webChild = spawn(
   process.execPath,
   [nextBin, 'dev', '--hostname', HOST, '--port', String(WEB_PORT)],
   {
@@ -375,7 +516,7 @@ child = spawn(
       SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
       NEXT_PUBLIC_SITE_URL: WEB_ORIGIN,
       NEXT_PUBLIC_APP_URL: WEB_ORIGIN,
-      ERP_CORE_API_URL: CORE_ORIGIN,
+      ERP_CORE_API_URL: API_ORIGIN,
       ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API: 'true',
       ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS: 'true',
@@ -407,8 +548,8 @@ child = spawn(
   }
 )
 
-child.on('exit', (code) => void stop(code ?? 1))
-child.on('error', (error) => {
+webChild.on('exit', (code) => void stop(code ?? 1))
+webChild.on('error', (error) => {
   console.error('[bank-import-loopback] Next process failed', error)
   void stop(1)
 })
