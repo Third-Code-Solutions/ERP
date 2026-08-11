@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.271 Protected finance-ledger Web/Core browser canary (2026-08-11)
+
+The local closed-canary evidence covers the user-facing ledger cutover:
+authenticated Next rendering through the Core proxy, bearer/query provenance,
+immutable posted rows, exact centavo totals, account filtering, redirect/RBAC,
+no unexpected contracts, blocked provider traffic, and responsive desktop/mobile
+layout. The random fixture is explicitly cleaned and leaves zero matching
+tenants. Production selectors remain false/empty; hosted/provider action is not
+proven.
+
+Browser 1/1, Web 113/113 files and 782/782 tests, protected API ledger 1/1,
+root tests, typecheck, lint, build, release, parity, boundary, workflow,
+provider-spend, actionlint, and gitleaks PASS. Source evidence: `dc20c17`.
+
 ## M3.270 Protected finance-ledger Core HTTP canary (2026-08-11)
 
 The local closed-canary evidence covers the Nest ledger read boundary:

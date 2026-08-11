@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-383 -- Prove the finance ledger Web/Core cutover in a disposable browser (2026-08-11)
+
+Decision: validate the real Next ledger page with an authenticated loopback
+browser, compiled Nest API, disposable PostgreSQL, and a request-recording
+Core proxy. Assert the Core bearer/query contract, exact posted-line totals,
+account filtering, redirect/RBAC, responsive behavior, and no unexpected
+provider or local contracts. Add explicit cleanup for the immutable posted
+fixture and keep both selectors closed outside the harness.
+
+Rationale: an API canary alone cannot prove the page chooses Core, forwards
+the session token, maps the frozen result, or remains usable on mobile. The
+proxy and browser evidence close that seam without changing production data,
+hosted Supabase, Vercel, Railway, credentials, or spend.
+
+Validation: browser 1/1, Web 113/113 files and 782/782 tests, protected API
+ledger 1/1, forced root tests, typecheck, lint, build, provider-spend,
+Web/DB boundary, workflow refs, actionlint, gitleaks, database-release, and
+managed-parity-plan PASS. Source evidence: `dc20c17`.
+
 ## D-382 -- Prove finance-ledger read authority through protected Nest HTTP (2026-08-11)
 
 Decision: add a closed-by-default, opt-in HTTP canary around the real Nest

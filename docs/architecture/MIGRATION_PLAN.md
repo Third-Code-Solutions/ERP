@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.271 Protected finance-ledger Web/Core browser canary (completed source-only)
+
+1. Added a dedicated Playwright config, TypeScript project, and loopback
+   harness for the real `/finance/ledger` Next page.
+2. Started the compiled Nest API with its finance-ledger selector enabled for
+   one random tenant, and placed a local request-recording proxy between Web
+   and Core so the browser proof can verify the bearer and query contract.
+3. Added Supabase-compatible auth/profile endpoints, two posted journal lines,
+   account-filter navigation, unauthenticated redirect, exact totals,
+   desktop/mobile overflow, console/page-error, and blocked-provider checks.
+4. Added explicit afterEach cleanup plus signal fallback. Cleanup is limited to
+   the random fixture tenant and handles the intentionally immutable posted
+   journal without touching hosted data.
+5. Validation: browser 1/1, Web 113/113 files and 782/782 tests, protected
+   API ledger 1/1, forced root tests (4 package tasks), typecheck, lint,
+   production build, provider-spend, Web/DB boundary, workflow refs,
+   actionlint, gitleaks, database-release, and managed-parity-plan PASS.
+
+Source evidence: `dc20c17`. The Web/Core selectors are enabled only inside
+the loopback proof; production flags and tenant lists remain closed.
+
+Exact next action: keep both ledger selectors false/empty; reconcile hosted
+parity, readiness, exact release identity, rollback, and spend evidence before
+any tenant canary or provider action.
+
 ## M3.270 Protected finance-ledger Core HTTP canary (completed source-only)
 
 1. Added an opt-in integration canary that starts the real Nest
