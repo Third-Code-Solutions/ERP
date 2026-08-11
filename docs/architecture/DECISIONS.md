@@ -1,5 +1,32 @@
 # Architecture Decisions
 
+## D-377 -- Keep bank-statement import Core-only and fail-closed (2026-08-11)
+
+Decision: add bank-statement import only as a Nest Core command. The route
+re-authorizes `finance.manage_cash`, locks the tenant-scoped active Cash
+Account, parses and validates a bounded CSV, inserts a draft statement and
+lines, and records a durable tenant-scoped idempotency result plus semantic
+audit in one transaction. Keep the selector false with an empty tenant
+allowlist and leave the legacy Web action unchanged until object-storage
+upload, Web/Core parity, hosted parity, and protected browser cutover are
+proven.
+
+Rationale: importing financial evidence is a retryable sensitive write. A
+shared parser avoids behavior drift while the force-RLS request ledger,
+tenant-matched foreign keys, service-role-only grants, database constraints,
+source hash, balance roll-forward, and account lock protect integrity. The
+source file is accepted transiently but not stored; future uploads must use
+bounded object storage. Python/AI remains advisory only and cannot approve or
+finalize the ERP transaction.
+
+Validation: local PostgreSQL rollback-only HTTP canary 1/1 and migration
+contract 1/1; root tests shared 55/55 files and 329/329 tests, database 69/73
+files with 240 passed and 143 environment-skipped, Web 111/111 files and
+768/768 tests, API 173/173 files and 757/757 tests; API integration 55/55
+files with 69 passed and two intentional Redis-restart skips; typecheck, lint,
+build, policy, parity, release, boundary, workflow, actionlint, and spend
+gates PASS. No hosted/provider/paid action occurred.
+
 ## D-376 -- Keep bank-statement void Core-only and fail-closed (2026-08-11)
 
 Decision: add bank-statement void only as a Nest Core command. The route

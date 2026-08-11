@@ -1,5 +1,27 @@
 # Third Code ERP capability matrix
 
+## M3.265 Bank-statement import authority (2026-08-11)
+
+The `finance.manage_cash` Core import command now has protected transaction-
+bound HTTP evidence for strict body/header handling, JWT authentication,
+Finance/viewer authorization, closed-by-default selector behavior, exact
+tenant/account checks, shared CSV parsing, date/balance validation, draft
+statement/line creation, durable replay/key conflict, semantic audit, and
+rollback. Web adoption remains closed; keep
+`ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED=false` and its tenant list
+empty. Python/AI remains analysis-only and cannot import, approve, or finalize
+bank evidence. Object-storage upload and Web/Core cutover are not yet done.
+
+Validation: focused canary 1/1 and migration contract 1/1; root `pnpm test`
+shared 55/55 files and 329 tests, database 69/73 files with 240 passed and
+143 environment-skipped tests, API 173/173 files and 757 tests, Web 111/111
+files and 768 tests; API integration 55/55 files with 69 passed and two
+intentional Redis-restart skips; typecheck, lint, build, provider, release,
+parity, boundary, workflow, actionlint, and spend gates PASS. Source is 123
+migrations; hosted remains 55 applied/68 pending in 16 review batches. No
+hosted or paid action. Source evidence SHA:
+`1adc7cf3e47791bf09b9eb659e972422da356c73`.
+
 ## M3.264 Bank-statement void authority (2026-08-11)
 
 The `finance.manage_cash` Core void command now has protected transaction-

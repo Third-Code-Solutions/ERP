@@ -1,5 +1,43 @@
 # Migration Plan
 
+## M3.265 Bank-statement import authority (completed source-only canary)
+
+1. Moved the pure bank-statement CSV parser into shared-types and kept the Web
+   import module as a compatibility re-export, preserving parser behavior.
+2. Added strict shared import body/result contracts: UUID Cash Account,
+   bounded metadata, real-calendar date range, safe integer-cent balances, and
+   a 2 MB-or-smaller base64 source.
+3. Added the force-RLS/service-role-only
+   `bank_statement_import_requests` ledger with tenant-matched statement and
+   actor foreign keys, processing/succeeded state constraints, durable result,
+   and idempotency conflict detection.
+4. Added the guarded Nest Core import route with capability authorization,
+   tenant/account re-authorization, source hashing, shared parser and balance
+   checks, locked Cash Account, draft statement/line insert, semantic audit,
+   and durable replay. The legacy Web action remains unchanged and the
+   selector remains closed.
+5. Added a local PostgreSQL rollback-only HTTP canary covering auth/RBAC,
+   strict body/header handling, disabled selector, cross-tenant concealment,
+   CSV/date/balance validation, successful draft import, replay/key conflict,
+   ledger state, audit, and rollback.
+6. Focused canary and migration contract passed 1/1 each. Root `pnpm test`
+   exited 0 with shared 55/55 files and 329/329 tests, database 69/73 files
+   with 240 passed and 143 environment-skipped tests, Web 111/111 files and
+   768/768 tests, and API 173/173 files and 757/757 tests. API integration
+   passed 55/55 files with 69 passed and two intentional Redis-restart skips.
+   Typecheck, lint, production build, database-release, parity, Web/DB
+   boundary, workflow-reference, provider-spend, and actionlint gates passed.
+7. Source parity is 55/123 hosted/source migrations, 68 pending in 16 review
+   batches. No hosted SQL/data, Storage, Railway/Vercel deployment, provider
+   setting, credential, or paid action changed; the migration was applied
+   only to the disposable local CI database. Source evidence SHA:
+   `1adc7cf3e47791bf09b9eb659e972422da356c73`.
+
+Exact next action: keep the import selector and tenant list false/empty; do
+not apply hosted SQL or trigger provider builds. Design storage-backed upload
+and Web/Core response parity next, then separately reconcile hosted parity,
+release identity, readiness, protected browser, rollback, and spend evidence.
+
 ## M3.264 Bank-statement void authority (completed source-only canary)
 
 1. Added strict shared void command/body/result schemas and fail-closed
