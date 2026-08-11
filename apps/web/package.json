@@ -23,6 +23,7 @@
     "test:e2e:togal-bom-local": "pnpm --filter @third-code-erp/api build && playwright test --config=playwright.togal-bom.config.ts",
     "test:e2e:docuseal-webhook-local": "pnpm --filter @third-code-erp/api build && playwright test --config=playwright.docuseal-webhook.config.ts",
     "test:e2e:purchase-order-local": "pnpm --filter @third-code-erp/api build && playwright test --config=playwright.purchase-order.config.ts",
+    "test:e2e:purchase-order-workflow-local": "pnpm --filter @third-code-erp/api build && playwright test --config=playwright.purchase-order-workflow.config.ts",
     "test:e2e:landing-local": "playwright test --config=playwright.landing-local.config.ts",
     "test:e2e:finance-ledger-local": "pnpm --filter @third-code-erp/api build && playwright test --config=playwright.finance-ledger.config.ts",
     "test:e2e:finance-receivables-local": "pnpm --filter @third-code-erp/api build && playwright test --config=playwright.finance-receivables.config.ts",

@@ -1,5 +1,22 @@
 # Target State
 
+## M3.298 Purchase Order approval and supplier issuance authority (2026-08-12)
+
+The target workflow keeps the existing Next detail actions as compatibility
+adapters while Nest Core authorizes each state transition and commits status,
+approval/issuance stamps, workflow idempotency, role-targeted notification
+outbox/deliveries, semantic audit, and supplier confirmation session atomically.
+SCM issuance creates durable supplier-delivery evidence; actual email delivery
+remains a queue/provider concern and is never treated as committed merely from
+the ERP transition.
+
+Keep `ERP_PO_WORKFLOW_WRITES_VIA_API` and
+`ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS` empty/false, and keep the matching
+Core workflow and notification flags closed outside disposable proof. Python/
+AI can explain or recommend approval actions but cannot perform them. Hosted
+parity, duplicate remediation, readiness, rollback, authenticated smoke, and
+spend controls remain release gates.
+
 ## M3.297 standalone Purchase Order authority (2026-08-12)
 
 The target PO create flow keeps the existing Next Server Action as a

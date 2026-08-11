@@ -1,5 +1,31 @@
 # Current State
 
+## M3.298 Core Purchase Order approval/issuance browser canary (2026-08-12)
+
+The disposable authenticated browser now proves the real Purchase Order detail
+flow through the Next Server Actions and Nest Core workflow authority: draft →
+pending PM approval → pending Commercial approval → pending SCM issuance →
+issued. One replay of the first idempotency key returns the stored result with
+no duplicate transition, outbox, or audit side effect. PostgreSQL confirms four
+succeeded workflow requests, four workflow notification outboxes, eight
+role-targeted deliveries, one supplier-issued outbox/delivery, one pending
+vendor confirmation session, four status audits, and exact PO totals.
+
+The canary found and fixed a Core defect: `scm_issue` changed status but did
+not stamp `scm_issued_at`/`scm_issued_by`; those fields now commit in the same
+transaction as the transition. Workflow-only users/vendor email fixtures are
+flagged so existing canaries keep their original notification contract.
+Production selectors remain false/empty. No hosted SQL, Storage,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Validation: workflow browser 1/1; PO create 1/1; notifications,
+document, Togal, and DocuSeal browsers 1/1 each; API 176/772; Web 113/802;
+Web build/lint/typecheck; provider-spend, managed-parity, Web/DB boundary,
+gitleaks, and diff checks PASS.
+
+Exact next action: keep PO workflow selectors closed; resolve the hosted PO
+duplicate owner-review gate before any migration, tenant opening, or provider
+build.
+
 ## M3.297 Core standalone Purchase Order browser canary (2026-08-12)
 
 The disposable authenticated loopback now proves the real `/purchase-orders`

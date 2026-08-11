@@ -23,6 +23,9 @@ const PROJECT_ID = randomUUID()
 const BOM_ID = randomUUID()
 const VENDOR_ID = randomUUID()
 const COST_CODE_ID = randomUUID()
+const WORKFLOW_PM_USER_ID = randomUUID()
+const WORKFLOW_COMMERCIAL_USER_ID = randomUUID()
+const WORKFLOW_PROCUREMENT_USER_ID = randomUUID()
 const DOCUSEAL_SUBMISSION_ID = `submission-${randomUUID()}`
 const FOREIGN_TENANT_ID = randomUUID()
 const FOREIGN_USER_ID = randomUUID()
@@ -32,6 +35,8 @@ const FOREIGN_BOM_SUBMISSION_ID = `foreign-bom-${randomUUID()}`
 const FOREIGN_NOTIFICATION_ID = randomUUID()
 const ANON_KEY = 'third-code-local-anon-key'
 const SERVICE_ROLE_KEY = 'third-code-local-service-role-key'
+const WORKFLOW_FIXTURES_ENABLED =
+  process.env.ERP_LOOPBACK_WORKFLOW_FIXTURES === 'true'
 const ACCESS_TOKEN = [
   Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'),
   Buffer.from(
@@ -144,6 +149,15 @@ async function seedDatabase() {
     insert into users(id, tenant_id, email, full_name, role)
     values (${USER_ID}, ${TENANT_ID}, ${user.email}, ${profile.full_name}, 'admin')
   `
+  if (WORKFLOW_FIXTURES_ENABLED) {
+    await sql`
+      insert into users(id, tenant_id, email, full_name, role)
+      values
+        (${WORKFLOW_PM_USER_ID}, ${TENANT_ID}, 'local-po-pm@thirdcode.invalid', 'Local PO PM', 'pm'),
+        (${WORKFLOW_COMMERCIAL_USER_ID}, ${TENANT_ID}, 'local-po-commercial@thirdcode.invalid', 'Local PO Commercial', 'commercial'),
+        (${WORKFLOW_PROCUREMENT_USER_ID}, ${TENANT_ID}, 'local-po-procurement@thirdcode.invalid', 'Local PO Procurement', 'procurement')
+    `
+  }
   await sql`
     insert into projects(id, tenant_id, name, client, status, created_by)
     values (
@@ -152,8 +166,11 @@ async function seedDatabase() {
     )
   `
   await sql`
-    insert into vendors(id, tenant_id, name)
-    values (${VENDOR_ID}, ${TENANT_ID}, 'Local Core PO supplier')
+    insert into vendors(id, tenant_id, name, email)
+    values (
+      ${VENDOR_ID}, ${TENANT_ID}, 'Local Core PO supplier',
+      ${WORKFLOW_FIXTURES_ENABLED ? 'supplier@thirdcode.invalid' : null}
+    )
   `
   await sql`
     insert into cost_codes(id, tenant_id, code, name, category, created_by)
@@ -270,7 +287,7 @@ const authServer = createServer(async (request, response) => {
     })
   }
   if (url.pathname === '/__harness__/state') {
-    const [notifications, foreign, documents, intakeRequests, boms, bomLines, togalRequests, portalTokens, foreignBom, purchaseOrders, purchaseOrderLines, purchaseOrderCreateRequests, auditEntries] =
+    const [notifications, foreign, documents, intakeRequests, boms, bomLines, togalRequests, portalTokens, foreignBom, purchaseOrders, purchaseOrderLines, purchaseOrderCreateRequests, purchaseOrderWorkflowRequests, notificationOutbox, notificationDeliveries, supplierEmailDeliveries, vendorConfirmationSessions, auditEntries] =
       await Promise.all([
       sql`
         select id, subject, is_read, read_at::text
@@ -331,6 +348,8 @@ const authServer = createServer(async (request, response) => {
       `,
       sql`
         select id, po_number, status, project_id, vendor_id,
+          pm_approved_at::text, commercial_approved_at::text,
+          scm_issued_at::text,
           subtotal_cents::int as subtotal_cents,
           vat_cents::int as vat_cents,
           withholding_tax_cents::int as withholding_tax_cents,
@@ -354,6 +373,38 @@ const authServer = createServer(async (request, response) => {
         order by created_at asc
       `,
       sql`
+        select id, purchase_order_id, action, idempotency_key, state, result
+        from purchase_order_workflow_requests
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
+        select id, event_key, event_type, aggregate_type, aggregate_id, payload
+        from notification_outbox
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
+        select id, outbox_id, recipient_user_id, recipient_email, channel, status
+        from notification_deliveries
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
+        select id, outbox_id, purchase_order_id, recipient_email, supplier_name,
+          po_number, total_cents::int as total_cents, status
+        from purchase_order_supplier_email_deliveries
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
+        select id, purchase_order_id, vendor_id, source_workflow_request_id,
+          state, expires_at::text
+        from vendor_confirmation_sessions
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
         select entity_type, entity_id, action, diff
         from audit_log
         where tenant_id = ${TENANT_ID}
@@ -366,6 +417,15 @@ const authServer = createServer(async (request, response) => {
       projectId: PROJECT_ID,
       vendorId: VENDOR_ID,
       costCodeId: COST_CODE_ID,
+      workflowRecipientIds: {
+        pm: WORKFLOW_FIXTURES_ENABLED ? WORKFLOW_PM_USER_ID : null,
+        commercial: WORKFLOW_FIXTURES_ENABLED
+          ? WORKFLOW_COMMERCIAL_USER_ID
+          : null,
+        procurement: WORKFLOW_FIXTURES_ENABLED
+          ? WORKFLOW_PROCUREMENT_USER_ID
+          : null,
+      },
       foreignProjectId: FOREIGN_PROJECT_ID,
       foreignBomId: FOREIGN_BOM_ID,
       notifications,
@@ -380,6 +440,11 @@ const authServer = createServer(async (request, response) => {
       purchaseOrders,
       purchaseOrderLines,
       purchaseOrderCreateRequests,
+      purchaseOrderWorkflowRequests,
+      notificationOutbox,
+      notificationDeliveries,
+      supplierEmailDeliveries,
+      vendorConfirmationSessions,
       coreRequests,
       auditEntries,
     })
@@ -429,6 +494,8 @@ proxyServer = createServer(async (request, response) => {
     url.pathname === '/v1/documents' ||
     url.pathname === '/v1/procurement/boms/togal-commit' ||
     url.pathname === '/v1/procurement/purchase-orders' ||
+    (url.pathname.startsWith('/v1/procurement/purchase-orders/') &&
+      url.pathname.endsWith('/workflow')) ||
     url.pathname === '/v1/webhooks/docuseal'
   ) {
     coreRequests.push({
@@ -545,6 +612,14 @@ const apiEnvironment = {
   ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS: TENANT_ID,
   ERP_PO_CREATE_WRITES_ENABLED: 'true',
   ERP_PO_CREATE_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_PO_WORKFLOW_WRITES_ENABLED: 'true',
+  ERP_PO_WORKFLOW_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_PO_WORKFLOW_NOTIFICATIONS_ENABLED: 'true',
+  ERP_PO_WORKFLOW_NOTIFICATIONS_TENANT_IDS: TENANT_ID,
+  ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_ENABLED: 'true',
+  ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_TENANT_IDS: TENANT_ID,
+  ERP_PUBLIC_VENDOR_CONFIRMATION_TOKEN_SECRET: 'local-vendor-confirmation-secret-2026-with-32-plus-bytes',
+  ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_TTL_HOURS: '24',
   ERP_DOCUSEAL_WEBHOOK_ENABLED: 'true',
   ERP_DOCUSEAL_WEBHOOK_TENANT_IDS: TENANT_ID,
   ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',
@@ -594,6 +669,8 @@ webChild = spawn(
       ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_PO_CREATE_WRITES_VIA_API: 'true',
       ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_PO_WORKFLOW_WRITES_VIA_API: 'true',
+      ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_DOCUSEAL_WEBHOOK_VIA_API: 'true',
       ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',

@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-405 -- Stamp PO issuance evidence inside the Core transition transaction (2026-08-12)
+
+Decision: when Core accepts `scm_issue`, set `scm_issued_at` and
+`scm_issued_by` in the same guarded update that changes the Purchase Order to
+`issued`. Keep supplier email/session work as durable outbox evidence and do
+not claim provider delivery from the status transition alone.
+
+Rationale: the authenticated browser canary reproduced a real parity defect:
+the status changed but the issuance timeline fields stayed null. Committing
+the actor/time stamps with the state machine preserves auditability and makes
+the Core result equivalent to the legacy action without weakening idempotency,
+tenant checks, or queue recovery. Workflow-only fixtures are isolated from
+unrelated canaries; production selectors remain closed.
+
+Validation: workflow browser 1/1; existing PO/notification/document/Togal/
+DocuSeal browsers 1/1 each; API 176/772; Web 113/802; build/lint/typecheck,
+spend, parity, boundary, gitleaks, and diff checks PASS.
+
+## D-404 -- Prove standalone PO creation through Core before opening selector (2026-08-12)
+
 ## D-404 -- Prove standalone PO creation through Core before opening selector (2026-08-12)
 
 Decision: keep the existing Purchase Order Server Action as a compatibility

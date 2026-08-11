@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.298 Core Purchase Order workflow canary
+
+Keep `ERP_PO_WORKFLOW_WRITES_VIA_API=false` and
+`ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS` empty; keep
+`ERP_PO_WORKFLOW_WRITES_ENABLED=false` and
+`ERP_PO_WORKFLOW_WRITES_TENANT_IDS` empty; keep workflow notification and
+vendor-confirmation minting flags closed outside disposable tests. The local
+proof covers the four-step state machine, exact issuance stamps, replay
+idempotency, role-targeted outbox/deliveries, supplier evidence, audit, and
+cleanup. Do not open a real tenant, apply hosted SQL, or trigger
+Vercel/Railway builds until the hosted PO duplicate owner review, managed
+parity, readiness, rollback, authenticated smoke, release identity, and spend
+gates pass.
+
 ## Exact next action after M3.297 Core standalone Purchase Order canary
 
 Keep `ERP_PO_CREATE_WRITES_VIA_API=false` and
