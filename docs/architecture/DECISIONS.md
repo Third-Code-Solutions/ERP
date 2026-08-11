@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-369 -- Require protected HTTP evidence for cash workflow (2026-08-11)
+
+Decision: require cash transaction post and reverse to remain Core-only
+commands with a protected transaction-bound HTTP canary. The boundary must
+enforce strict bodies and idempotency headers, JWT/capability authorization,
+closed-selector behavior, concealed cross-tenant access, cash-state and
+allocation validation, replay/conflict semantics, balanced journal linkage,
+semantic audit, tenant isolation, and rollback. Keep the cash selector closed.
+
+Rationale: posting or reversing a cash transaction is an official financial
+transaction. Core must resolve and lock the visible tenant-scoped record
+before claiming the request, while PostgreSQL owns allocations, numbering,
+posting, reversal, and durable linkage. Python/AI remains analysis-only and
+cannot approve or finalize cash workflows.
+
+Validation: focused local PostgreSQL 17/Redis 7.4.9 canary passed 1/1; API
+integration passed 52/52 files and 66 tests with two explicit Redis-restart
+opt-in skips; typecheck, root lint, production build, and provider/release
+policy gates passed. No hosted/provider/paid action occurred.
+
 ## D-368 -- Require protected HTTP evidence for journal reversal (2026-08-11)
 
 Decision: require journal reversal to remain a Core-only command with a

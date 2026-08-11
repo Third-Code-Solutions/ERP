@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.257 Cash transaction workflow authority (2026-08-11)
+
+The existing `finance.manage_cash` Nest cash workflow commands now have
+protected transaction-bound HTTP evidence for strict body/header handling,
+authentication/RBAC, closed-by-default behavior, tenant-scoped visibility,
+cross-tenant concealment, supplier-bill allocation, idempotent
+replay/conflict, balanced post/reversal journals, semantic audit, tenant
+isolation, and rollback. Web adoption remains closed; keep
+`ERP_FINANCE_CASH_WORKFLOW_WRITES_ENABLED=false` and its tenant list empty.
+Python/AI remains analysis-only and cannot post, reverse, or finalize cash.
+
+Validation: focused canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9; API
+integration 52/52 files and 66 tests PASS with two explicit Redis-restart
+skips under the 15-second timeout; typecheck, root lint, production build,
+and provider/release policy gates PASS. No hosted or paid action.
+
 ## M3.256 Journal reversal authority (2026-08-11)
 
 The existing `finance.post` Nest journal-reverse command now has protected

@@ -1,5 +1,26 @@
 # Next Actions
 
+## Exact next action after M3.257 cash workflow canary
+
+Keep `ERP_FINANCE_CASH_WORKFLOW_WRITES_ENABLED=false` and
+`ERP_FINANCE_CASH_WORKFLOW_WRITES_TENANT_IDS` empty. Focused canary passes
+1/1; API integration passes 52/52 files and 66 tests with two explicit
+Redis-restart skips under the 15-second timeout; static, build, release,
+boundary, workflow, actionlint, and spend gates pass. Do not apply hosted SQL
+or trigger Railway/Vercel builds while spend protection and the M3.248 hosted
+parity/security gate remain active. Next source boundary: cash draft
+lifecycle or bank-reconciliation authority, then reconcile hosted parity,
+release identity, readiness, protected browser evidence, rollback, and billing
+gates.
+
+## M3.257 evidence boundary (completed source-only canary)
+
+The protected cash post/reverse canary passes 1/1 and the API integration lane
+passes 52/52 files and 66 tests with two explicit Redis-restart skips. It
+covers strict input, auth/RBAC, disabled selector, cross-tenant concealment,
+cash-state/allocation rules, idempotency, balanced journals, audit, tenant
+isolation, and rollback. No provider or paid action occurred.
+
 ## Exact next action after M3.256 journal-reversal canary
 
 Keep `ERP_FINANCE_JOURNAL_REVERSE_WRITES_ENABLED=false` and
