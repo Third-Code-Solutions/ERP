@@ -1,5 +1,31 @@
 # Architecture Decisions
 
+## D-379 -- Keep browser bank-statement Storage handoff opt-in (2026-08-11)
+
+Decision: add the browser Storage handoff as a closed-by-default Web feature.
+Require both the existing exact-tenant Web/Core import selector and
+`ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS` plus its exact tenant list
+before the form can request a signed URL. Upload directly to the private
+`documents` bucket, submit only the validated path to Core, and clean up with
+an audited tenant-scoped DELETE on upload or terminal import failure. Keep the
+inline base64 path as the compatibility default and never fall back after a
+Storage path is selected.
+
+Rationale: the handoff reduces browser request size without widening ERP write
+authority. Separate selectors, bounded metadata, signed URLs, exact path
+validation, pre-delete audit, and terminal Core semantics contain tenant,
+retry, and cost risk. Browser proof is still required before a canary; hosted
+Supabase, Vercel, and Railway remain untouched. Python/AI cannot approve or
+finalize the financial transaction.
+
+Validation: focused Storage helper 3/3, signed-upload route 6/6, Web action
+6/6, Core selector 165/165, root tests (shared 331, database 241 plus 143
+environment skips, Web 782, API 760), protected API integration 69 passed plus
+two intentional skips, typecheck, lint, build, release, parity, boundary,
+workflow, provider-spend, actionlint, and gitleaks passed. Authenticated
+browser E2E was not run; selectors remain closed. Source evidence SHA:
+`20f2b76953688b02a12b6bcca0f53455282421e`.
+
 ## D-378 -- Add bounded private storage source without opening import authority (2026-08-11)
 
 Decision: allow Core bank-statement import to consume either the existing

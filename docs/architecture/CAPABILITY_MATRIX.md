@@ -1,5 +1,23 @@
 # Third Code ERP capability matrix
 
+## M3.267 Bank-statement browser Storage handoff (2026-08-11)
+
+The bank-statement form now has an exact-tenant, closed-by-default Storage
+handoff. With both Web/Core import and Storage-upload selectors enabled for one
+tenant, the browser requests a signed URL, uploads to the private `documents`
+bucket, and passes only the tenant-prefixed path to Core. Upload and terminal
+import failures attempt audited cleanup; the selected Storage path never uses a
+legacy Web write. Default behavior remains inline base64. No database migration
+or hosted/provider action occurred.
+
+Focused helper 3/3, signed-upload route 6/6, Web action 6/6, and Core selector
+165/165 tests pass. Root tests: shared 331, database 241 plus 143 environment
+skips, Web 782, API 760; protected API integration 69 passed plus two
+intentional Redis-restart skips. Typecheck, lint, build, release, parity,
+boundary, workflow, provider-spend, actionlint, and gitleaks PASS. Browser E2E
+against an authenticated disposable tenant is not yet proven, so all selectors
+remain false/empty. Source SHA: `20f2b76953688b02a12b6bcca0f53455282421e5`.
+
 ## M3.266 Bank-statement storage source and Web/Core parity seam (2026-08-11)
 
 Core now accepts exactly one import source: inline base64 CSV or a private

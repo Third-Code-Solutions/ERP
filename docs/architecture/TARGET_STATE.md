@@ -1,5 +1,24 @@
 # Target State
 
+## M3.267 Bank-statement browser Storage handoff (2026-08-11)
+
+The bank-statement form has a closed-by-default browser Storage path. When the
+exact Web import and Storage-upload selectors match one tenant, the browser
+requests a signed URL, uploads the CSV to the private `documents` bucket, and
+passes only the validated tenant-prefixed path to the Core import command.
+Inline base64 remains the compatibility path while the canary is closed. A
+failed upload or terminal Core/action result triggers audited tenant-scoped
+cleanup; no browser path writes ERP tables or falls back after Storage is
+selected.
+
+The signed-upload POST and DELETE routes require `finance.manage_cash`, exact
+tenant path validation, bounded CSV metadata, and audit. Keep
+`ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS=false` with an empty tenant
+allowlist, and keep the API/Web import selectors closed, until authenticated
+browser evidence, Core response parity, cleanup/rollback, hosted parity, and
+spend controls are recorded. Python/AI remains advisory and cannot import,
+approve, or finalize financial evidence.
+
 ## M3.266 Bank-statement storage source and Web/Core parity seam (2026-08-11)
 
 The import contract supports either a bounded inline CSV or a private,

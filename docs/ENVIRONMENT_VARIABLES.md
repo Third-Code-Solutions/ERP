@@ -308,6 +308,24 @@ read.
 | `ERP_FINANCE_RECONCILIATION_READS_VIA_API` | no | Next server | Selects the authenticated Nest read adapter; exact `true` only |
 | `ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS` | no | Next server | Strict UUID allowlist; default empty |
 
+## Bank-statement import and browser Storage cutover (NestJS + Next, disabled by default)
+
+The Core import command and the Web browser handoff are independent,
+fail-closed selectors. Keep every variable below false/empty until a protected
+authenticated browser canary proves signed upload, Storage cleanup, Core
+response parity, rollback, and spend behavior. A selected Core failure never
+falls back to a direct Web write. The Storage selector only opens the signed
+upload route/form; Core remains the only ERP transaction authority.
+
+| Variable | Required | Scope | Controls |
+|---|---|---|---|
+| `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED` | no | Railway API | Exact `true` enables the Core import command; default `false` |
+| `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS` | when selected | Railway API | Strict exact UUID allowlist; default empty |
+| `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API` | no | Next server | Selects the Web Core import adapter; exact `true` only |
+| `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS` | when selected | Next server | Strict exact UUID allowlist; default empty |
+| `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS` | no | Next server | Enables signed browser Storage handoff; exact `true` only |
+| `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS` | when selected | Next server | Strict exact UUID allowlist; default empty |
+
 ## Project detail read cutover (NestJS, disabled by default)
 
 The project detail page can opt into the tenant-scoped Nest read contract for

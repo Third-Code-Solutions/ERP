@@ -1,5 +1,33 @@
 # Work Log
 
+## 2026-08-11 - M3.267 bank-statement browser Storage handoff
+
+Added the closed-by-default browser Storage handoff for bank-statement import.
+The form selects it only when the exact Web/Core import selector and the new
+Storage-upload selector match the tenant; otherwise it stays on inline base64.
+The browser validates the signed-upload result, uploads to the private
+`documents` bucket, submits only the tenant-shaped path to Core, and attempts
+cleanup on upload or terminal import failure. The DELETE route requires the
+Finance capability, validates the tenant prefix, audits before deletion, and
+never writes ERP tables.
+
+Focused helper 3/3, signed-upload route 6/6, Web action 6/6, and Core selector
+165/165 passed. Root `pnpm test` passed shared 55/55 files and 331/331 tests,
+database 69/73 files with 241 passed and 143 environment-skipped tests, Web
+113/113 files and 782/782 tests, and API 174/174 files and 760/760 tests.
+Protected API integration passed 55/55 files with 69 passed and two intentional
+Redis-restart skips. Typecheck, lint, production build, database release,
+parity, Web/DB boundary, workflow-reference, provider-spend, actionlint, and
+gitleaks passed. Browser E2E against an authenticated disposable tenant was
+not run, so all selectors remain false/empty. Source parity remains 55/124
+with 69 pending in 17 ordered review batches. No hosted Supabase, Storage,
+Railway, Vercel, credential, provider, or paid action changed. Source SHA:
+`20f2b76953688b02a12b6bcca0f53455282421e5`.
+
+Exact next action: prove the enabled browser path in a controlled disposable
+environment with cleanup, rollback, protected Core response parity, and spend
+evidence before any tenant canary or hosted/provider action.
+
 ## 2026-08-11 - M3.266 bank-statement storage source and Web/Core parity
 
 Added the source-only storage handoff for bank-statement imports. Shared
