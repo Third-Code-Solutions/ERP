@@ -62,6 +62,7 @@ import {
   bankStatementImportResultSchema,
   bankStatementAutoMatchResultSchema,
   bankStatementLineMatchResultSchema,
+  bankStatementReconcileResultSchema,
   notificationListResultSchema,
   notificationReadStateCommandSchema,
   notificationReadStateResultSchema,
@@ -182,6 +183,7 @@ import {
   type BankStatementImportResult,
   type BankStatementAutoMatchResult,
   type BankStatementLineMatchResult,
+  type BankStatementReconcileResult,
   type NotificationListResult,
   type NotificationReadStateCommand,
   type NotificationReadStateResult,
@@ -755,6 +757,17 @@ export function financeReconciliationLineMatchWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API,
     process.env.ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+/** Bank-statement reconcile writes delegate only for an exact tenant canary. */
+export function financeReconciliationReconcileWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API,
+    process.env.ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -3597,6 +3610,70 @@ async function parseBankStatementLineMatchResponse(
     }
   }
   return { ok: true, data: parsed.data, status: response.status }
+}
+
+/** Server-only bank-statement reconcile adapter. */
+export async function reconcileBankStatementThroughCoreApi(
+  statementId: string,
+  idempotencyKey: string
+): Promise<CoreResult<BankStatementReconcileResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/reconciliation/${encodeURIComponent(statementId)}/reconcile`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify({}),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Bank statement reconcile details are invalid.'
+            : response.status === 403
+              ? 'You do not have permission to reconcile bank statements.'
+              : response.status === 404
+                ? 'Bank statement was not found.'
+                : response.status === 409
+                  ? 'Bank statement reconcile conflicts with existing evidence.'
+                  : response.status === 503
+                    ? 'Bank statement reconciliation is not enabled for this tenant.'
+                    : 'Bank statement was not reconciled.',
+        status: response.status,
+      }
+    }
+    const parsed = bankStatementReconcileResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid bank statement reconcile result.',
+        status: 502,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error:
+        'ERP Core API is unavailable. The bank statement was not reconciled.',
+      status: 503,
+    }
+  }
 }
 
 export async function getNotificationsThroughCoreApi(): Promise<

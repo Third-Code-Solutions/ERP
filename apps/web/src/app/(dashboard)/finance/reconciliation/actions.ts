@@ -18,8 +18,10 @@ import {
   createBankStatementThroughCoreApi,
   financeReconciliationAutoMatchWritesUseCoreApi,
   financeReconciliationLineMatchWritesUseCoreApi,
+  financeReconciliationReconcileWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi,
   matchBankStatementLineThroughCoreApi,
+  reconcileBankStatementThroughCoreApi,
   unmatchBankStatementLineThroughCoreApi,
   financeReconciliationStorageUploadsUseCoreApi,
 } from '@/lib/erp-core-client'
@@ -510,20 +512,54 @@ export async function unmatchBankStatementLine(input: {
 }
 
 export async function reconcileBankStatement(
-  statementId: string
+  statementId: string,
+  idempotencyKey?: string
 ): Promise<ReconciliationActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
-    const parsedId = z.string().uuid().parse(statementId)
+    const parsed = z
+      .object({
+        statementId: z.string().uuid(),
+        idempotencyKey: z.string().trim().min(1).max(256).optional(),
+      })
+      .parse({ statementId, idempotencyKey })
+    if (financeReconciliationReconcileWritesUseCoreApi(profile.tenantId)) {
+      const parsedKey = z
+        .string()
+        .trim()
+        .min(1)
+        .max(256)
+        .safeParse(parsed.idempotencyKey)
+      if (!parsedKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the bank statement reconcile command.',
+        }
+      }
+      const coreResult = await reconcileBankStatementThroughCoreApi(
+        parsed.statementId,
+        parsedKey.data
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'ERP Core did not reconcile the bank statement. Existing evidence was unchanged.',
+        }
+      }
+      revalidateReconciliation(coreResult.data.statementId)
+      return { ok: true, id: coreResult.data.statementId }
+    }
     await db.execute(sql`
       select public.reconcile_bank_statement(
-        ${parsedId}::uuid,
+        ${parsed.statementId}::uuid,
         ${profile.user.id}::uuid
       )
     `)
-    revalidateReconciliation(parsedId)
-    return { ok: true, id: parsedId }
+    revalidateReconciliation(parsed.statementId)
+    return { ok: true, id: parsed.statementId }
   } catch (error) {
     return { ok: false, error: safeReconciliationError(error) }
   }

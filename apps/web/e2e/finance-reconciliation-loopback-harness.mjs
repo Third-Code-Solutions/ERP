@@ -24,7 +24,9 @@ const CASH_ACCOUNT_ID = randomUUID()
 const MANUAL_ACCOUNT_ID = randomUUID()
 const MANUAL_PERIOD_ID = randomUUID()
 const MANUAL_JOURNAL_ID = randomUUID()
+const MANUAL_JOURNAL_ID_2 = randomUUID()
 const MANUAL_CASH_TRANSACTION_ID = randomUUID()
+const MANUAL_CASH_TRANSACTION_ID_2 = randomUUID()
 const DRAFT_STATEMENT_ID = randomUUID()
 const RECONCILED_STATEMENT_ID = randomUUID()
 const VOIDED_STATEMENT_ID = randomUUID()
@@ -275,7 +277,10 @@ async function seedDatabase() {
 
 async function seedManualCashEvidence() {
   if (manualCashEvidenceSeeded) {
-    return { cashTransactionId: MANUAL_CASH_TRANSACTION_ID }
+    return {
+      cashTransactionId: MANUAL_CASH_TRANSACTION_ID,
+      secondCashTransactionId: MANUAL_CASH_TRANSACTION_ID_2,
+    }
   }
   await sql.begin(async (transaction) => {
     await transaction`
@@ -318,9 +323,37 @@ async function seedManualCashEvidence() {
         ${MANUAL_JOURNAL_ID}, ${USER_ID}, now(), ${USER_ID}
       )
     `
+    await transaction`
+      insert into journal_entries(
+        id, tenant_id, fiscal_period_id, entry_number, status, source_type,
+        posting_date, description, currency, created_by, posted_by, posted_at
+      )
+      values (
+        ${MANUAL_JOURNAL_ID_2}, ${TENANT_ID}, ${MANUAL_PERIOD_ID},
+        'JE-LOOPBACK-MANUAL-MATCH-2', 'posted', 'system', '2026-08-12',
+        'Loopback manual-match evidence second line', 'PHP', ${USER_ID},
+        ${USER_ID}, now()
+      )
+    `
+    await transaction`
+      insert into cash_transactions(
+        id, tenant_id, cash_account_id, direction, business_account_id,
+        reference_number, internal_number, status, transaction_date, currency,
+        amount_cents, posting_journal_entry_id, posted_by, posted_at, created_by
+      )
+      values (
+        ${MANUAL_CASH_TRANSACTION_ID_2}, ${TENANT_ID}, ${CASH_ACCOUNT_ID},
+        'receipt', ${MANUAL_ACCOUNT_ID}, 'FEE-LOOPBACK-001',
+        'CT-LOOPBACK-MANUAL-002', 'posted', '2026-08-12', 'PHP', 500,
+        ${MANUAL_JOURNAL_ID_2}, ${USER_ID}, now(), ${USER_ID}
+      )
+    `
   })
   manualCashEvidenceSeeded = true
-  return { cashTransactionId: MANUAL_CASH_TRANSACTION_ID }
+  return {
+    cashTransactionId: MANUAL_CASH_TRANSACTION_ID,
+    secondCashTransactionId: MANUAL_CASH_TRANSACTION_ID_2,
+  }
 }
 
 authServer = createServer(async (request, response) => {
@@ -427,7 +460,7 @@ proxyServer = createServer(async (request, response) => {
   }
   if (
     request.method === 'POST' &&
-    /^\/v1\/finance\/reconciliation\/[^/]+(?:\/auto-match|\/lines\/[^/]+\/(?:match|unmatch))$/.test(
+    /^\/v1\/finance\/reconciliation\/[^/]+(?:\/auto-match|\/reconcile|\/lines\/[^/]+\/(?:match|unmatch))$/.test(
       url.pathname
     )
   ) {
@@ -569,6 +602,8 @@ const apiEnvironment = {
   ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_TENANT_IDS: TENANT_ID,
   ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED: 'true',
   ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED: 'true',
+  ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_TENANT_IDS: TENANT_ID,
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
   AI_PROVIDER_API_KEY: '',
@@ -612,6 +647,8 @@ webChild = spawn(
       ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API: 'true',
       ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API: 'true',
+      ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECEIVABLES_READS_VIA_API: 'false',
       ERP_FINANCE_RECEIVABLES_READS_VIA_API_TENANT_IDS: '',
       ERP_FINANCE_PAYABLES_READS_VIA_API: 'false',

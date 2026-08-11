@@ -4559,6 +4559,20 @@ plus an exact UUID allowlist; selected errors fail closed. API and Web line
 selectors remain false/empty by default, and hosted promotion still requires
 parity, readiness, rollback, exact SHA, and spend-bounded approval.
 
+## Reconciliation statement reconcile authority (M3.283, 2026-08-12)
+
+Statement reconcile is a Nest-owned command at
+`POST /v1/finance/reconciliation/:statementId/reconcile`; the browser sends an
+empty strict body and one opaque statement retry key. Nest derives and rechecks
+tenant and capability, locks the draft statement, claims the tenant-scoped
+idempotency request, invokes the trusted PostgreSQL transition, stores the
+exact result, and writes semantic audit in one transaction.
+
+The Web action remains a compatibility adapter selected only for exact `true`
+plus an exact UUID allowlist; selected errors fail closed. API and Web reconcile
+selectors remain false/empty by default, and hosted promotion still requires
+parity, readiness, rollback, exact SHA, and spend-bounded approval.
+
 ## Reconciliation auto-match authority (M3.281, 2026-08-12)
 
 Auto-match is a Nest-owned command at

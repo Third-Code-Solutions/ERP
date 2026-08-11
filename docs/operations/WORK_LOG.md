@@ -11122,3 +11122,21 @@ hosted baseline, but not a promotion approval:
 - Source/docs commit `831fc43fe993aaead9f4dda4b571180e50698797` was pushed
   under `kurtgav`; local and remote SHAs match. No production deployment is
   authorized by this milestone.
+
+## 2026-08-12 - M3.283 reconciliation statement reconcile Core write
+
+- Changed the Web Core client, exact-tenant selector, reconcile Server Action,
+  statement retry state, and local loopback harness/spec. The Nest workflow and
+  database authority were reused; no new migration was required.
+- Verified: focused Web Core/action tests 183/183; API build; Web typecheck and
+  lint; disposable PostgreSQL/Nest HTTP canary 1/1; authenticated Playwright
+  browser canary 1/1. The browser proved both line matches, confirmation-safe
+  reconcile, strict body, idempotency key, rendered reconciled state,
+  responsive overflow, zero console errors, and blocked external requests.
+- Full gates passed: `pnpm test` (shared-types 332; database 241 passed/143
+  skipped; API 764; Web 794), `pnpm typecheck`, `pnpm lint`, `pnpm build`
+  (83 Next pages), migration/release/policy/parity checks, web-database
+  boundary, Actionlint, Gitleaks, provider-spend guard, and `git diff --check`.
+- Hosted Supabase, Storage, Railway, Vercel, flags, provider settings,
+  credentials, and billing remain unchanged. Source/docs push is the next
+  action; no production deployment is authorized by this milestone.
