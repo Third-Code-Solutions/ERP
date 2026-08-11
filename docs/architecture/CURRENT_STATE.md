@@ -1,5 +1,28 @@
 # Current State
 
+## M3.277 Protected finance-cash Web/Core browser canary (2026-08-11)
+
+The real Next `/finance/cash` page now has a repeatable local browser proof for
+its closed Core branch. A random authenticated tenant signs in through the
+loopback Supabase-compatible endpoints; the page renders posted receipt,
+posted disbursement, draft, and reversed cash evidence from the compiled Nest
+API through a request-recording proxy. The proof checks bearer/request-id/query
+forwarding, redirect/RBAC, exact centavo amounts and KPI labels, row ordering,
+blocked external font traffic, no unexpected contracts, console/page errors,
+desktop/mobile overflow, and cleanup. The harness leaves zero matching
+fixtures.
+
+Cash browser 1/1 (direct and package script), Web 113/782, forced root tests,
+typecheck, lint, production build, provider-spend, Web/DB boundary, workflow,
+actionlint, gitleaks, database-release, and managed-parity-plan gates pass.
+Selectors remain false/empty outside the disposable harness. No hosted SQL,
+Supabase object, Vercel/Railway deployment, provider setting, credential, or
+paid action changed. Source evidence: `afa659b`.
+
+Exact next action: keep the cash selectors closed and require hosted/source
+parity, readiness, exact release identity, authenticated production smoke,
+rollback, and spend evidence before any tenant canary or provider action.
+
 ## M3.276 Protected finance-cash Core HTTP canary (2026-08-11)
 
 The Nest `/v1/finance/cash-transactions` read boundary now has a disposable

@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-11 - M3.277 protected finance-cash Web/Core browser canary
+
+Added a closed-by-default Playwright proof for the real Next cash page. The
+harness starts disposable PostgreSQL, the compiled Nest API, loopback
+Supabase-compatible auth/profile, and a request-recording Core proxy. An
+authenticated tenant renders posted receipt/disbursement, draft, and reversed
+cash rows with exact centavo KPI/table values; the browser asserts
+bearer/request-id/query forwarding, redirect, RBAC, blocked font traffic, no
+unexpected contracts or console/page errors, desktop/mobile overflow, and
+cleanup.
+
+Cash browser 1/1 by direct config and package script, Web 113/782, root
+tests/typecheck/lint/build, provider-spend, boundary, workflow, actionlint,
+gitleaks, release, and managed-parity gates pass. No hosted Supabase, Storage,
+Railway, Vercel, credential, provider, or paid action changed. Final matching
+fixture count is zero.
+
+Exact next action: keep provider/deployment selectors closed; separately
+reconcile hosted parity, readiness, release identity, authenticated smoke,
+rollback, and spend evidence before any tenant canary.
+
 ## 2026-08-11 - M3.276 protected finance-cash Core HTTP canary
 
 Added an opt-in local HTTP proof for the Nest cash-register read path. The

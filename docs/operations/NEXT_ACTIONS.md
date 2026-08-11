@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.277 protected finance-cash Web/Core browser canary
+
+Keep `ERP_FINANCE_CASH_READS_VIA_API=false` and
+`ERP_FINANCE_CASH_READS_VIA_API_TENANT_IDS` empty; keep
+`ERP_FINANCE_CASH_READS_ENABLED=false` and
+`ERP_FINANCE_CASH_READS_TENANT_IDS` empty. The disposable browser proof now
+covers authenticated Core selection, bearer/request-id/query forwarding,
+exact cash KPI/table rendering, redirect/RBAC, blocked provider traffic,
+console/page errors, responsive layout, and cleanup. Source parity remains
+55/124 with 69 pending migrations in 17 ordered review batches. Next gates are
+hosted/source parity, readiness, exact release identity, authenticated
+production smoke, rollback, and spend control. Do not apply hosted SQL or
+trigger Vercel, Railway, or provider builds.
+
 ## Exact next action after M3.276 protected finance-cash Core HTTP canary
 
 Keep `ERP_FINANCE_CASH_READS_VIA_API=false` and
