@@ -3,9 +3,11 @@ import {
   bankStatementAutoMatchBodySchema,
   bankStatementLineMatchBodySchema,
   bankStatementLineUnmatchBodySchema,
+  bankStatementReconcileBodySchema,
   type BankStatementAutoMatchBody,
   type BankStatementLineMatchBody,
   type BankStatementLineUnmatchBody,
+  type BankStatementReconcileBody,
 } from '@third-code-erp/shared-types'
 
 @Injectable()
@@ -49,6 +51,22 @@ export class FinanceReconciliationLineUnmatchPipe
     if (!parsed.success) {
       throw new BadRequestException({
         message: 'Invalid bank statement line unmatch command',
+        errors: parsed.error.flatten(),
+      })
+    }
+    return parsed.data
+  }
+}
+
+@Injectable()
+export class FinanceReconciliationReconcilePipe
+  implements PipeTransform<unknown, BankStatementReconcileBody>
+{
+  transform(value: unknown): BankStatementReconcileBody {
+    const parsed = bankStatementReconcileBodySchema.safeParse(value)
+    if (!parsed.success) {
+      throw new BadRequestException({
+        message: 'Invalid bank statement reconcile command',
         errors: parsed.error.flatten(),
       })
     }

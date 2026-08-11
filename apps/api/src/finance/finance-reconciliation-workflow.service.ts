@@ -14,6 +14,7 @@ import {
   bankStatementAutoMatchRequests,
   bankStatementLineMatchRequests,
   bankStatementLines,
+  bankStatementReconcileRequests,
   bankStatements,
   users,
 } from '@third-code-erp/database/schema'
@@ -23,6 +24,8 @@ import {
   bankStatementLineMatchCommandSchema,
   bankStatementLineMatchResultSchema,
   bankStatementLineUnmatchCommandSchema,
+  bankStatementReconcileCommandSchema,
+  bankStatementReconcileResultSchema,
   type BankStatementAutoMatchBody,
   type BankStatementAutoMatchResult,
   type BankStatementLineMatchBody,
@@ -30,6 +33,8 @@ import {
   type BankStatementLineMatchResult,
   type BankStatementLineUnmatchBody,
   type BankStatementLineUnmatchCommand,
+  type BankStatementReconcileBody,
+  type BankStatementReconcileResult,
 } from '@third-code-erp/shared-types'
 import { and, eq, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
@@ -53,6 +58,14 @@ type LineMatchRequest = {
   lineId: string
   action: 'match' | 'unmatch'
   cashTransactionId: string | null
+  requestHash: string
+  state: 'processing' | 'succeeded'
+  result: unknown
+}
+
+type ReconcileRequest = {
+  id: string
+  statementId: string
   requestHash: string
   state: 'processing' | 'succeeded'
   result: unknown
@@ -101,6 +114,16 @@ function replayLineResult(value: unknown): BankStatementLineMatchResult {
   return parsed.data
 }
 
+function replayReconcileResult(value: unknown): BankStatementReconcileResult {
+  const parsed = bankStatementReconcileResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new InternalServerErrorException(
+      'Bank statement reconcile idempotency result is invalid'
+    )
+  }
+  return parsed.data
+}
+
 function mapDatabaseFailure(error: unknown): never {
   const message = error instanceof Error ? error.message : ''
   if (message.includes('Bank statement not found')) {
@@ -109,7 +132,19 @@ function mapDatabaseFailure(error: unknown): never {
   if (message.includes('Actor cannot auto-match this bank statement')) {
     throw new ForbiddenException('Actor cannot auto-match this bank statement')
   }
+  if (message.includes('Actor cannot reconcile this bank statement')) {
+    throw new ForbiddenException('Actor cannot reconcile this bank statement')
+  }
   if (message.includes('Only a draft bank statement can be matched')) {
+    throw new ConflictException(message)
+  }
+  if (
+    message.includes('Only a draft bank statement can be reconciled') ||
+    message.includes('Bank statement requires at least one line') ||
+    message.includes('Bank statement balances do not roll forward') ||
+    message.includes('Every bank statement line must be matched') ||
+    message.includes('Matched cash evidence changed before reconciliation')
+  ) {
     throw new ConflictException(message)
   }
   if (
@@ -235,6 +270,24 @@ export class FinanceReconciliationWorkflowService {
     })
   }
 
+  async reconcile(
+    statementId: string,
+    body: BankStatementReconcileBody,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<BankStatementReconcileResult> {
+    const command = bankStatementReconcileCommandSchema.parse({
+      statementId,
+      ...body,
+    })
+    return this.runReconcile(
+      command,
+      principal,
+      validateKey(rawIdempotencyKey),
+      commandHash(command)
+    )
+  }
+
   async matchLine(
     statementId: string,
     lineId: string,
@@ -275,6 +328,87 @@ export class FinanceReconciliationWorkflowService {
       validateKey(rawIdempotencyKey),
       lineCommandHash('unmatch', command)
     )
+  }
+
+  private async runReconcile(
+    command: { statementId: string },
+    principal: ErpPrincipal,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<BankStatementReconcileResult> {
+    this.assertReconcileEnabled(principal)
+    return this.database.client.transaction(async (transaction) => {
+      const authorizedPrincipal = await this.authorize(transaction, principal)
+      const [statement] = await transaction
+        .select({ id: bankStatements.id, status: bankStatements.status })
+        .from(bankStatements)
+        .where(
+          and(
+            eq(bankStatements.id, command.statementId),
+            eq(bankStatements.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!statement) throw new NotFoundException('Bank statement not found')
+
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+      const request = await this.claimReconcileRequest(
+        transaction,
+        authorizedPrincipal,
+        command.statementId,
+        idempotencyKey,
+        requestHash
+      )
+      if (request.state === 'succeeded') {
+        return replayReconcileResult(request.result)
+      }
+
+      try {
+        await transaction.execute(sql`
+          select public.reconcile_bank_statement(
+            ${command.statementId}::uuid,
+            ${authorizedPrincipal.userId}::uuid
+          )
+        `)
+        const [updatedStatement] = await transaction
+          .select({
+            id: bankStatements.id,
+            tenantId: bankStatements.tenant_id,
+            status: bankStatements.status,
+          })
+          .from(bankStatements)
+          .where(
+            and(
+              eq(bankStatements.id, command.statementId),
+              eq(bankStatements.tenant_id, authorizedPrincipal.tenantId)
+            )
+          )
+          .limit(1)
+        const result = bankStatementReconcileResultSchema.parse({
+          statementId: updatedStatement?.id,
+          tenantId: updatedStatement?.tenantId,
+          status: updatedStatement?.status,
+        })
+        await this.completeReconcileRequest(transaction, request.id, result)
+        await this.audit.writeSemantic(transaction, {
+          tenantId: authorizedPrincipal.tenantId,
+          actorId: authorizedPrincipal.userId,
+          entityType: 'bank_statement',
+          entityId: command.statementId,
+          action: 'update',
+          diff: {
+            operation: 'reconcile',
+            from_status: statement.status,
+            to_status: result.status,
+            idempotency_key_hash: requestHash,
+          },
+        })
+        return result
+      } catch (error) {
+        mapDatabaseFailure(error)
+      }
+    })
   }
 
   private async runLineMatch(
@@ -465,6 +599,22 @@ export class FinanceReconciliationWorkflowService {
     }
   }
 
+  private assertReconcileEnabled(principal: ErpPrincipal): void {
+    const enabled = this.config.get<boolean>(
+      'ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED',
+      false
+    )
+    const allowedTenantIds = this.config.get<string[]>(
+      'ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_TENANT_IDS',
+      []
+    )
+    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+      throw new ServiceUnavailableException(
+        'Bank statement reconciliation is not enabled for this tenant; no bank statement was changed.'
+      )
+    }
+  }
+
   private async claimRequest(
     transaction: DatabaseTransaction,
     principal: ErpPrincipal,
@@ -540,6 +690,85 @@ export class FinanceReconciliationWorkflowService {
     if (!completed) {
       throw new InternalServerErrorException(
         'Bank statement auto-match idempotency record changed before completion'
+      )
+    }
+  }
+
+  private async claimReconcileRequest(
+    transaction: DatabaseTransaction,
+    principal: ErpPrincipal,
+    statementId: string,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<ReconcileRequest> {
+    await transaction
+      .insert(bankStatementReconcileRequests)
+      .values({
+        tenant_id: principal.tenantId,
+        bank_statement_id: statementId,
+        idempotency_key: idempotencyKey,
+        request_hash: requestHash,
+        created_by: principal.userId,
+      })
+      .onConflictDoNothing({
+        target: [
+          bankStatementReconcileRequests.tenant_id,
+          bankStatementReconcileRequests.idempotency_key,
+        ],
+      })
+    const [request] = await transaction
+      .select({
+        id: bankStatementReconcileRequests.id,
+        statementId: bankStatementReconcileRequests.bank_statement_id,
+        requestHash: bankStatementReconcileRequests.request_hash,
+        state: bankStatementReconcileRequests.state,
+        result: bankStatementReconcileRequests.result,
+      })
+      .from(bankStatementReconcileRequests)
+      .where(
+        and(
+          eq(bankStatementReconcileRequests.tenant_id, principal.tenantId),
+          eq(bankStatementReconcileRequests.idempotency_key, idempotencyKey)
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!request) {
+      throw new InternalServerErrorException(
+        'Bank statement reconcile idempotency record was not created'
+      )
+    }
+    if (request.requestHash !== requestHash || request.statementId !== statementId) {
+      throw new ConflictException(
+        'Idempotency key was already used with a different bank statement reconcile command'
+      )
+    }
+    if (request.state !== 'processing' && request.state !== 'succeeded') {
+      throw new ConflictException(
+        'Bank statement reconcile idempotency record has an unsupported state'
+      )
+    }
+    return request
+  }
+
+  private async completeReconcileRequest(
+    transaction: DatabaseTransaction,
+    requestId: string,
+    result: BankStatementReconcileResult
+  ): Promise<void> {
+    const [completed] = await transaction
+      .update(bankStatementReconcileRequests)
+      .set({ state: 'succeeded', result, completed_at: new Date() })
+      .where(
+        and(
+          eq(bankStatementReconcileRequests.id, requestId),
+          eq(bankStatementReconcileRequests.state, 'processing')
+        )
+      )
+      .returning({ id: bankStatementReconcileRequests.id })
+    if (!completed) {
+      throw new InternalServerErrorException(
+        'Bank statement reconcile idempotency record changed before completion'
       )
     }
   }
