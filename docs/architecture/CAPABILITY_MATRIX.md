@@ -1,5 +1,26 @@
 # Third Code ERP capability matrix
 
+## M3.266 Bank-statement storage source and Web/Core parity seam (2026-08-11)
+
+Core now accepts exactly one import source: inline base64 CSV or a private
+tenant-prefixed `bank-statements` object path. The server-only Storage reader
+uses a short-lived signed URL, a 2 MB streaming cap, a 10-second timeout, and
+fail-closed errors. Cross-tenant paths are rejected; the validated path and
+hash are persisted with the draft statement. The Web signed-upload route is
+finance-capability protected, audited, and has no direct ERP-table write. The
+Web Core adapter maps the typed result and makes Core failures terminal with
+no legacy fallback. Both selectors remain false/empty; the browser form still
+uses inline CSV until a separate upload cutover is proven.
+
+Focused source tests: shared 4/4, database 2/2, storage 3/3, signed-upload
+route 3/3, Web Core-client 167/167, Web action 5/5, API/Web typechecks, and
+protected local HTTP 1/1. Root `pnpm test` passed shared 55/55 files and 331
+tests, database 69/73 files with 241 passed and 143 environment-skipped, Web
+112/112 files and 774 tests, and API 174/174 files and 760 tests. API
+integration passed 55/55 files with 69 passed and two intentional
+Redis-restart skips; lint, build, policy, parity, release, boundary,
+workflow, actionlint, and spend gates PASS. Source evidence SHA: `2fe1e3a`.
+
 ## M3.265 Bank-statement import authority (2026-08-11)
 
 The `finance.manage_cash` Core import command now has protected transaction-

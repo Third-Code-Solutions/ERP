@@ -1,5 +1,34 @@
 # Work Log
 
+## 2026-08-11 - M3.266 bank-statement storage source and Web/Core parity
+
+Added the source-only storage handoff for bank-statement imports. Shared
+contracts now enforce exactly one inline or tenant-prefixed source; the
+database migration adds nullable `source_storage_path` with a format check.
+Nest Core reads the private `documents` bucket through a server-only signed
+URL reader capped at 2 MB with timeout and fail-closed errors, then persists
+the validated path and hash with the draft. The Web signed-upload route is
+finance-capability protected, audited, and never writes ERP tables. The Web
+action has an exact-tenant Core adapter with terminal errors and no legacy
+fallback; the form remains inline until browser upload cutover.
+
+Focused contracts, storage, route, adapter, action, typechecks, and the
+protected local PostgreSQL HTTP canary passed. Root `pnpm test` passed
+shared-types 55/55 files and 331/331 tests, database 69/73 files with 241
+passed and 143 environment-skipped tests, Web 112/112 files and 774/774
+tests, and API 174/174 files and 760/760 tests. API integration passed 55/55
+files with 69 passed and two intentional Redis-restart skips. Typecheck, lint,
+production build, database release, parity, Web/DB boundary,
+workflow-reference, provider-spend, and actionlint passed. The migration was
+applied only to the disposable local CI database. Source parity is 55/124
+hosted/source migrations with 69 pending in 17 ordered review batches. No
+hosted Supabase, Storage, Railway, Vercel, credential, provider, or paid
+action changed. Source evidence SHA: `2fe1e3a`.
+
+Exact next action: keep both import selectors false/empty; do not apply hosted
+SQL or trigger provider builds. Implement the browser upload cutover and
+protected browser proof separately.
+
 ## 2026-08-11 - M3.265 bank-statement import authority
 
 Added the shared strict bank-statement import contracts/parser, the Nest Core

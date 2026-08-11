@@ -1,5 +1,45 @@
 # Current State
 
+## M3.266 Bank-statement storage source and Web/Core parity seam (2026-08-11)
+
+Added a backward-compatible object-storage source for the guarded Core bank
+statement import. The shared command now accepts exactly one source: the
+existing bounded inline base64 CSV or a tenant-shaped
+`{tenantId}/bank-statements/{file}` path. `source_storage_path` is nullable in
+`bank_statements` with a format check, so existing rows remain valid. Core
+reads the private `documents` bucket through a server-only Supabase signed URL,
+with a 2 MB streaming cap, 60-second signed URL, and 10-second download
+timeout; cross-tenant paths are rejected before the read. Storage failures are
+fail-closed and no statement transaction starts. The signed-upload Web route
+is additive, finance-capability protected, tenant-scoped, audited, and capped
+to CSV/2 MB; the existing form remains on the inline compatibility path until
+a separate browser upload cutover is proven.
+
+The Web server action now has an exact-tenant Core selector and typed import
+adapter. Once selected, Core errors are terminal and the legacy database write
+is not attempted. Both selectors remain false/empty by default. A local
+protected HTTP canary covers inline and storage-path imports, cross-tenant
+rejection, persisted object path, and rollback. No hosted SQL, Storage object,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed; only the disposable local CI database received the migration.
+
+Root `pnpm test` exited 0: shared-types 55/55 files and 331/331 tests,
+database 69/73 files with 241 passed and 143 environment-skipped tests, Web
+112/112 files and 774/774 tests, and API 174/174 files and 760/760 tests.
+Protected API integration passed 55/55 files with 69 passed and two
+intentional Redis-restart skips. Typecheck, lint, production build, database
+release, parity, Web/DB boundary, workflow-reference, provider-spend, and
+actionlint gates PASS. The migration is source-only: 55/124 hosted/source
+migrations, 69 pending in 17 ordered review batches.
+Source evidence SHA: `2fe1e3a`.
+
+Exact next action: keep
+`ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED=false`,
+`ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS` empty, and the Web/Core
+selector false/empty. Do not apply hosted SQL or trigger provider builds.
+Implement and prove the browser upload cutover separately, then reconcile
+hosted parity, readiness, protected browser evidence, rollback, and spend.
+
 ## M3.265 Bank-statement import authority (2026-08-11)
 
 Added the source-only Nest Core command

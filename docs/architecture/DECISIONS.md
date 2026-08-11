@@ -1,5 +1,32 @@
 # Architecture Decisions
 
+## D-378 -- Add bounded private storage source without opening import authority (2026-08-11)
+
+Decision: allow Core bank-statement import to consume either the existing
+inline base64 CSV or a tenant-prefixed object-storage path, while keeping both
+Core and Web selectors closed. Use a server-only signed URL reader for the
+private `documents` bucket, cap source bytes at 2 MB, persist only the path and
+hash, and keep the browser form on the inline compatibility path until a
+separate upload/browser canary is complete. Add a typed Web/Core adapter whose
+errors are terminal with no legacy-write fallback.
+
+Rationale: bank evidence can be large enough to make inline browser requests
+fragile, but opening a new upload path without tenant checks, byte bounds,
+audit, and protected browser evidence would create a costly and unsafe
+cutover. A nullable path preserves old rows and mixed-version compatibility;
+Core remains the only official transaction authority. Python/AI remains
+advisory and cannot import or finalize evidence.
+
+Validation: focused shared 4/4, database 2/2, storage 3/3, signed-upload
+route 3/3, Web Core-client 167/167, Web action 5/5, API typecheck, Web
+typecheck, and protected local HTTP canary 1/1 passed. Root `pnpm test`
+passed shared 55/55 files and 331 tests, database 69/73 files with 241 passed
+and 143 environment-skipped, Web 112/112 files and 774 tests, and API 174/174
+files and 760 tests. API integration passed 55/55 files with 69 passed and two
+intentional Redis-restart skips; typecheck, lint, build, policy, parity,
+release, boundary, workflow, actionlint, and spend gates PASS. No
+hosted/provider/paid action occurred. Source evidence SHA: `2fe1e3a`.
+
 ## D-377 -- Keep bank-statement import Core-only and fail-closed (2026-08-11)
 
 Decision: add bank-statement import only as a Nest Core command. The route
