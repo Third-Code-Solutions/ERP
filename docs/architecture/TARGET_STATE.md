@@ -1,5 +1,17 @@
 # Target State
 
+## M3.292 Core document-intake canary (2026-08-12)
+
+The target upload boundary records the canonical document in Nest Core after
+the browser has uploaded a Storage object. Core derives tenant/project scope,
+requires `document.manage`, commits the document plus idempotency ledger and
+audit atomically, and replays identical retries without duplication. The
+legacy route remains a compatibility adapter, and extractor/AI processing is
+not implied by this non-extractor proof.
+
+Keep document selectors closed outside disposable tests. Python/AI may analyze
+documents later but cannot approve or finalize the ERP record.
+
 ## M3.291 Core notifications browser canary (2026-08-12)
 
 The target notification path is now browser-proven through the modular Nest

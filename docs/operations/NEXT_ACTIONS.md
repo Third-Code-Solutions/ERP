@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.292 Core document-intake canary
+
+Keep `ERP_DOCUMENT_INTAKE_WRITES_VIA_API=false` with an empty exact-tenant
+allowlist; keep `ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false` and its Core list
+empty outside disposable proof. The non-extractor browser/HTTP proof covers
+one canonical document, idempotent replay, tenant-prefix rejection,
+auditability, and cleanup. Review CAD/PDF/image/spreadsheet/Storage response
+parity separately before any canary. Require managed parity, readiness,
+rollback, authenticated smoke, exact release identity, and spend evidence;
+do not deploy or trigger Vercel/Railway builds.
+
 ## Exact next action after M3.291 Core notifications browser canary
 
 Keep `ERP_NOTIFICATION_READ_STATE_VIA_API=false` with an empty exact-tenant

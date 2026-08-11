@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-399 -- Prove non-extractor document intake through Core with replay safety (2026-08-12)
+
+Decision: extend the disposable loopback harness with a tenant/project fixture
+and prove the existing Core document-intake branch for one non-extractor file.
+Assert two identical Web retries create one document and one request ledger,
+while a foreign tenant-prefixed path is rejected before Core. Keep the exact
+tenant selectors disabled outside the harness.
+
+Rationale: the route already has a typed Nest transaction and idempotency
+ledger, but unit tests cannot prove the real authenticated Web adapter,
+`Idempotency-Key` forwarding, legacy response mapping, or no-duplicate retry
+behavior. This proof closes that boundary without Storage/provider traffic,
+hosted SQL, or spend. Extractor and AI branches remain separate because their
+response and processing contracts are materially broader.
+
+Validation: document browser 1/1, notification browser 1/1, focused 187/187,
+Web/API typecheck/build, provider-spend, Web/DB boundary, gitleaks, and diff
+checks pass; no hosted mutation.
+
 ## D-398 -- Prove Core notification read-state in the real browser (2026-08-12)
 
 Decision: add a disposable authenticated browser canary for the existing Core

@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-12 - M3.292 Core document-intake browser/HTTP canary
+
+Extended the disposable loopback database with a tenant/project fixture and
+added a document-intake Playwright config/spec. The real authenticated
+`/documents` page then posts a non-extractor `notes.txt` completion twice;
+Core creates one document plus one durable idempotency record, replays the
+second request, and audits the canonical create. A foreign storage path is
+rejected before Core. The proxy records bearer, request ID, and
+`Idempotency-Key`; fixture cleanup is verified.
+
+Selectors remain closed outside the harness. No hosted Supabase, Storage,
+Railway, Vercel, credential, provider, or paid action changed.
+
+Validation: document browser 1/1, notification browser 1/1, upload/Core
+focused tests 187/187, Web typecheck/build, API build, provider-spend,
+Web/DB boundary, gitleaks, and diff checks PASS.
+
+Exact next action: separately review extractor/Storage response parity and keep
+the Core document selector closed pending managed parity, rollback, readiness,
+audit, smoke, and spend evidence.
+
 ## 2026-08-12 - M3.291 Core notifications browser canary and mobile shell hardening
 
 Added a disposable authenticated Playwright harness for the real Settings page.
