@@ -127,6 +127,23 @@ export class JournalPostService {
         role,
         email: membership.email,
       }
+
+      const [entry] = await transaction
+        .select({
+          id: journalEntries.id,
+          tenantId: journalEntries.tenant_id,
+        })
+        .from(journalEntries)
+        .where(
+          and(
+            eq(journalEntries.id, command.journalEntryId),
+            eq(journalEntries.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!entry) throw new NotFoundException('Journal entry not found')
+
       await this.audit.stampActor(transaction, authorizedPrincipal)
 
       await transaction
@@ -183,22 +200,6 @@ export class JournalPostService {
           'Journal post idempotency record has an unsupported state'
         )
       }
-
-      const [entry] = await transaction
-        .select({
-          id: journalEntries.id,
-          tenantId: journalEntries.tenant_id,
-        })
-        .from(journalEntries)
-        .where(
-          and(
-            eq(journalEntries.id, command.journalEntryId),
-            eq(journalEntries.tenant_id, authorizedPrincipal.tenantId)
-          )
-        )
-        .limit(1)
-        .for('update')
-      if (!entry) throw new NotFoundException('Journal entry not found')
 
       let rows: Array<{
         journal_entry_id: string
