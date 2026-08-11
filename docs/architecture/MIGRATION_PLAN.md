@@ -1,5 +1,36 @@
 # Migration Plan
 
+## M3.267 Bank-statement browser Storage handoff (completed source-only)
+
+1. Added an exact-tenant browser Storage selector that requires the existing
+   Web/Core import selector; all flags default to false with empty allowlists.
+2. Added a typed browser transport that validates the signed-upload contract,
+   uploads directly to the private `documents` bucket, and retains the path
+   for cleanup on upload failure.
+3. Updated the bank-statement form to use Storage only when explicitly
+   selected; the default inline base64 path remains unchanged, and a selected
+   Storage path never falls back to the legacy Web database write.
+4. Added an audited tenant-scoped DELETE cleanup route and action-side gate;
+   audit is recorded before object deletion and cross-tenant paths are denied.
+5. Added focused helper, route, action, and selector tests. No database
+   migration, hosted SQL, Storage object, or provider setting changed.
+6. Root `pnpm test` exited 0: shared-types 55/55 files and 331/331 tests,
+   database 69/73 files with 241 passed and 143 environment-skipped tests,
+   Web 113/113 files and 782/782 tests, and API 174/174 files and 760/760
+   tests. API integration passed 55/55 files with 69 passed and two
+   intentional Redis-restart skips. Typecheck, lint, production build,
+   database release, parity, Web/DB boundary, workflow-reference,
+   provider-spend, actionlint, and gitleaks passed. Browser E2E against a
+   disposable authenticated tenant was not run, so the selector remains
+   closed. Source parity remains 55/124 with 69 pending in 17 review batches.
+   Source evidence SHA: `20f2b76953688b02a12b6bcca0f53455282421e`.
+
+Exact next action: keep all API/Web import and Storage-upload selectors
+false/empty. Run a controlled authenticated browser canary with mocked or
+disposable Storage, protected Core response parity, cleanup and rollback
+evidence, then separately reconcile hosted parity, release identity,
+readiness, and spend before enabling one tenant.
+
 ## M3.266 Bank-statement storage source and Web/Core parity seam (completed source-only canary)
 
 1. Extended the shared import contract to accept exactly one bounded inline

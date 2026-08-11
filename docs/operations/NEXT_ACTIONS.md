@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.267 bank-statement browser Storage handoff
+
+Keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED` and
+`ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS` false/empty; keep
+`ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API` and its tenant list
+false/empty; and keep `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS` and
+its tenant list false/empty. Source parity remains 55/124 with 69 pending in
+17 ordered review batches. Managed Supabase, Storage objects, Vercel, Railway,
+and provider deployments remain untouched. The next source gate is a
+controlled authenticated browser canary proving signed upload, Storage PUT,
+Core response parity, terminal-error cleanup, cross-tenant denial, rollback,
+and spend guard. Do not apply hosted SQL or trigger provider builds.
+
 ## Exact next action after M3.266 bank-statement storage source and parity
 
 Keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED` and

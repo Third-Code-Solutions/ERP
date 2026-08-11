@@ -1,5 +1,42 @@
 # Current State
 
+## M3.267 Bank-statement browser Storage handoff (2026-08-11)
+
+Added the opt-in browser handoff for the existing guarded bank-statement
+Storage source. The form still defaults to inline base64 for compatibility, but
+an exact tenant must now pass both the existing Web/Core import selector and
+the new `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS` selector before it
+can request a signed upload URL. The browser uploads directly to the private
+`documents` bucket, then sends only the tenant-shaped Storage path to Core; it
+does not write ERP tables or fall back to the legacy Web write when the Storage
+path is selected.
+
+The signed-upload route now has an audited, tenant-scoped DELETE cleanup path.
+Upload or terminal Core/action failure attempts cleanup, and cleanup is
+audited before object deletion. The action rejects a Storage source unless the
+exact upload canary is enabled. All new and existing selectors remain
+false/empty by default, and no database migration was added in this milestone.
+
+Focused storage/helper 3/3, signed-upload route 6/6, Web action 6/6, and Core
+selector 165/165 tests pass. Root `pnpm test` exited 0: shared-types 55/55
+files and 331/331 tests, database 69/73 files with 241 passed and 143
+environment-skipped tests, Web 113/113 files and 782/782 tests, and API
+174/174 files and 760/760 tests. Protected API integration passed 55/55 files
+with 69 passed and two intentional Redis-restart skips. Typecheck, lint,
+production build, database release, parity, Web/DB boundary,
+workflow-reference, provider-spend, actionlint, and gitleaks gates PASS.
+Browser E2E against a disposable authenticated tenant was not run; the
+cutover remains closed. Source parity is unchanged at 55/124 hosted/source
+migrations, 69 pending in 17 ordered review batches. No hosted SQL, Storage
+object, Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Source evidence SHA: `20f2b76953688b02a12b6bcca0f53455282421e5`.
+
+Exact next action: keep the API import selector and tenant list, Web/Core
+selector and tenant list, and browser Storage selector and tenant list
+false/empty. Prove the enabled browser path with a disposable authenticated
+tenant, protected Core response parity, object cleanup, rollback, and spend
+controls before any canary or hosted/provider action.
+
 ## M3.266 Bank-statement storage source and Web/Core parity seam (2026-08-11)
 
 Added a backward-compatible object-storage source for the guarded Core bank
