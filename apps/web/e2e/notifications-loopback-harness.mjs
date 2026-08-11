@@ -1,0 +1,436 @@
+import { randomUUID } from 'node:crypto'
+import { spawn } from 'node:child_process'
+import { createServer } from 'node:http'
+import { createRequire } from 'node:module'
+import { existsSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const HOST = '127.0.0.1'
+const AUTH_PORT = 4418
+const WEB_PORT = 4417
+const PROXY_PORT = 4419
+const API_PORT = 4420
+const AUTH_ORIGIN = `http://${HOST}:${AUTH_PORT}`
+const WEB_ORIGIN = `http://${HOST}:${WEB_PORT}`
+const PROXY_ORIGIN = `http://${HOST}:${PROXY_PORT}`
+const API_ORIGIN = `http://${HOST}:${API_PORT}`
+const DATABASE_URL =
+  'postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci'
+const USER_ID = randomUUID()
+const TENANT_ID = randomUUID()
+const FOREIGN_TENANT_ID = randomUUID()
+const FOREIGN_USER_ID = randomUUID()
+const FOREIGN_NOTIFICATION_ID = randomUUID()
+const ANON_KEY = 'third-code-local-anon-key'
+const SERVICE_ROLE_KEY = 'third-code-local-service-role-key'
+const ACCESS_TOKEN = [
+  Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'),
+  Buffer.from(
+    JSON.stringify({
+      aud: 'authenticated',
+      exp: 4_102_444_800,
+      role: 'authenticated',
+      sub: USER_ID,
+    })
+  ).toString('base64url'),
+  'local-notification-signature',
+].join('.')
+
+const repositoryRoot = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..'
+)
+const webRoot = resolve(repositoryRoot, 'apps', 'web')
+const apiEntry = resolve(repositoryRoot, 'apps', 'api', 'dist', 'main.js')
+if (!existsSync(apiEntry)) {
+  throw new Error('Build @third-code-erp/api before running notification browser proof')
+}
+
+const user = {
+  id: USER_ID,
+  aud: 'authenticated',
+  role: 'authenticated',
+  email: 'local-notifications-admin@thirdcode.invalid',
+  email_confirmed_at: '2026-01-01T00:00:00.000Z',
+  phone: '',
+  confirmed_at: '2026-01-01T00:00:00.000Z',
+  last_sign_in_at: '2026-01-01T00:00:00.000Z',
+  app_metadata: { provider: 'email', providers: ['email'] },
+  user_metadata: {},
+  identities: [],
+  created_at: '2026-01-01T00:00:00.000Z',
+  updated_at: '2026-01-01T00:00:00.000Z',
+  is_anonymous: false,
+}
+
+const profile = {
+  tenant_id: TENANT_ID,
+  role: 'admin',
+  email: user.email,
+  full_name: 'Local Notifications Admin',
+}
+
+const coreRequests = []
+let sql
+let webChild
+let apiChild
+let proxyServer
+let stopping = false
+
+function corsHeaders(origin) {
+  return {
+    'cache-control': 'no-store',
+    'content-type': 'application/json; charset=utf-8',
+    'access-control-allow-origin': origin,
+    'access-control-allow-credentials': 'true',
+    'access-control-allow-headers':
+      'apikey, authorization, content-type, x-client-info, x-upsert',
+    'access-control-allow-methods': 'DELETE, GET, POST, PUT, OPTIONS',
+  }
+}
+
+function json(response, status, body, origin = WEB_ORIGIN) {
+  response.writeHead(status, corsHeaders(origin))
+  response.end(JSON.stringify(body))
+}
+
+function bearer(request) {
+  const authorization = request.headers.authorization ?? ''
+  return authorization.startsWith('Bearer ')
+    ? authorization.slice('Bearer '.length)
+    : ''
+}
+
+async function requestBody(request) {
+  const chunks = []
+  for await (const chunk of request) chunks.push(chunk)
+  return Buffer.concat(chunks)
+}
+
+function parseJson(raw) {
+  try {
+    return JSON.parse(raw.toString('utf8'))
+  } catch {
+    return null
+  }
+}
+
+async function seedDatabase() {
+  const require = createRequire(import.meta.url)
+  const postgres = require(
+    resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      '../../../packages/database/node_modules/postgres'
+    )
+  )
+  sql = postgres(DATABASE_URL)
+
+  await sql`
+    insert into tenants(id, name, slug, organization_type)
+    values (${TENANT_ID}, 'Local notifications browser canary', ${`notifications-${TENANT_ID}`}, 'construction')
+  `
+  await sql`
+    insert into users(id, tenant_id, email, full_name, role)
+    values (${USER_ID}, ${TENANT_ID}, ${user.email}, ${profile.full_name}, 'admin')
+  `
+  await sql`
+    insert into notifications(
+      id, tenant_id, recipient_user_id, channel, subject, body, link_url,
+      is_read, created_at
+    )
+    values
+      (
+        ${randomUUID()}, ${TENANT_ID}, ${USER_ID}, 'in_app',
+        'Core notification canary', 'A tenant-scoped Core notification.',
+        '/dashboard', false, now() - interval '1 minute'
+      ),
+      (
+        ${randomUUID()}, ${TENANT_ID}, ${USER_ID}, 'in_app',
+        'Unread follow-up', 'A second unread item for the read-state proof.',
+        null, false, now() - interval '2 minutes'
+      ),
+      (
+        ${randomUUID()}, ${TENANT_ID}, ${USER_ID}, 'in_app',
+        'Already seen', 'This item starts in the read state.',
+        null, true, now() - interval '3 minutes'
+      )
+  `
+
+  await sql`
+    insert into tenants(id, name, slug, organization_type)
+    values (${FOREIGN_TENANT_ID}, 'Foreign notifications tenant', ${`notifications-foreign-${FOREIGN_TENANT_ID}`}, 'construction')
+  `
+  await sql`
+    insert into users(id, tenant_id, email, full_name, role)
+    values (${FOREIGN_USER_ID}, ${FOREIGN_TENANT_ID}, 'foreign-notifications@thirdcode.invalid', 'Foreign Notifications User', 'admin')
+  `
+  await sql`
+    insert into notifications(
+      id, tenant_id, recipient_user_id, channel, subject, body, is_read
+    )
+    values (
+      ${FOREIGN_NOTIFICATION_ID}, ${FOREIGN_TENANT_ID}, ${FOREIGN_USER_ID},
+      'in_app', 'Foreign unread item', 'Must remain outside the principal tenant.', false
+    )
+  `
+}
+
+const authServer = createServer(async (request, response) => {
+  const url = new URL(request.url ?? '/', AUTH_ORIGIN)
+
+  if (request.method === 'OPTIONS') {
+    response.writeHead(204, corsHeaders(WEB_ORIGIN))
+    return response.end()
+  }
+
+  if (url.pathname === '/__harness__/ready') {
+    return json(response, 200, { ready: true })
+  }
+  if (url.pathname === '/__harness__/session') {
+    return json(response, 200, {
+      accessToken: ACCESS_TOKEN,
+      expiresAt: 4_102_444_800,
+      user,
+    })
+  }
+  if (url.pathname === '/__harness__/state') {
+    const [notifications, foreign, auditEntries] = await Promise.all([
+      sql`
+        select id, subject, is_read, read_at::text
+        from notifications
+        where tenant_id = ${TENANT_ID}
+        order by created_at desc
+      `,
+      sql`
+        select is_read
+        from notifications
+        where id = ${FOREIGN_NOTIFICATION_ID}
+      `,
+      sql`
+        select entity_type, entity_id, action, diff
+        from audit_log
+        where tenant_id = ${TENANT_ID}
+        order by id asc
+      `,
+    ])
+    return json(response, 200, {
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+      notifications,
+      foreignNotificationIsRead: foreign[0]?.is_read ?? null,
+      coreRequests,
+      auditEntries,
+    })
+  }
+
+  if (request.method === 'GET' && url.pathname === '/auth/v1/user') {
+    if (
+      request.headers.apikey !== ANON_KEY ||
+      bearer(request) !== ACCESS_TOKEN
+    ) {
+      return json(response, 401, {
+        code: 'bad_jwt',
+        message: 'Invalid local notification credentials',
+      })
+    }
+    return json(response, 200, user)
+  }
+
+  if (request.method === 'GET' && url.pathname === '/rest/v1/users') {
+    const exactProfileQuery =
+      url.searchParams.get('select') === 'tenant_id,role,email,full_name' &&
+      url.searchParams.get('id') === `eq.${USER_ID}`
+    if (
+      request.headers.apikey !== SERVICE_ROLE_KEY ||
+      bearer(request) !== SERVICE_ROLE_KEY ||
+      !exactProfileQuery
+    ) {
+      return json(response, 400, {
+        code: 'contract_mismatch',
+        message: 'Unexpected local users profile query',
+      })
+    }
+    return json(response, 200, profile)
+  }
+
+  return json(response, 404, {
+    code: 'unsupported_contract',
+    message: `${request.method ?? 'GET'} ${url.pathname} is not supported`,
+  })
+})
+
+proxyServer = createServer(async (request, response) => {
+  const body = await requestBody(request)
+  const url = new URL(request.url ?? '/', PROXY_ORIGIN)
+  if (url.pathname === '/v1/notifications') {
+    coreRequests.push({
+      method: request.method ?? 'GET',
+      path: url.pathname,
+      authorization: request.headers.authorization ?? '',
+      requestId: request.headers['x-request-id'] ?? '',
+      body: body.toString('utf8'),
+    })
+  }
+
+  try {
+    const upstream = await fetch(`${API_ORIGIN}${url.pathname}${url.search}`, {
+      method: request.method,
+      headers: {
+        authorization: request.headers.authorization ?? '',
+        'x-request-id': request.headers['x-request-id'] ?? '',
+        'content-type': request.headers['content-type'] ?? 'application/json',
+        accept: request.headers.accept ?? 'application/json',
+      },
+      body: body.length ? body : undefined,
+    })
+    const upstreamBody = Buffer.from(await upstream.arrayBuffer())
+    response.writeHead(upstream.status, {
+      'cache-control': 'no-store',
+      'content-type':
+        upstream.headers.get('content-type') ?? 'application/json',
+    })
+    response.end(upstreamBody)
+  } catch (error) {
+    response.writeHead(502, corsHeaders(WEB_ORIGIN))
+    response.end(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+      })
+    )
+  }
+})
+
+function listen(server, port) {
+  return new Promise((resolveListen, reject) => {
+    server.once('error', reject)
+    server.listen(port, HOST, () => {
+      server.removeListener('error', reject)
+      resolveListen()
+    })
+  })
+}
+
+async function waitForHttp(url, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs
+  let lastError = 'not attempted'
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url)
+      if (response.ok) return
+      lastError = `HTTP ${response.status}`
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error)
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100))
+  }
+  throw new Error(`Timed out waiting for ${url}: ${lastError}`)
+}
+
+async function cleanup() {
+  if (!sql) return
+  try {
+    await sql`delete from audit_log where tenant_id in (${TENANT_ID}, ${FOREIGN_TENANT_ID})`
+    await sql`delete from tenants where id in (${TENANT_ID}, ${FOREIGN_TENANT_ID})`
+  } catch (error) {
+    console.error('[notifications-loopback] cleanup failed', error)
+  } finally {
+    await sql.end({ timeout: 5 }).catch(() => undefined)
+  }
+}
+
+async function stop(exitCode = 0) {
+  if (stopping) return
+  stopping = true
+  if (webChild && !webChild.killed) webChild.kill('SIGTERM')
+  if (apiChild && !apiChild.killed) apiChild.kill('SIGTERM')
+  await new Promise((resolveClose) => authServer.close(() => resolveClose()))
+  await new Promise((resolveClose) => proxyServer?.close(() => resolveClose()))
+  await cleanup()
+  process.exitCode = exitCode
+}
+
+await seedDatabase()
+await listen(authServer, AUTH_PORT)
+await listen(proxyServer, PROXY_PORT)
+
+const require = createRequire(import.meta.url)
+const nextBin = require.resolve('next/dist/bin/next')
+const apiEnvironment = {
+  ...process.env,
+  NODE_ENV: 'test',
+  PORT: String(API_PORT),
+  DATABASE_URL,
+  REDIS_URL: 'redis://127.0.0.1:6379',
+  SUPABASE_URL: AUTH_ORIGIN,
+  SUPABASE_ANON_KEY: ANON_KEY,
+  SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
+  ERP_API_CORS_ORIGINS: WEB_ORIGIN,
+  ERP_NOTIFICATION_READ_STATE_ENABLED: 'true',
+  ERP_NOTIFICATION_READ_STATE_TENANT_IDS: TENANT_ID,
+  OPENAI_API_KEY: '',
+  AI_GATEWAY_API_KEY: '',
+  AI_PROVIDER_API_KEY: '',
+  INNGEST_EVENT_KEY: '',
+  NEXT_TELEMETRY_DISABLED: '1',
+}
+delete apiEnvironment.AI_WORKER_URL
+delete apiEnvironment.AI_WORKER_SHARED_SECRET
+apiChild = spawn(process.execPath, [apiEntry], {
+  cwd: repositoryRoot,
+  env: apiEnvironment,
+  stdio: 'inherit',
+})
+apiChild.on('error', (error) => {
+  console.error('[notifications-loopback] API process failed', error)
+  void stop(1)
+})
+apiChild.on('exit', (code) => {
+  if (!stopping) void stop(code ?? 1)
+})
+await waitForHttp(`${API_ORIGIN}/ready`)
+
+webChild = spawn(
+  process.execPath,
+  [nextBin, 'dev', '--hostname', HOST, '--port', String(WEB_PORT)],
+  {
+    cwd: webRoot,
+    env: {
+      ...process.env,
+      DATABASE_URL,
+      NEXT_PUBLIC_SUPABASE_URL: AUTH_ORIGIN,
+      SUPABASE_URL: AUTH_ORIGIN,
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ANON_KEY,
+      SUPABASE_ANON_KEY: ANON_KEY,
+      SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
+      NEXT_PUBLIC_SITE_URL: WEB_ORIGIN,
+      NEXT_PUBLIC_APP_URL: WEB_ORIGIN,
+      ERP_CORE_API_URL: PROXY_ORIGIN,
+      ERP_NOTIFICATION_READ_STATE_VIA_API: 'true',
+      ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS: TENANT_ID,
+      AI_WORKER_URL: '',
+      AI_WORKER_SHARED_SECRET: '',
+      AI_WORKER_TIMEOUT_MS: '',
+      OPENAI_API_KEY: '',
+      AI_GATEWAY_API_KEY: '',
+      INNGEST_EVENT_KEY: '',
+      VERCEL: '',
+      VERCEL_ENV: '',
+      VERCEL_GIT_COMMIT_SHA: '',
+      VERCEL_PROJECT_PRODUCTION_URL: '',
+      RAILWAY_GIT_COMMIT_SHA: '',
+      NEXT_TELEMETRY_DISABLED: '1',
+    },
+    stdio: 'inherit',
+  }
+)
+
+webChild.on('exit', (code) => void stop(code ?? 1))
+webChild.on('error', (error) => {
+  console.error('[notifications-loopback] Next process failed', error)
+  void stop(1)
+})
+process.on('SIGINT', () => void stop(0))
+process.on('SIGTERM', () => void stop(0))

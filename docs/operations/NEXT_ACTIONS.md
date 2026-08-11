@@ -1,5 +1,16 @@
 # Next Actions
 
+## Exact next action after M3.291 Core notifications browser canary
+
+Keep `ERP_NOTIFICATION_READ_STATE_VIA_API=false` with an empty exact-tenant
+allowlist; keep `ERP_NOTIFICATION_READ_STATE_ENABLED=false` and its Core
+allowlist empty outside disposable proof. The browser proves list/read-state
+forwarding, audit, tenant isolation, and responsive Settings/topbar behavior.
+Before opening a tenant, obtain managed source parity, readiness, exact
+release identity, rollback, authenticated smoke, and spend evidence. Then
+review the next direct Web write boundary; do not deploy or trigger Vercel/
+Railway builds in this slice.
+
 ## Exact next action after M3.290 managed Supabase read-only audit
 
 Keep all Core/Web migration selectors false with empty tenant allowlists. The

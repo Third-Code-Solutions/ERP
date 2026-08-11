@@ -1,5 +1,28 @@
 # Migration Plan
 
+## M3.291 - Core notifications browser canary and mobile shell hardening (completed source-only)
+
+1. Added a dedicated Playwright config, script, TypeScript spec, and loopback
+   harness with disposable PostgreSQL fixtures, Supabase-compatible auth, a
+   compiled Nest API, and a request-recording Core proxy.
+2. Exercised the real Settings/topbar journey for notification list,
+   mark-read, and mark-all-read. Asserted exact bearer/request IDs, Core
+   command bodies, PostgreSQL state, semantic audit rows, foreign-tenant
+   immutability, cleanup, blocked external fonts, console/page errors, and
+   responsive desktop/mobile rendering.
+3. Fixed the observed fixed-width notification popover and fixed two-column
+   Settings grid with viewport-safe styles. No API contract or production
+   selector changed.
+4. Validation: browser 1/1; focused notification/Core tests 180/180; Web
+   113/802; e2e/Web typecheck, Web/API builds, provider-spend, Web/DB boundary,
+   gitleaks, and diff checks PASS. No hosted mutation.
+
+Source evidence: local workspace; commit pending this milestone.
+
+Exact next action: keep selectors closed and review the next direct Web write
+   boundary only after managed Supabase parity, rollback, readiness, smoke, and
+   spend gates pass.
+
 ## M3.290 - managed Supabase read-only parity and security audit (completed source-only)
 
 1. Queried the connected project, migration ledger, public table/RLS catalog,

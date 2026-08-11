@@ -1,5 +1,27 @@
 # Current State
 
+## M3.291 Core notifications browser canary and mobile shell hardening (2026-08-12)
+
+The real authenticated Settings page now has a disposable browser proof for
+the Core notification branch. A request-recording proxy confirms the tenant's
+session bearer and request IDs reach `GET/POST /v1/notifications`; PostgreSQL
+shows both read-state commands committed, semantic audit rows written, and a
+foreign tenant's unread row unchanged. Desktop/mobile rendering, blocked
+external font traffic, no browser errors, and zero fixture cleanup pass.
+
+The canary also fixed two observed responsive defects: the notification
+popover is viewport-constrained and Settings cards auto-fit instead of forcing
+two columns on narrow screens. Production selectors remain false/empty.
+
+No hosted SQL, Storage object/policy, Vercel/Railway deployment, provider
+setting, credential, or paid action changed. Source validation: browser 1/1,
+Web 113/802, focused notification 180/180, Web typecheck/build, API build,
+provider-spend guard, Web/DB boundary, gitleaks, and diff checks pass.
+
+Exact next action: keep the notification Core selector closed; review the next
+direct Web write boundary only after hosted parity, readiness, release identity,
+rollback, authenticated smoke, and spend gates are available.
+
 ## M3.290 Managed Supabase read-only parity and security audit (2026-08-12)
 
 The connected project `aqqrtkmtcsfkbyyqxowv` was inspected without SQL or

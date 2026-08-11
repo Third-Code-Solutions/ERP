@@ -159,7 +159,7 @@ export function NotificationsDropdown({ tenantId, userId }: { tenantId: string; 
             position: 'absolute',
             top: 'calc(100% + 8px)',
             right: 0,
-            width: 380,
+            width: 'min(380px, calc(100vw - 24px))',
             maxHeight: 480,
             background: 'white',
             border: '1px solid var(--color-border)',
