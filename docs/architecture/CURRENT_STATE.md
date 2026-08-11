@@ -1,5 +1,30 @@
 # Current State
 
+## M3.278 Protected bank-reconciliation Web/Core browser canary (2026-08-11)
+
+The real Next `/finance/reconciliation` page now has a repeatable local browser
+proof for its closed Core branch. A random authenticated finance tenant signs
+in through loopback Supabase-compatible endpoints; the page renders draft,
+reconciled, and voided statement evidence from the compiled Nest API through a
+request-recording proxy. The proof checks bearer/request-id/query forwarding,
+redirect/RBAC, exact statement references, closing balances, match progress,
+KPI labels, blocked external font traffic, no unexpected contracts,
+console/page errors, desktop/mobile overflow, and cleanup. The harness leaves
+zero matching fixtures.
+
+Reconciliation browser 1/1 by direct config and package script, Web 113/782,
+forced root tests, typecheck, lint, production build, provider-spend, Web/DB
+boundary, workflow, actionlint, gitleaks, database-release, and
+managed-parity-plan gates pass. Selectors remain false/empty outside the
+disposable harness. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed. Source evidence:
+`6092fa5`.
+
+Exact next action: keep reconciliation selectors closed and require
+hosted/source parity, readiness, exact release identity, authenticated
+production smoke, rollback, and spend evidence before any tenant canary or
+provider action.
+
 ## M3.277 Protected finance-cash Web/Core browser canary (2026-08-11)
 
 The real Next `/finance/cash` page now has a repeatable local browser proof for

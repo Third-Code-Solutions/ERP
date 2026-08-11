@@ -1,5 +1,20 @@
 # Third Code ERP capability matrix
 
+## M3.278 Protected bank-reconciliation Web/Core browser canary (2026-08-11)
+
+The local closed-canary evidence covers the user-facing reconciliation
+cutover: authenticated Next rendering through Core, bearer/request-id/query
+provenance, exact statement references, closing balances, line-match progress,
+KPI mapping, draft/reconciled/voided ordering, redirect/RBAC, no unexpected
+contracts, blocked provider traffic, console/page-error checks, responsive
+desktop/mobile layout, and cleanup. The random fixture is explicitly cleaned
+and leaves zero matching tenants. Production selectors remain false/empty;
+hosted or provider action is not proven.
+
+Reconciliation browser 1/1 (direct and package script), Web 113/782, root
+tests, typecheck, lint, build, release, parity, boundary, workflow,
+provider-spend, actionlint, and gitleaks PASS.
+
 ## M3.277 Protected finance-cash Web/Core browser canary (2026-08-11)
 
 The local closed-canary evidence covers the user-facing cash cutover:

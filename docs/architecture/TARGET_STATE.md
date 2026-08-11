@@ -1,5 +1,21 @@
 # Target State
 
+## M3.278 Protected bank-reconciliation Web/Core browser canary (2026-08-11)
+
+The local evidence now covers the user-facing reconciliation seam: an
+authenticated Next page selects Core only for an exact tenant, forwards the
+server-only session bearer and bounded limit query, maps typed statement rows
+into KPI and register values, and remains responsive. The disposable browser
+proves redirect, RBAC, blocked provider traffic, terminal contract noise,
+statement ordering/statuses, and cleanup.
+
+Keep `ERP_FINANCE_RECONCILIATION_READS_VIA_API=false` with an empty tenant list
+and keep `ERP_FINANCE_RECONCILIATION_READS_ENABLED=false` with an empty Core
+allowlist outside local proof. PostgreSQL remains authoritative; Python/AI
+remains advisory and cannot approve or finalize financial transactions. Hosted
+parity, readiness, release identity, rollback, and spend evidence remain
+required.
+
 ## M3.277 Protected finance-cash Web/Core browser canary (2026-08-11)
 
 The local evidence now covers the user-facing cash seam: an authenticated
