@@ -18,6 +18,8 @@ import type {
   BankStatementLineUnmatchBody,
   BankStatementReconcileBody,
   BankStatementReconcileResult,
+  BankStatementVoidBody,
+  BankStatementVoidResult,
 } from '@third-code-erp/shared-types'
 import {
   CurrentPrincipal,
@@ -29,6 +31,7 @@ import {
   FinanceReconciliationLineMatchPipe,
   FinanceReconciliationLineUnmatchPipe,
   FinanceReconciliationReconcilePipe,
+  FinanceReconciliationVoidPipe,
 } from './finance-reconciliation-workflow.pipe'
 import { FinanceReconciliationWorkflowService } from './finance-reconciliation-workflow.service'
 
@@ -112,6 +115,23 @@ export class FinanceReconciliationWorkflowController {
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<BankStatementReconcileResult> {
     return this.reconciliation.reconcile(
+      statementId,
+      body,
+      principal,
+      this.requireIdempotencyKey(idempotencyKey)
+    )
+  }
+
+  @Post(':statementId/void')
+  @HttpCode(HttpStatus.OK)
+  @RequireCapabilities('finance.manage_cash')
+  voidStatement(
+    @Param('statementId', new ParseUUIDPipe()) statementId: string,
+    @Body(FinanceReconciliationVoidPipe) body: BankStatementVoidBody,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<BankStatementVoidResult> {
+    return this.reconciliation.voidStatement(
       statementId,
       body,
       principal,

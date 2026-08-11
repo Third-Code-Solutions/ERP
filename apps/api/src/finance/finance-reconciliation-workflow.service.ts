@@ -15,6 +15,7 @@ import {
   bankStatementLineMatchRequests,
   bankStatementLines,
   bankStatementReconcileRequests,
+  bankStatementVoidRequests,
   bankStatements,
   users,
 } from '@third-code-erp/database/schema'
@@ -26,6 +27,8 @@ import {
   bankStatementLineUnmatchCommandSchema,
   bankStatementReconcileCommandSchema,
   bankStatementReconcileResultSchema,
+  bankStatementVoidCommandSchema,
+  bankStatementVoidResultSchema,
   type BankStatementAutoMatchBody,
   type BankStatementAutoMatchResult,
   type BankStatementLineMatchBody,
@@ -35,6 +38,8 @@ import {
   type BankStatementLineUnmatchCommand,
   type BankStatementReconcileBody,
   type BankStatementReconcileResult,
+  type BankStatementVoidBody,
+  type BankStatementVoidResult,
 } from '@third-code-erp/shared-types'
 import { and, eq, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
@@ -64,6 +69,14 @@ type LineMatchRequest = {
 }
 
 type ReconcileRequest = {
+  id: string
+  statementId: string
+  requestHash: string
+  state: 'processing' | 'succeeded'
+  result: unknown
+}
+
+type VoidRequest = {
   id: string
   statementId: string
   requestHash: string
@@ -124,6 +137,16 @@ function replayReconcileResult(value: unknown): BankStatementReconcileResult {
   return parsed.data
 }
 
+function replayVoidResult(value: unknown): BankStatementVoidResult {
+  const parsed = bankStatementVoidResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new InternalServerErrorException(
+      'Bank statement void idempotency result is invalid'
+    )
+  }
+  return parsed.data
+}
+
 function mapDatabaseFailure(error: unknown): never {
   const message = error instanceof Error ? error.message : ''
   if (message.includes('Bank statement not found')) {
@@ -135,6 +158,9 @@ function mapDatabaseFailure(error: unknown): never {
   if (message.includes('Actor cannot reconcile this bank statement')) {
     throw new ForbiddenException('Actor cannot reconcile this bank statement')
   }
+  if (message.includes('Actor cannot void this bank statement')) {
+    throw new ForbiddenException('Actor cannot void this bank statement')
+  }
   if (message.includes('Only a draft bank statement can be matched')) {
     throw new ConflictException(message)
   }
@@ -144,6 +170,12 @@ function mapDatabaseFailure(error: unknown): never {
     message.includes('Bank statement balances do not roll forward') ||
     message.includes('Every bank statement line must be matched') ||
     message.includes('Matched cash evidence changed before reconciliation')
+  ) {
+    throw new ConflictException(message)
+  }
+  if (
+    message.includes('Only a reconciled bank statement can be voided') ||
+    message.includes('Bank statement void reason is required')
   ) {
     throw new ConflictException(message)
   }
@@ -288,6 +320,24 @@ export class FinanceReconciliationWorkflowService {
     )
   }
 
+  async voidStatement(
+    statementId: string,
+    body: BankStatementVoidBody,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<BankStatementVoidResult> {
+    const command = bankStatementVoidCommandSchema.parse({
+      statementId,
+      ...body,
+    })
+    return this.runVoid(
+      command,
+      principal,
+      validateKey(rawIdempotencyKey),
+      commandHash(command)
+    )
+  }
+
   async matchLine(
     statementId: string,
     lineId: string,
@@ -401,6 +451,87 @@ export class FinanceReconciliationWorkflowService {
             operation: 'reconcile',
             from_status: statement.status,
             to_status: result.status,
+            idempotency_key_hash: requestHash,
+          },
+        })
+        return result
+      } catch (error) {
+        mapDatabaseFailure(error)
+      }
+    })
+  }
+
+  private async runVoid(
+    command: { statementId: string; reason: string },
+    principal: ErpPrincipal,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<BankStatementVoidResult> {
+    this.assertVoidEnabled(principal)
+    return this.database.client.transaction(async (transaction) => {
+      const authorizedPrincipal = await this.authorize(transaction, principal)
+      const [statement] = await transaction
+        .select({ id: bankStatements.id, status: bankStatements.status })
+        .from(bankStatements)
+        .where(
+          and(
+            eq(bankStatements.id, command.statementId),
+            eq(bankStatements.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!statement) throw new NotFoundException('Bank statement not found')
+
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+      const request = await this.claimVoidRequest(
+        transaction,
+        authorizedPrincipal,
+        command.statementId,
+        idempotencyKey,
+        requestHash
+      )
+      if (request.state === 'succeeded') return replayVoidResult(request.result)
+
+      try {
+        await transaction.execute(sql`
+          select public.void_bank_statement(
+            ${command.statementId}::uuid,
+            ${authorizedPrincipal.userId}::uuid,
+            ${command.reason}::text
+          )
+        `)
+        const [updatedStatement] = await transaction
+          .select({
+            id: bankStatements.id,
+            tenantId: bankStatements.tenant_id,
+            status: bankStatements.status,
+          })
+          .from(bankStatements)
+          .where(
+            and(
+              eq(bankStatements.id, command.statementId),
+              eq(bankStatements.tenant_id, authorizedPrincipal.tenantId)
+            )
+          )
+          .limit(1)
+        const result = bankStatementVoidResultSchema.parse({
+          statementId: updatedStatement?.id,
+          tenantId: updatedStatement?.tenantId,
+          status: updatedStatement?.status,
+        })
+        await this.completeVoidRequest(transaction, request.id, result)
+        await this.audit.writeSemantic(transaction, {
+          tenantId: authorizedPrincipal.tenantId,
+          actorId: authorizedPrincipal.userId,
+          entityType: 'bank_statement',
+          entityId: command.statementId,
+          action: 'status_change',
+          diff: {
+            operation: 'void',
+            from_status: statement.status,
+            to_status: result.status,
+            reason: command.reason,
             idempotency_key_hash: requestHash,
           },
         })
@@ -615,6 +746,22 @@ export class FinanceReconciliationWorkflowService {
     }
   }
 
+  private assertVoidEnabled(principal: ErpPrincipal): void {
+    const enabled = this.config.get<boolean>(
+      'ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED',
+      false
+    )
+    const allowedTenantIds = this.config.get<string[]>(
+      'ERP_FINANCE_RECONCILIATION_VOID_WRITES_TENANT_IDS',
+      []
+    )
+    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+      throw new ServiceUnavailableException(
+        'Bank statement voiding is not enabled for this tenant; no bank statement was changed.'
+      )
+    }
+  }
+
   private async claimRequest(
     transaction: DatabaseTransaction,
     principal: ErpPrincipal,
@@ -769,6 +916,85 @@ export class FinanceReconciliationWorkflowService {
     if (!completed) {
       throw new InternalServerErrorException(
         'Bank statement reconcile idempotency record changed before completion'
+      )
+    }
+  }
+
+  private async claimVoidRequest(
+    transaction: DatabaseTransaction,
+    principal: ErpPrincipal,
+    statementId: string,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<VoidRequest> {
+    await transaction
+      .insert(bankStatementVoidRequests)
+      .values({
+        tenant_id: principal.tenantId,
+        bank_statement_id: statementId,
+        idempotency_key: idempotencyKey,
+        request_hash: requestHash,
+        created_by: principal.userId,
+      })
+      .onConflictDoNothing({
+        target: [
+          bankStatementVoidRequests.tenant_id,
+          bankStatementVoidRequests.idempotency_key,
+        ],
+      })
+    const [request] = await transaction
+      .select({
+        id: bankStatementVoidRequests.id,
+        statementId: bankStatementVoidRequests.bank_statement_id,
+        requestHash: bankStatementVoidRequests.request_hash,
+        state: bankStatementVoidRequests.state,
+        result: bankStatementVoidRequests.result,
+      })
+      .from(bankStatementVoidRequests)
+      .where(
+        and(
+          eq(bankStatementVoidRequests.tenant_id, principal.tenantId),
+          eq(bankStatementVoidRequests.idempotency_key, idempotencyKey)
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!request) {
+      throw new InternalServerErrorException(
+        'Bank statement void idempotency record was not created'
+      )
+    }
+    if (request.requestHash !== requestHash || request.statementId !== statementId) {
+      throw new ConflictException(
+        'Idempotency key was already used with a different bank statement void command'
+      )
+    }
+    if (request.state !== 'processing' && request.state !== 'succeeded') {
+      throw new ConflictException(
+        'Bank statement void idempotency record has an unsupported state'
+      )
+    }
+    return request
+  }
+
+  private async completeVoidRequest(
+    transaction: DatabaseTransaction,
+    requestId: string,
+    result: BankStatementVoidResult
+  ): Promise<void> {
+    const [completed] = await transaction
+      .update(bankStatementVoidRequests)
+      .set({ state: 'succeeded', result, completed_at: new Date() })
+      .where(
+        and(
+          eq(bankStatementVoidRequests.id, requestId),
+          eq(bankStatementVoidRequests.state, 'processing')
+        )
+      )
+      .returning({ id: bankStatementVoidRequests.id })
+    if (!completed) {
+      throw new InternalServerErrorException(
+        'Bank statement void idempotency record changed before completion'
       )
     }
   }

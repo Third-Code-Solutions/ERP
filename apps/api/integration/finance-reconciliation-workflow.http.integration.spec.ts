@@ -11,6 +11,7 @@ import {
   bankStatementLineMatchRequests,
   bankStatementLines,
   bankStatementReconcileRequests,
+  bankStatementVoidRequests,
   bankStatements,
   db,
   type Database,
@@ -286,6 +287,7 @@ suite('Bank statement matching protected HTTP canary', () => {
         autoMatchEnabled: true,
         lineMatchEnabled: true,
         reconcileEnabled: true,
+        voidEnabled: true,
       }
       const config = {
         get: vi.fn((key: string, fallback?: unknown) => {
@@ -313,6 +315,12 @@ suite('Bank statement matching protected HTTP canary', () => {
           if (
             key === 'ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_TENANT_IDS'
           ) {
+            return [fixtureA.tenantId, fixtureB.tenantId]
+          }
+          if (key === 'ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED') {
+            return featureState.voidEnabled
+          }
+          if (key === 'ERP_FINANCE_RECONCILIATION_VOID_WRITES_TENANT_IDS') {
             return [fixtureA.tenantId, fixtureB.tenantId]
           }
           return fallback
@@ -414,6 +422,42 @@ suite('Bank statement matching protected HTTP canary', () => {
           .set('Authorization', 'Bearer auto-match-http-finance-a-token')
           .set('Idempotency-Key', 'reconcile-cross-tenant')
           .send({})
+          .expect(404)
+
+        const voidRoute = `/v1/finance/reconciliation/${fixtureA.statementId}/void`
+        await request(app.getHttpServer())
+          .post(voidRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'void-invalid-reason')
+          .send({ reason: 'x' })
+          .expect(400)
+        await request(app.getHttpServer())
+          .post(voidRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'void-strict-body')
+          .send({ reason: 'Valid correction', tenantId: fixtureA.tenantId })
+          .expect(400)
+        await request(app.getHttpServer())
+          .post(voidRoute)
+          .set('Authorization', 'Bearer auto-match-http-viewer-a-token')
+          .set('Idempotency-Key', 'void-viewer-denied')
+          .send({ reason: 'Valid correction' })
+          .expect(403)
+        featureState.voidEnabled = false
+        await request(app.getHttpServer())
+          .post(voidRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'void-disabled-write')
+          .send({ reason: 'Valid correction' })
+          .expect(503)
+        featureState.voidEnabled = true
+        await request(app.getHttpServer())
+          .post(
+            `/v1/finance/reconciliation/${fixtureB.statementId}/void`
+          )
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'void-cross-tenant')
+          .send({ reason: 'Valid correction' })
           .expect(404)
 
         await request(app.getHttpServer())
@@ -519,6 +563,13 @@ suite('Bank statement matching protected HTTP canary', () => {
           .send({})
           .expect(409)
 
+        await request(app.getHttpServer())
+          .post(voidRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'void-before-reconcile')
+          .send({ reason: 'Correction before finalization' })
+          .expect(409)
+
         const first = await request(app.getHttpServer())
           .post(route)
           .set('Authorization', 'Bearer auto-match-http-finance-a-token')
@@ -560,6 +611,25 @@ suite('Bank statement matching protected HTTP canary', () => {
           .expect(200)
         expect(reconciledReplay.body).toEqual(reconciled.body)
 
+        const voided = await request(app.getHttpServer())
+          .post(voidRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', ' void-1 ')
+          .send({ reason: 'Duplicate statement import' })
+          .expect(200)
+        expect(voided.body).toEqual({
+          statementId: fixtureA.statementId,
+          tenantId: fixtureA.tenantId,
+          status: 'voided',
+        })
+        const voidedReplay = await request(app.getHttpServer())
+          .post(voidRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'void-1')
+          .send({ reason: 'Duplicate statement import' })
+          .expect(200)
+        expect(voidedReplay.body).toEqual(voided.body)
+
         await request(app.getHttpServer())
           .post(
             `/v1/finance/reconciliation/${fixtureA.secondStatementId}/auto-match`
@@ -576,6 +646,15 @@ suite('Bank statement matching protected HTTP canary', () => {
           .set('Authorization', 'Bearer auto-match-http-finance-a-token')
           .set('Idempotency-Key', 'reconcile-1')
           .send({})
+          .expect(409)
+
+        await request(app.getHttpServer())
+          .post(
+            `/v1/finance/reconciliation/${fixtureA.secondStatementId}/void`
+          )
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'void-1')
+          .send({ reason: 'Duplicate statement import' })
           .expect(409)
 
         const [line] = await transaction
@@ -624,6 +703,21 @@ suite('Bank statement matching protected HTTP canary', () => {
           status: 'reconciled',
         })
 
+        const [voidRequestRow] = await transaction
+          .select({
+            state: bankStatementVoidRequests.state,
+            result: bankStatementVoidRequests.result,
+          })
+          .from(bankStatementVoidRequests)
+          .where(
+            and(
+              eq(bankStatementVoidRequests.tenant_id, fixtureA.tenantId),
+              eq(bankStatementVoidRequests.idempotency_key, 'void-1')
+            )
+          )
+        expect(voidRequestRow?.state).toBe('succeeded')
+        expect(voidRequestRow?.result).toMatchObject({ status: 'voided' })
+
         const [statementRow] = await transaction
           .select({ status: bankStatements.status })
           .from(bankStatements)
@@ -633,7 +727,7 @@ suite('Bank statement matching protected HTTP canary', () => {
               eq(bankStatements.tenant_id, fixtureA.tenantId)
             )
           )
-        expect(statementRow?.status).toBe('reconciled')
+        expect(statementRow?.status).toBe('voided')
 
         const [lineRequestRow] = await transaction
           .select({
@@ -681,6 +775,23 @@ suite('Bank statement matching protected HTTP canary', () => {
         expect(reconcileAudit?.diff).toMatchObject({
           operation: 'reconcile',
           to_status: 'reconciled',
+        })
+
+        const [voidAudit] = await transaction
+          .select({ diff: auditLog.diff })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, fixtureA.tenantId),
+              eq(auditLog.entity_id, fixtureA.statementId),
+              eq(auditLog.action, 'status_change'),
+              sql`${auditLog.diff}->>'operation' = 'void'`
+            )
+          )
+        expect(voidAudit?.diff).toMatchObject({
+          operation: 'void',
+          to_status: 'voided',
+          reason: 'Duplicate statement import',
         })
 
         const [lineAudit] = await transaction

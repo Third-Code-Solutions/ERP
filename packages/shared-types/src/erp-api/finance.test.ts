@@ -37,6 +37,9 @@ import {
   bankStatementReconcileBodySchema,
   bankStatementReconcileCommandSchema,
   bankStatementReconcileResultSchema,
+  bankStatementVoidBodySchema,
+  bankStatementVoidCommandSchema,
+  bankStatementVoidResultSchema,
 } from './finance'
 
 const JOURNAL_ID = '33333333-3333-4333-8333-333333333333'
@@ -531,6 +534,55 @@ describe('finance API contracts', () => {
         statementId: STATEMENT_ID,
         tenantId: TENANT_ID,
         status: 'draft',
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps bank statement void commands strict and reason-bound', () => {
+    expect(
+      bankStatementVoidBodySchema.parse({ reason: 'Duplicate statement import' })
+    ).toEqual({ reason: 'Duplicate statement import' })
+    expect(
+      bankStatementVoidCommandSchema.parse({
+        statementId: STATEMENT_ID,
+        reason: 'Duplicate statement import',
+      })
+    ).toEqual({
+      statementId: STATEMENT_ID,
+      reason: 'Duplicate statement import',
+    })
+    expect(
+      bankStatementVoidResultSchema.parse({
+        statementId: STATEMENT_ID,
+        tenantId: TENANT_ID,
+        status: 'voided',
+      })
+    ).toEqual({
+      statementId: STATEMENT_ID,
+      tenantId: TENANT_ID,
+      status: 'voided',
+    })
+    expect(bankStatementVoidBodySchema.safeParse({ reason: 'x' }).success).toBe(
+      false
+    )
+    expect(
+      bankStatementVoidBodySchema.safeParse({
+        reason: 'Valid reason',
+        tenantId: TENANT_ID,
+      }).success
+    ).toBe(false)
+    expect(
+      bankStatementVoidCommandSchema.safeParse({
+        statementId: STATEMENT_ID,
+        reason: 'Valid reason',
+        tenantId: TENANT_ID,
+      }).success
+    ).toBe(false)
+    expect(
+      bankStatementVoidResultSchema.safeParse({
+        statementId: STATEMENT_ID,
+        tenantId: TENANT_ID,
+        status: 'reconciled',
       }).success
     ).toBe(false)
   })
