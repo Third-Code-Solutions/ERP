@@ -82,7 +82,7 @@ export class DocuSealWebhookService {
           projectName: projects.name,
         })
         .from(boms)
-        .leftJoin(
+        .innerJoin(
           projects,
           and(
             eq(projects.id, boms.project_id),

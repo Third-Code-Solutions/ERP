@@ -21,10 +21,12 @@ const USER_ID = randomUUID()
 const TENANT_ID = randomUUID()
 const PROJECT_ID = randomUUID()
 const BOM_ID = randomUUID()
+const DOCUSEAL_SUBMISSION_ID = `submission-${randomUUID()}`
 const FOREIGN_TENANT_ID = randomUUID()
 const FOREIGN_USER_ID = randomUUID()
 const FOREIGN_PROJECT_ID = randomUUID()
 const FOREIGN_BOM_ID = randomUUID()
+const FOREIGN_BOM_SUBMISSION_ID = `foreign-bom-${randomUUID()}`
 const FOREIGN_NOTIFICATION_ID = randomUUID()
 const ANON_KEY = 'third-code-local-anon-key'
 const SERVICE_ROLE_KEY = 'third-code-local-service-role-key'
@@ -158,6 +160,16 @@ async function seedDatabase() {
     )
   `
   await sql`
+    insert into bom_portal_tokens(
+      id, tenant_id, bom_id, token_hash, expires_at, docuseal_submission_id
+    )
+    values (
+      ${randomUUID()}, ${TENANT_ID}, ${BOM_ID},
+      ${`hash-${DOCUSEAL_SUBMISSION_ID}`}, now() + interval '1 day',
+      ${DOCUSEAL_SUBMISSION_ID}
+    )
+  `
+  await sql`
     insert into notifications(
       id, tenant_id, recipient_user_id, channel, subject, body, link_url,
       is_read, created_at
@@ -206,6 +218,16 @@ async function seedDatabase() {
     )
   `
   await sql`
+    insert into bom_portal_tokens(
+      id, tenant_id, bom_id, token_hash, expires_at, docuseal_submission_id
+    )
+    values (
+      ${randomUUID()}, ${TENANT_ID}, ${FOREIGN_BOM_ID},
+      ${`hash-${FOREIGN_BOM_SUBMISSION_ID}`}, now() + interval '1 day',
+      ${FOREIGN_BOM_SUBMISSION_ID}
+    )
+  `
+  await sql`
     insert into notifications(
       id, tenant_id, recipient_user_id, channel, subject, body, is_read
     )
@@ -235,7 +257,7 @@ const authServer = createServer(async (request, response) => {
     })
   }
   if (url.pathname === '/__harness__/state') {
-    const [notifications, foreign, documents, intakeRequests, boms, bomLines, togalRequests, auditEntries] =
+    const [notifications, foreign, documents, intakeRequests, boms, bomLines, togalRequests, portalTokens, foreignBom, auditEntries] =
       await Promise.all([
       sql`
         select id, subject, is_read, read_at::text
@@ -261,7 +283,8 @@ const authServer = createServer(async (request, response) => {
         order by created_at asc
       `,
       sql`
-        select id, status, total_cost_cents::int as total_cost_cents,
+        select id, status, locked_at::text as locked_at,
+          total_cost_cents::int as total_cost_cents,
           tcv_cents::int as tcv_cents, gp_cents::int as gp_cents,
           gp_margin_bps
         from boms
@@ -283,6 +306,17 @@ const authServer = createServer(async (request, response) => {
         order by created_at asc
       `,
       sql`
+        select bom_id, docuseal_submission_id, used_at::text
+        from bom_portal_tokens
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
+        select id, tenant_id, status, locked_at::text
+        from boms
+        where id = ${FOREIGN_BOM_ID}
+      `,
+      sql`
         select entity_type, entity_id, action, diff
         from audit_log
         where tenant_id = ${TENANT_ID}
@@ -301,6 +335,8 @@ const authServer = createServer(async (request, response) => {
       boms,
       bomLines,
       togalRequests,
+      portalTokens,
+      foreignBom: foreignBom[0] ?? null,
       coreRequests,
       auditEntries,
     })
@@ -348,7 +384,8 @@ proxyServer = createServer(async (request, response) => {
   if (
     url.pathname === '/v1/notifications' ||
     url.pathname === '/v1/documents' ||
-    url.pathname === '/v1/procurement/boms/togal-commit'
+    url.pathname === '/v1/procurement/boms/togal-commit' ||
+    url.pathname === '/v1/webhooks/docuseal'
   ) {
     coreRequests.push({
       method: request.method ?? 'GET',
@@ -356,6 +393,7 @@ proxyServer = createServer(async (request, response) => {
       authorization: request.headers.authorization ?? '',
       requestId: request.headers['x-request-id'] ?? '',
       idempotencyKey: request.headers['idempotency-key'] ?? '',
+      internalTokenPresent: Boolean(request.headers['x-erp-core-webhook-token']),
       body: body.toString('utf8'),
     })
   }
@@ -367,6 +405,7 @@ proxyServer = createServer(async (request, response) => {
         authorization: request.headers.authorization ?? '',
         'x-request-id': request.headers['x-request-id'] ?? '',
         'idempotency-key': request.headers['idempotency-key'] ?? '',
+        'x-erp-core-webhook-token': request.headers['x-erp-core-webhook-token'] ?? '',
         'content-type': request.headers['content-type'] ?? 'application/json',
         accept: request.headers.accept ?? 'application/json',
       },
@@ -460,6 +499,9 @@ const apiEnvironment = {
   ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS: TENANT_ID,
   ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED: 'true',
   ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_DOCUSEAL_WEBHOOK_ENABLED: 'true',
+  ERP_DOCUSEAL_WEBHOOK_TENANT_IDS: TENANT_ID,
+  ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
   AI_PROVIDER_API_KEY: '',
@@ -504,6 +546,12 @@ webChild = spawn(
       ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_BOM_TOGAL_COMMIT_VIA_API: 'true',
       ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_DOCUSEAL_WEBHOOK_VIA_API: 'true',
+      ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_CORE_WEBHOOK_TOKEN: 'local-docuseal-core-webhook-token-2026',
+      DOCUSEAL_WEBHOOK_SECRET: 'local-docuseal-provider-secret',
+      RESEND_API_KEY: '',
+      EMAIL_FROM: '',
       AI_WORKER_URL: '',
       AI_WORKER_SHARED_SECRET: '',
       AI_WORKER_TIMEOUT_MS: '',

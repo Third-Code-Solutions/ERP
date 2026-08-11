@@ -23,7 +23,7 @@ const COMMAND = {
 function query(rows: unknown[]) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {}
   chain.from = vi.fn().mockReturnValue(chain)
-  chain.leftJoin = vi.fn().mockReturnValue(chain)
+  chain.innerJoin = vi.fn().mockReturnValue(chain)
   chain.where = vi.fn().mockReturnValue(chain)
   chain.limit = vi.fn().mockReturnValue(chain)
   chain.for = vi.fn().mockResolvedValue(rows)

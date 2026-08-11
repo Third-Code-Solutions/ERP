@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.295 - Core DocuSeal webhook browser/HTTP canary (completed source-only)
+
+1. Extended the disposable provider-style harness with one primary portal
+   token, one same-tenant token aimed at a foreign BOM, signed-document and
+   notification probes, Core request recording, internal-token presence, and
+   exact cleanup.
+2. Added a Playwright config/spec and package script. The webhook adapter
+   verifies the provider secret, converts snake_case to the typed Core
+   command, forwards the internal token/request ID, and preserves its public
+   acknowledgement shape.
+3. Asserted one-time token use, one contract document, one BOM lock, one
+   notification, one semantic audit, exact duplicate replay, foreign-BOM
+   non-handling, provider-secret rejection, and no Resend traffic. The first
+   run exposed a real `FOR UPDATE`/nullable `LEFT JOIN` Postgres failure;
+   replacing it with an inner join fixed the transaction and the canary passed.
+4. Validation: DocuSeal browser 1/1; Togal/notification/document browser 1/1
+   each; API 176/772; Web 113/802; focused route/Core tests; Web typecheck/
+   build; provider-spend; Web/DB boundary; gitleaks; diff check; parity
+   verifier PASS. No hosted migration or provider build was run.
+
+Source evidence: local workspace; commit pending this milestone.
+
+Exact next action: retain the DocuSeal selectors closed; do not deploy or
+apply hosted migrations while the PO duplicate owner-review gate is open.
+
 ## M3.294 - Core Togal BOM browser/HTTP canary (completed source-only)
 
 1. Extended the existing disposable authenticated harness with random tenant,

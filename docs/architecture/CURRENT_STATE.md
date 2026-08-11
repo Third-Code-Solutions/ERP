@@ -1,5 +1,29 @@
 # Current State
 
+## M3.295 Core DocuSeal webhook browser canary and lock-query repair (2026-08-12)
+
+The disposable provider-style webhook harness now proves the signed-BOM path
+through Nest Core. A secret-protected `submission.completed` callback marks
+one portal token used, stores one signed contract document, locks one BOM,
+creates one notification and one semantic audit, and replays without any
+second side effect. A same-tenant token pointing at a foreign BOM returns a
+non-handled result and leaves that BOM draft. Core receives only the internal
+server token and request ID; no Resend/API provider traffic is enabled.
+
+The canary exposed and fixed a real Postgres error: `FOR UPDATE` cannot lock
+the nullable side of a `LEFT JOIN`. The required project relation is now an
+`INNER JOIN`, preserving tenant scope while making the transaction executable.
+Selectors remain false/empty in production. No hosted SQL, Storage,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Validation: DocuSeal browser 1/1, Togal/notification/document browser
+1/1 each, API 176/772, Web 113/802, Web typecheck/build, focused route/Core,
+spend guard, boundary audit, gitleaks, diff check, and parity verifier pass.
+
+Exact next action: keep the DocuSeal selector closed; resolve the independent
+hosted Purchase Order duplicate blocker and continue the next Core boundary
+only after hosted parity, readiness, rollback, authenticated smoke, and spend
+gates pass.
+
 ## M3.294 Core Togal BOM browser canary (2026-08-12)
 
 The disposable authenticated loopback harness now proves the construction
