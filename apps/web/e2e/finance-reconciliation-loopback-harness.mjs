@@ -242,27 +242,28 @@ async function seedDatabase() {
   // Read canary needs all three valid register states. Workflow authority is
   // covered by the Core HTTP canary; this browser fixture only seeds valid
   // state-machine rows inside disposable local PostgreSQL.
-  await sql.unsafe("set session_replication_role = 'replica'")
-  await sql`
-    update bank_statements
-       set status = 'reconciled',
-           reconciled_by = ${USER_ID},
-           reconciled_at = '2026-08-02T09:00:00Z'::timestamptz,
-           updated_at = now()
-     where id = ${RECONCILED_STATEMENT_ID}
-  `
-  await sql`
-    update bank_statements
-       set status = 'voided',
-           reconciled_by = ${USER_ID},
-           reconciled_at = '2026-07-02T09:00:00Z'::timestamptz,
-           voided_by = ${USER_ID},
-           voided_at = '2026-07-03T09:00:00Z'::timestamptz,
-           void_reason = 'Duplicate import',
-           updated_at = now()
-     where id = ${VOIDED_STATEMENT_ID}
-  `
-  await sql.unsafe("set session_replication_role = 'origin'")
+  await sql.begin(async (transaction) => {
+    await transaction.unsafe("set local session_replication_role = 'replica'")
+    await transaction`
+      update bank_statements
+         set status = 'reconciled',
+             reconciled_by = ${USER_ID},
+             reconciled_at = '2026-08-02T09:00:00Z'::timestamptz,
+             updated_at = now()
+       where id = ${RECONCILED_STATEMENT_ID}
+    `
+    await transaction`
+      update bank_statements
+         set status = 'voided',
+             reconciled_by = ${USER_ID},
+             reconciled_at = '2026-07-02T09:00:00Z'::timestamptz,
+             voided_by = ${USER_ID},
+             voided_at = '2026-07-03T09:00:00Z'::timestamptz,
+             void_reason = 'Duplicate import',
+             updated_at = now()
+       where id = ${VOIDED_STATEMENT_ID}
+    `
+  })
 }
 
 authServer = createServer(async (request, response) => {
