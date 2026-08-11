@@ -4539,3 +4539,7 @@ result only for an exact tenant canary; otherwise it preserves the legacy
 compatibility read. The selector is closed by default and selected errors are
 terminal. Reconciliation matching writes remain a separate future authority
 slice.
+
+The local browser canary now covers both register and detail reads, including
+the authenticated Core request boundary and responsive rendering. Browser
+evidence is disposable/local only and does not authorize hosted promotion.

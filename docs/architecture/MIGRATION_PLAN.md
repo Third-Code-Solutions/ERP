@@ -7876,6 +7876,15 @@ generator. It writes only to an explicit secure path outside the repository,
 refuses overwrite, leaves replacement numbers blank, and never mutates hosted
 state.
 
+## M3.280 - Reconciliation browser detail canary (completed source slice)
+
+1. Extend the loopback proxy state with detail-request evidence.
+2. Navigate an authenticated browser session to a seeded draft detail route and
+   verify Core-rendered provenance, lines, status, request identity, and
+   desktop/mobile overflow.
+3. Keep the test disposable/local; do not enable hosted selectors or trigger a
+   provider deployment.
+
 ## M3.279 - Reconciliation detail read (completed source slice)
 
 1. Add strict shared detail/line/candidate schemas with exact cents and

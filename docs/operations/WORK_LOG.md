@@ -11071,3 +11071,13 @@ hosted baseline, but not a promotion approval:
 - Risks: hosted migration drift and provider billing gate remain open; Core
   detail selection is intentionally disabled by default. Next action is run
   production builds/full gates, review diff, then push source/docs only.
+
+## 2026-08-11 - M3.280 reconciliation browser detail canary
+
+- Changed the loopback harness/spec only: recorded detail Core requests and
+  proved authenticated draft detail rendering after the register page.
+- Verified: Playwright browser canary 1/1; API Core request bearer/UUID,
+  statement provenance, two lines, responsive desktop/mobile overflow, zero
+  console errors, and blocked external font request all passed.
+- No hosted database, feature flag, Railway, Vercel, or billing-setting action
+  occurred. Full source gates are rerun before push.

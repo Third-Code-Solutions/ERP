@@ -8544,7 +8544,18 @@ credential-gated. This is source-ready, not a hosted release.
   unselected tenants. Selected Core failures do not fall back silently.
 - Local evidence: shared contract suite 4/4, Web Core client suite 166/166,
   API reconciliation unit/controller suite 8/8, API detail HTTP canary 1/1,
-  API and Web typecheck passed. Production builds and full workspace gates are
-  pending this milestone.
+  API and Web typecheck passed. Production builds and full workspace gates
+  passed before the source push; browser detail proof completed in M3.280.
 - Hosted state remains unchanged. No Supabase SQL/data, feature flag,
   Railway deployment, Vercel deployment, or provider setting was changed.
+
+## 2026-08-11 M3.280 reconciliation browser detail canary
+
+- Extended the disposable local browser harness to assert the protected detail
+  request, authenticated bearer, UUID request ID, statement evidence, line
+  descriptions, and matched-count rendering.
+- Browser proof passed 1/1 on local PostgreSQL 17/API/Nest/Next with desktop
+  and mobile overflow checks, zero page console errors, and external requests
+  blocked. The test uses direct authenticated detail navigation to avoid a
+  Next prefetch/fixture-cleanup race; the production route is unchanged.
+- No hosted DB, feature flag, Railway, Vercel, or provider setting changed.

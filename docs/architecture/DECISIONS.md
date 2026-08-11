@@ -7092,3 +7092,18 @@ remains for compatibility while parity is reviewed.
 Validation: shared 4/4, Web adapter 166/166, API unit/controller 8/8,
 disposable PostgreSQL HTTP canary 1/1, and API/Web typechecks passed. No
 hosted SQL or provider mutation occurred; the selector remains closed.
+
+## D-124 -- Prove reconciliation detail in the browser (2026-08-11)
+
+Decision: extend the existing local loopback browser canary with direct
+authenticated navigation to a seeded draft detail route. Assert the rendered
+provenance/line evidence and the exact Core request path, bearer, and UUID
+request ID. Keep the selector and hosted providers closed.
+
+Rationale: a passing HTTP contract does not prove the Next server component,
+session cookie, Core adapter, and responsive page compose correctly. Direct
+navigation avoids a test-only Next prefetch race that could outlive fixture
+cleanup; it does not alter production navigation or route behavior.
+
+Validation: browser canary 1/1, desktop/mobile overflow checks, zero console
+errors, and external request blocking passed locally.
