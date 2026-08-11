@@ -1,5 +1,26 @@
 # Third Code ERP capability matrix
 
+## M3.263 Bank-statement reconciliation authority (2026-08-11)
+
+The `finance.manage_cash` Core reconcile command now has protected
+transaction-bound HTTP evidence for strict body/header handling,
+JWT authentication, Finance/viewer authorization, closed-by-default selector
+behavior, exact tenant-scoped statement locking, incomplete-evidence rejection,
+trusted PostgreSQL reconciliation, durable replay/key conflict, semantic audit,
+and rollback. Web adoption remains closed; keep
+`ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED=false` and its tenant
+list empty. Python/AI remains analysis-only and cannot reconcile or finalize
+bank evidence.
+
+Validation: focused canary 1/1; root `pnpm test` shared 54/54 files and 326
+tests, database 67/71 files with 237 passed and 143 environment-skipped tests,
+API 173/173 files and 755 tests, Web 111/111 files and 768 tests; API
+integration 55/55 files with 69 passed and two intentional Redis-restart
+skips; typecheck, lint, build, migration contract, provider, release, parity,
+boundary, workflow, actionlint, and spend gates PASS. Source is 121
+migrations; hosted remains 55 applied/66 pending in 14 review batches. No
+hosted or paid action.
+
 ## M3.262 Bank-statement line match/unmatch authority (2026-08-11)
 
 The `finance.manage_cash` Core line match/unmatch commands now have protected

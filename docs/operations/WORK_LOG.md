@@ -1,5 +1,35 @@
 # Work Log
 
+## 2026-08-11 - M3.263 bank-statement reconciliation authority
+
+Added the strict Nest Core reconcile command, the tenant-scoped force-RLS
+request ledger migration
+`20260812120000_bank_statement_reconcile_workflow.sql`, shared/database
+contracts, and the fail-closed environment selector. Core now locks the
+statement, invokes the trusted PostgreSQL reconciliation function, stores
+durable replay/conflict evidence, and writes semantic audit in one
+transaction. The existing Web action is unchanged; the selector remains
+disabled.
+
+The rollback-only local PostgreSQL HTTP canary passed 1/1 across auth/RBAC,
+strict body/header handling, disabled selector, cross-tenant concealment,
+incomplete evidence, successful reconciliation, replay/key conflict, ledger
+state, audit, and rollback. Root `pnpm test` exited 0 with shared 54/54 files
+and 326/326 tests, database 67/71 files with 237 passed and 143
+environment-skipped tests, Web 111/111 files and 768/768 tests, and API
+173/173 files and 755/755 tests. API integration passed 55/55 files with 69
+passed and two intentional Redis-restart skips. Typecheck, lint, production
+build, migration contract, provider spend, parity, release, Web/DB boundary,
+workflow references, and actionlint passed. Source parity is 55/121 hosted/
+source migrations with 66 pending in 14 review batches. The migration was
+applied only to the disposable local CI database. No hosted Supabase,
+Storage, Railway, Vercel, credential, provider, or paid action changed.
+
+Exact next action: keep `ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED`
+false and its tenant list empty; do not apply hosted SQL or trigger provider
+builds. Define the next void/import authority boundary only after a separate
+local proof.
+
 ## 2026-08-11 - M3.262 bank-statement line match/unmatch authority
 
 Added the strict Nest Core match and unmatch commands, the tenant-scoped
