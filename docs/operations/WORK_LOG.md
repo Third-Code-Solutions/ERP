@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-11 - M3.257 cash transaction workflow authority canary
+
+Added `apps/api/integration/cash-transaction-workflow.http.integration.spec.ts`.
+The rollback-only Nest HTTP canary boots the real controller/service with JWT
+identity and capability guards, two tenants, finance/viewer roles, a real
+supplier-bill allocation, and transaction-bound PostgreSQL. It covers strict
+input and idempotency handling, authentication/RBAC, disabled selector,
+concealed cross-tenant access, cash-state/allocation rules, durable
+replay/key conflict, balanced post and reversal journals, semantic audit,
+tenant isolation, and rollback. Existing Core preflight and PostgreSQL
+workflow ordering were verified; no product source fix was required.
+
+Focused canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. Full API
+integration 52/52 files and 66 tests PASS with two explicit Redis-restart
+skips under the 15-second timeout. API typecheck, root lint, production
+build, provider-spend, Supabase parity, database-release, Web/DB boundary,
+workflow action-reference, and actionlint gates PASS. No migration, hosted
+Supabase, Storage, Railway, Vercel, credential, provider, or paid change
+occurred. Keep cash workflow flags/lists false/empty. Source evidence SHA:
+ff7e683ca2ef5baf748646e6cc13a89c43d20d3e.
+
 ## 2026-08-11 - M3.256 journal-reversal authority canary
 
 Added `apps/api/integration/journal-reverse.http.integration.spec.ts`. The

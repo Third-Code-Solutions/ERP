@@ -1,5 +1,18 @@
 # Target State
 
+## M3.257 Cash transaction workflow authority (2026-08-11)
+
+The Core owns POST /v1/finance/cash-transactions/:cashTransactionId/post and
+/reverse. The browser sends only a strict posting or reversal body and an
+opaque idempotency key; Core resolves tenant, actor, role, and visible cash
+state, locks the tenant-scoped transaction before audit or request claim, and
+PostgreSQL atomically applies allocations, creates and posts the balanced
+journal, and records durable workflow linkage. Replays return the durable
+result, key reuse for another command conflicts, and cross-tenant ids remain
+concealed. Python/AI may analyze but cannot approve or finalize cash. Keep the
+write selector closed until hosted parity, readiness, browser, rollback, and
+cost gates are reconciled.
+
 ## M3.256 Journal reversal authority (2026-08-11)
 
 The Core owns POST /v1/finance/journals/:journalEntryId/reverse. The browser

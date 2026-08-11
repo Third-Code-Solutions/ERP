@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.257 Cash transaction workflow authority (completed source-only canary)
+
+1. Added a protected rollback-only HTTP canary around the existing Core cash
+   transaction post/reverse controller and service with two tenants,
+   finance/viewer identities, real supplier-bill allocation fixtures, real
+   JWT/capability guards, and transaction-bound PostgreSQL.
+2. The canary covers strict body/header handling, authentication/RBAC,
+   closed selector, concealed cross-tenant access, disabled behavior,
+   idempotent replay/key conflict, balanced posting and reversal journal
+   linkage, semantic audit, tenant isolation, and outer rollback.
+3. The existing Core preflight and PostgreSQL workflow functions were verified
+   to run after tenant-scoped visibility and before audit/request claim; no
+   product source fix was needed.
+4. Focused canary passed 1/1. API integration passed 52/52 files and 66 tests
+   with two explicit Redis-restart skips under the 15-second timeout; API
+   typecheck, root lint, production build, and all policy gates passed.
+5. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
+   or paid action changed. Keep cash workflow writes disabled with an empty
+   tenant allowlist. Source evidence SHA:
+   ff7e683ca2ef5baf748646e6cc13a89c43d20d3e.
+
+Next: keep the selector closed and reconcile hosted parity, release identity,
+readiness, protected browser evidence, rollback, and spend gates before any
+selector, hosted SQL, or provider action.
+
 ## M3.256 Journal reversal authority (completed source-only canary)
 
 1. Added a protected rollback-only HTTP canary around the existing Core

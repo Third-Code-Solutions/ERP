@@ -1,5 +1,24 @@
 # Current State
 
+## M3.257 Cash transaction workflow authority (2026-08-11)
+
+Added a protected rollback-only HTTP canary for cash transaction post and
+reverse. It boots the real Nest controller/service with JWT identity and
+capability guards against transaction-bound PostgreSQL and proves strict
+body/header handling, finance/viewer authorization, closed-selector behavior,
+concealed cross-tenant access, real supplier-bill allocation, idempotent
+replay/key conflict, balanced post and reversal journals, semantic audit,
+tenant isolation, and rollback. No product ordering fix was required.
+
+Focused canary: 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. API integration:
+52/52 files and 66 tests PASS with two explicit Redis-restart skips under the
+15-second timeout. Typecheck, root lint, production build, provider-spend,
+Supabase parity, database-release, Web/DB boundary, workflow action-reference,
+and actionlint gates PASS. No hosted SQL/data, Storage, Railway/Vercel
+deployment, provider setting, credential, or paid action changed. Keep cash
+workflow writes disabled and its tenant allowlist empty. Source evidence SHA:
+ff7e683ca2ef5baf748646e6cc13a89c43d20d3e.
+
 ## M3.256 Journal reversal authority (2026-08-11)
 
 Added the journal-reverse protected HTTP canary. It boots the real Nest
