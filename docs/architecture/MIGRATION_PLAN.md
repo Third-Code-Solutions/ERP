@@ -7986,3 +7986,35 @@ pushed under `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and
 remote SHAs match. Hosted promotion remains blocked by the existing parity,
 data-quality, readiness, rollback, exact-SHA, and spend approval gates. The
 next implementation slice is statement void as a separate idempotent command.
+
+## M3.284 - Reconciliation statement void Core write (completed source slice)
+
+1. Reuse the existing Nest void workflow and strict result; add a Web adapter
+   with one exact-tenant, closed-by-default selector.
+2. Require one opaque statement retry key in the selected Server Action, send
+   the strict reason body, keep the key stable through a failed request, and
+   fail closed after a Core error.
+3. Extend the disposable loopback proof to void the reconciled statement and
+   assert the authenticated POST path, reason payload, bearer, UUID request ID,
+   retry key, immutable voided rendering, and responsive behavior.
+4. Keep API flags
+   `ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED` and
+   `ERP_FINANCE_RECONCILIATION_VOID_WRITES_TENANT_IDS`, plus Web flags
+   `ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API` and
+   `ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API_TENANT_IDS`, false/empty
+   outside the disposable canary. Do not migrate or deploy hosted state until
+   parity, rollback, readiness, exact SHA, and spend gates clear.
+
+Validation: focused Web Core/action tests 186/186, disposable PostgreSQL/Nest
+HTTP canary 1/1, and authenticated browser canary 1/1 passed. Full `pnpm test`
+passed with shared-types 332, database 241 passed/143 skipped, API 764, and
+Web 797; `pnpm typecheck`, `pnpm lint`, `pnpm build` (83 Next pages),
+migration/release/policy/parity checks, web-database boundary, Actionlint,
+Gitleaks, provider-spend guard, and `git diff --check` also passed. No hosted
+migration, deployment, provider setting, credential, or paid action occurred.
+
+Evidence: source commit `c4d618545495dd0c174c4ddd9d43655cc8cdcd38` is pushed
+under `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote
+SHAs match. Hosted promotion remains blocked by the existing parity,
+data-quality, readiness, rollback, exact-SHA, and spend approval gates. The
+next implementation slice is bank-statement import authority.

@@ -7159,6 +7159,31 @@ or provider mutation occurred. Source/docs commit
 `831fc43fe993aaead9f4dda4b571180e50698797` is pushed under `kurtgav` with a
 matching remote SHA; this remains a source-only migration slice.
 
+## D-391 -- Route reconciliation statement void through Core (2026-08-12)
+
+Decision: reuse the existing tenant-scoped Nest void workflow and expose the
+statement-reversal command through the Web compatibility action only for an
+exact closed-by-default tenant canary. The detail panel owns one opaque
+`void-<uuid>` retry key, sends the strict reason body, and selected Core
+failures are terminal with no legacy SQL fallback.
+
+Rationale: voiding official bank evidence is a sensitive state reversal that
+must share one authorization, reconciled-state check, idempotency record,
+database transaction, and audit boundary. Stable retries prevent duplicate
+void commands while preserving recovery after a network failure. The import
+command remains separate so its source-object and duplicate-line risks can be
+reviewed independently.
+
+Validation: focused Web Core/action tests 186/186, API HTTP canary 1/1, API
+build, Web typecheck/lint, and authenticated browser canary 1/1 passed. Full
+`pnpm test` passed with shared-types 332, database 241 passed/143 skipped, API
+764, and Web 797; workspace typecheck, lint, production build (83 Next pages),
+migration/release/policy/parity checks, web-database boundary, Actionlint,
+Gitleaks, provider-spend guard, and `git diff --check` also passed. No hosted
+or provider mutation occurred. Source commit
+`c4d618545495dd0c174c4ddd9d43655cc8cdcd38` is pushed under `kurtgav` with a
+matching remote SHA; this remains a source-only migration slice.
+
 ## D-129 -- Route reconciliation statement finalization through Core (2026-08-12)
 
 Decision: reuse the existing tenant-scoped Nest reconcile workflow and expose
