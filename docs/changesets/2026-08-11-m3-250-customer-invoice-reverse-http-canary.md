@@ -42,4 +42,4 @@ parity/security, backup/restore, readiness, exact release identity, protected
 browser evidence, rollback, and spend approval before any production canary.
 
 Source/docs release SHA:
-`c2b347c78a4309da969024e481442efa235451a4` (pushed under `kurtgav`).
+`a1754bdb2aad1ecacaae79f1286893174a0a1515` (pushed under `kurtgav`).

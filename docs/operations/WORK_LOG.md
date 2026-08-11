@@ -15,7 +15,7 @@ was unavailable, so Vitest skipped the guarded suite; a non-destructive WSL
 PostgreSQL/Redis restart attempt timed out. No migration, hosted Supabase,
 Storage, Railway, Vercel, credential, provider, or paid change occurred.
 Keep reversal flags/lists false/empty. Source/docs were pushed under
-`kurtgav` at `c2b347c78a4309da969024e481442efa235451a4`.
+`kurtgav` at `a1754bdb2aad1ecacaae79f1286893174a0a1515`.
 
 ## 2026-08-11 - M3.249 customer invoice issuance authority canary
 

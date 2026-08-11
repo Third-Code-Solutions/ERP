@@ -17,7 +17,7 @@
 4. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
    or paid action changed. Keep reversal writes disabled with an empty tenant
    allowlist. Source/docs SHA:
-   `c2b347c78a4309da969024e481442efa235451a4`.
+   `a1754bdb2aad1ecacaae79f1286893174a0a1515`.
 
 Next: restore the disposable PostgreSQL/Redis lane and run the focused
 reversal canary before any selector, hosted SQL, or provider action.
