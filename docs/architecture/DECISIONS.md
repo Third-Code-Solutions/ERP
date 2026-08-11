@@ -1,5 +1,23 @@
 # Architecture Decisions
 
+## D-385 -- Prove finance receivables Web/Core selection in a disposable browser (2026-08-11)
+
+Decision: validate the real Next receivables page with an authenticated
+loopback browser, compiled Nest API, disposable PostgreSQL, and a
+request-recording Core proxy. Assert the Core bearer/request-id/query contract,
+exact PHP KPI/row mapping, redirect/RBAC, responsive behavior, blocked provider
+traffic, and cleanup. Keep Web/Core/API selectors closed outside the harness.
+
+Rationale: an API canary cannot prove that the page chooses Core, forwards the
+session, maps invoice balances, or remains usable on mobile. The disposable
+browser closes that seam without touching managed Supabase, Vercel, Railway,
+credentials, or spend; exact-tenant flags keep the production cutover
+reversible.
+
+Validation: receivables browser 1/1, ledger browser 1/1, Web 113/782 tests,
+root tests/typecheck/lint/build, provider-spend, Web/DB boundary, workflow
+refs, actionlint, gitleaks, database-release, and managed-parity-plan PASS.
+
 ## D-384 -- Prove finance receivables through protected Nest HTTP (2026-08-11)
 
 Decision: add a closed-by-default, opt-in HTTP canary around the real Nest

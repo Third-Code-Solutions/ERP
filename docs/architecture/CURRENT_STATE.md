@@ -1,5 +1,28 @@
 # Current State
 
+## M3.273 Protected finance-receivables Web/Core browser canary (2026-08-11)
+
+The real Next `/finance/receivables` page now has a repeatable local browser
+proof for its closed Core branch. A random authenticated tenant signs in
+through loopback Supabase-compatible endpoints; the page renders two posted
+invoice rows and exact PHP balances from the compiled Nest API through a
+request-recording proxy. The proof checks bearer/request-id/query forwarding,
+redirect/RBAC, no unexpected contracts, blocked external font traffic,
+console/page errors, and desktop/mobile overflow. Cleanup leaves zero matching
+fixtures, and the existing ledger browser canary still passes 1/1.
+
+Receivables browser 1/1, Web 113/782, forced root tests (4 package tasks),
+typecheck, lint, production build, provider-spend, Web/DB boundary, workflow,
+actionlint, gitleaks, database-release, and managed-parity-plan gates pass.
+Selectors remain false/empty outside the disposable harness. No hosted SQL,
+Supabase object, Vercel/Railway deployment, provider setting, credential, or
+paid action changed. Source evidence: local M3.273 changes.
+
+Exact next action: keep the Web/Core/API receivables selectors closed and
+require hosted/source parity, readiness, exact release identity, authenticated
+production smoke, rollback, and spend evidence before any tenant canary or
+provider action.
+
 ## M3.272 Protected finance-receivables Core HTTP canary (2026-08-11)
 
 The Nest customer-receivables read boundary now has a disposable protected

@@ -1,5 +1,19 @@
 # Third Code ERP capability matrix
 
+## M3.273 Protected finance-receivables Web/Core browser canary (2026-08-11)
+
+The local closed-canary evidence covers the user-facing receivables cutover:
+authenticated Next rendering through Core, bearer/request-id/query provenance,
+exact PHP invoice/KPI mapping, redirect/RBAC, no unexpected contracts,
+blocked provider traffic, console/page-error checks, and responsive
+desktop/mobile layout. The random fixture is explicitly cleaned and leaves
+zero matching tenants. Production selectors remain false/empty; hosted or
+provider action is not proven.
+
+Receivables browser 1/1, ledger browser 1/1, Web 113/782, root tests,
+typecheck, lint, build, release, parity, boundary, workflow, provider-spend,
+actionlint, and gitleaks PASS.
+
 ## M3.272 Protected finance-receivables Core HTTP canary (2026-08-11)
 
 The local closed-canary evidence now covers the Nest receivables read boundary:
