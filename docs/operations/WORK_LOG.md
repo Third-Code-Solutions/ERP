@@ -1,5 +1,36 @@
 # Work Log
 
+## 2026-08-11 - M3.265 bank-statement import authority
+
+Added the shared strict bank-statement import contracts/parser, the Nest Core
+`POST /v1/finance/reconciliation/import` command, and the tenant-scoped
+force-RLS request ledger migration
+`20260812140000_bank_statement_import_workflow.sql`. Core now validates a
+bounded CSV source, locks the active Cash Account, inserts a draft statement
+and lines in one transaction, stores durable replay/conflict evidence, and
+writes semantic audit. The existing Web action is unchanged; the selector
+remains disabled. Raw source bytes are not stored and object-storage upload
+is a future boundary.
+
+The rollback-only local PostgreSQL HTTP canary and migration contract passed
+1/1 each across auth/RBAC, strict body/header handling, disabled selector,
+cross-tenant concealment, CSV/date/balance validation, successful draft import,
+replay/key conflict, ledger state, audit, and rollback. Root `pnpm test` exited
+0 with shared 55/55 files and 329/329 tests, database 69/73 files with 240
+passed and 143 environment-skipped tests, Web 111/111 files and 768/768
+tests, and API 173/173 files and 757/757 tests. API integration passed 55/55
+files with 69 passed and two intentional Redis-restart skips. Typecheck, lint,
+production build, database release, parity, Web/DB boundary, workflow
+references, provider spend, and actionlint passed. Source parity is 55/123
+hosted/source migrations with 68 pending in 16 review batches. The migration
+was applied only to the disposable local CI database. No hosted Supabase,
+Storage, Railway, Vercel, credential, provider, or paid action changed.
+Source evidence SHA: `1adc7cf3e47791bf09b9eb659e972422da356c73`.
+
+Exact next action: keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED`
+false and its tenant list empty; do not apply hosted SQL or trigger provider
+builds. Design storage-backed upload and Web/Core response parity next.
+
 ## 2026-08-11 - M3.264 bank-statement void authority
 
 Added the strict Nest Core void command, the tenant-scoped force-RLS request

@@ -1,5 +1,41 @@
 # Current State
 
+## M3.265 Bank-statement import authority (2026-08-11)
+
+Added the source-only Nest Core command
+`POST /v1/finance/reconciliation/import`. It accepts a strict tenant-scoped
+cash-account command with a bounded base64 CSV source, reuses the shared Web
+parser, requires `finance.manage_cash`, re-authorizes the tenant membership,
+locks the active Cash Account, inserts a draft statement and lines in one
+transaction, persists a force-RLS/service-role-only idempotency result, and
+writes a semantic audit event. Replays return the durable result and key reuse
+with a different command conflicts. `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED`
+and its tenant list are false/empty by default; the legacy Web action remains
+unchanged. Raw bytes are not stored; object-storage-backed upload is a future
+boundary. Python/AI remains analysis-only and cannot approve or finalize the
+import.
+
+The API JSON parser is bounded at 4 MB to cover the 2 MB source cap plus
+base64/JSON overhead. Rollback-only local PostgreSQL HTTP canary: 1/1 PASS;
+the focused migration contract: 1/1 PASS. Root `pnpm test` exited 0 with
+shared 55/55 files and 329/329 tests, database 69/73 files with 240 passed and
+143 environment-skipped tests, Web 111/111 files and 768/768 tests, and API
+173/173 files and 757/757 tests. Protected API integration: 55/55 files,
+69 passed and two intentional Redis-restart skips. Typecheck, lint,
+production build, database release, parity, Web/DB boundary,
+workflow-reference, provider-spend, and actionlint gates PASS. Source parity
+is 55/123 hosted/source migrations, 68 pending in sixteen review batches. The
+migration was applied only to the disposable local CI database; no hosted
+SQL/data, Storage, Railway/Vercel deployment, provider setting, credential,
+or paid action changed.
+Source evidence SHA: `1adc7cf3e47791bf09b9eb659e972422da356c73`.
+
+Exact next action: keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED=false`
+and its tenant list empty; do not apply hosted SQL or trigger provider builds.
+Next source boundary is storage-backed import and Web/Core response parity,
+followed separately by hosted parity, readiness, protected browser cutover,
+rollback, and spend evidence.
+
 ## M3.264 Bank-statement void authority (2026-08-11)
 
 Added the source-only Nest Core command

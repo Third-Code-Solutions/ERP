@@ -5,10 +5,10 @@
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
     "postgresMajor": 17,
     "appliedCount": 55,
-    "sourceCount": 122,
-    "pendingCount": 67,
+    "sourceCount": 123,
+    "pendingCount": 68,
     "appliedHead": "20260729233017",
-    "sourceHead": "20260812130000",
+    "sourceHead": "20260812140000",
     "ledgerStatus": "review_required"
   },
   "policy": {
@@ -173,6 +173,13 @@
       "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core bank-statement void command.",
       "migrations": [
         "20260812130000_bank_statement_void_workflow.sql"
+      ]
+    },
+    {
+      "id": "16-bank-statement-import-authority",
+      "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core bank-statement import command.",
+      "migrations": [
+        "20260812140000_bank_statement_import_workflow.sql"
       ]
     }
   ]

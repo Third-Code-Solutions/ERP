@@ -1,5 +1,23 @@
 # Target State
 
+## M3.265 Bank-statement import authority (2026-08-11)
+
+Core owns the fail-closed import command at
+`POST /v1/finance/reconciliation/import`. The browser sends a strict body
+containing the tenant Cash Account, statement metadata, integer-cent opening
+and closing balances, and a base64 CSV source capped at 2 MB, plus an opaque
+idempotency key. Core derives and rechecks tenant, actor, role, account
+visibility, line date range, duplicate fingerprints, and balance roll-forward;
+then inserts draft statement evidence and its lines in one transaction. A
+force-RLS request ledger stores the durable replay result and semantic audit.
+The shared parser is the compatibility seam; raw CSV bytes are not persisted.
+Keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED=false` and its tenant
+list empty until hosted parity, object-storage upload, readiness, protected
+browser cutover, rollback, and spend evidence are approved. Python/AI may
+extract or analyze documents but cannot import, approve, or finalize ERP
+transactions. The existing Web action remains the compatibility path until a
+separate Web/Core response-parity proof.
+
 ## M3.264 Bank-statement void authority (2026-08-11)
 
 Core owns the fail-closed void command at
