@@ -1,5 +1,30 @@
 # Migration Plan
 
+## M3.276 Protected finance-cash Core HTTP canary (completed source-only)
+
+1. Added an opt-in integration canary around the real Nest
+   `FinanceCashController`, service, JWT guard, capability guard, and
+   validation pipe.
+2. Seeded two random tenants with cash accounts, business dimensions, and
+   posted/draft/reversed cash evidence through a transaction-bound disposable
+   PostgreSQL database.
+3. Asserted 401/403/400/503 boundaries, exact receipt/disbursement aggregates,
+   draft/posted/reversed counts, bounded pagination, status/direction/date/
+   cash-account filters, row ordering, foreign-tenant invisibility, and
+   rollback.
+4. Validation: cash HTTP 1/1, API 174/760 tests, root tests/typecheck/lint/
+   build, provider-spend, Web/DB boundary, workflow refs, actionlint,
+   gitleaks, database-release, and managed-parity-plan PASS.
+
+Production selectors and tenant lists remain false/empty. No hosted SQL,
+provider setting, credential, or deployment changed.
+
+Source evidence: pending source commit pin.
+
+Exact next action: keep cash selectors closed; prove the real Web
+`/finance/cash` browser branch with a disposable authenticated tenant, then
+run hosted parity, readiness, release identity, rollback, and spend gates.
+
 ## M3.275 Protected finance-payables Web/Core browser canary (completed source-only)
 
 1. Added a dedicated Playwright config, TypeScript project, package script, and

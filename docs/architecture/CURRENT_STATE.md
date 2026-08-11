@@ -1,5 +1,30 @@
 # Current State
 
+## M3.276 Protected finance-cash Core HTTP canary (2026-08-11)
+
+The Nest `/v1/finance/cash-transactions` read boundary now has a disposable
+protected HTTP proof. Two random tenants seed cash accounts and business
+dimensions with posted, draft, and reversed evidence; the real JWT/capability
+guards, query pipe, service, and tenant-scoped joins prove exact receipt and
+disbursement aggregates, status counts, bounded pagination, direction/date/
+cash-account filters, row ordering, and foreign-tenant isolation. Missing/
+unknown auth, viewer denial, invalid ranges, and the closed selector are
+covered by 401/403/400/503 assertions. The outer transaction rolls back and
+leaves zero matching fixtures.
+
+Cash HTTP 1/1, API 174/760, root tests/typecheck/lint/build,
+provider-spend, Web/DB boundary, workflow, actionlint, gitleaks,
+database-release, and managed-parity-plan gates pass. Production selectors
+remain false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed. Source evidence is the
+pending M3.276 source commit.
+
+Exact next action: keep `ERP_FINANCE_CASH_READS_ENABLED=false` and
+`ERP_FINANCE_CASH_READS_VIA_API=false` with empty tenant lists; add the
+authenticated `/finance/cash` browser proof, then require hosted/source
+parity, readiness, exact release identity, authenticated production smoke,
+rollback, and spend evidence before any tenant canary or provider action.
+
 ## M3.275 Protected finance-payables Web/Core browser canary (2026-08-11)
 
 The real Next `/finance/payables` page now has a repeatable local browser proof

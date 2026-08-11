@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-388 -- Prove finance cash through protected Nest HTTP (2026-08-11)
+
+Decision: add a closed-by-default, opt-in HTTP canary around the real Nest
+cash-register read route. Use a disposable two-tenant PostgreSQL transaction
+with posted, draft, and reversed evidence, and assert guards, exact centavo
+receipt/disbursement totals, status counts, filters, pagination, row ordering,
+foreign-tenant isolation, selector failure, and rollback.
+
+Rationale: service tests alone cannot prove the HTTP trust boundary or
+tenant-safe cash dimensions. The local canary closes that gap without managed
+Supabase, Vercel, Railway, credentials, or spend. Exact tenant allowlists and
+default-off selectors keep production cutover reversible; a separate browser
+canary is still required for Web selection and rendering.
+
+Validation: cash HTTP 1/1, API 174/760, root tests/typecheck/lint/build,
+provider-spend, Web/DB boundary, workflow refs, actionlint, gitleaks,
+database-release, and managed-parity-plan PASS. Production selectors remain
+false/empty.
+
 ## D-387 -- Prove finance payables Web/Core selection in a disposable browser (2026-08-11)
 
 Decision: validate the real Next payables page with an authenticated loopback

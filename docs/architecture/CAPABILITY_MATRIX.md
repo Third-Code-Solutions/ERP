@@ -1,5 +1,17 @@
 # Third Code ERP capability matrix
 
+## M3.276 Protected finance-cash Core HTTP canary (2026-08-11)
+
+The local closed-canary evidence covers the Nest cash-register read boundary:
+authenticated finance access, viewer denial, invalid-query and
+disabled-selector failure, exact posted receipt/disbursement aggregates,
+draft/posted/reversed counts, status/direction/date/cash-account filters,
+bounded pagination, row ordering, foreign-tenant invisibility, and rollback.
+Production selectors remain false/empty; hosted/provider action is not proven.
+
+Cash HTTP 1/1, API 174/760, root tests/typecheck/lint/build, release, parity,
+boundary, workflow, provider-spend, actionlint, and gitleaks PASS.
+
 ## M3.275 Protected finance-payables Web/Core browser canary (2026-08-11)
 
 The local closed-canary evidence covers the user-facing payables cutover:
