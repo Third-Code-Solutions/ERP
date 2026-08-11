@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-368 -- Require protected HTTP evidence for journal reversal (2026-08-11)
+
+Decision: require journal reversal to remain a Core-only command with a
+protected transaction-bound HTTP canary. The boundary must enforce strict
+body and idempotency headers, JWT/capability authorization, closed-selector
+behavior, concealed cross-tenant access, posted-state and reason validation,
+replay/conflict semantics, balanced reversal linkage, semantic audit, tenant
+isolation, and rollback. Keep the reversal selector closed.
+
+Rationale: reversing a posted journal is an official financial transaction.
+Core must lock the visible tenant-scoped entry before claiming the request,
+then PostgreSQL owns reversal creation, numbering, posting, and linkage.
+Python/AI remains analysis-only and cannot reverse or finalize journals.
+
+Validation: focused local PostgreSQL 17/Redis 7.4.9 canary passed 1/1; API
+integration passed 51/51 files and 65 tests with two explicit Redis-restart
+opt-in skips; typecheck, root lint, production build, and provider/release
+policy gates passed. No hosted/provider/paid action occurred.
+
 ## D-367 -- Preflight journal before posting request claim (2026-08-11)
 
 Decision: require the Core journal-post command to lock and resolve the

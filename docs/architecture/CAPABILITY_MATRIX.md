@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.256 Journal reversal authority (2026-08-11)
+
+The existing `finance.post` Nest journal-reverse command now has protected
+transaction-bound HTTP evidence for strict body/header handling,
+authentication/RBAC, closed-by-default behavior, tenant-scoped visibility
+preflight, cross-tenant concealment, posted-state/reason rules, idempotent
+replay/conflict, balanced reversal linkage, semantic audit, and rollback. Web
+adoption remains closed; keep
+`ERP_FINANCE_JOURNAL_REVERSE_WRITES_ENABLED=false` and its tenant list empty.
+Python/AI remains analysis-only and cannot reverse or finalize journals.
+
+Validation: focused canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9; API
+integration 51/51 files and 65 tests PASS with two explicit Redis-restart
+skips under the 15-second timeout; typecheck, root lint, production build,
+and provider/release policy gates PASS. No hosted or paid action.
+
 ## M3.255 Journal posting authority (2026-08-11)
 
 The existing `finance.post` Nest journal command now has protected

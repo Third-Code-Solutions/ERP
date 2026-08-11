@@ -1,5 +1,16 @@
 # Target State
 
+## M3.256 Journal reversal authority (2026-08-11)
+
+The Core owns POST /v1/finance/journals/:journalEntryId/reverse. The browser
+sends only a strict reason, posting date, and opaque idempotency key; Core
+resolves tenant, actor, role, and posted journal state, locks the visible
+tenant-scoped entry before audit or request claim, and PostgreSQL atomically
+creates and posts the balanced reversal entry with durable linkage. Replays
+return the durable result, key reuse for another command conflicts, and
+cross-tenant ids remain concealed. Keep the write selector closed until
+hosted parity, readiness, browser, rollback, and cost gates are reconciled.
+
 ## M3.255 Journal posting authority (2026-08-11)
 
 The Core owns POST /v1/finance/journals/:journalEntryId/post. The route and
