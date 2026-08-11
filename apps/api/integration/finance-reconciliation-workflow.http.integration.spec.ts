@@ -10,6 +10,7 @@ import {
   bankStatementAutoMatchRequests,
   bankStatementLineMatchRequests,
   bankStatementLines,
+  bankStatementReconcileRequests,
   bankStatements,
   db,
   type Database,
@@ -281,7 +282,11 @@ suite('Bank statement matching protected HTTP canary', () => {
           return userId ? { userId } : null
         }),
       }
-      const featureState = { autoMatchEnabled: true, lineMatchEnabled: true }
+      const featureState = {
+        autoMatchEnabled: true,
+        lineMatchEnabled: true,
+        reconcileEnabled: true,
+      }
       const config = {
         get: vi.fn((key: string, fallback?: unknown) => {
           if (key === 'ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED') {
@@ -297,6 +302,16 @@ suite('Bank statement matching protected HTTP canary', () => {
           }
           if (
             key === 'ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_TENANT_IDS'
+          ) {
+            return [fixtureA.tenantId, fixtureB.tenantId]
+          }
+          if (
+            key === 'ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED'
+          ) {
+            return featureState.reconcileEnabled
+          }
+          if (
+            key === 'ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_TENANT_IDS'
           ) {
             return [fixtureA.tenantId, fixtureB.tenantId]
           }
@@ -365,6 +380,41 @@ suite('Bank statement matching protected HTTP canary', () => {
           .send(command)
           .expect(503)
         featureState.autoMatchEnabled = true
+
+        const reconcileRoute = `/v1/finance/reconciliation/${fixtureA.statementId}/reconcile`
+        await request(app.getHttpServer())
+          .post(reconcileRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .send({})
+          .expect(400)
+        await request(app.getHttpServer())
+          .post(reconcileRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'reconcile-strict-body')
+          .send({ tenantId: fixtureA.tenantId })
+          .expect(400)
+        await request(app.getHttpServer())
+          .post(reconcileRoute)
+          .set('Authorization', 'Bearer auto-match-http-viewer-a-token')
+          .set('Idempotency-Key', 'reconcile-viewer-denied')
+          .send({})
+          .expect(403)
+        featureState.reconcileEnabled = false
+        await request(app.getHttpServer())
+          .post(reconcileRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'reconcile-disabled-write')
+          .send({})
+          .expect(503)
+        featureState.reconcileEnabled = true
+        await request(app.getHttpServer())
+          .post(
+            `/v1/finance/reconciliation/${fixtureB.statementId}/reconcile`
+          )
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'reconcile-cross-tenant')
+          .send({})
+          .expect(404)
 
         await request(app.getHttpServer())
           .post(
@@ -462,6 +512,13 @@ suite('Bank statement matching protected HTTP canary', () => {
           .expect(200)
         expect(manualUnmatchReplay.body).toEqual(manualUnmatch.body)
 
+        await request(app.getHttpServer())
+          .post(reconcileRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'reconcile-before-match')
+          .send({})
+          .expect(409)
+
         const first = await request(app.getHttpServer())
           .post(route)
           .set('Authorization', 'Bearer auto-match-http-finance-a-token')
@@ -484,6 +541,25 @@ suite('Bank statement matching protected HTTP canary', () => {
           .expect(200)
         expect(replay.body).toEqual(first.body)
 
+        const reconciled = await request(app.getHttpServer())
+          .post(reconcileRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', ' reconcile-1 ')
+          .send({})
+          .expect(200)
+        expect(reconciled.body).toEqual({
+          statementId: fixtureA.statementId,
+          tenantId: fixtureA.tenantId,
+          status: 'reconciled',
+        })
+        const reconciledReplay = await request(app.getHttpServer())
+          .post(reconcileRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'reconcile-1')
+          .send({})
+          .expect(200)
+        expect(reconciledReplay.body).toEqual(reconciled.body)
+
         await request(app.getHttpServer())
           .post(
             `/v1/finance/reconciliation/${fixtureA.secondStatementId}/auto-match`
@@ -491,6 +567,15 @@ suite('Bank statement matching protected HTTP canary', () => {
           .set('Authorization', 'Bearer auto-match-http-finance-a-token')
           .set('Idempotency-Key', 'auto-match-1')
           .send(command)
+          .expect(409)
+
+        await request(app.getHttpServer())
+          .post(
+            `/v1/finance/reconciliation/${fixtureA.secondStatementId}/reconcile`
+          )
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'reconcile-1')
+          .send({})
           .expect(409)
 
         const [line] = await transaction
@@ -518,6 +603,37 @@ suite('Bank statement matching protected HTTP canary', () => {
           )
         expect(requestRow?.state).toBe('succeeded')
         expect(requestRow?.result).toMatchObject({ matchedCount: 1 })
+
+        const [reconcileRequestRow] = await transaction
+          .select({
+            state: bankStatementReconcileRequests.state,
+            result: bankStatementReconcileRequests.result,
+          })
+          .from(bankStatementReconcileRequests)
+          .where(
+            and(
+              eq(bankStatementReconcileRequests.tenant_id, fixtureA.tenantId),
+              eq(
+                bankStatementReconcileRequests.idempotency_key,
+                'reconcile-1'
+              )
+            )
+          )
+        expect(reconcileRequestRow?.state).toBe('succeeded')
+        expect(reconcileRequestRow?.result).toMatchObject({
+          status: 'reconciled',
+        })
+
+        const [statementRow] = await transaction
+          .select({ status: bankStatements.status })
+          .from(bankStatements)
+          .where(
+            and(
+              eq(bankStatements.id, fixtureA.statementId),
+              eq(bankStatements.tenant_id, fixtureA.tenantId)
+            )
+          )
+        expect(statementRow?.status).toBe('reconciled')
 
         const [lineRequestRow] = await transaction
           .select({
@@ -550,6 +666,22 @@ suite('Bank statement matching protected HTTP canary', () => {
             )
         )
         expect(audit).toEqual({ action: 'update', entityType: 'bank_statement' })
+
+        const [reconcileAudit] = await transaction
+          .select({ diff: auditLog.diff })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, fixtureA.tenantId),
+              eq(auditLog.entity_id, fixtureA.statementId),
+              eq(auditLog.action, 'update'),
+              sql`${auditLog.diff}->>'operation' = 'reconcile'`
+            )
+          )
+        expect(reconcileAudit?.diff).toMatchObject({
+          operation: 'reconcile',
+          to_status: 'reconciled',
+        })
 
         const [lineAudit] = await transaction
           .select({ action: auditLog.action, entityType: auditLog.entity_type })

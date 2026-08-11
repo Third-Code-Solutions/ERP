@@ -550,3 +550,29 @@ export type BankStatementLineUnmatchCommand = z.infer<
 export type BankStatementLineMatchResult = z.infer<
   typeof bankStatementLineMatchResultSchema
 >
+
+export const bankStatementReconcileBodySchema = z.object({}).strict()
+
+export const bankStatementReconcileCommandSchema = z
+  .object({
+    statementId: z.string().uuid(),
+  })
+  .strict()
+
+export const bankStatementReconcileResultSchema = z
+  .object({
+    statementId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('reconciled'),
+  })
+  .strict()
+
+export type BankStatementReconcileBody = z.infer<
+  typeof bankStatementReconcileBodySchema
+>
+export type BankStatementReconcileCommand = z.infer<
+  typeof bankStatementReconcileCommandSchema
+>
+export type BankStatementReconcileResult = z.infer<
+  typeof bankStatementReconcileResultSchema
+>

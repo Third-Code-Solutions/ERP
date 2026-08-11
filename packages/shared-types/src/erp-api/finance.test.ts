@@ -34,6 +34,9 @@ import {
   bankStatementLineMatchCommandSchema,
   bankStatementLineUnmatchCommandSchema,
   bankStatementLineMatchResultSchema,
+  bankStatementReconcileBodySchema,
+  bankStatementReconcileCommandSchema,
+  bankStatementReconcileResultSchema,
 } from './finance'
 
 const JOURNAL_ID = '33333333-3333-4333-8333-333333333333'
@@ -493,6 +496,41 @@ describe('finance API contracts', () => {
         statementId: STATEMENT_ID,
         lineId: INVOICE_ID,
         cashTransactionId: CASH_TRANSACTION_ID,
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps bank statement reconciliation strict and tenant-scoped', () => {
+    expect(bankStatementReconcileBodySchema.parse({})).toEqual({})
+    expect(
+      bankStatementReconcileCommandSchema.parse({ statementId: STATEMENT_ID })
+    ).toEqual({ statementId: STATEMENT_ID })
+    expect(
+      bankStatementReconcileResultSchema.parse({
+        statementId: STATEMENT_ID,
+        tenantId: TENANT_ID,
+        status: 'reconciled',
+      })
+    ).toEqual({
+      statementId: STATEMENT_ID,
+      tenantId: TENANT_ID,
+      status: 'reconciled',
+    })
+    expect(
+      bankStatementReconcileBodySchema.safeParse({ tenantId: TENANT_ID })
+        .success
+    ).toBe(false)
+    expect(
+      bankStatementReconcileCommandSchema.safeParse({
+        statementId: STATEMENT_ID,
+        tenantId: TENANT_ID,
+      }).success
+    ).toBe(false)
+    expect(
+      bankStatementReconcileResultSchema.safeParse({
+        statementId: STATEMENT_ID,
+        tenantId: TENANT_ID,
+        status: 'draft',
       }).success
     ).toBe(false)
   })
