@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-12 - M3.297 Core standalone Purchase Order browser canary
+
+Added a disposable authenticated PO proof to the shared loopback harness. It
+seeds a same-tenant vendor and material cost code, opens the real
+`/purchase-orders` form, forwards the command to Nest Core, and checks the
+persisted draft, exact centavo totals, line, idempotency result, audit, and
+request headers. A foreign-project command returns 404 with no extra PO.
+
+The first attempts exposed harness-only issues: password login is not
+implemented by this loopback and the UI button is labelled `Create PO`; the
+canary now uses the harness session cookie and exact button selector. The
+final browser run passed. No hosted Supabase SQL, Storage, Railway/Vercel
+deployment, credential, provider setting, or paid action changed.
+
+Validation: PO browser 1/1; API 176/772; Web typecheck; provider-spend,
+managed-parity, Web/DB boundary, gitleaks, and diff checks PASS. Full Web suite
+not rerun in this slice.
+
+Exact next action: keep selectors closed and resolve the hosted PO duplicate
+owner-review gate before any migration or provider build.
+
 ## 2026-08-12 - M3.296 live landing browser audit
 
 Rechecked the public production landing route at 1440x900, 768x900, and

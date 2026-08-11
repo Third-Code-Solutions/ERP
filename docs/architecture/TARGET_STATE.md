@@ -1,5 +1,19 @@
 # Target State
 
+## M3.297 standalone Purchase Order authority (2026-08-12)
+
+The target PO create flow keeps the existing Next Server Action as a
+compatibility adapter while Nest Core authorizes and commits the transaction.
+Core owns tenant/project/vendor/cost-code checks, exact integer-centavo money,
+PO-number allocation, idempotency replay, transaction boundaries, and semantic
+audit. Foreign-tenant references are rejected without side effects.
+
+Keep `ERP_PO_CREATE_WRITES_VIA_API` and `ERP_PO_CREATE_WRITES_ENABLED` false
+with empty tenant lists outside disposable proofs. Python/AI may recommend or
+analyze procurement data but cannot approve or finalize a PO. Hosted parity,
+duplicate remediation, readiness, rollback, authenticated smoke, and spend
+controls remain release gates.
+
 ## M3.296 public landing release evidence (2026-08-12)
 
 The public acquisition surface must preserve a clean Third Code ERP identity,

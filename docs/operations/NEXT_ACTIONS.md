@@ -1,5 +1,17 @@
 # Next Actions
 
+## Exact next action after M3.297 Core standalone Purchase Order canary
+
+Keep `ERP_PO_CREATE_WRITES_VIA_API=false` and
+`ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS` empty; keep
+`ERP_PO_CREATE_WRITES_ENABLED=false` and `ERP_PO_CREATE_WRITES_TENANT_IDS`
+empty outside disposable tests. The local browser proof covers exact PO
+arithmetic, Core forwarding, idempotency, audit, and foreign-project
+isolation. Do not open a real tenant, apply hosted SQL, or trigger
+Vercel/Railway builds until the hosted PO duplicate owner review, managed
+parity, readiness, rollback, authenticated smoke, release identity, and spend
+gates pass.
+
 ## Exact next action after M3.296 live landing browser audit
 
 Keep Vercel Git/deploy automation and Railway builds disabled while spend is

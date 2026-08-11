@@ -1,5 +1,25 @@
 # Current State
 
+## M3.297 Core standalone Purchase Order browser canary (2026-08-12)
+
+The disposable authenticated loopback now proves the real `/purchase-orders`
+form through the Next compatibility action and Nest Core authority. One
+same-tenant draft PO is created with `PO-0001`, exact centavo totals (30,000
+subtotal, 3,600 VAT, 600 withholding, 33,000 total), one line, one succeeded
+idempotency request, and one semantic audit. The Core proxy records the
+forwarded bearer, request ID, and idempotency key. A foreign-project command
+returns 404 and creates no row.
+
+The harness seeds and cleans vendor/cost-code fixtures and enables PO selectors
+only for its random disposable tenant. Production selectors remain false/
+empty. No hosted SQL, Storage, Vercel/Railway deployment, provider setting,
+credential, or paid action changed. Validation: PO browser 1/1; API 176/772;
+Web typecheck; provider-spend, managed-parity, Web/DB boundary, gitleaks, and
+diff checks PASS. Full Web suite was not rerun in this slice.
+
+Exact next action: keep PO selectors closed; resolve the hosted duplicate PO
+owner-review gate before any migration, tenant opening, or provider build.
+
 ## M3.296 live landing browser audit (2026-08-12)
 
 Read-only Playwright evidence refreshed the public landing route at 1440,
