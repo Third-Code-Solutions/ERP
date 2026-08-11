@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-394 -- Run the public landing proof on a disposable local server (2026-08-12)
+
+Decision: add a dedicated Playwright configuration and package command for the
+existing public landing contract. Start one loopback Next dev server, use the
+installed Chrome executable when provided, block service workers, and assert
+the real page's current SEO/GEO graph, metadata endpoints, responsive layout,
+interactive controls, CTA targets, mobile hit areas, and browser error budget.
+
+Rationale: the prior contract was valid but depended on an external or manually
+started server, so it could drift without a repeatable source check. A
+disposable local proof closes that gap without a Vercel preview, analytics
+request, Railway action, Supabase call, paid build, or production mutation.
+The test was updated to match the intentionally expanded five-node JSON-LD
+graph rather than weakening the schema requirement.
+
+Validation: landing-local browser 1/1, Web 797/797, Web typecheck/lint,
+production build (83 routes), and `git diff --check` passed. Source commit
+`76986fb0543ca898ab81f341c1f14b979df8c963` is pushed under `kurtgav`; hosted
+providers, credentials, flags, and billing are unchanged.
+
 ## D-390 -- Prove bank reconciliation Web/Core selection in a disposable browser (2026-08-11)
 
 Decision: validate the real Next bank-reconciliation page with an authenticated

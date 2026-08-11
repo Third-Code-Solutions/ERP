@@ -8071,3 +8071,25 @@ SHAs match. Hosted promotion remains blocked by the existing parity,
 data-quality, Storage-policy, readiness, rollback, exact-SHA, and spend
 approval gates. The next work is review of this source-only Storage evidence
 before any hosted parity or provider action.
+
+## M3.287 - Public landing local browser contract (completed source slice)
+
+1. Add a dedicated Playwright configuration and package command that starts the
+   real Next landing page on loopback only, with a disposable server, optional
+   installed-Chrome path, blocked service workers, and no provider calls.
+2. Keep the existing contract strict for the current five-node JSON-LD graph,
+   crawl metadata endpoints, interactive Cortex/capability/priority/FAQ state,
+   CTA destinations, 1440/768/390 overflow and hero-line bounds, mobile target
+   sizes, and zero console/page errors.
+3. Do not reconnect Vercel Git, create a preview, deploy Railway/Vercel, apply
+   Supabase changes, or spend provider credits from this source slice.
+
+Validation: `pnpm --filter @third-code-erp/web test:e2e:landing-local` passed
+1/1; Web `pnpm test` passed 797/797; Web typecheck, lint, production build
+(83 routes), and `git diff --check` passed. No hosted migration, deployment,
+provider setting, credential, analytics, or paid action occurred.
+
+Evidence: source commit `76986fb0543ca898ab81f341c1f14b979df8c963` is pushed
+under `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote
+SHAs match. Hosted promotion remains blocked by migration parity, data-quality,
+Storage-policy, readiness, rollback, exact-SHA, and spend-bounded approval.
