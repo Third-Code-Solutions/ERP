@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-11 - M3.255 journal-post authority canary
+
+Added `apps/api/integration/journal-post.http.integration.spec.ts` and moved
+the Core journal-post service's tenant-scoped journal preflight ahead of audit
+and request-ledger claim. The rollback-only Nest HTTP canary uses real JWT
+identity/capability guards, two tenants, finance/viewer roles, balanced manual
+journals, and transaction-bound PostgreSQL. It covers authentication,
+authorization, disabled selector, concealed cross-tenant access, durable
+replay/key conflict, posted journal state and number, balanced lines, semantic
+audit, tenant isolation, and rollback. The first run exposed a composite-FK
+ordering hazard; the service now returns concealed 404 before any claim.
+
+Focused canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. Full API
+integration 50/50 files and 64 tests PASS with two explicit Redis-restart
+skips under the 15-second timeout. API typecheck, root lint, production
+build, provider-spend, Supabase parity, database-release, Web/DB boundary,
+workflow action-reference, and actionlint gates PASS. No migration, hosted
+Supabase, Storage, Railway, Vercel, credential, provider, or paid change
+occurred. Keep journal-post flags/lists false/empty. Source evidence SHA:
+811154adca1258c70fcf7073fd62f7e704247234.
+
 ## 2026-08-11 - M3.254 supplier-bill reversal authority canary
 
 Added `apps/api/integration/supplier-bill-reverse.http.integration.spec.ts`.

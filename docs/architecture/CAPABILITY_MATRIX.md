@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.255 Journal posting authority (2026-08-11)
+
+The existing `finance.post` Nest journal command now has protected
+transaction-bound HTTP evidence for authentication/RBAC, closed-by-default
+behavior, tenant-scoped journal preflight, cross-tenant concealment,
+idempotent replay/conflict, posted journal numbering, balanced lines,
+semantic audit, tenant isolation, and rollback. The preflight fix prevents a
+composite-FK 500 before any ledger claim. Web adoption remains closed; keep
+`ERP_FINANCE_JOURNAL_POST_WRITES_ENABLED=false` and its tenant list empty.
+Python/AI remains analysis-only and cannot post or finalize journals.
+
+Validation: focused canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9; API
+integration 50/50 files and 64 tests PASS with two explicit Redis-restart
+skips under the 15-second timeout; typecheck, root lint, production build,
+and provider/release policy gates PASS. No hosted or paid action.
+
 ## M3.254 Supplier Bill reversal authority (2026-08-11)
 
 The existing `finance.reverse` Nest supplier-bill command now has protected
