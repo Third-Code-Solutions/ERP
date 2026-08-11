@@ -1,5 +1,25 @@
 # Work Log
 
+## 2026-08-12 - M3.299 Core Purchase Order from approved BOM browser canary
+
+Added an opt-in approved BOM fixture and a real authenticated project-BOM
+browser proof. Generate PO now reaches Core, copies one source line with its
+`bom_line_item_id`, computes exact totals, locks the approved BOM, writes one
+PO-create request/audit, replays the same key without duplication, and rejects
+a foreign-tenant BOM without a committed row. Existing canaries remained
+isolated because the fixture is disabled by default.
+
+No hosted Supabase SQL, Storage, Railway/Vercel deployment, credential,
+provider setting, or paid action changed.
+
+Validation: BOM-PO browser 1/1; PO workflow/create, notifications, document,
+Togal, and DocuSeal browsers 1/1 each; API 176/772; Web 113/802; Web
+build/lint/typecheck; provider-spend, managed-parity, Web/DB boundary,
+gitleaks, and diff checks PASS.
+
+Exact next action: keep selectors closed and resolve the hosted PO duplicate
+owner-review gate before any migration or provider build.
+
 ## 2026-08-12 - M3.298 Core Purchase Order approval/issuance browser canary
 
 Added a guarded workflow fixture mode to the shared loopback harness and a

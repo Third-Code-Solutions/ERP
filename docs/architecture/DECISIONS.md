@@ -1,5 +1,25 @@
 # Architecture Decisions
 
+## D-406 -- Generate a Purchase Order from an approved BOM only through Core (2026-08-12)
+
+Decision: use the existing project BOM action only as a compatibility adapter
+for the disposable proof. Nest Core owns approved-BOM/project/vendor scope,
+exact centavo calculation, copied-line provenance, PO creation, BOM locking,
+idempotency, and semantic audit in one transaction; foreign-tenant BOMs fail
+closed. Keep the exact BOM-PO selectors disabled outside the canary.
+
+Rationale: a PO generated from estimating data is a critical commitment. The
+browser proof demonstrates the real UI boundary, source-line traceability,
+replay safety, and lock ordering without touching hosted data or provider
+spend. AI can assist with estimates but must not approve the BOM or finalize
+the commitment.
+
+Validation: BOM-PO browser 1/1; PO workflow/create, notifications, document,
+Togal, and DocuSeal browsers 1/1 each; API 176/772; Web 113/802; build/lint/
+typecheck, spend, parity, boundary, gitleaks, and diff checks PASS.
+
+## D-405 -- Stamp PO issuance evidence inside the Core transition transaction (2026-08-12)
+
 ## D-405 -- Stamp PO issuance evidence inside the Core transition transaction (2026-08-12)
 
 Decision: when Core accepts `scm_issue`, set `scm_issued_at` and

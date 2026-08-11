@@ -1,5 +1,21 @@
 # Target State
 
+## M3.299 approved BOM to Purchase Order authority (2026-08-12)
+
+The target procurement path keeps the project BOM UI and Server Action as a
+compatibility adapter while Nest Core verifies the tenant/project/BOM/vendor
+scope, reads approved BOM lines, calculates exact integer-centavo totals,
+creates the draft PO and copied lines, locks the approved BOM, writes the
+idempotency ledger and semantic audits, and returns a replay-safe result in
+one transaction. A foreign-tenant BOM is rejected without a committed row.
+
+Keep `ERP_PO_BOM_CREATE_WRITES_VIA_API` and
+`ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS` empty/false, and keep matching
+Core flags closed outside disposable proof. Python/AI may price or explain BOM
+lines but cannot approve a BOM or finalize a PO. Hosted parity, duplicate
+remediation, readiness, rollback, authenticated smoke, and spend controls
+remain release gates.
+
 ## M3.298 Purchase Order approval and supplier issuance authority (2026-08-12)
 
 The target workflow keeps the existing Next detail actions as compatibility

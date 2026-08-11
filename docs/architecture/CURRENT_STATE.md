@@ -1,5 +1,27 @@
 # Current State
 
+## M3.299 Core Purchase Order from approved BOM browser canary (2026-08-12)
+
+The disposable authenticated browser now proves the BOM-to-PO path from the
+real project BOM page. An approved BOM creates one draft PO through the Next
+compatibility action and Nest Core, copies the source line with its
+`bom_line_item_id`, calculates exact centavo totals (30,000 subtotal, 3,600
+VAT, 600 withholding, 33,000 total), locks the BOM, records idempotency and
+semantic audits, and replays without a duplicate PO. A foreign-tenant BOM
+command returns 404 with no extra request row or PO.
+
+The approved-BOM fixture is opt-in and isolated from the shared canaries.
+Production BOM-PO selectors remain false/empty. No hosted SQL, Storage,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Validation: BOM-PO browser 1/1; PO workflow, PO create,
+notifications, document, Togal, and DocuSeal browsers 1/1 each; API 176/772;
+Web 113/802; Web build/lint/typecheck; provider-spend, managed-parity,
+Web/DB boundary, gitleaks, and diff checks PASS.
+
+Exact next action: keep BOM-PO selectors closed; resolve the hosted PO
+duplicate owner-review gate before any migration, tenant opening, or provider
+build.
+
 ## M3.298 Core Purchase Order approval/issuance browser canary (2026-08-12)
 
 The disposable authenticated browser now proves the real Purchase Order detail

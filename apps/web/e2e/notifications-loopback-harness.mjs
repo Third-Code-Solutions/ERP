@@ -23,6 +23,8 @@ const PROJECT_ID = randomUUID()
 const BOM_ID = randomUUID()
 const VENDOR_ID = randomUUID()
 const COST_CODE_ID = randomUUID()
+const PURCHASE_ORDER_BOM_ID = randomUUID()
+const PURCHASE_ORDER_BOM_LINE_ID = randomUUID()
 const WORKFLOW_PM_USER_ID = randomUUID()
 const WORKFLOW_COMMERCIAL_USER_ID = randomUUID()
 const WORKFLOW_PROCUREMENT_USER_ID = randomUUID()
@@ -37,6 +39,8 @@ const ANON_KEY = 'third-code-local-anon-key'
 const SERVICE_ROLE_KEY = 'third-code-local-service-role-key'
 const WORKFLOW_FIXTURES_ENABLED =
   process.env.ERP_LOOPBACK_WORKFLOW_FIXTURES === 'true'
+const PO_BOM_FIXTURES_ENABLED =
+  process.env.ERP_LOOPBACK_PO_BOM_FIXTURES === 'true'
 const ACCESS_TOKEN = [
   Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'),
   Buffer.from(
@@ -189,6 +193,31 @@ async function seedDatabase() {
       'Local Togal BOM', 'draft', 0, 0, 0, 0
     )
   `
+  if (PO_BOM_FIXTURES_ENABLED) {
+    await sql`
+      insert into boms(
+        id, tenant_id, project_id, created_by, approved_by, version, label,
+        status, total_cost_cents, tcv_cents, gp_cents, gp_margin_bps,
+        approved_at
+      )
+      values (
+        ${PURCHASE_ORDER_BOM_ID}, ${TENANT_ID}, ${PROJECT_ID}, ${USER_ID},
+        ${USER_ID}, 2, 'Local approved PO source BOM', 'approved',
+        30000, 36000, 6000, 1667, now()
+      )
+    `
+    await sql`
+      insert into bom_line_items(
+        id, tenant_id, bom_id, sort_order, code, description, unit,
+        quantity, unit_cost_cents, markup_bps, line_total_cents, notes
+      )
+      values (
+        ${PURCHASE_ORDER_BOM_LINE_ID}, ${TENANT_ID}, ${PURCHASE_ORDER_BOM_ID},
+        0, 'MAT-PO-BOM', 'Approved BOM concrete package', 'lot',
+        3, 10000, 0, 30000, 'Manual canary source'
+      )
+    `
+  }
   await sql`
     insert into bom_portal_tokens(
       id, tenant_id, bom_id, token_hash, expires_at, docuseal_submission_id
@@ -361,7 +390,8 @@ const authServer = createServer(async (request, response) => {
       sql`
         select id, po_id, description, quantity,
           unit_cost_cents::int as unit_cost_cents,
-          line_total_cents::int as line_total_cents, cost_code_id
+          line_total_cents::int as line_total_cents, cost_code_id,
+          bom_line_item_id
         from po_line_items
         where tenant_id = ${TENANT_ID}
         order by created_at asc
@@ -417,6 +447,12 @@ const authServer = createServer(async (request, response) => {
       projectId: PROJECT_ID,
       vendorId: VENDOR_ID,
       costCodeId: COST_CODE_ID,
+      purchaseOrderBomId: PO_BOM_FIXTURES_ENABLED
+        ? PURCHASE_ORDER_BOM_ID
+        : null,
+      purchaseOrderBomLineId: PO_BOM_FIXTURES_ENABLED
+        ? PURCHASE_ORDER_BOM_LINE_ID
+        : null,
       workflowRecipientIds: {
         pm: WORKFLOW_FIXTURES_ENABLED ? WORKFLOW_PM_USER_ID : null,
         commercial: WORKFLOW_FIXTURES_ENABLED
@@ -494,6 +530,7 @@ proxyServer = createServer(async (request, response) => {
     url.pathname === '/v1/documents' ||
     url.pathname === '/v1/procurement/boms/togal-commit' ||
     url.pathname === '/v1/procurement/purchase-orders' ||
+    url.pathname === '/v1/procurement/purchase-orders/from-bom' ||
     (url.pathname.startsWith('/v1/procurement/purchase-orders/') &&
       url.pathname.endsWith('/workflow')) ||
     url.pathname === '/v1/webhooks/docuseal'
@@ -612,6 +649,8 @@ const apiEnvironment = {
   ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS: TENANT_ID,
   ERP_PO_CREATE_WRITES_ENABLED: 'true',
   ERP_PO_CREATE_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_PO_BOM_CREATE_WRITES_ENABLED: 'true',
+  ERP_PO_BOM_CREATE_WRITES_TENANT_IDS: TENANT_ID,
   ERP_PO_WORKFLOW_WRITES_ENABLED: 'true',
   ERP_PO_WORKFLOW_WRITES_TENANT_IDS: TENANT_ID,
   ERP_PO_WORKFLOW_NOTIFICATIONS_ENABLED: 'true',
@@ -669,6 +708,8 @@ webChild = spawn(
       ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_PO_CREATE_WRITES_VIA_API: 'true',
       ERP_PO_CREATE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_PO_BOM_CREATE_WRITES_VIA_API: 'true',
+      ERP_PO_BOM_CREATE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_PO_WORKFLOW_WRITES_VIA_API: 'true',
       ERP_PO_WORKFLOW_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_DOCUSEAL_WEBHOOK_VIA_API: 'true',
