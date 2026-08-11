@@ -7159,6 +7159,26 @@ or provider mutation occurred. Source/docs commit
 `831fc43fe993aaead9f4dda4b571180e50698797` is pushed under `kurtgav` with a
 matching remote SHA; this remains a source-only migration slice.
 
+## D-392 -- Prove the Core bank import adapter in a disposable browser (2026-08-12)
+
+Decision: enable the existing Web/Core bank-import selector only for the random
+loopback tenant and prove a real CSV submission through the authenticated Web
+form. Capture the strict Core request at the local proxy, verify the draft
+redirect, and keep the hosted selector false with an empty tenant list.
+
+Rationale: the Core import route and Web adapter already had unit and protected
+HTTP evidence, but the browser boundary still needed proof of file encoding,
+balance conversion, idempotency, authenticated transport, and response
+rendering. A disposable tenant supplies this evidence without mutating hosted
+ERP data or opening a paid provider path.
+
+Validation: authenticated browser canary 1/1, full `pnpm test`, workspace
+typecheck, lint, production build (83 Next pages), migration/release/policy/
+parity checks, web-database boundary, Actionlint, Gitleaks, provider-spend
+guard, and `git diff --check` passed. No hosted or provider mutation occurred.
+Source commit `d127523bf99fac74ac9dffbe6c0527e0af2dbe33` is pushed under
+`kurtgav` with a matching remote SHA; this remains source-only evidence.
+
 ## D-391 -- Route reconciliation statement void through Core (2026-08-12)
 
 Decision: reuse the existing tenant-scoped Nest void workflow and expose the

@@ -8585,6 +8585,27 @@ Source commit `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is pushed under
 `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
 match. No production deployment was triggered.
 
+## 2026-08-12 M3.285 reconciliation statement import browser canary
+
+- Extended the disposable authenticated browser proof for the existing Core
+  import adapter. The random canary tenant now submits a real CSV through the
+  Web form and follows the created draft; import selectors are not changed for
+  hosted tenants.
+- The browser proved strict integer-cent balances, base64 CSV transport,
+  authenticated Core import, UUID request ID, deterministic
+  `bank-import-<sha256>` idempotency, responsive rendering, zero console
+  errors, and blocked external requests.
+- Full source gates passed: `pnpm test` reported shared-types 332, database
+  241 passed/143 skipped, API 764, and Web 797; `pnpm typecheck`, `pnpm lint`,
+  and `pnpm build` passed (83 Next pages). Migration/release/policy/parity,
+  web-database boundary, Actionlint, Gitleaks, provider-spend, and
+  `git diff --check` also passed. No hosted promotion is implied.
+- Source commit `d127523bf99fac74ac9dffbe6c0527e0af2dbe33` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment was triggered.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
+
 ## 2026-08-12 M3.284 reconciliation statement void Core write boundary
 
 - Added the closed-by-default Web selector and server-only adapter for

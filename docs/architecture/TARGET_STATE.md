@@ -227,7 +227,10 @@ list empty until hosted parity, object-storage upload, readiness, protected
 browser cutover, rollback, and spend evidence are approved. Python/AI may
 extract or analyze documents but cannot import, approve, or finalize ERP
 transactions. The existing Web action remains the compatibility path until a
-separate Web/Core response-parity proof.
+separate Web/Core response-parity proof. The source-only Web import adapter and
+authenticated disposable browser proof now exist; keep
+`ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API=false` with an empty tenant
+list outside the disposable canary.
 
 ## M3.264 Bank-statement void authority (2026-08-11)
 
