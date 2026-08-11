@@ -26,6 +26,9 @@ import {
   cashTransactionDraftDeleteCommandSchema,
   cashTransactionDraftDeleteResultSchema,
   cashTransactionDraftResultSchema,
+  bankStatementAutoMatchBodySchema,
+  bankStatementAutoMatchCommandSchema,
+  bankStatementAutoMatchResultSchema,
 } from './finance'
 
 const JOURNAL_ID = '33333333-3333-4333-8333-333333333333'
@@ -33,6 +36,7 @@ const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const SUPPLIER_BILL_ID = '55555555-5555-4555-8555-555555555555'
 const CASH_TRANSACTION_ID = '77777777-7777-4777-8777-777777777777'
 const INVOICE_ID = '88888888-8888-4888-8888-888888888888'
+const STATEMENT_ID = '99999999-9999-4999-8999-999999999999'
 
 describe('finance API contracts', () => {
   it('keeps journal post commands free of caller authority', () => {
@@ -401,6 +405,41 @@ describe('finance API contracts', () => {
         invoiceId: INVOICE_ID,
         tenantId: TENANT_ID,
         status: 'draft',
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps bank statement auto-match strict and tenant-scoped', () => {
+    expect(bankStatementAutoMatchBodySchema.parse({})).toEqual({})
+    expect(
+      bankStatementAutoMatchCommandSchema.parse({ statementId: STATEMENT_ID })
+    ).toEqual({ statementId: STATEMENT_ID })
+    expect(
+      bankStatementAutoMatchResultSchema.parse({
+        statementId: STATEMENT_ID,
+        tenantId: TENANT_ID,
+        status: 'draft',
+        matchedCount: 1,
+        remainingCount: 0,
+      })
+    ).toMatchObject({ status: 'draft', matchedCount: 1 })
+    expect(
+      bankStatementAutoMatchBodySchema.safeParse({ tenantId: TENANT_ID })
+        .success
+    ).toBe(false)
+    expect(
+      bankStatementAutoMatchCommandSchema.safeParse({
+        statementId: STATEMENT_ID,
+        tenantId: TENANT_ID,
+      }).success
+    ).toBe(false)
+    expect(
+      bankStatementAutoMatchResultSchema.safeParse({
+        statementId: STATEMENT_ID,
+        tenantId: TENANT_ID,
+        status: 'reconciled',
+        matchedCount: 1,
+        remainingCount: 0,
       }).success
     ).toBe(false)
   })
