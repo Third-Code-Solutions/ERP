@@ -1,5 +1,13 @@
 # Target State
 
+## M3.260 Repository test baseline repair (2026-08-11)
+
+Repository tests must model the same authorization and locking sequence as Core
+without weakening behavior or bypassing tenant checks. The customer-invoice
+draft replay fixture now supplies the locked project result before the
+idempotency claim, keeping the test aligned with the authoritative transaction
+ordering.
+
 ## M3.259 Bank reconciliation read authority (2026-08-11)
 
 Core owns the bounded `GET /v1/finance/reconciliation` projection when the

@@ -1,5 +1,20 @@
 # Next Actions
 
+## Exact next action after M3.260 test baseline repair
+
+Root tests are green: 173/173 files and 752/752 tests. Keep all provider and
+hosted database selectors closed; source parity remains 55/118 with 63 pending
+in 11 ordered batches. Next source boundary: bank-reconciliation
+import/match/reconcile/void authority. Before any hosted SQL or Railway/Vercel
+trigger, require disposable replay, release identity, readiness, protected
+browser, rollback, and billing/spend evidence.
+
+## M3.260 evidence boundary (completed source-only repair)
+
+The invoice-draft replay fixture now matches Core's membership -> project lock
+-> idempotency claim order. No production behavior, schema, provider, or paid
+state changed.
+
 ## Exact next action after M3.259 reconciliation read canary
 
 Keep `ERP_FINANCE_RECONCILIATION_READS_ENABLED=false`,

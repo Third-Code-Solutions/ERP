@@ -1,5 +1,23 @@
 # Current State
 
+## M3.260 Repository test baseline repair (2026-08-11)
+
+Repaired the customer-invoice-draft replay unit fixture. The Core service locks
+the tenant-scoped project before claiming idempotency; the spec had omitted
+that project-select result and failed when the request replay path reached the
+third select. The test now models the real lock order without changing product
+behavior.
+
+Focused invoice-draft spec: 3/3 PASS; root `pnpm test`: 173/173 files and
+752/752 tests PASS. API integration remains 54/54 files and 68 tests PASS with
+two explicit Redis-restart skips. Root typecheck, lint, production build,
+provider-spend, Supabase parity, database-release, Web/DB boundary, workflow
+action-reference, and actionlint gates PASS. No hosted SQL/data, Storage,
+Railway/Vercel deployment, provider setting, credential, or paid action
+changed. Source parity remains 55/118 hosted/source migrations, 63 pending in
+11 review batches. Source evidence SHA:
+`4abbf75baa9dbbf019b38b3b0bc5678c933f367f`.
+
 ## M3.259 Bank reconciliation read authority (2026-08-11)
 
 Added a protected rollback-only HTTP canary for the existing Nest bank
