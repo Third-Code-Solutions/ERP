@@ -37,4 +37,5 @@ Keep `ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_ENABLED=false` and
 `ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_TENANT_IDS` empty. Posted invoices
 must use the separate reversal authority.
 
-Source/docs evidence SHA is recorded after push.
+Source/docs evidence SHA:
+`7459cb8d70e50851d82f7562bdc6fb1ac6bd51a5` (pushed under `kurtgav`).

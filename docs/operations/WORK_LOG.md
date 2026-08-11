@@ -16,7 +16,7 @@ integration 46/46 files and 60 tests PASS with two explicit Redis-restart
 skips. API typecheck, root lint, and production build PASS. No migration,
 hosted Supabase, Storage, Railway, Vercel, credential, provider, or paid
 change occurred. Keep cancellation flags/lists false/empty. Source/docs
-evidence SHA is recorded after push.
+evidence SHA: `7459cb8d70e50851d82f7562bdc6fb1ac6bd51a5`.
 
 ## 2026-08-11 - M3.250 customer invoice reversal authority canary
 
