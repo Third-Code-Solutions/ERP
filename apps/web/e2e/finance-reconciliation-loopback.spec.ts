@@ -257,6 +257,59 @@ test('proves authenticated Web reconciliation page uses Core and preserves tenan
     workflowSnapshot.reconciliationWorkflowRequests[0]?.requestId
   ).toMatch(/^[0-9a-f-]{36}$/i)
 
+  const seedMatchResponse = await page.request.post(
+    `${AUTH_ORIGIN}/__harness__/seed-line-match`
+  )
+  expect(seedMatchResponse.ok()).toBe(true)
+  const seededMatch = (await seedMatchResponse.json()) as {
+    cashTransactionId: string
+  }
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  const firstLine = page.locator('tbody tr').first()
+  await firstLine.locator('select').selectOption(seededMatch.cashTransactionId)
+  await firstLine.getByRole('button', { name: 'Match' }).click()
+  await expect(page.getByText('1 / 2', { exact: true })).toBeVisible()
+
+  const matchedWorkflowResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(matchedWorkflowResponse.ok()).toBe(true)
+  const matchedWorkflowState =
+    (await matchedWorkflowResponse.json()) as HarnessState
+  expect(matchedWorkflowState.reconciliationWorkflowRequests).toHaveLength(2)
+  expect(
+    matchedWorkflowState.reconciliationWorkflowRequests[1]
+  ).toMatchObject({
+    method: 'POST',
+    path: /\/lines\/[0-9a-f-]+\/match$/i,
+    authorization: `Bearer ${session.accessToken}`,
+    body: JSON.stringify({ cashTransactionId: seededMatch.cashTransactionId }),
+  })
+  expect(
+    matchedWorkflowState.reconciliationWorkflowRequests[1]?.idempotencyKey
+  ).toMatch(/^line-match-[0-9a-f-]{36}$/i)
+
+  await page.locator('tbody tr').first().getByRole('button', { name: 'Unmatch' }).click()
+  await expect(page.getByText('0 / 2', { exact: true })).toBeVisible()
+  const unmatchedWorkflowResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(unmatchedWorkflowResponse.ok()).toBe(true)
+  const unmatchedWorkflowState =
+    (await unmatchedWorkflowResponse.json()) as HarnessState
+  expect(unmatchedWorkflowState.reconciliationWorkflowRequests).toHaveLength(3)
+  expect(
+    unmatchedWorkflowState.reconciliationWorkflowRequests[2]
+  ).toMatchObject({
+    method: 'POST',
+    path: /\/lines\/[0-9a-f-]+\/unmatch$/i,
+    authorization: `Bearer ${session.accessToken}`,
+    body: '{}',
+  })
+  expect(
+    unmatchedWorkflowState.reconciliationWorkflowRequests[2]?.idempotencyKey
+  ).toMatch(/^line-unmatch-[0-9a-f-]{36}$/i)
+
   expect(
     state.unsupportedRequests.some(
       (request) => request.path !== '/realtime/v1/websocket'

@@ -7133,3 +7133,26 @@ Source `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is pushed under `kurtgav`
 with matching local/remote SHA. The next decision is separate manual line
 match/unmatch authority; no production deployment is implied by this source
 push.
+
+## D-126 -- Route reconciliation line match/unmatch through Core (2026-08-12)
+
+Decision: reuse the existing tenant-scoped Nest line workflow and expose both
+manual line commands through the Web compatibility actions only for an exact
+closed-by-default tenant canary. The detail panel owns one opaque
+`line-<action>-<uuid>` retry key per line/action; selected Core failures are
+terminal and never invoke the legacy SQL writers.
+
+Rationale: matching or unmatching official financial evidence must share one
+authorization, statement/line lock, idempotency record, database transaction,
+and audit boundary. Per-line keys allow independent retries without replaying
+another line's command, while resetting only after success preserves safe
+retries and later intentional actions. The legacy path remains for compatibility
+while hosted parity is reviewed.
+
+Validation: focused Web Core/action tests 180/180, API HTTP canary 1/1, API
+build, Web typecheck/lint, and authenticated browser canary 1/1 passed. Full
+`pnpm test` passed with shared-types 332, database 241 passed/143 skipped, API
+764, and Web 791; workspace typecheck, lint, production build (83 Next pages),
+migration/release/policy/parity checks, web-database boundary, Actionlint,
+Gitleaks, provider-spend guard, and `git diff --check` also passed. No hosted
+or provider mutation occurred.

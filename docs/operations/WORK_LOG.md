@@ -11101,3 +11101,22 @@ hosted baseline, but not a promotion approval:
 - Source commit `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is now pushed to
   `origin/agent-02/third-code-erp-landing`; local and remote SHAs match.
   Production deployment and provider mutations remain intentionally unrun.
+
+## 2026-08-12 - M3.282 reconciliation line match/unmatch Core write
+
+- Changed the Web Core client, exact-tenant selector, two reconciliation Server
+  Actions, per-line UI retry state, and local loopback harness/spec. The Nest
+  workflow and database authority were reused; no new migration was required.
+- Verified: focused Web Core/action tests 180/180; API build; Web typecheck and
+  lint; disposable PostgreSQL/Nest HTTP canary 1/1; authenticated Playwright
+  browser canary 1/1. The browser proved both match and unmatch requests,
+  idempotency keys, strict bodies, rendered counts, responsive overflow, zero
+  console errors, and blocked external requests.
+- Full gates then passed: `pnpm test` (shared-types 332; database 241
+  passed/143 skipped; API 764; Web 791), `pnpm typecheck`, `pnpm lint`,
+  `pnpm build` (83 Next pages), migration/release/policy/parity checks,
+  web-database boundary, Actionlint, Gitleaks, provider-spend guard, and
+  `git diff --check`.
+- Hosted Supabase, Storage, Railway, Vercel, flags, provider settings,
+  credentials, and billing remain unchanged. Source/docs push is the next
+  action; no production deployment is authorized by this milestone.
