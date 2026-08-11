@@ -1,5 +1,26 @@
 # Work Log
 
+## 2026-08-12 - M3.288 Core bank-statement Storage authority seam
+
+Moved bank-statement signed upload and abandoned-source cleanup authority into
+an original Nest Core service/controller behind exact API and Web selectors.
+Core validates shared contracts, rechecks `finance.manage_cash`, enforces
+tenant-prefixed paths, uses only the server-side Supabase service role, and
+audits both operations. Next keeps the existing direct Storage route by
+default; selected Core failures do not fall back to Web writes.
+
+Added shared contracts, environment validation, observability operation names,
+Core/Web/route tests, and variable documentation. Focused Web/API/shared
+tests, full Web 113/802, API 176/772, shared-types 55/332, typecheck, lint,
+local builds, spend guard, DB boundary, actionlint, gitleaks, and diff checks
+pass. No hosted Supabase, Storage, Railway, Vercel, credential, provider, or
+paid action changed. Source commit: `42dbfbf`.
+
+Exact next action: disposable authenticated browser proof for the selected
+Core sign/cleanup branch; keep all production selectors closed pending managed
+Storage parity, readiness, release identity, rollback, smoke, and spend
+evidence.
+
 ## 2026-08-11 - M3.278 protected bank-reconciliation Web/Core browser canary
 
 Added a closed-by-default Playwright proof for the real Next

@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.288 Core bank-statement Storage authority seam
+
+Keep
+`ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_ENABLED=false` and
+`ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS` empty in Core;
+keep the Web `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API=false`
+and its tenant list empty, with the existing Web form/Storage selector also
+closed. Build a disposable authenticated browser canary that records the Core
+sign/cleanup requests, proves bearer/request-id/RBAC/tenant-prefix behavior,
+and leaves zero Storage fixtures. Then reconcile managed Storage RLS/key
+parity, readiness, exact release identity, rollback, authenticated smoke, and
+spend evidence. Do not apply hosted SQL, change provider settings, or trigger
+Vercel/Railway builds.
+
 ## Exact next action after M3.278 protected bank-reconciliation Web/Core browser canary
 
 Keep `ERP_FINANCE_RECONCILIATION_READS_VIA_API=false` and

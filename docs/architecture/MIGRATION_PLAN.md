@@ -1,5 +1,32 @@
 # Migration Plan
 
+## M3.288 - Core bank-statement Storage authority seam (completed source slice)
+
+1. Added shared strict sign/cleanup request and result contracts, including the
+   existing bounded tenant-prefixed Storage path grammar.
+2. Added a Nest `BankStatementImportStorageAuthorityService` and guarded
+   Storage controller. It rechecks capability and exact API tenant gates,
+   creates a sanitized tenant-prefixed signed upload, audits sign/cleanup, and
+   removes only an authorized tenant path with the server-only service role.
+3. Added separate Web `*_VIA_API` selector and typed sign/cleanup adapters.
+   The Next route delegates only for an exact selected tenant; Core errors are
+   terminal. Existing Web direct Storage behavior and browser harness remain
+   the default compatibility path.
+4. Added environment validation, request-observability operation names,
+   controller/service/adapter/route/schema tests, and deployment variable
+   documentation. No SQL migration or managed Storage policy change was made.
+5. Validation: focused Web 185, API 111, shared-types 4; full Web 113/802,
+   API 176/772, shared-types 55/332; typecheck, lint, Web/API production
+   builds, provider-spend, Web/DB boundary, actionlint, gitleaks, and diff
+   checks PASS. Production selectors remain false/empty.
+
+Source evidence: `42dbfbf`.
+
+Exact next action: prove the selected Core sign/cleanup branch in a disposable
+authenticated browser with real request recording and Storage cleanup, then
+review managed Storage RLS/key parity and release/spend gates. Do not deploy
+or mutate hosted data in this slice.
+
 ## M3.278 Protected bank-reconciliation Web/Core browser canary (completed source-only)
 
 1. Added a dedicated Playwright config, TypeScript project, package script, and

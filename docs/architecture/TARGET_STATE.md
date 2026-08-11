@@ -1,5 +1,23 @@
 # Target State
 
+## M3.288 Core bank-statement Storage authority seam (2026-08-12)
+
+The target boundary has an original, typed Nest authority for private bank
+statement uploads: capability checks and exact tenant path validation happen in
+Core, Storage credentials remain server-only, and signing/cleanup are audited.
+Next is a compatibility adapter only; once selected for one exact tenant, its
+Storage route delegates to Core with terminal-error semantics and no direct Web
+Storage fallback. PostgreSQL remains the ERP source of truth; the Storage
+object is only source evidence and Python/AI remains advisory.
+
+Keep `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_ENABLED=false` with an
+empty API tenant list and keep the Web
+`ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API=false` with an empty
+tenant list outside disposable proof. The existing Web Storage/form selector
+also stays closed. Managed Storage policy/key parity, readiness, release
+identity, rollback, authenticated smoke, and spend evidence are required
+before opening one tenant.
+
 ## M3.278 Protected bank-reconciliation Web/Core browser canary (2026-08-11)
 
 The local evidence now covers the user-facing reconciliation seam: an
