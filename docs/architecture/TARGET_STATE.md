@@ -1,5 +1,16 @@
 # Target State
 
+## M3.255 Journal posting authority (2026-08-11)
+
+The Core owns POST /v1/finance/journals/:journalEntryId/post. The route and
+opaque idempotency key are the only command authority; Core resolves tenant,
+actor, role, and journal state, locks the tenant-scoped draft before audit or
+request-ledger claim, and calls the PostgreSQL posting function to assign the
+number and commit the balanced journal. Replays return the durable result,
+key reuse for another journal conflicts, and cross-tenant ids remain
+concealed. Keep the write selector closed until hosted parity, readiness,
+browser, rollback, and cost gates are reconciled.
+
 ## M3.254 Supplier Bill reversal authority (2026-08-11)
 
 The Core owns POST /v1/finance/supplier-bills/:supplierBillId/reverse. The

@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-367 -- Preflight journal before posting request claim (2026-08-11)
+
+Decision: require the Core journal-post command to lock and resolve the
+tenant-scoped journal before writing audit state or claiming its idempotency
+row. Add a protected transaction-bound HTTP canary for authentication,
+finance/viewer authorization, disabled behavior, cross-tenant concealment,
+replay/conflict, balanced posting, audit, tenant isolation, and rollback. Keep
+the posting selector closed.
+
+Rationale: the request ledger has a composite tenant/journal foreign key. A
+cross-tenant journal id must be a concealed 404 with no ledger or audit side
+effect, never a raw constraint 500. Core remains the only authority for
+journal numbering and status; Python/AI remains analysis-only.
+
+Validation: focused local PostgreSQL 17/Redis 7.4.9 canary passed 1/1; API
+integration passed 50/50 files and 64 tests with two explicit Redis-restart
+opt-in skips; typecheck, root lint, production build, and provider/release
+policy gates passed. No hosted/provider/paid action occurred.
+
 ## D-366 -- Require protected HTTP evidence for supplier bill reversal (2026-08-11)
 
 Decision: require supplier-bill reversal to remain a Core-only command with a

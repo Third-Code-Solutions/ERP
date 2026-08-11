@@ -1,5 +1,25 @@
 # Next Actions
 
+## Exact next action after M3.255 journal-post canary
+
+Keep `ERP_FINANCE_JOURNAL_POST_WRITES_ENABLED=false` and
+`ERP_FINANCE_JOURNAL_POST_WRITES_TENANT_IDS` empty. Focused canary passes 1/1;
+API integration passes 50/50 files and 64 tests with two explicit
+Redis-restart skips under the 15-second timeout; static, build, release,
+boundary, workflow, actionlint, and spend gates pass. Do not apply hosted SQL
+or trigger Railway/Vercel builds while spend protection and the M3.248 hosted
+parity/security gate remain active. Next source boundary: journal-reversal
+authority, then reconcile hosted parity, release identity, readiness,
+protected browser evidence, rollback, and billing gates.
+
+## M3.255 evidence boundary (completed source-only canary)
+
+The protected journal-post canary passes 1/1 and the API integration lane
+passes 50/50 files and 64 tests with two explicit Redis-restart skips. It
+covers tenant preflight, auth/RBAC, disabled selector, cross-tenant
+concealment, idempotency, balanced posting, audit, tenant isolation, and
+rollback. No provider or paid action occurred.
+
 ## Exact next action after M3.254 supplier-bill reversal canary
 
 Keep `ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_ENABLED=false` and

@@ -1,5 +1,24 @@
 # Current State
 
+## M3.255 Journal posting authority (2026-08-11)
+
+Added the journal-post protected HTTP canary and moved the Core journal
+preflight ahead of audit stamping and idempotency claim. The canary boots the
+real Nest controller/service with JWT identity and capability guards against
+transaction-bound PostgreSQL and proves finance/viewer authorization,
+closed-selector behavior, concealed cross-tenant access, idempotent
+replay/key conflict, posted journal state, balanced lines, semantic audit,
+tenant isolation, and rollback.
+
+Focused canary: 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. API integration:
+50/50 files and 64 tests PASS with two explicit Redis-restart skips under the
+15-second timeout. Typecheck, root lint, production build, provider-spend,
+Supabase parity, database-release, Web/DB boundary, workflow action-reference,
+and actionlint gates PASS. No hosted SQL/data, Storage, Railway/Vercel
+deployment, provider setting, credential, or paid action changed. Keep
+journal-post writes disabled and its tenant allowlist empty. Source evidence
+SHA: 811154adca1258c70fcf7073fd62f7e704247234.
+
 ## M3.254 Supplier Bill reversal authority (2026-08-11)
 
 Added the supplier-bill reversal protected HTTP canary. It boots the real
