@@ -11057,3 +11057,17 @@ hosted baseline, but not a promotion approval:
 - Exact next action: reconcile the hosted target against an approved clone and
   backup, then prepare one reviewed canary only after owner/provider/spend
   gates clear.
+
+## 2026-08-11 - M3.279 reconciliation detail Core read
+
+- Changed shared detail contracts; Nest reconciliation controller/service;
+  Web Core client and detail-page adapter; focused API/Web/shared tests.
+- Verified: shared contract 4/4; Web Core client 166/166; API reconciliation
+  unit/controller 8/8; disposable PostgreSQL API detail canary 1/1; API/Web
+  typechecks PASS.
+- Not run yet: full workspace test/build/lint/policy gates and browser detail
+  canary. Hosted Supabase, Railway, Vercel, GitHub Actions, flags, and provider
+  settings were not mutated.
+- Risks: hosted migration drift and provider billing gate remain open; Core
+  detail selection is intentionally disabled by default. Next action is run
+  production builds/full gates, review diff, then push source/docs only.

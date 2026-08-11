@@ -1,5 +1,13 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common'
+import {
+  Controller,
+  Get,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Query,
+} from '@nestjs/common'
 import type {
+  FinanceReconciliationDetailResult,
   FinanceReconciliationQuery,
   FinanceReconciliationResult,
 } from '@third-code-erp/shared-types'
@@ -25,5 +33,14 @@ export class FinanceReconciliationController {
     @CurrentPrincipal() principal: ErpPrincipal
   ): Promise<FinanceReconciliationResult> {
     return this.reconciliation.list(query, principal)
+  }
+
+  @Get(':statementId')
+  @RequireCapabilities('finance.read')
+  read(
+    @Param('statementId', new ParseUUIDPipe()) statementId: string,
+    @CurrentPrincipal() principal: ErpPrincipal
+  ): Promise<FinanceReconciliationDetailResult> {
+    return this.reconciliation.read(statementId, principal)
   }
 }

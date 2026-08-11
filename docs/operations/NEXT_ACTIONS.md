@@ -5488,6 +5488,18 @@ Git disconnected and do not create preview or duplicate production builds.
    Vercel production action. Keep Vercel Git disconnected; avoid previews and
    duplicate builds; verify live browser/API/logs before declaring green.
 
+## Exact next action after M3.279
+
+1. Run the full source gates: shared/database/API/Web tests, lint, typecheck,
+   production builds, migration/policy/security checks, and `git diff --check`.
+2. If all local gates pass, review and push the M3.279 source/docs commit under
+   `kurtgav`; verify the exact remote SHA. Do not trigger Vercel or Railway.
+3. Keep `ERP_FINANCE_RECONCILIATION_READS_VIA_API` and
+   `ERP_FINANCE_RECONCILIATION_READS_VIA_API_TENANT_IDS` false/empty until
+   hosted parity, readiness, rollback, and spend-bounded approval exist.
+4. Next implementation slice: browser detail canary plus reconciliation
+   action authority review, still local/disposable only.
+
 ## Exact next action after M3.12 delivery receipt authority source slice (2026-08-02)
 
 1. Keep `ERP_DELIVERY_RECEIPT_WRITES_VIA_API`,

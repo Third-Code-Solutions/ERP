@@ -39,6 +39,7 @@ import {
   getFinancePayablesThroughCoreApi,
   getFinanceCashThroughCoreApi,
   getFinanceReconciliationThroughCoreApi,
+  getFinanceReconciliationDetailThroughCoreApi,
   createBankStatementThroughCoreApi,
   financeReconciliationImportWritesUseCoreApi,
   financeReconciliationStorageUploadsUseCoreApi,
@@ -697,6 +698,43 @@ const FINANCE_RECONCILIATION_RESULT = {
   reconciledCount: 0,
   openExceptions: 1,
   channels: 1,
+}
+const FINANCE_RECONCILIATION_DETAIL_RESULT = {
+  tenantId: RESULT.tenantId,
+  statement: {
+    id: '33333333-3333-4333-8333-333333333333',
+    referenceNumber: 'BANK-001',
+    sourceFileName: 'statement.csv',
+    sourceSha256: 'a'.repeat(64),
+    status: 'draft' as const,
+    statementStart: '2026-08-01',
+    statementEnd: '2026-08-31',
+    currency: 'PHP',
+    openingBalanceCents: 99_500,
+    closingBalanceCents: 100_000,
+    cashAccountId: '55555555-5555-4555-8555-555555555555',
+    cashAccountName: 'Operating bank',
+    cashAccountKind: 'bank' as const,
+    reconciledAt: null,
+    voidedAt: null,
+    voidReason: null,
+  },
+  lines: [
+    {
+      id: '44444444-4444-4444-8444-444444444444',
+      lineNumber: 1,
+      transactionDate: '2026-08-10',
+      referenceNumber: 'DEP-001',
+      description: 'Customer deposit',
+      amountCents: 500,
+      matchedCashTransactionId: null,
+      matchedAt: null,
+      matchedInternalNumber: null,
+      matchedReferenceNumber: null,
+      matchedTransactionDate: null,
+    },
+  ],
+  candidates: [],
 }
 const NOTIFICATION_LIST_RESULT = {
   items: [
@@ -2121,6 +2159,38 @@ describe('ERP Core client', () => {
     })
     expect(fetchMock).toHaveBeenCalledWith(
       'https://erp-api.example.test/v1/finance/reconciliation?limit=500',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('calls the authenticated Core bank statement detail read and validates evidence', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(FINANCE_RECONCILIATION_DETAIL_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      getFinanceReconciliationDetailThroughCoreApi(
+        '33333333-3333-4333-8333-333333333333'
+      )
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        statement: { referenceNumber: 'BANK-001' },
+        lines: [{ amountCents: 500 }],
+      },
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/finance/reconciliation/33333333-3333-4333-8333-333333333333',
       expect.objectContaining({
         method: 'GET',
         cache: 'no-store',

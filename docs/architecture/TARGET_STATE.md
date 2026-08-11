@@ -4528,3 +4528,14 @@ cancellation flags are false/empty by default, and the visible delivery UI is
 unchanged. Hosted migration drift, duplicate demo data, audit recovery,
 readiness, exact SHA, rollback, integration, and spend approval remain
 independent promotion gates.
+
+## Reconciliation detail authority (M3.279, 2026-08-11)
+
+Bank-statement detail is a protected Core read at
+`GET /v1/finance/reconciliation/:statementId`. Nest is authoritative for
+tenant scope, bounded line/candidate selection, timestamp normalization, and
+concealed cross-tenant not-found behavior. Web consumes the strict shared
+result only for an exact tenant canary; otherwise it preserves the legacy
+compatibility read. The selector is closed by default and selected errors are
+terminal. Reconciliation matching writes remain a separate future authority
+slice.
