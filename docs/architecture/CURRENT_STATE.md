@@ -25,7 +25,7 @@ PASS. Source parity is 55/121 hosted/source migrations, 66 pending in 14
 review batches. The migration was applied only to the disposable local CI
 database; no hosted SQL/data, Storage, Railway/Vercel deployment, provider
 setting, credential, or paid action changed. Source evidence SHA:
-`378339a53e71f2f8290f0dd21d8ed6bd1b89e2fb`.
+`378339aa32e3e836174280341cb514b4b6adeb49`.
 
 ## M3.262 Bank-statement line match/unmatch authority (2026-08-11)
 

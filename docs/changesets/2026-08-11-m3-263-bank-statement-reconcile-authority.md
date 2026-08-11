@@ -32,7 +32,7 @@ provider setting, credential, or paid action changed. Keep
 `ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED=false` and its tenant list
 empty until hosted parity, readiness, protected browser cutover, rollback, and
 spend evidence are separately approved. Source commit:
-`378339a53e71f2f8290f0dd21d8ed6bd1b89e2fb`.
+`378339aa32e3e836174280341cb514b4b6adeb49`.
 
 ## Rollback
 
