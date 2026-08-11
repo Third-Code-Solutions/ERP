@@ -1,5 +1,29 @@
 # Architecture Decisions
 
+## D-376 -- Keep bank-statement void Core-only and fail-closed (2026-08-11)
+
+Decision: add bank-statement void only as a Nest Core command. The route
+re-authorizes `finance.manage_cash`, locks the tenant-scoped statement, calls
+the existing trusted PostgreSQL function, and records a durable tenant-scoped
+idempotency result plus semantic audit in one transaction. Keep the selector
+false with an empty tenant allowlist and leave the legacy Web path unchanged
+until Web/Core parity and protected browser cutover are proven.
+
+Rationale: voiding changes sensitive financial evidence and must only be
+allowed after reconciliation. A dedicated request ledger provides replay and
+action/key-conflict evidence while tenant-matched foreign keys, force RLS,
+service-role-only grants, database constraints, and the statement lock protect
+integrity. Python/AI remains advisory only and cannot approve or finalize the
+transaction.
+
+Validation: local PostgreSQL rollback-only HTTP canary 1/1; root tests shared
+54/54 files and 327/327 tests, database 68/72 files with 239 passed and 143
+environment-skipped, Web 111/111 files and 768/768 tests, API 173/173 files
+and 756/756 tests; API integration 55/55 files with 69 passed and two
+intentional Redis-restart skips; typecheck, lint, build, database contract,
+policy, parity, release, boundary, workflow, actionlint, and spend gates
+PASS. No hosted/provider/paid action occurred.
+
 ## D-375 -- Keep bank-statement reconciliation Core-only and fail-closed (2026-08-11)
 
 Decision: add bank-statement reconciliation only as a Nest Core command. The

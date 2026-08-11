@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.264 Bank-statement void authority (completed source-only canary)
+
+1. Added strict shared void command/body/result schemas and fail-closed
+   environment selectors with empty tenant allowlists.
+2. Added the force-RLS/service-role-only
+   `bank_statement_void_requests` ledger with tenant-matched statement and
+   actor foreign keys, state/result constraints, durable replay, and
+   idempotency conflict detection.
+3. Added the Nest Core void route with capability guards, tenant
+   re-authorization, statement lock, trusted PostgreSQL function call,
+   semantic audit, and strict input/header pipes. The legacy Web path remains
+   unchanged and selectors remain closed.
+4. Added a local PostgreSQL rollback-only HTTP canary covering auth/RBAC,
+   strict reason/header handling, disabled selector, cross-tenant concealment,
+   pre-reconcile rejection, successful void, replay/key conflict, ledger
+   state, audit, and rollback.
+5. Focused canary passed 1/1. Root `pnpm test`, API integration, typecheck,
+   lint, production build, database contract, provider-spend, parity, release,
+   boundary, workflow-reference, and actionlint gates passed.
+6. Source parity is 55/122 hosted/source migrations, 67 pending in 15 review
+   batches. No hosted SQL/data, Storage, Railway/Vercel deployment, provider
+   setting, credential, or paid action changed.
+   Source evidence SHA: `04fdf12fb90ae30b97f0655ca2a37d6a720741f3`.
+
+Exact next action: keep the void selector and tenant list false/empty; do not
+apply hosted SQL or trigger provider builds. Define import authority only
+after a separate local proof.
+
 ## M3.263 Bank-statement reconciliation authority (completed source-only canary)
 
 1. Added strict shared reconcile command/result schemas and fail-closed

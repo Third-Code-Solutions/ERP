@@ -1,5 +1,27 @@
 # Third Code ERP capability matrix
 
+## M3.264 Bank-statement void authority (2026-08-11)
+
+The `finance.manage_cash` Core void command now has protected transaction-
+bound HTTP evidence for strict reason/header handling, JWT authentication,
+Finance/viewer authorization, closed-by-default selector behavior, exact
+tenant-scoped statement locking, pre-reconcile rejection, trusted PostgreSQL
+voiding, durable replay/key conflict, semantic audit, and rollback. Web
+adoption remains closed; keep
+`ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED=false` and its tenant list
+empty. Python/AI remains analysis-only and cannot void or finalize bank
+evidence.
+
+Validation: focused canary 1/1; root `pnpm test` shared 54/54 files and 327
+tests, database 68/72 files with 239 passed and 143 environment-skipped tests,
+API 173/173 files and 756 tests, Web 111/111 files and 768 tests; API
+integration 55/55 files with 69 passed and two intentional Redis-restart
+skips; typecheck, lint, build, database contract, provider, release, parity,
+boundary, workflow, actionlint, and spend gates PASS. Source is 122
+migrations; hosted remains 55 applied/67 pending in 15 review batches. No
+hosted or paid action. Source evidence SHA:
+`04fdf12fb90ae30b97f0655ca2a37d6a720741f3`.
+
 ## M3.263 Bank-statement reconciliation authority (2026-08-11)
 
 The `finance.manage_cash` Core reconcile command now has protected

@@ -1,5 +1,19 @@
 # Next Actions
 
+## Exact next action after M3.264 bank-statement void authority
+
+Keep `ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED=false` and
+`ERP_FINANCE_RECONCILIATION_VOID_WRITES_TENANT_IDS` empty. The local Core
+canary, strict shared/database contracts, full package tests, API integration,
+typecheck, lint, production build, policy, parity, release, boundary,
+workflow, actionlint, and spend gates pass. Source parity is 55/122 with 67
+pending migrations in 15 ordered review batches; managed Supabase and
+provider deployments remain untouched. Next source boundary: import
+authority with its own ledger and rollback-only canary. After that, separately
+require hosted parity, release identity, readiness, protected browser,
+rollback, and spend evidence. Do not apply hosted SQL or trigger
+Railway/Vercel builds.
+
 ## Exact next action after M3.263 bank-statement reconciliation authority
 
 Keep `ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED=false` and
