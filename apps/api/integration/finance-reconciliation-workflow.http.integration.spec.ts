@@ -9,6 +9,7 @@ import {
   auditLog,
   bankStatementAutoMatchRequests,
   bankStatementLineMatchRequests,
+  bankStatementImportRequests,
   bankStatementLines,
   bankStatementReconcileRequests,
   bankStatementVoidRequests,
@@ -262,6 +263,7 @@ async function seedFixture(
     secondStatementId,
     lineId,
     cashTransactionId,
+    cashAccountId,
   }
 }
 
@@ -288,6 +290,7 @@ suite('Bank statement matching protected HTTP canary', () => {
         lineMatchEnabled: true,
         reconcileEnabled: true,
         voidEnabled: true,
+        importEnabled: true,
       }
       const config = {
         get: vi.fn((key: string, fallback?: unknown) => {
@@ -323,6 +326,12 @@ suite('Bank statement matching protected HTTP canary', () => {
           if (key === 'ERP_FINANCE_RECONCILIATION_VOID_WRITES_TENANT_IDS') {
             return [fixtureA.tenantId, fixtureB.tenantId]
           }
+          if (key === 'ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED') {
+            return featureState.importEnabled
+          }
+          if (key === 'ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS') {
+            return [fixtureA.tenantId, fixtureB.tenantId]
+          }
           return fallback
         }),
       } as unknown as ConfigService
@@ -352,6 +361,130 @@ suite('Bank statement matching protected HTTP canary', () => {
       await app.init()
 
       try {
+        const importRoute = '/v1/finance/reconciliation/import'
+        const importBody = {
+          cashAccountId: fixtureA.cashAccountId,
+          referenceNumber: `ST-IMPORT-${suffix}`,
+          sourceFileName: 'july-statement.csv',
+          statementStart: '2026-07-01',
+          statementEnd: '2026-07-31',
+          openingBalanceCents: 0,
+          closingBalanceCents: 1000,
+          sourceBase64: Buffer.from(
+            'date,reference,description,amount\n2026-07-01,DEP-1,Customer deposit,10.00\n'
+          ).toString('base64'),
+        }
+
+        await request(app.getHttpServer())
+          .post(importRoute)
+          .send(importBody)
+          .expect(401)
+        await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer unknown-token')
+          .set('Idempotency-Key', 'import-unknown')
+          .send(importBody)
+          .expect(401)
+        await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'import-strict-body')
+          .send({ ...importBody, tenantId: fixtureA.tenantId })
+          .expect(400)
+        await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer auto-match-http-viewer-a-token')
+          .set('Idempotency-Key', 'import-viewer-denied')
+          .send(importBody)
+          .expect(403)
+        featureState.importEnabled = false
+        await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'import-disabled-write')
+          .send(importBody)
+          .expect(503)
+        featureState.importEnabled = true
+        await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'import-cross-tenant')
+          .send({ ...importBody, cashAccountId: fixtureB.cashAccountId })
+          .expect(409)
+
+        const imported = await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'import-1')
+          .send(importBody)
+          .expect(200)
+        expect(imported.body).toMatchObject({
+          tenantId: fixtureA.tenantId,
+          status: 'draft',
+          lineCount: 1,
+        })
+        const importedReplay = await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', ' import-1 ')
+          .send(importBody)
+          .expect(200)
+        expect(importedReplay.body).toEqual(imported.body)
+        await request(app.getHttpServer())
+          .post(importRoute)
+          .set('Authorization', 'Bearer auto-match-http-finance-a-token')
+          .set('Idempotency-Key', 'import-1')
+          .send({ ...importBody, referenceNumber: `ST-IMPORT-OTHER-${suffix}` })
+          .expect(409)
+
+        const [importRequestRow] = await transaction
+          .select({
+            state: bankStatementImportRequests.state,
+            statementId: bankStatementImportRequests.bank_statement_id,
+            result: bankStatementImportRequests.result,
+          })
+          .from(bankStatementImportRequests)
+          .where(
+            and(
+              eq(bankStatementImportRequests.tenant_id, fixtureA.tenantId),
+              eq(bankStatementImportRequests.idempotency_key, 'import-1')
+            )
+          )
+        expect(importRequestRow?.state).toBe('succeeded')
+        expect(importRequestRow?.statementId).toBe(imported.body.statementId)
+        expect(importRequestRow?.result).toEqual(imported.body)
+
+        const [importedStatement] = await transaction
+          .select({
+            status: bankStatements.status,
+            sourceSha256: bankStatements.source_sha256,
+          })
+          .from(bankStatements)
+          .where(
+            and(
+              eq(bankStatements.id, imported.body.statementId),
+              eq(bankStatements.tenant_id, fixtureA.tenantId)
+            )
+          )
+        expect(importedStatement?.status).toBe('draft')
+        expect(importedStatement?.sourceSha256).toMatch(/^[0-9a-f]{64}$/)
+
+        const [importAudit] = await transaction
+          .select({ diff: auditLog.diff })
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, fixtureA.tenantId),
+              eq(auditLog.entity_id, imported.body.statementId),
+              eq(auditLog.action, 'create'),
+              sql`${auditLog.diff}->>'operation' = 'import'`
+            )
+          )
+        expect(importAudit?.diff).toMatchObject({
+          operation: 'import',
+          line_count: 1,
+        })
+
         const route = `/v1/finance/reconciliation/${fixtureA.statementId}/auto-match`
         const command = {}
 

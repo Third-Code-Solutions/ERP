@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { Buffer } from 'node:buffer'
 import {
   BadRequestException,
   ConflictException,
@@ -13,10 +14,12 @@ import { ConfigService } from '@nestjs/config'
 import {
   bankStatementAutoMatchRequests,
   bankStatementLineMatchRequests,
+  bankStatementImportRequests,
   bankStatementLines,
   bankStatementReconcileRequests,
   bankStatementVoidRequests,
   bankStatements,
+  cashAccounts,
   users,
 } from '@third-code-erp/database/schema'
 import {
@@ -29,6 +32,9 @@ import {
   bankStatementReconcileResultSchema,
   bankStatementVoidCommandSchema,
   bankStatementVoidResultSchema,
+  bankStatementImportCommandSchema,
+  bankStatementImportResultSchema,
+  parseBankStatementCsv,
   type BankStatementAutoMatchBody,
   type BankStatementAutoMatchResult,
   type BankStatementLineMatchBody,
@@ -40,6 +46,10 @@ import {
   type BankStatementReconcileResult,
   type BankStatementVoidBody,
   type BankStatementVoidResult,
+  type BankStatementImportCommand,
+  type BankStatementImportBody,
+  type BankStatementImportResult,
+  type ParsedBankStatementLine,
 } from '@third-code-erp/shared-types'
 import { and, eq, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
@@ -84,7 +94,26 @@ type VoidRequest = {
   result: unknown
 }
 
+type ImportRequest = {
+  id: string
+  statementId: string | null
+  requestHash: string
+  state: 'processing' | 'succeeded'
+  result: unknown
+}
+
+type PreparedImport = {
+  sourceSha256: string
+  lines: ParsedBankStatementLine[]
+}
+
 function commandHash(command: { statementId: string }): string {
+  return createHash('sha256')
+    .update(JSON.stringify(command))
+    .digest('hex')
+}
+
+function payloadHash(command: unknown): string {
   return createHash('sha256')
     .update(JSON.stringify(command))
     .digest('hex')
@@ -147,6 +176,75 @@ function replayVoidResult(value: unknown): BankStatementVoidResult {
   return parsed.data
 }
 
+function replayImportResult(value: unknown): BankStatementImportResult {
+  const parsed = bankStatementImportResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new InternalServerErrorException(
+      'Bank statement import idempotency result is invalid'
+    )
+  }
+  return parsed.data
+}
+
+function prepareImport(command: BankStatementImportCommand): PreparedImport {
+  const sourceBytes = Buffer.from(command.sourceBase64, 'base64')
+  if (sourceBytes.length === 0 || sourceBytes.length > 2_000_000) {
+    throw new BadRequestException('Source file must be 2 MB or smaller')
+  }
+
+  let lines: ParsedBankStatementLine[]
+  try {
+    lines = parseBankStatementCsv(sourceBytes.toString('utf8'))
+  } catch (error) {
+    throw new BadRequestException(
+      error instanceof Error ? error.message : 'Could not parse bank statement CSV'
+    )
+  }
+
+  if (
+    lines.some(
+      (line) =>
+        line.transactionDate < command.statementStart ||
+        line.transactionDate > command.statementEnd
+    )
+  ) {
+    throw new BadRequestException(
+      'Bank statement line must match its tenant and date range'
+    )
+  }
+
+  const fingerprints = new Set<string>()
+  for (const line of lines) {
+    const fingerprint = [
+      line.transactionDate,
+      line.referenceNumber?.toLowerCase() ?? '',
+      line.amountCents,
+      line.description.trim().toLowerCase(),
+    ].join('|')
+    if (fingerprints.has(fingerprint)) {
+      throw new BadRequestException(
+        'That statement reference or an exact duplicate line already exists.'
+      )
+    }
+    fingerprints.add(fingerprint)
+  }
+
+  const lineTotal = lines.reduce((sum, line) => sum + line.amountCents, 0)
+  const closingBalance = command.openingBalanceCents + lineTotal
+  if (
+    !Number.isSafeInteger(lineTotal) ||
+    !Number.isSafeInteger(closingBalance) ||
+    closingBalance !== command.closingBalanceCents
+  ) {
+    throw new BadRequestException('Bank statement balances do not roll forward')
+  }
+
+  return {
+    sourceSha256: createHash('sha256').update(sourceBytes).digest('hex'),
+    lines,
+  }
+}
+
 function mapDatabaseFailure(error: unknown): never {
   const message = error instanceof Error ? error.message : ''
   if (message.includes('Bank statement not found')) {
@@ -178,6 +276,15 @@ function mapDatabaseFailure(error: unknown): never {
     message.includes('Bank statement void reason is required')
   ) {
     throw new ConflictException(message)
+  }
+  if (
+    message.includes('ux_bank_statements_reference') ||
+    message.includes('ux_bank_statement_lines_fingerprint') ||
+    message.includes('Active bank or e-wallet Cash Account is required')
+  ) {
+    throw new ConflictException(
+      'That statement reference, duplicate line, or Cash Account is invalid'
+    )
   }
   if (
     message.includes('Bank statement line not found') ||
@@ -338,6 +445,20 @@ export class FinanceReconciliationWorkflowService {
     )
   }
 
+  async importStatement(
+    body: BankStatementImportBody,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<BankStatementImportResult> {
+    const command = bankStatementImportCommandSchema.parse(body)
+    return this.runImport(
+      command,
+      principal,
+      validateKey(rawIdempotencyKey),
+      payloadHash(command)
+    )
+  }
+
   async matchLine(
     statementId: string,
     lineId: string,
@@ -458,6 +579,104 @@ export class FinanceReconciliationWorkflowService {
       } catch (error) {
         mapDatabaseFailure(error)
       }
+    })
+  }
+
+  private async runImport(
+    command: BankStatementImportCommand,
+    principal: ErpPrincipal,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<BankStatementImportResult> {
+    this.assertImportEnabled(principal)
+    const prepared = prepareImport(command)
+    return this.database.client.transaction(async (transaction) => {
+      const authorizedPrincipal = await this.authorize(transaction, principal)
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+      const request = await this.claimImportRequest(
+        transaction,
+        authorizedPrincipal,
+        idempotencyKey,
+        requestHash
+      )
+      if (request.state === 'succeeded') return replayImportResult(request.result)
+
+      const [cashAccount] = await transaction
+        .select({
+          id: cashAccounts.id,
+          currency: cashAccounts.currency,
+        })
+        .from(cashAccounts)
+        .where(
+          and(
+            eq(cashAccounts.id, command.cashAccountId),
+            eq(cashAccounts.tenant_id, authorizedPrincipal.tenantId),
+            eq(cashAccounts.is_active, true)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!cashAccount) {
+        throw new ConflictException(
+          'Active bank or e-wallet Cash Account is required'
+        )
+      }
+
+      const [statement] = await transaction
+        .insert(bankStatements)
+        .values({
+          tenant_id: authorizedPrincipal.tenantId,
+          cash_account_id: cashAccount.id,
+          reference_number: command.referenceNumber,
+          source_file_name: command.sourceFileName,
+          source_sha256: prepared.sourceSha256,
+          statement_start: command.statementStart,
+          statement_end: command.statementEnd,
+          currency: cashAccount.currency,
+          opening_balance_cents: command.openingBalanceCents,
+          closing_balance_cents: command.closingBalanceCents,
+          created_by: authorizedPrincipal.userId,
+        })
+        .returning({ id: bankStatements.id })
+      if (!statement) {
+        throw new InternalServerErrorException('Bank statement was not created')
+      }
+
+      await transaction.insert(bankStatementLines).values(
+        prepared.lines.map((line, index) => ({
+          tenant_id: authorizedPrincipal.tenantId,
+          bank_statement_id: statement.id,
+          line_number: index + 1,
+          transaction_date: line.transactionDate,
+          reference_number: line.referenceNumber,
+          description: line.description,
+          amount_cents: line.amountCents,
+        }))
+      )
+
+      const result = bankStatementImportResultSchema.parse({
+        statementId: statement.id,
+        tenantId: authorizedPrincipal.tenantId,
+        status: 'draft',
+        lineCount: prepared.lines.length,
+        sourceSha256: prepared.sourceSha256,
+      })
+      await this.completeImportRequest(transaction, request.id, result, statement.id)
+      await this.audit.writeSemantic(transaction, {
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
+        entityType: 'bank_statement',
+        entityId: statement.id,
+        action: 'create',
+        diff: {
+          operation: 'import',
+          reference_number: command.referenceNumber,
+          line_count: prepared.lines.length,
+          source_sha256: prepared.sourceSha256,
+          idempotency_key_hash: requestHash,
+        },
+      })
+      return result
     })
   }
 
@@ -762,6 +981,22 @@ export class FinanceReconciliationWorkflowService {
     }
   }
 
+  private assertImportEnabled(principal: ErpPrincipal): void {
+    const enabled = this.config.get<boolean>(
+      'ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED',
+      false
+    )
+    const allowedTenantIds = this.config.get<string[]>(
+      'ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS',
+      []
+    )
+    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+      throw new ServiceUnavailableException(
+        'Bank statement importing is not enabled for this tenant; no bank statement was changed.'
+      )
+    }
+  }
+
   private async claimRequest(
     transaction: DatabaseTransaction,
     principal: ErpPrincipal,
@@ -916,6 +1151,94 @@ export class FinanceReconciliationWorkflowService {
     if (!completed) {
       throw new InternalServerErrorException(
         'Bank statement reconcile idempotency record changed before completion'
+      )
+    }
+  }
+
+  private async claimImportRequest(
+    transaction: DatabaseTransaction,
+    principal: ErpPrincipal,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<ImportRequest> {
+    await transaction
+      .insert(bankStatementImportRequests)
+      .values({
+        tenant_id: principal.tenantId,
+        idempotency_key: idempotencyKey,
+        request_hash: requestHash,
+        created_by: principal.userId,
+      })
+      .onConflictDoNothing({
+        target: [
+          bankStatementImportRequests.tenant_id,
+          bankStatementImportRequests.idempotency_key,
+        ],
+      })
+    const [request] = await transaction
+      .select({
+        id: bankStatementImportRequests.id,
+        statementId: bankStatementImportRequests.bank_statement_id,
+        requestHash: bankStatementImportRequests.request_hash,
+        state: bankStatementImportRequests.state,
+        result: bankStatementImportRequests.result,
+      })
+      .from(bankStatementImportRequests)
+      .where(
+        and(
+          eq(bankStatementImportRequests.tenant_id, principal.tenantId),
+          eq(bankStatementImportRequests.idempotency_key, idempotencyKey)
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!request) {
+      throw new InternalServerErrorException(
+        'Bank statement import idempotency record was not created'
+      )
+    }
+    if (request.requestHash !== requestHash) {
+      throw new ConflictException(
+        'Idempotency key was already used with a different bank statement import command'
+      )
+    }
+    if (request.state !== 'processing' && request.state !== 'succeeded') {
+      throw new ConflictException(
+        'Bank statement import idempotency record has an unsupported state'
+      )
+    }
+    if (request.state === 'succeeded' && !request.statementId) {
+      throw new InternalServerErrorException(
+        'Bank statement import idempotency result has no statement'
+      )
+    }
+    return request
+  }
+
+  private async completeImportRequest(
+    transaction: DatabaseTransaction,
+    requestId: string,
+    result: BankStatementImportResult,
+    statementId: string
+  ): Promise<void> {
+    const [completed] = await transaction
+      .update(bankStatementImportRequests)
+      .set({
+        bank_statement_id: statementId,
+        state: 'succeeded',
+        result,
+        completed_at: new Date(),
+      })
+      .where(
+        and(
+          eq(bankStatementImportRequests.id, requestId),
+          eq(bankStatementImportRequests.state, 'processing')
+        )
+      )
+      .returning({ id: bankStatementImportRequests.id })
+    if (!completed) {
+      throw new InternalServerErrorException(
+        'Bank statement import idempotency record changed before completion'
       )
     }
   }

@@ -1215,6 +1215,24 @@ describe('ERP API environment', () => {
     ).toThrow('ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_TENANT_IDS')
   })
 
+  it('keeps bank statement import writes disabled and tenant-scoped', () => {
+    const parsed = validateEnvironment(REQUIRED)
+    expect(parsed.ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED).toBe(false)
+    expect(parsed.ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS).toEqual(
+      []
+    )
+    const enabled = validateEnvironment({
+      ...REQUIRED,
+      ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED: 'true',
+      ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS:
+        '11111111-1111-4111-8111-111111111111',
+    })
+    expect(enabled.ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED).toBe(true)
+    expect(enabled.ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS).toEqual([
+      '11111111-1111-4111-8111-111111111111',
+    ])
+  })
+
   it('keeps bank statement void writes disabled and tenant-scoped', () => {
     expect(
       validateEnvironment(REQUIRED)
