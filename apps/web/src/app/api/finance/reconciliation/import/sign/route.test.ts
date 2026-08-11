@@ -105,6 +105,15 @@ describe('bank statement signed upload route', () => {
       new RegExp(`^${TENANT_ID}/bank-statements/[0-9a-f-]+-July_statement\.csv$`)
     )
     expect(mocks.writeAuditLog).toHaveBeenCalledOnce()
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'bank_statement_upload',
+        entityId: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        ),
+        diff: expect.objectContaining({ storage_path: body.storagePath }),
+      })
+    )
   })
 
   it('rejects oversize or non-CSV sources before Storage work', async () => {
@@ -137,7 +146,14 @@ describe('bank statement signed upload route', () => {
       `${TENANT_ID}/bank-statements/failed.csv`,
     ])
     expect(mocks.writeAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'delete' })
+      expect.objectContaining({
+        action: 'delete',
+        entityId: TENANT_ID,
+        diff: {
+          operation: 'signed_upload_source_cleanup_requested',
+          storage_path: `${TENANT_ID}/bank-statements/failed.csv`,
+        },
+      })
     )
     expect(mocks.writeAuditLog.mock.invocationCallOrder[0]!).toBeLessThan(
       mocks.remove.mock.invocationCallOrder[0]!

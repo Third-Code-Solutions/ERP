@@ -16,6 +16,18 @@ function safeFileName(fileName: string): string {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200)
 }
 
+const storageEntityIdPattern =
+  /\/bank-statements\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:-|\/|$)/i
+
+/**
+ * Audit rows use a UUID entity key; keep the complete storage path in diff
+ * while using the upload UUID (or tenant UUID for older cleanup paths) as the
+ * relational entity id.
+ */
+function storageEntityId(storagePath: string, tenantId: string): string {
+  return storagePath.match(storageEntityIdPattern)?.[1] ?? tenantId
+}
+
 export async function POST(req: NextRequest) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -71,12 +83,13 @@ export async function POST(req: NextRequest) {
       tenantId: userRow.tenant_id,
       actorId: user.id,
       entityType: 'bank_statement_upload',
-      entityId: storagePath,
+      entityId: storageEntityId(storagePath, userRow.tenant_id),
       action: 'query',
       diff: {
         operation: 'signed_upload_url_created',
         file_name: parsed.data.fileName,
         size_bytes: parsed.data.sizeBytes,
+        storage_path: storagePath,
       },
     })
   } catch {
@@ -145,9 +158,12 @@ export async function DELETE(req: NextRequest) {
       tenantId: userRow.tenant_id,
       actorId: user.id,
       entityType: 'bank_statement_upload',
-      entityId: parsed.data.storagePath,
+      entityId: storageEntityId(parsed.data.storagePath, userRow.tenant_id),
       action: 'delete',
-      diff: { operation: 'signed_upload_source_cleanup_requested' },
+      diff: {
+        operation: 'signed_upload_source_cleanup_requested',
+        storage_path: parsed.data.storagePath,
+      },
     })
   } catch {
     return NextResponse.json(
