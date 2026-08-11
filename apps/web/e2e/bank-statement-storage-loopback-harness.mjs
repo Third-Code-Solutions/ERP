@@ -9,9 +9,11 @@ import { fileURLToPath } from 'node:url'
 const HOST = '127.0.0.1'
 const AUTH_PORT = 4348
 const WEB_PORT = 4347
+const PROXY_PORT = 4349
 const API_PORT = 4350
 const AUTH_ORIGIN = `http://${HOST}:${AUTH_PORT}`
 const WEB_ORIGIN = `http://${HOST}:${WEB_PORT}`
+const PROXY_ORIGIN = `http://${HOST}:${PROXY_PORT}`
 const API_ORIGIN = `http://${HOST}:${API_PORT}`
 const DATABASE_URL =
   'postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci'
@@ -75,10 +77,12 @@ const uploadRequests = []
 const storageReadRequests = []
 const removeRequests = []
 const foreignRequests = []
+const coreRequests = []
 const uploadedObjects = new Map()
 let sql
 let webChild
 let apiChild
+let proxyServer
 let stopping = false
 
 function corsHeaders(origin) {
@@ -248,6 +252,7 @@ const authServer = createServer(async (request, response) => {
       storageReadRequests,
       removeRequests,
       foreignRequests,
+      coreRequests,
       bankStatementCount: statementCount[0]?.count ?? 0,
       bankStatementLineCount: lineCount[0]?.count ?? 0,
       importRequestCount: importRequestCount[0]?.count ?? 0,
@@ -415,6 +420,45 @@ const authServer = createServer(async (request, response) => {
   })
 })
 
+proxyServer = createServer(async (request, response) => {
+  const body = await requestBody(request)
+  const url = new URL(request.url ?? '/', PROXY_ORIGIN)
+  if (url.pathname.startsWith('/v1/finance/reconciliation/import')) {
+    coreRequests.push({
+      method: request.method ?? 'GET',
+      path: url.pathname,
+      authorization: request.headers.authorization ?? '',
+      requestId: request.headers['x-request-id'] ?? '',
+      body: body.toString('utf8'),
+    })
+  }
+  try {
+    const upstream = await fetch(`${API_ORIGIN}${url.pathname}${url.search}`, {
+      method: request.method,
+      headers: {
+        authorization: request.headers.authorization ?? '',
+        'x-request-id': request.headers['x-request-id'] ?? '',
+        'idempotency-key': request.headers['idempotency-key'] ?? '',
+        'content-type': request.headers['content-type'] ?? 'application/json',
+        accept: request.headers.accept ?? 'application/json',
+      },
+      body: body.length ? body : undefined,
+    })
+    const upstreamBody = Buffer.from(await upstream.arrayBuffer())
+    response.writeHead(upstream.status, {
+      'cache-control': 'no-store',
+      'content-type': upstream.headers.get('content-type') ?? 'application/json',
+    })
+    response.end(upstreamBody)
+  } catch (error) {
+    response.writeHead(502, corsHeaders(WEB_ORIGIN))
+    response.end(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+      })
+    )
+  }
+})
 
 function listen(server, port) {
   return new Promise((resolveListen, reject) => {
@@ -460,12 +504,16 @@ async function stop(exitCode = 0) {
   if (webChild && !webChild.killed) webChild.kill('SIGTERM')
   if (apiChild && !apiChild.killed) apiChild.kill('SIGTERM')
   await new Promise((resolveClose) => authServer.close(() => resolveClose()))
+  await new Promise((resolveClose) =>
+    proxyServer?.close(() => resolveClose())
+  )
   await cleanup()
   process.exitCode = exitCode
 }
 
 await seedDatabase()
 await listen(authServer, AUTH_PORT)
+await listen(proxyServer, PROXY_PORT)
 
 const require = createRequire(import.meta.url)
 const nextBin = require.resolve('next/dist/bin/next')
@@ -481,6 +529,8 @@ const apiEnvironment = {
   ERP_API_CORS_ORIGINS: WEB_ORIGIN,
   ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED: 'true',
   ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_ENABLED: 'true',
+  ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS: TENANT_ID,
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
   AI_PROVIDER_API_KEY: '',
@@ -516,11 +566,14 @@ webChild = spawn(
       SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
       NEXT_PUBLIC_SITE_URL: WEB_ORIGIN,
       NEXT_PUBLIC_APP_URL: WEB_ORIGIN,
-      ERP_CORE_API_URL: API_ORIGIN,
+      ERP_CORE_API_URL: PROXY_ORIGIN,
       ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API: 'true',
       ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS: 'true',
       ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS: TENANT_ID,
+      ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API: 'true',
+      ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_VIA_API_TENANT_IDS:
+        TENANT_ID,
       ERP_CORTEX_SEARCH_VIA_API: 'false',
       ERP_CORTEX_SEARCH_VIA_API_TENANT_IDS: '',
       ERP_CORTEX_GRAPH_READS_VIA_API: 'false',

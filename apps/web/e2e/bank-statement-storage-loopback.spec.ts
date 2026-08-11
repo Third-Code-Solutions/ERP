@@ -38,9 +38,16 @@ interface HarnessState {
   importRequestCount: number
   auditCount: number
   auditEntries: Array<Record<string, unknown>>
+  coreRequests: Array<{
+    method: string
+    path: string
+    authorization: string
+    requestId: string
+    body: string
+  }>
 }
 
-test('proves successful Core bank-statement import, detail rendering, and cross-tenant cleanup denial', async ({
+test('proves Core bank-statement Storage sign/cleanup, import, and detail rendering', async ({
   page,
 }, testInfo) => {
   testInfo.setTimeout(120_000)
@@ -194,6 +201,20 @@ test('proves successful Core bank-statement import, detail rendering, and cross-
   )
   expect(foreignCleanup.status()).toBe(403)
 
+  const stateBeforeCleanupResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(stateBeforeCleanupResponse.ok()).toBe(true)
+  const stateBeforeCleanup =
+    (await stateBeforeCleanupResponse.json()) as HarnessState
+
+  const storagePath = stateBeforeCleanup.signRequests[0]!.storagePath
+  const authorizedCleanup = await page.request.delete(
+    `${WEB_ORIGIN}/api/finance/reconciliation/import/sign`,
+    { data: { storagePath } }
+  )
+  expect(authorizedCleanup.status()).toBe(200)
+
   const stateResponse = await page.request.get(`${AUTH_ORIGIN}/__harness__/state`)
   expect(stateResponse.ok()).toBe(true)
   const state = (await stateResponse.json()) as HarnessState
@@ -201,7 +222,7 @@ test('proves successful Core bank-statement import, detail rendering, and cross-
   expect(state.signRequests).toHaveLength(1)
   expect(state.uploadRequests).toHaveLength(1)
   expect(state.storageReadRequests).toHaveLength(2)
-  expect(state.removeRequests).toHaveLength(0)
+  expect(state.removeRequests).toHaveLength(1)
   expect(state.foreignRequests).toEqual([])
   expect(state.bankStatementCount).toBe(1)
   expect(state.bankStatementLineCount).toBe(1)
@@ -209,10 +230,9 @@ test('proves successful Core bank-statement import, detail rendering, and cross-
   const uploadAudits = state.auditEntries.filter(
     (entry) => entry.entity_type === 'bank_statement_upload'
   )
-  expect(uploadAudits).toHaveLength(1)
-  expect(uploadAudits.map((entry) => entry.action)).toEqual(['query'])
+  expect(uploadAudits).toHaveLength(2)
+  expect(uploadAudits.map((entry) => entry.action)).toEqual(['query', 'delete'])
 
-  const storagePath = state.signRequests[0]!.storagePath
   expect(storagePath).toMatch(
     new RegExp(`^${state.tenantId}/bank-statements/[0-9a-f-]+-controlled\\.csv$`)
   )
@@ -232,6 +252,47 @@ test('proves successful Core bank-statement import, detail rendering, and cross-
     storagePath,
     method: 'read',
   })
+  expect(state.removeRequests[0]).toMatchObject({
+    prefixes: [storagePath],
+    authorization: `Bearer ${'third-code-local-service-role-key'}`,
+  })
+
+  const coreStorageSign = state.coreRequests.find(
+    (request) =>
+      request.method === 'POST' &&
+      request.path === '/v1/finance/reconciliation/import/storage/sign'
+  )
+  expect(coreStorageSign).toMatchObject({
+    authorization: `Bearer ${session.accessToken}`,
+  })
+  expect(coreStorageSign?.requestId).toMatch(/^[0-9a-f-]{36}$/)
+  expect(JSON.parse(coreStorageSign?.body ?? '{}')).toMatchObject({
+    fileName: 'controlled.csv',
+    mimeType: 'text/csv',
+  })
+
+  const coreImport = state.coreRequests.find(
+    (request) =>
+      request.method === 'POST' &&
+      request.path === '/v1/finance/reconciliation/import'
+  )
+  expect(coreImport).toMatchObject({
+    authorization: `Bearer ${session.accessToken}`,
+  })
+  expect(JSON.parse(coreImport?.body ?? '{}')).toMatchObject({
+    sourceStoragePath: storagePath,
+  })
+
+  const coreStorageCleanup = state.coreRequests.find(
+    (request) =>
+      request.method === 'DELETE' &&
+      request.path === '/v1/finance/reconciliation/import/storage'
+  )
+  expect(coreStorageCleanup).toMatchObject({
+    authorization: `Bearer ${session.accessToken}`,
+  })
+  expect(coreStorageCleanup?.requestId).toMatch(/^[0-9a-f-]{36}$/)
+  expect(JSON.parse(coreStorageCleanup?.body ?? '{}')).toEqual({ storagePath })
 
   expect(consoleErrors).toEqual([])
   expect(blockedExternalRequests).toEqual(
