@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-11 - M3.258 cash-draft delete authority canary
+
+Added `apps/api/integration/cash-draft.http.integration.spec.ts` plus the
+forward migration
+`supabase/migrations/20260811180000_cash_draft_delete_trigger_fix.sql`.
+The rollback-only Nest HTTP canary uses real JWT/capability guards, two
+tenants, finance/viewer roles, posted supplier-bill targets, and
+transaction-bound PostgreSQL. It covers strict input, auth/RBAC, disabled
+selector, tenant target validation, idempotent replay/key conflict, concealed
+cross-tenant update/delete, allocation replacement, durable delete replay,
+semantic audit, tenant isolation, and rollback.
+
+The first run exposed two defects: `guard_cash_transaction` returned `NEW`
+(`NULL`) for `BEFORE DELETE`, and FK cascade invoked the allocation guard after
+the parent disappeared. The migration returns `OLD`; Core now deletes draft
+allocations before parent deletion. Database migration regression 3/3 and
+focused canary 1/1 PASS. Full API integration 53/53 files and 67 tests PASS
+with two explicit Redis-restart skips. API/database typecheck, root lint,
+production build, parity/release/boundary/workflow/actionlint, and spend gates
+PASS. Source is 118 migrations; hosted remains 55 applied/63 pending. No
+hosted Supabase, Storage, Railway, Vercel, credential, provider, or paid
+change occurred. Keep cash-draft flags/lists false/empty. Source evidence SHA:
+2c59e6886214e42b646b4ad32938db5f5440ef10.
+
 ## 2026-08-11 - M3.257 cash transaction workflow authority canary
 
 Added `apps/api/integration/cash-transaction-workflow.http.integration.spec.ts`.

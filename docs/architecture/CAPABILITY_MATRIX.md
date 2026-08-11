@@ -1,5 +1,24 @@
 # Third Code ERP capability matrix
 
+## M3.258 Cash draft delete authority (2026-08-11)
+
+The existing `finance.manage_cash` Nest cash-draft command now has protected
+transaction-bound HTTP evidence for create/update/delete, strict
+body/header handling, authentication/RBAC, closed-by-default behavior,
+tenant-scoped target validation, idempotent replay/conflict, concealed
+cross-tenant update/delete, allocation replacement, durable delete replay,
+semantic audit, tenant isolation, and rollback. A forward-only trigger repair
+and ordered child-first deletion close the database boundary defect. Web
+adoption remains closed; keep
+`ERP_FINANCE_CASH_DRAFT_WRITES_ENABLED=false` and its tenant list empty.
+Python/AI remains analysis-only and cannot mutate cash drafts.
+
+Validation: focused canary 1/1 PASS; database regression 3/3 PASS; API
+integration 53/53 files and 67 tests PASS with two explicit Redis-restart
+skips; API/database typecheck, root lint, production build, and provider/
+release policy gates PASS. Source is 118 migrations; hosted remains 55
+applied/63 pending. No hosted or paid action.
+
 ## M3.257 Cash transaction workflow authority (2026-08-11)
 
 The existing `finance.manage_cash` Nest cash workflow commands now have
