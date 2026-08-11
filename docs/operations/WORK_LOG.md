@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-12 - M3.289 Core bank-statement Storage browser canary
+
+Extended the disposable bank-import browser harness with a request-recording
+Core proxy and opened the API/Web Storage selectors for one random fixture
+tenant. The real Next form selected Core; the proxy recorded typed sign,
+import, and cleanup calls with the session bearer and request IDs. The Nest
+service audited sign/cleanup, rejected the foreign path before deletion, and
+removed the authorized object. Detail/source evidence, blocked external font,
+responsive desktop/mobile, console/page errors, and zero-fixture cleanup all
+passed.
+
+Browser 1/1, Web typecheck, harness syntax, and diff checks pass; the previous
+full test/build/security baseline remains green. No hosted Supabase, Storage,
+Railway, Vercel, credential, provider, or paid action changed. Source commit:
+`10322f0`.
+
+Exact next action: review managed Storage RLS/key/readiness parity and
+release/rollback/smoke/spend gates; keep production selectors closed.
+
 ## 2026-08-12 - M3.288 Core bank-statement Storage authority seam
 
 Moved bank-statement signed upload and abandoned-source cleanup authority into
