@@ -1,5 +1,23 @@
 # Work Log
 
+## 2026-08-11 - M3.251 customer invoice draft-cancellation authority canary
+
+Added `apps/api/integration/customer-invoice-cancel.http.integration.spec.ts`.
+The rollback-only Nest HTTP canary uses real JWT identity/capability guards,
+two tenants, finance/viewer roles, draft invoices, and transaction-bound
+PostgreSQL. It covers auth, strict empty-body and idempotency handling, viewer
+denial, disabled selector, concealed cross-tenant access, draft-to-cancelled
+state, durable replay/key conflict, semantic audit, tenant isolation, and
+rollback. The first assertion was narrowed to the target invoice after the
+fixture exposed unrelated tenant-B audit rows; no product defect was found.
+
+Focused runtime canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. Full API
+integration 46/46 files and 60 tests PASS with two explicit Redis-restart
+skips. API typecheck, root lint, and production build PASS. No migration,
+hosted Supabase, Storage, Railway, Vercel, credential, provider, or paid
+change occurred. Keep cancellation flags/lists false/empty. Source/docs
+evidence SHA is recorded after push.
+
 ## 2026-08-11 - M3.250 customer invoice reversal authority canary
 
 Added `apps/api/integration/customer-invoice-reverse.http.integration.spec.ts`.

@@ -1,5 +1,18 @@
 # Target State
 
+## M3.251 Customer invoice draft-cancellation authority
+
+Draft customer invoice cancellation is a Core-owned finance command at
+`POST /v1/finance/customer-invoices/:invoiceId/cancel`. The browser sends an
+empty strict body and an opaque idempotency key; Core derives tenant, actor,
+role, and invoice state from locked server state. One PostgreSQL transaction
+owns the tenant-scoped request ledger, draft-to-cancelled transition,
+semantic audit, and rollback. Replays return the durable result; a reused key
+for a different invoice conflicts; cross-tenant ids are concealed. Posted
+invoices must use the separate reversal authority. Keep the cancellation
+selector disabled until hosted parity, release identity, readiness, protected
+browser evidence, rollback, and spend approval are independently complete.
+
 ## M3.250 Customer invoice reversal authority
 
 Customer invoice reversal is a Core-owned finance command at

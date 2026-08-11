@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-363 -- Require protected HTTP evidence for draft invoice cancellation (2026-08-11)
+
+Decision: use a disposable transaction-bound HTTP canary as the release gate
+for the existing `finance.issue_invoice` draft-invoice cancellation command.
+Exercise real JWT identity/capability checks, strict empty-body and
+idempotency handling, tenant concealment, feature fail-closed behavior,
+draft-to-cancelled state, semantic audit, replay/conflict, and rollback. Keep
+the cancellation selector closed; posted invoices use reversal instead.
+
+Rationale: cancellation is an official finance state transition and must be
+exactly-once, tenant-scoped, and auditable. A unit test cannot prove that the
+PostgreSQL state predicate, request ledger, and audit event commit together.
+Core owns the transaction; Python/AI remains analysis-only.
+
+Validation: focused local PostgreSQL 17/Redis 7.4.9 canary passed 1/1; API
+integration passed 46/46 files and 60 tests with two explicit Redis-restart
+opt-in skips; API typecheck, root lint, and production build passed. No
+hosted/provider/paid action occurred.
+
 ## D-362 -- Require protected HTTP evidence for customer invoice reversal (2026-08-11)
 
 Decision: use a disposable transaction-bound HTTP canary as the release gate
