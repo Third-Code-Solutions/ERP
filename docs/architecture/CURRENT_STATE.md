@@ -16,7 +16,7 @@ root typecheck/lint/tests/build, provider-spend, Web/DB boundary, workflow,
 actionlint, gitleaks, database-release, and managed-parity-plan gates pass.
 Production selectors remain false/empty. No hosted SQL, Supabase object,
 Vercel/Railway deployment, provider setting, credential, or paid action
-changed. Source evidence: local M3.272 changes.
+changed. Source evidence: `b6bda4f`.
 
 Exact next action: keep `ERP_FINANCE_RECEIVABLES_READS_ENABLED=false` and its
 tenant list empty; add the authenticated `/finance/receivables` browser proof,

@@ -39,6 +39,8 @@ PostgreSQL with `ERP_API_INTEGRATION_EXPECTED=1`. Production selectors remain
 false/empty. No hosted Supabase SQL/object, Vercel/Railway deployment,
 provider setting, credential, or paid action changed.
 
+Source evidence: `b6bda4f`.
+
 ## Next action
 
 Keep `ERP_FINANCE_RECEIVABLES_READS_ENABLED=false` and
