@@ -1,5 +1,24 @@
 # Architecture Decisions
 
+## D-401 -- Prove Togal BOM commit through Core before any tenant opening (2026-08-12)
+
+Decision: use the existing Next route only as a compatibility adapter for the
+Togal commit canary. Enable its exact tenant selectors only for random local
+fixtures; Nest Core remains the sole official writer and enforces role,
+tenant, BOM state, exact centavo arithmetic, idempotency replay, transaction,
+and semantic audit boundaries.
+
+Rationale: the route contains a legacy direct-write fallback, so a compile or
+unit pass cannot prove that a real authenticated estimator request reaches the
+new authority. The disposable browser proof demonstrates the full boundary,
+replay safety, and foreign-BOM rejection without hosted SQL, Storage traffic,
+provider builds, or spend. The production selector stays closed until
+managed migration parity and release gates clear.
+
+Validation: Togal browser 1/1; notification/document browser 1/1; Web
+113/802; API 176/772; focused 180/180; typecheck/build, spend guard,
+boundary audit, gitleaks, diff check, and parity verifier pass.
+
 ## D-400 -- Block hosted PO uniqueness migration until duplicate review clears (2026-08-12)
 
 Decision: do not apply the first ordered Supabase migration while the connected

@@ -20,8 +20,11 @@ const DATABASE_URL =
 const USER_ID = randomUUID()
 const TENANT_ID = randomUUID()
 const PROJECT_ID = randomUUID()
+const BOM_ID = randomUUID()
 const FOREIGN_TENANT_ID = randomUUID()
 const FOREIGN_USER_ID = randomUUID()
+const FOREIGN_PROJECT_ID = randomUUID()
+const FOREIGN_BOM_ID = randomUUID()
 const FOREIGN_NOTIFICATION_ID = randomUUID()
 const ANON_KEY = 'third-code-local-anon-key'
 const SERVICE_ROLE_KEY = 'third-code-local-service-role-key'
@@ -47,7 +50,7 @@ const repositoryRoot = resolve(
 const webRoot = resolve(repositoryRoot, 'apps', 'web')
 const apiEntry = resolve(repositoryRoot, 'apps', 'api', 'dist', 'main.js')
 if (!existsSync(apiEntry)) {
-  throw new Error('Build @third-code-erp/api before running notification browser proof')
+  throw new Error('Build @third-code-erp/api before running loopback browser proof')
 }
 
 const user = {
@@ -145,6 +148,16 @@ async function seedDatabase() {
     )
   `
   await sql`
+    insert into boms(
+      id, tenant_id, project_id, created_by, label, status,
+      total_cost_cents, tcv_cents, gp_cents, gp_margin_bps
+    )
+    values (
+      ${BOM_ID}, ${TENANT_ID}, ${PROJECT_ID}, ${USER_ID},
+      'Local Togal BOM', 'draft', 0, 0, 0, 0
+    )
+  `
+  await sql`
     insert into notifications(
       id, tenant_id, recipient_user_id, channel, subject, body, link_url,
       is_read, created_at
@@ -176,6 +189,23 @@ async function seedDatabase() {
     values (${FOREIGN_USER_ID}, ${FOREIGN_TENANT_ID}, 'foreign-notifications@thirdcode.invalid', 'Foreign Notifications User', 'admin')
   `
   await sql`
+    insert into projects(id, tenant_id, name, client, status, created_by)
+    values (
+      ${FOREIGN_PROJECT_ID}, ${FOREIGN_TENANT_ID}, 'Foreign BOM project',
+      'Foreign BOM client', 'lead', ${FOREIGN_USER_ID}
+    )
+  `
+  await sql`
+    insert into boms(
+      id, tenant_id, project_id, created_by, label, status,
+      total_cost_cents, tcv_cents, gp_cents, gp_margin_bps
+    )
+    values (
+      ${FOREIGN_BOM_ID}, ${FOREIGN_TENANT_ID}, ${FOREIGN_PROJECT_ID},
+      ${FOREIGN_USER_ID}, 'Foreign BOM', 'draft', 0, 0, 0, 0
+    )
+  `
+  await sql`
     insert into notifications(
       id, tenant_id, recipient_user_id, channel, subject, body, is_read
     )
@@ -205,7 +235,7 @@ const authServer = createServer(async (request, response) => {
     })
   }
   if (url.pathname === '/__harness__/state') {
-    const [notifications, foreign, documents, intakeRequests, auditEntries] =
+    const [notifications, foreign, documents, intakeRequests, boms, bomLines, togalRequests, auditEntries] =
       await Promise.all([
       sql`
         select id, subject, is_read, read_at::text
@@ -231,6 +261,28 @@ const authServer = createServer(async (request, response) => {
         order by created_at asc
       `,
       sql`
+        select id, status, total_cost_cents::int as total_cost_cents,
+          tcv_cents::int as tcv_cents, gp_cents::int as gp_cents,
+          gp_margin_bps
+        from boms
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
+        select id, bom_id, description, quantity,
+          unit_cost_cents::int as unit_cost_cents, markup_bps,
+          line_total_cents::int as line_total_cents, notes
+        from bom_line_items
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
+        select id, bom_id, idempotency_key, request_hash, state, result
+        from togal_bom_commit_requests
+        where tenant_id = ${TENANT_ID}
+        order by created_at asc
+      `,
+      sql`
         select entity_type, entity_id, action, diff
         from audit_log
         where tenant_id = ${TENANT_ID}
@@ -241,10 +293,14 @@ const authServer = createServer(async (request, response) => {
       tenantId: TENANT_ID,
       userId: USER_ID,
       projectId: PROJECT_ID,
+      foreignBomId: FOREIGN_BOM_ID,
       notifications,
       foreignNotificationIsRead: foreign[0]?.is_read ?? null,
       documents,
       intakeRequests,
+      boms,
+      bomLines,
+      togalRequests,
       coreRequests,
       auditEntries,
     })
@@ -291,13 +347,15 @@ proxyServer = createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', PROXY_ORIGIN)
   if (
     url.pathname === '/v1/notifications' ||
-    url.pathname === '/v1/documents'
+    url.pathname === '/v1/documents' ||
+    url.pathname === '/v1/procurement/boms/togal-commit'
   ) {
     coreRequests.push({
       method: request.method ?? 'GET',
       path: url.pathname,
       authorization: request.headers.authorization ?? '',
       requestId: request.headers['x-request-id'] ?? '',
+      idempotencyKey: request.headers['idempotency-key'] ?? '',
       body: body.toString('utf8'),
     })
   }
@@ -400,6 +458,8 @@ const apiEnvironment = {
   ERP_NOTIFICATION_READ_STATE_TENANT_IDS: TENANT_ID,
   ERP_DOCUMENT_INTAKE_WRITES_ENABLED: 'true',
   ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS: TENANT_ID,
+  ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED: 'true',
+  ERP_BOM_TOGAL_COMMIT_WRITES_TENANT_IDS: TENANT_ID,
   OPENAI_API_KEY: '',
   AI_GATEWAY_API_KEY: '',
   AI_PROVIDER_API_KEY: '',
@@ -442,6 +502,8 @@ webChild = spawn(
       ERP_NOTIFICATION_READ_STATE_VIA_API_TENANT_IDS: TENANT_ID,
       ERP_DOCUMENT_INTAKE_WRITES_VIA_API: 'true',
       ERP_DOCUMENT_INTAKE_WRITES_VIA_API_TENANT_IDS: TENANT_ID,
+      ERP_BOM_TOGAL_COMMIT_VIA_API: 'true',
+      ERP_BOM_TOGAL_COMMIT_VIA_API_TENANT_IDS: TENANT_ID,
       AI_WORKER_URL: '',
       AI_WORKER_SHARED_SECRET: '',
       AI_WORKER_TIMEOUT_MS: '',

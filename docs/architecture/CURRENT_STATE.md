@@ -1,5 +1,27 @@
 # Current State
 
+## M3.294 Core Togal BOM browser canary (2026-08-12)
+
+The disposable authenticated loopback harness now proves the construction
+Togal BOM commit through the Nest Core authority. A random tenant owns a draft
+BOM; one browser command creates one line and updates exact centavo totals,
+the identical retry replays the stored result, and a BOM owned by another
+tenant is rejected. PostgreSQL shows one line, one succeeded idempotency
+ledger row, and one semantic BOM audit row. Bearer, request ID, and
+`Idempotency-Key` forwarding are recorded; fixture cleanup leaves no rows.
+
+The Core/Web Togal selectors remain false/empty in production configuration.
+No hosted SQL, Storage object/policy, Vercel/Railway deployment, provider
+setting, credential, or paid action changed. Validation: Togal browser 1/1,
+notification browser 1/1, document browser 1/1, Web 113/802, API 176/772,
+focused Togal/Core 180/180, Web typecheck/build, provider-spend, Web/DB
+boundary, gitleaks, diff check, and managed-parity verifier pass.
+
+Exact next action: keep the Togal selector closed; resolve the independent
+hosted Purchase Order duplicate blocker and review the next direct Web write
+boundary only after hosted parity, readiness, rollback, authenticated smoke,
+and spend gates pass.
+
 ## M3.293 Hosted migration preflight: Purchase Order duplicate blocker (2026-08-12)
 
 A read-only query against the connected Supabase project found 13 Purchase
