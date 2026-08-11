@@ -19,9 +19,11 @@ import {
   financeReconciliationAutoMatchWritesUseCoreApi,
   financeReconciliationLineMatchWritesUseCoreApi,
   financeReconciliationReconcileWritesUseCoreApi,
+  financeReconciliationVoidWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi,
   matchBankStatementLineThroughCoreApi,
   reconcileBankStatementThroughCoreApi,
+  voidBankStatementThroughCoreApi,
   unmatchBankStatementLineThroughCoreApi,
   financeReconciliationStorageUploadsUseCoreApi,
 } from '@/lib/erp-core-client'
@@ -568,6 +570,7 @@ export async function reconcileBankStatement(
 export async function voidBankStatement(input: {
   statementId: string
   reason: string
+  idempotencyKey?: string
 }): Promise<ReconciliationActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -576,8 +579,38 @@ export async function voidBankStatement(input: {
       .object({
         statementId: z.string().uuid(),
         reason: z.string().trim().min(3).max(500),
+        idempotencyKey: z.string().trim().min(1).max(256).optional(),
       })
       .parse(input)
+    if (financeReconciliationVoidWritesUseCoreApi(profile.tenantId)) {
+      const parsedKey = z
+        .string()
+        .trim()
+        .min(1)
+        .max(256)
+        .safeParse(parsed.idempotencyKey)
+      if (!parsedKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the bank statement void command.',
+        }
+      }
+      const coreResult = await voidBankStatementThroughCoreApi(
+        parsed.statementId,
+        parsed.reason,
+        parsedKey.data
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'ERP Core did not void the bank statement. Existing evidence was unchanged.',
+        }
+      }
+      revalidateReconciliation(coreResult.data.statementId)
+      return { ok: true, id: coreResult.data.statementId }
+    }
     await db.execute(sql`
       select public.void_bank_statement(
         ${parsed.statementId}::uuid,

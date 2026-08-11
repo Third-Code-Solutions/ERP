@@ -43,11 +43,13 @@ import {
   autoMatchBankStatementThroughCoreApi,
   matchBankStatementLineThroughCoreApi,
   reconcileBankStatementThroughCoreApi,
+  voidBankStatementThroughCoreApi,
   unmatchBankStatementLineThroughCoreApi,
   createBankStatementThroughCoreApi,
   financeReconciliationAutoMatchWritesUseCoreApi,
   financeReconciliationLineMatchWritesUseCoreApi,
   financeReconciliationReconcileWritesUseCoreApi,
+  financeReconciliationVoidWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi,
   financeReconciliationStorageUploadsUseCoreApi,
   getNotificationsThroughCoreApi,
@@ -1074,6 +1076,26 @@ describe('ERP Core client', () => {
     )
   })
 
+  it('keeps statement void on the legacy route unless an exact tenant gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeReconciliationVoidWritesUseCoreApi(RESULT.tenantId)).toBe(
+      true
+    )
+
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API_TENANT_IDS',
+      '*'
+    )
+    expect(financeReconciliationVoidWritesUseCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+    expect(financeReconciliationVoidWritesUseCoreApi('not-a-uuid')).toBe(false)
+  })
+
   it('keeps bank storage upload closed unless both exact tenant gates match', () => {
     vi.stubEnv('ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API', 'true')
     vi.stubEnv(
@@ -1246,6 +1268,36 @@ describe('ERP Core client', () => {
         body: '{}',
         headers: expect.objectContaining({
           'Idempotency-Key': 'reconcile-browser-retry-1',
+        }),
+      })
+    )
+  })
+
+  it('maps the Core bank void result without enabling a Web fallback', async () => {
+    const result = {
+      statementId: '33333333-3333-4333-8333-333333333333',
+      tenantId: RESULT.tenantId,
+      status: 'voided' as const,
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(result), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      voidBankStatementThroughCoreApi(
+        result.statementId,
+        'Imported wrong institution period',
+        'void-browser-retry-1'
+      )
+    ).resolves.toEqual({ ok: true, data: result, status: 200 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/finance/reconciliation/${result.statementId}/void`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Imported wrong institution period' }),
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'void-browser-retry-1',
         }),
       })
     )

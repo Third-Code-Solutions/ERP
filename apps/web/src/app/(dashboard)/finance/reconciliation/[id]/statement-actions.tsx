@@ -63,6 +63,7 @@ export function BankStatementActions({
   const [notice, setNotice] = useState<string | null>(null)
   const autoMatchRetryKey = useRef<string | null>(null)
   const reconcileRetryKey = useRef<string | null>(null)
+  const voidRetryKey = useRef<string | null>(null)
   const lineRetryKeys = useRef<Record<string, string>>({})
 
   function lineRetryKey(action: 'match' | 'unmatch', lineId: string): string {
@@ -385,11 +386,17 @@ export function BankStatementActions({
               disabled={pending || voidReason.trim().length < 3}
               onClick={() => {
                 if (!window.confirm('Void this reconciled statement?')) return
-                runAction(() =>
-                  voidBankStatement({
-                    statementId,
-                    reason: voidReason,
-                  })
+                runAction(
+                  () =>
+                    voidBankStatement({
+                      statementId,
+                      reason: voidReason,
+                      idempotencyKey: (voidRetryKey.current ??=
+                        `void-${globalThis.crypto.randomUUID()}`),
+                    }),
+                  () => {
+                    voidRetryKey.current = null
+                  }
                 )
               }}
             >

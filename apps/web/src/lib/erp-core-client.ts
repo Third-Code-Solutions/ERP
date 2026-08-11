@@ -63,6 +63,7 @@ import {
   bankStatementAutoMatchResultSchema,
   bankStatementLineMatchResultSchema,
   bankStatementReconcileResultSchema,
+  bankStatementVoidResultSchema,
   notificationListResultSchema,
   notificationReadStateCommandSchema,
   notificationReadStateResultSchema,
@@ -184,6 +185,7 @@ import {
   type BankStatementAutoMatchResult,
   type BankStatementLineMatchResult,
   type BankStatementReconcileResult,
+  type BankStatementVoidResult,
   type NotificationListResult,
   type NotificationReadStateCommand,
   type NotificationReadStateResult,
@@ -768,6 +770,17 @@ export function financeReconciliationReconcileWritesUseCoreApi(
     tenantId,
     process.env.ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API,
     process.env.ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_VIA_API_TENANT_IDS
+  )
+}
+
+/** Bank-statement void writes delegate only for an exact tenant canary. */
+export function financeReconciliationVoidWritesUseCoreApi(
+  tenantId: string
+): boolean {
+  return tenantEnabledForExactCoreApi(
+    tenantId,
+    process.env.ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API,
+    process.env.ERP_FINANCE_RECONCILIATION_VOID_WRITES_VIA_API_TENANT_IDS
   )
 }
 
@@ -3671,6 +3684,70 @@ export async function reconcileBankStatementThroughCoreApi(
       ok: false,
       error:
         'ERP Core API is unavailable. The bank statement was not reconciled.',
+      status: 503,
+    }
+  }
+}
+
+/** Server-only bank-statement void adapter. */
+export async function voidBankStatementThroughCoreApi(
+  statementId: string,
+  reason: string,
+  idempotencyKey: string
+): Promise<CoreResult<BankStatementVoidResult>> {
+  const access = await getCoreApiAccess()
+  if (!access.ok) return access
+
+  try {
+    const response = await fetch(
+      `${access.baseUrl}/v1/finance/reconciliation/${encodeURIComponent(statementId)}/void`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${access.accessToken}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+          'x-request-id': randomUUID(),
+        },
+        body: JSON.stringify({ reason }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      }
+    )
+    const body = (await response.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null
+    if (!response.ok) {
+      return {
+        ok: false,
+        error:
+          response.status === 400
+            ? 'Bank statement void details are invalid.'
+            : response.status === 403
+              ? 'You do not have permission to void bank statements.'
+              : response.status === 404
+                ? 'Bank statement was not found.'
+                : response.status === 409
+                  ? 'Bank statement void conflicts with existing evidence.'
+                  : response.status === 503
+                    ? 'Bank statement voiding is not enabled for this tenant.'
+                    : 'Bank statement was not voided.',
+        status: response.status,
+      }
+    }
+    const parsed = bankStatementVoidResultSchema.safeParse(body)
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid bank statement void result.',
+        status: 502,
+      }
+    }
+    return { ok: true, data: parsed.data, status: response.status }
+  } catch {
+    return {
+      ok: false,
+      error: 'ERP Core API is unavailable. The bank statement was not voided.',
       status: 503,
     }
   }
