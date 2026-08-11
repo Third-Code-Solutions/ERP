@@ -420,6 +420,64 @@ test('proves authenticated Web reconciliation page uses Core and preserves tenan
     voidedWorkflowState.reconciliationWorkflowRequests[6]?.requestId
   ).toMatch(/^[0-9a-f-]{36}$/i)
 
+  await page.goto(`${WEB_ORIGIN}/finance/reconciliation/new`, {
+    waitUntil: 'domcontentloaded',
+  })
+  await expect(
+    page.getByRole('heading', { name: 'Import bank statement', exact: true })
+  ).toBeVisible()
+  await page.getByLabel('Statement reference').fill('ST-LOOPBACK-RECON-IMPORTED')
+  await page.getByLabel('Period start').fill('2026-08-01')
+  await page.getByLabel('Period end').fill('2026-08-31')
+  await page.getByLabel('Opening balance').fill('1,000.00')
+  await page.getByLabel('Closing balance').fill('1,012.50')
+  await page.locator('#statement-csv').setInputFiles({
+    name: 'statement-loopback-recon-imported.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(
+      'date,reference,description,amount\n2026-08-05,DEP-LOOPBACK-IMPORTED,Imported deposit,12.50\n',
+      'utf8'
+    ),
+  })
+  await page.getByRole('button', { name: 'Import statement draft' }).click()
+  await expect(
+    page.getByRole('heading', {
+      name: 'ST-LOOPBACK-RECON-IMPORTED',
+      exact: true,
+    })
+  ).toBeVisible()
+
+  const importedWorkflowResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(importedWorkflowResponse.ok()).toBe(true)
+  const importedWorkflowState =
+    (await importedWorkflowResponse.json()) as HarnessState
+  expect(importedWorkflowState.reconciliationWorkflowRequests).toHaveLength(8)
+  const importRequest = importedWorkflowState.reconciliationWorkflowRequests[7]!
+  expect(importRequest).toMatchObject({
+    method: 'POST',
+    path: '/v1/finance/reconciliation/import',
+    authorization: `Bearer ${session.accessToken}`,
+  })
+  expect(importRequest.idempotencyKey).toMatch(/^bank-import-[0-9a-f]{64}$/i)
+  expect(importRequest.requestId).toMatch(/^[0-9a-f-]{36}$/i)
+  const importBody = JSON.parse(importRequest.body) as Record<string, unknown>
+  expect(importBody).toMatchObject({
+    referenceNumber: 'ST-LOOPBACK-RECON-IMPORTED',
+    sourceFileName: 'statement-loopback-recon-imported.csv',
+    statementStart: '2026-08-01',
+    statementEnd: '2026-08-31',
+    openingBalanceCents: 100_000,
+    closingBalanceCents: 101_250,
+  })
+  expect(importBody.sourceBase64).toEqual(
+    Buffer.from(
+      'date,reference,description,amount\n2026-08-05,DEP-LOOPBACK-IMPORTED,Imported deposit,12.50\n',
+      'utf8'
+    ).toString('base64')
+  )
+
   expect(
     state.unsupportedRequests.some(
       (request) => request.path !== '/realtime/v1/websocket'
