@@ -1,5 +1,21 @@
 # Target State
 
+## M3.276 Protected finance-cash Core HTTP canary (2026-08-11)
+
+The local evidence now covers the guarded Nest cash-register read seam:
+PostgreSQL remains authoritative for tenant-scoped cash evidence, and Core
+returns exact centavo receipt/disbursement totals and status counts under an
+exact tenant allowlist. Auth/RBAC, fail-closed selector behavior, invalid
+ranges, direction/date/account filters, pagination, row ordering,
+foreign-tenant isolation, and rollback are proven in a disposable transaction.
+
+Keep `ERP_FINANCE_CASH_READS_ENABLED=false` and its tenant list empty, and
+keep `ERP_FINANCE_CASH_READS_VIA_API=false` with an empty tenant list outside
+local proof. The Web/Core selector remains closed until a separate
+authenticated browser proof exists. Python/AI remains advisory and cannot
+approve or finalize financial transactions. Hosted parity, readiness, release
+identity, rollback, and spend evidence remain required.
+
 ## M3.275 Protected finance-payables Web/Core browser canary (2026-08-11)
 
 The local evidence now covers the user-facing payables seam: an authenticated

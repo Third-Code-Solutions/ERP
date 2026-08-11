@@ -1,5 +1,24 @@
 # Work Log
 
+## 2026-08-11 - M3.276 protected finance-cash Core HTTP canary
+
+Added an opt-in local HTTP proof for the Nest cash-register read path. The
+disposable fixture creates two tenant-scoped cash accounts and business
+dimensions with posted, draft, and reversed evidence; the route then proves
+JWT/capability boundaries, invalid-query and closed-selector failures, exact
+receipt/disbursement aggregates, status counts, direction/date/account
+filters, pagination, row ordering, foreign-tenant invisibility, and
+transaction rollback. Final matching fixture count is zero.
+
+Cash HTTP 1/1, API 174/760, root tests/typecheck/lint/build, provider-spend,
+boundary, workflow, actionlint, gitleaks, release, and managed-parity gates
+pass. No hosted Supabase, Storage, Railway, Vercel, credential, provider, or
+paid action changed.
+
+Exact next action: keep provider/deployment selectors closed; add the
+authenticated cash browser proof, then separately reconcile hosted parity,
+readiness, release identity, rollback, and spend evidence.
+
 ## 2026-08-11 - M3.275 protected finance-payables Web/Core browser canary
 
 Added a closed-by-default Playwright proof for the real Next payables page.
