@@ -41,6 +41,7 @@ import {
   getFinanceReconciliationThroughCoreApi,
   createBankStatementThroughCoreApi,
   financeReconciliationImportWritesUseCoreApi,
+  financeReconciliationStorageUploadsUseCoreApi,
   getNotificationsThroughCoreApi,
   markNotificationReadStateThroughCoreApi,
   processDocuSealWebhookThroughCoreApi,
@@ -958,6 +959,26 @@ describe('ERP Core client', () => {
       false
     )
     expect(financeReconciliationImportWritesUseCoreApi('not-a-uuid')).toBe(
+      false
+    )
+  })
+
+  it('keeps bank storage upload closed unless both exact tenant gates match', () => {
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeReconciliationStorageUploadsUseCoreApi(RESULT.tenantId)).toBe(
+      true
+    )
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS_TENANT_IDS', '*')
+    expect(financeReconciliationStorageUploadsUseCoreApi(RESULT.tenantId)).toBe(
       false
     )
   })

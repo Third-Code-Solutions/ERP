@@ -3,6 +3,15 @@
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { createSupabaseBrowserClient } from '@third-code-erp/auth/client'
+import type {
+  BankStatementImportUploadSignBody,
+  BankStatementImportUploadSignResult,
+} from '@third-code-erp/shared-types'
+import {
+  BankStatementSourceUploadError,
+  uploadBankStatementSource,
+} from '@/lib/bank-statement-storage-upload'
 import { createBankStatement } from './actions'
 
 interface CashAccountOption {
@@ -30,6 +39,48 @@ function fileToBase64(file: File): Promise<string> {
   })
 }
 
+async function signBankStatementUpload(
+  body: BankStatementImportUploadSignBody
+): Promise<unknown> {
+  const response = await fetch('/api/finance/reconciliation/import/sign', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null
+  if (!response.ok) {
+    throw new Error(payload?.error ?? 'Bank statement upload authorization failed')
+  }
+  return payload
+}
+
+async function uploadBankStatementToStorage(
+  signed: BankStatementImportUploadSignResult,
+  file: Pick<File, 'name' | 'type' | 'size'>
+): Promise<void> {
+  const supabase = createSupabaseBrowserClient()
+  const { error } = await supabase.storage
+    .from('documents')
+    .uploadToSignedUrl(signed.storagePath, signed.token, file as File, {
+      contentType: file.type || 'text/csv',
+      upsert: false,
+    })
+  if (error) throw new Error(`Storage upload failed: ${error.message}`)
+}
+
+async function cleanupBankStatementUpload(storagePath: string): Promise<void> {
+  const response = await fetch('/api/finance/reconciliation/import/sign', {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ storagePath }),
+  })
+  if (!response.ok) {
+    throw new Error('Uploaded bank statement source could not be cleaned up')
+  }
+}
+
 function parseSignedMoney(value: string): number | null {
   const normalized = value.replace(/,/g, '').trim()
   if (!normalized || !/^-?\d+(?:\.\d{1,2})?$/.test(normalized)) return null
@@ -45,10 +96,12 @@ export function BankStatementImportForm({
   cashAccounts,
   defaultStart,
   defaultEnd,
+  storageUploadsEnabled = false,
 }: {
   cashAccounts: CashAccountOption[]
   defaultStart: string
   defaultEnd: string
+  storageUploadsEnabled?: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -60,6 +113,7 @@ export function BankStatementImportForm({
   const [closingBalance, setClosingBalance] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [progress, setProgress] = useState<string | null>(null)
 
   const openingBalanceCents = parseSignedMoney(openingBalance)
   const closingBalanceCents = parseSignedMoney(closingBalance)
@@ -79,33 +133,61 @@ export function BankStatementImportForm({
         event.preventDefault()
         if (!valid || !file) return
         setError(null)
+        setProgress(null)
         startTransition(async () => {
-          let sourceBase64: string
+          let storagePath: string | undefined
           try {
-            sourceBase64 = await fileToBase64(file)
-          } catch (readError) {
+            let source: { sourceBase64: string } | { sourceStoragePath: string }
+            if (storageUploadsEnabled) {
+              setProgress('Preparing secure upload...')
+              const uploaded = await uploadBankStatementSource(file, {
+                sign: signBankStatementUpload,
+                upload: uploadBankStatementToStorage,
+              })
+              storagePath = uploaded.storagePath
+              source = { sourceStoragePath: uploaded.storagePath }
+            } else {
+              setProgress('Reading statement...')
+              source = { sourceBase64: await fileToBase64(file) }
+            }
+            setProgress('Validating statement...')
+            const result = await createBankStatement({
+              cashAccountId,
+              referenceNumber,
+              sourceFileName: file.name,
+              statementStart,
+              statementEnd,
+              openingBalanceCents: openingBalanceCents!,
+              closingBalanceCents: closingBalanceCents!,
+              ...source,
+            })
+            if (!result.ok || !result.id) {
+              if (storagePath) {
+                await cleanupBankStatementUpload(storagePath).catch(
+                  () => undefined
+                )
+              }
+              setError(result.error ?? 'Could not import bank statement')
+              return
+            }
+            router.push(`/finance/reconciliation/${result.id}`)
+          } catch (uploadError) {
+            const cleanupPath =
+              storagePath ??
+              (uploadError instanceof BankStatementSourceUploadError
+                ? uploadError.storagePath
+                : undefined)
+            if (cleanupPath) {
+              await cleanupBankStatementUpload(cleanupPath).catch(() => undefined)
+            }
             setError(
-              readError instanceof Error
-                ? readError.message
-                : 'Could not read the CSV file'
+              uploadError instanceof Error
+                ? uploadError.message
+                : 'Could not import bank statement'
             )
-            return
+          } finally {
+            setProgress(null)
           }
-          const result = await createBankStatement({
-            cashAccountId,
-            referenceNumber,
-            sourceFileName: file.name,
-            statementStart,
-            statementEnd,
-            openingBalanceCents: openingBalanceCents!,
-            closingBalanceCents: closingBalanceCents!,
-            sourceBase64,
-          })
-          if (!result.ok || !result.id) {
-            setError(result.error ?? 'Could not import bank statement')
-            return
-          }
-          router.push(`/finance/reconciliation/${result.id}`)
         })
       }}
     >
@@ -207,7 +289,12 @@ export function BankStatementImportForm({
             <p className="finance-eyebrow">3 / Source file</p>
             <h2>Upload signed transaction lines</h2>
           </div>
-          <p>Required headers: date, reference, description, amount.</p>
+          <p>
+            Required headers: date, reference, description, amount.
+            {storageUploadsEnabled
+              ? ' Secure Storage handoff is enabled for this tenant.'
+              : ''}
+          </p>
         </div>
         <div className="reconciliation-upload">
           <label htmlFor="statement-csv">
@@ -245,6 +332,11 @@ export function BankStatementImportForm({
             {error}
           </p>
         )}
+        {progress && (
+          <p className="finance-control-note" aria-live="polite">
+            {progress}
+          </p>
+        )}
         <div className="journal-submit-row">
           <p>
             Import creates a reviewable draft. No cash or ledger posting is
@@ -255,7 +347,7 @@ export function BankStatementImportForm({
             className="finance-primary-button"
             disabled={pending || !valid}
           >
-            {pending ? 'Validating statement...' : 'Import statement draft'}
+            {pending ? progress ?? 'Working...' : 'Import statement draft'}
           </button>
         </div>
       </section>

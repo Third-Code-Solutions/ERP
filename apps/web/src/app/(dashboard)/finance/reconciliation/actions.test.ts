@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   revalidatePath: vi.fn(),
   financeReconciliationImportWritesUseCoreApi: vi.fn(),
+  financeReconciliationStorageUploadsUseCoreApi: vi.fn(),
   createBankStatementThroughCoreApi: vi.fn(),
 }))
 
@@ -31,6 +32,8 @@ vi.mock('next/cache', () => ({
 vi.mock('@/lib/erp-core-client', () => ({
   financeReconciliationImportWritesUseCoreApi:
     mocks.financeReconciliationImportWritesUseCoreApi,
+  financeReconciliationStorageUploadsUseCoreApi:
+    mocks.financeReconciliationStorageUploadsUseCoreApi,
   createBankStatementThroughCoreApi: mocks.createBankStatementThroughCoreApi,
 }))
 
@@ -71,6 +74,7 @@ describe('bank reconciliation actions', () => {
     mocks.requireUserProfile.mockResolvedValue(PROFILE)
     mocks.requireCapability.mockImplementation(() => undefined)
     mocks.financeReconciliationImportWritesUseCoreApi.mockReturnValue(false)
+    mocks.financeReconciliationStorageUploadsUseCoreApi.mockReturnValue(false)
   })
 
   it('checks the cash capability before importing source evidence', async () => {
@@ -121,6 +125,21 @@ describe('bank reconciliation actions', () => {
       error: 'ERP Core API is unavailable. No bank statement was imported.',
     })
     expect(mocks.createBankStatementThroughCoreApi).toHaveBeenCalledOnce()
+    expect(mocks.select).not.toHaveBeenCalled()
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a storage source when Core authority is not selected', async () => {
+    const result = await createBankStatement({
+      ...validStatement,
+      sourceBase64: undefined,
+      sourceStoragePath: `${PROFILE.tenantId}/bank-statements/statement.csv`,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Storage-backed bank import is not enabled for this tenant',
+    })
     expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.transaction).not.toHaveBeenCalled()
   })
