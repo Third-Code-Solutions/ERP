@@ -1,5 +1,22 @@
 # Migration Plan
 
+## M3.293 - hosted migration preflight: Purchase Order duplicate blocker (completed read-only)
+
+1. Queried the connected Supabase project in read-only mode for the first
+   ordered batch's duplicate and blank-number preconditions.
+2. Observed 13 Purchase Orders, one duplicate tenant/number group, and zero
+   blank numbers. The source SQL guard would abort before the unique index.
+3. Updated the parity snapshot and release memory with `hostedApplyApproved`
+   still false. No data choice, migration, SQL write, provider action, or paid
+   operation occurred.
+
+Validation: read-only Supabase SQL PASS; managed parity verifier PASS; release
+planner remains BLOCKED without `DATABASE_URL`.
+
+Exact next action: owner-review the opaque duplicate planner output, record a
+reversible remediation, prove zero duplicate groups locally/against the target,
+then replay only batch 01. Never apply the full suffix blindly.
+
 ## M3.292 - Core document-intake browser/HTTP canary (completed source-only)
 
 1. Extended the disposable Core browser harness with a tenant/project fixture,

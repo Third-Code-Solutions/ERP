@@ -13,6 +13,12 @@
     "appliedHead": "20260729233017",
     "sourceHead": "20260812150000",
     "ledgerStatus": "review_required",
+    "purchaseOrderPreflight": {
+      "purchaseOrderRows": 13,
+      "duplicateGroups": 1,
+      "blankPoNumbers": 0,
+      "status": "blocked"
+    },
     "publicTablesRlsObserved": true,
     "securityAdvisor": {
       "count": 14,

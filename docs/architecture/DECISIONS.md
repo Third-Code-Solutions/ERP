@@ -1,5 +1,21 @@
 # Architecture Decisions
 
+## D-400 -- Block hosted PO uniqueness migration until duplicate review clears (2026-08-12)
+
+Decision: do not apply the first ordered Supabase migration while the connected
+project reports one duplicate tenant/PO-number group. Keep the source guard,
+require an opaque read-only planner packet and explicit owner remediation, then
+replay locally before reopening release review.
+
+Rationale: the migration creates an authoritative uniqueness index and its SQL
+intentionally aborts on duplicates. Automatically renaming, deleting, or
+choosing a PO would alter business history without authorization. A healthy
+Supabase status does not override this data-integrity gate; no hosted or paid
+action is justified until it clears.
+
+Validation: read-only Supabase preflight PASS; parity verifier PASS; no hosted
+SQL write, migration, provider setting, deployment, credential, or spend.
+
 ## D-399 -- Prove non-extractor document intake through Core with replay safety (2026-08-12)
 
 Decision: extend the disposable loopback harness with a tenant/project fixture

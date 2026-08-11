@@ -1,5 +1,15 @@
 # Next Actions
 
+## Exact next action after M3.293 Purchase Order duplicate blocker
+
+Do not apply `20260801090000_purchase_order_create_idempotency.sql` or any
+later suffix. The connected project has 13 Purchase Orders and one duplicate
+tenant/number group; the migration's own guard would fail. Run the read-only
+duplicate planner with an approved `DATABASE_URL`, have the business owner
+choose and record remediation, verify zero duplicate groups, replay the batch
+locally, and only then re-open release review. No automated rename/delete and
+no Vercel/Railway build.
+
 ## Exact next action after M3.292 Core document-intake canary
 
 Keep `ERP_DOCUMENT_INTAKE_WRITES_VIA_API=false` with an empty exact-tenant
