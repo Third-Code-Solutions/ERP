@@ -26,6 +26,14 @@ interface HarnessState {
     authorization: string
     requestId: string
   }>
+  reconciliationWorkflowRequests: Array<{
+    method: string
+    path: string
+    authorization: string
+    idempotencyKey: string
+    requestId: string
+    body: string
+  }>
   unsupportedRequests: Array<{ method: string; path: string }>
 }
 
@@ -225,6 +233,29 @@ test('proves authenticated Web reconciliation page uses Core and preserves tenan
   expect(detailSnapshot.reconciliationDetailRequests[0]?.requestId).toMatch(
     /^[0-9a-f-]{36}$/i
   )
+
+  await page.getByRole('button', { name: 'Run exact auto-match' }).click()
+  await expect(page.locator('[role="status"]')).toHaveText(
+    '0 exact matches added; 2 exceptions remain.'
+  )
+  const workflowStateResponse = await page.request.get(
+    `${AUTH_ORIGIN}/__harness__/state`
+  )
+  expect(workflowStateResponse.ok()).toBe(true)
+  const workflowSnapshot = (await workflowStateResponse.json()) as HarnessState
+  expect(workflowSnapshot.reconciliationWorkflowRequests).toHaveLength(1)
+  expect(workflowSnapshot.reconciliationWorkflowRequests[0]).toMatchObject({
+    method: 'POST',
+    path: `${draftHref?.replace('/finance/reconciliation/', '/v1/finance/reconciliation/')}/auto-match`,
+    authorization: `Bearer ${session.accessToken}`,
+    body: '{}',
+  })
+  expect(
+    workflowSnapshot.reconciliationWorkflowRequests[0]?.idempotencyKey
+  ).toMatch(/^auto-match-[0-9a-f-]{36}$/i)
+  expect(
+    workflowSnapshot.reconciliationWorkflowRequests[0]?.requestId
+  ).toMatch(/^[0-9a-f-]{36}$/i)
 
   expect(
     state.unsupportedRequests.some(

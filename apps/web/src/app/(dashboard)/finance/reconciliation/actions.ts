@@ -14,7 +14,9 @@ import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { parseBankStatementCsv } from './bank-statement-csv'
 import {
+  autoMatchBankStatementThroughCoreApi,
   createBankStatementThroughCoreApi,
+  financeReconciliationAutoMatchWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi,
   financeReconciliationStorageUploadsUseCoreApi,
 } from '@/lib/erp-core-client'
@@ -324,12 +326,42 @@ export async function deleteBankStatementDraft(
 }
 
 export async function autoMatchBankStatement(
-  statementId: string
+  statementId: string,
+  idempotencyKey?: string
 ): Promise<ReconciliationActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
     const parsedId = z.string().uuid().parse(statementId)
+    if (financeReconciliationAutoMatchWritesUseCoreApi(profile.tenantId)) {
+      const parsedKey = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
+      if (!parsedKey.success) {
+        return {
+          ok: false,
+          error:
+            'Retry token is required for the bank statement auto-match command.',
+        }
+      }
+      const coreResult = await autoMatchBankStatementThroughCoreApi(
+        parsedId,
+        parsedKey.data
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'ERP Core did not auto-match the bank statement. Existing evidence was unchanged.',
+        }
+      }
+      revalidateReconciliation(coreResult.data.statementId)
+      return {
+        ok: true,
+        id: coreResult.data.statementId,
+        matchedCount: coreResult.data.matchedCount,
+        remainingCount: coreResult.data.remainingCount,
+      }
+    }
     const rows = await db.execute<{
       matched_count: number
       remaining_count: number

@@ -7107,3 +7107,24 @@ cleanup; it does not alter production navigation or route behavior.
 
 Validation: browser canary 1/1, desktop/mobile overflow checks, zero console
 errors, and external request blocking passed locally.
+
+## D-125 -- Route reconciliation auto-match through Core (2026-08-12)
+
+Decision: reuse the existing tenant-scoped Nest auto-match workflow and expose
+it through the Web compatibility action only for an exact closed-by-default
+tenant canary. The detail panel owns one opaque `auto-match-<uuid>` retry key;
+selected Core failures are terminal and never invoke the legacy SQL writer.
+
+Rationale: auto-match changes official financial evidence and must share one
+authorization, lock, idempotency, database transaction, and audit boundary.
+Generating a new server-side key for each retry could duplicate the command;
+keeping the browser key stable across a failed request preserves exact replay
+while resetting it after success permits a later intentional run. The legacy
+path remains for compatibility while hosted parity is reviewed.
+
+Validation: focused Web Core/action tests 176/176, full workspace tests,
+API/Web builds, typecheck/lint, disposable PostgreSQL/Nest HTTP canary 1/1,
+authenticated browser canary 1/1, policy/planner tests, Actionlint, Gitleaks,
+provider-spend guard, and diff checks passed. API/Web selectors are
+false/empty outside the disposable tenant; no hosted or provider mutation
+occurred.

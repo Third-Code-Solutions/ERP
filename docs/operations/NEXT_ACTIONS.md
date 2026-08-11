@@ -5488,6 +5488,22 @@ Git disconnected and do not create preview or duplicate production builds.
    Vercel production action. Keep Vercel Git disconnected; avoid previews and
    duplicate builds; verify live browser/API/logs before declaring green.
 
+## Exact next action after M3.281
+
+1. Review the complete auto-match source/docs diff, commit, and push under
+   `kurtgav`; verify the exact remote SHA. Do not deploy, reconnect Vercel Git,
+   or change provider plans.
+2. Preserve the passing local evidence: full tests/build/typecheck/lint,
+   disposable HTTP/browser canaries, policy/security/spend guards, and diff
+   checks.
+3. Keep both auto-match selector pairs false/empty outside the disposable
+   tenant. The next reconciliation authority slice is manual line
+   match/unmatch, then reconcile and void as separate idempotent commands.
+4. Hosted promotion remains blocked by migration parity, duplicate Purchase
+   Order mapping, audit-recovery approval, readiness, rollback, exact SHA, and
+   spend-bounded owner/provider approval. No paid/duplicate build is allowed
+   to bypass those gates.
+
 ## Exact next action after M3.280
 
 1. Run API/Web build, typecheck, lint, focused tests, and `git diff --check` on

@@ -7898,3 +7898,21 @@ state.
 
 Release gate: keep reconciliation read flags false/empty until hosted parity,
 exact-SHA CI, readiness, rollback, and spend-bounded owner approval are clear.
+
+## M3.281 - Reconciliation auto-match Core write (completed source slice)
+
+1. Reuse the existing Nest auto-match workflow and strict shared result; add a
+   Web Core adapter with an exact-tenant, closed-by-default selector.
+2. Require one opaque browser retry key in the selected Server Action and keep
+   the key stable through a failed request; selected Core errors never fall
+   back to the direct database function.
+3. Extend the disposable loopback proof to assert the authenticated POST,
+   strict `{}` body, tenant bearer, idempotency key, UUID request ID, result
+   notice, responsive overflow, and absence of unsupported calls.
+4. Keep API flags
+   `ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED` and
+   `ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_TENANT_IDS`, plus Web flags
+   `ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API` and
+   `ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API_TENANT_IDS`,
+   false/empty outside the disposable canary. Do not migrate or deploy hosted
+   state until parity, rollback, readiness, exact SHA, and spend gates clear.

@@ -11081,3 +11081,20 @@ hosted baseline, but not a promotion approval:
   console errors, and blocked external font request all passed.
 - No hosted database, feature flag, Railway, Vercel, or billing-setting action
   occurred. Full source gates are rerun before push.
+
+## 2026-08-12 - M3.281 reconciliation auto-match Core write
+
+- Changed the Web Core client, exact-tenant selector, reconciliation Server
+  Action, detail action retry state, and local loopback harness/spec. The Nest
+  workflow and database authority were reused; no new migration was required.
+- Verified: focused Web Core/action tests 176/176; API build; Web typecheck and
+  lint; authenticated Playwright browser canary 1/1. The canary proved the
+  strict POST body, bearer, idempotency key, UUID request ID, rendered result,
+  responsive overflow, zero console errors, and blocked external requests.
+- Verified: full workspace tests (shared 332, API 764, Web 787; database
+  package passed), API/Web production builds, typecheck/lint, disposable
+  PostgreSQL/Nest HTTP canary 1/1, policy/planner checks, Actionlint, Gitleaks,
+  provider-spend guard, and `git diff --check` passed.
+- Hosted Supabase, Storage, Railway, Vercel, flags, provider settings,
+  credentials, and billing were not mutated. Next action is review, commit,
+  push under `kurtgav`, and exact remote-SHA verification without deployment.

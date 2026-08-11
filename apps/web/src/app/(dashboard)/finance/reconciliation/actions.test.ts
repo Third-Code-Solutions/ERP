@@ -7,8 +7,10 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   select: vi.fn(),
   revalidatePath: vi.fn(),
+  financeReconciliationAutoMatchWritesUseCoreApi: vi.fn(),
   financeReconciliationImportWritesUseCoreApi: vi.fn(),
   financeReconciliationStorageUploadsUseCoreApi: vi.fn(),
+  autoMatchBankStatementThroughCoreApi: vi.fn(),
   createBankStatementThroughCoreApi: vi.fn(),
 }))
 
@@ -30,10 +32,14 @@ vi.mock('next/cache', () => ({
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
+  financeReconciliationAutoMatchWritesUseCoreApi:
+    mocks.financeReconciliationAutoMatchWritesUseCoreApi,
   financeReconciliationImportWritesUseCoreApi:
     mocks.financeReconciliationImportWritesUseCoreApi,
   financeReconciliationStorageUploadsUseCoreApi:
     mocks.financeReconciliationStorageUploadsUseCoreApi,
+  autoMatchBankStatementThroughCoreApi:
+    mocks.autoMatchBankStatementThroughCoreApi,
   createBankStatementThroughCoreApi: mocks.createBankStatementThroughCoreApi,
 }))
 
@@ -73,6 +79,7 @@ describe('bank reconciliation actions', () => {
     vi.clearAllMocks()
     mocks.requireUserProfile.mockResolvedValue(PROFILE)
     mocks.requireCapability.mockImplementation(() => undefined)
+    mocks.financeReconciliationAutoMatchWritesUseCoreApi.mockReturnValue(false)
     mocks.financeReconciliationImportWritesUseCoreApi.mockReturnValue(false)
     mocks.financeReconciliationStorageUploadsUseCoreApi.mockReturnValue(false)
   })
@@ -161,6 +168,52 @@ describe('bank reconciliation actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith(
       `/finance/reconciliation/${STATEMENT_ID}`
     )
+  })
+
+  it('delegates selected auto-match writes to Core without a Web fallback', async () => {
+    mocks.financeReconciliationAutoMatchWritesUseCoreApi.mockReturnValue(true)
+    mocks.autoMatchBankStatementThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        statementId: STATEMENT_ID,
+        tenantId: PROFILE.tenantId,
+        status: 'draft',
+        matchedCount: 2,
+        remainingCount: 1,
+      },
+      status: 200,
+    })
+
+    const result = await autoMatchBankStatement(
+      STATEMENT_ID,
+      'auto-match-browser-retry-1'
+    )
+
+    expect(result).toEqual({
+      ok: true,
+      id: STATEMENT_ID,
+      matchedCount: 2,
+      remainingCount: 1,
+    })
+    expect(mocks.autoMatchBankStatementThroughCoreApi).toHaveBeenCalledWith(
+      STATEMENT_ID,
+      'auto-match-browser-retry-1'
+    )
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('requires a retry token before selected Core auto-match writes', async () => {
+    mocks.financeReconciliationAutoMatchWritesUseCoreApi.mockReturnValue(true)
+
+    const result = await autoMatchBankStatement(STATEMENT_ID)
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        'Retry token is required for the bank statement auto-match command.',
+    })
+    expect(mocks.autoMatchBankStatementThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   it('requires a meaningful reason before voiding reconciliation evidence', async () => {
