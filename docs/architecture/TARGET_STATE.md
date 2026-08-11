@@ -1,5 +1,19 @@
 # Target State
 
+## M3.295 Core DocuSeal webhook authority (2026-08-12)
+
+The target signature boundary verifies the provider secret in Next, then
+delegates the business transaction to Nest Core with an internal server token.
+Core locks the token and BOM rows in one transaction, stores the signed
+document, audits the lock, and returns a replay-safe duplicate result without
+repeating side effects. Required project joins are lock-safe and tenant
+scoped.
+
+Keep `ERP_DOCUSEAL_WEBHOOK_VIA_API` and `ERP_DOCUSEAL_WEBHOOK_ENABLED` false
+with empty tenant lists outside the disposable proof. Notification delivery
+is compatibility behavior; Resend remains disabled in the canary. Python/AI
+cannot finalize signature or BOM state.
+
 ## M3.294 Core Togal BOM commit canary (2026-08-12)
 
 The target BOM import boundary sends reviewed Togal lines from the Next

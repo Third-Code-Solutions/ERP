@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.295 Core DocuSeal webhook browser canary
+
+Keep `ERP_DOCUSEAL_WEBHOOK_VIA_API=false` and
+`ERP_DOCUSEAL_WEBHOOK_VIA_API_TENANT_IDS` empty; keep
+`ERP_DOCUSEAL_WEBHOOK_ENABLED=false` and `ERP_DOCUSEAL_WEBHOOK_TENANT_IDS`
+empty outside disposable tests. The local proof covers provider-secret
+verification, internal-token forwarding, one-time token use, signed-document
+persistence, BOM locking, duplicate replay, foreign-BOM non-handling, audit,
+notification compatibility, and zero paid email/provider traffic. Do not open
+a real tenant, apply hosted SQL, or trigger Vercel/Railway builds until the
+managed parity ledger, PO duplicate owner review, readiness, rollback,
+authenticated smoke, exact release identity, and spend controls pass.
+
 ## Exact next action after M3.294 Core Togal BOM browser canary
 
 Keep `ERP_BOM_TOGAL_COMMIT_VIA_API=false` and

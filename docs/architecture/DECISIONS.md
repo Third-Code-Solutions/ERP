@@ -1,5 +1,22 @@
 # Architecture Decisions
 
+## D-402 -- Lock DocuSeal BOM transactions through a non-null project join (2026-08-12)
+
+Decision: the Core DocuSeal webhook locks the BOM and its required project via
+an inner join instead of attempting `FOR UPDATE` across a nullable left-join
+side. Keep the Next webhook as a secret-checked adapter and keep the exact
+tenant selector closed outside disposable evidence.
+
+Rationale: the first real browser canary reached the database and reproduced a
+Postgres 0A000 error before any write. The BOM schema requires a project, so an
+inner join preserves the invariant and makes row locking valid. The same proof
+also demonstrates replay, signed-document persistence, audit, and foreign-BOM
+non-handling without provider traffic or spend.
+
+Validation: DocuSeal browser 1/1; existing three Core browser canaries 1/1;
+API 176/772; Web 113/802; typecheck/build, spend guard, boundary audit,
+gitleaks, diff check, and parity verifier pass.
+
 ## D-401 -- Prove Togal BOM commit through Core before any tenant opening (2026-08-12)
 
 Decision: use the existing Next route only as a compatibility adapter for the
