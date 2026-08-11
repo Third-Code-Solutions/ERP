@@ -59,6 +59,10 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import {
+  BankStatementImportStorageError,
+  BankStatementImportStorageService,
+} from './bank-statement-import.storage'
 
 type AutoMatchRequest = {
   id: string
@@ -186,15 +190,18 @@ function replayImportResult(value: unknown): BankStatementImportResult {
   return parsed.data
 }
 
-function prepareImport(command: BankStatementImportCommand): PreparedImport {
-  const sourceBytes = Buffer.from(command.sourceBase64, 'base64')
-  if (sourceBytes.length === 0 || sourceBytes.length > 2_000_000) {
+function prepareImportBytes(
+  command: BankStatementImportCommand,
+  sourceBytes: Uint8Array
+): PreparedImport {
+  const sourceBuffer = Buffer.from(sourceBytes)
+  if (sourceBuffer.length === 0 || sourceBuffer.length > 2_000_000) {
     throw new BadRequestException('Source file must be 2 MB or smaller')
   }
 
   let lines: ParsedBankStatementLine[]
   try {
-    lines = parseBankStatementCsv(sourceBytes.toString('utf8'))
+    lines = parseBankStatementCsv(sourceBuffer.toString('utf8'))
   } catch (error) {
     throw new BadRequestException(
       error instanceof Error ? error.message : 'Could not parse bank statement CSV'
@@ -240,7 +247,7 @@ function prepareImport(command: BankStatementImportCommand): PreparedImport {
   }
 
   return {
-    sourceSha256: createHash('sha256').update(sourceBytes).digest('hex'),
+    sourceSha256: createHash('sha256').update(sourceBuffer).digest('hex'),
     lines,
   }
 }
@@ -310,7 +317,9 @@ export class FinanceReconciliationWorkflowService {
   constructor(
     @Inject(ConfigService) private readonly config: ConfigService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(AuditService) private readonly audit: AuditService
+    @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(BankStatementImportStorageService)
+    private readonly importStorage: BankStatementImportStorageService
   ) {}
 
   async autoMatch(
@@ -589,7 +598,7 @@ export class FinanceReconciliationWorkflowService {
     requestHash: string
   ): Promise<BankStatementImportResult> {
     this.assertImportEnabled(principal)
-    const prepared = prepareImport(command)
+    const prepared = await this.prepareImport(command, principal.tenantId)
     return this.database.client.transaction(async (transaction) => {
       const authorizedPrincipal = await this.authorize(transaction, principal)
       await this.audit.stampActor(transaction, authorizedPrincipal)
@@ -629,6 +638,7 @@ export class FinanceReconciliationWorkflowService {
           cash_account_id: cashAccount.id,
           reference_number: command.referenceNumber,
           source_file_name: command.sourceFileName,
+          source_storage_path: command.sourceStoragePath ?? null,
           source_sha256: prepared.sourceSha256,
           statement_start: command.statementStart,
           statement_end: command.statementEnd,
@@ -673,6 +683,7 @@ export class FinanceReconciliationWorkflowService {
           reference_number: command.referenceNumber,
           line_count: prepared.lines.length,
           source_sha256: prepared.sourceSha256,
+          source_storage_path: command.sourceStoragePath ?? null,
           idempotency_key_hash: requestHash,
         },
       })
@@ -995,6 +1006,47 @@ export class FinanceReconciliationWorkflowService {
         'Bank statement importing is not enabled for this tenant; no bank statement was changed.'
       )
     }
+  }
+
+  private async prepareImport(
+    command: BankStatementImportCommand,
+    tenantId: string
+  ): Promise<PreparedImport> {
+    if (command.sourceStoragePath) {
+      const expectedPrefix = `${tenantId}/bank-statements/`
+      if (
+        !command.sourceStoragePath.startsWith(expectedPrefix) ||
+        command.sourceStoragePath.includes('..')
+      ) {
+        throw new ForbiddenException(
+          'Bank statement source is outside the tenant storage scope'
+        )
+      }
+      let sourceBytes: Uint8Array
+      try {
+        sourceBytes = await this.importStorage.readCsv(
+          command.sourceStoragePath
+        )
+      } catch (error) {
+        if (
+          error instanceof BankStatementImportStorageError &&
+          error.code === 'object_too_large'
+        ) {
+          throw new BadRequestException('Source file must be 2 MB or smaller')
+        }
+        throw new ServiceUnavailableException(
+          'Bank statement source object is unavailable; no bank statement was changed.'
+        )
+      }
+      return prepareImportBytes(command, sourceBytes)
+    }
+    if (!command.sourceBase64) {
+      throw new BadRequestException('Provide exactly one import source')
+    }
+    return prepareImportBytes(
+      command,
+      Buffer.from(command.sourceBase64, 'base64')
+    )
   }
 
   private async claimRequest(

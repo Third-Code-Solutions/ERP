@@ -9,6 +9,13 @@ const migration = readFileSync(
   ),
   'utf8'
 )
+const storageMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    '../../supabase/migrations/20260812150000_bank_statement_storage_source.sql'
+  ),
+  'utf8'
+)
 
 describe('bank statement import request ledger migration', () => {
   it('keeps import requests tenant-scoped, force-RLS, and service-only', () => {
@@ -38,6 +45,18 @@ describe('bank statement import request ledger migration', () => {
     )
     expect(migration).toContain(
       'bank_statement_import_requests_state_payload'
+    )
+  })
+
+  it('keeps storage sources optional but path-shaped and bounded', () => {
+    expect(storageMigration).toContain(
+      'add column if not exists source_storage_path text'
+    )
+    expect(storageMigration).toContain(
+      'bank_statements_source_storage_path_format'
+    )
+    expect(storageMigration).toMatch(
+      /source_storage_path ~\*.*bank-statements/
     )
   })
 })

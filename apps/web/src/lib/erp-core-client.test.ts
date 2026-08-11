@@ -39,6 +39,8 @@ import {
   getFinancePayablesThroughCoreApi,
   getFinanceCashThroughCoreApi,
   getFinanceReconciliationThroughCoreApi,
+  createBankStatementThroughCoreApi,
+  financeReconciliationImportWritesUseCoreApi,
   getNotificationsThroughCoreApi,
   markNotificationReadStateThroughCoreApi,
   processDocuSealWebhookThroughCoreApi,
@@ -939,6 +941,59 @@ describe('ERP Core client', () => {
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it('keeps bank import on the legacy route unless an exact tenant gate matches', () => {
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS',
+      RESULT.tenantId
+    )
+    expect(financeReconciliationImportWritesUseCoreApi(RESULT.tenantId)).toBe(
+      true
+    )
+
+    vi.stubEnv('ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API_TENANT_IDS', '*')
+    expect(financeReconciliationImportWritesUseCoreApi(RESULT.tenantId)).toBe(
+      false
+    )
+    expect(financeReconciliationImportWritesUseCoreApi('not-a-uuid')).toBe(
+      false
+    )
+  })
+
+  it('maps the Core bank import result without enabling a Web fallback', async () => {
+    const result = {
+      statementId: '33333333-3333-4333-8333-333333333333',
+      tenantId: RESULT.tenantId,
+      status: 'draft' as const,
+      lineCount: 1,
+      sourceSha256: 'a'.repeat(64),
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(result), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(
+      createBankStatementThroughCoreApi(
+        {
+          cashAccountId: '44444444-4444-4444-8444-444444444444',
+          referenceNumber: 'JUL-2026-001',
+          sourceFileName: 'statement.csv',
+          statementStart: '2026-07-01',
+          statementEnd: '2026-07-31',
+          openingBalanceCents: 0,
+          closingBalanceCents: 1000,
+          sourceBase64:
+            'ZGF0ZSxyZWZlcmVuY2UsZGVzY3JpcHRpb24sYW1vdW50CjIwMjYtMDctMDEsREVQLERlcG9zaXQsMTAuMDAK',
+        },
+        'bank-import-test'
+      )
+    ).resolves.toEqual({ ok: true, data: result, status: 200 })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/finance/reconciliation/import',
+      expect.objectContaining({ method: 'POST' })
+    )
   })
 
   it('keeps Cortex brief reads on the legacy route unless the exact tenant gate matches', () => {
