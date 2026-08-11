@@ -1,5 +1,26 @@
 # Migration Plan
 
+## M3.251 Customer invoice draft-cancellation authority (completed source-only canary)
+
+1. Added a protected rollback-only HTTP canary around the existing Core
+   customer-invoice cancellation controller/service with real JWT identity and
+   capability guards, two tenants, finance/viewer roles, and draft invoices.
+2. The canary covers strict empty-body/header handling, auth/RBAC, disabled
+   selector, concealed cross-tenant access, exactly-once draft cancellation,
+   idempotent replay and key conflict, semantic audit, tenant isolation, and
+   outer rollback.
+3. Focused runtime canary passed 1/1 on local PostgreSQL 17/Redis 7.4.9. Full
+   API integration passed 46/46 files and 60 tests with two explicit
+   Redis-restart opt-in skips. API typecheck, root lint, and production build
+   passed.
+4. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
+   or paid action changed. Keep cancellation writes disabled with an empty
+   tenant allowlist. Source/docs evidence SHA is recorded after push.
+
+Next: keep the selector closed and reconcile hosted parity, release identity,
+readiness, protected browser evidence, rollback, and spend gates before any
+selector, hosted SQL, or provider action.
+
 ## M3.250 Customer invoice reversal authority (completed source-only canary)
 
 1. Added a protected rollback-only HTTP canary around the existing Core

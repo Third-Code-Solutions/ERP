@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.251 Customer invoice draft-cancellation authority (2026-08-11)
+
+The existing `finance.issue_invoice` Nest cancellation command now has
+protected transaction-bound HTTP evidence for auth/RBAC, strict empty-body
+input, disabled-by-default behavior, cross-tenant concealment, draft-to-
+cancelled state, tenant-scoped idempotent replay/conflict, one semantic
+audit event, and rollback. Web adoption remains closed; keep
+`ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_ENABLED=false` and its tenant list
+empty. Posted invoices use the separate reversal command. Python/AI remains
+analysis-only and cannot cancel or finalize invoices.
+
+Validation: focused canary 1/1 PASS on local PostgreSQL 17/Redis 7.4.9; API
+integration 46/46 files and 60 tests PASS with two explicit Redis-restart
+opt-in skips; API typecheck, root lint, and production build PASS. No hosted
+or paid action.
+
 ## M3.250 Customer invoice reversal authority (2026-08-11)
 
 The existing `finance.issue_invoice` Nest reversal command now has a

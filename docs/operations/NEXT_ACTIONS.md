@@ -1,5 +1,24 @@
 # Next Actions
 
+## Exact next action after M3.251 customer invoice cancellation canary
+
+Keep `ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_ENABLED=false` and
+`ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_TENANT_IDS` empty. The focused
+canary passes 1/1 on local PostgreSQL 17/Redis 7.4.9; API integration passes
+46/46 files and 60 tests with two explicit Redis-restart skips. Do not apply
+hosted SQL or trigger Railway/Vercel builds while spend protection and the
+M3.248 hosted parity/security gate remain active. Next, reconcile hosted
+parity, release identity, readiness, protected browser evidence, rollback,
+and spend gates.
+
+## M3.251 evidence boundary (completed source-only canary)
+
+The protected draft-invoice cancellation canary passes 1/1 and the API
+integration lane passes 46/46 files and 60 tests with two explicit
+Redis-restart skips. It covers strict empty-body input, auth/RBAC, disabled
+selector, tenant concealment, idempotency, cancellation state, audit, and
+rollback. No provider or paid action occurred.
+
 ## Exact next action after M3.250 customer invoice reversal canary
 
 Keep `ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED=false` and
