@@ -1,5 +1,23 @@
 # Current State
 
+## M3.293 Hosted migration preflight: Purchase Order duplicate blocker (2026-08-12)
+
+A read-only query against the connected Supabase project found 13 Purchase
+Orders, one duplicate `(tenant_id, po_number)` group, and zero blank PO
+numbers. The first ordered source batch (`20260801090000_purchase_order_create_idempotency.sql`)
+would intentionally raise on that duplicate before creating its unique index.
+
+Hosted apply is therefore blocked. No PO was renamed/deleted, no migration,
+SQL write, feature flag, Storage change, Vercel/Railway deployment, credential,
+provider setting, or paid action changed. The opaque owner-review process must
+choose a documented remediation before the uniqueness/idempotency batch can be
+replanned.
+
+Exact next action: run the approved read-only duplicate planner with
+`DATABASE_URL` to produce the owner-review packet, reconcile the duplicate
+without an automated data choice, then replay the first batch locally. Do not
+apply the 69-migration suffix.
+
 ## M3.292 Core document-intake browser/HTTP canary (2026-08-12)
 
 The disposable authenticated loopback harness now proves the non-extractor

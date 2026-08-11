@@ -1,5 +1,25 @@
 # Work Log
 
+## 2026-08-12 - M3.293 hosted migration preflight: Purchase Order duplicate blocker
+
+Queried the connected Supabase database read-only for the first ordered
+migration's uniqueness precondition. The result is 13 Purchase Orders, one
+duplicate tenant/PO-number group, and zero blank numbers. This matches the SQL
+guard in `20260801090000_purchase_order_create_idempotency.sql`, so applying
+the batch now would fail and must not be attempted.
+
+Recorded the blocker in the managed parity snapshot and release memory. No PO
+data, hosted schema, Storage, provider, credential, deployment, or paid action
+changed.
+
+Validation: read-only Supabase SQL PASS; parity manifest PASS after snapshot
+update; no migration executed. Database release planner remains BLOCKED without
+`DATABASE_URL`.
+
+Exact next action: obtain an opaque duplicate-review report through the
+read-only planner, require owner remediation evidence, then locally replay the
+first batch before considering hosted apply.
+
 ## 2026-08-12 - M3.292 Core document-intake browser/HTTP canary
 
 Extended the disposable loopback database with a tenant/project fixture and

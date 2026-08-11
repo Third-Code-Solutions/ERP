@@ -1,5 +1,17 @@
 # Target State
 
+## M3.293 Purchase Order uniqueness release gate (2026-08-12)
+
+The target release process fails closed when the first idempotency/uniqueness
+batch sees duplicate `(tenant_id, po_number)` data. Owner review must produce
+an opaque remediation packet and a zero-duplicate read-only result before the
+unique index or request ledger is applied. Core/AI cannot silently select the
+surviving PO; PostgreSQL remains authoritative and the migration remains
+ordered.
+
+Until that gate clears, all hosted migrations and provider deployments remain
+closed.
+
 ## M3.292 Core document-intake canary (2026-08-12)
 
 The target upload boundary records the canonical document in Nest Core after
