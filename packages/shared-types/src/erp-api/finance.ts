@@ -458,3 +458,31 @@ export type CustomerInvoiceCancelCommand = z.infer<
 export type CustomerInvoiceCancelResult = z.infer<
   typeof customerInvoiceCancelResultSchema
 >
+
+export const bankStatementAutoMatchBodySchema = z.object({}).strict()
+
+export const bankStatementAutoMatchCommandSchema = z
+  .object({
+    statementId: z.string().uuid(),
+  })
+  .strict()
+
+export const bankStatementAutoMatchResultSchema = z
+  .object({
+    statementId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('draft'),
+    matchedCount: z.number().int().nonnegative(),
+    remainingCount: z.number().int().nonnegative(),
+  })
+  .strict()
+
+export type BankStatementAutoMatchBody = z.infer<
+  typeof bankStatementAutoMatchBodySchema
+>
+export type BankStatementAutoMatchCommand = z.infer<
+  typeof bankStatementAutoMatchCommandSchema
+>
+export type BankStatementAutoMatchResult = z.infer<
+  typeof bankStatementAutoMatchResultSchema
+>
