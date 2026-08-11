@@ -1,5 +1,26 @@
 # Architecture Decisions
 
+## D-371 -- Require protected HTTP evidence for reconciliation reads (2026-08-11)
+
+Decision: keep `GET /v1/finance/reconciliation` as a Core-owned, read-only
+projection guarded by `finance.read`, verified Supabase identity, strict
+tenant-scoped joins, bounded limits, and an exact tenant selector. Require a
+rollback-only HTTP canary for authentication/RBAC, strict query handling,
+closed-selector behavior, aggregate/count parity, cross-tenant concealment,
+and rollback before any Web cutover. Keep both selectors closed.
+
+Rationale: bank statements and match progress are sensitive financial evidence.
+The read seam can move authority incrementally without allowing browser writes
+or AI/Python approval, while preserving the existing Web path until hosted,
+RLS, readiness, browser, rollback, and cost evidence exists.
+
+Validation: focused HTTP 1/1, reconciliation API unit contract 4/4, shared
+contract 3/3, database bank-reconciliation suite 17/17, and API integration
+54/54 files and 68 tests PASS with two explicit Redis-restart skips. Root
+typecheck, lint, build, and policy gates PASS. Root `pnpm test` still has one
+pre-existing invoice-draft mock failure (172/173 API files, 751/752 tests).
+No hosted/provider/paid action occurred.
+
 ## D-370 -- Preserve Core cash-draft deletion semantics (2026-08-11)
 
 Decision: keep cash draft deletion Core-only and require explicit child

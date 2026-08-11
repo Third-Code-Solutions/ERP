@@ -1,5 +1,30 @@
 # Current State
 
+## M3.259 Bank reconciliation read authority (2026-08-11)
+
+Added a protected rollback-only HTTP canary for the existing Nest bank
+reconciliation read projection. It boots the real controller/service with JWT
+identity and capability guards against transaction-bound PostgreSQL and proves
+missing/unknown authentication, Finance-only authorization, strict query
+validation, closed-selector behavior, bounded truncation, exact tenant-scoped
+counts, statement/line aggregates, cross-tenant concealment, and rollback.
+The fixture uses two tenants and keeps the read path write-free; no product
+source fix was required.
+
+Focused HTTP canary: 1/1 PASS; reconciliation API unit contract: 4/4 PASS;
+shared contract: 3/3 PASS; bank-reconciliation database suite: 17/17 PASS;
+API integration: 54/54 files and 68 tests PASS with two explicit Redis-restart
+skips. Root typecheck, lint, production build, provider-spend, Supabase
+parity, database-release, Web/DB boundary, workflow action-reference, and
+actionlint gates PASS. Root `pnpm test` remains FAILED by one pre-existing
+`customer-invoice-draft-create.service.spec.ts` mock (`transactionClient.select`
+undefined): 172/173 API files and 751/752 tests passed, and the focused failure
+reproduces independently. Source parity remains 55/118 hosted/source
+migrations, 63 pending in 11 review batches. No hosted SQL/data, Storage,
+Railway/Vercel deployment, provider setting, credential, or paid action
+changed. Keep reconciliation selectors closed. Source evidence SHA:
+`fff90135bb3a96859a589a65a0860e115588dfea`.
+
 ## M3.258 Cash draft delete authority (2026-08-11)
 
 Added a protected rollback-only HTTP canary for cash draft create, update, and

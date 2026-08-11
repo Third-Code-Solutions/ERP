@@ -1,5 +1,17 @@
 # Target State
 
+## M3.259 Bank reconciliation read authority (2026-08-11)
+
+Core owns the bounded `GET /v1/finance/reconciliation` projection when the
+exact tenant selector is enabled. The endpoint authenticates the principal,
+requires `finance.read`, validates the strict limit, joins statements/accounts/
+lines with tenant-matched keys, returns bounded integer-cent evidence, and
+conceals other tenants. The Web page keeps the direct server-side read as the
+default and treats selected-Core failure as terminal; both selectors remain
+closed until hosted parity, RLS, readiness, protected browser, rollback, and
+spend gates are reconciled. Python/AI remains analysis-only and cannot import,
+match, reconcile, or void bank evidence.
+
 ## M3.258 Cash draft delete authority (2026-08-11)
 
 The Core owns cash draft create/update/delete. Draft deletion locks the

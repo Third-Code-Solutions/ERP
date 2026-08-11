@@ -1,5 +1,21 @@
 # Third Code ERP capability matrix
 
+## M3.259 Bank reconciliation read authority (2026-08-11)
+
+The existing `finance.read` Nest projection now has protected transaction-bound
+HTTP evidence for authentication/RBAC, strict query handling, closed-by-default
+selector behavior, bounded results, exact tenant-scoped statement/line
+aggregates, cross-tenant concealment, and rollback. The Web selector remains
+closed; keep `ERP_FINANCE_RECONCILIATION_READS_ENABLED=false`, its tenant list
+empty, and the Web selector closed. Python/AI remains analysis-only and cannot
+import, match, reconcile, or void bank evidence.
+
+Validation: focused HTTP 1/1, API unit 4/4, shared contract 3/3, database
+17/17, and API integration 54/54 files and 68 tests PASS with two explicit
+Redis-restart skips; root typecheck, lint, build, and policy gates PASS. Root
+`pnpm test` remains blocked by the pre-existing invoice-draft mock failure.
+No hosted or paid action.
+
 ## M3.258 Cash draft delete authority (2026-08-11)
 
 The existing `finance.manage_cash` Nest cash-draft command now has protected
