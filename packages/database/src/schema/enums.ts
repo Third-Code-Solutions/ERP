@@ -452,6 +452,11 @@ export const bankStatementReconcileRequestStateEnum = pgEnum(
   ['processing', 'succeeded']
 )
 
+export const bankStatementVoidRequestStateEnum = pgEnum(
+  'bank_statement_void_request_state',
+  ['processing', 'succeeded']
+)
+
 export const stockReceiptStatusEnum = pgEnum('stock_receipt_status', [
   'draft',
   'posted',

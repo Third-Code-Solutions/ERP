@@ -576,3 +576,34 @@ export type BankStatementReconcileCommand = z.infer<
 export type BankStatementReconcileResult = z.infer<
   typeof bankStatementReconcileResultSchema
 >
+
+export const bankStatementVoidBodySchema = z
+  .object({
+    reason: z.string().trim().min(3).max(500),
+  })
+  .strict()
+
+export const bankStatementVoidCommandSchema = z
+  .object({
+    statementId: z.string().uuid(),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .strict()
+
+export const bankStatementVoidResultSchema = z
+  .object({
+    statementId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('voided'),
+  })
+  .strict()
+
+export type BankStatementVoidBody = z.infer<
+  typeof bankStatementVoidBodySchema
+>
+export type BankStatementVoidCommand = z.infer<
+  typeof bankStatementVoidCommandSchema
+>
+export type BankStatementVoidResult = z.infer<
+  typeof bankStatementVoidResultSchema
+>
