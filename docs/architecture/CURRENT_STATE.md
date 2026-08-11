@@ -1,5 +1,32 @@
 # Current State
 
+## M3.263 Bank-statement reconciliation authority (2026-08-11)
+
+Added the source-only Nest Core command
+`POST /v1/finance/reconciliation/:statementId/reconcile`. It accepts a strict
+empty body and opaque idempotency key, requires `finance.manage_cash`,
+re-authorizes the tenant membership, locks the statement, calls the trusted
+PostgreSQL reconciliation function, persists a tenant-scoped force-RLS request
+result, and records semantic audit in one transaction. Replays return the
+durable result and key reuse for another statement conflicts. The selector
+`ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED` and its tenant list are
+false/empty by default; the legacy Web action remains unchanged and is not
+wired to this route. Python/AI remains analysis-only and cannot reconcile or
+finalize bank evidence.
+
+Rollback-only local PostgreSQL HTTP canary: 1/1 PASS. Root `pnpm test` exited
+0 with shared 54/54 files and 326/326 tests, database 67/71 files with 237
+passed and 143 environment-skipped tests, Web 111/111 files and 768/768
+tests, and API 173/173 files and 755/755 tests. Protected API integration:
+55/55 files, 69 passed and two intentional Redis-restart skips. Typecheck,
+lint, production build, migration contract, provider-spend, parity,
+database-release, Web/DB boundary, workflow-reference, and actionlint gates
+PASS. Source parity is 55/121 hosted/source migrations, 66 pending in 14
+review batches. The migration was applied only to the disposable local CI
+database; no hosted SQL/data, Storage, Railway/Vercel deployment, provider
+setting, credential, or paid action changed. Source evidence SHA:
+`378339a53e71f2f8290f0dd21d8ed6bd1b89e2fb`.
+
 ## M3.262 Bank-statement line match/unmatch authority (2026-08-11)
 
 Added source-only Nest Core commands at

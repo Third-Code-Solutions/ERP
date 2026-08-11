@@ -9,13 +9,13 @@
 
 - Managed PostgreSQL: 17.6, `ACTIVE_HEALTHY`.
 - Managed ledger: 55 migrations through `20260729233017`.
-- Source ledger: 120 migrations through `20260812110000`.
-- Ledger shape: exact linear prefix; 65 missing, zero unexpected, zero applied
+- Source ledger: 121 migrations through `20260812120000`.
+- Ledger shape: exact linear prefix; 66 missing, zero unexpected, zero applied
   after the first gap.
 - Prior 2026-08-07 suffix scan reported 39 `drop-object`, 12 explicit
   transaction-control, and four with neither scanner flag. Those counts are
   historical; this source-ledger refresh does not claim a new SQL-risk scan.
-  Any release review must recompute them against all 65 pending files.
+  Any release review must recompute them against all 66 pending files.
 - First pending migration refuses to continue while duplicate tenant Purchase
   Order numbers exist. Current redacted read-only result: one group, 12 rows.
 - Managed catalog still reports 213 anonymous table-privilege rows and 209
@@ -34,8 +34,10 @@
 - A new Supabase development branch currently prices at `$0.01344/hour` for
   this organization. No branch was created or confirmed.
 - M3.261 added a source-only tenant-scoped idempotency ledger for the
-  fail-closed Core bank-statement auto-match command. M3.262 adds the
+  fail-closed Core bank-statement auto-match command. M3.262 added the
   source-only tenant-scoped ledger for manual line match/unmatch commands.
+  M3.263 adds the source-only tenant-scoped ledger for the fail-closed Core
+  bank-statement reconciliation command.
   The managed applied boundary remains 55 migrations through
   `20260729233017`; no hosted SQL or migration-history row changed.
 
@@ -61,7 +63,7 @@ longer equal the exact pending suffix.
 
 ## Ordered review batches
 
-The thirteen manifest batches are review checkpoints only. They do not authorize
+The fourteen manifest batches are review checkpoints only. They do not authorize
 independent production deployments and must never reorder the migration
 ledger. A production failure after any committed migration is a partial apply
 and invokes the database recovery plan.
@@ -81,6 +83,7 @@ and invokes the database recovery plan.
 11. Cash-draft delete guard fix: 1 migration.
 12. Bank-statement auto-match authority: 1 migration.
 13. Bank-statement line match authority: 1 migration.
+14. Bank-statement reconcile authority: 1 migration.
 
 Exact filenames live in the machine manifest and are checked against
 `supabase/migrations`.
@@ -97,7 +100,7 @@ Exact filenames live in the machine manifest and are checked against
    or managed schemas.
 4. Apply the owner-approved mapping only to the isolated clone. Never use a
    synthetic rename as production evidence.
-5. Apply all 65 migrations to the clone in source order, pausing only for
+5. Apply all 66 migrations to the clone in source order, pausing only for
    review evidence. Run no-skip database/API integration, schema/catalog diff,
    RLS/privilege checks, tenant isolation, audit recovery, Redis recovery, and
    protected workflow/browser smoke checks.
@@ -123,7 +126,7 @@ All must be true:
 - Duplicate mapping owner-approved and replayed without collision.
 - Managed backup/PITR point plus successful isolated restore drill.
 - Separate Storage object recovery evidence.
-- Exact 115-migration rehearsal with zero skips and no catalog/data drift.
+- Exact 121-migration rehearsal with zero skips and no catalog/data drift.
 - Auth/public-user identity, tenant isolation, semantic audit, and privilege
   closure proven.
 - Security notices triaged; `auth_tenant_id()` anonymous execution removed by

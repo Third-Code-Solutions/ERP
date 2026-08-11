@@ -1,5 +1,19 @@
 # Target State
 
+## M3.263 Bank-statement reconciliation authority (2026-08-11)
+
+Core owns the fail-closed reconciliation command at
+`POST /v1/finance/reconciliation/:statementId/reconcile`. The browser sends a
+strict empty body and opaque idempotency key; Core derives and rechecks tenant,
+actor, role, and statement visibility, locks the statement, invokes the
+trusted PostgreSQL state transition, stores a durable tenant-scoped replay
+result, and emits semantic audit in one transaction. Keep
+`ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED=false` and its tenant list
+empty until hosted parity, readiness, protected browser cutover, rollback, and
+spend evidence are approved. Python/AI may analyze evidence but cannot
+reconcile, void, import, or finalize it. The existing Web action remains the
+compatibility path until a separate Web/Core response-parity proof.
+
 ## M3.262 Bank-statement line match/unmatch authority (2026-08-11)
 
 Core owns the fail-closed manual line commands at

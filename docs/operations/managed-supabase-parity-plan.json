@@ -5,10 +5,10 @@
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
     "postgresMajor": 17,
     "appliedCount": 55,
-    "sourceCount": 120,
-    "pendingCount": 65,
+    "sourceCount": 121,
+    "pendingCount": 66,
     "appliedHead": "20260729233017",
-    "sourceHead": "20260812110000",
+    "sourceHead": "20260812120000",
     "ledgerStatus": "review_required"
   },
   "policy": {
@@ -159,6 +159,13 @@
       "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core manual bank-statement line match and unmatch commands.",
       "migrations": [
         "20260812110000_bank_statement_line_match_workflow.sql"
+      ]
+    },
+    {
+      "id": "14-bank-statement-reconcile-authority",
+      "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core bank-statement reconciliation command.",
+      "migrations": [
+        "20260812120000_bank_statement_reconcile_workflow.sql"
       ]
     }
   ]
