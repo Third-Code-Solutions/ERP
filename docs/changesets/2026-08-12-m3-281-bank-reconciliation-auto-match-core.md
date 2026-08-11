@@ -1,7 +1,7 @@
 # M3.281 - Bank-reconciliation auto-match Core authority
 
 Date: 2026-08-12
-Status: source-only, locally verified; no production cutover
+Status: source-only, locally verified and pushed; no production cutover
 
 ## Scope
 
@@ -30,7 +30,8 @@ The API and Web auto-match selectors remain false/empty outside the disposable
 browser tenant. No hosted Supabase SQL/data, Storage, Vercel/Railway
 deployment, provider setting, credential, or paid action changed.
 
-## Next action
+## Release evidence and next action
 
-Commit and push the source/docs commit under `kurtgav` while keeping hosted
-selectors closed; verify the exact remote SHA without deploying.
+Source/docs commit `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is pushed under
+`kurtgav` and matches the remote branch SHA. Keep selectors closed and make
+manual line match/unmatch the next separately verified authority slice.

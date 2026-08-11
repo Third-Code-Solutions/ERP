@@ -7916,3 +7916,8 @@ exact-SHA CI, readiness, rollback, and spend-bounded owner approval are clear.
    `ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_VIA_API_TENANT_IDS`,
    false/empty outside the disposable canary. Do not migrate or deploy hosted
    state until parity, rollback, readiness, exact SHA, and spend gates clear.
+
+Evidence: source `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is pushed under
+`kurtgav`; local full suites, builds, typechecks, lint, disposable HTTP/browser
+canaries, policy/security checks, and the provider-spend guard passed. Hosted
+promotion remains blocked. Next slice is manual line match/unmatch authority.
