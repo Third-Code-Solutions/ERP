@@ -5506,16 +5506,13 @@ Git disconnected and do not create preview or duplicate production builds.
 
 ## Exact next action after M3.282
 
-1. Run the full shared/database/API/Web suites, production builds, typechecks,
-   lint, migration/policy checks, Actionlint, Gitleaks, provider-spend guard,
-   and `git diff --check` on the line match/unmatch source/docs slice.
-2. The full gate set is now green. Review the complete diff, commit, and push
-   under `kurtgav`; verify the exact remote SHA. Do not deploy, reconnect Vercel
-   Git, or change provider plans.
-3. Keep both line-match selector pairs false/empty outside the disposable
+1. Source/docs commit `831fc43fe993aaead9f4dda4b571180e50698797` is pushed
+   under `kurtgav` and its exact remote SHA matches. Do not deploy, reconnect
+   Vercel Git, or change provider plans.
+2. Keep both line-match selector pairs false/empty outside the disposable
    tenant. The next reconciliation authority slice is statement reconcile,
    then void, as separate idempotent commands.
-4. Hosted promotion remains blocked by migration parity, duplicate Purchase
+3. Hosted promotion remains blocked by migration parity, duplicate Purchase
    Order mapping, audit-recovery approval, readiness, rollback, exact SHA, and
    spend-bounded owner/provider approval. No paid/duplicate build is allowed
    to bypass those gates.

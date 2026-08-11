@@ -7155,4 +7155,6 @@ build, Web typecheck/lint, and authenticated browser canary 1/1 passed. Full
 764, and Web 791; workspace typecheck, lint, production build (83 Next pages),
 migration/release/policy/parity checks, web-database boundary, Actionlint,
 Gitleaks, provider-spend guard, and `git diff --check` also passed. No hosted
-or provider mutation occurred.
+or provider mutation occurred. Source/docs commit
+`831fc43fe993aaead9f4dda4b571180e50698797` is pushed under `kurtgav` with a
+matching remote SHA; this remains a source-only migration slice.

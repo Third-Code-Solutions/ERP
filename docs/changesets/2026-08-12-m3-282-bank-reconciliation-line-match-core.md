@@ -35,6 +35,7 @@ deployment, provider setting, credential, or paid action changed.
 
 ## Next action
 
-Review and push source/docs under `kurtgav`, verify the exact remote SHA, and
-keep hosted selectors closed. No deployment or paid provider action is part of
-this slice.
+Source/docs commit `831fc43fe993aaead9f4dda4b571180e50698797` is pushed under
+`kurtgav` with a matching remote SHA. Keep hosted selectors closed; the next
+safe slice is statement reconcile, then void. No deployment or paid provider
+action is part of this slice.
