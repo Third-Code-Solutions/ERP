@@ -36,7 +36,7 @@ Web/Core/API reconciliation selectors remain false/empty outside the harness.
 No hosted Supabase SQL/object, Vercel/Railway deployment, provider setting,
 credential, or paid action changed.
 
-Source evidence: `6092fa5`.
+Source evidence: `6092fa5`; fixture-scope hardening: `9e498d5`.
 
 ## Next action
 

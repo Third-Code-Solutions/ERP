@@ -18,7 +18,7 @@ boundary, workflow, actionlint, gitleaks, database-release, and
 managed-parity-plan gates pass. Selectors remain false/empty outside the
 disposable harness. No hosted SQL, Supabase object, Vercel/Railway deployment,
 provider setting, credential, or paid action changed. Source evidence:
-`6092fa5`.
+`6092fa5`, fixture-scope hardening `9e498d5`.
 
 Exact next action: keep reconciliation selectors closed and require
 hosted/source parity, readiness, exact release identity, authenticated
