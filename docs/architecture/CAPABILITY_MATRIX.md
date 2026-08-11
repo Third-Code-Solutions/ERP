@@ -1,5 +1,17 @@
 # Third Code ERP capability matrix
 
+## M3.269 Successful bank-statement Core browser proof (2026-08-11)
+
+The local closed-canary evidence now covers the complete guarded path:
+authenticated signed upload, actual Nest Core import, server-only signed object
+read, PostgreSQL statement/line/idempotency/audit persistence, detail-page
+source provenance, and cross-tenant cleanup denial before Storage deletion.
+Multipart upload bytes are normalized in the loopback Storage fixture and long
+provenance remains responsive on desktop/mobile. No provider traffic is
+allowed, and every production selector remains false/empty. Hosted parity,
+readiness, rollback, release identity, and spend evidence are still open.
+Source evidence SHA: `e6f9275`.
+
 ## M3.268 Bank-statement browser Storage canary proof (2026-08-11)
 
 The closed Storage path has authenticated local browser evidence: signed URL,

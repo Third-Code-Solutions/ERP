@@ -1,5 +1,18 @@
 # Next Actions
 
+## Exact next action after M3.269 successful Core browser proof
+
+Keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED` and its tenant list
+false/empty; keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_VIA_API` and its
+tenant list false/empty; and keep
+`ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS` and its tenant list
+false/empty. The disposable browser proof now covers successful real Nest
+Core response/detail rendering, signed Storage read, persistence, audit,
+cleanup denial, no external traffic, and responsive behavior. The next gate
+is hosted/source migration parity, readiness, exact release identity,
+rollback, and spend control. Do not apply hosted SQL or trigger Vercel,
+Railway, or provider builds.
+
 ## Exact next action after M3.268 bank-statement browser Storage proof
 
 Keep every bank-import/Core/Storage selector false/empty and keep managed

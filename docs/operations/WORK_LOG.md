@@ -1,5 +1,29 @@
 # Work Log
 
+## 2026-08-11 - M3.269 successful bank-statement Core browser proof
+
+Changed the disposable browser harness from a controlled Core 503 stub to the
+compiled Nest API. The real flow now signs and uploads a CSV through a
+Supabase-compatible loopback, reads the exact uploaded bytes through Core's
+server-only signed URL, creates the draft statement/line/idempotency/audit in
+the disposable PostgreSQL tenant, and renders the tenant-scoped detail page.
+The browser then proves a foreign-tenant cleanup path returns 403 and never
+calls Storage removal. The loopback parser extracts the file from the actual
+multipart signed-upload envelope. Mobile CSS now wraps SHA-256 provenance and
+keeps screen-reader-only labels from adding horizontal overflow.
+
+Clean focused browser proof 1/1, signed-upload route 6/6, Web typecheck, root
+tests, typecheck, lint, production build, provider-spend, Web/DB boundary,
+workflow refs, actionlint, gitleaks, release, and managed-parity gates pass.
+The protected API integration suite remains skipped because its required
+environment gate is unset. All production selectors remain false/empty. No
+hosted Supabase, Storage object, Railway, Vercel, credential, provider, or paid
+action changed. Source SHA: `e6f9275`.
+
+Exact next action: keep provider/deployment selectors closed and separately
+reconcile hosted parity, readiness, release identity, rollback, and spend
+evidence before a tenant canary.
+
 ## 2026-08-11 - M3.268 bank-statement browser Storage canary proof
 
 Added a loopback Playwright harness and browser proof for the closed

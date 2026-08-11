@@ -1,5 +1,22 @@
 # Target State
 
+## M3.269 Successful bank-statement Core browser proof (2026-08-11)
+
+The intended boundary is now proven locally: the browser uploads only to a
+tenant-prefixed private Storage object, Nest Core is the sole financial write
+authority, and the Core transaction persists the typed draft statement,
+statement line, durable idempotency result, source path/hash, and audit. The
+browser follows the returned statement ID to a tenant-scoped detail page and
+shows source provenance plus roll-forward evidence. Cleanup rejects a
+cross-tenant path before any object deletion.
+
+This is source and disposable-environment evidence, not a production canary.
+Keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED`, the Web/Core import
+selector, and `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS` false with
+empty tenant lists. Python/AI remains advisory and cannot import, approve, or
+finalize financial evidence. Hosted parity, readiness, release identity,
+rollback, and spend evidence remain required before opening one tenant.
+
 ## M3.268 Bank-statement browser Storage canary proof (2026-08-11)
 
 The browser Storage handoff now has a repeatable local proof: an authenticated
