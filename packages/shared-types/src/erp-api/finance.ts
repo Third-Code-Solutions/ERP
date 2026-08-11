@@ -486,3 +486,67 @@ export type BankStatementAutoMatchCommand = z.infer<
 export type BankStatementAutoMatchResult = z.infer<
   typeof bankStatementAutoMatchResultSchema
 >
+
+export const bankStatementLineMatchBodySchema = z
+  .object({
+    cashTransactionId: z.string().uuid(),
+  })
+  .strict()
+
+export const bankStatementLineUnmatchBodySchema = z.object({}).strict()
+
+export const bankStatementLineMatchCommandSchema = z
+  .object({
+    statementId: z.string().uuid(),
+    lineId: z.string().uuid(),
+    cashTransactionId: z.string().uuid(),
+  })
+  .strict()
+
+export const bankStatementLineUnmatchCommandSchema = z
+  .object({
+    statementId: z.string().uuid(),
+    lineId: z.string().uuid(),
+  })
+  .strict()
+
+const bankStatementLineMatchedResultSchema = z
+  .object({
+    statementId: z.string().uuid(),
+    lineId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('matched'),
+    matchedCashTransactionId: z.string().uuid(),
+  })
+  .strict()
+
+const bankStatementLineUnmatchedResultSchema = z
+  .object({
+    statementId: z.string().uuid(),
+    lineId: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    status: z.literal('unmatched'),
+    matchedCashTransactionId: z.null(),
+  })
+  .strict()
+
+export const bankStatementLineMatchResultSchema = z.discriminatedUnion(
+  'status',
+  [bankStatementLineMatchedResultSchema, bankStatementLineUnmatchedResultSchema]
+)
+
+export type BankStatementLineMatchBody = z.infer<
+  typeof bankStatementLineMatchBodySchema
+>
+export type BankStatementLineUnmatchBody = z.infer<
+  typeof bankStatementLineUnmatchBodySchema
+>
+export type BankStatementLineMatchCommand = z.infer<
+  typeof bankStatementLineMatchCommandSchema
+>
+export type BankStatementLineUnmatchCommand = z.infer<
+  typeof bankStatementLineUnmatchCommandSchema
+>
+export type BankStatementLineMatchResult = z.infer<
+  typeof bankStatementLineMatchResultSchema
+>

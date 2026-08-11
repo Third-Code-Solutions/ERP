@@ -12,14 +12,24 @@ import {
 import { ConfigService } from '@nestjs/config'
 import {
   bankStatementAutoMatchRequests,
+  bankStatementLineMatchRequests,
+  bankStatementLines,
   bankStatements,
   users,
 } from '@third-code-erp/database/schema'
 import {
   bankStatementAutoMatchCommandSchema,
   bankStatementAutoMatchResultSchema,
+  bankStatementLineMatchCommandSchema,
+  bankStatementLineMatchResultSchema,
+  bankStatementLineUnmatchCommandSchema,
   type BankStatementAutoMatchBody,
   type BankStatementAutoMatchResult,
+  type BankStatementLineMatchBody,
+  type BankStatementLineMatchCommand,
+  type BankStatementLineMatchResult,
+  type BankStatementLineUnmatchBody,
+  type BankStatementLineUnmatchCommand,
 } from '@third-code-erp/shared-types'
 import { and, eq, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
@@ -38,9 +48,28 @@ type AutoMatchRequest = {
   result: unknown
 }
 
+type LineMatchRequest = {
+  id: string
+  lineId: string
+  action: 'match' | 'unmatch'
+  cashTransactionId: string | null
+  requestHash: string
+  state: 'processing' | 'succeeded'
+  result: unknown
+}
+
 function commandHash(command: { statementId: string }): string {
   return createHash('sha256')
     .update(JSON.stringify(command))
+    .digest('hex')
+}
+
+function lineCommandHash(
+  action: 'match' | 'unmatch',
+  command: BankStatementLineMatchCommand | BankStatementLineUnmatchCommand
+): string {
+  return createHash('sha256')
+    .update(JSON.stringify({ action, ...command }))
     .digest('hex')
 }
 
@@ -62,6 +91,16 @@ function replayResult(value: unknown): BankStatementAutoMatchResult {
   return parsed.data
 }
 
+function replayLineResult(value: unknown): BankStatementLineMatchResult {
+  const parsed = bankStatementLineMatchResultSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new InternalServerErrorException(
+      'Bank statement line match idempotency result is invalid'
+    )
+  }
+  return parsed.data
+}
+
 function mapDatabaseFailure(error: unknown): never {
   const message = error instanceof Error ? error.message : ''
   if (message.includes('Bank statement not found')) {
@@ -72,6 +111,22 @@ function mapDatabaseFailure(error: unknown): never {
   }
   if (message.includes('Only a draft bank statement can be matched')) {
     throw new ConflictException(message)
+  }
+  if (
+    message.includes('Bank statement line not found') ||
+    message.includes('Bank statement match does not agree with posted cash') ||
+    message.includes('Only draft bank statement lines can change')
+  ) {
+    if (message.includes('Bank statement line not found')) {
+      throw new NotFoundException('Bank statement line not found')
+    }
+    throw new ConflictException(message)
+  }
+  if (
+    message.includes('Actor cannot match this bank statement line') ||
+    message.includes('Actor cannot unmatch this bank statement line')
+  ) {
+    throw new ForbiddenException(message)
   }
   throw error
 }
@@ -180,6 +235,192 @@ export class FinanceReconciliationWorkflowService {
     })
   }
 
+  async matchLine(
+    statementId: string,
+    lineId: string,
+    body: BankStatementLineMatchBody,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<BankStatementLineMatchResult> {
+    const command = bankStatementLineMatchCommandSchema.parse({
+      statementId,
+      lineId,
+      ...body,
+    })
+    return this.runLineMatch(
+      'match',
+      command,
+      principal,
+      validateKey(rawIdempotencyKey),
+      lineCommandHash('match', command)
+    )
+  }
+
+  async unmatchLine(
+    statementId: string,
+    lineId: string,
+    body: BankStatementLineUnmatchBody,
+    principal: ErpPrincipal,
+    rawIdempotencyKey: string
+  ): Promise<BankStatementLineMatchResult> {
+    const command = bankStatementLineUnmatchCommandSchema.parse({
+      statementId,
+      lineId,
+      ...body,
+    })
+    return this.runLineMatch(
+      'unmatch',
+      command,
+      principal,
+      validateKey(rawIdempotencyKey),
+      lineCommandHash('unmatch', command)
+    )
+  }
+
+  private async runLineMatch(
+    action: 'match',
+    command: BankStatementLineMatchCommand,
+    principal: ErpPrincipal,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<BankStatementLineMatchResult>
+  private async runLineMatch(
+    action: 'unmatch',
+    command: BankStatementLineUnmatchCommand,
+    principal: ErpPrincipal,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<BankStatementLineMatchResult>
+  private async runLineMatch(
+    action: 'match' | 'unmatch',
+    command: BankStatementLineMatchCommand | BankStatementLineUnmatchCommand,
+    principal: ErpPrincipal,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<BankStatementLineMatchResult> {
+    this.assertLineMatchEnabled(principal)
+    return this.database.client.transaction(async (transaction) => {
+      const authorizedPrincipal = await this.authorize(transaction, principal)
+      const [statement] = await transaction
+        .select({ id: bankStatements.id, status: bankStatements.status })
+        .from(bankStatements)
+        .where(
+          and(
+            eq(bankStatements.id, command.statementId),
+            eq(bankStatements.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!statement) throw new NotFoundException('Bank statement not found')
+
+      const [line] = await transaction
+        .select({
+          id: bankStatementLines.id,
+          matchedCashTransactionId:
+            bankStatementLines.matched_cash_transaction_id,
+        })
+        .from(bankStatementLines)
+        .where(
+          and(
+            eq(bankStatementLines.id, command.lineId),
+            eq(bankStatementLines.bank_statement_id, command.statementId),
+            eq(bankStatementLines.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+      if (!line) throw new NotFoundException('Bank statement line not found')
+
+      await this.audit.stampActor(transaction, authorizedPrincipal)
+      const request = await this.claimLineRequest(
+        transaction,
+        authorizedPrincipal,
+        action,
+        command.lineId,
+        'cashTransactionId' in command ? command.cashTransactionId : null,
+        idempotencyKey,
+        requestHash
+      )
+      if (request.state === 'succeeded') return replayLineResult(request.result)
+
+      try {
+        if (action === 'match') {
+          if (!('cashTransactionId' in command)) {
+            throw new InternalServerErrorException(
+              'Bank statement match command is missing its cash transaction'
+            )
+          }
+          await transaction.execute(sql`
+            select public.match_bank_statement_line(
+              ${command.lineId}::uuid,
+              ${command.cashTransactionId}::uuid,
+              ${authorizedPrincipal.userId}::uuid
+            )
+          `)
+        } else {
+          await transaction.execute(sql`
+            select public.unmatch_bank_statement_line(
+              ${command.lineId}::uuid,
+              ${authorizedPrincipal.userId}::uuid
+            )
+          `)
+        }
+
+        const [updatedLine] = await transaction
+          .select({
+            matchedCashTransactionId:
+              bankStatementLines.matched_cash_transaction_id,
+          })
+          .from(bankStatementLines)
+          .where(
+            and(
+              eq(bankStatementLines.id, command.lineId),
+              eq(bankStatementLines.tenant_id, authorizedPrincipal.tenantId)
+            )
+          )
+          .limit(1)
+        const result = bankStatementLineMatchResultSchema.parse(
+          action === 'match'
+            ? {
+                statementId: command.statementId,
+                lineId: command.lineId,
+                tenantId: authorizedPrincipal.tenantId,
+                status: 'matched',
+                matchedCashTransactionId:
+                  updatedLine?.matchedCashTransactionId,
+              }
+            : {
+                statementId: command.statementId,
+                lineId: command.lineId,
+                tenantId: authorizedPrincipal.tenantId,
+                status: 'unmatched',
+                matchedCashTransactionId:
+                  updatedLine?.matchedCashTransactionId ?? null,
+              }
+        )
+        await this.completeLineRequest(transaction, request.id, result)
+        await this.audit.writeSemantic(transaction, {
+          tenantId: authorizedPrincipal.tenantId,
+          actorId: authorizedPrincipal.userId,
+          entityType: 'bank_statement_line',
+          entityId: command.lineId,
+          action: 'update',
+          diff: {
+            operation: action,
+            statement_id: command.statementId,
+            from_cash_transaction_id: line.matchedCashTransactionId,
+            to_cash_transaction_id: result.matchedCashTransactionId,
+            idempotency_key_hash: requestHash,
+          },
+        })
+        return result
+      } catch (error) {
+        mapDatabaseFailure(error)
+      }
+    })
+  }
+
   private async authorize(
     transaction: DatabaseTransaction,
     principal: ErpPrincipal
@@ -205,6 +446,22 @@ export class FinanceReconciliationWorkflowService {
       tenantId: membership.tenantId,
       role,
       email: membership.email,
+    }
+  }
+
+  private assertLineMatchEnabled(principal: ErpPrincipal): void {
+    const enabled = this.config.get<boolean>(
+      'ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED',
+      false
+    )
+    const allowedTenantIds = this.config.get<string[]>(
+      'ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_TENANT_IDS',
+      []
+    )
+    if (!enabled || !allowedTenantIds.includes(principal.tenantId)) {
+      throw new ServiceUnavailableException(
+        'Bank statement line matching is not enabled for this tenant; no bank statement line was changed.'
+      )
     }
   }
 
@@ -283,6 +540,96 @@ export class FinanceReconciliationWorkflowService {
     if (!completed) {
       throw new InternalServerErrorException(
         'Bank statement auto-match idempotency record changed before completion'
+      )
+    }
+  }
+
+  private async claimLineRequest(
+    transaction: DatabaseTransaction,
+    principal: ErpPrincipal,
+    action: 'match' | 'unmatch',
+    lineId: string,
+    cashTransactionId: string | null,
+    idempotencyKey: string,
+    requestHash: string
+  ): Promise<LineMatchRequest> {
+    await transaction
+      .insert(bankStatementLineMatchRequests)
+      .values({
+        tenant_id: principal.tenantId,
+        bank_statement_line_id: lineId,
+        action,
+        cash_transaction_id: cashTransactionId,
+        idempotency_key: idempotencyKey,
+        request_hash: requestHash,
+        created_by: principal.userId,
+      })
+      .onConflictDoNothing({
+        target: [
+          bankStatementLineMatchRequests.tenant_id,
+          bankStatementLineMatchRequests.idempotency_key,
+        ],
+      })
+    const [request] = await transaction
+      .select({
+        id: bankStatementLineMatchRequests.id,
+        lineId: bankStatementLineMatchRequests.bank_statement_line_id,
+        action: bankStatementLineMatchRequests.action,
+        cashTransactionId: bankStatementLineMatchRequests.cash_transaction_id,
+        requestHash: bankStatementLineMatchRequests.request_hash,
+        state: bankStatementLineMatchRequests.state,
+        result: bankStatementLineMatchRequests.result,
+      })
+      .from(bankStatementLineMatchRequests)
+      .where(
+        and(
+          eq(bankStatementLineMatchRequests.tenant_id, principal.tenantId),
+          eq(bankStatementLineMatchRequests.idempotency_key, idempotencyKey)
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!request) {
+      throw new InternalServerErrorException(
+        'Bank statement line match idempotency record was not created'
+      )
+    }
+    if (
+      request.requestHash !== requestHash ||
+      request.lineId !== lineId ||
+      request.action !== action ||
+      request.cashTransactionId !== cashTransactionId
+    ) {
+      throw new ConflictException(
+        'Idempotency key was already used with a different bank statement line match command'
+      )
+    }
+    if (request.state !== 'processing' && request.state !== 'succeeded') {
+      throw new ConflictException(
+        'Bank statement line match idempotency record has an unsupported state'
+      )
+    }
+    return request
+  }
+
+  private async completeLineRequest(
+    transaction: DatabaseTransaction,
+    requestId: string,
+    result: BankStatementLineMatchResult
+  ): Promise<void> {
+    const [completed] = await transaction
+      .update(bankStatementLineMatchRequests)
+      .set({ state: 'succeeded', result, completed_at: new Date() })
+      .where(
+        and(
+          eq(bankStatementLineMatchRequests.id, requestId),
+          eq(bankStatementLineMatchRequests.state, 'processing')
+        )
+      )
+      .returning({ id: bankStatementLineMatchRequests.id })
+    if (!completed) {
+      throw new InternalServerErrorException(
+        'Bank statement line match idempotency record changed before completion'
       )
     }
   }

@@ -90,6 +90,7 @@ export * from './document-intake-requests'
 // Bank statement matching and reconciliation
 export * from './bank-reconciliation'
 export * from './bank-statement-auto-match-requests'
+export * from './bank-statement-line-match-requests'
 export * from './inventory-masters'
 export * from './inventory'
 export * from './stock-receipt-create-requests'

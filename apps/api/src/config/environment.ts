@@ -523,6 +523,22 @@ const environmentSchema = z.object({
         .filter(Boolean)
     )
     .pipe(z.array(z.string().uuid())),
+  // Manual line match/unmatch stays fail-closed until line-targeted
+  // idempotency, trusted-function parity, and a protected canary are approved.
+  ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_TENANT_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((tenantId) => tenantId.trim())
+        .filter(Boolean)
+    )
+    .pipe(z.array(z.string().uuid())),
   // Project creation authority stays fail-closed until idempotency and a
   // tenant-scoped canary are approved.
   ERP_PROJECT_CREATE_WRITES_ENABLED: z
