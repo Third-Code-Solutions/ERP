@@ -24,9 +24,9 @@ No provider or paid action occurred.
 
 Keep `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED=false` and
 `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. The reviewed
-source/docs are pushed under `kurtgav`; the final release SHA is recorded in
-the M3.250 follow-up; remote SHA and clean worktree were verified. Do not
-apply hosted SQL or trigger Railway/Vercel builds while
+source/docs are pushed under `kurtgav` at
+`3d8bf10756bdf7fed78dac2898e64eb31637521b`; remote SHA and clean worktree
+were verified. Do not apply hosted SQL or trigger Railway/Vercel builds while
 spend protection and the M3.248 hosted parity/security gate remain active.
 The broad root test lane still needs a clean, non-contented rerun with the
 budget-schema selector and an explicit timeout policy before it can be called
@@ -37,8 +37,9 @@ authority canary, not a hosted cutover.
 
 The protected customer-invoice issuance canary passes 1/1 on disposable
 PostgreSQL. API integration passes 44/44 files and 58 tests; two Redis restart
-tests are explicit opt-in skips. The final source/docs SHA is recorded in the
-M3.250 follow-up. No provider or paid action occurred.
+tests are explicit opt-in skips. Source/docs SHA:
+`3d8bf10756bdf7fed78dac2898e64eb31637521b`. No provider or paid action
+occurred.
 
 ## Exact next action after M3.248 managed Supabase parity/security audit
 

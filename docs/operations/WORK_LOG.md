@@ -14,8 +14,8 @@ API typecheck PASS; root lint PASS. Focused runtime: NOT RUN. `DATABASE_URL`
 was unavailable, so Vitest skipped the guarded suite; a non-destructive WSL
 PostgreSQL/Redis restart attempt timed out. No migration, hosted Supabase,
 Storage, Railway, Vercel, credential, provider, or paid change occurred.
-Keep reversal flags/lists false/empty. Source/docs push and final SHA are
-recorded in the M3.250 changeset follow-up.
+Keep reversal flags/lists false/empty. Source/docs were pushed under
+`kurtgav` at `c2b347c78a4309da969024e481442efa235451a4`.
 
 ## 2026-08-11 - M3.249 customer invoice issuance authority canary
 
@@ -32,8 +32,9 @@ timeouts; first local-DB attempt also exposed the existing requirement for
 window. No invoice failure was observed. This milestone made no migration,
 hosted Supabase, Storage, Railway, Vercel, credential, or paid change. Keep
 the invoice issue selector and tenant list closed. Source/docs were pushed
-under `kurtgav`; the final release SHA is recorded in the M3.250 changeset
-follow-up; remote SHA and a clean worktree were verified.
+under `kurtgav`; the final release SHA is
+`3d8bf10756bdf7fed78dac2898e64eb31637521b`; remote SHA and a clean worktree
+were verified.
 
 ## 2026-08-10 - M3.248 Managed Supabase read-only parity/security audit
 

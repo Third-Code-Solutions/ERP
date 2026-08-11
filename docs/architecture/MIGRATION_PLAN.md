@@ -16,7 +16,8 @@
    treat this source evidence as a passed release canary.
 4. No schema, hosted Supabase, Storage, Railway, Vercel, credential, provider,
    or paid action changed. Keep reversal writes disabled with an empty tenant
-   allowlist. The final source/docs SHA is recorded after the push.
+   allowlist. Source/docs SHA:
+   `c2b347c78a4309da969024e481442efa235451a4`.
 
 Next: restore the disposable PostgreSQL/Redis lane and run the focused
 reversal canary before any selector, hosted SQL, or provider action.
@@ -37,8 +38,8 @@ reversal canary before any selector, hosted SQL, or provider action.
    budget-schema test selector; no invoice failure was observed.
 4. No schema or runtime selector changed. No hosted Supabase, Storage,
    Railway, Vercel, credential, or paid action occurred. Keep invoice issue
-   writes disabled with an empty tenant allowlist. Source/docs commit:
-   final release SHA recorded in the M3.250 follow-up documentation.
+   writes disabled with an empty tenant allowlist. The final source/docs
+   release SHA is `3d8bf10756bdf7fed78dac2898e64eb31637521b`.
 
 Next: keep the source-only branch under `kurtgav`; do not apply hosted SQL or
 trigger provider builds. Remote SHA matched and the worktree was clean.

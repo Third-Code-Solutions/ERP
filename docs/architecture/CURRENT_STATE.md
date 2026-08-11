@@ -46,8 +46,8 @@ No migration, hosted Supabase SQL/data, Storage, Railway/Vercel deployment,
 provider setting, credential, or paid action changed. Keep
 `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED=false` and
 `ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. Source/docs were
-pushed under `kurtgav`; the final release SHA is recorded in the M3.250
-changeset follow-up.
+pushed under `kurtgav`; the final release SHA is
+`3d8bf10756bdf7fed78dac2898e64eb31637521b`.
 
 ## M3.248 Managed Supabase read-only parity/security audit (2026-08-10)
 
