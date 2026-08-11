@@ -1,5 +1,27 @@
 # Next Actions
 
+## Exact next action after M3.259 reconciliation read canary
+
+Keep `ERP_FINANCE_RECONCILIATION_READS_ENABLED=false`,
+`ERP_FINANCE_RECONCILIATION_READS_TENANT_IDS` empty, and the Web selector
+closed. Focused HTTP/API/shared/database proofs, API integration, typecheck,
+lint, build, policy, parity, release, boundary, workflow, actionlint, and
+spend gates pass. Root `pnpm test` is not green: the pre-existing
+`customer-invoice-draft-create.service.spec.ts` mock fails because
+`transactionClient.select` is undefined (172/173 API files, 751/752 tests),
+and the focused failure reproduces. Repair or explicitly baseline that test
+before claiming repository-wide green status. Do not apply hosted SQL or
+trigger Railway/Vercel builds while spend protection and hosted parity remain
+active. Next source boundary: bank-reconciliation import/match/reconcile/void
+authority, then hosted parity, release identity, readiness, protected browser,
+rollback, and billing evidence.
+
+## M3.259 evidence boundary (completed source-only canary)
+
+The protected bank-reconciliation read canary passes 1/1 and proves strict
+authorization, selector gating, tenant isolation, bounded results, aggregate
+parity, and rollback. No provider or paid action occurred.
+
 ## Exact next action after M3.258 cash-draft delete canary
 
 Keep `ERP_FINANCE_CASH_DRAFT_WRITES_ENABLED=false` and

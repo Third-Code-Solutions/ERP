@@ -1,5 +1,27 @@
 # Work Log
 
+## 2026-08-11 - M3.259 bank reconciliation read authority canary
+
+Added `apps/api/integration/finance-reconciliation.http.integration.spec.ts`.
+The rollback-only Nest HTTP canary boots the real controller/service with JWT
+identity and capability guards, two tenants, Finance/viewer roles, and
+transaction-bound PostgreSQL. It covers missing/unknown auth, Finance-only
+authorization, strict query rejection, disabled selector, bounded truncation,
+tenant-scoped statement/line aggregates, cross-tenant concealment, and
+rollback. No product source or schema fix was required.
+
+Focused HTTP 1/1, reconciliation API unit 4/4, shared 3/3, database
+17/17, and full API integration 54/54 files and 68 tests PASS with two
+explicit Redis-restart skips. Root typecheck, lint, production build,
+provider-spend, parity, release, Web/DB boundary, workflow references, and
+actionlint PASS. Root `pnpm test` remains FAILED by the existing
+`customer-invoice-draft-create.service.spec.ts` mock (`select` undefined);
+focused reproduction confirms it independently. Source parity remains
+55/118 with 63 pending in 11 batches. No hosted Supabase, Storage,
+Railway/Vercel, credentials, provider, or paid action changed. Keep
+reconciliation selectors closed. Source evidence SHA:
+`fff90135bb3a96859a589a65a0860e115588dfea`.
+
 ## 2026-08-11 - M3.258 cash-draft delete authority canary
 
 Added `apps/api/integration/cash-draft.http.integration.spec.ts` plus the

@@ -1,5 +1,33 @@
 # Migration Plan
 
+## M3.259 Bank reconciliation read authority (completed source-only canary)
+
+1. Added `apps/api/integration/finance-reconciliation.http.integration.spec.ts`
+   around the existing Core read controller/service with two tenants,
+   Finance/viewer identities, real JWT/capability guards, and transaction-bound
+   PostgreSQL.
+2. The canary covers missing/unknown auth, Finance-only access, strict query
+   rejection, disabled selector, bounded `limit`/`truncated` behavior, exact
+   tenant-scoped statement and line aggregates, cross-tenant concealment, and
+   outer rollback. It performs no ERP writes.
+3. No product source or schema change was required; the existing read
+   projection and fail-closed selector passed the protected proof.
+4. Focused HTTP passed 1/1; API unit contract 4/4; shared contract 3/3;
+   database bank-reconciliation suite 17/17; API integration 54/54 files and
+   68 tests with two explicit Redis-restart skips. Root typecheck, lint, build,
+   and policy gates passed.
+5. Root `pnpm test` remains failed by the pre-existing
+   `customer-invoice-draft-create.service.spec.ts` mock (`select` undefined);
+   the focused test reproduces the same failure. No hosted Supabase, Storage,
+   Railway, Vercel, credential, provider, or paid action changed. Keep both
+   reconciliation selectors closed. Source evidence SHA:
+   `fff90135bb3a96859a589a65a0860e115588dfea`.
+
+Next: isolate and repair that baseline invoice-draft test before claiming a
+repository-wide green test gate, then define the next bank-reconciliation
+write authority boundary or reconcile hosted parity/release/readiness/browser/
+rollback/spend evidence. Do not apply hosted SQL or trigger provider builds.
+
 ## M3.258 Cash draft delete authority (completed source-only canary)
 
 1. Added a protected rollback-only HTTP canary around the existing Core cash
