@@ -19,7 +19,7 @@
 Production selectors and tenant lists remain false/empty. No hosted SQL,
 provider setting, credential, or deployment changed.
 
-Source evidence: pending source commit pin.
+Source evidence: `e0ebf23`.
 
 Exact next action: keep cash selectors closed; prove the real Web
 `/finance/cash` browser branch with a disposable authenticated tenant, then

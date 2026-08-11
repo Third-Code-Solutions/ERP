@@ -16,8 +16,8 @@ Cash HTTP 1/1, API 174/760, root tests/typecheck/lint/build,
 provider-spend, Web/DB boundary, workflow, actionlint, gitleaks,
 database-release, and managed-parity-plan gates pass. Production selectors
 remain false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
-provider setting, credential, or paid action changed. Source evidence is the
-pending M3.276 source commit.
+provider setting, credential, or paid action changed. Source evidence:
+`e0ebf23`.
 
 Exact next action: keep `ERP_FINANCE_CASH_READS_ENABLED=false` and
 `ERP_FINANCE_CASH_READS_VIA_API=false` with empty tenant lists; add the
