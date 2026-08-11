@@ -5,10 +5,10 @@
     "projectRef": "aqqrtkmtcsfkbyyqxowv",
     "postgresMajor": 17,
     "appliedCount": 55,
-    "sourceCount": 117,
-    "pendingCount": 62,
+    "sourceCount": 118,
+    "pendingCount": 63,
     "appliedHead": "20260729233017",
-    "sourceHead": "20260810130000",
+    "sourceHead": "20260811180000",
     "ledgerStatus": "review_required"
   },
   "policy": {
@@ -138,6 +138,13 @@
       "purpose": "Tenant-scoped idempotency ledger for the fail-closed Core opportunity stage-transition command.",
       "migrations": [
         "20260810130000_opportunity_stage_transition_authority.sql"
+      ]
+    },
+    {
+      "id": "11-cash-draft-delete-guard-fix",
+      "purpose": "Forward-only repair allowing Core-authorized draft cash deletion to pass database guards.",
+      "migrations": [
+        "20260811180000_cash_draft_delete_trigger_fix.sql"
       ]
     }
   ]

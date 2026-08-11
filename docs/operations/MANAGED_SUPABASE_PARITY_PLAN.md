@@ -9,8 +9,8 @@
 
 - Managed PostgreSQL: 17.6, `ACTIVE_HEALTHY`.
 - Managed ledger: 55 migrations through `20260729233017`.
-- Source ledger: 115 migrations through `20260810110000`.
-- Ledger shape: exact linear prefix; 60 missing, zero unexpected, zero applied
+- Source ledger: 118 migrations through `20260811180000`.
+- Ledger shape: exact linear prefix; 63 missing, zero unexpected, zero applied
   after the first gap.
 - Prior 2026-08-07 suffix scan reported 39 `drop-object`, 12 explicit
   transaction-control, and four with neither scanner flag. Those counts are
@@ -33,8 +33,8 @@
   provider catalog surfaces.
 - A new Supabase development branch currently prices at `$0.01344/hour` for
   this organization. No branch was created or confirmed.
-- M3.204 added the project-comment create/delete authority suffix to source
-  only. The managed applied boundary remains 55 migrations through
+- M3.258 added a forward-only cash-draft delete-guard repair to source only.
+  The managed applied boundary remains 55 migrations through
   `20260729233017`; no hosted SQL or migration-history row changed.
 
 Machine source: `managed-supabase-parity-plan.json`. Run:
@@ -59,7 +59,7 @@ longer equal the exact pending suffix.
 
 ## Ordered review batches
 
-The nine manifest batches are review checkpoints only. They do not authorize
+The eleven manifest batches are review checkpoints only. They do not authorize
 independent production deployments and must never reorder the migration
 ledger. A production failure after any committed migration is a partial apply
 and invokes the database recovery plan.
@@ -75,6 +75,8 @@ and invokes the database recovery plan.
 7. Cortex provider authority: 8 migrations.
 8. Document intake authority: 1 migration.
 9. Project discussion authority: 2 migrations.
+10. Opportunity stage authority: 1 migration.
+11. Cash-draft delete guard fix: 1 migration.
 
 Exact filenames live in the machine manifest and are checked against
 `supabase/migrations`.

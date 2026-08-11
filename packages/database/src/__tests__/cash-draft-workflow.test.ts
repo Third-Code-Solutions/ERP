@@ -9,6 +9,13 @@ const migration = readFileSync(
   ),
   'utf8'
 )
+const deleteTriggerFix = readFileSync(
+  resolve(
+    import.meta.dirname,
+    '../../../../supabase/migrations/20260811180000_cash_draft_delete_trigger_fix.sql'
+  ),
+  'utf8'
+)
 
 describe('cash draft workflow migration', () => {
   it('defines save/delete actions and durable replay state', () => {
@@ -39,6 +46,14 @@ describe('cash draft workflow migration', () => {
     )
     expect(migration).toMatch(
       /revoke all privileges on table public\.cash_transaction_draft_requests[\s\S]*?from public, anon, authenticated/
+    )
+  })
+
+  it('preserves draft deletion in the before-delete trigger', () => {
+    expect(deleteTriggerFix).toContain("if tg_op = 'DELETE' then")
+    expect(deleteTriggerFix).toContain('return old;')
+    expect(deleteTriggerFix).toMatch(
+      /if tg_op = 'DELETE' then[\s\S]*?return old;[\s\S]*?end if;/
     )
   })
 })

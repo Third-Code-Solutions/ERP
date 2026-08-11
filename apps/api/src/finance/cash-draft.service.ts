@@ -382,10 +382,22 @@ export class CashDraftService {
             eq(cashTransactions.tenant_id, authorizedPrincipal.tenantId),
             eq(cashTransactions.status, 'draft')
           )
-        )
+      )
         .limit(1)
         .for('update')
       if (!draft) throw new NotFoundException('Cash draft not found')
+
+      // Remove child allocations while parent is still a draft. The database
+      // guard permits this explicit delete; relying on FK cascade would run
+      // the child guard after the parent disappears and reject the command.
+      await transaction
+        .delete(cashAllocations)
+        .where(
+          and(
+            eq(cashAllocations.cash_transaction_id, draft.id),
+            eq(cashAllocations.tenant_id, authorizedPrincipal.tenantId)
+          )
+        )
 
       const [deleted] = await transaction
         .delete(cashTransactions)
