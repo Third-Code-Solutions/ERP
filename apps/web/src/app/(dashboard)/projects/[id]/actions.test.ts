@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getUser: vi.fn(),
+  getUserProfile: vi.fn(),
   select: vi.fn(),
   update: vi.fn(),
   updateSet: vi.fn(),
@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
-  getUser: mocks.getUser,
+  getUserProfile: mocks.getUserProfile,
 }))
 
 vi.mock('@third-code-erp/database', () => ({
@@ -79,10 +79,14 @@ function projectForm(): FormData {
 describe('Project update migration switch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getUser.mockResolvedValue({ id: USER_ID })
-    mocks.select
-      .mockReturnValueOnce(selectQuery([{ tenant_id: TENANT_ID }]))
-      .mockReturnValueOnce(selectQuery([EXISTING]))
+    mocks.getUserProfile.mockResolvedValue({
+      user: { id: USER_ID },
+      tenantId: TENANT_ID,
+      role: 'pm',
+      email: 'pm@example.com',
+      fullName: 'PM User',
+    })
+    mocks.select.mockReturnValueOnce(selectQuery([EXISTING]))
     mocks.updateWhere.mockResolvedValue(undefined)
     mocks.updateSet.mockReturnValue({ where: mocks.updateWhere })
     mocks.update.mockReturnValue({ set: mocks.updateSet })

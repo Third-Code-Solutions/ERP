@@ -5,6 +5,7 @@ import {
   type NestMiddleware,
 } from '@nestjs/common'
 import type { NextFunction, Request, Response } from 'express'
+import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 
 export const REQUEST_ID_HEADER = 'x-request-id'
 
@@ -14,7 +15,7 @@ const COMMAND_METHODS = new Set(['DELETE', 'PATCH', 'POST', 'PUT'])
 
 type CommandOutcome = 'aborted' | 'failed' | 'rejected' | 'succeeded'
 
-interface CorrelatedRequest extends Request {
+interface CorrelatedRequest extends AuthenticatedRequest {
   requestId: string
 }
 
@@ -48,8 +49,12 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
       this.logger.log(
         JSON.stringify({
           event: 'erp.command.outcome',
+          trace_id: requestId,
           requestId,
+          action: this.operation(request),
           operation: this.operation(request),
+          tenant_id: (request as CorrelatedRequest).principal?.tenantId ?? null,
+          actor_id: (request as CorrelatedRequest).principal?.userId ?? null,
           method: request.method,
           statusCode: aborted ? null : response.statusCode,
           outcome: aborted
@@ -83,6 +88,60 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
       routePath.endsWith('/v1/projects/:projectId')
     ) {
       return 'project.update'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/process/steps')
+    ) {
+      return 'process.step.create'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/process/tasks')
+    ) {
+      return 'process.task.create'
+    }
+    if (
+      request.method === 'PATCH' &&
+      routePath.endsWith('/v1/process/tasks/:taskId/assignment')
+    ) {
+      return 'process.task.assign'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/process/tasks/:taskId/clock')
+    ) {
+      return 'process.sla.start'
+    }
+    if (
+      request.method === 'PATCH' &&
+      routePath.endsWith('/v1/process/sla-clocks/:clockId/observe-mode')
+    ) {
+      return 'process.sla.observe_mode'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/process/sla-clocks/:clockId/evaluate')
+    ) {
+      return 'process.sla.evaluate'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/process/approval-rules')
+    ) {
+      return 'process.approval_rule.create'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/process/approvals')
+    ) {
+      return 'process.approval.create'
+    }
+    if (
+      request.method === 'PATCH' &&
+      routePath.endsWith('/v1/process/approvals/:approvalId/decision')
+    ) {
+      return 'process.approval.decide'
     }
     return 'unknown.command'
   }

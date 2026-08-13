@@ -1,23 +1,32 @@
-// Auto-BOM calculator. Reads auto-extracted scope items for a CAD document,
-// looks up similar historical BOM line items via pgvector, and writes a draft
-// BOM with calculated unit costs + totals.
+// CAD auto-draft producer.
 //
-// Used by both the inline upload pipeline (apps/web/src/app/api/upload/complete)
-// and the queued Inngest function (apps/web/src/lib/inngest.ts).
+// CAD extraction creates candidate scope, not commercial pricing. The output
+// is persisted through the same takeoff identity, validation, unresolved-row,
+// and DUPA-preservation rules as structured imports. Pricing starts only when
+// a work item receives a DUPA.
 
+import { createHash } from 'node:crypto'
 import { db } from '@third-code-erp/database'
-import { boms, bomLineItems, scopeItems } from '@third-code-erp/database/schema'
-import { and, eq, like, max, sql } from 'drizzle-orm'
 import {
-  lineTotal as calcLineTotal,
-  computeGP,
-  computeGPMargin,
-} from '@third-code-erp/shared-types/bom'
-import { findCatalogPrice, shouldSkipAutoPrice } from './price-catalog'
+  boms,
+  bomLineItems,
+  drawingRevisions,
+  scopeItems,
+  takeoffImports,
+  takeoffMappingProfiles,
+  takeoffUnresolvedItems,
+} from '@third-code-erp/database/schema'
+import { and, desc, eq, like, max, or, sql } from 'drizzle-orm'
+import { classifyBomLineKind } from '@third-code-erp/shared-types/bom'
+import {
+  buildTakeoffImportKey,
+  validateTakeoffRows,
+  type StructuredTakeoffRow,
+  type TakeoffValidationIssue,
+} from '../operations/integrations/takeoff'
 
-const DEFAULT_MARKUP_BPS = 3000 // 30%
-const SIMILARITY_THRESHOLD = 0.7
-const TOP_K = 1
+const CAD_SOURCE = 'cad-ai'
+const CAD_MAPPING_NAME = 'cad-ai-v1'
 
 export interface AutoBomInput {
   tenantId: string
@@ -39,41 +48,90 @@ export interface AutoBomResult {
   reason?: string
 }
 
-interface SimilarRow extends Record<string, unknown> {
-  chunk_text: string
-  score: string | number
+interface CadScopeRow {
+  code: string | null
+  description: string
+  unit: string
+  quantity: number
+  notes: string | null
 }
 
-// Format from inngest.ts:embedBomLineItems →
-// "<description> | Code: <code> | Unit: <unit> | Unit cost: <amount> PHP | Markup: <pct>%"
-function parseChunkText(chunk: string): {
-  unit: string | null
-  unit_cost_cents: number
-  markup_bps: number
-} {
-  const unitMatch = chunk.match(/Unit: ([^\s|]+)/)
-  const costMatch = chunk.match(/Unit cost: ([\d.]+) PHP/)
-  const markupMatch = chunk.match(/Markup: (\d+)%/)
-  return {
-    unit: unitMatch ? unitMatch[1]! : null,
-    unit_cost_cents: costMatch ? Math.round(parseFloat(costMatch[1]!) * 100) : 0,
-    markup_bps: markupMatch ? parseInt(markupMatch[1]!, 10) * 100 : DEFAULT_MARKUP_BPS,
+function sourceModel(notes: string | null): string {
+  return notes?.match(/auto-extracted\s*\(([^)]+)\)/i)?.[1]?.trim() || 'cad-extractor'
+}
+
+/** Stable row identity survives scope-item replacement during re-extraction. */
+export function buildCadTakeoffRows(scope: ReadonlyArray<CadScopeRow>): StructuredTakeoffRow[] {
+  return scope.map((item, index) => ({
+    sourceRowKey: item.code?.trim() || `cad-row-${index + 1}`,
+    description: item.description.trim(),
+    quantity: Number.isFinite(item.quantity) ? item.quantity : null,
+    unit: item.unit.trim(),
+    division: null,
+    location: null,
+    itemNo: item.code?.trim() || null,
+    notes: item.notes?.trim() || null,
+    raw: {
+      code: item.code ?? '',
+      description: item.description,
+      unit: item.unit,
+      quantity: String(item.quantity),
+      notes: item.notes ?? '',
+    },
+  }))
+}
+
+function buildCadIssues(rows: ReadonlyArray<StructuredTakeoffRow>): TakeoffValidationIssue[] {
+  const issues = validateTakeoffRows([...rows])
+
+  for (const row of rows) {
+    // CAD extraction is intentionally not a catalog or assembly matcher.
+    issues.push({
+      sourceRowKey: row.sourceRowKey,
+      code: 'NO_CATALOG_MATCH',
+      message: 'No commercial rate is accepted from CAD extraction; attach a DUPA before pricing.',
+    })
+
+    const classification = classifyBomLineKind(row.unit)
+    if (classification.kind === 'material_line') {
+      issues.push({
+        sourceRowKey: row.sourceRowKey,
+        code: 'MATERIAL_PARENT_REQUIRED',
+        message: 'Material candidates need an explicit parent work item before approval.',
+      })
+    }
   }
+
+  return issues
+}
+
+function contentDigest(scope: ReadonlyArray<CadScopeRow>): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify(
+        scope.map((item) => ({
+          code: item.code,
+          description: item.description,
+          unit: item.unit,
+          quantity: item.quantity,
+          notes: item.notes,
+        })),
+      ),
+    )
+    .digest('hex')
 }
 
 export async function calcDraftBomFromScope(
-  input: AutoBomInput
+  input: AutoBomInput,
 ): Promise<AutoBomResult> {
   const { tenantId, projectId, documentId } = input
 
   const scope = await db
     .select({
-      id: scopeItems.id,
       code: scopeItems.code,
       description: scopeItems.description,
       unit: scopeItems.unit,
       quantity: scopeItems.quantity,
-      unit_cost_cents: scopeItems.unit_cost_cents,
       notes: scopeItems.notes,
     })
     .from(scopeItems)
@@ -81,8 +139,8 @@ export async function calcDraftBomFromScope(
       and(
         eq(scopeItems.tenant_id, tenantId),
         eq(scopeItems.project_id, projectId),
-        like(scopeItems.notes, `%document:${documentId}%`)
-      )
+        like(scopeItems.notes, `%document:${documentId}%`),
+      ),
     )
     .orderBy(scopeItems.sort_order)
 
@@ -102,201 +160,306 @@ export async function calcDraftBomFromScope(
     }
   }
 
-  const useRag = Boolean(process.env.OPENAI_API_KEY)
-
-  let totalCostCents = 0
-  let totalTcvCents = 0
-  let ragMatches = 0
-  let catalogMatches = 0
-  let aiEstimateMatches = 0
-  let unpriced = 0
-
-  type PriceSource = 'rag' | 'catalog' | 'manual' | 'ai-estimate' | 'none'
-
-  const calculatedLines: Array<{
-    description: string
-    unit: string | null
-    quantity: number
-    unit_cost_cents: number
-    markup_bps: number
-    line_total_cents: number
-    sourceScore: number
-    source: PriceSource
-    sourceLabel: string | null
-  }> = []
-
-  // Lazy-load AI helpers only when we have a key
-  const ai = useRag ? await import('@third-code-erp/ai') : null
-
-  for (const item of scope) {
-    let unitCostCents = item.unit_cost_cents
-    let markupBps = DEFAULT_MARKUP_BPS
-    let score = 0
-    let unit: string | null = item.unit ?? null
-
-    // The vision extractor writes `price_source:ai_estimated` (or
-    // `:shown_in_source`) into scope.notes when it pre-populates a unit_cost.
-    // Treat those distinctly from a human "Manual" entry so the BOM badge can
-    // tell the estimator "this number came from a 2026 PH-market guess, verify".
-    const notes = item.notes ?? ''
-    const isAiEstimated = notes.includes('price_source:ai_estimated')
-    const isShownInSource = notes.includes('price_source:shown_in_source')
-
-    let source: PriceSource
-    if (unitCostCents > 0 && isAiEstimated) source = 'ai-estimate'
-    else if (unitCostCents > 0) source = 'manual'
-    else source = 'none'
-
-    let sourceLabel: string | null = null
-    if (source === 'ai-estimate') {
-      sourceLabel = 'AI estimate (PH 2026 market)'
-      aiEstimateMatches += 1
-    } else if (source === 'manual' && isShownInSource) {
-      sourceLabel = 'Price from source document'
-    }
-
-    // 1) RAG lookup against historical approved BOMs
-    if (useRag && ai && unitCostCents === 0) {
-      try {
-        const queryVec = await ai.embedText(item.description)
-        const queryLiteral = ai.serializeEmbedding(queryVec)
-        const rows = await db.execute<SimilarRow>(sql`
-          SELECT
-            chunk_text,
-            1 - (embedding <=> ${queryLiteral}::vector) AS score
-          FROM embeddings
-          WHERE tenant_id = ${tenantId}
-            AND entity_type = 'bom_line_item'
-            AND embedding IS NOT NULL
-          ORDER BY embedding <=> ${queryLiteral}::vector
-          LIMIT ${TOP_K}
-        `)
-        const top = rows[0]
-        if (top) {
-          const numericScore =
-            typeof top.score === 'string' ? parseFloat(top.score) : top.score
-          if (numericScore >= SIMILARITY_THRESHOLD) {
-            const parsed = parseChunkText(top.chunk_text)
-            unitCostCents = parsed.unit_cost_cents
-            markupBps = parsed.markup_bps
-            if (parsed.unit) unit = parsed.unit
-            score = numericScore
-            ragMatches += 1
-            source = 'rag'
-            sourceLabel = `RAG match (${(numericScore * 100).toFixed(0)}%)`
-          }
-        }
-      } catch (err) {
-        // RAG miss should never block BOM creation
-        console.error('[auto-bom] RAG lookup failed:', err)
-      }
-    }
-
-    // 2) Catalog fallback — typical PH industry prices for common items
-    if (unitCostCents === 0 && !shouldSkipAutoPrice(item.description)) {
-      const match = findCatalogPrice(item.description)
-      if (match) {
-        unitCostCents = match.unit_cost_cents
-        markupBps = match.markup_bps
-        if (match.entry.unit) unit = match.entry.unit
-        catalogMatches += 1
-        source = 'catalog'
-        sourceLabel = `Catalog (${match.entry.description})`
-      }
-    }
-
-    if (unitCostCents === 0) unpriced += 1
-
-    const lineCost = unitCostCents * item.quantity
-    const lineTotal = calcLineTotal(unitCostCents, item.quantity, markupBps)
-
-    totalCostCents += lineCost
-    totalTcvCents += lineTotal
-
-    calculatedLines.push({
-      description: item.description,
-      unit,
-      quantity: item.quantity,
-      unit_cost_cents: unitCostCents,
-      markup_bps: markupBps,
-      line_total_cents: lineTotal,
-      sourceScore: score,
-      source,
-      sourceLabel,
-    })
+  const scopeRows: CadScopeRow[] = scope.map((item) => ({
+    code: item.code,
+    description: item.description,
+    unit: item.unit,
+    quantity: item.quantity,
+    notes: item.notes,
+  }))
+  const takeoffRows = buildCadTakeoffRows(scopeRows)
+  const issues = buildCadIssues(takeoffRows)
+  const issuesByRow = new Map<string, TakeoffValidationIssue[]>()
+  for (const issue of issues) {
+    const rowIssues = issuesByRow.get(issue.sourceRowKey) ?? []
+    rowIssues.push(issue)
+    issuesByRow.set(issue.sourceRowKey, rowIssues)
   }
 
-  const gpCents = computeGP(totalTcvCents, totalCostCents)
-  const gpMarginBps = computeGPMargin(gpCents, totalTcvCents)
+  const drawingRevisionKey = `document:${documentId}`
+  // Keep this identity stable for a drawing revision. The digest is retained
+  // as content evidence, but a changed extraction must update the same rows.
+  const sourceKey = buildTakeoffImportKey(CAD_SOURCE, drawingRevisionKey, CAD_MAPPING_NAME)
+  const contentSha256 = contentDigest(scopeRows)
+  const extractedAt = new Date()
 
   const insertedBomId = await db.transaction(async (tx) => {
-    // Each auto-BOM is a new version so the BOM page (which loads MAX version)
-    // always surfaces the most recent run.
-    const [versionRow] = await tx
-      .select({ max_version: max(boms.version) })
+    const [existingAutoBom] = await tx
+      .select({ id: boms.id, status: boms.status })
       .from(boms)
-      .where(and(eq(boms.tenant_id, tenantId), eq(boms.project_id, projectId)))
-    const nextVersion = (versionRow?.max_version ?? 0) + 1
+      .where(
+        and(
+          eq(boms.tenant_id, tenantId),
+          eq(boms.project_id, projectId),
+          or(
+            like(boms.notes, `%drawing_revision:${documentId}%`),
+            like(boms.notes, `%cad_takeoff_source:${CAD_SOURCE}%`),
+          ),
+        ),
+      )
+      .orderBy(desc(boms.version))
+      .limit(1)
 
-    const [bom] = await tx
-      .insert(boms)
+    let targetBomId = existingAutoBom?.status === 'draft' ? existingAutoBom.id : null
+    if (!targetBomId) {
+      const [versionRow] = await tx
+        .select({ max_version: max(boms.version) })
+        .from(boms)
+        .where(and(eq(boms.tenant_id, tenantId), eq(boms.project_id, projectId)))
+      const nextVersion = (versionRow?.max_version ?? 0) + 1
+
+      const [bom] = await tx
+        .insert(boms)
+        .values({
+          tenant_id: tenantId,
+          project_id: projectId,
+          version: nextVersion,
+          status: 'draft',
+          label: 'Auto-drafted from CAD upload',
+          total_cost_cents: 0,
+          tcv_cents: 0,
+          gp_cents: 0,
+          gp_margin_bps: 0,
+          notes: `CAD scope candidate; drawing_revision:${documentId}; cad_takeoff_source:${CAD_SOURCE}; all rates require a DUPA before approval.`,
+        })
+        .returning({ id: boms.id })
+
+      targetBomId = bom?.id ?? null
+    }
+
+    if (!targetBomId) throw new Error('CAD auto-draft BOM was not created.')
+
+    const [revision] = await tx
+      .insert(drawingRevisions)
       .values({
         tenant_id: tenantId,
         project_id: projectId,
-        version: nextVersion,
-        status: 'draft',
-        label: 'Auto-drafted from CAD upload',
-        total_cost_cents: totalCostCents,
-        tcv_cents: totalTcvCents,
-        gp_cents: gpCents,
-        gp_margin_bps: gpMarginBps,
-        notes: `Auto-generated from parsed CAD document ${documentId}. Review and approve before locking.`,
+        source: CAD_SOURCE,
+        source_key: drawingRevisionKey,
+        label: `CAD extraction - ${documentId}`,
       })
-      .returning({ id: boms.id })
+      .onConflictDoUpdate({
+        target: [
+          drawingRevisions.tenant_id,
+          drawingRevisions.project_id,
+          drawingRevisions.source,
+          drawingRevisions.source_key,
+        ],
+        set: { updated_at: extractedAt },
+      })
+      .returning({ id: drawingRevisions.id })
 
-    const newBomId = bom!.id
+    if (!revision) throw new Error('CAD drawing revision was not created.')
 
-    if (calculatedLines.length > 0) {
-      await tx.insert(bomLineItems).values(
-        calculatedLines.map((line, idx) => ({
-          tenant_id: tenantId,
-          bom_id: newBomId,
-          sort_order: idx,
-          is_group: 0,
-          code: null,
-          description: line.description,
-          unit: line.unit,
-          quantity: line.quantity,
-          unit_cost_cents: line.unit_cost_cents,
-          markup_bps: line.markup_bps,
-          line_total_cents: line.line_total_cents,
-          notes:
-            line.source === 'rag'
-              ? `Cost from RAG (${line.sourceLabel ?? 'similarity match'}) — verify`
-              : line.source === 'catalog'
-                ? `Cost from ${line.sourceLabel ?? 'PH industry catalog'} — verify with vendor quote`
-                : line.source === 'ai-estimate'
-                  ? `Cost from ${line.sourceLabel ?? 'AI estimate'} — verify with vendor quote`
-                  : line.source === 'manual'
-                    ? line.sourceLabel ?? 'Manual unit cost'
-                    : 'No catalog or historical match — estimator must fill in unit cost',
-        }))
+    const [mappingProfile] = await tx
+      .insert(takeoffMappingProfiles)
+      .values({
+        tenant_id: tenantId,
+        source: CAD_SOURCE,
+        name: CAD_MAPPING_NAME,
+        mapping: {
+          sourceRowKey: 'scope_item.code-or-order',
+          description: 'scope_item.description',
+          quantity: 'scope_item.quantity',
+          unit: 'scope_item.unit',
+          division: 'manual assignment required',
+        },
+      })
+      .onConflictDoUpdate({
+        target: [
+          takeoffMappingProfiles.tenant_id,
+          takeoffMappingProfiles.source,
+          takeoffMappingProfiles.name,
+        ],
+        set: { updated_at: extractedAt },
+      })
+      .returning({ id: takeoffMappingProfiles.id })
+
+    if (!mappingProfile) throw new Error('CAD mapping profile was not created.')
+
+    const [takeoffImport] = await tx
+      .insert(takeoffImports)
+      .values({
+        tenant_id: tenantId,
+        bom_id: targetBomId,
+        project_id: projectId,
+        drawing_revision_id: revision.id,
+        mapping_profile_id: mappingProfile.id,
+        source: CAD_SOURCE,
+        source_key: sourceKey,
+        file_name: `document-${documentId}.cad`,
+        content_sha256: contentSha256,
+        status: issues.length > 0 ? 'partially_resolved' : 'resolved',
+        row_count: takeoffRows.length,
+        imported_count: takeoffRows.length,
+        unresolved_count: issues.length,
+        updated_at: extractedAt,
+      })
+      .onConflictDoUpdate({
+        target: [takeoffImports.tenant_id, takeoffImports.bom_id, takeoffImports.source, takeoffImports.source_key],
+        set: {
+          drawing_revision_id: revision.id,
+          mapping_profile_id: mappingProfile.id,
+          content_sha256: contentSha256,
+          status: issues.length > 0 ? 'partially_resolved' : 'resolved',
+          row_count: takeoffRows.length,
+          imported_count: takeoffRows.length,
+          unresolved_count: issues.length,
+          updated_at: extractedAt,
+        },
+      })
+      .returning({ id: takeoffImports.id })
+
+    if (!takeoffImport) throw new Error('CAD takeoff import was not created.')
+
+    await tx
+      .update(takeoffUnresolvedItems)
+      .set({
+        status: 'resolved',
+        resolved_at: extractedAt,
+        updated_at: extractedAt,
+      })
+      .where(
+        and(
+          eq(takeoffUnresolvedItems.tenant_id, tenantId),
+          eq(takeoffUnresolvedItems.takeoff_import_id, takeoffImport.id),
+          eq(takeoffUnresolvedItems.status, 'pending'),
+        ),
       )
+
+    for (const [index, row] of takeoffRows.entries()) {
+      const rowIssues = issuesByRow.get(row.sourceRowKey) ?? []
+      const scopeItem = scopeRows[index]!
+      const provenance = `AI-drafted CAD scope (${sourceModel(scopeItem.notes)}); pricing requires DUPA.`
+
+      const [line] = await tx
+        .insert(bomLineItems)
+        .values({
+          tenant_id: tenantId,
+          bom_id: targetBomId,
+          sort_order: index,
+          is_group: 0,
+          kind: 'work_item',
+          code: scopeItem.code,
+          description: row.description || `Unresolved CAD row ${row.sourceRowKey}`,
+          unit: row.unit || null,
+          quantity: Math.max(0, Math.round(row.quantity ?? 0)),
+          drawing_revision_id: revision.id,
+          takeoff_import_id: takeoffImport.id,
+          source_row_key: row.sourceRowKey,
+          ai_drafted: true,
+          source_model: sourceModel(scopeItem.notes),
+          extraction_timestamp: extractedAt,
+          unit_rate_source: 'manual',
+          classification_status: rowIssues.length > 0 ? 'review' : 'classified',
+          classification_reason: rowIssues.length > 0
+            ? rowIssues.map((issue) => issue.message).join(' ')
+            : 'CAD scope candidate requires estimator review.',
+          unit_cost_cents: 0,
+          markup_bps: 0,
+          line_total_cents: 0,
+          notes: provenance,
+        })
+        .onConflictDoUpdate({
+          target: [bomLineItems.tenant_id, bomLineItems.takeoff_import_id, bomLineItems.source_row_key],
+          set: {
+            code: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.code} else excluded.code end`,
+            description: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.description} else excluded.description end`,
+            unit: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit} else excluded.unit end`,
+            quantity: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.quantity} else excluded.quantity end`,
+            drawing_revision_id: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.drawing_revision_id} else excluded.drawing_revision_id end`,
+            ai_drafted: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.ai_drafted} else true end`,
+            source_model: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.source_model} else excluded.source_model end`,
+            extraction_timestamp: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.extraction_timestamp} else excluded.extraction_timestamp end`,
+            classification_status: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_status} else excluded.classification_status end`,
+            classification_reason: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_reason} else excluded.classification_reason end`,
+            unit_rate_source: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_rate_source} else 'manual' end`,
+            unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_cost_cents} else 0 end`,
+            markup_bps: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.markup_bps} else 0 end`,
+            line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else 0 end`,
+            // Notes intentionally stay untouched: vendor assignments are
+            // mirrored there until a dedicated FK is introduced.
+            updated_at: extractedAt,
+          },
+        })
+        .returning({ id: bomLineItems.id })
+
+      if (!line) throw new Error(`CAD row ${row.sourceRowKey} was not persisted.`)
+
+      for (const issue of rowIssues) {
+        await tx
+          .insert(takeoffUnresolvedItems)
+          .values({
+            tenant_id: tenantId,
+            takeoff_import_id: takeoffImport.id,
+            bom_id: targetBomId,
+            bom_line_item_id: line.id,
+            source_row_key: row.sourceRowKey,
+            reason_code: issue.code,
+            reason: issue.message,
+            raw_payload: row.raw,
+            status: 'pending',
+          })
+          .onConflictDoUpdate({
+            target: [
+              takeoffUnresolvedItems.tenant_id,
+              takeoffUnresolvedItems.takeoff_import_id,
+              takeoffUnresolvedItems.source_row_key,
+              takeoffUnresolvedItems.reason_code,
+            ],
+            set: {
+              bom_line_item_id: line.id,
+              reason: issue.message,
+              raw_payload: row.raw,
+              status: 'pending',
+              resolved_at: null,
+              updated_at: extractedAt,
+            },
+          })
+      }
     }
 
-    return newBomId
+    const [pending] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(takeoffUnresolvedItems)
+      .where(
+        and(
+          eq(takeoffUnresolvedItems.tenant_id, tenantId),
+          eq(takeoffUnresolvedItems.takeoff_import_id, takeoffImport.id),
+          eq(takeoffUnresolvedItems.status, 'pending'),
+        ),
+      )
+    const unresolvedCount = pending?.count ?? 0
+
+    await tx
+      .update(takeoffImports)
+      .set({ unresolved_count: unresolvedCount, updated_at: extractedAt })
+      .where(and(eq(takeoffImports.id, takeoffImport.id), eq(takeoffImports.tenant_id, tenantId)))
+
+    await tx
+      .update(boms)
+      .set({
+        total_cost_cents: 0,
+        tcv_cents: 0,
+        gp_cents: 0,
+        gp_margin_bps: 0,
+        updated_at: extractedAt,
+      })
+      .where(and(eq(boms.id, targetBomId), eq(boms.tenant_id, tenantId)))
+
+    return targetBomId
   })
 
   return {
     bomId: insertedBomId,
     scopeCount: scope.length,
-    totalCostCents,
-    totalTcvCents,
-    gpCents,
-    gpMarginBps,
-    ragMatches,
-    catalogMatches,
-    aiEstimateMatches,
-    unpriced,
+    totalCostCents: 0,
+    totalTcvCents: 0,
+    gpCents: 0,
+    gpMarginBps: 0,
+    ragMatches: 0,
+    catalogMatches: 0,
+    aiEstimateMatches: 0,
+    unpriced: scope.length,
   }
 }

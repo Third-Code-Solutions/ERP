@@ -62,11 +62,16 @@ export const DEFAULT_TEMPLATE: ChecklistTemplateItem[] = [
  * Returns the newly created checklist id. Throws if the project does not
  * exist (caller is expected to enforce tenant ownership upstream).
  */
-export async function seedDefaultChecklist(projectId: string): Promise<string> {
+export async function seedDefaultChecklist(
+  projectId: string,
+  tenantId: string
+): Promise<string> {
   const [project] = await db
     .select({ tenant_id: projects.tenant_id })
     .from(projects)
-    .where(eq(projects.id, projectId))
+    .where(
+      and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId))
+    )
     .limit(1)
   if (!project) throw new Error(`Project ${projectId} not found`)
 
@@ -134,7 +139,12 @@ export async function seedDefaultChecklist(projectId: string): Promise<string> {
     await db
       .update(preConChecklistItems)
       .set({ depends_on_item_id: parentId })
-      .where(eq(preConChecklistItems.id, myId))
+      .where(
+        and(
+          eq(preConChecklistItems.id, myId),
+          eq(preConChecklistItems.tenant_id, tenantId)
+        )
+      )
   }
 
   return checklist.id

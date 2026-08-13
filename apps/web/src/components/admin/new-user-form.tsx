@@ -7,7 +7,7 @@ import { ASSIGNABLE_ROLES } from '@/app/(dashboard)/admin/users/roles'
 
 const ROLE_GROUPS: Array<{ heading: string; roles: readonly string[] }> = [
   {
-    heading: 'Third Code ERP',
+    heading: 'ABI OPS',
     roles: [
       'admin',
       'sales',

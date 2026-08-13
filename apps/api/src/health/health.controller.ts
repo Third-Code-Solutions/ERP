@@ -23,7 +23,7 @@ export class HealthController {
   health() {
     return {
       status: 'ok',
-      service: 'third-code-erp-api',
+      service: 'abi-ops-api',
     }
   }
 

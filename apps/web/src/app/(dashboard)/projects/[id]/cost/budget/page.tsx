@@ -20,6 +20,8 @@ import {
   BudgetWorkspace,
   type BudgetDraft,
 } from './budget-workspace'
+import { CostControlTable } from '@/components/cost/cost-control-table'
+import { getProjectCostControl } from '@/lib/operations/project-cost-control'
 
 export const metadata: Metadata = {
   title: 'Project Budget Control',
@@ -37,6 +39,7 @@ interface BudgetRegisterRow extends Record<string, unknown> {
   effective_from: string
   revision_reason: string
   total_budget_cents: number
+  original_gp_margin_bps: number
   source_bom_id: string | null
   submitted_by_name: string | null
   submitted_at: Date | null
@@ -50,16 +53,6 @@ interface BudgetRegisterRow extends Record<string, unknown> {
   rejected_at: Date | null
   rejection_reason: string | null
   created_at: Date
-}
-
-interface ControlRow extends Record<string, unknown> {
-  cost_code_id: string
-  code: string
-  name: string
-  category: string
-  baseline_cents: number
-  committed_cents: number
-  actual_cents: number
 }
 
 function money(currency: string, cents: number): string {
@@ -132,6 +125,7 @@ export default async function ProjectBudgetPage({
         budget.effective_from,
         budget.revision_reason,
         budget.total_budget_cents,
+        budget.original_gp_margin_bps,
         budget.source_bom_id,
         submitter.full_name as submitted_by_name,
         budget.submitted_at,
@@ -236,103 +230,13 @@ export default async function ProjectBudgetPage({
     }
   }
 
-  const rawControlRows = approvedRow
-    ? await db.execute<ControlRow>(sql`
-        with commitment as (
-          select
-            line.cost_code_id,
-            sum(line.line_total_cents)::bigint as committed_cents
-          from public.po_line_items line
-          join public.purchase_orders purchase_order
-            on purchase_order.id = line.po_id
-           and purchase_order.tenant_id = line.tenant_id
-          where line.tenant_id = ${profile.tenantId}::uuid
-            and purchase_order.project_id = ${projectId}::uuid
-            and purchase_order.status::text in (
-              'confirmed',
-              'issued',
-              'partial_delivery',
-              'partial_delivered',
-              'delivered',
-              'fully_delivered'
-            )
-          group by line.cost_code_id
-        ),
-        manual_actual as (
-          select
-            entry.cost_code_id,
-            sum(entry.amount_cents)::bigint as actual_cents
-          from public.cost_entries entry
-          where entry.tenant_id = ${profile.tenantId}::uuid
-            and entry.project_id = ${projectId}::uuid
-            and entry.cost_source::text in ('manual', 'import')
-          group by entry.cost_code_id
-        ),
-        bill_actual as (
-          select
-            line.cost_code_id,
-            sum(line.amount_cents)::bigint as actual_cents
-          from public.supplier_bill_lines line
-          join public.supplier_bills bill
-            on bill.id = line.supplier_bill_id
-           and bill.tenant_id = line.tenant_id
-          where line.tenant_id = ${profile.tenantId}::uuid
-            and line.project_id = ${projectId}::uuid
-            and bill.status = 'posted'
-          group by line.cost_code_id
-        )
-        select
-          cost_code.id as cost_code_id,
-          cost_code.code,
-          cost_code.name,
-          cost_code.category::text as category,
-          coalesce(budget_line.amount_cents, 0)::bigint as baseline_cents,
-          coalesce(commitment.committed_cents, 0)::bigint as committed_cents,
-          (
-            coalesce(manual_actual.actual_cents, 0)
-            + coalesce(bill_actual.actual_cents, 0)
-          )::bigint as actual_cents
-        from public.cost_codes cost_code
-        left join public.project_budget_lines budget_line
-          on budget_line.cost_code_id = cost_code.id
-         and budget_line.tenant_id = cost_code.tenant_id
-         and budget_line.project_budget_id = ${approvedRow.id}::uuid
-        left join commitment
-          on commitment.cost_code_id = cost_code.id
-        left join manual_actual
-          on manual_actual.cost_code_id = cost_code.id
-        left join bill_actual
-          on bill_actual.cost_code_id = cost_code.id
-        where cost_code.tenant_id = ${profile.tenantId}::uuid
-          and (
-            budget_line.id is not null
-            or coalesce(commitment.committed_cents, 0) <> 0
-            or coalesce(manual_actual.actual_cents, 0) <> 0
-            or coalesce(bill_actual.actual_cents, 0) <> 0
-          )
-        order by cost_code.code
-      `)
-    : []
-  const controlRows = rawControlRows.map((row) => ({
-    ...row,
-    baseline_cents: Number(row.baseline_cents),
-    committed_cents: Number(row.committed_cents),
-    actual_cents: Number(row.actual_cents),
-  }))
+  const costControl = await getProjectCostControl({
+    tenantId: profile.tenantId,
+    projectId,
+  })
 
   const currency = approvedRow?.currency ?? draftRow?.currency ?? 'PHP'
-  const totals = controlRows.reduce(
-    (accumulator, row) => {
-      const forecast = Math.max(row.committed_cents, row.actual_cents)
-      return {
-        baseline: accumulator.baseline + row.baseline_cents,
-        committed: accumulator.committed + row.committed_cents,
-        actual: accumulator.actual + row.actual_cents,
-        forecast: accumulator.forecast + forecast,
-      }
-    },
-    { baseline: 0, committed: 0, actual: 0, forecast: 0 }
-  )
+  const totals = costControl.totals
 
   return (
     <div className="budget-page">
@@ -359,7 +263,7 @@ export default async function ProjectBudgetPage({
       <section className="budget-control-strip">
         <div>
           <span>Current baseline</span>
-          <strong>{money(currency, totals.baseline)}</strong>
+          <strong>{money(currency, totals.baselineCents)}</strong>
           <small>
             {approvedRow
               ? `Approved revision ${approvedRow.revision}`
@@ -368,30 +272,30 @@ export default async function ProjectBudgetPage({
         </div>
         <div>
           <span>Committed</span>
-          <strong>{money(currency, totals.committed)}</strong>
+          <strong>{money(currency, totals.committedCents)}</strong>
           <small>Issued and confirmed Purchase Orders</small>
         </div>
         <div>
           <span>Actual</span>
-          <strong>{money(currency, totals.actual)}</strong>
-          <small>Posted supplier bills and manual costs</small>
+          <strong>{money(currency, totals.actualCents)}</strong>
+          <small>Posted supplier-bill lines</small>
         </div>
         <div>
           <span>Forecast</span>
-          <strong>{money(currency, totals.forecast)}</strong>
-          <small>Higher of commitment or actual per Cost Code</small>
+          <strong>{money(currency, totals.forecastCents)}</strong>
+          <small>Higher of PO commitment or posted actual</small>
         </div>
         <div
           className={
-            totals.baseline - totals.forecast >= 0
+            totals.remainingCents >= 0
               ? 'budget-positive'
               : 'budget-negative'
           }
         >
           <span>Forecast variance</span>
-          <strong>{money(currency, totals.baseline - totals.forecast)}</strong>
+          <strong>{money(currency, totals.remainingCents)}</strong>
           <small>
-            {totals.baseline - totals.forecast >= 0
+            {totals.remainingCents >= 0
               ? 'Available'
               : 'Exposure over baseline'}
           </small>
@@ -406,62 +310,18 @@ export default async function ProjectBudgetPage({
               <h2>Baseline to forecast</h2>
             </div>
             <p>
-              Forecast uses the higher of commitment or actual inside each Cost
-              Code. No project-level double count.
+              Forecast uses the higher of commitment or posted actual at each
+              Cost Code and BOM line. No project-level double count.
             </p>
           </div>
-          <div className="finance-table-shell">
-            <table className="data-table budget-control-table">
-              <thead>
-                <tr>
-                  <th>Cost Code</th>
-                  <th>Category</th>
-                  <th className="num">Baseline</th>
-                  <th className="num">Committed</th>
-                  <th className="num">Actual</th>
-                  <th className="num">Forecast</th>
-                  <th className="num">Variance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {controlRows.map((row) => {
-                  const forecast = Math.max(
-                    row.committed_cents,
-                    row.actual_cents
-                  )
-                  const variance = row.baseline_cents - forecast
-                  return (
-                    <tr key={row.cost_code_id}>
-                      <td>
-                        <strong>{row.code}</strong>
-                        <span className="finance-cell-detail">{row.name}</span>
-                      </td>
-                      <td>{row.category}</td>
-                      <td className="num finance-money">
-                        {money(currency, row.baseline_cents)}
-                      </td>
-                      <td className="num finance-money">
-                        {money(currency, row.committed_cents)}
-                      </td>
-                      <td className="num finance-money">
-                        {money(currency, row.actual_cents)}
-                      </td>
-                      <td className="num finance-money">
-                        {money(currency, forecast)}
-                      </td>
-                      <td
-                        className={`num finance-money ${
-                          variance < 0 ? 'budget-negative-text' : ''
-                        }`}
-                      >
-                        {money(currency, variance)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <CostControlTable rows={costControl.rows} currency={currency} />
+          {totals.unreconciledCents > 0 && (
+            <p className="cost-control-warning" role="status">
+              {money(currency, totals.unreconciledCents)} in manual or legacy
+              cost entries is excluded from posted-invoice actuals until
+              reconciled.
+            </p>
+          )}
         </section>
       )}
 
@@ -529,7 +389,8 @@ export default async function ProjectBudgetPage({
                       Effective {budget.effective_from} ·{' '}
                       {budget.control_mode} control ·{' '}
                       {(budget.commitment_tolerance_bps / 100).toFixed(2)}%
-                      tolerance
+                      tolerance · original margin{' '}
+                      {(budget.original_gp_margin_bps / 100).toFixed(2)}%
                     </span>
                   </div>
                   <span className={`finance-status finance-status-${budget.status}`}>

@@ -2,12 +2,12 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { boms, projects, users } from '@third-code-erp/database/schema'
-import { TogalImportWizard } from '@/components/bom/togal-import-wizard'
+import { boms, projects } from '@third-code-erp/database/schema'
+import { TakeoffImportWizard } from '@/components/bom/takeoff-import-wizard'
 
-export const metadata: Metadata = { title: 'Togal.ai import' }
+export const metadata: Metadata = { title: 'Takeoff import' }
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -15,15 +15,8 @@ interface PageProps {
 
 export default async function ProjectBomTogalPage({ params }: PageProps) {
   const { id } = await params
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return notFound()
-  const tenantId = userRow.tenant_id
+  const profile = await requireUserProfile()
+  const tenantId = profile.tenantId
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
@@ -75,16 +68,16 @@ export default async function ProjectBomTogalPage({ params }: PageProps) {
           BOM
         </Link>
         {' / '}
-        <span style={{ color: 'var(--color-neutral-700)' }}>Togal import</span>
+        <span style={{ color: 'var(--color-neutral-700)' }}>Takeoff import</span>
       </div>
 
       <header className="page-header">
         <p className="page-eyebrow">Bill of Materials</p>
-        <h1 className="page-title">Togal.ai import</h1>
+        <h1 className="page-title">Structured takeoff import</h1>
         <p className="page-subtitle">
-          Upload a Togal.ai takeoff export to append mapped line items to the
-          draft BOM. Unmapped items are flagged for review and skipped on
-          commit.
+          Upload a CSV or XLSX from Togal, a spreadsheet, or another takeoff
+          producer. Map its columns, preview the validation result, and retain
+          every unresolved row for review.
         </p>
       </header>
 
@@ -102,7 +95,7 @@ export default async function ProjectBomTogalPage({ params }: PageProps) {
           </div>
         </section>
       ) : (
-        <TogalImportWizard
+        <TakeoffImportWizard
           projectId={id}
           bomId={latestBom.id}
           bomLabel={latestBom.label ?? `BOM v${latestBom.version}`}

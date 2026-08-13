@@ -1,9 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireUser } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { opportunities, users } from '@third-code-erp/database/schema'
+import { opportunities, projects } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { STAGE_PROBABILITY } from '@third-code-erp/shared-types'
@@ -37,12 +37,8 @@ const transitionSchema = z.object({
 })
 
 export async function createOpportunity(formData: FormData) {
-  const user = await requireUser()
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) throw new Error('No tenant')
+  const profile = await requireUserProfile()
+  if (!can(profile.role, 'opportunity.create')) return { error: 'Forbidden' }
 
   const input = createOpportunitySchema.parse({
     project_id: formData.get('project_id'),
@@ -58,12 +54,18 @@ export async function createOpportunity(formData: FormData) {
   const probability = STAGE_PROBABILITY[input.stage as keyof typeof STAGE_PROBABILITY] ?? 0
   const weightedTcv = weightedTCV(input.tcv_cents, probability)
 
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, input.project_id), eq(projects.tenant_id, profile.tenantId)))
+  if (!project) throw new Error('Project not found')
+
   const [inserted] = await db
     .insert(opportunities)
     .values({
-      tenant_id: userRow.tenant_id,
+      tenant_id: profile.tenantId,
       project_id: input.project_id,
-      rep_id: user.id,
+      rep_id: profile.user.id,
       stage: input.stage,
       tcv_cents: input.tcv_cents,
       gp_cents: input.gp_cents,
@@ -78,8 +80,8 @@ export async function createOpportunity(formData: FormData) {
 
   if (inserted) {
     await writeAuditLog({
-      tenantId: userRow.tenant_id,
-      actorId: user.id,
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
       entityType: 'opportunities',
       entityId: inserted.id,
       action: 'create',
@@ -93,12 +95,8 @@ export async function createOpportunity(formData: FormData) {
 }
 
 export async function transitionStage(formData: FormData) {
-  const user = await requireUser()
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) throw new Error('No tenant')
+  const profile = await requireUserProfile()
+  if (!can(profile.role, 'opportunity.advance_stage')) return { error: 'Forbidden' }
 
   const input = transitionSchema.parse({
     opportunity_id: formData.get('opportunity_id'),
@@ -114,7 +112,7 @@ export async function transitionStage(formData: FormData) {
     .where(
       and(
         eq(opportunities.id, input.opportunity_id),
-        eq(opportunities.tenant_id, userRow.tenant_id)
+        eq(opportunities.tenant_id, profile.tenantId)
       )
     )
 
@@ -138,11 +136,16 @@ export async function transitionStage(formData: FormData) {
   await db
     .update(opportunities)
     .set(updateData)
-    .where(eq(opportunities.id, input.opportunity_id))
+    .where(
+      and(
+        eq(opportunities.id, input.opportunity_id),
+        eq(opportunities.tenant_id, profile.tenantId),
+      ),
+    )
 
   await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
+    tenantId: profile.tenantId,
+    actorId: profile.user.id,
     entityType: 'opportunities',
     entityId: existing.id,
     action: 'stage_change',

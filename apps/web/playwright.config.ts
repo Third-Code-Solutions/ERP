@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const chromeExecutablePath = process.env.E2E_CHROME_PATH
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -13,6 +15,14 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(chromeExecutablePath
+          ? { launchOptions: { executablePath: chromeExecutablePath } }
+          : {}),
+      },
+    },
   ],
 })

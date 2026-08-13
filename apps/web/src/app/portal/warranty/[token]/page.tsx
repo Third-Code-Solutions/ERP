@@ -16,7 +16,7 @@ import { submitTicket } from './actions'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Warranty Support | Third Code ERP',
+  title: 'Warranty Support | ABI OPS',
   robots: { index: false, follow: false },
 }
 
@@ -45,8 +45,20 @@ export default async function WarrantyPortalPage({ params, searchParams }: PageP
       account_name: accounts.name,
     })
     .from(warrantyPortalTokens)
-    .innerJoin(projects, eq(projects.id, warrantyPortalTokens.project_id))
-    .leftJoin(accounts, eq(accounts.id, projects.account_id))
+    .innerJoin(
+      projects,
+      and(
+        eq(projects.id, warrantyPortalTokens.project_id),
+        eq(projects.tenant_id, warrantyPortalTokens.tenant_id)
+      )
+    )
+    .leftJoin(
+      accounts,
+      and(
+        eq(accounts.id, projects.account_id),
+        eq(accounts.tenant_id, warrantyPortalTokens.tenant_id)
+      )
+    )
     .where(eq(warrantyPortalTokens.token_hash, tokenHash))
     .limit(1)
 

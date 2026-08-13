@@ -67,7 +67,10 @@ export async function notifyUser(d: DispatchToUser): Promise<void> {
   })
 
   if (d.alsoEmail && recipient?.email && d.templateId && d.templateVars) {
-    await sendEmailFromTemplate(recipient.email, d.templateId, d.templateVars)
+    await attemptEmailDelivery(recipient.email, d.templateId, d.templateVars, {
+      tenant_id: d.tenantId,
+      recipient_user_id: d.recipientUserId,
+    })
   }
 }
 
@@ -94,32 +97,111 @@ export async function notifyRoles(d: DispatchToRole): Promise<void> {
 
   if (d.alsoEmail && d.templateId && d.templateVars) {
     for (const r of recipients) {
-      await sendEmailFromTemplate(r.email, d.templateId, d.templateVars)
+      await attemptEmailDelivery(r.email, d.templateId, d.templateVars, {
+        tenant_id: d.tenantId,
+        recipient_user_id: r.id,
+      })
     }
   }
 }
 
-export async function notifyExternalEmail(d: DispatchToEmail): Promise<void> {
-  await db.insert(notifications).values({
-    tenant_id: d.tenantId,
-    recipient_user_id: null,
-    recipient_email: d.recipientEmail,
-    channel: 'email',
-    subject: d.subject,
-    body: d.body ?? null,
-    link_url: d.linkUrl ?? null,
-    payload: d.payload ?? null,
-    sent_at: new Date(),
-  })
+export async function notifyExternalEmail(
+  d: DispatchToEmail
+): Promise<{ delivered: boolean }> {
+  const [notification] = await db
+    .insert(notifications)
+    .values({
+      tenant_id: d.tenantId,
+      recipient_user_id: null,
+      recipient_email: d.recipientEmail,
+      channel: 'email',
+      subject: d.subject,
+      body: d.body ?? null,
+      link_url: d.linkUrl ?? null,
+      payload: d.payload ?? null,
+      sent_at: null,
+    })
+    .returning({ id: notifications.id })
 
-  await sendEmailFromTemplate(d.recipientEmail, d.templateId, d.templateVars)
+  let delivery: { id: string; is_dev_stub: boolean }
+  try {
+    delivery = await sendEmailFromTemplate(
+      d.recipientEmail,
+      d.templateId,
+      d.templateVars
+    )
+  } catch (error) {
+    logEmailDeliveryFailure(error, {
+      tenant_id: d.tenantId,
+      recipient_kind: 'external',
+    })
+    return { delivered: false }
+  }
+
+  /*
+   * The provider call is deliberately outside the database mutation above:
+   * the notification row is the durable pending evidence, while this update
+   * records a real provider response only.
+   */
+  if (notification?.id && !delivery.is_dev_stub) {
+    await db
+      .update(notifications)
+      .set({ sent_at: new Date() })
+      .where(
+        and(
+          eq(notifications.id, notification.id),
+          eq(notifications.tenant_id, d.tenantId)
+        )
+      )
+  }
+
+  return { delivered: !delivery.is_dev_stub }
 }
 
+async function attemptEmailDelivery(
+  to: string,
+  templateId: EmailTemplateId,
+  vars: Record<string, string | number>,
+  context: { tenant_id: string; recipient_user_id: string }
+): Promise<boolean> {
+  try {
+    const delivery = await sendEmailFromTemplate(to, templateId, vars)
+    return !delivery.is_dev_stub
+  } catch (error) {
+    logEmailDeliveryFailure(error, {
+      ...context,
+      recipient_kind: 'user',
+    })
+    return false
+  }
+}
+
+function logEmailDeliveryFailure(
+  error: unknown,
+  context: {
+    tenant_id: string
+    recipient_kind: 'user' | 'external'
+    recipient_user_id?: string
+  }
+): void {
+  console.error(
+    JSON.stringify({
+      event: 'notification_email_delivery_failed',
+      ...context,
+      error: error instanceof Error ? error.message : 'unknown',
+    })
+  )
+}
+
+/*
+ * This function is intentionally kept as the one provider-facing template
+ * boundary so user/role and external-recipient flows share the same result.
+ */
 async function sendEmailFromTemplate(
   to: string,
   templateId: EmailTemplateId,
   vars: Record<string, string | number>
-) {
+): Promise<{ id: string; is_dev_stub: boolean }> {
   // Tiny narrowing: each template wants its own var shape. We trust the
   // caller and cast — Zod-style runtime checks are unnecessary for an
   // internal mapping.
@@ -129,7 +211,7 @@ async function sendEmailFromTemplate(
     text: string
   }
   const { subject, html, text } = builder(vars)
-  await sendEmail({ to, subject, html, text })
+  return sendEmail({ to, subject, html, text })
 }
 
 export { sendSms }

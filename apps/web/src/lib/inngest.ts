@@ -1,4 +1,5 @@
 import { Inngest } from 'inngest'
+import { parseAndStoreCad } from '@/lib/cad/parse-and-store'
 
 export const inngest = new Inngest({ id: 'third-code-erp' })
 
@@ -8,8 +9,8 @@ export const inngest = new Inngest({ id: 'third-code-erp' })
 //
 // Flow:
 //   1. /api/upload accepts a .dxf or .dwg file → emits `document/cad.uploaded`
-//   2. parseCadDrawing fn calls the Python worker; worker converts DWG→DXF if
-//      needed, runs ezdxf extraction, writes scope_items rows.
+//   2. parseCadDrawing fn owns official scope writes; Python only converts and
+//      returns bounded evidence through the same adapter.
 //   3. On success, the parser fn emits `cad/parsed` with the extracted count.
 //   4. calcDraftBomFromScope fn loads the new scope items, runs pgvector
 //      similarity search against historical embedded BOM line items, and
@@ -55,37 +56,22 @@ export const parseCadDrawing = inngest.createFunction(
     const { documentId, projectId, tenantId, storagePath, format, fileName } = event.data
     const cadFormat = format ?? 'dxf'
 
-    const parserUrl = process.env.DXF_PARSER_URL
-    if (!parserUrl) {
+    if (!process.env.DXF_PARSER_URL) {
       return { skipped: true, reason: 'DXF_PARSER_URL not configured', format: cadFormat }
     }
 
     const result = await step.run('call-cad-parser', async () => {
-      const sharedSecret = process.env.PARSER_SHARED_SECRET
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      }
-      if (sharedSecret) headers.Authorization = `Bearer ${sharedSecret}`
-      const res = await fetch(`${parserUrl}/parse`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          document_id: documentId,
-          project_id: projectId,
-          tenant_id: tenantId,
-          storage_path: storagePath,
-          format: cadFormat,
-          file_name: fileName,
-        }),
+      return parseAndStoreCad({
+        documentId,
+        projectId,
+        tenantId,
+        storagePath,
+        fileName: fileName ?? `${cadFormat}-upload.${cadFormat}`,
+        createDraftBom: false,
       })
-      if (!res.ok) {
-        const detail = await res.text().catch(() => '')
-        throw new Error(`CAD parser returned ${res.status}: ${detail}`)
-      }
-      return res.json() as Promise<{ count?: number; source_format?: 'dxf' | 'dwg' }>
     })
 
-    const scopeItemsCreated = result.count ?? 0
+    const scopeItemsCreated = result.scopeItemsCreated
 
     if (scopeItemsCreated > 0) {
       await step.run('emit-cad-parsed', async () => {
@@ -96,13 +82,13 @@ export const parseCadDrawing = inngest.createFunction(
             projectId,
             tenantId,
             scopeItemsCreated,
-            sourceFormat: result.source_format ?? cadFormat,
+            sourceFormat: cadFormat,
           },
         })
       })
     }
 
-    return { parsed: true, scopeItemsCreated, format: cadFormat }
+    return { parsed: result.status === 'extracted', scopeItemsCreated, format: cadFormat }
   }
 )
 

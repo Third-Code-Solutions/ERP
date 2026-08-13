@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
+import { redirect } from 'next/navigation'
 import { db } from '@third-code-erp/database'
-import { purchaseOrders, vendors, users } from '@third-code-erp/database/schema'
+import { purchaseOrders, vendors } from '@third-code-erp/database/schema'
 import { eq, desc } from 'drizzle-orm'
 import { AddVendorForm } from '@/components/procurement/add-vendor-form'
 
@@ -13,15 +14,10 @@ function formatPHP(cents: number): string {
 }
 
 export default async function ProcurementPage() {
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  if (!userRow?.tenant_id) return null
+  const profile = await requireUserProfile()
+  if (!can(profile.role, 'po.create')) {
+    redirect('/dashboard?error=forbidden')
+  }
 
   const vendorList = await db
     .select({
@@ -34,7 +30,7 @@ export default async function ProcurementPage() {
       created_at: vendors.created_at,
     })
     .from(vendors)
-    .where(eq(vendors.tenant_id, userRow.tenant_id))
+    .where(eq(vendors.tenant_id, profile.tenantId))
     .orderBy(vendors.name)
 
   const recentPOs = await db
@@ -48,7 +44,7 @@ export default async function ProcurementPage() {
     })
     .from(purchaseOrders)
     .leftJoin(vendors, eq(purchaseOrders.vendor_id, vendors.id))
-    .where(eq(purchaseOrders.tenant_id, userRow.tenant_id))
+    .where(eq(purchaseOrders.tenant_id, profile.tenantId))
     .orderBy(desc(purchaseOrders.created_at))
     .limit(5)
 

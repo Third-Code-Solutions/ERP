@@ -3,7 +3,7 @@
 // server-actions file made client imports resolve to a server-action
 // reference instead of the array, which crashed the detail/create pages.
 
-// All Third Code ERP roles (canonical + legacy retained for back-compat).
+// All ABI OPS roles (canonical + legacy retained for back-compat).
 export const ASSIGNABLE_ROLES = [
   'admin',
   'sales',

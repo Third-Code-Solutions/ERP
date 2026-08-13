@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Seed one demo account per Third Code ERP role into the existing tenant.
+ * Seed one demo account per ABI OPS role into the existing tenant.
  *
  * Reads from the repo-root .env.local:
  *   DATABASE_URL
@@ -16,6 +16,10 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import {
+  getConfiguredDemoTenantSlug,
+  selectDemoTenant,
+} from './lib/demo-tenant.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -64,21 +68,21 @@ if (!SHARED_PASSWORD || SHARED_PASSWORD.length < 14) {
   process.exit(1)
 }
 
-// 11 demo accounts — the 10 Third Code ERP canonical roles + legacy owner.
+// 11 demo accounts — the 10 ABI OPS canonical roles + legacy owner.
 // Each email is unique so they don't collide; password is shared
 // so demo handoff is easy. (For prod, every user gets their own pw via /admin/users.)
 const ACCOUNTS = [
-  { email: 'admin@thirdcode-erp.test',       full_name: 'Demo Admin',       role: 'admin' },
-  { email: 'owner@thirdcode-erp.test',       full_name: 'Demo Owner',       role: 'owner' },
-  { email: 'sales@thirdcode-erp.test',       full_name: 'Demo Sales',       role: 'sales' },
-  { email: 'commercial@thirdcode-erp.test',  full_name: 'Demo Commercial',  role: 'commercial' },
-  { email: 'design@thirdcode-erp.test',      full_name: 'Demo Designer',    role: 'design' },
-  { email: 'sd@thirdcode-erp.test',          full_name: 'Demo SD / PM / PE', role: 'sd_pm_pe' },
-  { email: 'finance@thirdcode-erp.test',     full_name: 'Demo Finance',     role: 'finance' },
-  { email: 'procurement@thirdcode-erp.test', full_name: 'Demo Procurement', role: 'procurement' },
-  { email: 'safety@thirdcode-erp.test',      full_name: 'Demo Safety',      role: 'safety' },
-  { email: 'cx@thirdcode-erp.test',          full_name: 'Demo CX',          role: 'cx' },
-  { email: 'viewer@thirdcode-erp.test',      full_name: 'Demo Viewer',      role: 'viewer' },
+  { email: 'admin@abi-ops.test',       full_name: 'Demo Admin',       role: 'admin' },
+  { email: 'owner@abi-ops.test',       full_name: 'Demo Owner',       role: 'owner' },
+  { email: 'sales@abi-ops.test',       full_name: 'Demo Sales',       role: 'sales' },
+  { email: 'commercial@abi-ops.test',  full_name: 'Demo Commercial',  role: 'commercial' },
+  { email: 'design@abi-ops.test',      full_name: 'Demo Designer',    role: 'design' },
+  { email: 'sd@abi-ops.test',          full_name: 'Demo SD / PM / PE', role: 'sd_pm_pe' },
+  { email: 'finance@abi-ops.test',     full_name: 'Demo Finance',     role: 'finance' },
+  { email: 'procurement@abi-ops.test', full_name: 'Demo Procurement', role: 'procurement' },
+  { email: 'safety@abi-ops.test',      full_name: 'Demo Safety',      role: 'safety' },
+  { email: 'cx@abi-ops.test',          full_name: 'Demo CX',          role: 'cx' },
+  { email: 'viewer@abi-ops.test',      full_name: 'Demo Viewer',      role: 'viewer' },
 ]
 
 async function adminFetch(path, init = {}) {
@@ -143,17 +147,14 @@ async function createOrUpdateAuthUser(email, password, fullName) {
 }
 
 async function findOrPickTenant() {
-  // Prefer a tenant whose slug looks like a demo tenant.
+  const demoTenantSlug = getConfiguredDemoTenantSlug()
   const rows = await sql`
     SELECT id, name, slug, created_at
     FROM tenants
-    ORDER BY created_at ASC
-    LIMIT 5
+    WHERE slug = ${demoTenantSlug}
+    LIMIT 1
   `
-  if (rows.length === 0) {
-    throw new Error('No tenants exist — create one first (e.g. via the signup flow).')
-  }
-  return rows[0]
+  return selectDemoTenant(rows, demoTenantSlug)
 }
 
 async function upsertPublicUser(authUserId, tenantId, email, fullName, role) {
@@ -202,7 +203,7 @@ try {
     console.log(`| ${r.role.padEnd(13)} | ${r.email.padEnd(27)} | ${r.status.padEnd(7)} |`)
   }
   console.log()
-  console.log('Login URL: https://thirdcode-erp.vercel.app/auth/login')
+  console.log('Login URL: set NEXT_PUBLIC_SITE_URL and append /auth/login')
   console.log('Password source: DEMO_SHARED_PASSWORD (not printed)')
 } catch (err) {
   console.error('[seed] FATAL:', err.message)

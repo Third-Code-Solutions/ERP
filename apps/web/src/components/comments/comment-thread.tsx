@@ -19,24 +19,16 @@ interface CommentThreadProps {
   comments: CommentThreadItem[]
 }
 
-function formatRelativeTime(value: Date | string): string {
+function formatCommentTimestamp(value: Date | string): string {
   const date = value instanceof Date ? value : new Date(value)
-  const diffMs = Date.now() - date.getTime()
-  const diffSec = Math.round(diffMs / 1000)
-  if (diffSec < 60) return 'just now'
-  const diffMin = Math.round(diffSec / 60)
-  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`
-  const diffHr = Math.round(diffMin / 60)
-  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`
-  const diffDay = Math.round(diffHr / 24)
-  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`
-  return date.toLocaleString('en-PH', {
+  return new Intl.DateTimeFormat('en-PH', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  })
+    timeZone: 'Asia/Manila',
+  }).format(date)
 }
 
 function authorInitial(name: string): string {
@@ -147,14 +139,10 @@ function CommentRow({
                 </span>
               ) : null}
               <span
-                title={
-                  comment.createdAt instanceof Date
-                    ? comment.createdAt.toLocaleString()
-                    : new Date(comment.createdAt).toLocaleString()
-                }
+                title={formatCommentTimestamp(comment.createdAt)}
                 style={{ fontSize: '0.75rem', color: 'var(--color-neutral-400)' }}
               >
-                · {formatRelativeTime(comment.createdAt)}
+                · {formatCommentTimestamp(comment.createdAt)}
               </span>
             </div>
             {canDelete ? (

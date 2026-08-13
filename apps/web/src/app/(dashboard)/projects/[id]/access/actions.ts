@@ -174,7 +174,12 @@ export async function revokeCustomerPortalAccess(
   await db
     .update(customerPortalSessions)
     .set({ revoked_at: now })
-    .where(eq(customerPortalSessions.id, sessionId))
+    .where(
+      and(
+        eq(customerPortalSessions.id, sessionId),
+        eq(customerPortalSessions.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,

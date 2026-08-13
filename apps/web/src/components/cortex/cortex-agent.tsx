@@ -68,7 +68,7 @@ function relativeTime(iso: string): string {
 }
 
 /**
- * Third Code ERP Cortex — graph-grounded chat with persistent memory. Every
+ * ABI OPS Cortex — graph-grounded chat with persistent memory. Every
  * turn is stored in the user's DB (cortex_conversations / cortex_messages);
  * past threads load from the history panel so the brain remembers.
  */
@@ -287,7 +287,7 @@ export function CortexAgent({
   )
 
   return (
-    <section className="cortex-agent" aria-label="Third Code ERP Cortex">
+    <section className="cortex-agent" aria-label="ABI OPS Cortex">
       <div className="cortex-agent__head">
         <span className="cortex-agent__spark" aria-hidden>✦</span>
         <div className="cortex-agent__headtext">

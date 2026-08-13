@@ -8,6 +8,7 @@ import {
   getConversionRates,
   getMonthlyForecast,
   getMyWorkSummary,
+  getManagementDashboard,
 } from '@/lib/dashboard-queries'
 import { KpiCards } from '@/components/dashboard/kpi-cards'
 import { RepScorecardTable } from '@/components/dashboard/rep-scorecard'
@@ -19,6 +20,7 @@ import { ForecastChart } from '@/components/dashboard/forecast-chart'
 import { ExportCsvButton } from '@/components/dashboard/export-csv-button'
 import { CloseDateFilter } from '@/components/dashboard/close-date-filter'
 import { RoleWorkDashboard } from '@/components/dashboard/role-work-dashboard'
+import { ManagementHealth } from '@/components/dashboard/management-health'
 import { loadDashboardForRole } from '@/lib/dashboard-access'
 import { roleLabel } from '@/lib/operations/nav-config'
 
@@ -62,7 +64,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const dashboard = await loadDashboardForRole(profile.role, {
     executive: async () => {
-      const [kpis, stages, reps, alerts, conversionRates, forecast] =
+      const [kpis, stages, reps, alerts, conversionRates, forecast, managementHealth] =
         await Promise.all([
           getDashboardKpis(profile.tenantId),
           getStageDistribution(profile.tenantId),
@@ -70,9 +72,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           getAlerts(profile.tenantId),
           getConversionRates(profile.tenantId),
           getMonthlyForecast(profile.tenantId, 6),
+          getManagementDashboard(profile.tenantId),
         ])
 
-      return { kpis, stages, reps, alerts, conversionRates, forecast }
+      return { kpis, stages, reps, alerts, conversionRates, forecast, managementHealth }
     },
     myWork: () =>
       getMyWorkSummary(profile.tenantId, profile.user.id, renderedAt),
@@ -114,7 +117,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     )
   }
 
-  const { kpis, stages, reps, alerts, conversionRates, forecast } =
+  const { kpis, stages, reps, alerts, conversionRates, forecast, managementHealth } =
     dashboard.data
 
   return (
@@ -146,6 +149,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </div>
 
       <KpiCards kpis={kpis} />
+
+      <ManagementHealth data={managementHealth} />
 
       <div className="section-grid-2">
         <StageDistributionTable rows={stages} />

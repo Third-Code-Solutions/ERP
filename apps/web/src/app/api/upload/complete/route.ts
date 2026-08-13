@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { can, getUser } from '@third-code-erp/auth'
+import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { documents, users } from '@third-code-erp/database/schema'
+import { documents } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { inngest } from '@/lib/inngest'
 import { parseAndStoreCad } from '@/lib/cad/parse-and-store'
 import { getProject } from '@/lib/project-queries'
 import { writeAuditLogInTransaction } from '@/lib/audit'
+import { safeActionError } from '@/lib/safe-action-error'
 import {
   extractScopeFromVisual,
   type VisualExtractResult,
@@ -64,18 +65,13 @@ function classify(
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const profile = await getUserProfile()
+  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id, role: users.role })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  if (!userRow?.tenant_id) {
+  if (!profile.tenantId) {
     return NextResponse.json({ error: 'No tenant associated with account' }, { status: 403 })
   }
-  if (!can(userRow.role, 'document.manage')) {
+  if (!can(profile.role, 'document.manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -96,12 +92,12 @@ export async function POST(req: NextRequest) {
 
   const { storagePath, projectId, fileName, mimeType, sizeBytes, description } = parsed.data
 
-  const project = await getProject(userRow.tenant_id, projectId)
+  const project = await getProject(profile.tenantId, projectId)
   if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 })
   }
 
-  const expectedPrefix = `${userRow.tenant_id}/${projectId}/`
+  const expectedPrefix = `${profile.tenantId}/${projectId}/`
   if (!storagePath.startsWith(expectedPrefix)) {
     return NextResponse.json({ error: 'Storage path not in tenant scope' }, { status: 403 })
   }
@@ -118,9 +114,9 @@ export async function POST(req: NextRequest) {
       const [doc] = await tx
         .insert(documents)
         .values({
-          tenant_id: userRow.tenant_id,
+          tenant_id: profile.tenantId,
           project_id: projectId,
-          uploaded_by: user.id,
+          uploaded_by: profile.user.id,
           document_type: docType,
           file_name: fileName,
           storage_path: storagePath,
@@ -135,8 +131,8 @@ export async function POST(req: NextRequest) {
       }
 
       await writeAuditLogInTransaction(tx, {
-        tenantId: userRow.tenant_id,
-        actorId: user.id,
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
         entityType: 'document',
         entityId: doc.id,
         action: 'create',
@@ -199,7 +195,7 @@ export async function POST(req: NextRequest) {
   if (cadFormat) {
     try {
       const result = await parseAndStoreCad({
-        tenantId: userRow.tenant_id,
+        tenantId: profile.tenantId,
         projectId,
         documentId: docId,
         storagePath,
@@ -235,7 +231,7 @@ export async function POST(req: NextRequest) {
             data: {
               documentId: docId,
               projectId,
-              tenantId: userRow.tenant_id,
+              tenantId: profile.tenantId,
               storagePath,
               format: 'dwg',
               fileName,
@@ -248,14 +244,13 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
       console.error('[upload/complete] inline CAD parse failed:', err)
-      cadParseWarning = `CAD parse failed: ${message}`
+      cadParseWarning = `CAD parse failed: ${safeActionError(err, 'The drawing could not be parsed.')}`
     }
   } else if (extractorKind) {
     try {
       const visual: VisualExtractResult = await extractScopeFromVisual({
-        tenantId: userRow.tenant_id,
+        tenantId: profile.tenantId,
         projectId,
         documentId: docId,
         storagePath,
@@ -283,9 +278,8 @@ export async function POST(req: NextRequest) {
         aiEstimateMatches: visual.bom?.aiEstimateMatches ?? 0,
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
       console.error('[upload/complete] visual extraction failed:', err)
-      cadParseWarning = `Vision extraction failed: ${message}`
+      cadParseWarning = `Vision extraction failed: ${safeActionError(err, 'The document could not be analyzed.')}`
     }
   }
 

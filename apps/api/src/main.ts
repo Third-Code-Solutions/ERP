@@ -30,7 +30,7 @@ async function bootstrap(): Promise<void> {
 
   const port = config.getOrThrow<number>('PORT')
   await app.listen(port, '0.0.0.0')
-  Logger.log(`Third Code ERP API listening on ${port}`, 'Bootstrap')
+  Logger.log(`ABI OPS API listening on ${port}`, 'Bootstrap')
 }
 
 void bootstrap()

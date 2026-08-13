@@ -122,7 +122,12 @@ export async function attachTurnoverDocument(
     await db
       .update(turnoverPackages)
       .set({ [column]: documentId } as Record<string, unknown>)
-      .where(eq(turnoverPackages.id, existing.id))
+      .where(
+        and(
+          eq(turnoverPackages.id, existing.id),
+          eq(turnoverPackages.tenant_id, profile.tenantId)
+        )
+      )
     await writeAuditLog({
       tenantId: profile.tenantId,
       actorId: profile.user.id,
@@ -176,7 +181,12 @@ export async function markTurnoverCompiled(
   await db
     .update(turnoverPackages)
     .set({ compiled_at: now })
-    .where(eq(turnoverPackages.id, existing.id))
+    .where(
+      and(
+        eq(turnoverPackages.id, existing.id),
+        eq(turnoverPackages.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,

@@ -1,7 +1,8 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import { and, eq, desc, sql } from 'drizzle-orm'
+import { and, eq, desc, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   requireUserProfile,
@@ -18,7 +19,6 @@ import {
   siteInspectionRfis,
   designFiles,
   designFileVersions,
-  changeRequests,
   opportunities,
   documents,
   accounts,
@@ -26,9 +26,13 @@ import {
   tenants,
   users,
 } from '@third-code-erp/database/schema'
-import { writeAuditLog } from '@/lib/audit'
+import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { startSlaClock } from '@/lib/operations/sla-clock'
 import { notifyRoles } from '@/lib/operations/notifications'
+import {
+  initializeOpportunityKycTracks,
+  opportunityKycDueAt,
+} from '@/lib/operations/opportunity-kyc'
 import { inngest } from '@/lib/inngest'
 import {
   buildInspectionReportHtml,
@@ -49,6 +53,29 @@ function guard(role: AppRole, capability: ErpCapability) {
   return null
 }
 
+function logProposalActionFailure(input: {
+  action: string
+  tenantId: string
+  actorId: string
+  error: unknown
+  opportunityId?: string
+  changeRequestId?: string
+}): void {
+  console.error(
+    JSON.stringify({
+      event: 'proposal_action_failed',
+      trace_id: randomUUID(),
+      tenant_id: input.tenantId,
+      actor_id: input.actorId,
+      action: input.action,
+      outcome: 'error',
+      opportunity_id: input.opportunityId,
+      change_request_id: input.changeRequestId,
+      error: input.error instanceof Error ? input.error.message : 'unknown',
+    }),
+  )
+}
+
 const DESIGN_FILE_TYPE_VALUES = [
   'initial_layout',
   'final_rendering',
@@ -60,6 +87,11 @@ const PRIORITY_VALUES = ['minor', 'major'] as const
 // Schemas live in ./schemas.ts so this 'use server' file only exports
 // async functions per Next.js constraint.
 import { pprfPayloadSchema, submitPprfSchema, type PprfPayload } from './schemas'
+import {
+  createChangeRequestRecord,
+  resolveChangeRequestRecord,
+  type ChangeRequestPriority,
+} from './change-request-workflow'
 // Re-export the type for downstream imports that still reference it here.
 export type { PprfPayload }
 
@@ -98,34 +130,64 @@ export async function submitPprf(formData: FormData): Promise<{ error?: string; 
   const opp = await assertOpportunity(profile.tenantId, opportunity_id)
   if (!opp) return { error: 'Opportunity not found' }
 
-  // Compute next version number. We don't trust a client-supplied value.
-  const [maxRow] = await db
-    .select({ max: sql<number>`COALESCE(MAX(${pprfSubmissions.version}), 0)` })
-    .from(pprfSubmissions)
-    .where(eq(pprfSubmissions.opportunity_id, opportunity_id))
-  const nextVersion = (maxRow?.max ?? 0) + 1
+  const dueAt = await opportunityKycDueAt(profile.tenantId)
+  const result = await db.transaction(async (tx) => {
+    // Serialize versioning and track reset for concurrent submissions of one
+    // opportunity. A later PPRF is a new review baseline, never a partial edit
+    // of an already-decided track.
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${'pprf:' + profile.tenantId + ':' + opportunity_id}, 0))`
+    )
 
-  const now = new Date()
-  const [inserted] = await db
-    .insert(pprfSubmissions)
-    .values({
-      tenant_id: profile.tenantId,
-      opportunity_id,
-      version: nextVersion,
-      payload,
-      submitted_at: now,
-      submitted_by: profile.user.id,
+    const [maxRow] = await tx
+      .select({ max: sql<number>`COALESCE(MAX(${pprfSubmissions.version}), 0)` })
+      .from(pprfSubmissions)
+      .where(
+        and(
+          eq(pprfSubmissions.opportunity_id, opportunity_id),
+          eq(pprfSubmissions.tenant_id, profile.tenantId),
+        ),
+      )
+    const nextVersion = (maxRow?.max ?? 0) + 1
+    const now = new Date()
+    const [inserted] = await tx
+      .insert(pprfSubmissions)
+      .values({
+        tenant_id: profile.tenantId,
+        opportunity_id,
+        version: nextVersion,
+        payload,
+        submitted_at: now,
+        submitted_by: profile.user.id,
+      })
+      .returning({ id: pprfSubmissions.id })
+
+    if (!inserted) throw new Error('Failed to persist PPRF submission')
+
+    await initializeOpportunityKycTracks(tx, {
+      tenantId: profile.tenantId,
+      opportunityId: opportunity_id,
+      dueAt,
     })
-    .returning({ id: pprfSubmissions.id })
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'pprf_submission',
-    entityId: inserted!.id,
-    action: 'create',
-    diff: { version: nextVersion, opportunity_id, payload },
+    await writeAuditLogInTransaction(tx, {
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      entityType: 'pprf_submission',
+      entityId: inserted.id,
+      action: 'create',
+      diff: {
+        version: nextVersion,
+        opportunity_id,
+        payload,
+        kyc_tracks_reset: true,
+        kyc_due_at: dueAt.toISOString(),
+      },
+    })
+
+    return { nextVersion }
   })
+  const nextVersion = result.nextVersion
 
   await startSlaClock({
     tenantId: profile.tenantId,
@@ -151,6 +213,10 @@ export async function submitPprf(formData: FormData): Promise<{ error?: string; 
 // US-007 — Submit a site inspection. Requires a PPRF to already exist.
 const inspectionPayloadSchema = z.object({
   site_address: z.string().min(2).max(500),
+  floor_area_sqm: z.string().max(64).optional().default(''),
+  landlord_contact: z.string().max(255).optional().default(''),
+  as_built_available: z.enum(['yes', 'partial', 'no']).optional().default('no'),
+  expected_start_date: z.string().max(64).optional().default(''),
   weather: z.string().max(255).optional().default(''),
   accessibility_notes: z.string().max(5000).optional().default(''),
   observations: z.string().max(20_000).optional().default(''),
@@ -162,9 +228,9 @@ const submitInspectionSchema = z.object({
 }).merge(inspectionPayloadSchema)
 
 // US-007 #5 — Render the inspection report to HTML, upload to Storage, and
-// (when the opportunity has a project_id) insert a documents row + link
-// pdf_document_id on the inspection. Errors here never roll back the
-// inspection submission — the caller catches and logs a warning.
+// insert a tenant-scoped documents row + link pdf_document_id on the
+// inspection. Pre-Won opportunities have no project yet, so opportunity_id
+// is the durable parent for the report until a project is created.
 //
 // Why this lives next to the action: it's tightly coupled to the
 // submitInspection flow and only ever called from there. Extracting to a
@@ -182,10 +248,16 @@ async function persistInspectionReport(args: {
   const [oppRow] = await db
     .select({ project_id: opportunities.project_id, account_id: opportunities.account_id })
     .from(opportunities)
-    .where(eq(opportunities.id, args.opportunityId))
+    .where(
+      and(
+        eq(opportunities.id, args.opportunityId),
+        eq(opportunities.tenant_id, args.tenantId),
+      ),
+    )
     .limit(1)
+  if (!oppRow) throw new Error('Opportunity not found while archiving inspection report')
 
-  const [projectRow] = oppRow?.project_id
+  const [projectRow] = oppRow.project_id
     ? await db
         .select({
           id: projects.id,
@@ -194,11 +266,11 @@ async function persistInspectionReport(args: {
           location: projects.location,
         })
         .from(projects)
-        .where(eq(projects.id, oppRow.project_id))
+        .where(and(eq(projects.id, oppRow.project_id), eq(projects.tenant_id, args.tenantId)))
         .limit(1)
     : [null]
 
-  const [accountRow] = oppRow?.account_id
+  const [accountRow] = oppRow.account_id
     ? await db
         .select({
           id: accounts.id,
@@ -206,7 +278,7 @@ async function persistInspectionReport(args: {
           billing_address: accounts.billing_address,
         })
         .from(accounts)
-        .where(eq(accounts.id, oppRow.account_id))
+        .where(and(eq(accounts.id, oppRow.account_id), eq(accounts.tenant_id, args.tenantId)))
         .limit(1)
     : [null]
 
@@ -223,7 +295,7 @@ async function persistInspectionReport(args: {
   const [inspectorRow] = await db
     .select({ full_name: users.full_name, email: users.email })
     .from(users)
-    .where(eq(users.id, args.actorId))
+    .where(and(eq(users.id, args.actorId), eq(users.tenant_id, args.tenantId)))
     .limit(1)
 
   // Photos archive — we only need (document_id, caption) for the builder.
@@ -263,7 +335,7 @@ async function persistInspectionReport(args: {
   // under the project the same way other docs are organised); fall back
   // to opportunity_id so the file still lands in a deterministic location
   // for pre-Won inspections.
-  const folderId = oppRow?.project_id ?? args.opportunityId
+  const folderId = oppRow.project_id ?? args.opportunityId
   const ts = Date.now()
   const storagePath = `${args.tenantId}/${folderId}/inspection-report-${ts}.html`
   const fileName = `inspection-report-${args.inspectionId.slice(0, 8)}-${ts}.html`
@@ -277,17 +349,12 @@ async function persistInspectionReport(args: {
     throw new Error(`storage upload: ${uploadErr.message}`)
   }
 
-  // documents.project_id is NOT NULL. If the opportunity has no project
-  // yet (pre-Won), we keep the file in Storage but skip the documents row
-  // and the pdf_document_id link. The /print and /api endpoints still
-  // render the report on demand from the DB row.
-  if (!oppRow?.project_id) return
-
   const [doc] = await db
     .insert(documents)
     .values({
       tenant_id: args.tenantId,
       project_id: oppRow.project_id,
+      opportunity_id: args.opportunityId,
       uploaded_by: args.actorId,
       document_type: 'other',
       file_name: fileName,
@@ -303,7 +370,12 @@ async function persistInspectionReport(args: {
   await db
     .update(siteInspections)
     .set({ pdf_document_id: doc.id, updated_at: new Date() })
-    .where(eq(siteInspections.id, args.inspectionId))
+    .where(
+      and(
+        eq(siteInspections.id, args.inspectionId),
+        eq(siteInspections.tenant_id, args.tenantId)
+      )
+    )
 }
 
 export async function submitInspection(formData: FormData): Promise<{ error?: string; id?: string }> {
@@ -314,6 +386,10 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
   const parsed = submitInspectionSchema.safeParse({
     opportunity_id: formData.get('opportunity_id'),
     site_address: formData.get('site_address'),
+    floor_area_sqm: formData.get('floor_area_sqm') || '',
+    landlord_contact: formData.get('landlord_contact') || '',
+    as_built_available: formData.get('as_built_available') || 'no',
+    expected_start_date: formData.get('expected_start_date') || '',
     weather: formData.get('weather') || '',
     accessibility_notes: formData.get('accessibility_notes') || '',
     observations: formData.get('observations') || '',
@@ -332,7 +408,12 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
   const [existingPprf] = await db
     .select({ id: pprfSubmissions.id })
     .from(pprfSubmissions)
-    .where(eq(pprfSubmissions.opportunity_id, opportunity_id))
+    .where(
+      and(
+        eq(pprfSubmissions.opportunity_id, opportunity_id),
+        eq(pprfSubmissions.tenant_id, profile.tenantId)
+      )
+    )
     .limit(1)
   if (!existingPprf) {
     return { error: 'PPRF must be submitted before logging a site inspection.' }
@@ -368,7 +449,17 @@ export async function submitInspection(formData: FormData): Promise<{ error?: st
     const docs = await db
       .select({ id: documents.id })
       .from(documents)
-      .where(and(eq(documents.tenant_id, profile.tenantId)))
+      .where(
+        and(
+          eq(documents.tenant_id, profile.tenantId),
+          opp.project_id
+            ? or(
+                eq(documents.opportunity_id, opportunity_id),
+                eq(documents.project_id, opp.project_id),
+              )
+            : eq(documents.opportunity_id, opportunity_id),
+        ),
+      )
     const allowed = new Set(docs.map((d) => d.id))
     const safePhotos = photoIds.filter((p) => allowed.has(p))
     if (safePhotos.length > 0) {
@@ -464,7 +555,8 @@ export async function addInspectionRfi(formData: FormData): Promise<{ error?: st
     .where(
       and(
         eq(siteInspections.id, input.inspection_id),
-        eq(siteInspections.tenant_id, profile.tenantId)
+        eq(siteInspections.tenant_id, profile.tenantId),
+        eq(siteInspections.opportunity_id, input.opportunity_id),
       )
     )
     .limit(1)
@@ -576,7 +668,12 @@ export async function uploadDesignFile(formData: FormData): Promise<{ error?: st
   const [maxRow] = await db
     .select({ max: sql<number>`COALESCE(MAX(${designFileVersions.version}), 0)` })
     .from(designFileVersions)
-    .where(eq(designFileVersions.design_file_id, designFileId))
+    .where(
+      and(
+        eq(designFileVersions.design_file_id, designFileId),
+        eq(designFileVersions.tenant_id, profile.tenantId)
+      )
+    )
   const nextVersion = (maxRow?.max ?? 0) + 1
 
   const [version] = await db
@@ -639,7 +736,12 @@ export async function markDesignReady(designFileId: string): Promise<{ error?: s
   await db
     .update(designFiles)
     .set({ is_ready_for_presentation: true, updated_at: new Date() })
-    .where(eq(designFiles.id, parsed.data.design_file_id))
+    .where(
+      and(
+        eq(designFiles.id, parsed.data.design_file_id),
+        eq(designFiles.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -690,7 +792,12 @@ export async function markDesignApproved(designFileId: string): Promise<{ error?
       client_approved_at: now,
       updated_at: now,
     })
-    .where(eq(designFiles.id, parsed.data.design_file_id))
+    .where(
+      and(
+        eq(designFiles.id, parsed.data.design_file_id),
+        eq(designFiles.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -706,13 +813,16 @@ export async function markDesignApproved(designFileId: string): Promise<{ error?
   return {}
 }
 
-// US-009 — Log a client change request.
+// US-009 — Log a client change request. The idempotency key is supplied by
+// the browser form so retries cannot create duplicate requests or duplicate
+// change-log entries.
 const logCrSchema = z.object({
   opportunity_id: z.string().uuid(),
-  requested_by_name: z.string().min(1).max(255),
-  description: z.string().min(2).max(5000),
+  requested_by_name: z.string().trim().min(1).max(255),
+  description: z.string().trim().min(2).max(5000),
   priority: z.enum(PRIORITY_VALUES).default('minor'),
   affected_design_file_id: z.string().uuid().optional(),
+  idempotency_key: z.string().trim().min(1).max(256),
 })
 
 export async function logChangeRequest(formData: FormData): Promise<{ error?: string }> {
@@ -730,6 +840,7 @@ export async function logChangeRequest(formData: FormData): Promise<{ error?: st
     description: formData.get('description'),
     priority: formData.get('priority') || 'minor',
     affected_design_file_id: typeof affected === 'string' && affected.length > 0 ? affected : undefined,
+    idempotency_key: formData.get('idempotency_key'),
   })
   if (!parsed.success) {
     const first = parsed.error.errors[0]
@@ -737,33 +848,42 @@ export async function logChangeRequest(formData: FormData): Promise<{ error?: st
   }
   const input = parsed.data
 
-  const opp = await assertOpportunity(profile.tenantId, input.opportunity_id)
-  if (!opp) return { error: 'Opportunity not found' }
-
-  const [created] = await db
-    .insert(changeRequests)
-    .values({
-      tenant_id: profile.tenantId,
-      opportunity_id: input.opportunity_id,
-      requested_by_name: input.requested_by_name,
-      description: input.description,
-      priority: input.priority,
-      affected_design_file_id: input.affected_design_file_id,
+  let result: {
+    error?: string
+    changeRequestId?: string
+    replayed?: boolean
+  }
+  try {
+    result = await db.transaction((tx) =>
+      createChangeRequestRecord(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        opportunityId: input.opportunity_id,
+        requestedByName: input.requested_by_name,
+        description: input.description,
+        priority: input.priority as ChangeRequestPriority,
+        affectedDesignFileId: input.affected_design_file_id ?? null,
+        idempotencyKey: input.idempotency_key,
+      }),
+    )
+  } catch (error: unknown) {
+    logProposalActionFailure({
+      action: 'change_request.create',
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      opportunityId: input.opportunity_id,
+      error,
     })
-    .returning({ id: changeRequests.id })
+    return { error: 'Change request could not be saved. Retry the submission.' }
+  }
 
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'change_request',
-    entityId: created!.id,
-    action: 'create',
-    diff: {
-      priority: input.priority,
-      description: input.description,
-      affected_design_file_id: input.affected_design_file_id ?? null,
-    },
-  })
+  if (result.error) return { error: result.error }
+  if (!result.changeRequestId) return { error: 'Change request could not be saved.' }
+
+  if (result.replayed) {
+    revalidatePath(`/crm/opportunities/${input.opportunity_id}/proposal/change-requests`)
+    return {}
+  }
 
   await notifyRoles({
     tenantId: profile.tenantId,
@@ -775,6 +895,63 @@ export async function logChangeRequest(formData: FormData): Promise<{ error?: st
 
   revalidatePath(`/crm/opportunities/${input.opportunity_id}/proposal/change-requests`)
   revalidatePath(`/crm/opportunities/${input.opportunity_id}/proposal`)
+  return {}
+}
+
+// US-009 — Design resolves a request. Resolution is append-only in the
+// domain log; the summary row is updated only to make open-count queries fast.
+const resolveCrSchema = z.object({
+  change_request_id: z.string().uuid(),
+  resolution_note: z.string().trim().max(2000).optional().default(''),
+})
+
+export async function resolveChangeRequest(formData: FormData): Promise<{ error?: string }> {
+  const profile = await requireUserProfile()
+  const forbid = guard(profile.role, 'design.upload')
+  if (forbid) return { error: forbid }
+
+  const parsed = resolveCrSchema.safeParse({
+    change_request_id: formData.get('change_request_id'),
+    resolution_note: formData.get('resolution_note') || '',
+  })
+  if (!parsed.success) return { error: 'Invalid change request resolution.' }
+
+  const input = parsed.data
+  let result: { error?: string; opportunityId?: string; alreadyResolved?: boolean }
+  try {
+    result = await db.transaction((tx) =>
+      resolveChangeRequestRecord(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        changeRequestId: input.change_request_id,
+        resolutionNote: input.resolution_note,
+      }),
+    )
+  } catch (error: unknown) {
+    logProposalActionFailure({
+      action: 'change_request.resolve',
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      changeRequestId: input.change_request_id,
+      error,
+    })
+    return { error: 'Change request could not be resolved. Retry the action.' }
+  }
+
+  if (result.error) return { error: result.error }
+  if (!result.opportunityId) return { error: 'Change request could not be resolved.' }
+  if (!result.alreadyResolved) {
+    await notifyRoles({
+      tenantId: profile.tenantId,
+      recipientRoles: ['sales'],
+      subject: 'Change request resolved',
+      body: 'A design change request has been resolved and is ready for review.',
+      linkUrl: `/crm/opportunities/${result.opportunityId}/proposal/change-requests`,
+    })
+  }
+
+  revalidatePath(`/crm/opportunities/${result.opportunityId}/proposal/change-requests`)
+  revalidatePath(`/crm/opportunities/${result.opportunityId}/proposal`)
   return {}
 }
 
@@ -799,7 +976,12 @@ export async function approveWithoutChanges(designFileId: string): Promise<{ err
       client_approved_at: now,
       updated_at: now,
     })
-    .where(eq(designFiles.id, parsed.data.design_file_id))
+    .where(
+      and(
+        eq(designFiles.id, parsed.data.design_file_id),
+        eq(designFiles.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,

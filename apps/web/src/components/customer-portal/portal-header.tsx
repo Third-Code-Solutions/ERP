@@ -1,8 +1,8 @@
 /**
  * Customer-portal project header.
  *
- * Sits at the top of every /portal/project/[token]/* page. Shows the Third Code
- * ERP mark, the project name, the project status pill, and (right side)
+ * Sits at the top of every /portal/project/[token]/* page. Shows the ABI OPS
+ * mark, the project name, the project status pill, and (right side)
  * the viewer email + a friendly "forget this link" hint. No real auth —
  * the hint is purely visual; the actual revocation is admin-side.
  */
@@ -85,7 +85,7 @@ export function PortalHeader({
               boxShadow: 'inset 0 -2px 0 #E07B2A',
             }}
           >
-            TC
+            A
           </div>
           <div>
             <p
@@ -98,7 +98,7 @@ export function PortalHeader({
                 fontWeight: 600,
               }}
             >
-              Third Code ERP · Live project
+              ABI OPS · Live project
             </p>
             <h1
               style={{

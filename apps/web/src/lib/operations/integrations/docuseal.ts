@@ -1,10 +1,10 @@
 /**
  * DocuSeal client (REFACTOR.md §7.2).
  *
- * Self-hosted DocuSeal instance is expected at DOCUSEAL_API_URL with token
- * DOCUSEAL_API_TOKEN. When either is missing this module emits a typed
- * "dev-mode" submission so the rest of the system can wire up signing
- * flows end-to-end before the live integration lands.
+ * Self-hosted DocuSeal instance is optional. When configured, this module
+ * creates DocuSeal submissions. The unified signing wrapper uses the
+ * production-ready in-app canvas mechanism when DocuSeal is not configured.
+ * The direct DocuSeal helper retains a typed dev stub for legacy callers.
  *
  * Live verification: set DOCUSEAL_API_URL + DOCUSEAL_API_TOKEN, restart,
  * call createSubmission() — a real DocuSeal submission_id comes back.
@@ -36,13 +36,28 @@ interface SubmissionResult {
   is_dev_stub: boolean
 }
 
-const isDev = () =>
-  !process.env.DOCUSEAL_API_URL || !process.env.DOCUSEAL_API_TOKEN
+/** Legacy marker used by pre-canvas development portal links. */
+export function isDevelopmentStubSubmissionId(
+  submissionId: string | null | undefined,
+): boolean {
+  return submissionId?.startsWith('dev-sub-') ?? false
+}
+
+const hasDocuSealConfig = () =>
+  Boolean(process.env.DOCUSEAL_API_URL) &&
+  Boolean(process.env.DOCUSEAL_API_TOKEN)
+
+const canUseDevelopmentStub = () => process.env.NODE_ENV !== 'production'
 
 export async function createDocuSealSubmission(
   input: CreateSubmissionInput
 ): Promise<SubmissionResult> {
-  if (isDev()) {
+  if (!hasDocuSealConfig()) {
+    if (!canUseDevelopmentStub()) {
+      throw new Error(
+        'DocuSeal integration is not configured for production. Use in-app canvas signing or configure DOCUSEAL_API_URL and DOCUSEAL_API_TOKEN.'
+      )
+    }
     // Deterministic-ish ids in dev so screenshots/logs are readable.
     const seed = Math.random().toString(36).slice(2, 10)
     return {
@@ -159,7 +174,9 @@ export async function createSigningSession(
   return {
     url: session.url,
     token: session.token,
-    is_dev_stub: isDev(),
+    // Canvas signing persists a real one-shot signature session and is not a
+    // DocuSeal fallback stub.
+    is_dev_stub: false,
     mechanism: 'canvas',
   }
 }

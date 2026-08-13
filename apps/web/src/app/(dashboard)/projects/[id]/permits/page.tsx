@@ -1,12 +1,13 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { permits, projects } from '@third-code-erp/database/schema'
+import { mobilizationReadiness, permits, projects, users } from '@third-code-erp/database/schema'
 import { CreatePermitForm } from '@/components/permits/create-permit-form'
 import { UpdatePermitStatus } from '@/components/permits/update-permit-status'
+import { MobilizationReadinessPanel } from './mobilization-readiness-panel'
 
 export const metadata: Metadata = { title: 'Permits' }
 
@@ -26,6 +27,11 @@ const TYPE_LABEL: Record<string, string> = {
   building_admin_vetting: 'Building Admin Vetting',
   lgu_building_permit: 'LGU Building Permit',
   dole_permit: 'DOLE Permit',
+  occupancy_permit: 'Occupancy Permit',
+  cari: 'CARI',
+  performance_bond: 'Performance Bond',
+  surety_bond: 'Surety Bond',
+  construction_bond: 'Construction Bond',
 }
 
 type PermitStatus =
@@ -35,6 +41,9 @@ type PermitStatus =
   | 'under_review'
   | 'approved'
   | 'rejected'
+  | 'released'
+  | 'refunded'
+  | 'cancelled'
 
 const STATUS_LABEL: Record<PermitStatus, string> = {
   not_started: 'Not started',
@@ -43,6 +52,9 @@ const STATUS_LABEL: Record<PermitStatus, string> = {
   under_review: 'Under review',
   approved: 'Approved',
   rejected: 'Rejected',
+  released: 'Released',
+  refunded: 'Refunded',
+  cancelled: 'Cancelled',
 }
 
 export default async function ProjectPermitsPage({
@@ -67,13 +79,46 @@ export default async function ProjectPermitsPage({
       status: permits.status,
       submitted_at: permits.submitted_at,
       expected_approval_at: permits.expected_approval_at,
+      expected_return_at: permits.expected_return_at,
       approved_at: permits.approved_at,
+      max_duration_days: permits.max_duration_days,
+      escalation_at: permits.escalation_at,
+      escalated_at: permits.escalated_at,
+      responsible_name: users.full_name,
       last_status_change_at: permits.last_status_change_at,
       notes: permits.notes,
     })
     .from(permits)
+    .leftJoin(users, and(eq(users.id, permits.responsible_user_id), eq(users.tenant_id, profile.tenantId)))
     .where(and(eq(permits.project_id, id), eq(permits.tenant_id, profile.tenantId)))
     .orderBy(desc(permits.last_status_change_at))
+
+  const workspaceUsers = await db
+    .select({ id: users.id, fullName: users.full_name, role: users.role })
+    .from(users)
+    .where(eq(users.tenant_id, profile.tenantId))
+    .orderBy(asc(users.full_name))
+
+  const [readiness] = await db
+    .select({
+      commentedFcdReceivedAt: mobilizationReadiness.commented_fcd_received_at,
+      poCopiesReceivedAt: mobilizationReadiness.po_copies_received_at,
+      cariReceivedAt: mobilizationReadiness.cari_received_at,
+      ntpReceivedAt: mobilizationReadiness.ntp_received_at,
+      startedAt: mobilizationReadiness.started_at,
+      overrideReason: mobilizationReadiness.override_reason,
+    })
+    .from(mobilizationReadiness)
+    .where(and(eq(mobilizationReadiness.project_id, id), eq(mobilizationReadiness.tenant_id, profile.tenantId)))
+    .limit(1)
+
+  const riskForPermit = (permitType: string): number | null => {
+    const permit = rows.find((row) => row.permit_type === permitType)
+    if (!permit) return null
+    const expected = permit.expected_return_at ?? permit.expected_approval_at
+    if (!expected) return null
+    return Math.max(0, Math.ceil((Date.now() - new Date(expected).getTime()) / 86_400_000))
+  }
 
   const baseHref = `/projects/${id}`
 
@@ -134,12 +179,34 @@ export default async function ProjectPermitsPage({
             Permits
           </h2>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.875rem', color: 'var(--color-neutral-500)' }}>
-            Building Admin Vetting, LGU Building Permit, and DOLE permits for this project.
+            External permits, bonds, insurance, and return dates for this project.
           </p>
         </div>
       </div>
 
-      <CreatePermitForm projectId={id} />
+      <MobilizationReadinessPanel
+        projectId={id}
+        readiness={
+          readiness
+            ? {
+                commentedFcdReceivedAt: readiness.commentedFcdReceivedAt?.toISOString() ?? null,
+                poCopiesReceivedAt: readiness.poCopiesReceivedAt?.toISOString() ?? null,
+                cariReceivedAt: readiness.cariReceivedAt?.toISOString() ?? null,
+                ntpReceivedAt: readiness.ntpReceivedAt?.toISOString() ?? null,
+                startedAt: readiness.startedAt?.toISOString() ?? null,
+                overrideReason: readiness.overrideReason,
+              }
+            : null
+        }
+        riskByInput={{
+          commented_fcd_received_at: null,
+          po_copies_received_at: null,
+          cari_received_at: riskForPermit('cari'),
+          ntp_received_at: riskForPermit('building_admin_vetting'),
+        }}
+      />
+
+      <CreatePermitForm projectId={id} users={workspaceUsers} />
 
       <div
         style={{
@@ -161,13 +228,16 @@ export default async function ProjectPermitsPage({
             No permits filed for this project yet.
           </div>
         ) : (
-          <table className="data-table" style={{ width: '100%' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table className="data-table" style={{ minWidth: '900px', width: '100%' }}>
             <thead>
               <tr>
                 <th>Type</th>
                 <th>Status</th>
+                <th>Responsible</th>
                 <th>Submitted</th>
-                <th>Expected</th>
+                <th>Expected return</th>
+                <th>Days at risk</th>
                 <th>Last update</th>
                 <th>Notes</th>
               </tr>
@@ -177,7 +247,11 @@ export default async function ProjectPermitsPage({
                 const daysSinceUpdate = Math.floor(
                   (Date.now() - new Date(p.last_status_change_at).getTime()) / 86_400_000
                 )
-                const isStale = daysSinceUpdate > 7 && !['approved', 'rejected'].includes(p.status)
+                const isStale = daysSinceUpdate > 7 && !['approved', 'rejected', 'released', 'refunded', 'cancelled'].includes(p.status)
+                const expectedReturn = p.expected_return_at ?? p.expected_approval_at
+                const daysAtRisk = expectedReturn
+                  ? Math.max(0, Math.ceil((Date.now() - new Date(expectedReturn).getTime()) / 86_400_000))
+                  : null
                 return (
                   <tr key={p.id}>
                     <td style={{ fontWeight: 500 }}>{TYPE_LABEL[p.permit_type] ?? p.permit_type}</td>
@@ -185,9 +259,11 @@ export default async function ProjectPermitsPage({
                       <UpdatePermitStatus
                         permitId={p.id}
                         currentStatus={p.status as PermitStatus}
+                        isLate={daysAtRisk !== null && daysAtRisk > 0}
                       />
                       <span className="sr-only">{STATUS_LABEL[p.status as PermitStatus] ?? p.status}</span>
                     </td>
+                    <td className="muted">{p.responsible_name ?? 'Unassigned'}</td>
                     <td className="muted">
                       {p.submitted_at
                         ? new Date(p.submitted_at).toLocaleDateString('en-PH', {
@@ -198,13 +274,22 @@ export default async function ProjectPermitsPage({
                         : '—'}
                     </td>
                     <td className="muted">
-                      {p.expected_approval_at
-                        ? new Date(p.expected_approval_at).toLocaleDateString('en-PH', {
+                      {expectedReturn
+                        ? new Date(expectedReturn).toLocaleDateString('en-PH', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
                           })
                         : '—'}
+                    </td>
+                    <td
+                      style={{
+                        color: daysAtRisk !== null && daysAtRisk > 0 ? 'var(--color-danger, #ef4444)' : 'var(--color-neutral-500)',
+                        fontWeight: daysAtRisk !== null && daysAtRisk > 0 ? 600 : 400,
+                      }}
+                    >
+                      {daysAtRisk === null ? 'No forecast' : daysAtRisk > 0 ? `${daysAtRisk}d overdue` : '0d'}
+                      {p.escalated_at ? ' · escalated' : ''}
                     </td>
                     <td
                       style={
@@ -223,6 +308,7 @@ export default async function ProjectPermitsPage({
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

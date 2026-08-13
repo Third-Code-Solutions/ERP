@@ -129,7 +129,7 @@ done
 if /opt/third-code-erp-ci/redis-7.4.9/bin/redis-cli \
   -h 127.0.0.1 -p 6379 ping >/dev/null 2>&1; then
   /opt/third-code-erp-ci/redis-7.4.9/bin/redis-cli \
-    -h 127.0.0.1 -p 6379 shutdown nosave
+    -h 127.0.0.1 -p 6379 shutdown nosave >/dev/null 2>&1 || true
 fi
 /opt/third-code-erp-ci/redis-7.4.9/bin/redis-server \
   --bind 127.0.0.1 \
@@ -280,6 +280,18 @@ try {
     'scripts/plan-database-release.mjs',
     '--require-current'
   )
+  Invoke-Checked -Command 'node' -ArgumentList @(
+    'scripts/verify-wo-04-database.mjs'
+  )
+  Invoke-Checked -Command 'node' -ArgumentList @(
+    'scripts/verify-wo-05-database.mjs'
+  )
+  Invoke-Checked -Command 'node' -ArgumentList @(
+    'scripts/verify-wo-06-database.mjs'
+  )
+  Invoke-Checked -Command 'node' -ArgumentList @(
+    'scripts/verify-wo-06-database-behavior.mjs'
+  )
 
   $testReport = Join-Path $artifactRoot 'vitest.json'
   Invoke-Checked -Command 'pnpm' -ArgumentList @(
@@ -299,6 +311,15 @@ try {
     '--filter',
     '@third-code-erp/api',
     'test:integration'
+  )
+  Invoke-Checked -Command 'pnpm' -ArgumentList @(
+    '--filter',
+    '@third-code-erp/web',
+    'exec',
+    'vitest',
+    'run',
+    'src/app/(dashboard)/crm/opportunities/[id]/proposal/change-request-workflow.integration.test.ts',
+    '--reporter=dot'
   )
 } finally {
   Pop-Location

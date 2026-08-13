@@ -15,9 +15,15 @@ def make_dxf_bytes(**kwargs) -> bytes:
     msp = doc.modelspace()
     for fn, args in kwargs.items():
         fn(msp, doc, *args)
-    buf = io.BytesIO()
+    buf = io.StringIO()
     doc.write(buf)
-    return buf.getvalue()
+    return buf.getvalue().encode('utf-8')
+
+
+def serialize_dxf(doc: ezdxf.document.Drawing) -> bytes:
+    buf = io.StringIO()
+    doc.write(buf)
+    return buf.getvalue().encode('utf-8')
 
 
 def add_block_insert(msp, doc, block_name: str, layer: str = "HVAC"):
@@ -36,17 +42,14 @@ def add_text(msp, doc, text: str, layer: str = "ANNOT"):
 
 class TestBlockExtraction:
     def test_fcu_block_counted(self):
-        buf = io.BytesIO()
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
         if "FCU-A" not in doc.blocks:
             doc.blocks.new("FCU-A")
         msp.add_blockref("FCU-A", insert=(0, 0), dxfattribs={"layer": "HVAC-EQ"})
         msp.add_blockref("FCU-A", insert=(5, 0), dxfattribs={"layer": "HVAC-EQ"})
-        doc.write(buf)
-
         extractor = Extractor()
-        items = extractor.extract(buf.getvalue())
+        items = extractor.extract(serialize_dxf(doc))
 
         fcu_items = [i for i in items if "Fan Coil" in i.description]
         assert len(fcu_items) == 1
@@ -54,89 +57,73 @@ class TestBlockExtraction:
         assert fcu_items[0].unit == "unit"
 
     def test_breaker_block_counted(self):
-        buf = io.BytesIO()
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
         if "MCB-20A" not in doc.blocks:
             doc.blocks.new("MCB-20A")
         msp.add_blockref("MCB-20A", insert=(0, 0), dxfattribs={"layer": "ELEC-PANEL"})
-        doc.write(buf)
-
         extractor = Extractor()
-        items = extractor.extract(buf.getvalue())
+        items = extractor.extract(serialize_dxf(doc))
 
         breaker_items = [i for i in items if "Breaker" in i.description]
         assert len(breaker_items) == 1
         assert breaker_items[0].quantity == 1
 
     def test_unknown_block_ignored(self):
-        buf = io.BytesIO()
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
         if "CUSTOM-WIDGET" not in doc.blocks:
             doc.blocks.new("CUSTOM-WIDGET")
         msp.add_blockref("CUSTOM-WIDGET", insert=(0, 0))
-        doc.write(buf)
-
         extractor = Extractor()
-        items = extractor.extract(buf.getvalue())
-        assert items == []
+        items = extractor.extract(serialize_dxf(doc))
+        assert len(items) == 1
+        assert items[0].description == "Custom Widget"
+        assert items[0].quantity == 1
 
 
 class TestPolylineAreas:
     def test_room_area_extracted(self):
-        buf = io.BytesIO()
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
         # 10m × 8m rectangle = 80 sqm
         pts = [(0, 0), (10, 0), (10, 8), (0, 8)]
         msp.add_lwpolyline(pts, close=True, dxfattribs={"layer": "ARCH-ROOM"})
-        doc.write(buf)
-
         extractor = Extractor()
-        items = extractor.extract(buf.getvalue())
+        items = extractor.extract(serialize_dxf(doc))
 
         area_items = [i for i in items if i.unit == "sqm"]
         assert len(area_items) == 1
         assert area_items[0].quantity == 80
 
     def test_tiny_polyline_skipped(self):
-        buf = io.BytesIO()
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
         # 0.5m × 0.5m — below 1 sqm threshold
         pts = [(0, 0), (0.5, 0), (0.5, 0.5), (0, 0.5)]
         msp.add_lwpolyline(pts, close=True)
-        doc.write(buf)
-
         extractor = Extractor()
-        items = extractor.extract(buf.getvalue())
+        items = extractor.extract(serialize_dxf(doc))
         area_items = [i for i in items if i.unit == "sqm"]
         assert area_items == []
 
 
 class TestTextAnnotations:
     def test_room_label_extracted(self):
-        buf = io.BytesIO()
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
         msp.add_text("OFFICE 1A", dxfattribs={"layer": "ANNOT"})
-        doc.write(buf)
-
         extractor = Extractor()
-        items = extractor.extract(buf.getvalue())
+        items = extractor.extract(serialize_dxf(doc))
         annots = [i for i in items if "OFFICE 1A" in i.description]
         assert len(annots) == 1
 
     def test_numeric_strings_ignored(self):
-        buf = io.BytesIO()
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
         msp.add_text("3450.00", dxfattribs={"layer": "DIM"})
-        doc.write(buf)
-
         extractor = Extractor()
-        items = extractor.extract(buf.getvalue())
+        items = extractor.extract(serialize_dxf(doc))
         dim_annots = [i for i in items if "3450" in i.description]
         assert dim_annots == []
 

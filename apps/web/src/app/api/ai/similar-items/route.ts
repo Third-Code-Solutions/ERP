@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUser } from '@third-code-erp/auth'
+import { z } from 'zod'
+import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { users } from '@third-code-erp/database/schema'
-import { eq } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { embedText, serializeEmbedding } from '@third-code-erp/ai'
 import { writeAuditLog } from '@/lib/audit'
@@ -22,19 +21,25 @@ interface SimilarRow extends Record<string, unknown> {
 
 const MIN_SCORE = 0.75
 const TOP_K = 5
+const SimilarItemsRequestSchema = z.object({
+  description: z.string().trim().min(1).max(2000),
+})
 
 export async function POST(req: NextRequest) {
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const profile = await getUserProfile()
+  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return NextResponse.json({ error: 'No tenant' }, { status: 403 })
-
-  const { description } = (await req.json()) as { description?: string }
-  if (!description?.trim()) return NextResponse.json({ items: [] })
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+  const parsed = SimilarItemsRequestSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+  }
+  const { description } = parsed.data
 
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ items: [], reason: 'AI not configured' })
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest) {
       chunk_text,
       1 - (embedding <=> ${queryLiteral}::vector) AS score
     FROM embeddings
-    WHERE tenant_id = ${userRow.tenant_id}
+    WHERE tenant_id = ${profile.tenantId}
       AND entity_type = 'bom_line_item'
       AND embedding IS NOT NULL
     ORDER BY embedding <=> ${queryLiteral}::vector
@@ -66,10 +71,10 @@ export async function POST(req: NextRequest) {
   // a logging hiccup must never fail the user's actual query.
   try {
     await writeAuditLog({
-      tenantId: userRow.tenant_id,
-      actorId: user.id,
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
       entityType: 'ai_similar_items',
-      entityId: user.id, // no canonical entity for this query; use actor as anchor
+      entityId: profile.user.id, // no canonical entity for this query; use actor as anchor
       action: 'query',
       diff: {
         query: description.slice(0, 500),

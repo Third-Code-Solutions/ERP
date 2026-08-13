@@ -1,0 +1,22 @@
+[
+  { "date": "2026-01-01", "name": "New Year's Day", "kind": "regular", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-02-17", "name": "Chinese New Year", "kind": "special_non_working", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-03-20", "name": "Eid'l Fitr", "kind": "regular", "source": "Proclamation No. 1189, s. 2026" },
+  { "date": "2026-04-02", "name": "Maundy Thursday", "kind": "regular", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-04-03", "name": "Good Friday", "kind": "regular", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-04-04", "name": "Black Saturday", "kind": "special_non_working", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-04-09", "name": "Araw ng Kagitingan", "kind": "regular", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-05-01", "name": "Labor Day", "kind": "regular", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-05-27", "name": "Eid'l Adha", "kind": "regular", "source": "Proclamation No. 1264, s. 2026" },
+  { "date": "2026-06-12", "name": "Independence Day", "kind": "regular", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-08-21", "name": "Ninoy Aquino Day", "kind": "special_non_working", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-08-31", "name": "National Heroes Day", "kind": "regular", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-11-01", "name": "All Saints' Day", "kind": "special_non_working", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-11-02", "name": "All Souls' Day", "kind": "special_non_working", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-11-30", "name": "Bonifacio Day", "kind": "regular", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-12-08", "name": "Feast of the Immaculate Conception of Mary", "kind": "special_non_working", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-12-24", "name": "Christmas Eve", "kind": "special_non_working", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-12-25", "name": "Christmas Day", "kind": "regular", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-12-30", "name": "Rizal Day", "kind": "regular", "source": "Proclamation No. 1006, s. 2025" },
+  { "date": "2026-12-31", "name": "Last Day of the Year", "kind": "special_non_working", "source": "Proclamation No. 1006, s. 2025" }
+]

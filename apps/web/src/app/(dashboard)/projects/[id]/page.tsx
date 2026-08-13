@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { boms, invoices, opportunities, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
+import { boms, invoices, opportunities, projects, purchaseOrders } from '@third-code-erp/database/schema'
 import { and, desc, eq, inArray, sum } from 'drizzle-orm'
 import { OpportunityPanel } from '@/components/opportunities/opportunity-panel'
 import { ProjectChat } from '@/components/ai/project-chat'
@@ -49,16 +49,12 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return notFound()
+  const profile = await requireUserProfile()
 
   const [project] = await db
     .select()
     .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
 
   if (!project) return notFound()
 
@@ -75,12 +71,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       opportunity_type: opportunities.opportunity_type,
     })
     .from(opportunities)
-    .where(and(eq(opportunities.project_id, id), eq(opportunities.tenant_id, userRow.tenant_id)))
+    .where(and(eq(opportunities.project_id, id), eq(opportunities.tenant_id, profile.tenantId)))
 
   const [latestBom] = await db
     .select({ total_cost_cents: boms.total_cost_cents, tcv_cents: boms.tcv_cents, gp_cents: boms.gp_cents, status: boms.status })
     .from(boms)
-    .where(and(eq(boms.project_id, id), eq(boms.tenant_id, userRow.tenant_id), inArray(boms.status, ['approved', 'locked'])))
+    .where(and(eq(boms.project_id, id), eq(boms.tenant_id, profile.tenantId), inArray(boms.status, ['approved', 'locked'])))
     .orderBy(desc(boms.version))
     .limit(1)
 
@@ -90,7 +86,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     .where(
       and(
         eq(purchaseOrders.project_id, id),
-        eq(purchaseOrders.tenant_id, userRow.tenant_id),
+        eq(purchaseOrders.tenant_id, profile.tenantId),
         inArray(purchaseOrders.status, [...COMMITTED_PO_STATUSES])
       )
     )
@@ -101,7 +97,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     .where(
       and(
         eq(invoices.project_id, id),
-        eq(invoices.tenant_id, userRow.tenant_id),
+        eq(invoices.tenant_id, profile.tenantId),
         inArray(invoices.status, ['issued', 'partial_payment', 'paid'])
       )
     )

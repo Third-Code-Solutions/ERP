@@ -14,13 +14,13 @@
 import type { Metadata } from 'next'
 import { db } from '@third-code-erp/database'
 import { projects, accounts } from '@third-code-erp/database/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { findActiveCustomerSession } from '@/lib/operations/customer-portal'
 import { PortalHeader } from '@/components/customer-portal/portal-header'
 import { PortalSubNav } from '@/components/customer-portal/portal-sub-nav'
 
 export const metadata: Metadata = {
-  title: 'Live project · Third Code ERP',
+  title: 'Live project · ABI OPS',
   robots: { index: false, follow: false },
 }
 
@@ -100,8 +100,19 @@ export default async function PortalProjectLayout({
       account_name: accounts.name,
     })
     .from(projects)
-    .leftJoin(accounts, eq(accounts.id, projects.account_id))
-    .where(eq(projects.id, session.project_id))
+    .leftJoin(
+      accounts,
+      and(
+        eq(accounts.id, projects.account_id),
+        eq(accounts.tenant_id, session.tenant_id)
+      )
+    )
+    .where(
+      and(
+        eq(projects.id, session.project_id),
+        eq(projects.tenant_id, session.tenant_id)
+      )
+    )
     .limit(1)
 
   // Defence in depth — session must point at a project in its own tenant.

@@ -1,5 +1,5 @@
 -- =============================================================================
--- Third Code ERP Audit Log Triggers
+-- ABI OPS Audit Log Triggers
 -- Automatically inserts into audit_log on mutations to tracked tables.
 -- Hash chain integrity is maintained at the application layer via
 -- packages/shared-types/src/audit/hash-chain.ts.

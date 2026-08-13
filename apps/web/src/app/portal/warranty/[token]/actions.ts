@@ -16,7 +16,7 @@ import {
   warrantyTickets,
   projects,
 } from '@third-code-erp/database/schema'
-import { eq, max } from 'drizzle-orm'
+import { and, eq, max } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyExternalEmail, notifyRoles } from '@/lib/operations/notifications'
 import { startSlaClock } from '@/lib/operations/sla-clock'
@@ -61,7 +61,13 @@ export async function submitTicket(token: string, formData: FormData): Promise<v
       account_id: projects.account_id,
     })
     .from(warrantyPortalTokens)
-    .innerJoin(projects, eq(projects.id, warrantyPortalTokens.project_id))
+    .innerJoin(
+      projects,
+      and(
+        eq(projects.id, warrantyPortalTokens.project_id),
+        eq(projects.tenant_id, warrantyPortalTokens.tenant_id)
+      )
+    )
     .where(eq(warrantyPortalTokens.token_hash, tokenHash))
     .limit(1)
 

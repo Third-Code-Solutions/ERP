@@ -1,34 +1,127 @@
 # Next Actions
 
-## Exact next product action
+## Latest CAD worker and web promotion - 2026-08-13
 
-Await explicit approval for one manual queued Standard Vercel production build:
+- Railway `ABI OPS CAD Worker` deployment
+  `9c864abc-2308-42f3-b47d-d4388e25273a` is Online at
+  `https://abi-ops-cad-worker-production.up.railway.app`; health reports
+  `dwg_support=true` and `evidence_only=true`.
+- Worker production probes pass: unauthenticated parse 401, authenticated
+  DXF parse 200, and authenticated DWG conversion parse 200. Worker tests:
+  14/14.
+- Vercel deployment `dpl_8L2HQin9DH2vxYaxm8sbwzdTudq6` is READY and aliased
+  to `https://thirdcode-erp.vercel.app`; `/api/health` and `/api/ready`
+  are 200. Vercel env wiring is confirmed by the real-Chrome BOM assertion
+  `Worker online`.
+- Real Chrome regression on the new deployment: 4/4 passed (branding, major
+  route console smoke, 11-role matrix, CAD-worker wiring). Web unit suite:
+  385 passed, 4 explicit environment-gated skips. Web typecheck passed.
 
-1. Use exact candidate
-   `20d276c0ca0fd11a315ca0c41cdb7d7e903d4a59`.
-2. Keep Vercel Git disconnected. Do not create a preview.
-3. Reconfirm zero deployments after retained production
-   `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt`.
-4. Recheck live provider billing before approval. Treat any unverified build
-   estimate as billable; do not deploy unless the user accepts the exact cap.
-5. Obtain explicit user approval before calling any deploy command.
-6. If approved, trigger exactly one production build and wait for its terminal
-   status. Never duplicate a queued or running build.
-7. Verify authenticated Cortex scope creation/restoration, citations, focused
-   graph, saved-conversation deep links, recent-chat search/clear, new-chat URL
-   cleanup, record panels, landing metadata/interactions, 1440/768/390 layouts,
-   console, runtime errors, health/readiness, and exact release identity.
-8. If verification fails, instantly roll back to the retained deployment and
-   verify the production alias and core routes.
-9. If approval is withheld, retain the current READY artifact and continue
-   only no-cost source/backend work allowed by the standing M1 controls.
+The release remains PARTIALLY VERIFIED: the worktree is dirty and repository
+CI credentials, human/device validation, optional provider scheduling/email,
+RAG worker production deployment, and full technical namespace migration are
+not proven by this promotion.
+
+The three Supabase fallback Edge Functions are deployed and JWT-protected.
+The target has no pg_cron relation/jobs and no optional Resend/CNPS
+configuration, so scheduled execution and outbound email are explicit
+follow-up gates. The documented preferred Inngest path remains separate.
+
+## Final production promotion recheck - 2026-08-13
+
+The user-authorized production promotion is complete at the provider level.
+The release remains PARTIALLY VERIFIED because the worktree is dirty and
+repository, human, and device gates are not equivalent to a provider deploy.
+
+- Vercel: dpl_AUme5sfo7WfZqDKgD8319PqTVWkK, Ready, serving
+  https://thirdcode-erp.vercel.app; /api/health and /api/ready return 200
+  with revision dpl_AUme5sfo and database up. `/crm/opportunities` now
+  redirects to `/pipeline/board` instead of returning 404.
+- Railway: d0873402-3516-4094-ae7a-7dac11b9eef4, SUCCESS; /health is 200
+  and /ready is 200 with database and Redis ok.
+- Supabase aqqrtkmtcsfkbyyqxowv: 140/140 migrations applied, zero pending in
+  `db push`, reproducibility/security lane passed, and audit coverage is
+  170/170 tenant-scoped tables.
+- Supabase Edge Functions cnps-survey-sender, permit-staleness-checker, and
+  sla-checker are ACTIVE at version 2 with JWT verification; unauthenticated
+  probes returned 401.
+- Real Chrome authenticated regression: 3/3 passed, including the 11-role
+  access matrix. US-009 page E2E: 1/1. API unit tests: 53/53. Web unit tests:
+  385/389 with 4 explicit environment-gated skips.
+- ABI OPS brand contract and public production-surface checks pass. Internal
+  governance/history identifiers remain intentionally preserved for migration
+  and audit traceability.
+
+- Hosted US-009 demo-tenant mutation E2E: 1/1 passed for create, exact replay,
+  resolve, persisted reload, no duplicate, no console errors, and no 404s.
+  Direct Supabase verification found one seeded-demo row with two domain log
+  events and a succeeded idempotency ledger.
+- Final critical production Chrome regression on dpl_AUme5sfo: 3/3 passed;
+  Vercel runtime log scan then found zero HTTP 5xx and zero HTTP 404 responses.
+
+The new proposal change-request slice is deployed and protected-page/browser
+verified. Its disposable-PostgreSQL integration proves idempotent create,
+resolve, conflict denial, and tenant isolation. Its production mutation path
+was exercised only in the seeded `buildops-e2e` demo tenant; no customer tenant
+was used.
+
+## Production release recheck — 2026-08-13
+
+The user authorized production deployment. The current local working tree was
+deployed once to the exact linked targets; it was not committed or pushed.
+
+- Vercel project `pavi-2e9809a4/thirdcode-erp`, deployment
+  `dpl_DUT3PBLM8gUhkmrLSJfVSPKdeNUy`, status `READY`, explicitly promoted to
+  `https://thirdcode-erp.vercel.app`; project Node.js runtime is `22.x`.
+- Vercel `/api/health`: HTTP 200, service `abi-ops-web`, revision
+  `dpl_DUT3PBLM`; `/api/ready`: HTTP 200, `database=up`.
+- `pnpm verify:production-surface -- --url https://thirdcode-erp.vercel.app`:
+  PASS. Real Chrome public responsive E2E: 1 passed. Authenticated hosted
+  route smoke, ABI OPS branding, 11-role access matrix, Cortex focused graph,
+  and viewer dashboard safety E2E also passed.
+- Current-source self-hosted CI lane: PASS. The WSL disposable lane replayed
+  all 140 migrations, passed database reproducibility/security invariants,
+  ran 264 database tests plus WO-04/05/06 gates, and completed standalone
+  web/API smoke with exit code 0. Redis emitted only its known
+  memory-overcommit warning.
+- Railway service `c45b3d01-036a-4663-a524-0713d782fce3`, deployment
+  `2c19f8b8-a5cb-462f-9f92-d35e16647056`, status `Online`.
+- Railway `/health`: HTTP 200, service `abi-ops-api`; `/ready`: HTTP 200,
+  `database=ok`, `redis=ok`. Protected API route returned the expected 401
+  without credentials.
+- Supabase linked database: migration dry-run empty; local and remote ledgers
+  match through `20260813210000`; audit coverage is `169/169` tenant-scoped
+  tables. Duplicate production PO numbers were reconciled without deleting
+  rows or changing IDs/FKs.
+
+## Remaining verification and release hygiene
+
+1. Run the hosted CI workflow with repository-managed `E2E_USER_EMAIL` and
+   `E2E_USER_PASSWORD` secrets. Local linked Supabase role-harness proof is
+   complete; CI secret execution remains unverified.
+2. Review and commit the deployed working tree, then push through the normal
+   PR/CI path so the provider release is reproducible from Git. Do not force
+   push or discard unrelated existing changes.
+3. Reconcile the root `AGENTS.md`/`CLAUDE.md` bootstrap reference to the actual
+   `docs/PRD.md` only with owner sign-off; this is governance work, not a silent
+   runtime change.
+4. Keep the remaining PRD open questions and human sign-offs explicit; the
+   deployed artifact is not evidence that the entire ERP PRD is complete.
+5. GitHub control-plane read-only check: `gh secret list` and `gh variable list`
+   are empty for `Third-Code-Solutions/ERP`; no hosted E2E URL or dedicated
+   test credentials exist. The hosted E2E job now runs on every pull request
+   and fails closed when this configuration is absent instead of silently
+   skipping. Recent historical CI run `31529154170` also failed a database
+   verifier invariant on its older SHA; the current-source local lane now
+   passes, but neither result supplies repository-hosted CI execution evidence.
 
 ## Standing M1 controls
 
 Complete remaining M1 controls without enabling production writes:
 
-1. Treat hosted Supabase migration `20260729162944` as the current 54/54
-   baseline. Do not replay it or edit applied migration history.
+1. Treat the current linked ledger as release evidence: 139/139 migrations
+   applied through `20260813210000`, with a zero-pending dry-run. Preserve the
+   additive migration history; do not replay or rewrite applied migrations.
 2. Treat organization type as constrained tenant profile data only. Never use
    it for roles, capabilities, memberships, approvals, or tenant access.
 3. Keep deployed tenant-canary source at
@@ -158,22 +251,51 @@ job/evidence state, explicit capabilities, and a Nest BullMQ processor with no
 caller. Do not begin it until M1 canary and separate `AGENTS.md`
 reconciliation gates pass.
 
-## Next unblocked integrity slice
+## Completed unblocked integrity slice
 
-Add an inert NestJS procurement adapter for the now-defined RFQ commands:
+The inert NestJS procurement adapter is source-complete and remains disabled:
 
-1. Preserve the existing `logQuote`, `completeRfq`, and `cancelRfq` Server
-   Action result contract.
-2. Add NestJS command DTOs, capability guards, tenant-derived identity, and
-   transaction services for quote/create-terminal transitions.
-3. Reuse the PostgreSQL idempotency, tenant-composite, coverage, audit, and
-   state-machine invariants. Do not duplicate authority in React.
-4. Keep routing disabled by default with an exact boolean and explicit
-   database-derived tenant allowlist.
-5. Add contract, tenant-isolation, retry, concurrency, audit, and rollback
-   tests against disposable PostgreSQL/Redis.
-6. Do not deploy or enable the adapter until M1 canary and provider controls
-   pass. No Vercel build is required for inert source.
+1. Preserves existing `logQuote`, `completeRfq`, `cancelRfq`, and award result
+   contracts.
+2. Uses NestJS Zod command validation, capability guards, tenant-derived
+   identity, and transaction services.
+3. Reuses PostgreSQL idempotency, tenant-composite, coverage, audit, price
+   provenance, and RFQ state-machine invariants.
+4. Keeps every cutover route disabled by default with exact booleans and
+   explicit tenant allowlists.
+5. Has contract, tenant-isolation, retry, concurrency, audit, rollback, and
+   disposable PostgreSQL/Redis integration coverage.
+6. Hosted deployment, flag enablement, and production migration remain
+   blocked by M1 canary/provider gates.
+
+## Completed integration reliability slice
+
+Production external integrations now fail closed when credentials are absent:
+
+1. Resend email throws in production without `RESEND_API_KEY` and `EMAIL_FROM`.
+2. Semaphore SMS throws in production without `SEMAPHORE_API_KEY` and
+   `SEMAPHORE_SENDER_NAME`.
+3. Direct DocuSeal submission throws in production without configuration; the
+   in-app canvas path remains an explicit real signing mechanism.
+4. Focused integration tests pass 8/8, full web tests pass 376/376 with three
+   environment-gated skips, typecheck passes, production build passes, and
+   local Chromium public smoke passes 1/1.
+5. Legacy `dev-sub-*` BOM signing links are rejected before lock/award and
+   rendered as unavailable recovery states; the focused DocuSeal routing test
+   passes 4/4 after this guard.
+6. Live provider delivery was not exercised; credentials and external send
+   acceptance remain deployment-time checks.
+
+## Completed notification evidence slice
+
+1. External email rows are pending until a real provider response.
+2. Development stubs and provider failures do not stamp `sent_at`.
+3. In-app notifications survive optional email failure; structured delivery
+   failure logs preserve operational visibility.
+4. CNPS surveys stamp `sent_at` only after delivery and remain retryable after
+   provider failure.
+5. Focused notification evidence tests pass 3/3; CNPS delivery evidence tests
+   pass 3/3; web typecheck passes.
 
 ## Do not start yet
 
@@ -183,15 +305,22 @@ Add an inert NestJS procurement adapter for the now-defined RFQ commands:
 - No new microservices.
 - No external ERP source, schema, UI, or wording reuse.
 
-## Exact next action after RFQ quote adapter
+## Exact next action after RFQ quote and pricing loop
 
 1. Keep `ERP_RFQ_QUOTE_WRITES_VIA_API` unset/false everywhere.
-2. Verify M1 Railway/Supabase readiness and a real tenant/auth canary account.
-3. Present the exact tenant UUID, environment changes, monitoring, and
+2. Keep `ERP_RFQ_TRANSITION_WRITES_VIA_API` unset/false everywhere; the
+   complete/cancel adapter is source-ready but not enabled.
+3. Verify M1 Railway/Supabase readiness and a real tenant/auth canary account.
+4. Present the exact tenant UUID, environment changes, monitoring, and
    rollback for approval.
-4. If approved, enable one tenant only and verify quote create/retry/conflict,
-   audit evidence, logs, and unchanged completion/cancellation.
-5. Do not enable wildcard routing or deploy Vercel without explicit approval.
+5. If approved, enable one tenant only and verify quote create/retry/conflict,
+   completion/cancellation, audit evidence, logs, and rollback.
+6. Do not enable wildcard routing or deploy Vercel without explicit approval.
+7. Keep `ERP_RFQ_AWARD_WRITES_VIA_API` unset/false everywhere. The local
+   award path and disabled Core API path are both verified; no hosted canary
+   or production write is authorized.
+8. Keep WO-09 blocked until ABI supplies the real PPRF/SI/BOE/BOQ/Schedule
+   workbooks. Do not generate synthetic acceptance fixtures.
 
 Provider inspection result:
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getUser: vi.fn(),
+  getUserProfile: vi.fn(),
   can: vi.fn(),
   select: vi.fn(),
   from: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock('next/cache', () => ({
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
-  getUser: mocks.getUser,
+  getUserProfile: mocks.getUserProfile,
   can: mocks.can,
 }))
 
@@ -66,7 +66,13 @@ function requestForm(overrides?: {
 describe('deleteDocument authority and integrity', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getUser.mockResolvedValue({ id: USER_ID })
+    mocks.getUserProfile.mockResolvedValue({
+      user: { id: USER_ID },
+      tenantId: TENANT_ID,
+      role: 'pm',
+      email: 'pm@example.com',
+      fullName: 'PM User',
+    })
     mocks.can.mockReturnValue(true)
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })
@@ -116,7 +122,7 @@ describe('deleteDocument authority and integrity', () => {
       ok: false,
       error: 'Invalid document request',
     })
-    expect(mocks.getUser).not.toHaveBeenCalled()
+    expect(mocks.getUserProfile).not.toHaveBeenCalled()
     expect(mocks.select).not.toHaveBeenCalled()
   })
 

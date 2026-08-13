@@ -8,7 +8,7 @@ export function GET() {
   return NextResponse.json(
     {
       ok: true,
-      service: 'third-code-erp-web',
+      service: 'abi-ops-web',
       revision: deploymentRevision(),
       timestamp: new Date().toISOString(),
     },

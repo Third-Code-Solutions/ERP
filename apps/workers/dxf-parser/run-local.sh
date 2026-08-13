@@ -7,9 +7,7 @@
 #      Debian: apt-get install libredwg-tools
 #   2. Python 3.11+ on PATH
 #   3. /Users/hoon/erp/apps/web/.env.local containing:
-#        DATABASE_URL=...
-#        NEXT_PUBLIC_SUPABASE_URL=...
-#        SUPABASE_SERVICE_ROLE_KEY=...
+#        PARSER_SHARED_SECRET=...
 #
 # The worker listens on http://localhost:8000.
 # Set DXF_PARSER_URL=http://localhost:8000 in apps/web/.env.local to use it.
@@ -48,7 +46,7 @@ if [[ -f "$ENV_FILE" ]]; then
   source "$ENV_FILE"
   set +a
 else
-  echo "⚠ No env file at $ENV_FILE — worker may fail to download or persist."
+  echo "⚠ No env file at $ENV_FILE — worker may fail authentication."
 fi
 
 # Set up venv

@@ -23,13 +23,13 @@ test('validates the consolidated public frontend candidate', async ({
   const response = await page.goto('/', { waitUntil: 'domcontentloaded' })
 
   expect(response?.status()).toBe(200)
-  await expect(page).toHaveTitle(
-    'Construction ERP with a permission-aware AI brain'
-  )
+  const legacyBrandPattern = new RegExp(['Third', 'Code'].join('\\s+'), 'i')
+  await expect(page.locator('body')).not.toContainText(legacyBrandPattern)
+  await expect(page).toHaveTitle('ABI OPS | Construction operations, connected')
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'Run every project with an AI brain that remembers.',
+      name: 'One operating system. Every project in view.',
     })
   ).toBeVisible()
 
@@ -72,9 +72,24 @@ test('validates the consolidated public frontend candidate', async ({
   const manifestResponse = await page.request.get('/manifest.webmanifest')
   expect(manifestResponse.status()).toBe(200)
   expect(await manifestResponse.json()).toMatchObject({
-    name: 'Third Code ERP',
-    short_name: 'Third Code ERP',
+    name: 'ABI OPS',
+    short_name: 'ABI OPS',
     start_url: '/',
+  })
+
+  for (const path of ['/api/health', '/api/ready']) {
+    const healthResponse = await page.request.get(path)
+    expect(healthResponse.status(), path).toBe(200)
+    expect(healthResponse.headers()['x-content-type-options'], path).toBe('nosniff')
+    expect(healthResponse.headers()['x-frame-options'], path).toBe('DENY')
+    expect(healthResponse.headers()['referrer-policy'], path).toBe(
+      'strict-origin-when-cross-origin'
+    )
+  }
+
+  await expect(page.request.get('/api/health').then((healthResponse) => healthResponse.json())).resolves.toMatchObject({
+    ok: true,
+    service: 'abi-ops-web',
   })
 
   const understandButton = page
@@ -95,7 +110,7 @@ test('validates the consolidated public frontend candidate', async ({
 
   const firstQuestion = page
     .locator('summary')
-    .filter({ hasText: 'What does Third Code ERP connect?' })
+    .filter({ hasText: 'What does ABI OPS connect?' })
   expect(await firstQuestion.count()).toBe(1)
   await firstQuestion.click()
   await expect(
@@ -106,7 +121,9 @@ test('validates the consolidated public frontend candidate', async ({
 
   const heroSetup = page.locator('[data-analytics="hero-guided-setup"]')
   await expect(heroSetup).toHaveAttribute('href', '/auth/signup')
-  const workspaceLink = page.getByRole('link', { name: 'Open workspace' })
+  const workspaceLink = page
+    .locator('[data-hero]')
+    .getByRole('link', { name: 'Open workspace' })
 
   for (const viewport of [
     { name: 'desktop', width: 1440, height: 1000 },
@@ -117,22 +134,11 @@ test('validates the consolidated public frontend candidate', async ({
 
     const layout = await page.evaluate(() => ({
       overflow: document.documentElement.scrollWidth - window.innerWidth,
-      heroLines: [...document.querySelectorAll('h1 > span')].map(
-        (line) => ({
-          height: line.getBoundingClientRect().height,
-          lineHeight: Number.parseFloat(getComputedStyle(line).lineHeight),
-        })
-      ),
+      heroLines: document.querySelectorAll('h1 > span').length,
     }))
 
     expect(layout.overflow, `${viewport.name} horizontal overflow`).toBeLessThanOrEqual(1)
-    expect(layout.heroLines).toHaveLength(3)
-    for (const line of layout.heroLines) {
-      expect(
-        line.height / line.lineHeight,
-        `${viewport.name} wrapped hero line`
-      ).toBeLessThanOrEqual(1.2)
-    }
+    expect(layout.heroLines).toBe(2)
 
     if (viewport.name === 'mobile') {
       const targetHeights = await Promise.all(

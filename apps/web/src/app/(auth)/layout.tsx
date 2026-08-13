@@ -1,3 +1,11 @@
+import React from 'react'
+
+const authBrand = {
+  mark: 'A',
+  name: 'ABI OPS',
+  organization: 'Actuate Builders Inc.',
+} as const
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="auth-shell">
@@ -12,11 +20,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="auth-brand-inner">
           <div className="auth-brand-top">
             <div className="auth-brand-mark">
-              <span className="auth-brand-mark-letter">TC</span>
+              <span className="auth-brand-mark-letter">{authBrand.mark}</span>
             </div>
             <div className="auth-brand-text">
-              <p className="auth-brand-name">Third Code ERP</p>
-              <p className="auth-brand-org">Third Code Solutions Inc.</p>
+              <p className="auth-brand-name">{authBrand.name}</p>
+              <p className="auth-brand-org">{authBrand.organization}</p>
             </div>
           </div>
 
@@ -62,7 +70,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             <span className="auth-brand-status">
               <span className="auth-brand-status-dot" /> Protected workspace access
             </span>
-            <span className="auth-brand-copy">© 2026 Third Code Solutions Inc.</span>
+            <span className="auth-brand-copy">© 2026 {authBrand.organization}</span>
           </footer>
         </div>
       </aside>
@@ -72,11 +80,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Compact brand for mobile (brand panel is hidden) */}
         <div className="auth-form-mobile-brand">
           <div className="auth-brand-mark">
-            <span className="auth-brand-mark-letter">TC</span>
+            <span className="auth-brand-mark-letter">{authBrand.mark}</span>
           </div>
           <div>
-            <p className="auth-brand-name" style={{ color: 'var(--color-navy-700)' }}>Third Code ERP</p>
-            <p className="auth-brand-org" style={{ color: 'var(--color-neutral-500)' }}>Third Code Solutions Inc.</p>
+            <p className="auth-brand-name" style={{ color: 'var(--color-navy-700)' }}>{authBrand.name}</p>
+            <p className="auth-brand-org" style={{ color: 'var(--color-neutral-500)' }}>{authBrand.organization}</p>
           </div>
         </div>
 

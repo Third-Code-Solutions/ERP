@@ -1,28 +1,19 @@
 import type { Metadata } from 'next'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { tenants, users } from '@third-code-erp/database/schema'
+import { tenants } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 import { EditTenantForm } from '@/components/settings/edit-tenant-form'
 
 export const metadata: Metadata = { title: 'Settings' }
 
 export default async function SettingsPage() {
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id, email: users.email, role: users.role })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  const tenant = userRow?.tenant_id
-    ? await db
-        .select()
-        .from(tenants)
-        .where(eq(tenants.id, userRow.tenant_id))
-        .then((r) => r[0])
-    : null
+  const profile = await requireUserProfile()
+  const tenant = await db
+    .select()
+    .from(tenants)
+    .where(eq(tenants.id, profile.tenantId))
+    .then((r) => r[0])
 
   return (
     <div>
@@ -121,13 +112,13 @@ export default async function SettingsPage() {
           </h2>
           <dl style={{ margin: 0 }}>
             {[
-              { label: 'Email', value: user.email ?? '—' },
-              { label: 'User ID', value: user.id.slice(0, 8) + '…' },
-              { label: 'Role', value: userRow?.role ?? '—' },
+              { label: 'Email', value: profile.user.email ?? '—' },
+              { label: 'User ID', value: profile.user.id.slice(0, 8) + '…' },
+              { label: 'Role', value: profile.role },
               {
                 label: 'Last sign-in',
-                value: user.last_sign_in_at
-                  ? new Date(user.last_sign_in_at).toLocaleString('en-PH', {
+                value: profile.user.last_sign_in_at
+                  ? new Date(profile.user.last_sign_in_at).toLocaleString('en-PH', {
                       dateStyle: 'medium',
                       timeStyle: 'short',
                     })

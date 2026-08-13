@@ -45,7 +45,7 @@ const chatRequestSchema = z.object({
 })
 
 /**
- * POST /api/cortex/chat — the Third Code ERP AI Brain (Cortex).
+ * POST /api/cortex/chat — the ABI OPS AI Brain (Cortex).
  *
  * A tenant-scoped, graph-grounded agent. It is fed the caller's Cortex graph
  * (tenant-scoped at the source — it can never see another tenant's records),
@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
     console.error('[cortex/chat] semantic retrieval skipped:', err)
   }
 
-  const systemPrompt = `You are Cortex, the AI Brain for Third Code ERP, a construction ERP for Philippine MEP contractors.
+  const systemPrompt = `You are Cortex, the AI Brain for ABI OPS, a construction operations system for Philippine MEP contractors.
 You see the user's company knowledge graph — a permissioned, live mirror of ERP records. Answer using the records below.
 
 ACCESS: You are answering a "${roleLabel(profile.role)}" user. ${

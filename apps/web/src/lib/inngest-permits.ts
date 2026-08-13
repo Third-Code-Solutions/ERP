@@ -2,7 +2,7 @@
  * Permit staleness checker Inngest cron (REFACTOR.md §7.4).
  *
  * Runs daily at 00:00 UTC (08:00 PHT). For each permit row where
- * `status NOT IN ('approved', 'rejected')` and `last_status_change_at <
+ * `status NOT IN ('approved', 'rejected', 'released', 'refunded', 'cancelled')` and `last_status_change_at <
  * now - INTERVAL '7 days'`, dispatch an in-app + email notification to
  * the project's site PM/PE channel plus admin/owner.
  *
@@ -22,7 +22,7 @@ import { inngest } from '@/lib/inngest'
 
 const STALE_THRESHOLD_DAYS = 7
 const STALE_RECIPIENT_ROLES = ['sd_pm_pe', 'admin', 'owner'] as const
-const TERMINAL_STATUSES = ['approved', 'rejected'] as const
+const TERMINAL_STATUSES = ['approved', 'rejected', 'released', 'refunded', 'cancelled'] as const
 
 interface Step {
   run: <T>(name: string, fn: () => Promise<T>) => Promise<T>

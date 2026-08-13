@@ -3,7 +3,7 @@
 ## Purpose
 
 Every pull request and `main` push must prove the committed Supabase migration
-ledger can create Third Code ERP from zero on PostgreSQL 17. The gate is local
+ledger can create ABI OPS from zero on PostgreSQL 17. The gate is local
 and secret-free. It never links to, pushes to, resets, or repairs a hosted
 project.
 

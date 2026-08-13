@@ -78,7 +78,7 @@ describe('createInvoice', () => {
 
     const result = await createInvoice('33333333-3333-4333-8333-333333333333', invoiceForm())
 
-    expect(result).toEqual({ error: 'Forbidden: finance capability required' })
+    expect(result).toEqual({ error: 'You do not have permission to create invoices.' })
     expect(mocks.requireCapability).toHaveBeenCalledWith(
       PROFILE,
       'finance.issue_invoice'

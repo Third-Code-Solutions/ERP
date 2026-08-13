@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { documents, projects, scopeItems, users } from '@third-code-erp/database/schema'
+import { documents, projects, scopeItems } from '@third-code-erp/database/schema'
 import { and, asc, eq } from 'drizzle-orm'
 import { AddScopeItemForm, DeleteScopeItemButton, EditableUnitCost } from '@/components/scope/scope-item-controls'
 import { CadDropZone } from '@/components/cad/cad-dropzone'
@@ -34,23 +34,19 @@ function formatPHP(cents: number): string {
 
 export default async function ProjectScopePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return notFound()
+  const profile = await requireUserProfile()
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
 
   if (!project) return notFound()
 
   const items = await db
     .select()
     .from(scopeItems)
-    .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, userRow.tenant_id)))
+    .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, profile.tenantId)))
     .orderBy(asc(scopeItems.sort_order), asc(scopeItems.description))
 
   // Map documents → file names so each item can be attributed to its source upload
@@ -61,7 +57,7 @@ export default async function ProjectScopePage({ params }: { params: Promise<{ i
       created_at: documents.created_at,
     })
     .from(documents)
-    .where(and(eq(documents.project_id, id), eq(documents.tenant_id, userRow.tenant_id)))
+    .where(and(eq(documents.project_id, id), eq(documents.tenant_id, profile.tenantId)))
 
   const docNameById = new Map(projectDocuments.map((d) => [d.id, d.file_name]))
   const docCreatedById = new Map(projectDocuments.map((d) => [d.id, d.created_at]))

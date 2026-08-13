@@ -206,7 +206,12 @@ export async function markSitePreparing(
   await db
     .update(deliverySchedules)
     .set({ status: 'site_preparing', updated_at: new Date() })
-    .where(eq(deliverySchedules.id, scheduleId))
+    .where(
+      and(
+        eq(deliverySchedules.id, scheduleId),
+        eq(deliverySchedules.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -247,7 +252,12 @@ export async function markSiteReady(
       site_preparation_notes: notes ?? row.site_preparation_notes,
       updated_at: now,
     })
-    .where(eq(deliverySchedules.id, scheduleId))
+    .where(
+      and(
+        eq(deliverySchedules.id, scheduleId),
+        eq(deliverySchedules.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -284,7 +294,12 @@ export async function markInTransit(
   await db
     .update(deliverySchedules)
     .set({ status: 'in_transit', updated_at: new Date() })
-    .where(eq(deliverySchedules.id, scheduleId))
+    .where(
+      and(
+        eq(deliverySchedules.id, scheduleId),
+        eq(deliverySchedules.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -299,7 +314,12 @@ export async function markInTransit(
   const [po] = await db
     .select({ po_number: purchaseOrders.po_number })
     .from(purchaseOrders)
-    .where(eq(purchaseOrders.id, row.purchase_order_id))
+    .where(
+      and(
+        eq(purchaseOrders.id, row.purchase_order_id),
+        eq(purchaseOrders.tenant_id, profile.tenantId)
+      )
+    )
     .limit(1)
 
   await notifyRoles({
@@ -343,7 +363,12 @@ export async function recordReceipt(
       received_notes: notes ?? null,
       updated_at: now,
     })
-    .where(eq(deliverySchedules.id, scheduleId))
+    .where(
+      and(
+        eq(deliverySchedules.id, scheduleId),
+        eq(deliverySchedules.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -392,7 +417,12 @@ export async function startInspection(
   await db
     .update(deliverySchedules)
     .set({ status: 'inspecting', updated_at: now })
-    .where(eq(deliverySchedules.id, scheduleId))
+    .where(
+      and(
+        eq(deliverySchedules.id, scheduleId),
+        eq(deliverySchedules.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -464,7 +494,12 @@ export async function completeInspection(
       defect_notes: defectNotes ?? null,
       acceptance_notes: acceptanceNotes ?? null,
     })
-    .where(eq(deliveryInspections.id, latest.id))
+    .where(
+      and(
+        eq(deliveryInspections.id, latest.id),
+        eq(deliveryInspections.tenant_id, profile.tenantId)
+      )
+    )
 
   // Update parent delivery row with the right terminal stamps.
   const schedulePatch: Partial<typeof deliverySchedules.$inferInsert> = {
@@ -482,7 +517,12 @@ export async function completeInspection(
   await db
     .update(deliverySchedules)
     .set(schedulePatch)
-    .where(eq(deliverySchedules.id, scheduleId))
+    .where(
+      and(
+        eq(deliverySchedules.id, scheduleId),
+        eq(deliverySchedules.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -501,7 +541,12 @@ export async function completeInspection(
   const [po] = await db
     .select({ po_number: purchaseOrders.po_number })
     .from(purchaseOrders)
-    .where(eq(purchaseOrders.id, row.purchase_order_id))
+    .where(
+      and(
+        eq(purchaseOrders.id, row.purchase_order_id),
+        eq(purchaseOrders.tenant_id, profile.tenantId)
+      )
+    )
     .limit(1)
   const poLabel = po ? ` — PO ${po.po_number}` : ''
 
@@ -558,7 +603,12 @@ export async function cancelDelivery(
       rejected_reason: trimmed,
       updated_at: now,
     })
-    .where(eq(deliverySchedules.id, scheduleId))
+    .where(
+      and(
+        eq(deliverySchedules.id, scheduleId),
+        eq(deliverySchedules.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,

@@ -1,4 +1,4 @@
-const DEFAULT_PUBLIC_ORIGIN = 'https://thirdcode-erp.vercel.app'
+const DEFAULT_PUBLIC_ORIGIN = 'http://localhost:3000'
 
 type PublicOriginEnvironment = {
   NEXT_PUBLIC_SITE_URL?: string
@@ -22,7 +22,7 @@ function parseOrigin(
     url = new URL(normalized)
   } catch {
     throw new Error(
-      `[Third Code ERP] Invalid ${variableName}: expected an absolute HTTP(S) origin.`
+      `[ABI OPS] Invalid ${variableName}: expected an absolute HTTP(S) origin.`
     )
   }
 
@@ -34,7 +34,7 @@ function parseOrigin(
 
   if (hasUnexpectedParts) {
     throw new Error(
-      `[Third Code ERP] Invalid ${variableName}: expected an absolute HTTP(S) origin without credentials, path, query, or fragment.`
+      `[ABI OPS] Invalid ${variableName}: expected an absolute HTTP(S) origin without credentials, path, query, or fragment.`
     )
   }
 

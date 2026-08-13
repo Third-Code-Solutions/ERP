@@ -37,10 +37,14 @@ interface InngestStep {
 }
 
 /**
- * Mint a per-survey token, insert the cnps_surveys row (sent_at=NOW), then
- * send the email. Idempotent: if a row already exists with sent_at set, no-op.
+ * Mint a per-survey token, persist the pending survey row, then send the
+ * email. `sent_at` is written only after a real provider delivery; failed or
+ * development-stub sends remain retryable.
  */
-async function dispatchOneSurvey(ticketId: string): Promise<{ sent: boolean; reason?: string }> {
+export async function dispatchOneSurvey(
+  ticketId: string,
+  tenantId: string
+): Promise<{ sent: boolean; reason?: string }> {
   const [t] = await db
     .select({
       id: warrantyTickets.id,
@@ -52,7 +56,12 @@ async function dispatchOneSurvey(ticketId: string): Promise<{ sent: boolean; rea
       submitted_by_email: warrantyTickets.submitted_by_email,
     })
     .from(warrantyTickets)
-    .where(eq(warrantyTickets.id, ticketId))
+    .where(
+      and(
+        eq(warrantyTickets.id, ticketId),
+        eq(warrantyTickets.tenant_id, tenantId)
+      )
+    )
     .limit(1)
 
   if (!t) return { sent: false, reason: 'ticket-not-found' }
@@ -63,7 +72,12 @@ async function dispatchOneSurvey(ticketId: string): Promise<{ sent: boolean; rea
   const [existing] = await db
     .select({ id: cnpsSurveys.id, sent_at: cnpsSurveys.sent_at })
     .from(cnpsSurveys)
-    .where(eq(cnpsSurveys.ticket_id, ticketId))
+    .where(
+      and(
+        eq(cnpsSurveys.ticket_id, ticketId),
+        eq(cnpsSurveys.tenant_id, tenantId)
+      )
+    )
     .limit(1)
   if (existing?.sent_at) return { sent: false, reason: 'already-sent' }
 
@@ -71,22 +85,34 @@ async function dispatchOneSurvey(ticketId: string): Promise<{ sent: boolean; rea
   const tokenHash = createHash('sha256').update(plaintext).digest('hex')
   const now = new Date()
 
+  let surveyId: string
   if (existing) {
     await db
       .update(cnpsSurveys)
-      .set({ sent_at: now, response_token_hash: tokenHash })
-      .where(eq(cnpsSurveys.id, existing.id))
+      .set({ sent_at: null, response_token_hash: tokenHash })
+      .where(
+        and(
+          eq(cnpsSurveys.id, existing.id),
+          eq(cnpsSurveys.tenant_id, tenantId)
+        )
+      )
+    surveyId = existing.id
   } else {
-    await db.insert(cnpsSurveys).values({
-      tenant_id: t.tenant_id,
-      ticket_id: t.id,
-      account_id: t.account_id ?? null,
-      sent_at: now,
-      response_token_hash: tokenHash,
-    })
+    const [created] = await db
+      .insert(cnpsSurveys)
+      .values({
+        tenant_id: t.tenant_id,
+        ticket_id: t.id,
+        account_id: t.account_id ?? null,
+        sent_at: null,
+        response_token_hash: tokenHash,
+      })
+      .returning({ id: cnpsSurveys.id })
+    if (!created?.id) return { sent: false, reason: 'survey-not-created' }
+    surveyId = created.id
   }
 
-  await notifyExternalEmail({
+  const delivery = await notifyExternalEmail({
     tenantId: t.tenant_id,
     recipientEmail: t.submitted_by_email,
     subject: `How did we do? Ticket ${t.ticket_number}`,
@@ -96,6 +122,20 @@ async function dispatchOneSurvey(ticketId: string): Promise<{ sent: boolean; rea
       survey_url: `${siteBase()}/portal/cnps/${plaintext}`,
     },
   })
+
+  if (!delivery.delivered) {
+    return { sent: false, reason: 'email-not-delivered' }
+  }
+
+  await db
+    .update(cnpsSurveys)
+    .set({ sent_at: now })
+    .where(
+      and(
+        eq(cnpsSurveys.id, surveyId),
+        eq(cnpsSurveys.tenant_id, tenantId)
+      )
+    )
 
   return { sent: true }
 }
@@ -119,10 +159,17 @@ export const dispatchCnpsSurveys = inngest.createFunction(
       const rows = await db
         .select({
           id: warrantyTickets.id,
+          tenant_id: warrantyTickets.tenant_id,
           existing_sent_at: cnpsSurveys.sent_at,
         })
         .from(warrantyTickets)
-        .leftJoin(cnpsSurveys, eq(cnpsSurveys.ticket_id, warrantyTickets.id))
+        .leftJoin(
+          cnpsSurveys,
+          and(
+            eq(cnpsSurveys.ticket_id, warrantyTickets.id),
+            eq(cnpsSurveys.tenant_id, warrantyTickets.tenant_id)
+          )
+        )
         .where(
           and(
             eq(warrantyTickets.status, 'closed'),
@@ -142,7 +189,9 @@ export const dispatchCnpsSurveys = inngest.createFunction(
 
     let sentCount = 0
     for (const c of candidates) {
-      const r = await step.run(`send-${c.id}`, async () => dispatchOneSurvey(c.id))
+      const r = await step.run(`send-${c.id}`, async () =>
+        dispatchOneSurvey(c.id, c.tenant_id)
+      )
       if (r.sent) sentCount += 1
     }
 
@@ -167,14 +216,14 @@ export const onCnpsSurveyScheduled = inngest.createFunction(
     event: { data: { ticketId: string; tenantId: string } }
     step: InngestStep
   }) => {
-    const { ticketId } = event.data
+    const { ticketId, tenantId } = event.data
     if (step.sleep) {
       await step.sleep('wait-48h', '48h')
     } else if (step.sleepUntil) {
       const until = new Date(Date.now() + 48 * 60 * 60 * 1000)
       await step.sleepUntil('wait-48h', until)
     }
-    return step.run('send', async () => dispatchOneSurvey(ticketId))
+    return step.run('send', async () => dispatchOneSurvey(ticketId, tenantId))
   }
 )
 

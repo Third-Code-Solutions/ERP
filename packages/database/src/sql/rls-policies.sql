@@ -1,5 +1,5 @@
 -- =============================================================================
--- Third Code ERP Row-Level Security Policies
+-- ABI OPS Row-Level Security Policies
 -- Apply after running Drizzle migrations.
 -- Every table is isolated by tenant_id.
 -- =============================================================================

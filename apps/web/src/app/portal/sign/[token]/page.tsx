@@ -127,8 +127,20 @@ async function loadEntitySummary(
         account_name: accounts.name,
       })
       .from(boms)
-      .leftJoin(projects, eq(projects.id, boms.project_id))
-      .leftJoin(accounts, eq(accounts.id, projects.account_id))
+      .leftJoin(
+        projects,
+        and(
+          eq(projects.id, boms.project_id),
+          eq(projects.tenant_id, tenantId)
+        )
+      )
+      .leftJoin(
+        accounts,
+        and(
+          eq(accounts.id, projects.account_id),
+          eq(accounts.tenant_id, tenantId)
+        )
+      )
       .where(and(eq(boms.id, entityId), eq(boms.tenant_id, tenantId)))
       .limit(1)
     return {
@@ -151,7 +163,13 @@ async function loadEntitySummary(
         project_name: projects.name,
       })
       .from(variationOrders)
-      .leftJoin(projects, eq(projects.id, variationOrders.project_id))
+      .leftJoin(
+        projects,
+        and(
+          eq(projects.id, variationOrders.project_id),
+          eq(projects.tenant_id, tenantId)
+        )
+      )
       .where(and(eq(variationOrders.id, entityId), eq(variationOrders.tenant_id, tenantId)))
       .limit(1)
     return {
@@ -168,7 +186,13 @@ async function loadEntitySummary(
     const [row] = await db
       .select({ project_name: projects.name })
       .from(certificatesOfCompletion)
-      .leftJoin(projects, eq(projects.id, certificatesOfCompletion.project_id))
+      .leftJoin(
+        projects,
+        and(
+          eq(projects.id, certificatesOfCompletion.project_id),
+          eq(projects.tenant_id, tenantId)
+        )
+      )
       .where(and(eq(certificatesOfCompletion.id, entityId), eq(certificatesOfCompletion.tenant_id, tenantId)))
       .limit(1)
     return {
@@ -181,7 +205,13 @@ async function loadEntitySummary(
     const [row] = await db
       .select({ project_name: projects.name })
       .from(contracts)
-      .leftJoin(projects, eq(projects.id, contracts.project_id))
+      .leftJoin(
+        projects,
+        and(
+          eq(projects.id, contracts.project_id),
+          eq(projects.tenant_id, tenantId)
+        )
+      )
       .where(and(eq(contracts.id, entityId), eq(contracts.tenant_id, tenantId)))
       .limit(1)
     return {

@@ -7,6 +7,7 @@ import { requireUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { rateCards, materialItems, vendors } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
+import { safeActionError } from '@/lib/safe-action-error'
 
 const rateCardSchema = z.object({
   id: z.string().uuid().optional(),
@@ -97,7 +98,12 @@ export async function upsertRateCard(
           effective_from: input.effective_from ? new Date(input.effective_from) : new Date(),
           effective_to: input.effective_to ? new Date(input.effective_to) : null,
         })
-        .where(eq(rateCards.id, input.id))
+        .where(
+          and(
+            eq(rateCards.id, input.id),
+            eq(rateCards.tenant_id, profile.tenantId)
+          )
+        )
 
       await writeAuditLog({
         tenantId: profile.tenantId,
@@ -140,7 +146,8 @@ export async function upsertRateCard(
       })
     }
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Database error' }
+    console.error('[admin/rate-cards:upsertRateCard] failed', err)
+    return { error: safeActionError(err, 'Could not save the rate card.') }
   }
 
   revalidatePath('/admin/rate-cards')

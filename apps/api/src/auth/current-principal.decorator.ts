@@ -1,5 +1,6 @@
 import {
   createParamDecorator,
+  UnauthorizedException,
   type ExecutionContext,
 } from '@nestjs/common'
 import type { Request } from 'express'
@@ -33,13 +34,19 @@ export interface AuthenticatedRequest extends Request {
   principal?: ErpPrincipal
 }
 
+export function requireCurrentPrincipal(
+  request: Pick<AuthenticatedRequest, 'principal'>
+): ErpPrincipal {
+  if (!request.principal) {
+    throw new UnauthorizedException('Authenticated principal missing')
+  }
+  return request.principal
+}
+
 export const CurrentPrincipal = createParamDecorator(
   (_data: unknown, context: ExecutionContext): ErpPrincipal => {
     const request =
       context.switchToHttp().getRequest<AuthenticatedRequest>()
-    if (!request.principal) {
-      throw new Error('Authenticated principal missing')
-    }
-    return request.principal
+    return requireCurrentPrincipal(request)
   }
 )

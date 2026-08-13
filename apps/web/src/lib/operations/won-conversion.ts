@@ -123,7 +123,7 @@ export async function convertOpportunityToProject(
   }
 
   // 4. Seed the 12-item Pre-Con checklist.
-  const checklistId = await seedDefaultChecklist(projectId)
+  const checklistId = await seedDefaultChecklist(projectId, tenantId)
 
   // 5. Notify operators. Email is intentionally off for now — in-app is
   //    enough until we have onboarded customers asking for digest emails.

@@ -1,4 +1,4 @@
--- Third Code ERP demo seed (idempotent)
+-- ABI OPS demo seed (idempotent)
 --
 -- Populates the existing E2E tenant with a realistic dataset so the dashboard
 -- and pipeline render with lived-in data during a live client demo.
@@ -10,6 +10,7 @@
 DO $demo$
 DECLARE
   v_tenant uuid;
+  v_demo_tenant_slug text := 'buildops-e2e';
   v_user   uuid;
   v_proj_somnus uuid := '11111111-1111-4111-8111-111111111111';
   v_proj_ayala  uuid := '22222222-2222-4222-8222-222222222222';
@@ -26,9 +27,9 @@ DECLARE
   v_vendor2 uuid := '66666666-6666-4666-8666-666666666666';
   v_po1 uuid := '77777777-7777-4777-8777-777777777777';
 BEGIN
-  SELECT id INTO v_tenant FROM tenants WHERE name = 'Third Code ERP E2E Tenant' LIMIT 1;
+  SELECT id INTO v_tenant FROM tenants WHERE slug = v_demo_tenant_slug LIMIT 1;
   IF v_tenant IS NULL THEN
-    RAISE EXCEPTION 'Demo seed requires the Third Code ERP E2E Tenant to exist';
+    RAISE EXCEPTION 'Demo seed requires dedicated demo tenant % to exist', v_demo_tenant_slug;
   END IF;
 
   SELECT id INTO v_user FROM users WHERE tenant_id = v_tenant LIMIT 1;

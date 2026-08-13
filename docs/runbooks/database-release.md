@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Safely reconcile and release Third Code ERP migrations to a hosted Supabase
+Safely reconcile and release ABI OPS migrations to a hosted Supabase
 PostgreSQL 17 database. This runbook is required when the target migration
 ledger differs from `supabase/migrations`.
 
@@ -24,19 +24,49 @@ It prints migration versions, file hashes, SQL-risk warnings, unexpected
 history, and later versions applied after the first gap. It never executes SQL
 or repairs migration history.
 
+For the current BUILD OPS release gate, run the stronger read-only preflight as
+well:
+
+```powershell
+pnpm plan:database-release:full
+```
+
+This requires a linear migration ledger and invokes the WO-02 database verifier
+for audit coverage, audit identity, the tenant holiday table, RLS, policies,
+and append-only audit rules. A current migration ledger alone is not release
+readiness.
+
+When Supabase is linked to Git `main`, also run the provider-source planner:
+
+```powershell
+pnpm plan:provider-database-release -- --json
+```
+
+It reads migration SQL from the locally available `origin/main` ref, compares
+that source against the hosted migration ledger, counts pending SQL-risk
+categories, and checks the duplicate Purchase Order precondition. It does not
+apply migrations or alter Git. Use `--require-ready` only as a release gate;
+the current target is expected to fail until its pending suffix and data
+reconciliation are reviewed.
+
 ## Current release state
 
-Verified 2026-07-28 against the authorized Supabase target:
+Read-only revalidated 2026-08-12 against Supabase project
+`aqqrtkmtcsfkbyyqxowv`:
 
 - PostgreSQL 17.
-- 44 of 44 repository versions recorded as applied.
-- No missing or unexpected migration version.
-- Protected-catalog verifier passes for 30 table groups.
-- Captured business row, money, audit, and Storage baselines were unchanged.
+- The hosted ledger has 55 applied versions, while provider-linked
+  `origin/main` contains 124 versions; 69 provider migrations remain pending.
+- The first pending provider migration is blocked by one tenant-scoped
+  duplicate Purchase Order number group.
+- The hosted project reports `MIGRATIONS_FAILED` and the full WO-02 database
+  gate is not passing.
+- Provider/source identity is not release-authoritative: the dirty local
+  workspace differs from provider-linked `origin/main` and its migration set.
 
-The earlier non-linear 20/43 state is retained in the operations work log.
-Every future target must independently pass this runbook; current status is
-not transferable to another project or environment.
+This section is current-state evidence, not a release approval. A future target
+must independently pass every phase in this runbook; status is not transferable
+to another project or environment.
 
 ## Required people and evidence
 
@@ -66,7 +96,9 @@ recover Storage objects deleted after that backup. See
    ```powershell
    pnpm test:database-release-plan
    pnpm plan:database-release # DATABASE_URL injected by approved secret manager
+   pnpm plan:database-release:full
    node scripts/verify-database-repro.mjs
+   pnpm verify:release-source
    ```
 
 4. Capture output in the change record. Never capture connection strings.
@@ -77,6 +109,10 @@ recover Storage objects deleted after that backup. See
    - the configured project cannot be proven;
    - backup/PITR status is unknown;
    - CI is not green.
+   - the release workspace is dirty, `HEAD` differs from provider-linked
+     `origin/main`, or the two migration sets differ. `verify:release-source`
+     is read-only and must pass before a provider-linked release is considered
+     source-authoritative.
 
 `supabase db push --dry-run` can list what the CLI would apply, but it is not
 proof that non-linear migrations are safe. The pinned CLI exposes this flag;

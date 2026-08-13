@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { permits, projects } from '@third-code-erp/database/schema'
+import { permits, projects, users } from '@third-code-erp/database/schema'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Permits' }
@@ -14,12 +14,20 @@ const STATUS_BADGE: Record<string, string> = {
   under_review: 'stage-badge stage-negotiation',
   approved: 'stage-badge stage-closed_won',
   rejected: 'stage-badge stage-closed_lost',
+  released: 'stage-badge stage-closed_won',
+  refunded: 'stage-badge stage-closed_won',
+  cancelled: 'stage-badge stage-closed_lost',
 }
 
 const TYPE_LABEL: Record<string, string> = {
   building_admin_vetting: 'Bldg. admin vetting',
   lgu_building_permit: 'LGU bldg. permit',
   dole_permit: 'DOLE',
+  occupancy_permit: 'Occupancy',
+  cari: 'CARI',
+  performance_bond: 'Performance bond',
+  surety_bond: 'Surety bond',
+  construction_bond: 'Construction bond',
 }
 
 export default async function PermitsPage() {
@@ -34,10 +42,13 @@ export default async function PermitsPage() {
       status: permits.status,
       submitted_at: permits.submitted_at,
       expected_approval_at: permits.expected_approval_at,
+      expected_return_at: permits.expected_return_at,
+      responsible_name: users.full_name,
       last_status_change_at: permits.last_status_change_at,
     })
     .from(permits)
     .innerJoin(projects, eq(projects.id, permits.project_id))
+    .leftJoin(users, and(eq(users.id, permits.responsible_user_id), eq(users.tenant_id, profile.tenantId)))
     .where(eq(permits.tenant_id, profile.tenantId))
     .orderBy(desc(permits.last_status_change_at))
     .limit(200)
@@ -48,7 +59,7 @@ export default async function PermitsPage() {
         <p className="page-eyebrow">Pre-Construction</p>
         <h1 className="page-title">Permits</h1>
         <p className="page-subtitle">
-          LGU, Building Admin Vetting, and DOLE permits with submission and approval tracking.
+          Permits, CARI, bonds, and external-return dates with ownership and escalation tracking.
         </p>
       </div>
       <div className="card">
@@ -65,6 +76,9 @@ export default async function PermitsPage() {
                 <th>Type</th>
                 <th>Status</th>
                 <th>Submitted</th>
+                <th>Expected return</th>
+                <th>Responsible</th>
+                <th>Days at risk</th>
                 <th>Last update</th>
               </tr>
             </thead>
@@ -73,7 +87,11 @@ export default async function PermitsPage() {
                 const daysSinceUpdate = Math.floor(
                   (Date.now() - new Date(p.last_status_change_at).getTime()) / 86_400_000
                 )
-                const isStale = daysSinceUpdate > 7 && !['approved', 'rejected'].includes(p.status)
+                const isStale = daysSinceUpdate > 7 && !['approved', 'rejected', 'released', 'refunded', 'cancelled'].includes(p.status)
+                const expectedReturn = p.expected_return_at ?? p.expected_approval_at
+                const daysAtRisk = expectedReturn
+                  ? Math.max(0, Math.ceil((Date.now() - new Date(expectedReturn).getTime()) / 86_400_000))
+                  : null
                 return (
                   <tr key={p.id}>
                     <td>
@@ -92,6 +110,15 @@ export default async function PermitsPage() {
                       {p.submitted_at
                         ? new Date(p.submitted_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
                         : '—'}
+                    </td>
+                    <td className="muted">
+                      {expectedReturn
+                        ? new Date(expectedReturn).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+                        : 'â€”'}
+                    </td>
+                    <td className="muted">{p.responsible_name ?? 'Unassigned'}</td>
+                    <td style={daysAtRisk !== null && daysAtRisk > 0 ? { color: 'var(--color-danger)', fontWeight: 600 } : { color: 'var(--color-neutral-500)' }}>
+                      {daysAtRisk === null ? 'No forecast' : daysAtRisk > 0 ? `${daysAtRisk}d overdue` : '0d'}
                     </td>
                     <td style={isStale ? { color: 'var(--color-warning)', fontWeight: 500 } : { color: 'var(--color-neutral-500)' }}>
                       {daysSinceUpdate}d

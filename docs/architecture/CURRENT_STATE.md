@@ -1,8 +1,109 @@
 # Current State
 
-Verified from the repository and the configured Supabase target on 2026-07-30.
-Application deployments are reported separately and are never inferred from a
+## Latest production promotion - 2026-08-13
+
+- Railway `ABI OPS CAD Worker` is Online at
+  `https://abi-ops-cad-worker-production.up.railway.app`, deployment
+  `9c864abc-2308-42f3-b47d-d4388e25273a`.
+- The worker builds pinned LibreDWG `0.13.4`, requires a server-only bearer
+  secret, and has no database or tenant authority. Production health and
+  authenticated DXF/DWG evidence probes pass; worker tests are 14/14.
+- Vercel deployment `dpl_8L2HQin9DH2vxYaxm8sbwzdTudq6` is READY and aliases
+  the ABI OPS production URL. Health/readiness, production-surface, branding,
+  real-Chrome authenticated route/role checks, and BOM `Worker online` wiring
+  pass.
+- Current-source web typecheck and 385/389 web unit tests pass; the four
+  skipped tests are explicitly environment-gated. This remains runtime
+  evidence from a dirty worktree, not a committed Git release.
+
+Supabase fallback Edge Functions are ACTIVE and JWT-protected. The target has
+no pg_cron jobs and no optional Resend/CNPS configuration, so scheduled
+execution and outbound email delivery are not claimed.
+
+## Final provider promotion - 2026-08-13
+
+- Vercel production deployment dpl_AUme5sfo7WfZqDKgD8319PqTVWkK is Ready
+  and serves the ABI OPS alias. Health/readiness and the production-surface
+  contract pass on revision dpl_AUme5sfo. `/crm/opportunities` redirects to
+  the pipeline board instead of returning 404.
+- Railway production deployment d0873402-3516-4094-ae7a-7dac11b9eef4 is
+  SUCCESS; live health/readiness report API, database, and Redis readiness.
+- Supabase project aqqrtkmtcsfkbyyqxowv is current at 140/140 migrations,
+  headed by 20260813220000_change_request_change_log.sql. The replay and
+  security lane passes, with 170/170 tenant-scoped tables covered by audit
+  triggers.
+- Real Chrome authenticated regression passes smoke, branding, and all 11
+  seeded role boundaries. API and web unit suites pass with four explicit web
+  skips gated by environment.
+- The proposal change-request flow now has tenant-scoped append-only change
+  logs, idempotent create/resolve transactions, audit records, and a hosted
+  protected-page E2E. Disposable-PostgreSQL integration proves create/replay,
+  conflict denial, resolve/replay, and tenant isolation. Hosted production
+  mutation proof passes in the seeded `buildops-e2e` demo tenant only.
+- This is runtime/provider evidence from a dirty worktree, not a committed
+  Git release. Repository-hosted CI credentials, owner governance sign-off,
+  M1 canary/provider drill, and physical/device validation remain open.
+
+## Latest release-authority check — 2026-08-13
+
+- The current ABI OPS runtime was explicitly deployed from the local working
+  tree. The worktree remains dirty, so this release is runtime evidence, not a
+  source-authoritative Git release.
+- Vercel `pavi-2e9809a4/thirdcode-erp` is READY on deployment
+  `dpl_DUT3PBLM8gUhkmrLSJfVSPKdeNUy`, with Node.js `22.x`. The canonical
+  alias serves ABI OPS; health/readiness, production-surface verification,
+  public responsive Chrome E2E, and authenticated route E2E pass.
+- Railway API deployment `2c19f8b8-a5cb-462f-9f92-d35e16647056` is Online;
+  `/health` and `/ready` report database and Redis readiness.
+- Supabase target `aqqrtkmtcsfkbyyqxowv` matches the local 139-file migration
+  ledger through `20260813210000`; linked dry-run reports zero pending
+  migrations. Duplicate PO numbers were reconciled additively, and audit
+  coverage is `169/169` tenant-scoped tables.
+- The ABI OPS brand contract passes. Authenticated branding, the 11-role
+  matrix, Cortex, and viewer-safety journeys pass in real Chrome.
+- The current-source self-hosted CI lane passes: 140-migration replay,
+  database reproducibility/security invariants, 264 database tests, WO-04/05/06
+  gates, and standalone web/API smoke. Redis emitted a non-fatal
+  memory-overcommit warning under WSL.
+- Remaining limits are explicit: CI execution with repository-managed E2E
+  secrets, Git commit/push reproducibility, the dedicated M1 canary and
+  provider flag drill, governance sign-off, and physical/device validation.
+
+Baseline verified from the repository and configured Supabase target on
+2026-07-30. That baseline is historical. Superseding release-authority checks
+are recorded below; application deployments are never inferred from a
 successful build.
+
+> Current-state rule: use the dated `Superseding release-authority check` and
+> `Latest read-only data evidence` sections first. Later sections retain
+> date-bound historical evidence from earlier releases; values such as 54/54
+> or 48/48 do not describe the current provider state.
+
+## Superseding release-authority check — 2026-08-13
+
+- Local worktree is dirty and is not a safe provider-release source.
+- Provider-linked `origin/main` contains 124 migrations; target ledger has 55
+  applied and 69 pending. A duplicate `(tenant_id, po_number)` group blocks
+  the first pending migration.
+- Vercel project `pavi-2e9809a4/thirdcode-erp` currently aliases
+  `dpl_F1Xo2hfhpMrfvrHG1hiPRKeim9mN`. Public health/readiness return HTTP 200,
+  but public identity and branding checks fail: service remains
+  `third-code-erp-web`, manifest remains `ABI OS`, and landing output contains
+  legacy branding.
+- Local ABI OPS source/build checks pass; hosted production is not green.
+- No hosted migration SQL, data mutation, deploy, or alias change was
+  performed during this recheck.
+
+## Source-only CAD authority update — 2026-08-13
+
+- Python CAD worker no longer imports a database client or accepts database,
+  Storage service-role, tenant, project, or document authority. It returns
+  bounded hash-verified evidence only.
+- Next.js creates a short-lived signed object URL, validates worker evidence,
+  and owns scope-item persistence for both inline and queued CAD paths.
+- Worker boundary tests pass 13/13; Web typecheck passes.
+- Hosted runtime remains unchanged. M2 durable jobs/evidence, NestJS processor
+  authority, and canary deployment remain incomplete.
 
 ## Runtime topology
 
@@ -30,7 +131,7 @@ successful build.
   `pnpm-lock.yaml`; its SHA-256 remained
   `A95947EAAF1B9D3801A27D5F551EF29239E1CF930BBD1FF8AAD0DF925E41A2C3`.
 
-## Configured database release status
+## Configured database release status (historical 2026-07-30 snapshot)
 
 The authorized Supabase target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17 and
 matches the repository migration contract:
@@ -99,7 +200,7 @@ matches the repository migration contract:
   plus an explicit database-derived tenant allowlist.
 - Safe rollback to the legacy write path when either gate does not match.
 
-## Hosted release status
+## Hosted release status (historical evidence; superseded by 2026-08-13 check)
 
 - GitHub source is published to `Third-Code-Solutions/ERP`; the reviewed
   deployment milestone is present on `main`.
@@ -107,7 +208,7 @@ matches the repository migration contract:
   runners because the organization account has a billing/spending-limit
   block; the failure occurs before any workflow step executes.
 - Railway project `a21fd382-80b2-4218-8025-11f420a062e3` runs the NestJS
-  service `Third Code ERP API` and a managed Redis service.
+  service `ABI OPS API` and a managed Redis service.
 - `https://third-code-erp-api-production.up.railway.app/health` returns
   `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
 - The current Railway deployment is
@@ -978,7 +1079,7 @@ matches the repository migration contract:
 - Public metadata, structured-data identifiers, `robots.txt`, and
   `sitemap.xml` now resolve from one validated public origin.
 - Resolution order is `NEXT_PUBLIC_SITE_URL`, server-only `SITE_URL`, Vercel's
-  production hostname, then the retained Third Code Vercel origin for
+  production hostname, then the retained legacy Vercel origin for
   compatibility.
 - Configured origins must be absolute HTTP(S) origins without credentials,
   paths, queries, or fragments. Invalid configuration fails the build instead
@@ -1019,3 +1120,19 @@ matches the repository migration contract:
   standalone Node artifact and runtime are verified independently.
 - No frontend hostname, Supabase redirect setting, traffic, database, Railway
   service, Vercel setting, or Vercel deployment changed.
+
+## 2026-08-13 RFQ terminal-transition adapter
+
+- NestJS now exposes strict authenticated completion and cancellation routes:
+  `POST /v1/procurement/rfqs/:rfqId/complete` and
+  `POST /v1/procurement/rfqs/:rfqId/cancel`.
+- The adapter derives actor and tenant from Supabase JWT membership, requires
+  `rfq.dispatch`, locks the RFQ, validates completion coverage, updates status
+  with tenant/previous-status predicates, and writes the semantic audit in the
+  same transaction.
+- Next.js remains the default writer. The adapter requires the exact
+  `ERP_RFQ_TRANSITION_WRITES_VIA_API=true` flag plus an explicit UUID tenant
+  allowlist. No hosted environment, migration, deployment, or provider data
+  changed.
+- Shared, API, web, and disposable PostgreSQL/Redis verification passes are
+  recorded in `docs/research/components/rfq-transition-nest-adapter.spec.md`.

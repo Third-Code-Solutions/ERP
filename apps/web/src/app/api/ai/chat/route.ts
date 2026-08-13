@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
-import { getUser } from '@third-code-erp/auth'
+import { z } from 'zod'
+import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { boms, bomLineItems, invoices, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
+import { boms, bomLineItems, invoices, projects, purchaseOrders } from '@third-code-erp/database/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { getOpenAI } from '@third-code-erp/ai'
 import { writeAuditLog } from '@/lib/audit'
@@ -9,21 +10,44 @@ import { writeAuditLog } from '@/lib/audit'
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
-export async function POST(req: NextRequest) {
-  const user = await getUser()
-  if (!user) return new Response('Unauthorized', { status: 401 })
+const ChatRequestSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string().trim().min(1).max(4000),
+      }),
+    )
+    .min(1)
+    .max(50),
+  projectId: z.string().uuid().optional(),
+})
 
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return new Response('Forbidden', { status: 403 })
+export async function POST(req: NextRequest) {
+  const profile = await getUserProfile()
+  if (!profile) return new Response('Unauthorized', { status: 401 })
 
   if (!process.env.OPENAI_API_KEY) {
     return new Response(JSON.stringify({ error: 'AI not configured' }), { status: 503, headers: { 'Content-Type': 'application/json' } })
   }
 
-  const { messages, projectId } = (await req.json()) as {
-    messages: { role: 'user' | 'assistant'; content: string }[]
-    projectId?: string
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
+  const parsed = ChatRequestSchema.safeParse(body)
+  if (!parsed.success) {
+    return new Response(JSON.stringify({ error: 'Invalid request' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  const { messages, projectId } = parsed.data
 
   // Build context from the project's data
   let context = ''
@@ -32,7 +56,7 @@ export async function POST(req: NextRequest) {
     const [project] = await db
       .select()
       .from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.tenant_id, userRow.tenant_id)))
+      .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
 
     if (project) {
       context += `PROJECT: ${project.name}\nClient: ${project.client}\nStatus: ${project.status}\nLocation: ${project.location ?? 'N/A'}\nType: ${project.project_type ?? 'N/A'}\n\n`
@@ -41,7 +65,7 @@ export async function POST(req: NextRequest) {
       const [latestBom] = await db
         .select()
         .from(boms)
-        .where(and(eq(boms.project_id, projectId), eq(boms.tenant_id, userRow.tenant_id)))
+        .where(and(eq(boms.project_id, projectId), eq(boms.tenant_id, profile.tenantId)))
         .orderBy(desc(boms.version))
         .limit(1)
 
@@ -54,7 +78,7 @@ export async function POST(req: NextRequest) {
         const lines = await db
           .select()
           .from(bomLineItems)
-          .where(and(eq(bomLineItems.bom_id, latestBom.id), eq(bomLineItems.tenant_id, userRow.tenant_id)))
+          .where(and(eq(bomLineItems.bom_id, latestBom.id), eq(bomLineItems.tenant_id, profile.tenantId)))
 
         if (lines.length > 0) {
           context += 'BOM Line Items:\n'
@@ -70,7 +94,7 @@ export async function POST(req: NextRequest) {
       const invRows = await db
         .select()
         .from(invoices)
-        .where(and(eq(invoices.project_id, projectId), eq(invoices.tenant_id, userRow.tenant_id)))
+        .where(and(eq(invoices.project_id, projectId), eq(invoices.tenant_id, profile.tenantId)))
 
       if (invRows.length > 0) {
         context += `Invoices (${invRows.length}):\n`
@@ -84,7 +108,7 @@ export async function POST(req: NextRequest) {
       const poRows = await db
         .select()
         .from(purchaseOrders)
-        .where(and(eq(purchaseOrders.project_id, projectId), eq(purchaseOrders.tenant_id, userRow.tenant_id)))
+        .where(and(eq(purchaseOrders.project_id, projectId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
       if (poRows.length > 0) {
         context += `Purchase Orders (${poRows.length}):\n`
@@ -95,7 +119,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const systemPrompt = `You are a helpful assistant for Third Code ERP, a construction ERP system for Philippine MEP contractors.
+  const systemPrompt = `You are a helpful assistant for ABI OPS, a construction operations system for Philippine MEP contractors.
 You have access to project data and help users understand costs, margins, billing, and procurement.
 All monetary values are in Philippine Pesos (₱).
 Be concise and specific. When referencing numbers, always include the currency symbol.
@@ -108,10 +132,10 @@ ${context ? `CURRENT PROJECT CONTEXT:\n${context}` : 'No specific project contex
   try {
     const lastUser = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
     await writeAuditLog({
-      tenantId: userRow.tenant_id,
-      actorId: user.id,
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
       entityType: 'ai_chat',
-      entityId: projectId ?? user.id,
+      entityId: projectId ?? profile.user.id,
       action: 'query',
       diff: {
         project_id: projectId ?? null,

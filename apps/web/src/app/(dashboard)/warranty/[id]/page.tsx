@@ -65,8 +65,20 @@ export default async function TicketDetailPage({ params }: PageProps) {
       account_name: accounts.name,
     })
     .from(warrantyTickets)
-    .innerJoin(projects, eq(projects.id, warrantyTickets.project_id))
-    .leftJoin(accounts, eq(accounts.id, warrantyTickets.account_id))
+    .innerJoin(
+      projects,
+      and(
+        eq(projects.id, warrantyTickets.project_id),
+        eq(projects.tenant_id, profile.tenantId),
+      ),
+    )
+    .leftJoin(
+      accounts,
+      and(
+        eq(accounts.id, warrantyTickets.account_id),
+        eq(accounts.tenant_id, profile.tenantId),
+      ),
+    )
     .where(
       and(eq(warrantyTickets.id, id), eq(warrantyTickets.tenant_id, profile.tenantId))
     )
@@ -85,8 +97,16 @@ export default async function TicketDetailPage({ params }: PageProps) {
       user_full_name: users.full_name,
     })
     .from(ticketMessages)
-    .leftJoin(users, eq(users.id, ticketMessages.sender_user_id))
-    .where(eq(ticketMessages.ticket_id, id))
+    .leftJoin(
+      users,
+      and(eq(users.id, ticketMessages.sender_user_id), eq(users.tenant_id, profile.tenantId)),
+    )
+    .where(
+      and(
+        eq(ticketMessages.ticket_id, id),
+        eq(ticketMessages.tenant_id, profile.tenantId),
+      ),
+    )
     .orderBy(ticketMessages.created_at)
 
   // Project documents for service-report close picker.

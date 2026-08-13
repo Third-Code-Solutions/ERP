@@ -3,7 +3,7 @@
 ## Overview
 
 - Target file: `apps/web/src/components/dashboard/role-work-dashboard.tsx`
-- Reference: existing authenticated Third Code ERP dashboard shell
+- Reference: existing authenticated ABI OPS dashboard shell
 - Interaction model: server-rendered links; no client state or motion
 - Purpose: replace unauthorized executive metrics with assignee-scoped work
   for roles that cannot access the pipeline

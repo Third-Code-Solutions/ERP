@@ -16,6 +16,11 @@ import { PUBLIC_ROUTE } from './supabase-jwt.guard'
 export const ERP_CAPABILITIES = [
   'project.update',
   'rfq.dispatch',
+  'process.health.read',
+  'process.step.manage',
+  'process.task.manage',
+  'process.sla.manage',
+  'process.approval.manage',
 ] as const
 export type ErpCapability = (typeof ERP_CAPABILITIES)[number]
 
@@ -29,6 +34,43 @@ const CAPABILITY_ROLES: Record<ErpCapability, readonly ErpRole[]> = {
     'pm',
   ],
   'rfq.dispatch': ['owner', 'admin', 'procurement'],
+  'process.health.read': [
+    'owner',
+    'admin',
+    'commercial',
+    'sales',
+    'design',
+    'sd_pm_pe',
+    'pm',
+    'estimator',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+    'viewer',
+  ],
+  'process.step.manage': ['owner', 'admin'],
+  'process.task.manage': [
+    'owner',
+    'admin',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'pm',
+    'procurement',
+    'safety',
+    'cx',
+  ],
+  'process.sla.manage': ['owner', 'admin', 'sd_pm_pe', 'pm'],
+  'process.approval.manage': [
+    'owner',
+    'admin',
+    'commercial',
+    'finance',
+    'procurement',
+    'sd_pm_pe',
+    'pm',
+  ],
 }
 
 const CAPABILITIES_KEY = 'third-code-erp:capabilities'

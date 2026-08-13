@@ -48,7 +48,13 @@ export async function submitCnpsRating(
       ticket_number: warrantyTickets.ticket_number,
     })
     .from(cnpsSurveys)
-    .innerJoin(warrantyTickets, eq(warrantyTickets.id, cnpsSurveys.ticket_id))
+    .innerJoin(
+      warrantyTickets,
+      and(
+        eq(warrantyTickets.id, cnpsSurveys.ticket_id),
+        eq(warrantyTickets.tenant_id, cnpsSurveys.tenant_id)
+      )
+    )
     .where(eq(cnpsSurveys.response_token_hash, tokenHash))
     .limit(1)
 
@@ -75,7 +81,12 @@ export async function submitCnpsRating(
       comment: comment || null,
       responded_at: now,
     })
-    .where(eq(cnpsSurveys.id, row.survey_id))
+    .where(
+      and(
+        eq(cnpsSurveys.id, row.survey_id),
+        eq(cnpsSurveys.tenant_id, row.tenant_id)
+      )
+    )
 
   // 3. Recompute rolling account CNPS (avg × 10).
   if (row.account_id) {

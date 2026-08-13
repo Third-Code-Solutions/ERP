@@ -12,6 +12,7 @@ import {
 import { db } from '@third-code-erp/database'
 import { users as usersTable } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
+import { safeActionError } from '@/lib/safe-action-error'
 import { ASSIGNABLE_ROLES } from './roles'
 
 const createUserSchema = z.object({
@@ -39,8 +40,7 @@ async function safe<T extends { error?: string }>(
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(`[admin/users:${label}]`, err)
-    const msg = err instanceof Error ? err.message : String(err)
-    return { error: `${label} failed: ${msg}` } as T
+    return { error: `${label} failed. Please try again.` } as T
   }
 }
 
@@ -103,8 +103,11 @@ export async function createUser(
       user_metadata: { full_name: input.full_name, tenant_id: profile.tenantId },
     })
     if (authErr || !created?.user) {
+      if (authErr) {
+        console.error('[admin/users:createUser] auth user creation failed', authErr)
+      }
       return {
-        error: authErr?.message ?? 'Could not create the Supabase Auth user.',
+        error: safeActionError(authErr, 'Could not create the workspace user.'),
       }
     }
     const authUserId = created.user.id
@@ -120,11 +123,9 @@ export async function createUser(
       })
     } catch (err) {
       await admin.auth.admin.deleteUser(authUserId).catch(() => {})
+      console.error('[admin/users:createUser] user row insert failed', err)
       return {
-        error:
-          err instanceof Error
-            ? `User row insert failed: ${err.message}`
-            : 'User row insert failed.',
+        error: safeActionError(err, 'Could not create the workspace user.'),
       }
     }
 
@@ -189,7 +190,12 @@ export async function updateUserRole(
     await db
       .update(usersTable)
       .set({ role, updated_at: new Date() })
-      .where(eq(usersTable.id, user_id))
+      .where(
+        and(
+          eq(usersTable.id, user_id),
+          eq(usersTable.tenant_id, profile.tenantId)
+        )
+      )
 
     try {
       await writeAuditLog({
@@ -244,7 +250,10 @@ export async function resetUserPassword(
 
     const admin = createSupabaseAdminClient()
     const { error } = await admin.auth.admin.updateUserById(user_id, { password })
-    if (error) return { error: error.message }
+    if (error) {
+      console.error('[admin/users:resetUserPassword] password reset failed', error)
+      return { error: 'Could not reset the user password.' }
+    }
 
     try {
       await writeAuditLog({
@@ -314,7 +323,10 @@ export async function deleteUser(
 
     const admin = createSupabaseAdminClient()
     const { error: authErr } = await admin.auth.admin.deleteUser(userId)
-    if (authErr) return { error: authErr.message }
+    if (authErr) {
+      console.error('[admin/users:deleteUser] auth user deletion failed', authErr)
+      return { error: safeActionError(authErr, 'Could not delete the workspace user.') }
+    }
 
     // FK from public.users.id → auth.users.id is ON DELETE CASCADE in
     // Supabase by default, so the row often goes with it. We delete

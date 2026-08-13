@@ -1,5 +1,5 @@
 -- =============================================================================
--- Third Code ERP Storage Buckets
+-- ABI OPS Storage Buckets
 -- Idempotent — safe to re-run.
 -- Run via: psql / supabase db execute / Supabase SQL editor.
 -- =============================================================================

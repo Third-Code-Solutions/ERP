@@ -6,13 +6,14 @@
  * `sla-checker` Supabase edge function scans this table every 30 min
  * and emits warn/breach notifications via dispatchNotification.
  *
- * Why a helper: keeps SLA seconds + warn-thresholds in one place rather
- * than scattered across server actions.
+ * Why a helper: keeps business-day and calendar-hour policy in one place
+ * rather than scattering clock semantics across server actions.
  */
 
 import { db } from '@third-code-erp/database'
 import { slaLogs } from '@third-code-erp/database/schema'
 import { and, eq, isNull } from 'drizzle-orm'
+import type { SlaConfig } from './sla-clock-utils'
 
 export type SlaLabel =
   | 'opp.kyc_review'
@@ -29,28 +30,20 @@ export type SlaLabel =
   | 'ticket.acknowledge'
   | 'ticket.schedule'
 
-interface SlaConfig {
-  /** Total time-to-breach in seconds. */
-  breach_at_seconds: number
-  /** Fraction of total at which to emit a warning. 0.8 = at 80% elapsed. */
-  warning_at_pct: number
-}
-
-// PH business norms — 1 day == 24h here (not business hours) for simplicity.
 const SLA_TABLE: Record<SlaLabel, SlaConfig> = {
-  'opp.kyc_review':           { breach_at_seconds: 3 * 86400, warning_at_pct: 0.8 },
-  'opp.stage_response':       { breach_at_seconds: 5 * 86400, warning_at_pct: 0.8 },
-  'pprf.review':              { breach_at_seconds: 2 * 86400, warning_at_pct: 0.8 },
-  'inspection.design_handoff':{ breach_at_seconds: 1 * 86400, warning_at_pct: 0.8 },
-  'design.client_presentation': { breach_at_seconds: 7 * 86400, warning_at_pct: 0.8 },
-  'bom.client_signature':     { breach_at_seconds: 14 * 86400, warning_at_pct: 0.7 },
-  'rfq.supplier_response':    { breach_at_seconds: 7 * 86400, warning_at_pct: 0.8 },
-  'po.commercial_approval':   { breach_at_seconds: 2 * 86400, warning_at_pct: 0.8 },
-  'precon.checklist_item':    { breach_at_seconds: 5 * 86400, warning_at_pct: 0.8 },
-  'permit.status_update':     { breach_at_seconds: 7 * 86400, warning_at_pct: 0.8 },
-  'punchlist.due_date':       { breach_at_seconds: 5 * 86400, warning_at_pct: 0.8 },
-  'ticket.acknowledge':       { breach_at_seconds: 24 * 3600, warning_at_pct: 0.8 },
-  'ticket.schedule':          { breach_at_seconds: 48 * 3600, warning_at_pct: 0.8 },
+  'opp.kyc_review': { clock_type: 'business_days', breach_business_days: 3, warning_at_pct: 0.8 },
+  'opp.stage_response': { clock_type: 'business_days', breach_business_days: 5, warning_at_pct: 0.8 },
+  'pprf.review': { clock_type: 'business_days', breach_business_days: 2, warning_at_pct: 0.8 },
+  'inspection.design_handoff': { clock_type: 'business_days', breach_business_days: 1, warning_at_pct: 0.8 },
+  'design.client_presentation': { clock_type: 'business_days', breach_business_days: 7, warning_at_pct: 0.8 },
+  'bom.client_signature': { clock_type: 'business_days', breach_business_days: 14, warning_at_pct: 0.7 },
+  'rfq.supplier_response': { clock_type: 'business_days', breach_business_days: 7, warning_at_pct: 0.8 },
+  'po.commercial_approval': { clock_type: 'business_days', breach_business_days: 2, warning_at_pct: 0.8 },
+  'precon.checklist_item': { clock_type: 'business_days', breach_business_days: 5, warning_at_pct: 0.8 },
+  'permit.status_update': { clock_type: 'business_days', breach_business_days: 7, warning_at_pct: 0.8 },
+  'punchlist.due_date': { clock_type: 'business_days', breach_business_days: 5, warning_at_pct: 0.8 },
+  'ticket.acknowledge': { clock_type: 'calendar_hours', breach_at_seconds: 24 * 3600, warning_at_pct: 0.8 },
+  'ticket.schedule': { clock_type: 'calendar_hours', breach_at_seconds: 48 * 3600, warning_at_pct: 0.8 },
 }
 
 interface StartArgs {

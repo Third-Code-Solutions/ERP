@@ -1,9 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser } from '@third-code-erp/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { projects, users } from '@third-code-erp/database/schema'
+import { projects } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
 import { writeAuditLog, computeDiff } from '@/lib/audit'
 import {
@@ -18,16 +18,13 @@ export async function updateProject(
   projectId: string,
   formData: FormData
 ): Promise<{ error?: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
 
   const [existing] = await db
     .select()
     .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
 
   if (!existing) return { error: 'Project not found' }
 
@@ -53,7 +50,7 @@ export async function updateProject(
     updated_at: new Date(),
   }
 
-  if (projectWritesUseCoreApi(userRow.tenant_id)) {
+  if (projectWritesUseCoreApi(profile.tenantId)) {
     const result = await updateProjectThroughCoreApi(projectId, {
       name,
       client,
@@ -74,11 +71,11 @@ export async function updateProject(
   await db
     .update(projects)
     .set(updates)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, userRow.tenant_id)))
+    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
 
   await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
+    tenantId: profile.tenantId,
+    actorId: profile.user.id,
     entityType: 'project',
     entityId: projectId,
     action: 'update',

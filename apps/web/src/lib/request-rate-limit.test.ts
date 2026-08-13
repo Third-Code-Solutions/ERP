@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { requestRateLimitKey } from './request-rate-limit'
+import {
+  requestRateLimitKey,
+  shouldRateLimitRequest,
+} from './request-rate-limit'
 
 describe('request rate-limit identity', () => {
   it('keeps anonymous and authenticated traffic in separate buckets', () => {
@@ -19,5 +22,20 @@ describe('request rate-limit identity', () => {
     expect(requestRateLimitKey(ip, 'user-one')).not.toBe(
       requestRateLimitKey(ip, 'user-two')
     )
+  })
+})
+
+describe('request rate-limit eligibility', () => {
+  it('does not consume the shared bucket for page navigation', () => {
+    expect(shouldRateLimitRequest('/', 'GET')).toBe(false)
+    expect(shouldRateLimitRequest('/tasks', 'GET')).toBe(false)
+    expect(shouldRateLimitRequest('/projects', 'HEAD')).toBe(false)
+  })
+
+  it('limits API, auth, and mutating requests', () => {
+    expect(shouldRateLimitRequest('/api/notifications', 'GET')).toBe(true)
+    expect(shouldRateLimitRequest('/auth/login', 'GET')).toBe(true)
+    expect(shouldRateLimitRequest('/projects', 'POST')).toBe(true)
+    expect(shouldRateLimitRequest('/projects', 'DELETE')).toBe(true)
   })
 })

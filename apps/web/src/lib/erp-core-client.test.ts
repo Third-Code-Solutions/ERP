@@ -1,9 +1,14 @@
 import { createSupabaseServerClient } from '@third-code-erp/auth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  getProcessHealthThroughCoreApi,
+  awardRfqQuoteThroughCoreApi,
   logRfqQuoteThroughCoreApi,
   projectWritesUseCoreApi,
+  rfqAwardWritesUseCoreApi,
   rfqQuoteWritesUseCoreApi,
+  rfqTransitionWritesUseCoreApi,
+  transitionRfqThroughCoreApi,
   updateProjectThroughCoreApi,
 } from './erp-core-client'
 
@@ -17,6 +22,34 @@ const RFQ_QUOTE_RESULT = {
   quoteId: '55555555-5555-4555-8555-555555555555',
   created: true,
   statusChanged: true,
+  priceHistoryId: '99999999-9999-4999-8999-999999999999',
+}
+const RFQ_AWARD_RESULT = {
+  rfqId: RFQ_ID,
+  quoteId: RFQ_QUOTE_RESULT.quoteId,
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  priceHistoryId: RFQ_QUOTE_RESULT.priceHistoryId,
+  awarded: true as const,
+}
+const RFQ_TRANSITION_RESULT = {
+  rfqId: RFQ_ID,
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  transitioned: true as const,
+}
+const PROCESS_HEALTH_RESULT = {
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  observeMode: true,
+  byBu: [
+    {
+      responsibleBu: 'Sales',
+      openTasks: 2,
+      atRiskClocks: 1,
+      breachedClocks: 0,
+      escalatedClocks: 0,
+      externalBreachedClocks: 1,
+    },
+  ],
+  generatedAt: '2026-08-12T00:00:00.000Z',
 }
 const RESULT = {
   id: PROJECT_ID,
@@ -148,6 +181,18 @@ describe('ERP Core client', () => {
     expect(rfqQuoteWritesUseCoreApi('not-a-uuid')).toBe(false)
   })
 
+  it('keeps RFQ award writes behind the exact flag and tenant allowlist', () => {
+    vi.stubEnv('ERP_RFQ_AWARD_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_RFQ_AWARD_WRITES_VIA_API_TENANT_IDS',
+      RFQ_AWARD_RESULT.tenantId,
+    )
+    expect(rfqAwardWritesUseCoreApi(RFQ_AWARD_RESULT.tenantId)).toBe(true)
+
+    vi.stubEnv('ERP_RFQ_AWARD_WRITES_VIA_API', 'TRUE')
+    expect(rfqAwardWritesUseCoreApi(RFQ_AWARD_RESULT.tenantId)).toBe(false)
+  })
+
   it('sends a strict RFQ quote command and validates the result', async () => {
     const command = {
       submissionId: '66666666-6666-4666-8666-666666666666',
@@ -182,4 +227,121 @@ describe('ERP Core client', () => {
       })
     )
   })
+
+  it('sends a strict RFQ award command and validates the result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(RFQ_AWARD_RESULT), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      awardRfqQuoteThroughCoreApi(
+        RFQ_ID,
+        RFQ_QUOTE_RESULT.quoteId,
+      ),
+    ).resolves.toEqual({ ok: true, data: RFQ_AWARD_RESULT })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/procurement/rfqs/${RFQ_ID}/quotes/${RFQ_QUOTE_RESULT.quoteId}/award`,
+      expect.objectContaining({
+        method: 'POST',
+        body: '{}',
+        cache: 'no-store',
+      }),
+    )
+  })
+
+  it('keeps RFQ transition writes behind the exact flag and tenant allowlist', () => {
+    vi.stubEnv('ERP_RFQ_TRANSITION_WRITES_VIA_API', 'true')
+    vi.stubEnv(
+      'ERP_RFQ_TRANSITION_WRITES_VIA_API_TENANT_IDS',
+      RFQ_TRANSITION_RESULT.tenantId
+    )
+    expect(
+      rfqTransitionWritesUseCoreApi(RFQ_TRANSITION_RESULT.tenantId)
+    ).toBe(true)
+    expect(rfqTransitionWritesUseCoreApi('not-a-uuid')).toBe(false)
+
+    vi.stubEnv('ERP_RFQ_TRANSITION_WRITES_VIA_API', 'TRUE')
+    expect(
+      rfqTransitionWritesUseCoreApi(RFQ_TRANSITION_RESULT.tenantId)
+    ).toBe(false)
+  })
+
+  it('sends a strict RFQ transition and validates the tenant-scoped result', async () => {
+    const command = { command: 'cancel' as const, reason: 'Supplier withdrew' }
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(RFQ_TRANSITION_RESULT), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      transitionRfqThroughCoreApi(RFQ_ID, command, 'cancel')
+    ).resolves.toEqual({
+      ok: true,
+      data: RFQ_TRANSITION_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://erp-api.example.test/v1/procurement/rfqs/${RFQ_ID}/cancel`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ reason: command.reason }),
+        cache: 'no-store',
+      })
+    )
+  })
+
+  it('loads process health through the authenticated Core API and validates it', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(PROCESS_HEALTH_RESULT), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getProcessHealthThroughCoreApi()).resolves.toEqual({
+      ok: true,
+      data: PROCESS_HEALTH_RESULT,
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://erp-api.example.test/v1/process/health',
+      expect.objectContaining({
+        cache: 'no-store',
+        headers: expect.objectContaining({
+          authorization: 'Bearer never-log-or-return-this-token',
+        }),
+      })
+    )
+  })
+
+  it('does not fabricate process health when the Core API is unavailable or invalid', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('connection refused'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getProcessHealthThroughCoreApi()).resolves.toEqual({
+      ok: false,
+      error: 'ERP Core API is unavailable. Process health was not loaded.',
+    })
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ byBu: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    await expect(getProcessHealthThroughCoreApi()).resolves.toEqual({
+      ok: false,
+      error: 'ERP Core API returned an invalid process-health result.',
+    })
+  })
+
 })

@@ -13,7 +13,7 @@
 
 import { logCustomerView } from '@/lib/operations/customer-portal'
 
-export async function logView(sessionId: string): Promise<void> {
+export async function logView(sessionId: string, tenantId: string): Promise<void> {
   if (!sessionId) return
-  await logCustomerView(sessionId)
+  await logCustomerView(sessionId, tenantId)
 }

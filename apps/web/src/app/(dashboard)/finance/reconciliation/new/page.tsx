@@ -56,7 +56,7 @@ export default async function NewBankStatementPage() {
           <p className="finance-eyebrow">Controlled source evidence</p>
           <h1 className="page-title">Import bank statement</h1>
           <p className="page-subtitle">
-            Upload a signed-amount CSV. Third Code ERP validates every line and
+            Upload a signed-amount CSV. ABI OPS validates every line and
             fingerprints the exact source before saving one atomic draft.
           </p>
         </div>

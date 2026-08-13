@@ -41,7 +41,7 @@ def convert_dwg_to_dxf(dwg_bytes: bytes) -> bytes:
     if not is_available():
         raise DwgConversionError(
             f"{DWG2DXF_BIN} binary is not available on PATH. "
-            "Install libredwg-tools (Debian/Ubuntu: apt-get install libredwg-tools)."
+            "Install the LibreDWG dwg2dxf converter in the worker image."
         )
 
     with tempfile.TemporaryDirectory(prefix="third-code-erp-dwg-") as tmpdir:

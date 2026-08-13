@@ -9,8 +9,8 @@ import { login } from './helpers/auth'
  *   PLAYWRIGHT_BASE_URL=http://localhost:3002 \
  *   E2E_PROJECT_ID=08ab6e94-2374-4a7f-8d62-8919ba3d1c09 \
  *   E2E_CAD_FILE=/Users/hoon/Downloads/Pond-to-CAD.dwg \
- *   E2E_USER_EMAIL=test@third-code-erp.local \
- *   E2E_USER_PASSWORD=testpassword123 \
+ *   E2E_USER_EMAIL=<dedicated-test-user> \
+ *   E2E_USER_PASSWORD=<dedicated-test-password> \
  *   pnpm --filter @third-code-erp/web test:e2e -- e2e/documents-dwg-upload.spec.ts
  *
  * Binary DWG may finish as "extracted" (inline/synchronous path) or

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getUser: vi.fn(),
+  getUserProfile: vi.fn(),
   can: vi.fn(),
   select: vi.fn(),
   from: vi.fn(),
@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
-  getUser: mocks.getUser,
+  AuthError: class AuthError extends Error {},
+  getUserProfile: mocks.getUserProfile,
   can: mocks.can,
 }))
 
@@ -46,11 +47,17 @@ const OTHER_PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 describe('signed document upload Project access', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getUser.mockResolvedValue({ id: USER_ID })
+    mocks.getUserProfile.mockResolvedValue({
+      user: { id: USER_ID },
+      tenantId: TENANT_ID,
+      role: 'pm',
+      email: 'pm@example.com',
+      fullName: 'PM User',
+    })
     mocks.can.mockReturnValue(true)
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })
-    mocks.where.mockResolvedValue([{ tenant_id: TENANT_ID, role: 'pm' }])
+    mocks.where.mockResolvedValue([{ total: '0' }])
     mocks.getProject.mockResolvedValue(null)
     mocks.storageFrom.mockReturnValue({
       createSignedUploadUrl: mocks.createSignedUploadUrl,
@@ -106,7 +113,7 @@ describe('signed document upload Project access', () => {
       TENANT_ID,
       OTHER_PROJECT_ID
     )
-    expect(mocks.select).toHaveBeenCalledOnce()
+    expect(mocks.select).not.toHaveBeenCalled()
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
   })
 
@@ -199,6 +206,43 @@ describe('signed document upload Project access', () => {
       error: 'Failed to audit upload authorization',
     })
     expect(errorSpy).toHaveBeenCalledOnce()
+    errorSpy.mockRestore()
+  })
+
+  it('does not expose Storage provider details when signing fails', async () => {
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined)
+    mocks.where
+      .mockResolvedValueOnce([{ tenant_id: TENANT_ID }])
+      .mockResolvedValueOnce([{ total: '0' }])
+    mocks.getProject.mockResolvedValue({ id: OTHER_PROJECT_ID, tenant_id: TENANT_ID })
+    mocks.createSignedUploadUrl.mockResolvedValue({
+      data: null,
+      error: new Error('secret storage endpoint and bucket internals'),
+    })
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/upload/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: OTHER_PROJECT_ID,
+          fileName: 'drawing.dwg',
+          mimeType: 'application/acad',
+          sizeBytes: 1_024,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Failed to create signed upload URL.',
+    })
+    expect(errorSpy).toHaveBeenCalledOnce()
+    expect(errorSpy.mock.calls[0]?.[1]).toEqual(
+      new Error('secret storage endpoint and bucket internals')
+    )
     errorSpy.mockRestore()
   })
 })

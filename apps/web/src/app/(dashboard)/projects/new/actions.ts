@@ -1,10 +1,9 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { requireUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { projects, users } from '@third-code-erp/database/schema'
-import { eq } from 'drizzle-orm'
+import { projects } from '@third-code-erp/database/schema'
 import { z } from 'zod'
 
 const createProjectSchema = z.object({
@@ -17,16 +16,7 @@ const createProjectSchema = z.object({
 })
 
 export async function createProject(formData: FormData) {
-  const user = await requireUser()
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  if (!userRow?.tenant_id) {
-    throw new Error('User has no tenant')
-  }
+  const profile = await requireUserProfile()
 
   const input = createProjectSchema.parse({
     name: formData.get('name'),
@@ -40,8 +30,8 @@ export async function createProject(formData: FormData) {
   const [inserted] = await db
     .insert(projects)
     .values({
-      tenant_id: userRow.tenant_id,
-      created_by: user.id,
+      tenant_id: profile.tenantId,
+      created_by: profile.user.id,
       ...input,
     })
     .returning({ id: projects.id })

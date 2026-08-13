@@ -20,7 +20,7 @@ const STAGE_LABELS: Record<OpportunityStage, string> = {
   resubmission: 'Resubmission',
   closed_won: 'Closed Won',
   closed_lost: 'Closed Lost',
-  // Third Code ERP 8-stage canonical
+  // ABI OPS 8-stage canonical
   lead: 'Lead',
   site_survey: 'Site Survey',
   design: 'Design',
@@ -37,6 +37,7 @@ function isStage(value: string): value is OpportunityStage {
 
 export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvanceButtonProps) {
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [lostPromptOpen, setLostPromptOpen] = useState(false)
   const [lostReason, setLostReason] = useState('')
@@ -58,10 +59,15 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
   const forwardNexts = transitions.filter((s) => s !== 'closed_lost' && s !== 'lost')
 
   function advance(stage: OpportunityStage, reason?: string) {
+    setError(null)
     setOpen(false)
     setLostPromptOpen(false)
     startTransition(async () => {
-      await advanceOpportunityStage(opportunityId, stage, reason)
+      const result = await advanceOpportunityStage(opportunityId, stage, reason)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
       setLostReason('')
       router.refresh()
     })
@@ -76,7 +82,7 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
   const singleForward = forwardNexts.length === 1 ? forwardNexts[0]! : null
 
   return (
-    <div style={{ display: 'flex', gap: '4px', position: 'relative' }}>
+    <div style={{ display: 'flex', gap: '4px', position: 'relative', flexWrap: 'wrap' }}>
       {singleForward && (
         <button
           onClick={() => advance(singleForward)}
@@ -185,6 +191,14 @@ export function StageAdvanceButton({ opportunityId, currentStage }: StageAdvance
             </div>
           </div>
         </div>
+      )}
+      {error && (
+        <p
+          role="alert"
+          style={{ flexBasis: '100%', margin: '4px 0 0', color: 'var(--color-danger, #b91c1c)', fontSize: '0.75rem', lineHeight: 1.4 }}
+        >
+          {error}
+        </p>
       )}
     </div>
   )

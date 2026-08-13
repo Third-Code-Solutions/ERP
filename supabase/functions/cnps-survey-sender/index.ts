@@ -66,13 +66,13 @@ function buildSurveyEmail(args: {
     `Open the survey: ${args.surveyUrl}`,
     ``,
     `Thank you,`,
-    `Third Code ERP Customer Experience`,
+    `ABI OPS Customer Experience`,
   ].join('\n')
   const html = `
     <p>${greeting}</p>
     <p>Thanks for letting us close out service ticket <strong>${args.ticketNumber}</strong>. We would love a quick rating on how the experience went — it takes under a minute.</p>
     <p><a href="${args.surveyUrl}">Open the survey</a></p>
-    <p>Thank you,<br/>Third Code ERP Customer Experience</p>
+    <p>Thank you,<br/>ABI OPS Customer Experience</p>
   `.trim()
   return { subject, html, text }
 }
@@ -105,9 +105,16 @@ Deno.serve(async (req) => {
     const alreadySent = new Set(existing.map((r) => r.ticket_id))
 
     const portalBase =
-      Deno.env.get('PUBLIC_CNPS_BASE_URL') ??
-      Deno.env.get('PUBLIC_APP_URL') ??
-      'https://thirdcode-erp.vercel.app'
+      Deno.env.get('PUBLIC_CNPS_BASE_URL') ?? Deno.env.get('PUBLIC_APP_URL')
+    if (!portalBase) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'PUBLIC_CNPS_BASE_URL or PUBLIC_APP_URL is required',
+        },
+        { status: 500 }
+      )
+    }
 
     for (const ticket of closedTickets) {
       summary.processed += 1

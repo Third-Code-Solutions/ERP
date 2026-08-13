@@ -9,9 +9,9 @@ import { db } from './client'
 import { costCodes, tenants, users } from './schema'
 import { eq } from 'drizzle-orm'
 
-const TENANT_SLUG = 'thrd-code-dev'
-const TENANT_NAME = 'Th/rd Code Construction (Dev)'
-const ADMIN_EMAIL = process.env['SEED_ADMIN_EMAIL'] ?? 'admin@thirdcode-erp.test'
+const TENANT_SLUG = 'abi-ops-dev'
+const TENANT_NAME = 'ABI OPS Construction (Dev)'
+const ADMIN_EMAIL = process.env['SEED_ADMIN_EMAIL'] ?? 'admin@abi-ops.test'
 const ADMIN_USER_ID = process.env['SEED_USER_ID'] ?? ''
 
 async function seed() {

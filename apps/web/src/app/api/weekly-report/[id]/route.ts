@@ -9,13 +9,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
-import { getUser } from '@third-code-erp/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
   projects,
   tenants,
-  users,
   weeklyReports,
 } from '@third-code-erp/database/schema'
 import {
@@ -34,14 +33,9 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid report id' }, { status: 400 })
   }
 
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) {
+  const profile = await getUserProfile()
+  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!profile.tenantId) {
     return NextResponse.json(
       { error: 'No tenant associated with account' },
       { status: 403 }
@@ -60,7 +54,7 @@ export async function GET(
     .where(
       and(
         eq(weeklyReports.id, reportId),
-        eq(weeklyReports.tenant_id, userRow.tenant_id)
+        eq(weeklyReports.tenant_id, profile.tenantId)
       )
     )
     .limit(1)
@@ -79,12 +73,12 @@ export async function GET(
         account_id: projects.account_id,
       })
       .from(projects)
-      .where(eq(projects.id, report.project_id))
+      .where(and(eq(projects.id, report.project_id), eq(projects.tenant_id, profile.tenantId)))
       .limit(1),
     db
       .select({ name: tenants.name })
       .from(tenants)
-      .where(eq(tenants.id, userRow.tenant_id))
+      .where(eq(tenants.id, profile.tenantId))
       .limit(1),
   ])
 
@@ -99,7 +93,7 @@ export async function GET(
           billing_address: accounts.billing_address,
         })
         .from(accounts)
-        .where(eq(accounts.id, project.account_id))
+        .where(and(eq(accounts.id, project.account_id), eq(accounts.tenant_id, profile.tenantId)))
         .limit(1)
     : [null]
 

@@ -102,6 +102,10 @@ try {
     --exclude=apps/*/.env `
     --exclude=apps/*/.env.* `
     --exclude=.turbo `
+    --exclude=.playwright-cli `
+    --exclude=.playwright-mcp `
+    --exclude=.thirdcode-erp-ci `
+    --exclude=output `
     --exclude=tmp `
     --exclude=playwright-report `
     --exclude=test-results `
@@ -119,7 +123,8 @@ try {
     $env:NEXT_OUTPUT_MODE = 'standalone'
     $env:NEXT_PUBLIC_SUPABASE_URL = 'https://placeholder.supabase.co'
     $env:NEXT_PUBLIC_SUPABASE_ANON_KEY = 'placeholder-anon-key'
-    $env:NEXT_PUBLIC_SITE_URL = 'https://thirdcode-erp.vercel.app'
+    $env:NEXT_PUBLIC_SITE_URL = 'https://abi-ops.example'
+    $expectedSiteUrlRegex = [regex]::Escape($env:NEXT_PUBLIC_SITE_URL.TrimEnd('/'))
     $env:SUPABASE_SERVICE_ROLE_KEY = 'placeholder-service-role-key'
     $env:DATABASE_URL =
       'postgresql://postgres:postgres@127.0.0.1:54322/erp_self_hosted_ci'
@@ -174,7 +179,7 @@ try {
     -PassThru
 
   $health = Wait-ForHealth
-  if ($health.service -ne 'third-code-erp-web') {
+  if ($health.service -ne 'abi-ops-web') {
     throw "Unexpected Web health service: $($health.service)"
   }
   if ($health.revision -ne 'self-hosted-') {
@@ -186,7 +191,7 @@ try {
   Assert-ResponseContains `
     -Name 'Landing page' `
     -Content $landing.Content `
-    -Pattern 'Third Code ERP'
+    -Pattern 'ABI OPS'
 
   if ($landing.Headers['Content-Security-Policy'] -notmatch 'nonce-') {
     throw 'Landing page did not return a nonce-based Content-Security-Policy'
@@ -199,7 +204,7 @@ try {
   Assert-ResponseContains `
     -Name 'robots.txt' `
     -Content $robots `
-    -Pattern 'Sitemap: https://thirdcode-erp\.vercel\.app/sitemap\.xml'
+    -Pattern "Sitemap: $expectedSiteUrlRegex/sitemap\.xml"
 
   $sitemap = (Invoke-WebRequest `
       -Uri "$origin/sitemap.xml" `
@@ -208,19 +213,35 @@ try {
   Assert-ResponseContains `
     -Name 'sitemap.xml' `
     -Content $sitemap `
-    -Pattern '<loc>https://thirdcode-erp\.vercel\.app/</loc>'
+    -Pattern "<loc>$expectedSiteUrlRegex/</loc>"
   if ($sitemap -match '<lastmod>') {
     throw 'sitemap.xml contains an unverified lastmod'
   }
 
-  $manifest = (Invoke-WebRequest `
+  $manifestResponse = Invoke-WebRequest `
       -Uri "$origin/manifest.webmanifest" `
       -UseBasicParsing `
-      -TimeoutSec 10).Content
-  Assert-ResponseContains `
-    -Name 'manifest.webmanifest' `
-    -Content $manifest `
-    -Pattern '"name":"Third Code ERP"'
+      -TimeoutSec 10
+  $manifest = if ($manifestResponse.Content -is [byte[]]) {
+    [Text.Encoding]::UTF8.GetString($manifestResponse.Content)
+  } else {
+    [string]$manifestResponse.Content
+  }
+  try {
+    $manifestDocument = ConvertFrom-Json -InputObject $manifest
+  } catch {
+    throw "manifest.webmanifest was not valid JSON: $($_.Exception.Message)"
+  }
+  $manifestNameProperty = $manifestDocument.PSObject.Properties['name']
+  $manifestShortNameProperty = $manifestDocument.PSObject.Properties['short_name']
+  if (
+    $null -eq $manifestNameProperty -or
+    [string]$manifestNameProperty.Value -ne 'ABI OPS' -or
+    $null -eq $manifestShortNameProperty -or
+    [string]$manifestShortNameProperty.Value -ne 'ABI OPS'
+  ) {
+    throw 'manifest.webmanifest brand mismatch: expected name and short_name ABI OPS'
+  }
 
   Write-Output 'PASS Next standalone: health, landing, CSP, robots, sitemap, manifest.'
 } finally {
@@ -238,12 +259,24 @@ try {
 
   Assert-SafeWorkRoot
   if (Test-Path -LiteralPath $workRoot) {
-    Remove-Item -LiteralPath $workRoot -Recurse -Force
+    try {
+      [IO.Directory]::Delete($workRoot, $true)
+    } catch {
+      try {
+        Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction Stop
+      } catch {
+        Write-Warning "Standalone cleanup incomplete: $workRoot ($($_.Exception.Message))"
+      }
+    }
   }
   if (
     (Test-Path -LiteralPath $tempBase) -and
     -not (Get-ChildItem -LiteralPath $tempBase -Force)
   ) {
-    Remove-Item -LiteralPath $tempBase -Force
+    try {
+      [IO.Directory]::Delete($tempBase, $false)
+    } catch {
+      Write-Warning "Standalone temp-root cleanup incomplete: $tempBase ($($_.Exception.Message))"
+    }
   }
 }

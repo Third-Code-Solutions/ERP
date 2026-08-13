@@ -1,8 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUser, getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
+import { getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
+import { db, type Database } from '@third-code-erp/database'
 import {
   bomLineItems,
   boms,
@@ -15,12 +15,26 @@ import {
   projects,
   purchaseOrders,
   rateCards,
-  users,
   vendors,
 } from '@third-code-erp/database/schema'
-import { and, desc, eq, inArray, max, sql } from 'drizzle-orm'
-import { writeAuditLog } from '@/lib/audit'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { z } from 'zod'
+import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles, notifyExternalEmail } from '@/lib/operations/notifications'
+import {
+  formatPurchaseOrderNumber,
+  PURCHASE_ORDER_SEQUENCE_KEY,
+} from '@/lib/operations/purchase-order-number'
+import {
+  createGroupedPoFromBomInputSchema,
+  createPoFromBomInputSchema,
+  standalonePurchaseOrderInputSchema,
+  type PurchaseOrderLineItemInput,
+} from '@/lib/operations/purchase-order-inputs'
+import {
+  calculateLineTotalCents,
+  calculatePurchaseOrderTotals,
+} from '@/lib/operations/purchase-order-money'
 import {
   computeEWT,
   computeRetention,
@@ -30,38 +44,67 @@ import {
 
 // ── Vendor ────────────────────────────────────────────────────────────────────
 
+const vendorInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  contactName: z.string().trim().max(200).optional(),
+  email: z.string().trim().email().max(320).optional(),
+  phone: z.string().trim().max(60).optional(),
+  birTin: z.string().trim().max(32).optional(),
+  address: z.string().trim().max(1_000).optional(),
+  notes: z.string().trim().max(10_000).optional(),
+})
+
 export async function createVendor(formData: FormData): Promise<{ error?: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
 
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  try {
+    requireCapability(profile, 'po.create')
+  } catch {
+    return { error: 'You do not have permission to create vendors.' }
+  }
 
-  const name = formData.get('name')
-  if (typeof name !== 'string' || !name.trim()) return { error: 'Vendor name is required' }
-
-  const [inserted] = await db
-    .insert(vendors)
-    .values({
-      tenant_id: userRow.tenant_id,
-      name: name.trim(),
-      contact_name: str(formData.get('contact_name')),
-      email: str(formData.get('email')),
-      phone: str(formData.get('phone')),
-      bir_tin: str(formData.get('bir_tin')),
-      address: str(formData.get('address')),
-      notes: str(formData.get('notes')),
-    })
-    .returning({ id: vendors.id })
-
-  await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
-    entityType: 'vendor',
-    entityId: inserted!.id,
-    action: 'create',
-    diff: { name },
+  const parsedInput = vendorInputSchema.safeParse({
+    name: formData.get('name'),
+    contactName: str(formData.get('contact_name')),
+    email: str(formData.get('email')),
+    phone: str(formData.get('phone')),
+    birTin: str(formData.get('bir_tin')),
+    address: str(formData.get('address')),
+    notes: str(formData.get('notes')),
   })
+  if (!parsedInput.success) return { error: 'Invalid vendor details' }
+
+  try {
+    await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(vendors)
+        .values({
+          tenant_id: profile.tenantId,
+          name: parsedInput.data.name,
+          contact_name: parsedInput.data.contactName,
+          email: parsedInput.data.email,
+          phone: parsedInput.data.phone,
+          bir_tin: parsedInput.data.birTin,
+          address: parsedInput.data.address,
+          notes: parsedInput.data.notes,
+        })
+        .returning({ id: vendors.id })
+
+      if (!inserted) throw new Error('VENDOR_INSERT_FAILED')
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'vendor',
+        entityId: inserted.id,
+        action: 'create',
+        diff: { name: parsedInput.data.name },
+      })
+    })
+  } catch {
+    return { error: 'Vendor could not be created. Review details and retry.' }
+  }
 
   revalidatePath('/procurement')
   return {}
@@ -75,109 +118,184 @@ export async function createPoFromBom(
   vendorId: string | null,
   deliveryDate: string | null
 ): Promise<{ id: string } | { error: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  try {
+    requireCapability(profile, 'po.create')
+  } catch {
+    return { error: 'You do not have permission to create Purchase Orders.' }
+  }
+  const user = profile.user
+  // Profile hydration already established the caller tenant through the
+  // authenticated RLS client; avoid a second unscoped identity lookup.
+  const userRow = { tenant_id: profile.tenantId }
 
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  const parsedInput = createPoFromBomInputSchema.safeParse({
+    bomId,
+    projectId,
+    vendorId,
+    deliveryDate,
+  })
+  if (!parsedInput.success) return { error: 'Invalid Purchase Order input' }
+  const input = parsedInput.data
 
   // Verify BOM is approved or locked
   const [bom] = await db
-    .select({ id: boms.id, status: boms.status, total_cost_cents: boms.total_cost_cents })
+    .select({
+      id: boms.id,
+      status: boms.status,
+      project_id: boms.project_id,
+      total_cost_cents: boms.total_cost_cents,
+    })
     .from(boms)
-    .where(and(eq(boms.id, bomId), eq(boms.tenant_id, userRow.tenant_id)))
+    .where(and(eq(boms.id, input.bomId), eq(boms.tenant_id, userRow.tenant_id)))
 
   if (!bom) return { error: 'BOM not found' }
   if (bom.status === 'draft') return { error: 'BOM must be approved before generating a PO' }
+  if (bom.project_id !== input.projectId) {
+    return { error: 'BOM does not belong to the selected project' }
+  }
 
-  // Generate sequential PO number
-  const [existing] = await db
-    .select({ max_po: max(purchaseOrders.po_number) })
-    .from(purchaseOrders)
-    .where(eq(purchaseOrders.tenant_id, userRow.tenant_id))
-
-  const nextNum = nextPoNumber(existing?.max_po ?? null)
-
-  const subtotalCents = bom.total_cost_cents
-  const vatCents = Math.round(subtotalCents * 0.12)
-  const withholdingTaxCents = Math.round(subtotalCents * 0.02)
-  const totalCents = subtotalCents + vatCents - withholdingTaxCents
-
-  const [po] = await db
-    .insert(purchaseOrders)
-    .values({
-      tenant_id: userRow.tenant_id,
-      project_id: projectId,
-      vendor_id: vendorId ?? undefined,
-      created_by: user.id,
-      po_number: nextNum,
-      status: 'draft',
-      subtotal_cents: subtotalCents,
-      vat_cents: vatCents,
-      withholding_tax_cents: withholdingTaxCents,
-      total_cents: totalCents,
-      delivery_date: deliveryDate ? new Date(deliveryDate) : undefined,
-    })
-    .returning({ id: purchaseOrders.id })
-
-  const poId = po!.id
+  if (input.vendorId) {
+    const [vendor] = await db
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(
+        and(
+          eq(vendors.id, input.vendorId),
+          eq(vendors.tenant_id, userRow.tenant_id)
+        )
+      )
+      .limit(1)
+    if (!vendor) return { error: 'Vendor not found' }
+  }
 
   // Copy BOM line items → PO line items
-  const lines = await db
-    .select()
-    .from(bomLineItems)
-    .where(and(eq(bomLineItems.bom_id, bomId), eq(bomLineItems.tenant_id, userRow.tenant_id)))
-  const budgetCodeByBomLine = await approvedBudgetCodesByBomLine(
-    userRow.tenant_id,
-    projectId,
-    bomId
-  )
+  let poId: string
+  try {
+    poId = await db.transaction(async (tx) => {
+      const [lockedBom] = await tx
+        .select({
+          id: boms.id,
+          status: boms.status,
+          project_id: boms.project_id,
+          total_cost_cents: boms.total_cost_cents,
+        })
+        .from(boms)
+        .where(and(eq(boms.id, input.bomId), eq(boms.tenant_id, userRow.tenant_id)))
+        .limit(1)
+        .for('update')
 
-  if (lines.length > 0) {
-    await db.insert(poLineItems).values(
-      lines.map((l, idx) => ({
-        tenant_id: userRow.tenant_id,
-        po_id: poId,
-        sort_order: idx,
-        code: l.code ?? undefined,
-        description: l.description,
-        unit: l.unit ?? undefined,
-        quantity: l.quantity,
-        unit_cost_cents: l.unit_cost_cents,
-        line_total_cents: l.unit_cost_cents * l.quantity,
-        bom_line_item_id: l.id,
-        cost_code_id: budgetCodeByBomLine.get(l.id),
-      }))
-    )
-  }
+      if (!lockedBom) throw new Error('BOM_NOT_FOUND')
+      if (lockedBom.status !== 'approved') throw new Error('BOM_ALREADY_COMMITTED')
 
-  // Auto-lock BOM once a PO is generated
-  if (bom.status === 'approved') {
-    await db
-      .update(boms)
-      .set({ status: 'locked', updated_at: new Date() })
-      .where(and(eq(boms.id, bomId), eq(boms.tenant_id, userRow.tenant_id)))
+      // Read source lines only after acquiring the BOM lock. BOM edits that
+      // do not lock the parent row must not race this graph copy and produce
+      // a PO whose totals and provenance disagree with its source snapshot.
+      const lines = await tx
+        .select()
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.bom_id, input.bomId),
+            eq(bomLineItems.tenant_id, userRow.tenant_id)
+          )
+        )
+        .for('update')
+      if (lines.length === 0) throw new Error('BOM_NO_LINES')
 
-    await writeAuditLog({
-      tenantId: userRow.tenant_id,
-      actorId: user.id,
-      entityType: 'bom',
-      entityId: bomId,
-      action: 'lock',
-      diff: { reason: 'PO generated', po_id: poId },
+      const budgetCodeByBomLine = await approvedBudgetCodesByBomLine(
+        tx,
+        userRow.tenant_id,
+        input.projectId,
+        input.bomId
+      )
+
+      // Reserve the number and persist the PO graph in one transaction. A
+      // failed line insert must not consume a visible Purchase Order number.
+      const totals = calculatePurchaseOrderTotals(lockedBom.total_cost_cents)
+      const reservedNumber = await allocateNextPurchaseOrderNumber(
+        tx,
+        userRow.tenant_id
+      )
+      const [po] = await tx
+        .insert(purchaseOrders)
+        .values({
+          tenant_id: userRow.tenant_id,
+          project_id: lockedBom.project_id,
+          vendor_id: input.vendorId ?? undefined,
+          created_by: user.id,
+          po_number: reservedNumber,
+          status: 'draft',
+          subtotal_cents: totals.subtotalCents,
+          vat_cents: totals.vatCents,
+          withholding_tax_cents: totals.withholdingTaxCents,
+          total_cents: totals.totalCents,
+          delivery_date: input.deliveryDate ? new Date(input.deliveryDate) : undefined,
+        })
+        .returning({ id: purchaseOrders.id })
+      if (!po) throw new Error('Failed to create Purchase Order')
+
+      if (lines.length > 0) {
+        await tx.insert(poLineItems).values(
+          lines.map((l, idx) => ({
+            tenant_id: userRow.tenant_id,
+            po_id: po.id,
+            sort_order: idx,
+            code: l.code ?? undefined,
+            description: l.description,
+            unit: l.unit ?? undefined,
+            quantity: l.quantity,
+            unit_cost_cents: l.unit_cost_cents,
+            line_total_cents: calculateLineTotalCents(l.unit_cost_cents, l.quantity),
+            bom_line_item_id: l.id,
+            cost_code_id: budgetCodeByBomLine.get(l.id),
+          }))
+        )
+      }
+
+      await tx
+        .update(boms)
+        .set({ status: 'locked', updated_at: new Date() })
+        .where(and(eq(boms.id, input.bomId), eq(boms.tenant_id, userRow.tenant_id)))
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: userRow.tenant_id,
+        actorId: user.id,
+        entityType: 'bom',
+        entityId: input.bomId,
+        action: 'lock',
+        diff: { reason: 'PO generated', po_id: po.id },
+      })
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: userRow.tenant_id,
+        actorId: user.id,
+        entityType: 'purchase_order',
+        entityId: po.id,
+        action: 'create',
+        diff: { po_number: reservedNumber, bom_id: input.bomId, status: 'draft' },
+      })
+
+      return po.id
     })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'BOM_NOT_FOUND') {
+      return { error: 'BOM not found' }
+    }
+    if (error instanceof Error && error.message === 'BOM_ALREADY_COMMITTED') {
+      return { error: 'BOM has already been committed to Purchase Orders' }
+    }
+    if (error instanceof Error && error.message === 'BOM_NO_LINES') {
+      return { error: 'BOM has no line items to purchase' }
+    }
+    if (error instanceof RangeError) {
+      return { error: 'Purchase Order amount exceeds the supported centavo range' }
+    }
+    return { error: 'Purchase Order could not be created. Review the BOM and retry.' }
   }
 
-  await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
-    entityType: 'purchase_order',
-    entityId: poId,
-    action: 'create',
-    diff: { po_number: nextNum, bom_id: bomId, status: 'draft' },
-  })
-
-  revalidatePath(`/projects/${projectId}/bom`)
+  revalidatePath(`/projects/${input.projectId}/bom`)
   revalidatePath('/purchase-orders')
   return { id: poId }
 }
@@ -200,15 +318,6 @@ const VALID_PO_TRANSITIONS: Record<string, string[]> = {
   fully_delivered: [],
 }
 
-interface LineItemInput {
-  description: string
-  code?: string
-  unit?: string
-  quantity: number
-  unit_cost_cents: number
-  costCodeId: string
-}
-
 const PO_BUDGET_ERRORS = [
   'Blocked budget requires a Cost Code on every PO line',
   'Blocked budget does not contain PO Cost Code',
@@ -225,30 +334,61 @@ function safePoBudgetError(error: unknown): string | null {
 export async function createStandalonePo(
   formData: FormData
 ): Promise<{ id: string } | { error: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
-
-  const projectId = str(formData.get('project_id'))
-  if (!projectId) return { error: 'Project is required' }
-
-  const vendorId = str(formData.get('vendor_id'))
-  const deliveryDate = str(formData.get('delivery_date'))
-  const notes = str(formData.get('notes'))
-
-  let lines: LineItemInput[] = []
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
   try {
-    const raw = formData.get('line_items')
-    lines = raw ? (JSON.parse(String(raw)) as LineItemInput[]) : []
+    requireCapability(profile, 'po.create')
+  } catch {
+    return { error: 'You do not have permission to create Purchase Orders.' }
+  }
+  const user = profile.user
+  const userRow = { tenant_id: profile.tenantId }
+
+  const rawLineItems = formData.get('line_items')
+  if (typeof rawLineItems !== 'string') return { error: 'Invalid line items' }
+
+  let decodedLineItems: unknown
+  try {
+    decodedLineItems = JSON.parse(rawLineItems) as unknown
   } catch {
     return { error: 'Invalid line items' }
   }
 
-  if (lines.length === 0) return { error: 'At least one line item is required' }
-  if (lines.some((line) => !line.costCodeId)) {
-    return { error: 'Every Purchase Order line requires a Cost Code' }
+  const parsedInput = standalonePurchaseOrderInputSchema.safeParse({
+    projectId: str(formData.get('project_id')),
+    vendorId: str(formData.get('vendor_id')) ?? null,
+    deliveryDate: str(formData.get('delivery_date')) ?? null,
+    notes: str(formData.get('notes')),
+    lineItems: decodedLineItems,
+  })
+  if (!parsedInput.success) return { error: 'Invalid Purchase Order input' }
+  const input = parsedInput.data
+  const lines: PurchaseOrderLineItemInput[] = input.lineItems
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(
+      and(
+        eq(projects.id, input.projectId),
+        eq(projects.tenant_id, userRow.tenant_id)
+      )
+    )
+    .limit(1)
+  if (!project) return { error: 'Project not found' }
+
+  if (input.vendorId) {
+    const [vendor] = await db
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(
+        and(
+          eq(vendors.id, input.vendorId),
+          eq(vendors.tenant_id, userRow.tenant_id)
+        )
+      )
+      .limit(1)
+    if (!vendor) return { error: 'Vendor not found' }
   }
 
   const selectedCodeIds = [...new Set(lines.map((line) => line.costCodeId))]
@@ -266,10 +406,19 @@ export async function createStandalonePo(
     return { error: 'Every Purchase Order line requires an active Cost Code' }
   }
 
-  const subtotalCents = lines.reduce((s, l) => s + l.unit_cost_cents * l.quantity, 0)
-  const vatCents = Math.round(subtotalCents * 0.12)
-  const withholdingTaxCents = Math.round(subtotalCents * 0.02)
-  const totalCents = subtotalCents + vatCents - withholdingTaxCents
+  let totals: ReturnType<typeof calculatePurchaseOrderTotals>
+  try {
+    const subtotalCents = lines.reduce((sum, line) => {
+      const next = sum + calculateLineTotalCents(line.unit_cost_cents, line.quantity)
+      if (!Number.isSafeInteger(next)) {
+        throw new RangeError('Subtotal exceeds the supported centavo range')
+      }
+      return next
+    }, 0)
+    totals = calculatePurchaseOrderTotals(subtotalCents)
+  } catch {
+    return { error: 'Purchase Order amount exceeds the supported centavo range' }
+  }
 
   let poId: string
   try {
@@ -279,26 +428,26 @@ export async function createStandalonePo(
           `po-number:${userRow.tenant_id}`
         }))`
       )
-      const [existing] = await tx
-        .select({ max_po: max(purchaseOrders.po_number) })
-        .from(purchaseOrders)
-        .where(eq(purchaseOrders.tenant_id, userRow.tenant_id))
+      const nextNum = await allocateNextPurchaseOrderNumber(
+        tx,
+        userRow.tenant_id
+      )
 
       const [po] = await tx
         .insert(purchaseOrders)
         .values({
           tenant_id: userRow.tenant_id,
-          project_id: projectId,
-          vendor_id: vendorId ?? undefined,
+          project_id: input.projectId,
+          vendor_id: input.vendorId ?? undefined,
           created_by: user.id,
-          po_number: nextPoNumber(existing?.max_po ?? null),
+          po_number: nextNum,
           status: 'draft',
-          subtotal_cents: subtotalCents,
-          vat_cents: vatCents,
-          withholding_tax_cents: withholdingTaxCents,
-          total_cents: totalCents,
-          delivery_date: deliveryDate ? new Date(deliveryDate) : undefined,
-          notes,
+          subtotal_cents: totals.subtotalCents,
+          vat_cents: totals.vatCents,
+          withholding_tax_cents: totals.withholdingTaxCents,
+          total_cents: totals.totalCents,
+          delivery_date: input.deliveryDate ? new Date(input.deliveryDate) : undefined,
+          notes: input.notes,
         })
         .returning({ id: purchaseOrders.id })
       if (!po) throw new Error('Failed to create Purchase Order')
@@ -313,10 +462,24 @@ export async function createStandalonePo(
           unit: l.unit || undefined,
           quantity: l.quantity,
           unit_cost_cents: l.unit_cost_cents,
-          line_total_cents: l.unit_cost_cents * l.quantity,
+          line_total_cents: calculateLineTotalCents(l.unit_cost_cents, l.quantity),
           cost_code_id: l.costCodeId,
         }))
       )
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: userRow.tenant_id,
+        actorId: user.id,
+        entityType: 'purchase_order',
+        entityId: po.id,
+        action: 'create',
+        diff: {
+          po_number: nextNum,
+          project_id: input.projectId,
+          vendor_id: input.vendorId,
+          subtotal_cents: totals.subtotalCents,
+        },
+      })
       return po.id
     })
   } catch (error) {
@@ -326,15 +489,6 @@ export async function createStandalonePo(
         'Purchase Order could not be created. Review the line evidence and retry.',
     }
   }
-
-  await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
-    entityType: 'purchase_order',
-    entityId: poId,
-    action: 'create',
-    diff: { project_id: projectId, vendor_id: vendorId, subtotal_cents: subtotalCents },
-  })
 
   revalidatePath('/purchase-orders')
   return { id: poId }
@@ -426,16 +580,25 @@ export async function advancePoStatus(
   poId: string,
   nextStatus: string
 ): Promise<{ error?: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
 
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  try {
+    if (nextStatus === 'submitted') {
+      requireCapability(profile, 'po.create')
+    } else if (nextStatus === 'confirmed') {
+      requireCapability(profile, 'po.approve')
+    } else {
+      requireCapability(profile, 'po.issue')
+    }
+  } catch (error) {
+    return { error: 'You do not have permission to change Purchase Order status.' }
+  }
 
   const [po] = await db
     .select({ id: purchaseOrders.id, status: purchaseOrders.status, project_id: purchaseOrders.project_id })
     .from(purchaseOrders)
-    .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, userRow.tenant_id)))
+    .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
 
@@ -448,7 +611,7 @@ export async function advancePoStatus(
     await db
       .update(purchaseOrders)
       .set({ status: nextStatus as typeof purchaseOrders.$inferSelect.status, updated_at: new Date() })
-      .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, userRow.tenant_id)))
+      .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
   } catch (error) {
     return {
       error:
@@ -458,8 +621,8 @@ export async function advancePoStatus(
   }
 
   await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
+    tenantId: profile.tenantId,
+    actorId: profile.user.id,
     entityType: 'purchase_order',
     entityId: poId,
     action: 'status_change',
@@ -476,11 +639,13 @@ export async function advancePoStatus(
 export async function receivePoLineItem(
   formData: FormData
 ): Promise<{ error?: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
-  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  try {
+    requireCapability(profile, 'po.issue')
+  } catch (error) {
+    return { error: 'You do not have permission to receive Purchase Order items.' }
+  }
 
   const lineId = str(formData.get('line_id'))
   if (!lineId) return { error: 'Line item is required' }
@@ -501,10 +666,9 @@ export async function receivePoLineItem(
       received_qty: poLineItems.received_qty,
     })
     .from(poLineItems)
-    .where(eq(poLineItems.id, lineId))
+    .where(and(eq(poLineItems.id, lineId), eq(poLineItems.tenant_id, profile.tenantId)))
 
   if (!line) return { error: 'Line item not found' }
-  if (line.tenant_id !== userRow.tenant_id) return { error: 'Line item not found' }
 
   if (parsedQty > line.quantity) {
     return { error: `Received qty cannot exceed ordered quantity (${line.quantity})` }
@@ -519,7 +683,7 @@ export async function receivePoLineItem(
       project_id: purchaseOrders.project_id,
     })
     .from(purchaseOrders)
-    .where(and(eq(purchaseOrders.id, line.po_id), eq(purchaseOrders.tenant_id, userRow.tenant_id)))
+    .where(and(eq(purchaseOrders.id, line.po_id), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'Purchase order not found' }
   if (po.status === 'cancelled') return { error: 'Cannot receive on a cancelled PO' }
@@ -532,13 +696,13 @@ export async function receivePoLineItem(
     .set({
       received_qty: parsedQty,
       received_at: now,
-      received_by: user.id,
+      received_by: profile.user.id,
     })
-    .where(and(eq(poLineItems.id, lineId), eq(poLineItems.tenant_id, userRow.tenant_id)))
+    .where(and(eq(poLineItems.id, lineId), eq(poLineItems.tenant_id, profile.tenantId)))
 
   await writeAuditLog({
-    tenantId: userRow.tenant_id,
-    actorId: user.id,
+    tenantId: profile.tenantId,
+    actorId: profile.user.id,
     entityType: 'po_line_item',
     entityId: lineId,
     action: 'update',
@@ -556,7 +720,7 @@ export async function receivePoLineItem(
       received_qty: poLineItems.received_qty,
     })
     .from(poLineItems)
-    .where(and(eq(poLineItems.po_id, line.po_id), eq(poLineItems.tenant_id, userRow.tenant_id)))
+    .where(and(eq(poLineItems.po_id, line.po_id), eq(poLineItems.tenant_id, profile.tenantId)))
 
   const allFullyReceived =
     allLines.length > 0 && allLines.every((l) => l.received_qty >= l.quantity)
@@ -575,11 +739,11 @@ export async function receivePoLineItem(
         status: terminal as typeof purchaseOrders.$inferSelect.status,
         updated_at: now,
       })
-      .where(and(eq(purchaseOrders.id, line.po_id), eq(purchaseOrders.tenant_id, userRow.tenant_id)))
+      .where(and(eq(purchaseOrders.id, line.po_id), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
     await writeAuditLog({
-      tenantId: userRow.tenant_id,
-      actorId: user.id,
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
       entityType: 'purchase_order',
       entityId: line.po_id,
       action: 'status_change',
@@ -606,9 +770,7 @@ export async function createInvoice(
   try {
     requireCapability(profile, 'finance.issue_invoice')
   } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : 'Forbidden',
-    }
+    return { error: 'You do not have permission to create invoices.' }
   }
   if (
     !Number.isInteger(billingPercentBps) ||
@@ -754,7 +916,7 @@ export async function submitPoForPmApproval(poId: string): Promise<{ error?: str
   try {
     requireCapability(profile, 'po.create')
   } catch (err: unknown) {
-    return { error: err instanceof Error ? err.message : 'Forbidden' }
+    return { error: 'You do not have permission to submit Purchase Orders for PM approval.' }
   }
 
   const [po] = await db
@@ -855,7 +1017,7 @@ export async function commercialApprovePo(poId: string): Promise<{ error?: strin
   try {
     requireCapability(profile, 'po.approve')
   } catch (err: unknown) {
-    return { error: err instanceof Error ? err.message : 'Forbidden' }
+    return { error: 'You do not have permission to approve Purchase Orders commercially.' }
   }
 
   const [po] = await db
@@ -910,7 +1072,7 @@ export async function scmIssuePo(poId: string): Promise<{ error?: string }> {
   try {
     requireCapability(profile, 'po.issue')
   } catch (err: unknown) {
-    return { error: err instanceof Error ? err.message : 'Forbidden' }
+    return { error: 'You do not have permission to issue Purchase Orders.' }
   }
 
   const [po] = await db
@@ -925,7 +1087,10 @@ export async function scmIssuePo(poId: string): Promise<{ error?: string }> {
       supplier_email: vendors.email,
     })
     .from(purchaseOrders)
-    .leftJoin(vendors, eq(purchaseOrders.vendor_id, vendors.id))
+    .leftJoin(
+      vendors,
+      and(eq(purchaseOrders.vendor_id, vendors.id), eq(vendors.tenant_id, profile.tenantId)),
+    )
     .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.tenant_id, profile.tenantId)))
 
   if (!po) return { error: 'PO not found' }
@@ -958,7 +1123,7 @@ export async function scmIssuePo(poId: string): Promise<{ error?: string }> {
   // supplier_email_sent_at only on success so retries are possible.
   if (po.supplier_email && po.supplier_name) {
     try {
-      await notifyExternalEmail({
+      const delivery = await notifyExternalEmail({
         tenantId: profile.tenantId,
         recipientEmail: po.supplier_email,
         subject: `Purchase order ${po.po_number}`,
@@ -972,24 +1137,26 @@ export async function scmIssuePo(poId: string): Promise<{ error?: string }> {
           supplier_name: po.supplier_name,
         },
       })
-      supplierEmailSent = true
-      try {
-        await db
-          .update(purchaseOrders)
-          .set({
-            supplier_email_sent_at: now,
-            updated_at: new Date(),
-          })
-          .where(
-            and(
-              eq(purchaseOrders.id, poId),
-              eq(purchaseOrders.tenant_id, profile.tenantId)
+      supplierEmailSent = delivery.delivered
+      if (delivery.delivered) {
+        try {
+          await db
+            .update(purchaseOrders)
+            .set({
+              supplier_email_sent_at: now,
+              updated_at: new Date(),
+            })
+            .where(
+              and(
+                eq(purchaseOrders.id, poId),
+                eq(purchaseOrders.tenant_id, profile.tenantId)
+              )
             )
-          )
-      } catch (stampError: unknown) {
-        // Message sent. Do not retry automatically and risk a duplicate email.
-        // eslint-disable-next-line no-console
-        console.error('PO supplier email evidence stamp failed', stampError)
+        } catch (stampError: unknown) {
+          // Message sent. Do not retry automatically and risk a duplicate email.
+          // eslint-disable-next-line no-console
+          console.error('PO supplier email evidence stamp failed', stampError)
+        }
       }
     } catch (err: unknown) {
       // Email dispatch failures should not block status advance — log
@@ -1104,10 +1271,14 @@ export async function createPosFromBomGrouped(
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
+  const parsedInput = createGroupedPoFromBomInputSchema.safeParse({ bomId })
+  if (!parsedInput.success) return { error: 'Invalid Purchase Order input' }
+  const requestBomId = parsedInput.data.bomId
+
   try {
     requireCapability(profile, 'po.create')
   } catch (err: unknown) {
-    return { error: err instanceof Error ? err.message : 'Forbidden' }
+    return { error: 'You do not have permission to create grouped Purchase Orders.' }
   }
 
   const [bom] = await db
@@ -1117,7 +1288,7 @@ export async function createPosFromBomGrouped(
       project_id: boms.project_id,
     })
     .from(boms)
-    .where(and(eq(boms.id, bomId), eq(boms.tenant_id, profile.tenantId)))
+    .where(and(eq(boms.id, requestBomId), eq(boms.tenant_id, profile.tenantId)))
 
   if (!bom) return { error: 'BOM not found' }
   if (bom.status === 'draft') {
@@ -1128,14 +1299,15 @@ export async function createPosFromBomGrouped(
   const lines = await db
     .select()
     .from(bomLineItems)
-    .where(and(eq(bomLineItems.bom_id, bomId), eq(bomLineItems.tenant_id, profile.tenantId)))
+    .where(and(eq(bomLineItems.bom_id, requestBomId), eq(bomLineItems.tenant_id, profile.tenantId)))
 
   const itemLines = lines.filter((l) => l.is_group === 0)
   if (itemLines.length === 0) return { error: 'BOM has no line items' }
   const budgetCodeByBomLine = await approvedBudgetCodesByBomLine(
+    db,
     profile.tenantId,
     bom.project_id,
-    bomId
+    requestBomId
   )
 
   // Pull rate cards joined to material_items in this tenant. We pick the
@@ -1185,28 +1357,26 @@ export async function createPosFromBomGrouped(
     }
   }
 
-  // Auto-lock BOM as we're committing to a PO set.
-  if (bom.status === 'approved') {
-    await db
-      .update(boms)
-      .set({ status: 'locked', updated_at: new Date() })
-      .where(and(eq(boms.id, bomId), eq(boms.tenant_id, profile.tenantId)))
-  }
-
-  const [existing] = await db
-    .select({ max_po: max(purchaseOrders.po_number) })
-    .from(purchaseOrders)
-    .where(eq(purchaseOrders.tenant_id, profile.tenantId))
-
-  let lastPoNumber = existing?.max_po ?? null
-  const createdIds: string[] = []
   const groupPreviews: SupplierGroupPreview[] = []
+  const bucketsToCreate: Array<{
+    bucket: Bucket
+    subtotalCents: number
+  }> = []
 
   for (const [key, bucket] of buckets) {
-    const subtotalCents = bucket.lines.reduce(
-      (s, l) => s + l.unit_cost_cents * l.quantity,
-      0
-    )
+    let subtotalCents: number
+    try {
+      subtotalCents = bucket.lines.reduce((sum, line) => {
+        const next =
+          sum + calculateLineTotalCents(line.unit_cost_cents, line.quantity)
+        if (!Number.isSafeInteger(next)) {
+          throw new RangeError('Subtotal exceeds the supported centavo range')
+        }
+        return next
+      }, 0)
+    } catch {
+      return { error: 'Purchase Order amount exceeds the supported centavo range' }
+    }
 
     const preview: SupplierGroupPreview = {
       vendor_id: bucket.vendorId,
@@ -1222,62 +1392,115 @@ export async function createPosFromBomGrouped(
     // Skip the unassigned bucket — surfaced in UI for manual triage.
     if (key === 'unassigned' || bucket.vendorId === null) continue
 
-    const vatCents = Math.round(subtotalCents * 0.12)
-    const withholdingTaxCents = Math.round(subtotalCents * 0.02)
-    const totalCents = subtotalCents + vatCents - withholdingTaxCents
+    bucketsToCreate.push({ bucket, subtotalCents })
+  }
 
-    const nextNum = nextPoNumber(lastPoNumber)
-    lastPoNumber = nextNum
+  if (bucketsToCreate.length === 0) {
+    return { created_po_ids: [], groups: groupPreviews }
+  }
 
-    const [po] = await db
-      .insert(purchaseOrders)
-      .values({
-        tenant_id: profile.tenantId,
-        project_id: bom.project_id,
-        vendor_id: bucket.vendorId,
-        created_by: profile.user.id,
-        po_number: nextNum,
-        status: 'draft',
-        subtotal_cents: subtotalCents,
-        vat_cents: vatCents,
-        withholding_tax_cents: withholdingTaxCents,
-        total_cents: totalCents,
+  let createdIds: string[]
+  try {
+    createdIds = await db.transaction(async (tx) => {
+      const [lockedBom] = await tx
+        .select({ id: boms.id, status: boms.status, project_id: boms.project_id })
+        .from(boms)
+        .where(and(eq(boms.id, requestBomId), eq(boms.tenant_id, profile.tenantId)))
+        .limit(1)
+        .for('update')
+
+      if (!lockedBom) throw new Error('BOM_NOT_FOUND')
+      if (lockedBom.status !== 'approved') throw new Error('BOM_ALREADY_COMMITTED')
+
+      const ids: string[] = []
+      for (const { bucket, subtotalCents } of bucketsToCreate) {
+        const totals = calculatePurchaseOrderTotals(subtotalCents)
+        const reservedNumber = await allocateNextPurchaseOrderNumber(
+          tx,
+          profile.tenantId
+        )
+        const [insertedPo] = await tx
+          .insert(purchaseOrders)
+          .values({
+            tenant_id: profile.tenantId,
+            project_id: lockedBom.project_id,
+            vendor_id: bucket.vendorId,
+            created_by: profile.user.id,
+            po_number: reservedNumber,
+            status: 'draft',
+            subtotal_cents: totals.subtotalCents,
+            vat_cents: totals.vatCents,
+            withholding_tax_cents: totals.withholdingTaxCents,
+            total_cents: totals.totalCents,
+          })
+          .returning({ id: purchaseOrders.id })
+
+        if (!insertedPo) throw new Error('Failed to create Purchase Order')
+
+        await tx.insert(poLineItems).values(
+          bucket.lines.map((l, idx) => ({
+            tenant_id: profile.tenantId,
+            po_id: insertedPo.id,
+            sort_order: idx,
+            code: l.code ?? undefined,
+            description: l.description,
+            unit: l.unit ?? undefined,
+            quantity: l.quantity,
+            unit_cost_cents: l.unit_cost_cents,
+            line_total_cents: calculateLineTotalCents(
+              l.unit_cost_cents,
+              l.quantity
+            ),
+            bom_line_item_id: l.id,
+            cost_code_id: budgetCodeByBomLine.get(l.id),
+          }))
+        )
+
+        await writeAuditLogInTransaction(tx, {
+          tenantId: profile.tenantId,
+          actorId: profile.user.id,
+          entityType: 'purchase_order',
+          entityId: insertedPo.id,
+          action: 'create',
+          diff: {
+            po_number: reservedNumber,
+            bom_id: requestBomId,
+            vendor_id: bucket.vendorId,
+            line_count: bucket.lines.length,
+            source: 'group_by_supplier',
+          },
+        })
+
+        ids.push(insertedPo.id)
+      }
+
+      await tx
+        .update(boms)
+        .set({ status: 'locked', updated_at: new Date() })
+        .where(and(eq(boms.id, requestBomId), eq(boms.tenant_id, profile.tenantId)))
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: profile.tenantId,
+        actorId: profile.user.id,
+        entityType: 'bom',
+        entityId: requestBomId,
+        action: 'lock',
+        diff: {
+          reason: 'POs generated by supplier group',
+          po_ids: ids,
+        },
       })
-      .returning({ id: purchaseOrders.id })
 
-    const poId = po!.id
-    createdIds.push(poId)
-
-    await db.insert(poLineItems).values(
-      bucket.lines.map((l, idx) => ({
-        tenant_id: profile.tenantId,
-        po_id: poId,
-        sort_order: idx,
-        code: l.code ?? undefined,
-        description: l.description,
-        unit: l.unit ?? undefined,
-        quantity: l.quantity,
-        unit_cost_cents: l.unit_cost_cents,
-        line_total_cents: l.unit_cost_cents * l.quantity,
-        bom_line_item_id: l.id,
-        cost_code_id: budgetCodeByBomLine.get(l.id),
-      }))
-    )
-
-    await writeAuditLog({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
-      entityType: 'purchase_order',
-      entityId: poId,
-      action: 'create',
-      diff: {
-        po_number: nextNum,
-        bom_id: bomId,
-        vendor_id: bucket.vendorId,
-        line_count: bucket.lines.length,
-        source: 'group_by_supplier',
-      },
+      return ids
     })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'BOM_NOT_FOUND') {
+      return { error: 'BOM not found' }
+    }
+    if (error instanceof Error && error.message === 'BOM_ALREADY_COMMITTED') {
+      return { error: 'BOM has already been committed to Purchase Orders' }
+    }
+    return { error: 'Purchase Orders could not be created. Retry after reviewing the BOM.' }
   }
 
   revalidatePath('/purchase-orders')
@@ -1296,20 +1519,56 @@ function str(val: FormDataEntryValue | null): string | undefined {
   return undefined
 }
 
-function nextPoNumber(last: string | null): string {
-  if (!last) return 'PO-0001'
-  const match = last.match(/(\d+)$/)
-  if (!match) return 'PO-0001'
-  const n = parseInt(match[1]!, 10) + 1
-  return `PO-${String(n).padStart(4, '0')}`
+type PurchaseOrderSequenceRow = {
+  allocated_value: number | string
+}
+
+async function allocateNextPurchaseOrderNumber(
+  executor: Pick<Database, 'execute'>,
+  tenantId: string
+): Promise<string> {
+  const rows = await executor.execute<PurchaseOrderSequenceRow>(sql`
+    with legacy_max as (
+      select coalesce(
+        max(substring(po_number from '^PO-([0-9]+)$')::bigint),
+        0
+      ) as max_value
+      from public.purchase_orders
+      where tenant_id = ${tenantId}::uuid
+    )
+    insert into public.financial_sequences (
+      tenant_id,
+      sequence_key,
+      next_value,
+      updated_at
+    )
+    select
+      ${tenantId}::uuid,
+      ${PURCHASE_ORDER_SEQUENCE_KEY},
+      legacy_max.max_value + 2,
+      clock_timestamp()
+    from legacy_max
+    on conflict (tenant_id, sequence_key)
+    do update set
+      next_value = greatest(
+        public.financial_sequences.next_value,
+        excluded.next_value - 1
+      ) + 1,
+      updated_at = clock_timestamp()
+    returning next_value - 1 as allocated_value
+  `)
+
+  const allocatedValue = Number(rows[0]?.allocated_value)
+  return formatPurchaseOrderNumber(allocatedValue)
 }
 
 async function approvedBudgetCodesByBomLine(
+  executor: Pick<Database, 'select'>,
   tenantId: string,
   projectId: string,
   bomId: string
 ): Promise<Map<string, string>> {
-  const rows = await db
+  const rows = await executor
     .select({
       bomLineItemId: projectBudgetLines.bom_line_item_id,
       costCodeId: projectBudgetLines.cost_code_id,

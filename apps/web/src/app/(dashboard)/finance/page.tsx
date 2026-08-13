@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { redirect } from 'next/navigation'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   cashAccounts,
@@ -32,7 +33,9 @@ function formatDate(value: string): string {
 
 export default async function FinancePage() {
   const profile = await requireUserProfile()
-  requireCapability(profile, 'finance.manage')
+  if (!can(profile.role, 'finance.manage')) {
+    redirect('/dashboard?error=forbidden')
+  }
 
   const [periods, accounts, journals, cashAccountRows] = await Promise.all([
     db

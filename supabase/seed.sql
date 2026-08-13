@@ -15,8 +15,8 @@ insert into public.tenants (
 )
 values (
   '2b2b039c-b066-412b-af4c-564f2af6097e',
-  'Third Code ERP Local',
-  'third-code-erp-local',
+  'ABI OPS Local',
+  'abi-ops-local',
   '2026-01-01 00:00:00+00',
   '2026-01-01 00:00:00+00'
 )
@@ -38,7 +38,7 @@ insert into public.users (
 values (
   '0b6d8c68-2b7a-4f75-92f6-b539c91ad199',
   '2b2b039c-b066-412b-af4c-564f2af6097e',
-  'local-admin@thirdcode.invalid',
+  'local-admin@abiops.invalid',
   'Local Database Admin',
   'admin',
   '2026-01-01 00:00:00+00',
@@ -66,7 +66,7 @@ values (
   'a6778017-a3d3-4ba5-8989-3127d75b458b',
   '2b2b039c-b066-412b-af4c-564f2af6097e',
   'Local Verification Project',
-  'Third Code ERP',
+  'ABI OPS',
   'active',
   '0b6d8c68-2b7a-4f75-92f6-b539c91ad199',
   '2026-01-01 00:00:00+00',

@@ -11,15 +11,18 @@ import {
   accounts,
 } from '@third-code-erp/database/schema'
 import { notifyRoles } from '@/lib/operations/notifications'
-import { writeAuditLog } from '@/lib/audit'
+import { writeAuditLogInTransaction } from '@/lib/audit'
+import { runSignedBomAward } from '@/lib/operations/award-automation'
+import { isDevelopmentStubSubmissionId } from '@/lib/operations/integrations/docuseal'
 
 interface SignResult {
   ok?: true
+  awardHandoffId?: string
+  warning?: string
   error?: string
 }
-
 /**
- * Mark a portal token as used (signed) and lock the BOM. Public action —
+ * Mark a portal token as used (signed) and lock the BOM. Public action Ã¢â‚¬â€
  * the only auth is possession of the URL token, which we re-hash + look up.
  */
 export async function recordSign(token: string): Promise<SignResult> {
@@ -28,48 +31,133 @@ export async function recordSign(token: string): Promise<SignResult> {
   }
 
   const tokenHash = createHash('sha256').update(token).digest('hex')
+  const now = new Date()
 
-  const [row] = await db
-    .select({
-      id: bomPortalTokens.id,
-      tenant_id: bomPortalTokens.tenant_id,
-      bom_id: bomPortalTokens.bom_id,
-      expires_at: bomPortalTokens.expires_at,
-      used_at: bomPortalTokens.used_at,
-    })
-    .from(bomPortalTokens)
-    .where(eq(bomPortalTokens.token_hash, tokenHash))
-    .limit(1)
-  if (!row) return { error: 'Token not found' }
-  if (row.used_at) return { error: 'This BOM has already been signed' }
-  if (row.expires_at.getTime() < Date.now()) {
-    return { error: 'This portal link has expired' }
+  let committed: {
+    row: {
+      tenant_id: string
+      bom_id: string
+    }
+    ctx: {
+      tcv_cents: number
+      project_id: string | null
+      project_name: string | null
+    } | undefined
+    award: { handoffId: string }
   }
 
-  const now = new Date()
-  await db
-    .update(bomPortalTokens)
-    .set({ used_at: now })
-    .where(eq(bomPortalTokens.id, row.id))
+  try {
+    committed = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({
+          id: bomPortalTokens.id,
+          tenant_id: bomPortalTokens.tenant_id,
+          bom_id: bomPortalTokens.bom_id,
+          expires_at: bomPortalTokens.expires_at,
+          used_at: bomPortalTokens.used_at,
+          docuseal_submission_id: bomPortalTokens.docuseal_submission_id,
+        })
+        .from(bomPortalTokens)
+        .where(eq(bomPortalTokens.token_hash, tokenHash))
+        .limit(1)
+        .for('update')
 
-  // Lock the BOM.
-  await db
-    .update(boms)
-    .set({ status: 'locked', locked_at: now, updated_at: now })
-    .where(and(eq(boms.id, row.bom_id), eq(boms.tenant_id, row.tenant_id)))
+      if (!row) throw new Error('Token not found')
+      if (row.used_at) throw new Error('This BOM has already been signed')
+      if (row.expires_at.getTime() < Date.now()) {
+        throw new Error('This portal link has expired')
+      }
+      if (isDevelopmentStubSubmissionId(row.docuseal_submission_id)) {
+        throw new Error(
+          'This legacy development signing link is disabled. Request a new signing link from the workspace.'
+        )
+      }
 
-  // Pull project + tcv for the notification body.
-  const [ctx] = await db
-    .select({
-      tcv_cents: boms.tcv_cents,
-      project_id: projects.id,
-      project_name: projects.name,
+      const [bom] = await tx
+        .select({
+          status: boms.status,
+          approved_by: boms.approved_by,
+          created_by: boms.created_by,
+        })
+        .from(boms)
+        .where(and(eq(boms.id, row.bom_id), eq(boms.tenant_id, row.tenant_id)))
+        .limit(1)
+
+      if (!bom) throw new Error('BOM not found')
+      if (bom.status === 'locked') throw new Error('This BOM has already been signed')
+      if (bom.status !== 'approved') throw new Error('Only an approved BOM can be signed')
+
+      await tx
+        .update(bomPortalTokens)
+        .set({ used_at: now })
+        .where(
+          and(
+            eq(bomPortalTokens.id, row.id),
+            eq(bomPortalTokens.tenant_id, row.tenant_id)
+          )
+        )
+      await tx
+        .update(boms)
+        .set({ status: 'locked', locked_at: now, updated_at: now })
+        .where(and(eq(boms.id, row.bom_id), eq(boms.tenant_id, row.tenant_id)))
+
+      const award = await runSignedBomAward(tx, {
+        tenantId: row.tenant_id,
+        bomId: row.bom_id,
+        actorId: bom.approved_by ?? bom.created_by,
+        downPaymentBps: 0,
+        now,
+      })
+
+      await writeAuditLogInTransaction(tx, {
+        tenantId: row.tenant_id,
+        actorId: bom.approved_by ?? bom.created_by,
+        entityType: 'bom',
+        entityId: row.bom_id,
+        action: 'lock',
+        diff: {
+          source: 'client_portal_sign',
+          signed_at: now.toISOString(),
+          award_handoff_id: award.handoffId,
+        },
+      })
+
+      const [ctx] = await tx
+        .select({
+          tcv_cents: boms.tcv_cents,
+          project_id: projects.id,
+          project_name: projects.name,
+        })
+        .from(boms)
+        .leftJoin(
+          projects,
+          and(
+            eq(boms.project_id, projects.id),
+            eq(projects.tenant_id, row.tenant_id)
+          )
+        )
+        .where(and(eq(boms.id, row.bom_id), eq(boms.tenant_id, row.tenant_id)))
+        .limit(1)
+
+      return { row, ctx, award }
     })
-    .from(boms)
-    .leftJoin(projects, eq(boms.project_id, projects.id))
-    .where(eq(boms.id, row.bom_id))
-    .limit(1)
+  } catch (error) {
+    if (error instanceof Error) {
+      if (
+        error.message === 'Token not found' ||
+        error.message === 'This BOM has already been signed' ||
+        error.message === 'This portal link has expired' ||
+        error.message === 'Only an approved BOM can be signed' ||
+        error.message ===
+          'This legacy development signing link is disabled. Request a new signing link from the workspace.'
+      ) {
+        return { error: error.message }
+      }
+    }
+    return { error: 'BOM signing failed. No award handoff was committed.' }
+  }
 
+  const { row, ctx, award } = committed
   const tcvPhp = ctx?.tcv_cents
     ? (ctx.tcv_cents / 100).toLocaleString('en-PH', {
         minimumFractionDigits: 2,
@@ -77,34 +165,40 @@ export async function recordSign(token: string): Promise<SignResult> {
       })
     : '0.00'
 
-  await notifyRoles({
-    tenantId: row.tenant_id,
-    recipientRoles: ['sales', 'commercial', 'admin', 'owner'],
-    subject: `Client signed BOM — ${ctx?.project_name ?? 'project'}`,
-    body: `The client has signed the BOM. TCV: ₱${tcvPhp}.`,
-    linkUrl: ctx?.project_id ? `/projects/${ctx.project_id}/bom` : '/bom',
-    alsoEmail: true,
-    templateId: 'bom-signed',
-    templateVars: {
-      project_name: ctx?.project_name ?? 'your project',
-      tcv_php: tcvPhp,
-      project_url: ctx?.project_id ? `/projects/${ctx.project_id}` : '/bom',
-    },
-  })
+  try {
+    await notifyRoles({
+      tenantId: row.tenant_id,
+      recipientRoles: ['sales', 'commercial', 'admin', 'owner'],
+      subject: 'Client signed BOM - ' + (ctx?.project_name ?? 'project'),
+      body: 'The client has signed the BOM. TCV: PHP ' + tcvPhp + '.',
+      linkUrl: ctx?.project_id ? '/projects/' + ctx.project_id + '/bom' : '/bom',
+      alsoEmail: true,
+      templateId: 'bom-signed',
+      templateVars: {
+        project_name: ctx?.project_name ?? 'your project',
+        tcv_php: tcvPhp,
+        project_url: ctx?.project_id ? '/projects/' + ctx.project_id : '/bom',
+      },
+    })
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'bom_signed_notification_failed',
+        tenant_id: row.tenant_id,
+        bom_id: row.bom_id,
+        award_handoff_id: award.handoffId,
+        error: error instanceof Error ? error.message : 'unknown',
+      })
+    )
+    return {
+      ok: true,
+      awardHandoffId: award.handoffId,
+      warning: 'BOM signed and awarded; notification delivery needs attention.',
+    }
+  }
 
-  await writeAuditLog({
-    tenantId: row.tenant_id,
-    // No internal actor — use bom_id as anchor.
-    actorId: row.bom_id,
-    entityType: 'bom',
-    entityId: row.bom_id,
-    action: 'lock',
-    diff: { source: 'client_portal_sign', signed_at: now.toISOString() },
-  })
-
-  return { ok: true }
+  return { ok: true, awardHandoffId: award.handoffId }
 }
-
 interface PortalBomLine {
   id: string
   code: string | null
@@ -139,7 +233,7 @@ interface PortalBomDetail {
 }
 
 /**
- * Resolve a portal token to a renderable BOM payload. Public — never
+ * Resolve a portal token to a renderable BOM payload. Public Ã¢â‚¬â€ never
  * trusts URL params for tenant scope, resolves tenant_id from the token row.
  */
 export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
@@ -178,8 +272,20 @@ export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
       account_name: accounts.name,
     })
     .from(boms)
-    .leftJoin(projects, eq(boms.project_id, projects.id))
-    .leftJoin(accounts, eq(projects.account_id, accounts.id))
+    .leftJoin(
+      projects,
+      and(
+        eq(boms.project_id, projects.id),
+        eq(projects.tenant_id, row.tenant_id)
+      )
+    )
+    .leftJoin(
+      accounts,
+      and(
+        eq(projects.account_id, accounts.id),
+        eq(accounts.tenant_id, row.tenant_id)
+      )
+    )
     .where(
       and(eq(boms.id, row.bom_id), eq(boms.tenant_id, row.tenant_id))
     )
@@ -206,7 +312,7 @@ export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
     )
     .orderBy(asc(bomLineItems.sort_order))
 
-  // For the public view, hide group rows (no quantity / cost) — the client
+  // For the public view, hide group rows (no quantity / cost) Ã¢â‚¬â€ the client
   // sees the actual costed lines grouped by code prefix later.
   const portalLines: PortalBomLine[] = lines
     .filter((l) => l.is_group === 0)
@@ -223,9 +329,7 @@ export async function loadPortalBom(token: string): Promise<PortalBomDetail> {
       category: (l.code?.split(/[-.]/)[0] || 'GENERAL').toUpperCase(),
     }))
 
-  const isDevStub =
-    !!row.docuseal_submission_id &&
-    row.docuseal_submission_id.startsWith('dev-sub-')
+  const isDevStub = isDevelopmentStubSubmissionId(row.docuseal_submission_id)
 
   return {
     state: 'ok',

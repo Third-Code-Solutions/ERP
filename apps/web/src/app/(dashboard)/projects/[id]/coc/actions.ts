@@ -170,7 +170,12 @@ export async function sendCocForSignature(
     const [acct] = await db
       .select({ name: accounts.name })
       .from(accounts)
-      .where(eq(accounts.id, opp.account_id))
+      .where(
+        and(
+          eq(accounts.id, opp.account_id),
+          eq(accounts.tenant_id, profile.tenantId)
+        )
+      )
       .limit(1)
     if (acct?.name && !primary?.email) signerName = `${acct.name} representative`
   }
@@ -190,7 +195,12 @@ export async function sendCocForSignature(
       docuseal_submission_id:
         session.mechanism === 'docuseal' ? session.token : null,
     })
-    .where(eq(certificatesOfCompletion.id, coc.id))
+    .where(
+      and(
+        eq(certificatesOfCompletion.id, coc.id),
+        eq(certificatesOfCompletion.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,
@@ -256,7 +266,12 @@ export async function recordCocSigned(
       warranty_period_starts_at: signedAt,
       warranty_period_ends_at: warrantyEndsAt,
     })
-    .where(eq(certificatesOfCompletion.id, coc.id))
+    .where(
+      and(
+        eq(certificatesOfCompletion.id, coc.id),
+        eq(certificatesOfCompletion.tenant_id, profile.tenantId)
+      )
+    )
 
   await writeAuditLog({
     tenantId: profile.tenantId,

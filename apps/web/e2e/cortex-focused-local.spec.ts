@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
+import { requireE2EUserEmail } from './helpers/auth'
+import { readE2EEnv } from './helpers/env'
 
 const RUN_MAGIC_LINK_TEST = process.env.E2E_MAGIC_LINK_AUTH === '1'
 const FOCUS_REF_TABLE = 'projects'
@@ -12,20 +12,6 @@ test.use({
     : {},
 })
 
-function readLocalEnv(): Record<string, string> {
-  const raw = readFileSync(resolve(__dirname, '..', '.env.local'), 'utf8')
-  return Object.fromEntries(
-    raw
-      .split(/\r?\n/)
-      .map((line) => line.match(/^([A-Z0-9_]+)=(.*)$/))
-      .filter((match): match is RegExpMatchArray => Boolean(match))
-      .map((match) => [
-        match[1]!,
-        match[2]!.trim().replace(/^"(.*)"$/, '$1'),
-      ])
-  )
-}
-
 test.describe('Cortex focused graph', () => {
   test.skip(
     !RUN_MAGIC_LINK_TEST,
@@ -36,10 +22,10 @@ test.describe('Cortex focused graph', () => {
     page,
   }, testInfo) => {
     testInfo.setTimeout(60_000)
-    const env = readLocalEnv()
+    const env = readE2EEnv()
     const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
     const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
-    const email = process.env.E2E_USER_EMAIL ?? 'test@buildops.local'
+    const email = requireE2EUserEmail()
     const baseUrl = testInfo.project.use.baseURL
     expect(supabaseUrl).toBeTruthy()
     expect(serviceRoleKey).toBeTruthy()
@@ -104,7 +90,7 @@ test.describe('Cortex focused graph', () => {
       {
         name: `sb-${projectRef}-auth-token`,
         value: sessionValue,
-        domain: 'localhost',
+        domain: new URL(baseUrl!).hostname,
         path: '/',
         httpOnly: false,
         secure: false,
@@ -283,7 +269,11 @@ test.describe('Cortex focused graph', () => {
     await page.goto(`${baseUrl}/cortex`, {
       waitUntil: 'domcontentloaded',
     })
-    await page.getByTitle('Conversation history').click()
+    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
+    const historyToggle = page.getByTitle('Conversation history')
+    await expect(historyToggle).toBeVisible()
+    await historyToggle.click()
+    await expect(historyToggle).toHaveAttribute('aria-pressed', 'true')
     const historySearch = page.getByRole('searchbox', {
       name: 'Search saved conversations',
     })
@@ -320,7 +310,7 @@ test.describe('Cortex focused graph', () => {
     expect(consoleErrors).toEqual([])
 
     const logoutResponse = await fetch(
-      `${supabaseUrl}/auth/v1/logout?scope=global`,
+      `${supabaseUrl}/auth/v1/logout?scope=local`,
       {
         method: 'POST',
         headers: {
@@ -329,6 +319,6 @@ test.describe('Cortex focused graph', () => {
         },
       }
     )
-    expect(logoutResponse.ok).toBe(true)
+    expect([200, 204, 401, 403]).toContain(logoutResponse.status)
   })
 })

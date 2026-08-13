@@ -32,4 +32,25 @@ describe('deploymentRevision', () => {
     expect(deploymentRevision({})).toBe('local')
     expect(deploymentRevision({ APP_REVISION: '   ' })).toBe('local')
   })
+
+  it('uses Vercel deployment identity when Git metadata is unavailable', () => {
+    expect(
+      deploymentRevision({ VERCEL_DEPLOYMENT_ID: 'dpl_7Gw5ZMBpQA8h9GF832KGp7nwbuh3' })
+    ).toBe('dpl_7Gw5ZMBp')
+  })
+
+  it('prefers Vercel deployment identity for dirty-tree releases', () => {
+    expect(
+      deploymentRevision({
+        VERCEL_DEPLOYMENT_ID: 'dpl_7Gw5ZMBpQA8h9GF832KGp7nwbuh3',
+        VERCEL_GIT_COMMIT_SHA: 'stale-git-sha',
+      })
+    ).toBe('dpl_7Gw5ZMBp')
+  })
+
+  it('uses Vercel deployment URL when deployment ID is not exposed', () => {
+    expect(
+      deploymentRevision({ VERCEL_URL: 'thirdcode-43uvo011b-pavi-2e9809a4.vercel.app' })
+    ).toBe('thirdcode-43')
+  })
 })

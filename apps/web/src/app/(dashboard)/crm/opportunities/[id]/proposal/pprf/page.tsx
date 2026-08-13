@@ -1,16 +1,18 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { and, eq, desc } from 'drizzle-orm'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   opportunities,
   accounts,
   pprfSubmissions,
+  opportunityKycTracks,
 } from '@third-code-erp/database/schema'
 import { ProposalSubNav } from '@/components/proposal/sub-nav'
 import { PprfForm } from '@/components/proposal/pprf-form'
 import { pprfPayloadSchema } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/schemas'
+import { OpportunityKycTrackPanel } from '@/components/proposal/opportunity-kyc-track-panel'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -52,16 +54,43 @@ export default async function PprfPage({ params }: PageProps) {
     .limit(1)
   if (!opp) notFound()
 
-  const history = await db
-    .select({
-      id: pprfSubmissions.id,
-      version: pprfSubmissions.version,
-      submitted_at: pprfSubmissions.submitted_at,
-      payload: pprfSubmissions.payload,
-    })
-    .from(pprfSubmissions)
-    .where(eq(pprfSubmissions.opportunity_id, id))
-    .orderBy(desc(pprfSubmissions.version))
+  const [history, tracks] = await Promise.all([
+    db
+      .select({
+        id: pprfSubmissions.id,
+        version: pprfSubmissions.version,
+        submitted_at: pprfSubmissions.submitted_at,
+        payload: pprfSubmissions.payload,
+      })
+      .from(pprfSubmissions)
+      .where(
+        and(
+          eq(pprfSubmissions.opportunity_id, id),
+          eq(pprfSubmissions.tenant_id, profile.tenantId)
+        )
+      )
+      .orderBy(desc(pprfSubmissions.version)),
+    db
+      .select({
+        id: opportunityKycTracks.id,
+        track_type: opportunityKycTracks.track_type,
+        status: opportunityKycTracks.status,
+        due_at: opportunityKycTracks.due_at,
+        prepared_at: opportunityKycTracks.prepared_at,
+        fc_recommended_at: opportunityKycTracks.fc_recommended_at,
+        president_decided_at: opportunityKycTracks.president_decided_at,
+        decision_reason: opportunityKycTracks.decision_reason,
+        notes: opportunityKycTracks.notes,
+      })
+      .from(opportunityKycTracks)
+      .where(
+        and(
+          eq(opportunityKycTracks.opportunity_id, id),
+          eq(opportunityKycTracks.tenant_id, profile.tenantId)
+        )
+      )
+      .orderBy(opportunityKycTracks.track_type),
+  ])
 
   const latest = history[0]
   // Parse latest payload into the typed form defaults. If parse fails (e.g.
@@ -113,6 +142,18 @@ export default async function PprfPage({ params }: PageProps) {
           <div style={{ padding: 16 }}>
             <PprfForm opportunityId={id} defaults={defaults} />
           </div>
+          <OpportunityKycTrackPanel
+            opportunityId={id}
+            tracks={tracks.map((track) => ({
+              ...track,
+              due_at: track.due_at.toISOString(),
+              prepared_at: track.prepared_at?.toISOString() ?? null,
+              fc_recommended_at: track.fc_recommended_at?.toISOString() ?? null,
+              president_decided_at: track.president_decided_at?.toISOString() ?? null,
+            }))}
+            canManage={can(profile.role, 'opportunity.kyc_track_manage')}
+            canApprove={can(profile.role, 'opportunity.kyc_track_approve')}
+          />
         </div>
 
         <aside>

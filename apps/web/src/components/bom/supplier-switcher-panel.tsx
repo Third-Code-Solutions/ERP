@@ -4,9 +4,9 @@
 //
 // Right-side drawer that opens when an estimator selects a BOM line. Shows:
 //   - the current line (code, description, qty, unit, current vendor, unit cost)
-//   - all matching rate cards (joined to vendors) ranked by preferred + price
+//   - all catalog-linked supplier prices ranked by award status + recency
 //   - a fallback vendor search so the estimator can pin a vendor even if no
-//     rate card exists
+//     catalog-linked price exists
 //
 // The actual "switch supplier" mutation lives in the server action
 // `setLineItemVendor`. This component is intentionally a thin client view
@@ -250,7 +250,7 @@ export function SupplierSwitcherPanel({
             marginBottom: 8,
           }}
         >
-          Matching rate cards{' '}
+          Matching supplier prices{' '}
           {context?.rateCards.length ? (
             <span
               style={{
@@ -277,7 +277,7 @@ export function SupplierSwitcherPanel({
               borderRadius: 6,
             }}
           >
-            No rate cards match this line. Assign a vendor manually below.
+            No catalog-linked supplier prices match this line. Assign a vendor manually below.
           </div>
         ) : (
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -465,6 +465,16 @@ function RateCardRow({
           <span>₱{(rc.unit_price_cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
           {rc.lead_time_days != null && <span>{rc.lead_time_days}d lead</span>}
           {rc.effective_from && <span>since {new Date(rc.effective_from).toLocaleDateString('en-PH')}</span>}
+          <span>{rc.source_type}</span>
+          {rc.is_stale && (
+            <span
+              role="status"
+              title="Price is older than 90 days"
+              style={{ color: '#b54708', fontWeight: 600 }}
+            >
+              Stale &gt;90d
+            </span>
+          )}
         </div>
       </div>
       <button

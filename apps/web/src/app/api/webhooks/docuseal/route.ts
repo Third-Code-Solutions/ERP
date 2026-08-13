@@ -68,7 +68,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       await db
         .update(bomPortalTokens)
         .set({ used_at: now })
-        .where(eq(bomPortalTokens.id, tokenRow.id))
+        .where(
+          and(
+            eq(bomPortalTokens.id, tokenRow.id),
+            eq(bomPortalTokens.tenant_id, tokenRow.tenant_id)
+          )
+        )
     }
 
     // Find the parent project for document attachment.
@@ -80,7 +85,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         project_name: projects.name,
       })
       .from(boms)
-      .leftJoin(projects, eq(boms.project_id, projects.id))
+      .leftJoin(
+        projects,
+        and(
+          eq(boms.project_id, projects.id),
+          eq(projects.tenant_id, tokenRow.tenant_id)
+        )
+      )
       .where(
         and(
           eq(boms.id, tokenRow.bom_id),
@@ -109,7 +120,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       await db
         .update(boms)
         .set({ status: 'locked', locked_at: now, updated_at: now })
-        .where(eq(boms.id, tokenRow.bom_id))
+        .where(
+          and(
+            eq(boms.id, tokenRow.bom_id),
+            eq(boms.tenant_id, tokenRow.tenant_id)
+          )
+        )
 
       const tcvPhp = (bomRow.tcv_cents / 100).toLocaleString('en-PH', {
         minimumFractionDigits: 2,

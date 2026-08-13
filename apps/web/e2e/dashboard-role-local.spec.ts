@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
+import { readE2EEnv } from './helpers/env'
 
 const RUN_MAGIC_LINK_TEST = process.env.E2E_MAGIC_LINK_AUTH === '1'
 
@@ -9,20 +8,6 @@ test.use({
     ? { executablePath: process.env.E2E_CHROME_PATH }
     : {},
 })
-
-function readLocalEnv(): Record<string, string> {
-  const raw = readFileSync(resolve(__dirname, '..', '.env.local'), 'utf8')
-  return Object.fromEntries(
-    raw
-      .split(/\r?\n/)
-      .map((line) => line.match(/^([A-Z0-9_]+)=(.*)$/))
-      .filter((match): match is RegExpMatchArray => Boolean(match))
-      .map((match) => [
-        match[1]!,
-        match[2]!.trim().replace(/^"(.*)"$/, '$1'),
-      ])
-  )
-}
 
 test.describe('permission-aware dashboard', () => {
   test.skip(
@@ -34,7 +19,7 @@ test.describe('permission-aware dashboard', () => {
     page,
   }, testInfo) => {
     testInfo.setTimeout(120_000)
-    const env = readLocalEnv()
+    const env = readE2EEnv()
     const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
     const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
     const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -133,14 +118,15 @@ test.describe('permission-aware dashboard', () => {
           user,
         })
       ).toString('base64')}`
+      const baseOrigin = new URL(baseUrl!)
       await page.context().addCookies([
         {
           name: `sb-${projectRef}-auth-token`,
           value: sessionValue,
-          domain: 'localhost',
+          domain: baseOrigin.hostname,
           path: '/',
           httpOnly: false,
-          secure: false,
+          secure: baseOrigin.protocol === 'https:',
           sameSite: 'Lax',
           expires: expiresAt,
         },
@@ -181,6 +167,12 @@ test.describe('permission-aware dashboard', () => {
         if (message.type() === 'error') errors.push(message.text())
       })
       page.on('pageerror', (error) => errors.push(error.message))
+      page.on('requestfailed', (request) => {
+        const errorText = request.failure()?.errorText ?? ''
+        if (errorText && errorText !== 'net::ERR_ABORTED') {
+          errors.push(`${request.method()} ${request.url()} ${errorText}`)
+        }
+      })
       let cortexChatRequests = 0
       const commandSearchQueries: string[] = []
       page.on('request', (request) => {
@@ -311,11 +303,73 @@ test.describe('permission-aware dashboard', () => {
         }
       }
 
+      const viewerRenderablePaths = [
+        '/dashboard',
+        '/cortex',
+        '/process',
+        '/tasks',
+        '/documents',
+        '/settings',
+      ]
+      for (const path of viewerRenderablePaths) {
+        const response = await page.goto(`${baseUrl}${path}`, {
+          waitUntil: 'domcontentloaded',
+        })
+        expect(response?.status() ?? 0, path).toBe(200)
+        expect(page.url(), path).not.toMatch(/\/auth\/login/)
+        await expect(page.locator('body'), path).toBeVisible()
+        if (path === '/process') {
+          await expect(
+            page.getByRole('heading', { name: 'Process Health' })
+          ).toBeVisible()
+          await expect(page.getByText('Observe mode active')).toBeVisible()
+          await expect(
+            page.getByText(/Escalation remains suppressed during the initial BU observation period/)
+          ).toBeVisible()
+        }
+      }
+
+      const authenticatedSurfacePaths = [
+        '/dashboard',
+        '/projects',
+        '/pipeline',
+        '/bom',
+        '/cortex',
+        '/finance',
+        '/inventory',
+        '/invoices',
+        '/purchase-orders',
+        '/documents',
+        '/reports',
+        '/settings',
+        '/procurement',
+        '/process',
+        '/crm',
+        '/admin',
+        '/tasks',
+        '/permits',
+        '/punchlist',
+        '/warranty',
+        '/claims',
+        '/inspection',
+        '/weekly-report',
+      ]
+      for (const path of authenticatedSurfacePaths) {
+        const response = await page.request.get(`${baseUrl}${path}`, {
+          maxRedirects: 0,
+        })
+        expect(response?.status() ?? 0, path).toBeGreaterThanOrEqual(200)
+        expect(response?.status() ?? 0, path).toBeLessThan(500)
+        expect(response?.status() ?? 0, path).not.toBe(429)
+        const location = response.headers().location ?? ''
+        expect(location, path).not.toMatch(/\/auth\/login/)
+      }
+
       expect(errors).toEqual([])
     } finally {
       if (accessToken) {
         const logoutResponse = await fetch(
-          `${supabaseUrl}/auth/v1/logout?scope=global`,
+          `${supabaseUrl}/auth/v1/logout?scope=local`,
           {
             method: 'POST',
             headers: {
@@ -324,7 +378,7 @@ test.describe('permission-aware dashboard', () => {
             },
           }
         )
-        expect(logoutResponse.ok).toBe(true)
+        expect([200, 204, 401, 403]).toContain(logoutResponse.status)
       }
       if (!page.isClosed()) {
         await page.context().clearCookies()

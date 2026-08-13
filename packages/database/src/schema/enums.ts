@@ -1,14 +1,14 @@
 import { pgEnum } from 'drizzle-orm/pg-core'
 
-// Third Code ERP role taxonomy. Legacy values (owner/estimator/pm) are retained
+// ABI OPS role taxonomy. Legacy values (owner/estimator/pm) are retained
 // for back-compat — Postgres enums cannot drop values without table rewrites.
-// New Third Code ERP roles per REFACTOR.md §2 sit alongside them.
+// New ABI OPS roles per REFACTOR.md §2 sit alongside them.
 export const roleEnum = pgEnum('role', [
   // Legacy (retained for back-compat; new users get the current ERP roles)
   'owner',
   'estimator',
   'pm',
-  // Third Code ERP roles
+  // ABI OPS roles
   'admin',
   'sales',
   'commercial',
@@ -55,7 +55,21 @@ export const kycArtifactTypeEnum = pgEnum('kyc_artifact_type', [
   'other',
 ])
 
-// Third Code ERP pipeline stages per REFACTOR.md M1 US-002.
+// WO-11: independent Finance-GA / Finance-AR review tracks for each PPRF.
+export const opportunityKycTrackTypeEnum = pgEnum('opportunity_kyc_track_type', [
+  'financial_evaluation',
+  'credit_investigation',
+])
+
+export const opportunityKycTrackStatusEnum = pgEnum('opportunity_kyc_track_status', [
+  'pending',
+  'in_review',
+  'approved',
+  'flagged',
+  'rejected',
+])
+
+// ABI OPS pipeline stages per REFACTOR.md M1 US-002.
 // Legacy stages (opportunity_creation, scoping, resubmission, closed_won,
 // closed_lost) retained for back-compat — PG enums cannot DROP values.
 // Current pipeline stages: lead, site_survey, design, contract, won, lost.
@@ -68,7 +82,7 @@ export const opportunityStageEnum = pgEnum('opportunity_stage', [
   'resubmission',
   'closed_won',
   'closed_lost',
-  // Third Code ERP 8-stage flow
+  // ABI OPS 8-stage flow
   'lead',
   'site_survey',
   'design',
@@ -85,6 +99,11 @@ export const projectStatusEnum = pgEnum('project_status', [
   'on_hold',
   'completed',
   'cancelled',
+])
+
+export const awardHandoffStatusEnum = pgEnum('award_handoff_status', [
+  'active',
+  'reversed',
 ])
 
 export const projectTypeEnum = pgEnum('project_type', [

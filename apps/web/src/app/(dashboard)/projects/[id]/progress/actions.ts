@@ -17,13 +17,12 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, asc, desc, eq } from 'drizzle-orm'
-import { getUser } from '@third-code-erp/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   masterSchedules,
   progressUpdates,
   projects,
-  users,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
@@ -50,14 +49,9 @@ async function getTenantContext(): Promise<
   | { tenantId: string; userId: string }
   | { error: string }
 > {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-  const [row] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!row?.tenant_id) return { error: 'No tenant' }
-  return { tenantId: row.tenant_id, userId: user.id }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  return { tenantId: profile.tenantId, userId: profile.user.id }
 }
 
 async function assertProjectInTenant(projectId: string, tenantId: string): Promise<boolean> {
@@ -300,7 +294,7 @@ export async function submitWeeklyProgress(
     const [project] = await db
       .select({ name: projects.name })
       .from(projects)
-      .where(eq(projects.id, projectId))
+      .where(and(eq(projects.id, projectId), eq(projects.tenant_id, ctx.tenantId)))
       .limit(1)
 
     await notifyRoles({

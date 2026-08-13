@@ -31,7 +31,8 @@ try {
         -Uri 'http://127.0.0.1:3091/health' `
         -UseBasicParsing `
         -TimeoutSec 2
-      if ($response.StatusCode -eq 200) {
+      $health = $response.Content | ConvertFrom-Json
+      if ($response.StatusCode -eq 200 -and $health.service -eq 'abi-ops-api') {
         $healthy = $true
         break
       }
@@ -41,7 +42,7 @@ try {
   }
 
   if (-not $healthy) {
-    throw 'Nest API health check timed out'
+    throw 'Nest API health check timed out or returned the wrong ABI OPS service identity'
   }
 
   $ready = Invoke-RestMethod `

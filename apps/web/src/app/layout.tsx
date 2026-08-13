@@ -2,36 +2,21 @@ import '@/lib/env'
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
-import { Inter, JetBrains_Mono } from 'next/font/google'
 import { resolvePublicOrigin } from '@/lib/public-origin'
 import './globals.css'
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-inter',
-  weight: ['400', '500', '600', '700'],
-})
-
-const jetbrains = JetBrains_Mono({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-jetbrains',
-  weight: ['400', '500', '600'],
-})
 
 export const metadata: Metadata = {
   metadataBase: resolvePublicOrigin(),
   title: {
-    template: '%s | Third Code ERP',
-    default: 'Third Code ERP',
+    template: '%s | ABI OPS',
+    default: 'ABI OPS',
   },
   description:
-    'Third Code ERP is a connected operating system for construction pipeline, projects, procurement, cost, billing, compliance, and operational intelligence.',
-  applicationName: 'Third Code ERP',
-  authors: [{ name: 'Third Code Solutions Inc.' }],
-  creator: 'Third Code Solutions Inc.',
-  publisher: 'Third Code Solutions Inc.',
+    'ABI OPS is a connected operating system for construction pipeline, projects, procurement, cost, billing, compliance, and operational intelligence.',
+  applicationName: 'ABI OPS',
+  authors: [{ name: 'Actuate Builders Inc.' }],
+  creator: 'Actuate Builders Inc.',
+  publisher: 'Actuate Builders Inc.',
   category: 'business software',
   keywords: [
     'construction ERP',
@@ -71,17 +56,8 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrains.variable}`}
       suppressHydrationWarning
     >
-      <head>
-        <link href="https://api.fontshare.com" rel="preconnect" />
-        <link href="https://cdn.fontshare.com" rel="preconnect" crossOrigin="" />
-        <link
-          href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body>
         {children}
         {process.env.VERCEL === '1' ? <Analytics /> : null}

@@ -1,8 +1,8 @@
-# CAD Parser Worker
+# ABI OPS CAD evidence worker
 
-FastAPI service that converts DWG files to DXF (via libredwg) and extracts
-scope items (via ezdxf). Used by Third Code ERP when a user uploads a binary DWG
-that the in-process JS extractor can't handle.
+FastAPI service converts DWG to DXF and extracts bounded CAD evidence. It is
+evidence-only: no database client, database URL, Supabase service-role key, or
+official `scope_items` write exists in this worker.
 
 ## Run locally
 
@@ -12,63 +12,44 @@ From `/apps/web/`:
 pnpm dev:worker
 ```
 
-This launches the worker on `http://localhost:8000` against your
-`apps/web/.env.local` (database + Supabase credentials are reused).
-
-After the worker is running, add this to `apps/web/.env.local`:
-
-```
-DXF_PARSER_URL=http://localhost:8000
-```
-
-Then restart `pnpm dev`. DWG uploads will be parsed inline — `/api/upload/complete`
-calls the worker directly, awaits the scope extraction, and returns a rich
-result with the auto-drafted BOM.
-
-## Prerequisites
-
-- **Python 3.11+** — comes with macOS or installable via `pyenv`
-- **libredwg-tools** — provides the `dwg2dxf` binary
-  - macOS (Homebrew): `brew install libredwg`
-  - Debian/Ubuntu: `sudo apt-get install libredwg-tools`
-  - From source: <https://www.gnu.org/software/libredwg/>
-
-The worker pre-flight script (`run-local.sh`) checks for these and offers
-guidance if anything is missing.
+For local-only unauthenticated calls, set
+`PARSER_ALLOW_UNAUTHENTICATED_LOCAL=true`. Production requires
+`PARSER_SHARED_SECRET`.
 
 ## API
 
-```
+```text
 POST /parse
+  Authorization: Bearer <PARSER_SHARED_SECRET>
   Body: {
-    document_id, project_id, tenant_id,
-    storage_path, format ("dxf" | "dwg"), file_name?
+    job_id, attempt, source_url, source_sha256,
+    source_format ("dxf" | "dwg"), file_name,
+    max_bytes?, max_items?
   }
-  Response: { count, scope_items, warnings, parsed_format, source_format }
+  Response: immutable extraction evidence with item keys and source hash
 
 GET /health
-  Response: { status: "ok", dwg_support: true|false }
+  Response: { status, dwg_support, evidence_only: true }
 ```
+
+`source_url` must be an exact-object, short-lived signed URL. Worker does not
+log or persist it. NestJS/Next.js owns tenant authorization, official database
+writes, audit attribution, idempotency, and draft-BOM creation.
 
 ## Production deployment
 
-Deploy to Railway, Fly.io, Render, or any platform that runs Docker.
-The provided `Dockerfile` installs Python + libredwg-tools and runs uvicorn
-on `$PORT`. Set:
+The production service is Railway `ABI OPS CAD Worker` at
+`https://abi-ops-cad-worker-production.up.railway.app`. Set only
+`PARSER_SHARED_SECRET` on the worker and the same value as a server-only
+Vercel variable. The public endpoint is protected by the bearer secret; the
+official caller supplies signed object URLs and the worker never receives
+tenant or database authority.
 
-- `DATABASE_URL` (the same Postgres URL the web app uses)
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-Then point `DXF_PARSER_URL` (in the web app's environment) at the deployed
-worker's URL.
+The Docker image builds the pinned LibreDWG `0.13.4` release because Debian
+does not provide a `libredwg-tools` package, then installs Python and ezdxf.
+No Postgres client or database credential is required.
 
 ## Without the worker
 
-If `DXF_PARSER_URL` is unset, DWG uploads are still **stored** correctly —
-they just aren't auto-extracted. The user-facing message tells them to either
-deploy the worker or re-export their drawing as DXF for instant in-browser
-extraction.
-
-DXF uploads work with or without the worker; they're parsed in-process by
-`apps/web/src/lib/cad/dxf-extractor.ts` (pure JS, no external dependency).
+If `DXF_PARSER_URL` is unset, DWG uploads remain stored and report that server-
+side conversion is unavailable. DXF uploads use the in-process JS extractor.

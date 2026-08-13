@@ -1,4 +1,4 @@
-# Third Code ERP public landing topology
+# ABI OPS public landing topology
 
 1. Floating navigation — fixed glass treatment; computed visual styles remain
    constant after the hero scrolls.

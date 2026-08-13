@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { documents, projects, users } from '@third-code-erp/database/schema'
-import { eq, desc } from 'drizzle-orm'
+import { documents, projects } from '@third-code-erp/database/schema'
+import { and, eq, desc } from 'drizzle-orm'
 import { IconDownload, IconExternalLink } from '@/components/ui/icons'
 
 export const metadata: Metadata = { title: 'Documents' }
@@ -37,15 +37,7 @@ function formatBytes(bytes: number): string {
 }
 
 export default async function DocumentsPage() {
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  if (!userRow?.tenant_id) return null
+  const profile = await requireUserProfile()
 
   const docs = await db
     .select({
@@ -60,8 +52,14 @@ export default async function DocumentsPage() {
       project_id: projects.id,
     })
     .from(documents)
-    .leftJoin(projects, eq(documents.project_id, projects.id))
-    .where(eq(documents.tenant_id, userRow.tenant_id))
+    .leftJoin(
+      projects,
+      and(
+        eq(documents.project_id, projects.id),
+        eq(projects.tenant_id, profile.tenantId)
+      )
+    )
+    .where(eq(documents.tenant_id, profile.tenantId))
     .orderBy(desc(documents.created_at))
 
   return (

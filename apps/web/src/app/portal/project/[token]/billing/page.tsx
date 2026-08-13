@@ -98,7 +98,7 @@ export default async function PortalProjectBillingPage({
     )
   }
 
-  await logCustomerView(session.id)
+  await logCustomerView(session.id, session.tenant_id)
 
   const [project] = await db
     .select({
@@ -107,7 +107,13 @@ export default async function PortalProjectBillingPage({
       account_name: accounts.name,
     })
     .from(projects)
-    .leftJoin(accounts, eq(projects.account_id, accounts.id))
+    .leftJoin(
+      accounts,
+      and(
+        eq(projects.account_id, accounts.id),
+        eq(accounts.tenant_id, session.tenant_id)
+      )
+    )
     .where(
       and(
         eq(projects.id, session.project_id),

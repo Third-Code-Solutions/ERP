@@ -23,6 +23,7 @@ const ROUTES: RouteCase[] = [
   { name: 'project-overview', path: `/projects/${PROJECT_ID}` },
   { name: 'project-scope', path: `/projects/${PROJECT_ID}/scope` },
   { name: 'project-bom', path: `/projects/${PROJECT_ID}/bom` },
+  { name: 'project-takeoff-import', path: `/projects/${PROJECT_ID}/bom/togal` },
   { name: 'project-documents', path: `/projects/${PROJECT_ID}/documents` },
   { name: 'project-billing', path: `/projects/${PROJECT_ID}/billing` },
   { name: 'project-audit', path: `/projects/${PROJECT_ID}/audit` },

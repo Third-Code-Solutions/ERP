@@ -98,8 +98,7 @@ export function PipelineBoard({ cards, accounts, projects }: PipelineBoardProps)
     const supabase = createSupabaseBrowserClient()
     let timer: ReturnType<typeof setTimeout> | null = null
     const channel = supabase.channel('pipeline-board-realtime')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(channel as any)
+    channel
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'opportunities' },

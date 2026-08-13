@@ -8,7 +8,9 @@ export {
   can,
   requireCapability,
   createSupabaseAdminClient,
+  AuthError,
   type AppRole,
+  type AuthErrorCode,
   type ErpCapability,
   type UserProfile,
 } from './server'

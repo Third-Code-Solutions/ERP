@@ -100,7 +100,7 @@ runtimeSuite('signup provisioning runtime proof', () => {
             'full_name',
             'Canary Operator',
             'company_name',
-            'Third Code Canary Works',
+            'Canary Builders Works',
             'organization_type',
             'construction'
           )
@@ -129,7 +129,7 @@ runtimeSuite('signup provisioning runtime proof', () => {
       const { expected_slug: expectedSlug } = first(
         await transaction<{ expected_slug: string }[]>`
           select
-            'third-code-canary-works-'
+            'canary-builders-works-'
             || substr(md5(${identity.id}::text), 1, 12)
               as expected_slug
         `
@@ -158,7 +158,7 @@ runtimeSuite('signup provisioning runtime proof', () => {
       role: 'admin',
     })
     expect(result.tenant).toEqual({
-      name: 'Third Code Canary Works',
+      name: 'Canary Builders Works',
       slug: result.expectedSlug,
       organization_type: 'construction',
     })

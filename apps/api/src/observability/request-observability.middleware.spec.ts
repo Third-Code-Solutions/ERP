@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import { Logger } from '@nestjs/common'
 import type { NextFunction, Request, Response } from 'express'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 import {
   REQUEST_ID_HEADER,
   RequestObservabilityMiddleware,
@@ -16,7 +17,7 @@ class ResponseHarness extends EventEmitter {
 }
 
 function requestHarness(
-  overrides: Partial<Request> = {}
+  overrides: Partial<AuthenticatedRequest> = {}
 ): Request {
   return {
     method: 'PATCH',
@@ -127,5 +128,62 @@ describe('RequestObservabilityMiddleware', () => {
       REQUEST_ID
     )
     expect(log).not.toHaveBeenCalled()
+  })
+
+  it('includes trace, tenant, actor, and action fields for process commands', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/process/steps' },
+        principal: {
+          userId: '11111111-1111-4111-8111-111111111111',
+          tenantId: '22222222-2222-4222-8222-222222222222',
+          role: 'admin',
+          email: 'admin@example.test',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      event: 'erp.command.outcome',
+      trace_id: REQUEST_ID,
+      action: 'process.step.create',
+      tenant_id: '22222222-2222-4222-8222-222222222222',
+      actor_id: '11111111-1111-4111-8111-111111111111',
+    })
+  })
+
+  it('names process approval mutations in structured outcomes', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'PATCH',
+        route: {
+          path: '/v1/process/approvals/:approvalId/decision',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      action: 'process.approval.decide',
+      operation: 'process.approval.decide',
+    })
   })
 })

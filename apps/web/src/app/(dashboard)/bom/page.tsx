@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getUser } from '@third-code-erp/auth'
+import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { boms, projects, users } from '@third-code-erp/database/schema'
-import { eq, desc, count } from 'drizzle-orm'
+import { boms, projects } from '@third-code-erp/database/schema'
+import { and, eq, desc } from 'drizzle-orm'
 
 export const metadata: Metadata = { title: 'BOM Builder' }
 
@@ -30,15 +30,7 @@ function formatMargin(bps: number): string {
 }
 
 export default async function BomBuilderPage() {
-  const user = await getUser()
-  if (!user) return null
-
-  const [userRow] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-
-  if (!userRow?.tenant_id) return null
+  const profile = await requireUserProfile()
 
   const rows = await db
     .select({
@@ -56,8 +48,11 @@ export default async function BomBuilderPage() {
       project_id: projects.id,
     })
     .from(boms)
-    .leftJoin(projects, eq(boms.project_id, projects.id))
-    .where(eq(boms.tenant_id, userRow.tenant_id))
+    .leftJoin(
+      projects,
+      and(eq(boms.project_id, projects.id), eq(projects.tenant_id, profile.tenantId))
+    )
+    .where(eq(boms.tenant_id, profile.tenantId))
     .orderBy(desc(boms.created_at))
 
   const approvedCount = rows.filter((r) => r.status === 'approved' || r.status === 'locked').length

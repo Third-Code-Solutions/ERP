@@ -10,8 +10,9 @@
  * Usage:
  *   node --env-file=apps/web/.env.local scripts/plan-database-release.mjs
  *   node scripts/plan-database-release.mjs --json
- *   node scripts/plan-database-release.mjs --require-current
+ *   node scripts/plan-database-release.mjs --require-current --require-wo-02
  */
+import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import {
   readFileSync,
@@ -32,6 +33,7 @@ const repoRoot = resolve(scriptDirectory, '..')
 const migrationDirectory = join(repoRoot, 'supabase', 'migrations')
 const jsonOutput = process.argv.includes('--json')
 const requireCurrent = process.argv.includes('--require-current')
+const requireWo02 = process.argv.includes('--require-wo-02')
 const databaseUrl = process.env.DATABASE_URL
 
 if (!databaseUrl) {
@@ -125,12 +127,38 @@ try {
         ? ['target is not PostgreSQL 17']
         : []),
     ],
+    wo02: null,
+  }
+
+  if (requireWo02) {
+    const verifier = spawnSync(
+      process.execPath,
+      [join(repoRoot, 'scripts', 'verify-wo-02-database.mjs')],
+      {
+        cwd: repoRoot,
+        env: process.env,
+        encoding: 'utf8',
+      }
+    )
+    const verifierOutput = [verifier.stdout, verifier.stderr]
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+    const verifierPassed = verifier.status === 0
+    report.wo02 = {
+      passed: verifierPassed,
+      exitCode: verifier.status,
+      output: verifierOutput,
+    }
+    if (!verifierPassed) {
+      report.blockers.push('WO-02 database acceptance gate failed')
+    }
   }
 
   if (jsonOutput) {
     console.log(JSON.stringify(report, null, 2))
   } else {
-    console.log('Third Code ERP database release plan (READ ONLY)')
+    console.log('ABI OPS database release plan (READ ONLY)')
     console.log(`Status: ${ledger.status}`)
     console.log(
       `PostgreSQL: ${report.database.postgresMajor}; applied: ${applied.length}/${migrations.length}`
@@ -147,6 +175,11 @@ try {
       for (const blocker of report.blockers) {
         console.log(`- ${blocker}`)
       }
+    }
+
+    if (report.wo02) {
+      console.log(`WO-02 database gate: ${report.wo02.passed ? 'PASS' : 'FAIL'}`)
+      if (report.wo02.output) console.log(report.wo02.output)
     }
 
     if (ledger.appliedAfterFirstGap.length > 0) {
@@ -169,7 +202,7 @@ try {
   }
 
   if (
-    requireCurrent &&
+    (requireCurrent || requireWo02) &&
     !releaseGatePassed(ledger.status, report.blockers)
   ) {
     process.exitCode = 1

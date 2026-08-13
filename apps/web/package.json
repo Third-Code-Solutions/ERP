@@ -2,6 +2,9 @@
   "name": "@third-code-erp/web",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "dev:fresh": "rm -rf .next .turbo && next dev --turbopack",

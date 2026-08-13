@@ -8,6 +8,8 @@ import {
   bomLineItems,
   boms,
   db,
+  materialCatalog,
+  priceHistory,
   projects,
   rfqQuotes,
   rfqs,
@@ -176,14 +178,18 @@ suite('Procurement API database integration', () => {
           id: lineA,
           tenant_id: tenantA,
           bom_id: bomA,
+          code: 'MAT-A',
           description: 'Line A',
+          unit: 'pcs',
           quantity: 1,
         },
         {
           id: lineB,
           tenant_id: tenantB,
           bom_id: bomB,
+          code: 'MAT-B',
           description: 'Line B',
+          unit: 'pcs',
           quantity: 1,
         },
       ])
@@ -209,6 +215,7 @@ suite('Procurement API database integration', () => {
             {
               bom_line_item_id: lineA,
               material_item_id: null,
+              code: 'MAT-A',
               description: 'Line A',
               qty: 1,
               unit: 'pcs',
@@ -224,6 +231,7 @@ suite('Procurement API database integration', () => {
             {
               bom_line_item_id: lineB,
               material_item_id: null,
+              code: 'MAT-B',
               description: 'Line B',
               qty: 1,
               unit: 'pcs',
@@ -326,6 +334,7 @@ suite('Procurement API database integration', () => {
           quoteId: created.body.quoteId,
           created: false,
           statusChanged: false,
+          priceHistoryId: created.body.priceHistoryId,
         })
 
         await request(app.getHttpServer())
@@ -382,6 +391,122 @@ suite('Procurement API database integration', () => {
               entry.action === 'status_change'
           )
         ).toBe(true)
+
+        const [quotedHistory] = await transaction
+          .select()
+          .from(priceHistory)
+          .where(
+            and(
+              eq(priceHistory.tenant_id, tenantA),
+              eq(priceHistory.source_rfq_quote_id, created.body.quoteId),
+              eq(priceHistory.source_rfq_id, rfqA),
+            )
+          )
+          .limit(1)
+        expect(quotedHistory?.source_type).toBe('quote')
+        expect(quotedHistory?.quoted_rate_centavos).toBe(125050n)
+        expect(quotedHistory?.awarded_rate_centavos).toBeNull()
+
+        const completed = await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqA}/complete`)
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({})
+          .expect(201)
+        expect(completed.body).toEqual({
+          rfqId: rfqA,
+          tenantId: tenantA,
+          transitioned: true,
+        })
+
+        const awarded = await request(app.getHttpServer())
+          .post(
+            `/v1/procurement/rfqs/${rfqA}/quotes/${created.body.quoteId}/award`
+          )
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({})
+          .expect(201)
+        expect(awarded.body).toEqual({
+          rfqId: rfqA,
+          quoteId: created.body.quoteId,
+          tenantId: tenantA,
+          priceHistoryId: created.body.priceHistoryId,
+          awarded: true,
+        })
+
+        const awardReplay = await request(app.getHttpServer())
+          .post(
+            `/v1/procurement/rfqs/${rfqA}/quotes/${created.body.quoteId}/award`
+          )
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({})
+          .expect(201)
+        expect(awardReplay.body).toEqual(awarded.body)
+
+        const [awardedHistory] = await transaction
+          .select()
+          .from(priceHistory)
+          .where(
+            and(
+              eq(priceHistory.tenant_id, tenantA),
+              eq(priceHistory.source_rfq_quote_id, created.body.quoteId),
+            )
+          )
+          .limit(1)
+        const [catalogRate] = await transaction
+          .select()
+          .from(materialCatalog)
+          .where(
+            and(
+              eq(materialCatalog.tenant_id, tenantA),
+              eq(materialCatalog.code, 'MAT-A'),
+            )
+          )
+          .limit(1)
+        expect(awardedHistory?.source_type).toBe('award')
+        expect(awardedHistory?.awarded_rate_centavos).toBe(125050n)
+        expect(catalogRate?.current_rate_centavos).toBe(125050n)
+        expect(catalogRate?.rate_source).toBe('rfq')
+
+        await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqA}/complete`)
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({})
+          .expect(409)
+
+        await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqB}/cancel`)
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ reason: 'Foreign RFQ probe' })
+          .expect(404)
+
+        await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqB}/cancel`)
+          .set('Authorization', 'Bearer procurement-b-token')
+          .send({ reason: 'Supplier withdrew' })
+          .expect(201)
+
+        const [completedRfq] = await transaction
+          .select({ status: rfqs.status })
+          .from(rfqs)
+          .where(
+            and(
+              eq(rfqs.tenant_id, tenantA),
+              eq(rfqs.id, rfqA)
+            )
+          )
+          .limit(1)
+        const [cancelledRfq] = await transaction
+          .select({ status: rfqs.status })
+          .from(rfqs)
+          .where(
+            and(
+              eq(rfqs.tenant_id, tenantB),
+              eq(rfqs.id, rfqB)
+            )
+          )
+          .limit(1)
+        expect(completedRfq?.status).toBe('completed')
+        expect(cancelledRfq?.status).toBe('cancelled')
       } finally {
         await app.close()
       }

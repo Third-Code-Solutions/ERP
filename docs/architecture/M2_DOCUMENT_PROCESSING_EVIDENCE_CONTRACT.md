@@ -1,8 +1,10 @@
 # M2 Document Processing Evidence Contract
 
-Status: design complete; implementation not started.
+Status: design complete. Source-only M2.2 evidence-boundary slice implemented
+2026-08-13; durable M2.1 job/evidence storage and NestJS authority remain
+unimplemented and un-deployed.
 
-This is an original Third Code ERP contract derived from repository and hosted
+This is an original ABI OPS contract derived from repository and hosted
 catalog evidence. It defines the smallest safe migration from direct worker
 writes to NestJS transaction authority. It does not authorize a database,
 provider, queue, Auth, Storage, or deployment change.
@@ -24,6 +26,27 @@ M2 migrates CAD document processing first.
 PDF, image, spreadsheet, CSV, and DOCX extraction use the same target contract,
 but their current Next.js write path is a later M2 slice. Moving the Python CAD
 path does not falsely claim that all document authority has moved.
+
+## Source-only M2.2 boundary evidence (2026-08-13)
+
+- Python `/parse` now accepts only `job_id`, attempt, a short-lived exact-object
+  source URL, source hash, source format, sanitized file name, and bounded
+  limits.
+- Python has no database URL, Postgres client, Supabase Storage service-role
+  key, tenant/project/document identifiers, or official `scope_items` write
+  path. It verifies downloaded source hash before extraction and returns
+  bounded deterministic evidence item keys.
+- Next.js creates the short-lived object URL, validates the response contract,
+  persists tenant/project/document-scoped scope rows in one transaction, then
+  runs existing draft-BOM logic. Inngest uses the same adapter, so queued and
+  inline paths do not reintroduce worker database writes.
+- Worker authentication fails closed unless a secret is configured; local
+  unauthenticated mode requires an explicit local-only setting.
+- Worker tests pass 13/13 and Web typecheck passes. No Railway, Vercel,
+  Supabase migration, hosted environment, or production flag changed.
+- This slice does not claim M2 completion: durable processing jobs, retries,
+  evidence persistence, NestJS processor authority, and canary rollout remain
+  required before hosted activation.
 
 ## Verified current call graph
 

@@ -15,7 +15,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, asc, count, eq } from 'drizzle-orm'
-import { getUser } from '@third-code-erp/auth'
+import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   projects,
@@ -40,14 +40,9 @@ interface TenantCtx {
 }
 
 async function getTenantContext(): Promise<TenantCtx | { error: string }> {
-  const user = await getUser()
-  if (!user) return { error: 'Unauthorized' }
-  const [row] = await db
-    .select({ tenant_id: users.tenant_id })
-    .from(users)
-    .where(eq(users.id, user.id))
-  if (!row?.tenant_id) return { error: 'No tenant' }
-  return { tenantId: row.tenant_id, userId: user.id }
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+  return { tenantId: profile.tenantId, userId: profile.user.id }
 }
 
 async function loadVo(voId: string, tenantId: string) {
@@ -159,7 +154,7 @@ export async function submitVoForCommercialPricing(
   await db
     .update(variationOrders)
     .set({ status: 'pending_commercial_pricing' })
-    .where(eq(variationOrders.id, voId))
+    .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, ctx.tenantId)))
 
   await writeAuditLog({
     tenantId: ctx.tenantId,
@@ -173,7 +168,7 @@ export async function submitVoForCommercialPricing(
   const [project] = await db
     .select({ name: projects.name })
     .from(projects)
-    .where(eq(projects.id, vo.project_id))
+    .where(and(eq(projects.id, vo.project_id), eq(projects.tenant_id, ctx.tenantId)))
     .limit(1)
 
   await notifyRoles({
@@ -210,7 +205,7 @@ export async function submitVoForClientSignature(
     const [creator] = await db
       .select({ email: users.email })
       .from(users)
-      .where(eq(users.id, vo.created_by))
+      .where(and(eq(users.id, vo.created_by), eq(users.tenant_id, ctx.tenantId)))
       .limit(1)
     if (creator?.email) signerEmail = creator.email
   }
@@ -229,7 +224,7 @@ export async function submitVoForClientSignature(
       docuseal_submission_id:
         session.mechanism === 'docuseal' ? session.token : null,
     })
-    .where(eq(variationOrders.id, voId))
+    .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, ctx.tenantId)))
 
   await writeAuditLog({
     tenantId: ctx.tenantId,
@@ -269,7 +264,7 @@ export async function recordVoSigned(
       signed_at: new Date(),
       signed_document_id: signedDocumentId,
     })
-    .where(eq(variationOrders.id, voId))
+    .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, ctx.tenantId)))
 
   await writeAuditLog({
     tenantId: ctx.tenantId,
@@ -308,7 +303,7 @@ export async function rejectVo(
   await db
     .update(variationOrders)
     .set({ status: 'rejected' })
-    .where(eq(variationOrders.id, voId))
+    .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, ctx.tenantId)))
 
   await writeAuditLog({
     tenantId: ctx.tenantId,
