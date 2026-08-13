@@ -14,6 +14,7 @@ import { DatabaseModule } from '../src/database/database.module'
 import { DatabaseService } from '../src/database/database.service'
 import { REQUEST_ID_HEADER } from '../src/observability/request-observability.middleware'
 import { ProjectsController } from '../src/projects/projects.controller'
+import { ProjectCommandCenterService } from '../src/projects/project-command-center.service'
 import { ProjectsModule } from '../src/projects/projects.module'
 import { ProjectsService } from '../src/projects/projects.service'
 
@@ -28,6 +29,228 @@ describe('Projects API contract', () => {
     await close?.()
     close = undefined
   })
+
+  it(
+    'creates a Project through the typed POST command boundary',
+    async () => {
+      const create = vi.fn().mockResolvedValue({
+        id: PROJECT_ID,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        name: 'New Project',
+        client: 'New Client',
+        status: 'lead',
+        projectType: null,
+        totalSqm: null,
+        location: null,
+        notes: null,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T00:00:00.000Z',
+      })
+      const moduleRef = await Test.createTestingModule({
+        controllers: [ProjectsController],
+        providers: [
+          {
+            provide: ProjectsService,
+            useValue: { create, update: vi.fn() },
+          },
+          {
+            provide: ProjectCommandCenterService,
+            useValue: { read: vi.fn() },
+          },
+        ],
+      }).compile()
+      const app = moduleRef.createNestApplication()
+      app.use(
+        (
+          req: Request,
+          _res: Response,
+          next: NextFunction
+        ) => {
+          ;(req as AuthenticatedRequest).principal = {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId:
+              '22222222-2222-4222-8222-222222222222',
+            role: 'admin',
+            email: 'admin@example.test',
+          }
+          next()
+        }
+      )
+      app.useGlobalPipes(
+        new ValidationPipe({
+          transform: true,
+          whitelist: true,
+          forbidNonWhitelisted: true,
+        })
+      )
+      await app.init()
+      close = () => app.close()
+
+      const response = await request(app.getHttpServer())
+        .post('/v1/projects')
+        .set('Idempotency-Key', 'project-create-1')
+        .send({ name: 'New Project', client: 'New Client' })
+        .expect(201)
+
+      expect(response.body).toMatchObject({
+        id: PROJECT_ID,
+        status: 'lead',
+      })
+      expect(create).toHaveBeenCalledWith(
+        {
+          name: 'New Project',
+          client: 'New Client',
+          status: 'lead',
+          projectType: null,
+          totalSqm: null,
+          location: null,
+          notes: null,
+        },
+        expect.objectContaining({
+          tenantId: '22222222-2222-4222-8222-222222222222',
+        }),
+        'project-create-1'
+      )
+    },
+    HTTP_TEST_TIMEOUT_MS
+  )
+
+  it(
+    'reads a Project through the tenant-scoped GET contract',
+    async () => {
+      const read = vi.fn().mockResolvedValue({
+        id: PROJECT_ID,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        name: 'Read Project',
+        client: 'Read Client',
+        status: 'active',
+        projectType: 'mep',
+        totalSqm: 125,
+        location: 'Makati',
+        notes: null,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T00:00:00.000Z',
+        accountId: null,
+        createdBy: '11111111-1111-4111-8111-111111111111',
+      })
+      const moduleRef = await Test.createTestingModule({
+        controllers: [ProjectsController],
+        providers: [
+          {
+            provide: ProjectsService,
+            useValue: { read },
+          },
+          {
+            provide: ProjectCommandCenterService,
+            useValue: { read: vi.fn() },
+          },
+        ],
+      }).compile()
+      const app = moduleRef.createNestApplication()
+      app.use(
+        (
+          req: Request,
+          _res: Response,
+          next: NextFunction
+        ) => {
+          ;(req as AuthenticatedRequest).principal = {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId:
+              '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          }
+          next()
+        }
+      )
+      await app.init()
+      close = () => app.close()
+
+      const response = await request(app.getHttpServer())
+        .get(`/v1/projects/${PROJECT_ID}`)
+        .expect(200)
+
+      expect(response.body).toMatchObject({
+        id: PROJECT_ID,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        name: 'Read Project',
+      })
+      expect(read).toHaveBeenCalledWith(
+        PROJECT_ID,
+        expect.objectContaining({ role: 'viewer' })
+      )
+    },
+    HTTP_TEST_TIMEOUT_MS
+  )
+
+  it(
+    'lists Projects through the bounded tenant-scoped GET contract',
+    async () => {
+      const list = vi.fn().mockResolvedValue({
+        rows: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+      })
+      const moduleRef = await Test.createTestingModule({
+        controllers: [ProjectsController],
+        providers: [
+          {
+            provide: ProjectsService,
+            useValue: { list },
+          },
+          {
+            provide: ProjectCommandCenterService,
+            useValue: { read: vi.fn() },
+          },
+        ],
+      }).compile()
+      const app = moduleRef.createNestApplication()
+      app.use(
+        (
+          req: Request,
+          _res: Response,
+          next: NextFunction
+        ) => {
+          ;(req as AuthenticatedRequest).principal = {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId:
+              '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          }
+          next()
+        }
+      )
+      await app.init()
+      close = () => app.close()
+
+      const response = await request(app.getHttpServer())
+        .get('/v1/projects?q=office&status=active&page=2&limit=50')
+        .expect(200)
+
+      expect(response.body).toMatchObject({
+        rows: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+      })
+      expect(list).toHaveBeenCalledWith(
+        {
+          q: 'office',
+          status: 'active',
+          sort: 'created_at',
+          order: 'desc',
+          page: 2,
+          limit: 50,
+        },
+        expect.objectContaining({ role: 'viewer' })
+      )
+    },
+    HTTP_TEST_TIMEOUT_MS
+  )
 
   it(
     'preserves the Project update HTTP contract for existing UUID formats',
@@ -50,6 +273,10 @@ describe('Projects API contract', () => {
           {
             provide: ProjectsService,
             useValue: { update },
+          },
+          {
+            provide: ProjectCommandCenterService,
+            useValue: { read: vi.fn() },
           },
         ],
       }).compile()
@@ -211,7 +438,11 @@ describe('Projects API contract', () => {
         providers: [
           {
             provide: ProjectsService,
-            useValue: { update: vi.fn() },
+            useValue: { create: vi.fn(), update: vi.fn() },
+          },
+          {
+            provide: ProjectCommandCenterService,
+            useValue: { read: vi.fn() },
           },
         ],
       }).compile()

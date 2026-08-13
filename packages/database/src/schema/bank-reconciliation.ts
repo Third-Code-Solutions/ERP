@@ -29,6 +29,7 @@ export const bankStatements = pgTable(
     cash_account_id: uuid('cash_account_id').notNull(),
     reference_number: varchar('reference_number', { length: 120 }).notNull(),
     source_file_name: varchar('source_file_name', { length: 255 }).notNull(),
+    source_storage_path: text('source_storage_path'),
     source_sha256: char('source_sha256', { length: 64 }).notNull(),
     status: bankStatementStatusEnum('status').notNull().default('draft'),
     statement_start: date('statement_start').notNull(),
@@ -166,6 +167,10 @@ export const bankStatementLines = pgTable(
       .defaultNow(),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex('ux_bank_statement_lines_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     statementLineIdx: uniqueIndex(
       'ux_bank_statement_lines_statement_line'
     ).on(table.bank_statement_id, table.line_number),

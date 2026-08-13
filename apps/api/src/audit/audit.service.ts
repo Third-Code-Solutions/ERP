@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { auditLog } from '@third-code-erp/database/schema'
-import { computeHash } from '@third-code-erp/shared-types'
+import { computeDatabaseAuditHash } from '@third-code-erp/shared-types'
 import { desc, eq, sql } from 'drizzle-orm'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { DatabaseTransaction } from '../database/database.service'
@@ -62,12 +62,11 @@ export class AuditService {
 
     const prevHash = lastEntry?.hash ?? 'genesis'
     const createdAt = new Date()
-    const hash = await computeHash(prevHash, {
+    const hash = await computeDatabaseAuditHash(prevHash, {
       entity_type: params.entityType,
       entity_id: params.entityId,
       action: params.action,
-      diff: params.diff,
-      created_at: createdAt.toISOString(),
+      created_at: createdAt,
     })
 
     await transaction.insert(auditLog).values({

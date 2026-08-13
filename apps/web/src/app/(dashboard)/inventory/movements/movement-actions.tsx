@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   deleteStockMovementDraft,
@@ -28,6 +28,8 @@ export function StockMovementActions({
   )
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const postRetryKey = useRef<string | null>(null)
+  const reverseRetryKey = useRef<string | null>(null)
 
   if (status === 'reversed') return null
 
@@ -91,14 +93,19 @@ export function StockMovementActions({
                 return
               }
               setError(null)
+              postRetryKey.current ??= crypto.randomUUID()
               startTransition(async () => {
-                const result = await postStockMovement(movementId)
+                const result = await postStockMovement(
+                  movementId,
+                  postRetryKey.current ?? undefined
+                )
                 if (!result.ok) {
                   setError(
                     result.error ?? 'Could not post Stock Movement.'
                   )
                   return
                 }
+                postRetryKey.current = null
                 router.refresh()
               })
             }}
@@ -144,11 +151,13 @@ export function StockMovementActions({
             onClick={() => {
               if (!window.confirm('Reverse this Stock Movement?')) return
               setError(null)
+              reverseRetryKey.current ??= crypto.randomUUID()
               startTransition(async () => {
                 const result = await reverseStockMovement({
                   movementId,
                   reversalDate,
                   reason,
+                  idempotencyKey: reverseRetryKey.current ?? undefined,
                 })
                 if (!result.ok) {
                   setError(
@@ -156,6 +165,7 @@ export function StockMovementActions({
                   )
                   return
                 }
+                reverseRetryKey.current = null
                 router.refresh()
               })
             }}

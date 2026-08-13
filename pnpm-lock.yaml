@@ -38,6 +38,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.105.4
         version: 2.105.4
+      '@third-code-erp/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@third-code-erp/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -56,6 +59,9 @@ importers:
       drizzle-orm:
         specifier: 0.40.1
         version: 0.40.1(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(postgres@3.4.9)
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       helmet:
         specifier: ^8.3.0
         version: 8.3.0
@@ -208,6 +214,9 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+      vite:
+        specifier: 7.3.3
+        version: 7.3.3(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4)
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.8.4)
@@ -245,6 +254,9 @@ importers:
 
   packages/database:
     dependencies:
+      '@third-code-erp/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       drizzle-orm:
         specifier: 0.40.1
         version: 0.40.1(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(gel@2.2.0)(postgres@3.4.9)
@@ -255,9 +267,6 @@ importers:
       '@third-code-erp/config':
         specifier: workspace:*
         version: link:../config
-      '@third-code-erp/shared-types':
-        specifier: workspace:*
-        version: link:../shared-types
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.18

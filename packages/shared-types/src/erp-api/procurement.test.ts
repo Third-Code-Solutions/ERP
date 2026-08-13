@@ -1,15 +1,419 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cancelRfqCommandSchema,
-  completeRfqCommandSchema,
-  awardRfqQuoteCommandSchema,
+  createRfqCommandSchema,
   logRfqQuoteCommandSchema,
-  rfqAwardResultSchema,
-  rfqTransitionResultSchema,
+  notificationDeliveryJobSchema,
+  notificationDeliveryResultSchema,
+  purchaseOrderSupplierEmailDeliveryJobSchema,
+  purchaseOrderWorkflowNotificationPayloadSchema,
+  notificationSweepJobSchema,
+  rfqCreationResultSchema,
+  rfqDispatchDeadLetterSchema,
+  rfqDispatchJobSchema,
+  rfqDispatchResultSchema,
   rfqQuoteResultSchema,
+  rfqTransitionResultSchema,
+  transitionRfqCommandSchema,
 } from './procurement'
+import {
+  createPurchaseOrderFromBomCommandSchema,
+  createPurchaseOrdersGroupedFromBomCommandSchema,
+  createPurchaseOrderCommandSchema,
+  purchaseOrderBomCreationResultSchema,
+  purchaseOrdersGroupedFromBomResultSchema,
+  purchaseOrderWorkflowCommandSchema,
+  purchaseOrderWorkflowResultSchema,
+  purchaseOrderSupplierIssuedPayloadSchema,
+  purchaseOrderCreationResultSchema,
+} from './purchase-orders'
 
 const UUID = '11111111-1111-4111-8111-111111111111'
+
+describe('Purchase Order creation API contracts', () => {
+  it('accepts tenant-free commands with bounded integer centavo lines', () => {
+    const command = {
+      projectId: UUID,
+      vendorId: null,
+      deliveryDate: null,
+      notes: 'Concrete package',
+      lines: [
+        {
+          code: 'CONC-01',
+          description: 'Ready-mix concrete',
+          unit: 'm3',
+          quantity: 4,
+          unitCostCents: 12_500,
+          costCodeId: UUID,
+        },
+      ],
+    }
+    expect(createPurchaseOrderCommandSchema.parse(command)).toEqual(command)
+  })
+
+  it('rejects caller authority and unsafe money', () => {
+    const line = {
+      description: 'Concrete',
+      quantity: 1,
+      unitCostCents: 100,
+      costCodeId: UUID,
+    }
+    expect(
+      createPurchaseOrderCommandSchema.safeParse({
+        projectId: UUID,
+        lines: [line],
+        tenantId: UUID,
+      }).success
+    ).toBe(false)
+    expect(
+      createPurchaseOrderCommandSchema.safeParse({
+        projectId: UUID,
+        lines: [{ ...line, unitCostCents: 1.5 }],
+      }).success
+    ).toBe(false)
+    expect(
+      createPurchaseOrderCommandSchema.safeParse({
+        projectId: UUID,
+        lines: [{ ...line, quantity: 2_147_483_648 }],
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires a draft result with server-derived tenant identity', () => {
+    expect(
+      purchaseOrderCreationResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        poNumber: 'PO-0001',
+        status: 'draft',
+      }).success
+    ).toBe(true)
+    expect(
+      purchaseOrderCreationResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        poNumber: 'PO-0001',
+        status: 'issued',
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts a strict BOM source command and result', () => {
+    const command = {
+      bomId: UUID,
+      projectId: UUID,
+      vendorId: null,
+      deliveryDate: null,
+      notes: null,
+    }
+    expect(createPurchaseOrderFromBomCommandSchema.parse(command)).toEqual(
+      command
+    )
+    expect(
+      purchaseOrderBomCreationResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        bomId: UUID,
+        poNumber: 'PO-0001',
+        status: 'draft',
+      }).success
+    ).toBe(true)
+    expect(
+      createPurchaseOrderFromBomCommandSchema.safeParse({
+        ...command,
+        actorId: UUID,
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts a strict grouped BOM command and server-derived result', () => {
+    const command = { bomId: UUID }
+    expect(
+      createPurchaseOrdersGroupedFromBomCommandSchema.parse(command)
+    ).toEqual(command)
+    expect(
+      purchaseOrdersGroupedFromBomResultSchema.safeParse({
+        tenantId: UUID,
+        bomId: UUID,
+        purchaseOrderIds: [UUID],
+        groups: [
+          {
+            vendorId: UUID,
+            vendorName: 'Vendor A',
+            lineCount: 1,
+            subtotalCents: 12_500,
+          },
+          {
+            vendorId: null,
+            vendorName: 'Unassigned (no rate card match)',
+            lineCount: 1,
+            subtotalCents: 0,
+          },
+        ],
+      }).success
+    ).toBe(true)
+    expect(
+      createPurchaseOrdersGroupedFromBomCommandSchema.safeParse({
+        ...command,
+        tenantId: UUID,
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('Purchase Order workflow API contracts', () => {
+  it('requires a reason only for rejection and excludes caller authority', () => {
+    expect(
+      purchaseOrderWorkflowCommandSchema.parse({
+        action: 'pm_approve',
+      })
+    ).toEqual({ action: 'pm_approve' })
+    expect(
+      purchaseOrderWorkflowCommandSchema.parse({
+        action: 'reject',
+        reason: '  Missing scope confirmation  ',
+      })
+    ).toEqual({
+      action: 'reject',
+      reason: 'Missing scope confirmation',
+    })
+    expect(
+      purchaseOrderWorkflowCommandSchema.safeParse({
+        action: 'reject',
+      }).success
+    ).toBe(false)
+    expect(
+      purchaseOrderWorkflowCommandSchema.safeParse({
+        action: 'pm_approve',
+        tenantId: UUID,
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires a tenant-scoped status transition result', () => {
+    expect(
+      purchaseOrderWorkflowResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        action: 'pm_approve',
+        fromStatus: 'pending_pm_approval',
+        status: 'pending_commercial_approval',
+      }).success
+    ).toBe(true)
+    expect(
+      purchaseOrderWorkflowResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        action: 'pm_approve',
+        fromStatus: 'draft',
+        status: 'pending_commercial_approval',
+      }).success
+    ).toBe(true)
+    expect(
+      purchaseOrderWorkflowResultSchema.safeParse({
+        purchaseOrderId: UUID,
+        tenantId: UUID,
+        action: 'pm_approve',
+        fromStatus: 'pending_pm_approval',
+        status: 'not-a-status',
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('RFQ creation API contracts', () => {
+  it('accepts only a BOM identifier from the caller', () => {
+    expect(createRfqCommandSchema.parse({ bomId: UUID })).toEqual({
+      bomId: UUID,
+    })
+    expect(
+      createRfqCommandSchema.safeParse({
+        bomId: UUID,
+        tenantId: UUID,
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires a strict durable creation result', () => {
+    const result = {
+      rfqId: UUID,
+      tenantId: UUID,
+      projectId: UUID,
+      lineCount: 2,
+      created: true,
+    }
+    expect(rfqCreationResultSchema.safeParse(result).success).toBe(
+      true
+    )
+    expect(
+      rfqCreationResultSchema.safeParse({
+        ...result,
+        source: 'manual',
+      }).success
+    ).toBe(false)
+    expect(
+      rfqCreationResultSchema.safeParse({
+        ...result,
+        lineCount: -1,
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('Approved-BOM RFQ dispatch contracts', () => {
+  it('accepts only server-derived versioned job authority', () => {
+    const job = {
+      schemaVersion: 1 as const,
+      tenantId: UUID,
+      actorId: UUID,
+      bomId: UUID,
+      source: 'bom_approved' as const,
+    }
+    expect(rfqDispatchJobSchema.parse(job)).toEqual(job)
+    expect(
+      rfqDispatchJobSchema.safeParse({
+        ...job,
+        role: 'owner',
+      }).success
+    ).toBe(false)
+  })
+
+  it('requires strict enqueue and dead-letter results', () => {
+    expect(
+      rfqDispatchResultSchema.safeParse({
+        jobId: `rfq1-${UUID}-${UUID}`,
+        enqueued: true,
+      }).success
+    ).toBe(true)
+    expect(
+      rfqDispatchResultSchema.safeParse({
+        jobId: '',
+        enqueued: true,
+      }).success
+    ).toBe(false)
+
+    const deadLetter = {
+      schemaVersion: 1 as const,
+      sourceJobId: `rfq1-${UUID}-${UUID}`,
+      sourceJobName: 'create-from-approved-bom',
+      jobData: { bomId: UUID },
+      attemptsMade: 5,
+      errorName: 'Error',
+      errorMessage: 'database unavailable',
+      failedAt: '2026-07-30T00:00:00.000Z',
+    }
+    expect(
+      rfqDispatchDeadLetterSchema.safeParse(deadLetter).success
+    ).toBe(true)
+    expect(
+      rfqDispatchDeadLetterSchema.safeParse({
+        ...deadLetter,
+        attemptsMade: 0,
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('RFQ notification delivery contracts', () => {
+  it('allows only opaque versioned delivery identity in Redis', () => {
+    const job = {
+      schemaVersion: 1 as const,
+      tenantId: UUID,
+      outboxId: UUID,
+      deliveryId: UUID,
+    }
+    expect(notificationDeliveryJobSchema.parse(job)).toEqual(job)
+    expect(
+      notificationDeliveryJobSchema.safeParse({
+        ...job,
+        recipientEmail: 'procurement@example.test',
+      }).success
+    ).toBe(false)
+    expect(
+      notificationSweepJobSchema.parse({ schemaVersion: 1 })
+    ).toEqual({ schemaVersion: 1 })
+  })
+
+  it('requires a strict delivery result', () => {
+    expect(
+      notificationDeliveryResultSchema.safeParse({
+        deliveryId: UUID,
+        status: 'delivered',
+      }).success
+    ).toBe(true)
+    expect(
+      notificationDeliveryResultSchema.safeParse({
+        deliveryId: UUID,
+        status: 'already_processing',
+      }).success
+    ).toBe(true)
+    expect(
+      notificationDeliveryResultSchema.safeParse({
+        deliveryId: UUID,
+        status: 'processing',
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps supplier delivery jobs opaque and supplier events strict', () => {
+    const job = {
+      schemaVersion: 1 as const,
+      tenantId: UUID,
+      outboxId: UUID,
+      deliveryId: UUID,
+    }
+    expect(purchaseOrderSupplierEmailDeliveryJobSchema.parse(job)).toEqual(
+      job
+    )
+    expect(
+      purchaseOrderSupplierIssuedPayloadSchema.safeParse({
+        schemaVersion: 1,
+        purchase_order_id: UUID,
+      }).success
+    ).toBe(true)
+    expect(
+      purchaseOrderSupplierIssuedPayloadSchema.safeParse({
+        schemaVersion: 1,
+        purchase_order_id: UUID,
+        vendor_confirmation_session_id: UUID,
+      }).success
+    ).toBe(true)
+    expect(
+      purchaseOrderSupplierIssuedPayloadSchema.safeParse({
+        schemaVersion: 1,
+        purchase_order_id: UUID,
+        recipientEmail: 'supplier@example.test',
+      }).success
+    ).toBe(false)
+    expect(
+      purchaseOrderSupplierIssuedPayloadSchema.safeParse({
+        schemaVersion: 1,
+        purchase_order_id: UUID,
+        token: 'a'.repeat(64),
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('Purchase Order workflow notification contracts', () => {
+  it('accepts strict tenant-local workflow payloads', () => {
+    const payload = {
+      schemaVersion: 1 as const,
+      purchase_order_id: UUID,
+      action: 'commercial_approve' as const,
+      from_status: 'pending_commercial_approval' as const,
+      to_status: 'pending_scm_issuance' as const,
+    }
+    expect(
+      purchaseOrderWorkflowNotificationPayloadSchema.parse(payload)
+    ).toEqual(payload)
+    expect(
+      purchaseOrderWorkflowNotificationPayloadSchema.safeParse({
+        ...payload,
+        tenant_id: UUID,
+      }).success
+    ).toBe(false)
+  })
+})
 
 describe('RFQ quote API contracts', () => {
   it('accepts the bounded canonical quote command', () => {
@@ -52,7 +456,6 @@ describe('RFQ quote API contracts', () => {
         quoteId: UUID,
         created: true,
         statusChanged: true,
-        priceHistoryId: UUID,
       }).success
     ).toBe(true)
     expect(
@@ -60,48 +463,44 @@ describe('RFQ quote API contracts', () => {
         quoteId: UUID,
         created: true,
         statusChanged: true,
-        priceHistoryId: UUID,
+        tenantId: UUID,
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('RFQ terminal transition API contracts', () => {
+  it('accepts only canonical complete and bounded cancel commands', () => {
+    expect(
+      transitionRfqCommandSchema.parse({ command: 'complete' })
+    ).toEqual({ command: 'complete' })
+    expect(
+      transitionRfqCommandSchema.parse({
+        command: 'cancel',
+        reason: '  Supplier withdrew  ',
+      })
+    ).toEqual({
+      command: 'cancel',
+      reason: 'Supplier withdrew',
+    })
+  })
+
+  it('rejects missing reasons and caller-supplied authority', () => {
+    expect(
+      transitionRfqCommandSchema.safeParse({
+        command: 'cancel',
+        reason: ' ',
+      }).success
+    ).toBe(false)
+    expect(
+      transitionRfqCommandSchema.safeParse({
+        command: 'complete',
         tenantId: UUID,
       }).success
     ).toBe(false)
   })
 
-  it('accepts a strict award command/result without client authority fields', () => {
-    expect(awardRfqQuoteCommandSchema.parse({})).toEqual({})
-    expect(
-      awardRfqQuoteCommandSchema.safeParse({ tenantId: UUID }).success,
-    ).toBe(false)
-    expect(
-      rfqAwardResultSchema.parse({
-        rfqId: UUID,
-        quoteId: UUID,
-        tenantId: UUID,
-        priceHistoryId: UUID,
-        awarded: true,
-      }),
-    ).toEqual({
-      rfqId: UUID,
-      quoteId: UUID,
-      tenantId: UUID,
-      priceHistoryId: UUID,
-      awarded: true,
-    })
-  })
-
-  it('accepts strict terminal RFQ commands and rejects authority injection', () => {
-    expect(completeRfqCommandSchema.safeParse({}).success).toBe(true)
-    expect(
-      completeRfqCommandSchema.safeParse({ tenantId: UUID }).success
-    ).toBe(false)
-    expect(
-      cancelRfqCommandSchema.parse({ reason: 'Supplier withdrew' })
-    ).toEqual({ reason: 'Supplier withdrew' })
-    expect(
-      cancelRfqCommandSchema.safeParse({ reason: ' ' }).success
-    ).toBe(false)
-  })
-
-  it('requires a tenant-scoped transition result', () => {
+  it('requires a strict durable transition result', () => {
     expect(
       rfqTransitionResultSchema.safeParse({
         rfqId: UUID,
@@ -113,8 +512,7 @@ describe('RFQ quote API contracts', () => {
       rfqTransitionResultSchema.safeParse({
         rfqId: UUID,
         tenantId: UUID,
-        transitioned: true,
-        actorId: UUID,
+        transitioned: false,
       }).success
     ).toBe(false)
   })

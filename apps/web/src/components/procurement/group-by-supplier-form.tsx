@@ -12,7 +12,7 @@
  * a buyer needs to triage.
  */
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPosFromBomGrouped } from '@/app/(dashboard)/procurement/actions'
 
@@ -48,17 +48,20 @@ export function GroupBySupplierForm({ bomId, label = 'Generate POs grouped by su
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
+  const retryKeyRef = useRef<string | null>(null)
 
   function handleConfirm() {
     setError(null)
+    retryKeyRef.current ??= globalThis.crypto.randomUUID()
     startTransition(async () => {
-      const result = await createPosFromBomGrouped(bomId)
+      const result = await createPosFromBomGrouped(bomId, retryKeyRef.current ?? undefined)
       if ('error' in result) {
         setError(result.error)
         return
       }
       setGroups(result.groups)
       setCreatedIds(result.created_po_ids)
+      retryKeyRef.current = null
       router.refresh()
     })
   }

@@ -1,16 +1,13 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { and, eq } from 'drizzle-orm'
 import { requireUserProfile, requireCapability } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
 import {
-  costCodes,
-  costEntries,
-  projects,
-} from '@third-code-erp/database/schema'
-import { writeAuditLog } from '@/lib/audit'
+  createCostEntryThroughCoreApi,
+  deleteCostEntryThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 const createSchema = z.object({
   project_id: z.string().uuid(),
@@ -23,6 +20,7 @@ const createSchema = z.object({
   incurred_at: z.string().optional(),
   reference_number: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
+  idempotency_key: z.string().trim().min(1).max(256).optional(),
 })
 
 type Result = { id: string } | { error: string }
@@ -52,6 +50,7 @@ export async function createCostEntry(formData: FormData): Promise<Result> {
       incurred_at: formData.get('incurred_at') || undefined,
       reference_number: formData.get('reference_number') || undefined,
       notes: formData.get('notes') || undefined,
+      idempotency_key: formData.get('idempotency_key') || undefined,
     })
     if (!parsed.success) {
       return { error: parsed.error.issues[0]?.message ?? 'Invalid input.' }
@@ -59,68 +58,36 @@ export async function createCostEntry(formData: FormData): Promise<Result> {
     const d = parsed.data
     const amountCents = Math.round(d.amount_php * 100)
 
-    // Verify the project belongs to the caller's tenant. The Drizzle client runs
-    // as the postgres owner (RLS-bypassed), so the action is the sole authz gate.
-    const [proj] = await db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(and(eq(projects.id, d.project_id), eq(projects.tenant_id, profile.tenantId)))
-    if (!proj) return { error: 'Project not found.' }
-
-    const [costCode] = await db
-      .select({ id: costCodes.id, category: costCodes.category })
-      .from(costCodes)
-      .where(
-        and(
-          eq(costCodes.id, d.cost_code_id),
-          eq(costCodes.tenant_id, profile.tenantId),
-          eq(costCodes.is_active, true)
-        )
-      )
-      .limit(1)
-    if (!costCode) return { error: 'Select an active Cost Code.' }
-    if (costCode.category !== d.cost_category) {
-      return { error: 'Cost category must match the selected Cost Code.' }
-    }
-
-    const [row] = await db
-      .insert(costEntries)
-      .values({
-        tenant_id: profile.tenantId,
-        project_id: d.project_id,
-        cost_code_id: d.cost_code_id,
-        created_by: profile.user.id,
-        cost_category: d.cost_category,
-        cost_source: 'manual',
+    const result = await createCostEntryThroughCoreApi(
+      d.project_id,
+      {
+        costCodeId: d.cost_code_id,
+        costCategory: d.cost_category,
         description: d.description,
-        amount_cents: amountCents,
+        amountCents,
         quantity: d.quantity,
-        unit: d.unit,
-        incurred_at: d.incurred_at ? new Date(d.incurred_at) : new Date(),
-        reference_number: d.reference_number,
-        notes: d.notes,
-      })
-      .returning({ id: costEntries.id })
-
-    if (!row) return { error: 'Could not record the cost entry.' }
-
-    try {
-      await writeAuditLog({
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'cost_entry',
-        entityId: row.id,
-        action: 'create',
-        diff: { project_id: d.project_id, category: d.cost_category, amount_cents: amountCents },
-      })
-    } catch (err) {
-      console.error('[cost/createCostEntry] audit failed:', err)
+        unit: d.unit ?? null,
+        incurredAt: d.incurred_at
+          ? new Date(`${d.incurred_at}T00:00:00.000Z`).toISOString()
+          : null,
+        referenceNumber: d.reference_number ?? null,
+        notes: d.notes ?? null,
+      },
+      d.idempotency_key ?? randomUUID()
+    )
+    if (!result.ok || !result.data) {
+      return { error: result.error ?? 'Could not record the cost entry.' }
     }
-
+    if (
+      result.data.tenantId !== profile.tenantId ||
+      result.data.projectId !== d.project_id
+    ) {
+      return { error: 'Cost entry creation returned an invalid tenant scope.' }
+    }
     revalidatePath(`/projects/${d.project_id}/cost`)
     revalidatePath(`/projects/${d.project_id}`)
     revalidatePath('/reports')
-    return { id: row.id }
+    return { id: result.data.id }
   } catch (err) {
     return { error: safeMessage(err) }
   }
@@ -128,36 +95,40 @@ export async function createCostEntry(formData: FormData): Promise<Result> {
 
 export async function deleteCostEntry(
   entryId: string,
-  projectId: string
+  projectId: string,
+  reason: string = 'Manual cost correction',
+  idempotencyKey: string = randomUUID()
 ): Promise<{ ok: true } | { error: string }> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'cost.record')
 
-    const [row] = await db
-      .select({ source: costEntries.cost_source })
-      .from(costEntries)
-      .where(and(eq(costEntries.id, entryId), eq(costEntries.tenant_id, profile.tenantId)))
-    if (!row) return { error: 'Cost entry not found.' }
-    if (row.source === 'po_derived') {
-      return { error: 'PO-derived cost entries are system-managed and cannot be deleted.' }
+    const parsedReason = z.string().trim().min(1).max(500).safeParse(reason)
+    if (!parsedReason.success) {
+      return { error: parsedReason.error.issues[0]?.message ?? 'Invalid deletion reason.' }
+    }
+    const parsedIdempotencyKey = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
+    if (!parsedIdempotencyKey.success) {
+      return { error: 'Invalid idempotency key.' }
     }
 
-    await db
-      .delete(costEntries)
-      .where(and(eq(costEntries.id, entryId), eq(costEntries.tenant_id, profile.tenantId)))
-
-    try {
-      await writeAuditLog({
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        entityType: 'cost_entry',
-        entityId: entryId,
-        action: 'delete',
-        diff: {},
-      })
-    } catch (err) {
-      console.error('[cost/deleteCostEntry] audit failed:', err)
+    const result = await deleteCostEntryThroughCoreApi(
+      projectId,
+      entryId,
+      parsedReason.data,
+      parsedIdempotencyKey.data
+    )
+    if (!result.ok || !result.data) {
+      return { error: result.error ?? 'Could not void the cost entry.' }
+    }
+    if (
+      result.data.tenantId !== profile.tenantId ||
+      result.data.projectId !== projectId ||
+      result.data.costEntryId !== entryId ||
+      result.data.status !== 'voided' ||
+      result.data.costSource !== 'manual'
+    ) {
+      return { error: 'Cost entry deletion returned an invalid tenant scope.' }
     }
 
     revalidatePath(`/projects/${projectId}/cost`)

@@ -10,7 +10,7 @@
  *
  * What this proves:
  *   1. SELECT isolation     — an authenticated user sees only its own tenant.
- *   2. Deny-by-default      — `anon` (no JWT) sees nothing.
+ *   2. Deny-by-default      — `anon` (no JWT) has no direct table authority.
  *   3. INSERT WITH CHECK    — an authenticated user cannot write into another
  *                             tenant (cross-tenant insert is rejected).
  *   4. Audit append-only    — UPDATE/DELETE on audit_log is denied.
@@ -131,33 +131,26 @@ suite('RLS tenant isolation', () => {
     expect(visible).toBe(1)
   })
 
-  it('anon (no JWT) sees NOTHING — deny by default', async () => {
-    const visible = await inRollback(async (tx) => {
+  it('anon (no JWT) has no direct table authority', async () => {
+    const denied = await inRollback(async (tx) => {
       await seedProbes(tx)
       await tx.unsafe(`select set_config('request.jwt.claims', '', true)`)
       await tx.unsafe(`set local role anon`)
       try {
-        const rows = await tx.unsafe(
+        await tx.unsafe(
           `select count(*)::int as n from projects where name in ('PROBE_PA','PROBE_PB')`
         )
-        await tx.unsafe(`reset role`)
-        return rows[0]!.n as number
+        return false
       } catch (error) {
-        const code =
+        return (
           typeof error === 'object'
           && error !== null
           && 'code' in error
-          && typeof error.code === 'string'
-            ? error.code
-            : undefined
-        // The hardened final grants revoke anon SELECT entirely. PostgreSQL
-        // therefore proves deny-by-default with SQLSTATE 42501 instead of an
-        // empty result set.
-        if (code !== '42501') throw error
-        return 0
+          && (error as { code?: unknown }).code === '42501'
+        )
       }
     })
-    expect(visible).toBe(0)
+    expect(denied).toBe(true)
   })
 
   it('authenticated user CANNOT insert into another tenant (WITH CHECK)', async () => {

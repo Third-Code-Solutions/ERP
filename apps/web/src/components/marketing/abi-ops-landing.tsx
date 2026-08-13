@@ -251,7 +251,7 @@ export function AbiOpsLanding() {
           <AbiLogo />
           <span className={styles.brandCopy}>
             <strong>
-              ABI <em>OS</em>
+              ABI <em>OPS</em>
             </strong>
             <small>Actuate Builders</small>
           </span>
@@ -615,7 +615,7 @@ export function AbiOpsLanding() {
               <AbiLogo className={styles.footerLogo} />
               <span>
                 <strong>
-                  ABI <em>OS</em>
+                  ABI <em>OPS</em>
                 </strong>
                 <small>Actuate Builders Inc.</small>
               </span>

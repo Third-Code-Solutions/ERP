@@ -1,15 +1,5 @@
 # User Story Index
 
-Current US-009 mapping supersedes older row wording: route is
-/(dashboard)/crm/opportunities/[id]/proposal/change-requests; tables are
-change_requests, change_logs, and change_request_create_requests; transaction
-logic lives in proposal/actions.ts and change-request-workflow.ts. Story has
-disposable-PostgreSQL integration proof for create, replay, conflicting-key
-denial, resolve, and tenant isolation, plus a hosted protected-browser
-mutation proof for create, exact replay, resolve, reload, and no duplicate in
-the dedicated `buildops-e2e` demo tenant. It is Live for that seeded demo
-tenant; customer-tenant rollout is not exercised by this proof.
-
 This index maps every user story in
 [`apps/web/REFACTOR.md`](../apps/web/REFACTOR.md) to the UI pages,
 server actions, and schema tables that implement it. Use it as the
@@ -20,6 +10,8 @@ Status legend:
 - Live — feature is functional end-to-end against production schema
 - Dev-stub — UI + actions exist but rely on placeholder data or
   partial flow
+- Source-gated — source contracts and UI exist, but hosted schema and release
+  controls keep the workflow disabled
 - Pending — not yet implemented
 
 Routes are rooted at `apps/web/src/app`. Server actions are colocated
@@ -46,7 +38,7 @@ with their route under `actions.ts` unless noted.
 | US-006 — Digital PPRF Form | `/(dashboard)/crm/opportunities/[id]/proposal` (PPRF tab) | `crm/opportunities/[id]/proposal/actions.ts` | `proposals`, `pprf_responses` | Live |
 | US-007 — Site Inspection Report | `/(dashboard)/crm/opportunities/[id]/proposal` (inspection tab) | `crm/opportunities/[id]/proposal/actions.ts` | `site_inspections`, `documents` | Live |
 | US-008 — Design Upload & Approval | `/(dashboard)/crm/opportunities/[id]/proposal` (design tab) | `crm/opportunities/[id]/proposal/actions.ts` | `design_uploads`, `documents` | Live |
-| US-009 — Client Change Request Log | `/(dashboard)/crm/opportunities/[id]/proposal/change-requests` | `crm/opportunities/[id]/proposal/actions.ts`, `change-request-workflow.ts` | `change_requests`, `change_logs`, `change_request_create_requests` | Live (demo tenant verified) |
+| US-009 — Client Change Request Log | `/(dashboard)/crm/opportunities/[id]/proposal` (changes tab) | `crm/opportunities/[id]/proposal/actions.ts` | `change_requests`, `design_files` | Live |
 
 ---
 
@@ -68,6 +60,7 @@ with their route under `actions.ts` unless noted.
 | US-Pre-002 — Permit Tracker | `/(dashboard)/permits`, `/(dashboard)/projects/[id]/permits` | `projects/[id]/permits/actions.ts` | `permits`, `sla_logs` | Live |
 | US-Pre-003 — Purchase Order Generation | `/(dashboard)/procurement`, `/(dashboard)/purchase-orders` | `procurement/actions.ts` | `rfqs`, `purchase_orders`, `po_lines`, `vendors` | Live |
 | US-013 — RFQ Auto-Dispatch | `/(dashboard)/procurement` | `procurement/actions.ts` (`dispatchRfq`) | `rfqs`, `vendors`, `sla_logs` | Live |
+| US-014 — Supplier PO Confirmation | `/portal/purchase-order/[token]/confirmation` | `portal/purchase-order/[token]/confirmation/actions.ts`; Nest `GET/POST /v1/public/purchase-orders/:token/confirmation` | `vendor_confirmation_sessions`, replay ledger, workflow association, `po_line_items` | Source-gated |
 
 ---
 
@@ -109,8 +102,7 @@ moving parts.
 | Capability | UI Surface | Server / Worker | Tables | Status |
 |---|---|---|---|---|
 | Hash-chained audit log | n/a (read-only UI in admin) | `supabase/migrations/20260509164538_audit_triggers.sql` | `audit_log` | Live |
-| CAD evidence worker (DXF/DWG) | Project BOM surface | `apps/workers/dxf-parser` | `documents`, `scope_items` | Live (Railway + production E2E) |
-| RAG retrieval (BOM suggestions) | BOM editor right rail | `packages/ai`, `apps/workers/rag-indexer` | `embeddings` | Dev-stub |
+| RAG retrieval (BOM suggestions) | BOM editor right rail | `apps/web/src/app/api/ai/similar-items/route.ts`, `apps/web/src/lib/inngest.ts`, `apps/workers/ai` | `embeddings` | Live (Python worker optional; compatibility fallback) |
 | Signing (canvas + DocuSeal) | `/portal/sign/[token]`, turnover flow | `portal/sign/[token]/actions.ts`, `/api/webhooks/docuseal` | `signature_sessions` | Live |
 | Resend email notifications | none (background) | Inngest `sla.tick`, `permits.staleness`, `warranty.cnps` | `notifications` | Live (no-ops without `RESEND_API_KEY`) |
 | Semaphore SMS | none (background) | Inngest `sla.tick`, `warranty.cnps` | `notifications` | Dev-stub |

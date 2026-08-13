@@ -5,7 +5,7 @@
 // site-prep / inspection panels — this rail is reserved for the cross-
 // cutting "cancel" action so users always have a single escape hatch.
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { cancelDelivery } from '@/app/(dashboard)/procurement/deliveries/actions'
 
@@ -48,6 +48,7 @@ export function DeliveryStatusActions({ scheduleId, status }: Props) {
   const [reason, setReason] = useState('')
   const [showCancel, setShowCancel] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const cancelKeyRef = useRef<string | null>(null)
   const router = useRouter()
 
   function doCancel() {
@@ -57,9 +58,14 @@ export function DeliveryStatusActions({ scheduleId, status }: Props) {
       return
     }
     startTransition(async () => {
-      const res = await cancelDelivery(scheduleId, reason.trim())
+      const res = await cancelDelivery(
+        scheduleId,
+        reason.trim(),
+        (cancelKeyRef.current ??= crypto.randomUUID())
+      )
       if (res?.error) setError(res.error)
       else {
+        cancelKeyRef.current = null
         setShowCancel(false)
         router.refresh()
       }
@@ -170,6 +176,7 @@ export function DeliveryStatusActions({ scheduleId, status }: Props) {
                 setShowCancel(false)
                 setReason('')
                 setError('')
+                cancelKeyRef.current = null
               }}
               disabled={isPending}
               style={{

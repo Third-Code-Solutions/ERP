@@ -204,7 +204,10 @@ export async function searchCortexNodesByTerms(
   const cleaned = terms.filter((t) => t.length >= 3).slice(0, 8)
   if (cleaned.length === 0) return []
   const termConds = cleaned.map((t) =>
-    or(ilike(cortexNodes.title, `%${t}%`), ilike(cortexNodes.summary, `%${t}%`))
+    or(
+      ilike(cortexNodes.title, `%${t.replace(/[\\%_]/g, '\\$&')}%`),
+      ilike(cortexNodes.summary, `%${t.replace(/[\\%_]/g, '\\$&')}%`)
+    )
   )
   return db
     .select()

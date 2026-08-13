@@ -13,6 +13,20 @@ import {
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { parseBankStatementCsv } from './bank-statement-csv'
+import {
+  autoMatchBankStatementThroughCoreApi,
+  createBankStatementThroughCoreApi,
+  financeReconciliationAutoMatchWritesUseCoreApi,
+  financeReconciliationLineMatchWritesUseCoreApi,
+  financeReconciliationReconcileWritesUseCoreApi,
+  financeReconciliationVoidWritesUseCoreApi,
+  financeReconciliationImportWritesUseCoreApi,
+  matchBankStatementLineThroughCoreApi,
+  reconcileBankStatementThroughCoreApi,
+  voidBankStatementThroughCoreApi,
+  unmatchBankStatementLineThroughCoreApi,
+  financeReconciliationStorageUploadsUseCoreApi,
+} from '@/lib/erp-core-client'
 
 export interface ReconciliationActionResult {
   ok: boolean
@@ -44,11 +58,26 @@ const statementSchema = z
       .regex(/^[A-Za-z0-9+/]+={0,2}$/)
       .refine((value) => value.length % 4 === 0, {
         message: 'Source file encoding is invalid.',
-      }),
+      })
+      .optional(),
+    sourceStoragePath: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2_000)
+      .regex(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/bank-statements\/[^/]+$/i,
+        'Source storage path is invalid.'
+      )
+      .optional(),
   })
   .refine((value) => value.statementStart <= value.statementEnd, {
     message: 'Statement end must be on or after its start.',
   })
+  .refine(
+    (value) => Boolean(value.sourceBase64) !== Boolean(value.sourceStoragePath),
+    { message: 'Provide exactly one inline source or storage source.' }
+  )
 
 function safeReconciliationError(error: unknown): string {
   if (error instanceof z.ZodError) {
@@ -66,6 +95,8 @@ function safeReconciliationError(error: unknown): string {
     'A statement can contain at most 5,000 lines',
     'Source file encoding is invalid',
     'Source file must be 2 MB or smaller',
+    'Storage-backed bank import requires Core authority',
+    'Storage-backed bank import is not enabled for this tenant',
     'Active bank or e-wallet Cash Account is required',
     'Bank statement line must match its tenant and date range',
     'Bank statement match does not agree with posted cash',
@@ -118,6 +149,37 @@ export async function createBankStatement(
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
     const parsed = statementSchema.parse(input)
+    if (
+      parsed.sourceStoragePath &&
+      !financeReconciliationStorageUploadsUseCoreApi(profile.tenantId)
+    ) {
+      throw new Error('Storage-backed bank import is not enabled for this tenant')
+    }
+    if (financeReconciliationImportWritesUseCoreApi(profile.tenantId)) {
+      const idempotencyKey = `bank-import-${createHash('sha256')
+        .update(JSON.stringify(parsed))
+        .digest('hex')}`
+      const coreResult = await createBankStatementThroughCoreApi(
+        parsed,
+        idempotencyKey
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'ERP Core did not import the bank statement. Existing evidence was unchanged.',
+        }
+      }
+      revalidateReconciliation(coreResult.data.statementId)
+      return { ok: true, id: coreResult.data.statementId }
+    }
+    if (parsed.sourceStoragePath) {
+      throw new Error('Storage-backed bank import requires Core authority')
+    }
+    if (!parsed.sourceBase64) {
+      throw new Error('Provide exactly one import source')
+    }
     const sourceBytes = Buffer.from(parsed.sourceBase64, 'base64')
     if (sourceBytes.length === 0 || sourceBytes.length > 2_000_000) {
       throw new Error('Source file must be 2 MB or smaller')
@@ -271,12 +333,42 @@ export async function deleteBankStatementDraft(
 }
 
 export async function autoMatchBankStatement(
-  statementId: string
+  statementId: string,
+  idempotencyKey?: string
 ): Promise<ReconciliationActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
     const parsedId = z.string().uuid().parse(statementId)
+    if (financeReconciliationAutoMatchWritesUseCoreApi(profile.tenantId)) {
+      const parsedKey = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
+      if (!parsedKey.success) {
+        return {
+          ok: false,
+          error:
+            'Retry token is required for the bank statement auto-match command.',
+        }
+      }
+      const coreResult = await autoMatchBankStatementThroughCoreApi(
+        parsedId,
+        parsedKey.data
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'ERP Core did not auto-match the bank statement. Existing evidence was unchanged.',
+        }
+      }
+      revalidateReconciliation(coreResult.data.statementId)
+      return {
+        ok: true,
+        id: coreResult.data.statementId,
+        matchedCount: coreResult.data.matchedCount,
+        remainingCount: coreResult.data.remainingCount,
+      }
+    }
     const rows = await db.execute<{
       matched_count: number
       remaining_count: number
@@ -305,6 +397,7 @@ export async function matchBankStatementLine(input: {
   lineId: string
   statementId: string
   cashTransactionId: string
+  idempotencyKey?: string
 }): Promise<ReconciliationActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -314,8 +407,40 @@ export async function matchBankStatementLine(input: {
         lineId: z.string().uuid(),
         statementId: z.string().uuid(),
         cashTransactionId: z.string().uuid(),
+        idempotencyKey: z.string().trim().min(1).max(256).optional(),
       })
       .parse(input)
+    if (financeReconciliationLineMatchWritesUseCoreApi(profile.tenantId)) {
+      const parsedKey = z
+        .string()
+        .trim()
+        .min(1)
+        .max(256)
+        .safeParse(parsed.idempotencyKey)
+      if (!parsedKey.success) {
+        return {
+          ok: false,
+          error:
+            'Retry token is required for the bank statement line match command.',
+        }
+      }
+      const coreResult = await matchBankStatementLineThroughCoreApi(
+        parsed.statementId,
+        parsed.lineId,
+        parsed.cashTransactionId,
+        parsedKey.data
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'ERP Core did not match the bank statement line. Existing evidence was unchanged.',
+        }
+      }
+      revalidateReconciliation(coreResult.data.statementId)
+      return { ok: true, id: coreResult.data.statementId }
+    }
     await db.execute(sql`
       select public.match_bank_statement_line(
         ${parsed.lineId}::uuid,
@@ -333,6 +458,7 @@ export async function matchBankStatementLine(input: {
 export async function unmatchBankStatementLine(input: {
   lineId: string
   statementId: string
+  idempotencyKey?: string
 }): Promise<ReconciliationActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -341,8 +467,39 @@ export async function unmatchBankStatementLine(input: {
       .object({
         lineId: z.string().uuid(),
         statementId: z.string().uuid(),
+        idempotencyKey: z.string().trim().min(1).max(256).optional(),
       })
       .parse(input)
+    if (financeReconciliationLineMatchWritesUseCoreApi(profile.tenantId)) {
+      const parsedKey = z
+        .string()
+        .trim()
+        .min(1)
+        .max(256)
+        .safeParse(parsed.idempotencyKey)
+      if (!parsedKey.success) {
+        return {
+          ok: false,
+          error:
+            'Retry token is required for the bank statement line unmatch command.',
+        }
+      }
+      const coreResult = await unmatchBankStatementLineThroughCoreApi(
+        parsed.statementId,
+        parsed.lineId,
+        parsedKey.data
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'ERP Core did not unmatch the bank statement line. Existing evidence was unchanged.',
+        }
+      }
+      revalidateReconciliation(coreResult.data.statementId)
+      return { ok: true, id: coreResult.data.statementId }
+    }
     await db.execute(sql`
       select public.unmatch_bank_statement_line(
         ${parsed.lineId}::uuid,
@@ -357,20 +514,54 @@ export async function unmatchBankStatementLine(input: {
 }
 
 export async function reconcileBankStatement(
-  statementId: string
+  statementId: string,
+  idempotencyKey?: string
 ): Promise<ReconciliationActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
-    const parsedId = z.string().uuid().parse(statementId)
+    const parsed = z
+      .object({
+        statementId: z.string().uuid(),
+        idempotencyKey: z.string().trim().min(1).max(256).optional(),
+      })
+      .parse({ statementId, idempotencyKey })
+    if (financeReconciliationReconcileWritesUseCoreApi(profile.tenantId)) {
+      const parsedKey = z
+        .string()
+        .trim()
+        .min(1)
+        .max(256)
+        .safeParse(parsed.idempotencyKey)
+      if (!parsedKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the bank statement reconcile command.',
+        }
+      }
+      const coreResult = await reconcileBankStatementThroughCoreApi(
+        parsed.statementId,
+        parsedKey.data
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'ERP Core did not reconcile the bank statement. Existing evidence was unchanged.',
+        }
+      }
+      revalidateReconciliation(coreResult.data.statementId)
+      return { ok: true, id: coreResult.data.statementId }
+    }
     await db.execute(sql`
       select public.reconcile_bank_statement(
-        ${parsedId}::uuid,
+        ${parsed.statementId}::uuid,
         ${profile.user.id}::uuid
       )
     `)
-    revalidateReconciliation(parsedId)
-    return { ok: true, id: parsedId }
+    revalidateReconciliation(parsed.statementId)
+    return { ok: true, id: parsed.statementId }
   } catch (error) {
     return { ok: false, error: safeReconciliationError(error) }
   }
@@ -379,6 +570,7 @@ export async function reconcileBankStatement(
 export async function voidBankStatement(input: {
   statementId: string
   reason: string
+  idempotencyKey?: string
 }): Promise<ReconciliationActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -387,8 +579,38 @@ export async function voidBankStatement(input: {
       .object({
         statementId: z.string().uuid(),
         reason: z.string().trim().min(3).max(500),
+        idempotencyKey: z.string().trim().min(1).max(256).optional(),
       })
       .parse(input)
+    if (financeReconciliationVoidWritesUseCoreApi(profile.tenantId)) {
+      const parsedKey = z
+        .string()
+        .trim()
+        .min(1)
+        .max(256)
+        .safeParse(parsed.idempotencyKey)
+      if (!parsedKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the bank statement void command.',
+        }
+      }
+      const coreResult = await voidBankStatementThroughCoreApi(
+        parsed.statementId,
+        parsed.reason,
+        parsedKey.data
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'ERP Core did not void the bank statement. Existing evidence was unchanged.',
+        }
+      }
+      revalidateReconciliation(coreResult.data.statementId)
+      return { ok: true, id: coreResult.data.statementId }
+    }
     await db.execute(sql`
       select public.void_bank_statement(
         ${parsed.statementId}::uuid,

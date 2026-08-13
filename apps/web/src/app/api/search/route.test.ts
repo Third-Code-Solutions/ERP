@@ -4,6 +4,8 @@ import type { AppRole } from '@third-code-erp/auth'
 
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
+  universalSearchReadsUseCoreApi: vi.fn(),
+  searchUniversalThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -14,6 +16,11 @@ vi.mock('@third-code-erp/database', () => ({
   db: {},
 }))
 
+vi.mock('@/lib/erp-core-client', () => ({
+  universalSearchReadsUseCoreApi: mocks.universalSearchReadsUseCoreApi,
+  searchUniversalThroughCoreApi: mocks.searchUniversalThroughCoreApi,
+}))
+
 import {
   canSearchEntity,
   literalSearchPattern,
@@ -21,6 +28,7 @@ import {
   normalizeSearchQuery,
 } from './search-policy'
 import { GET } from './route'
+import { universalSearchResultFromSettled } from './search-result'
 
 function allowed(role: AppRole) {
   const types = [
@@ -79,6 +87,9 @@ describe('universal search RBAC', () => {
 describe('universal search request hardening', () => {
   beforeEach(() => {
     mocks.getUserProfile.mockReset()
+    mocks.universalSearchReadsUseCoreApi.mockReset()
+    mocks.searchUniversalThroughCoreApi.mockReset()
+    mocks.universalSearchReadsUseCoreApi.mockReturnValue(false)
   })
 
   it('trims and bounds user input before query fan-out', () => {
@@ -127,8 +138,119 @@ describe('universal search request hardening', () => {
     expect(shortQuery.status).toBe(200)
     expect(await shortQuery.json()).toEqual({
       hits: [],
+      status: 'complete',
+      failedTypes: [],
       hint: 'Type at least 2 characters.',
     })
     expect(shortQuery.headers.get('cache-control')).toContain('no-store')
+  })
+
+  it('uses selected Core authority without falling back to browser-side fan-out', async () => {
+    const tenantId = '22222222-2222-4222-8222-222222222222'
+    mocks.getUserProfile.mockResolvedValueOnce({
+      role: 'finance',
+      tenantId,
+      user: { id: '11111111-1111-4111-8111-111111111111' },
+    })
+    mocks.universalSearchReadsUseCoreApi.mockReturnValueOnce(true)
+    mocks.searchUniversalThroughCoreApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        hits: [
+          {
+            type: 'project',
+            id: '33333333-3333-4333-8333-333333333333',
+            title: 'Harbor fit-out',
+            href: '/projects/33333333-3333-4333-8333-333333333333',
+          },
+        ],
+        status: 'complete',
+        failedTypes: [],
+      },
+    })
+
+    const result = await GET(
+      new NextRequest('http://localhost/api/search?q=harbor')
+    )
+
+    expect(result.status).toBe(200)
+    expect(await result.json()).toEqual({
+      hits: [
+        {
+          type: 'project',
+          id: '33333333-3333-4333-8333-333333333333',
+          title: 'Harbor fit-out',
+          href: '/projects/33333333-3333-4333-8333-333333333333',
+        },
+      ],
+      status: 'complete',
+      failedTypes: [],
+    })
+    expect(mocks.searchUniversalThroughCoreApi).toHaveBeenCalledWith('harbor')
+  })
+
+  it('returns selected-Core failure instead of silently using direct database reads', async () => {
+    mocks.getUserProfile.mockResolvedValueOnce({
+      role: 'viewer',
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      user: { id: '11111111-1111-4111-8111-111111111111' },
+    })
+    mocks.universalSearchReadsUseCoreApi.mockReturnValueOnce(true)
+    mocks.searchUniversalThroughCoreApi.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: 'Universal search service is unavailable.',
+    })
+
+    const result = await GET(
+      new NextRequest('http://localhost/api/search?q=harbor')
+    )
+
+    expect(result.status).toBe(503)
+    expect(await result.json()).toEqual({
+      hits: [],
+      status: 'complete',
+      failedTypes: [],
+      hint: 'Universal search service is unavailable.',
+    })
+    expect(mocks.searchUniversalThroughCoreApi).toHaveBeenCalledWith('harbor')
+  })
+})
+
+describe('universal search partial-result contract', () => {
+  it('reports failed record types without leaking query diagnostics', () => {
+    const result = universalSearchResultFromSettled(
+      [
+        { type: 'project' },
+        { type: 'invoice' },
+      ],
+      [
+        {
+          status: 'fulfilled',
+          value: [
+            {
+              type: 'project',
+              id: '33333333-3333-4333-8333-333333333333',
+              title: 'Harbor fit-out',
+              href: '/projects/33333333-3333-4333-8333-333333333333',
+            },
+          ],
+        },
+        { status: 'rejected', reason: new Error('database details') },
+      ]
+    )
+
+    expect(result).toEqual({
+      hits: [
+        {
+          type: 'project',
+          id: '33333333-3333-4333-8333-333333333333',
+          title: 'Harbor fit-out',
+          href: '/projects/33333333-3333-4333-8333-333333333333',
+        },
+      ],
+      status: 'partial',
+      failedTypes: ['invoice'],
+    })
   })
 })

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
 import {
   autoMatchBankStatement,
   deleteBankStatementDraft,
@@ -61,6 +61,19 @@ export function BankStatementActions({
   const [voidReason, setVoidReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const autoMatchRetryKey = useRef<string | null>(null)
+  const reconcileRetryKey = useRef<string | null>(null)
+  const voidRetryKey = useRef<string | null>(null)
+  const lineRetryKeys = useRef<Record<string, string>>({})
+
+  function lineRetryKey(action: 'match' | 'unmatch', lineId: string): string {
+    const key = `${action}:${lineId}`
+    return (lineRetryKeys.current[key] ??= `line-${action}-${globalThis.crypto.randomUUID()}`)
+  }
+
+  function clearLineRetryKey(action: 'match' | 'unmatch', lineId: string) {
+    delete lineRetryKeys.current[`${action}:${lineId}`]
+  }
 
   const matchedCount = lines.filter(
     (line) => line.matched_cash_transaction_id
@@ -124,13 +137,20 @@ export function BankStatementActions({
             disabled={pending || unmatchedCount === 0}
             onClick={() =>
               runAction(
-                () => autoMatchBankStatement(statementId),
-                (result) =>
+                () =>
+                  autoMatchBankStatement(
+                    statementId,
+                    (autoMatchRetryKey.current ??=
+                      `auto-match-${globalThis.crypto.randomUUID()}`)
+                  ),
+                (result) => {
+                  autoMatchRetryKey.current = null
                   setNotice(
                     `${result.matchedCount ?? 0} exact matches added; ${
                       result.remainingCount ?? 0
                     } exceptions remain.`
                   )
+                }
               )
             }
           >
@@ -203,7 +223,12 @@ export function BankStatementActions({
                                 unmatchBankStatementLine({
                                   lineId: line.id,
                                   statementId,
-                                })
+                                  idempotencyKey: lineRetryKey(
+                                    'unmatch',
+                                    line.id
+                                  ),
+                                }),
+                                () => clearLineRetryKey('unmatch', line.id)
                               )
                             }
                           >
@@ -244,13 +269,18 @@ export function BankStatementActions({
                           className="finance-secondary-button"
                           disabled={pending || !selected[line.id]}
                           onClick={() =>
-                            runAction(() =>
-                              matchBankStatementLine({
-                                lineId: line.id,
-                                statementId,
-                                cashTransactionId: selected[line.id]!,
-                              })
-                            )
+                              runAction(() =>
+                                matchBankStatementLine({
+                                  lineId: line.id,
+                                  statementId,
+                                  cashTransactionId: selected[line.id]!,
+                                  idempotencyKey: lineRetryKey(
+                                    'match',
+                                    line.id
+                                  ),
+                                }),
+                                () => clearLineRetryKey('match', line.id)
+                              )
                           }
                         >
                           Match
@@ -311,7 +341,16 @@ export function BankStatementActions({
                 ) {
                   return
                 }
-                runAction(() => reconcileBankStatement(statementId))
+                runAction(
+                  () =>
+                    reconcileBankStatement(
+                      statementId,
+                      (reconcileRetryKey.current ??= `reconcile-${globalThis.crypto.randomUUID()}`)
+                    ),
+                  () => {
+                    reconcileRetryKey.current = null
+                  }
+                )
               }}
             >
               {pending ? 'Finalizing...' : 'Reconcile statement'}
@@ -347,11 +386,17 @@ export function BankStatementActions({
               disabled={pending || voidReason.trim().length < 3}
               onClick={() => {
                 if (!window.confirm('Void this reconciled statement?')) return
-                runAction(() =>
-                  voidBankStatement({
-                    statementId,
-                    reason: voidReason,
-                  })
+                runAction(
+                  () =>
+                    voidBankStatement({
+                      statementId,
+                      reason: voidReason,
+                      idempotencyKey: (voidRetryKey.current ??=
+                        `void-${globalThis.crypto.randomUUID()}`),
+                    }),
+                  () => {
+                    voidRetryKey.current = null
+                  }
                 )
               }}
             >

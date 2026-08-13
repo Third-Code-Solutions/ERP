@@ -133,7 +133,10 @@ export function TogalImportWizard({
     try {
       const res = await fetch('/api/bom/togal-commit', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
+        },
         body: JSON.stringify({
           bom_id: bomId,
           proposed_lines: mappedLines.map((line) => ({

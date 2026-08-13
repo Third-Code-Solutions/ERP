@@ -1,6 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { requireE2EUserEmail } from './helpers/auth'
-import { readE2EEnv } from './helpers/env'
 
 const RUN_MAGIC_LINK_TEST = process.env.E2E_MAGIC_LINK_AUTH === '1'
 const FOCUS_REF_TABLE = 'projects'
@@ -12,6 +12,20 @@ test.use({
     : {},
 })
 
+function readLocalEnv(): Record<string, string> {
+  const raw = readFileSync(resolve(__dirname, '..', '.env.local'), 'utf8')
+  return Object.fromEntries(
+    raw
+      .split(/\r?\n/)
+      .map((line) => line.match(/^([A-Z0-9_]+)=(.*)$/))
+      .filter((match): match is RegExpMatchArray => Boolean(match))
+      .map((match) => [
+        match[1]!,
+        match[2]!.trim().replace(/^"(.*)"$/, '$1'),
+      ])
+  )
+}
+
 test.describe('Cortex focused graph', () => {
   test.skip(
     !RUN_MAGIC_LINK_TEST,
@@ -22,14 +36,41 @@ test.describe('Cortex focused graph', () => {
     page,
   }, testInfo) => {
     testInfo.setTimeout(60_000)
-    const env = readE2EEnv()
-    const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
-    const email = requireE2EUserEmail()
+    const env = readLocalEnv()
+    const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL!
+    const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY!
+    const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const email = process.env.E2E_USER_EMAIL ?? 'test@thirdcode.local'
     const baseUrl = testInfo.project.use.baseURL
     expect(supabaseUrl).toBeTruthy()
     expect(serviceRoleKey).toBeTruthy()
     expect(baseUrl).toBeTruthy()
+
+    for (const protectedPath of ['/cortex', '/finance', '/inventory']) {
+      const protectedResponse = await page.request.get(
+        `${baseUrl}${protectedPath}`,
+        { maxRedirects: 0 }
+      )
+      expect(protectedResponse.status(), protectedPath).toBe(307)
+      expect(protectedResponse.headers()['location'], protectedPath).toBe(
+        '/auth/login'
+      )
+    }
+
+    const unauthenticatedSearch = await page.request.get(
+      `${baseUrl}/api/cortex/search?q=unauthenticated-boundary`
+    )
+    expect(unauthenticatedSearch.status()).toBe(401)
+    expect(unauthenticatedSearch.headers()['content-type']).toContain(
+      'application/json'
+    )
+    expect(unauthenticatedSearch.headers()['cache-control']).toContain(
+      'private'
+    )
+    expect(unauthenticatedSearch.headers()['cache-control']).toContain(
+      'no-store'
+    )
+    expect(unauthenticatedSearch.headers()['vary']).toContain('Cookie')
 
     const focusUrl = `${baseUrl}/cortex?refTable=${FOCUS_REF_TABLE}&refId=${FOCUS_REF_ID}`
     const linkResponse = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
@@ -69,7 +110,7 @@ test.describe('Cortex focused graph', () => {
 
     const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
       headers: {
-        apikey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        apikey: anonKey,
         Authorization: `Bearer ${accessToken}`,
       },
     })
@@ -90,7 +131,7 @@ test.describe('Cortex focused graph', () => {
       {
         name: `sb-${projectRef}-auth-token`,
         value: sessionValue,
-        domain: new URL(baseUrl!).hostname,
+        domain: 'localhost',
         path: '/',
         httpOnly: false,
         secure: false,
@@ -269,11 +310,7 @@ test.describe('Cortex focused graph', () => {
     await page.goto(`${baseUrl}/cortex`, {
       waitUntil: 'domcontentloaded',
     })
-    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
-    const historyToggle = page.getByTitle('Conversation history')
-    await expect(historyToggle).toBeVisible()
-    await historyToggle.click()
-    await expect(historyToggle).toHaveAttribute('aria-pressed', 'true')
+    await page.getByTitle('Conversation history').click()
     const historySearch = page.getByRole('searchbox', {
       name: 'Search saved conversations',
     })
@@ -310,15 +347,15 @@ test.describe('Cortex focused graph', () => {
     expect(consoleErrors).toEqual([])
 
     const logoutResponse = await fetch(
-      `${supabaseUrl}/auth/v1/logout?scope=local`,
+      `${supabaseUrl}/auth/v1/logout?scope=global`,
       {
         method: 'POST',
         headers: {
-          apikey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          apikey: anonKey,
           Authorization: `Bearer ${accessToken}`,
         },
       }
     )
-    expect([200, 204, 401, 403]).toContain(logoutResponse.status)
+    expect(logoutResponse.ok).toBe(true)
   })
 })

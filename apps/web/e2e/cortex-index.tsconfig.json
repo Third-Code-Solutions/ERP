@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@playwright/test", "vite/client"]
+  },
+  "include": [
+    "../playwright.cortex-index.config.ts",
+    "../playwright.cortex-route.config.ts",
+    "./cortex-semantic-index-local.spec.ts",
+    "./cortex-route-loopback.spec.ts",
+    "./component-gallery/**/*.ts",
+    "./component-gallery/**/*.tsx"
+  ],
+  "exclude": ["node_modules"]
+}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { postJournalEntry, reverseJournalEntry } from '../../actions'
 
@@ -23,6 +23,8 @@ export function JournalActions({
   const [showReversal, setShowReversal] = useState(false)
   const [reason, setReason] = useState('')
   const [postingDate, setPostingDate] = useState(defaultDate)
+  const postIdempotencyKeyRef = useRef<string | null>(null)
+  const reverseIdempotencyKeyRef = useRef<string | null>(null)
 
   if (status === 'draft') {
     return (
@@ -38,7 +40,13 @@ export function JournalActions({
           onClick={() => {
             setError(null)
             startTransition(async () => {
-              const result = await postJournalEntry(entryId)
+              if (!postIdempotencyKeyRef.current) {
+                postIdempotencyKeyRef.current = globalThis.crypto.randomUUID()
+              }
+              const result = await postJournalEntry(
+                entryId,
+                postIdempotencyKeyRef.current
+              )
               if (!result.ok) {
                 setError(result.error ?? 'Posting failed')
                 return
@@ -91,11 +99,14 @@ export function JournalActions({
             event.preventDefault()
             setError(null)
             startTransition(async () => {
+              if (!reverseIdempotencyKeyRef.current) {
+                reverseIdempotencyKeyRef.current = globalThis.crypto.randomUUID()
+              }
               const result = await reverseJournalEntry({
                 entryId,
                 reason,
                 postingDate,
-              })
+              }, reverseIdempotencyKeyRef.current)
               if (!result.ok || !result.id) {
                 setError(result.error ?? 'Reversal failed')
                 return

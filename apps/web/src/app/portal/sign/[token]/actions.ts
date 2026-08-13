@@ -14,6 +14,10 @@ import {
 import { createSupabaseAdminClient } from '@third-code-erp/auth'
 import { hashToken } from '@/lib/operations/integrations/canvas-sign'
 import { writeAuditLogInTransaction } from '@/lib/audit'
+import {
+  publicSigningWritesUseCoreApi,
+  signPublicSignatureThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 interface SignInput {
   token: string
@@ -244,6 +248,45 @@ export async function recordCanvasSign(input: SignInput): Promise<SignResult> {
   if (!session) return { ok: false, error: 'Invalid signing link.' }
   const initialStateError = signingSessionError(session, new Date())
   if (initialStateError) return { ok: false, error: initialStateError }
+
+  if (publicSigningWritesUseCoreApi(session.tenant_id)) {
+    const idempotencyKey =
+      `public-sign-${crypto
+        .createHash('sha256')
+        .update(
+          `${input.token}:${signerName}:${signerEmail ?? ''}:${input.signatureDataUrl}`
+        )
+        .digest('hex')}`
+    const coreResult = await signPublicSignatureThroughCoreApi(
+      input.token,
+      {
+        signerName,
+        signerEmail,
+        signatureDataUrl: input.signatureDataUrl,
+      },
+      idempotencyKey
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return {
+        ok: false,
+        error:
+          coreResult.error ??
+          'Could not record signature. No signature was committed.',
+      }
+    }
+    if (
+      coreResult.data.sessionId !== session.id ||
+      coreResult.data.tenantId !== session.tenant_id ||
+      coreResult.data.entityType !== session.entity_type ||
+      coreResult.data.entityId !== session.entity_id
+    ) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid signature context.',
+      }
+    }
+    return { ok: true }
+  }
 
   const projectId = await resolveProjectId(
     session.tenant_id,

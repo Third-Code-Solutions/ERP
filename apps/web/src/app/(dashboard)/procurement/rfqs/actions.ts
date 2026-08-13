@@ -24,11 +24,11 @@ import {
   transitionRfqRecord,
 } from '@/lib/procurement/rfq-workflow-service'
 import {
+  createRfqThroughCoreApi,
   logRfqQuoteThroughCoreApi,
-  rfqTransitionWritesUseCoreApi,
-  rfqAwardWritesUseCoreApi,
+  rfqCreateWritesUseCoreApi,
+  rfqTerminalWritesUseCoreApi,
   rfqQuoteWritesUseCoreApi,
-  awardRfqQuoteThroughCoreApi,
   transitionRfqThroughCoreApi,
 } from '@/lib/erp-core-client'
 
@@ -69,6 +69,22 @@ export async function createRfqFromBom(
     return {
       error: `Forbidden: role "${profile.role}" lacks "rfq.dispatch"`,
     }
+  }
+
+  if (rfqCreateWritesUseCoreApi(profile.tenantId)) {
+    const response = await createRfqThroughCoreApi({ bomId })
+    if (!response.ok || !response.data) {
+      return {
+        error: response.error ?? 'RFQ could not be created through ERP Core.',
+      }
+    }
+    try {
+      await notifyRfqCreated(response.data)
+    } catch {
+      console.warn('[createRfqFromBom] notification dispatch failed')
+    }
+    revalidatePath('/procurement/rfqs')
+    return { rfqId: response.data.rfqId }
   }
 
   try {
@@ -186,20 +202,13 @@ export async function awardRfqQuote(
   }
 
   try {
-    if (rfqAwardWritesUseCoreApi(profile.tenantId)) {
-      const response = await awardRfqQuoteThroughCoreApi(rfqId, quoteId)
-      if (!response.ok || !response.data) {
-        return { error: response.error ?? 'RFQ award failed.' }
-      }
-    } else {
-      const result = await awardRfqQuoteRecord({
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-        rfqId,
-        quoteId,
-      })
-      if ('error' in result) return result
-    }
+    const result = await awardRfqQuoteRecord({
+      tenantId: profile.tenantId,
+      actorId: profile.user.id,
+      rfqId,
+      quoteId,
+    })
+    if ('error' in result) return result
 
     revalidatePath(`/procurement/rfqs/${rfqId}`)
     revalidatePath('/procurement/rfqs')
@@ -221,11 +230,10 @@ export async function completeRfq(rfqId: string): Promise<{ error?: string }> {
 
   try {
     let result
-    if (rfqTransitionWritesUseCoreApi(profile.tenantId)) {
+    if (rfqTerminalWritesUseCoreApi(profile.tenantId)) {
       const response = await transitionRfqThroughCoreApi(
         rfqId,
-        { command: 'complete' },
-        'complete'
+        { command: 'complete' }
       )
       if (!response.ok || !response.data) {
         return {
@@ -284,14 +292,13 @@ export async function cancelRfq(
 
   try {
     let result
-    if (rfqTransitionWritesUseCoreApi(profile.tenantId)) {
+    if (rfqTerminalWritesUseCoreApi(profile.tenantId)) {
       const response = await transitionRfqThroughCoreApi(
         parsed.data.rfqId,
         {
           command: 'cancel',
           reason: parsed.data.reason,
-        },
-        'cancel'
+        }
       )
       if (!response.ok || !response.data) {
         return {

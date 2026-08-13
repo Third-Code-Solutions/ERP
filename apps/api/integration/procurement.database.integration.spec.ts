@@ -8,19 +8,26 @@ import {
   bomLineItems,
   boms,
   db,
-  materialCatalog,
-  priceHistory,
+  materialItems,
+  notificationDeliveries,
+  notificationOutbox,
+  notifications,
+  poLineItems,
+  purchaseOrderCreateRequests,
+  purchaseOrders,
+  rateCards,
   projects,
   rfqQuotes,
   rfqs,
   tenants,
+  unitsOfMeasure,
   users,
   vendors,
   type Database,
 } from '@third-code-erp/database'
 import { and, eq } from 'drizzle-orm'
 import request from 'supertest'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AuditService } from '../src/audit/audit.service'
 import { CapabilityGuard } from '../src/auth/capability.guard'
 import { SupabaseIdentityService } from '../src/auth/supabase-identity.service'
@@ -30,7 +37,12 @@ import {
   type DatabaseTransaction,
 } from '../src/database/database.service'
 import { ProcurementController } from '../src/procurement/procurement.controller'
+import { NotificationDeliveryService } from '../src/procurement/notification-delivery.service'
+import type { NotificationEmailService } from '../src/procurement/notification-email.service'
+import { PurchaseOrderCreationService } from '../src/procurement/purchase-order-creation.service'
+import { RfqDispatchQueue } from '../src/procurement/rfq-dispatch.queue'
 import { ProcurementService } from '../src/procurement/procurement.service'
+import type { ConfigService } from '@nestjs/config'
 
 const integrationEnabled =
   Boolean(process.env.DATABASE_URL) &&
@@ -90,10 +102,21 @@ suite('Procurement API database integration', () => {
       const projectB = randomUUID()
       const bomA = randomUUID()
       const bomB = randomUUID()
+      const bomCreateA = randomUUID()
+      const bomGroupedA = randomUUID()
+      const bomAutoA = randomUUID()
+      const bomDraftA = randomUUID()
       const lineA = randomUUID()
       const lineB = randomUUID()
+      const lineCreateA = randomUUID()
+      const lineGroupedA = randomUUID()
+      const lineAutoA = randomUUID()
+      const lineDraftA = randomUUID()
       const vendorA = randomUUID()
       const vendorB = randomUUID()
+      const unitA = randomUUID()
+      const materialA = randomUUID()
+      const rateCardA = randomUUID()
       const rfqA = randomUUID()
       const rfqB = randomUUID()
       const submissionId = randomUUID()
@@ -172,25 +195,87 @@ suite('Procurement API database integration', () => {
           created_by: procurementB,
           status: 'approved',
         },
+        {
+          id: bomCreateA,
+          tenant_id: tenantA,
+          project_id: projectA,
+          created_by: procurementA,
+          status: 'approved',
+          total_cost_cents: 25_000,
+        },
+        {
+          id: bomGroupedA,
+          tenant_id: tenantA,
+          project_id: projectA,
+          created_by: procurementA,
+          status: 'approved',
+        },
+        {
+          id: bomAutoA,
+          tenant_id: tenantA,
+          project_id: projectA,
+          created_by: procurementA,
+          status: 'approved',
+        },
+        {
+          id: bomDraftA,
+          tenant_id: tenantA,
+          project_id: projectA,
+          created_by: procurementA,
+          status: 'draft',
+        },
       ])
       await transaction.insert(bomLineItems).values([
         {
           id: lineA,
           tenant_id: tenantA,
           bom_id: bomA,
-          code: 'MAT-A',
           description: 'Line A',
-          unit: 'pcs',
           quantity: 1,
         },
         {
           id: lineB,
           tenant_id: tenantB,
           bom_id: bomB,
-          code: 'MAT-B',
           description: 'Line B',
-          unit: 'pcs',
           quantity: 1,
+        },
+        {
+          id: lineCreateA,
+          tenant_id: tenantA,
+          bom_id: bomCreateA,
+          description: 'Creation line A',
+          quantity: 2,
+          unit: 'pcs',
+          unit_cost_cents: 12_500,
+          line_total_cents: 25_000,
+        },
+        {
+          id: lineGroupedA,
+          tenant_id: tenantA,
+          bom_id: bomGroupedA,
+          code: 'MAT-GROUP-A',
+          description: 'Grouped line A',
+          quantity: 2,
+          unit: 'pcs',
+          unit_cost_cents: 10_000,
+          line_total_cents: 20_000,
+        },
+        {
+          id: lineAutoA,
+          tenant_id: tenantA,
+          bom_id: bomAutoA,
+          description: 'Automatic line A',
+          quantity: 3,
+          unit: 'pcs',
+        },
+        {
+          id: lineDraftA,
+          tenant_id: tenantA,
+          bom_id: bomDraftA,
+          description: 'Draft automatic line A',
+          quantity: 1,
+          unit: 'pcs',
         },
       ])
       await transaction.insert(vendors).values([
@@ -205,6 +290,29 @@ suite('Procurement API database integration', () => {
           name: `Vendor B ${suffix}`,
         },
       ])
+      await transaction.insert(unitsOfMeasure).values({
+        id: unitA,
+        tenant_id: tenantA,
+        code: 'pcs',
+        name: 'Pieces',
+        created_by: procurementA,
+      })
+      await transaction.insert(materialItems).values({
+        id: materialA,
+        tenant_id: tenantA,
+        code: 'MAT-GROUP-A',
+        description: 'Grouped material A',
+        unit: 'pcs',
+        base_uom_id: unitA,
+        created_by: procurementA,
+      })
+      await transaction.insert(rateCards).values({
+        id: rateCardA,
+        tenant_id: tenantA,
+        material_item_id: materialA,
+        vendor_id: vendorA,
+        unit_price_cents: 10_000,
+      })
       await transaction.insert(rfqs).values([
         {
           id: rfqA,
@@ -215,7 +323,6 @@ suite('Procurement API database integration', () => {
             {
               bom_line_item_id: lineA,
               material_item_id: null,
-              code: 'MAT-A',
               description: 'Line A',
               qty: 1,
               unit: 'pcs',
@@ -231,7 +338,6 @@ suite('Procurement API database integration', () => {
             {
               bom_line_item_id: lineB,
               material_item_id: null,
-              code: 'MAT-B',
               description: 'Line B',
               qty: 1,
               unit: 'pcs',
@@ -252,6 +358,19 @@ suite('Procurement API database integration', () => {
         },
       }
       const database = transactionBoundDatabase(transaction)
+      const purchaseOrderCreation = new PurchaseOrderCreationService(
+        {
+          get: (key: string, fallback?: unknown) => {
+            if (key === 'ERP_PO_BOM_CREATE_WRITES_ENABLED') return true
+            if (key === 'ERP_PO_BOM_CREATE_WRITES_TENANT_IDS') return [tenantA]
+            if (key === 'ERP_PO_BOM_GROUPED_CREATE_WRITES_ENABLED') return true
+            if (key === 'ERP_PO_BOM_GROUPED_CREATE_WRITES_TENANT_IDS') return [tenantA]
+            return fallback
+          },
+        } as unknown as ConfigService,
+        database,
+        new AuditService()
+      )
       const moduleRef = await Test.createTestingModule({
         controllers: [ProcurementController],
         providers: [
@@ -269,6 +388,15 @@ suite('Procurement API database integration', () => {
             useValue: database,
           },
           {
+            provide: RfqDispatchQueue,
+            useValue: {
+              enqueue: async () => ({
+                jobId: 'integration-dispatch',
+                enqueued: true,
+              }),
+            },
+          },
+          {
             provide: APP_GUARD,
             useExisting: SupabaseJwtGuard,
           },
@@ -280,6 +408,198 @@ suite('Procurement API database integration', () => {
       }).compile()
       const app = moduleRef.createNestApplication()
       await app.init()
+      const procurementService =
+        moduleRef.get(ProcurementService)
+
+      const bomPurchaseOrderCommand = {
+        bomId: bomCreateA,
+        projectId: projectA,
+        vendorId: vendorA,
+        deliveryDate: null,
+        notes: null,
+      } as const
+      const createdBomPurchaseOrder =
+        await purchaseOrderCreation.createFromBom(
+          bomPurchaseOrderCommand,
+          {
+            userId: procurementA,
+            tenantId: tenantA,
+            role: 'procurement',
+            email: `procurement-a-${suffix}@integration.test`,
+          },
+          'bom-po-integration-1'
+        )
+      expect(createdBomPurchaseOrder).toMatchObject({
+        tenantId: tenantA,
+        bomId: bomCreateA,
+        status: 'draft',
+      })
+      await expect(
+        purchaseOrderCreation.createFromBom(
+          bomPurchaseOrderCommand,
+          {
+            userId: procurementA,
+            tenantId: tenantA,
+            role: 'procurement',
+            email: `procurement-a-${suffix}@integration.test`,
+          },
+          'bom-po-integration-1'
+        )
+      ).resolves.toEqual(createdBomPurchaseOrder)
+      const [createdBomPurchaseOrderRow] = await transaction
+        .select()
+        .from(purchaseOrders)
+        .where(
+          and(
+            eq(purchaseOrders.tenant_id, tenantA),
+            eq(purchaseOrders.id, createdBomPurchaseOrder.purchaseOrderId)
+          )
+        )
+        .limit(1)
+      const createdBomPurchaseOrderLines = await transaction
+        .select()
+        .from(poLineItems)
+        .where(
+          and(
+            eq(poLineItems.tenant_id, tenantA),
+            eq(poLineItems.po_id, createdBomPurchaseOrder.purchaseOrderId)
+          )
+        )
+      const [lockedBom] = await transaction
+        .select({ status: boms.status })
+        .from(boms)
+        .where(and(eq(boms.tenant_id, tenantA), eq(boms.id, bomCreateA)))
+        .limit(1)
+      const bomPurchaseOrderRequests = await transaction
+        .select()
+        .from(purchaseOrderCreateRequests)
+        .where(
+          and(
+            eq(purchaseOrderCreateRequests.tenant_id, tenantA),
+            eq(
+              purchaseOrderCreateRequests.idempotency_key,
+              'bom-po-integration-1'
+            )
+          )
+        )
+      expect(createdBomPurchaseOrderRow).toMatchObject({
+        tenant_id: tenantA,
+        project_id: projectA,
+        vendor_id: vendorA,
+        subtotal_cents: 25_000,
+        vat_cents: 3_000,
+        withholding_tax_cents: 500,
+        total_cents: 27_500,
+        status: 'draft',
+      })
+      expect(createdBomPurchaseOrderLines).toHaveLength(1)
+      expect(createdBomPurchaseOrderLines[0]).toMatchObject({
+        tenant_id: tenantA,
+        bom_line_item_id: lineCreateA,
+        quantity: 2,
+        unit_cost_cents: 12_500,
+        line_total_cents: 25_000,
+      })
+      expect(lockedBom?.status).toBe('locked')
+      expect(bomPurchaseOrderRequests).toHaveLength(1)
+      expect(bomPurchaseOrderRequests[0]?.state).toBe('succeeded')
+
+      const groupedBomCommand = { bomId: bomGroupedA } as const
+      const groupedResult = await purchaseOrderCreation.createGroupedFromBom(
+        groupedBomCommand,
+        {
+          userId: procurementA,
+          tenantId: tenantA,
+          role: 'procurement',
+          email: `procurement-a-${suffix}@integration.test`,
+        },
+        'grouped-bom-po-integration-1'
+      )
+      expect(groupedResult).toMatchObject({
+        tenantId: tenantA,
+        bomId: bomGroupedA,
+        purchaseOrderIds: expect.arrayContaining([expect.any(String)]),
+        groups: [
+          {
+            vendorId: vendorA,
+            vendorName: `Vendor A ${suffix}`,
+            lineCount: 1,
+            subtotalCents: 20_000,
+          },
+        ],
+      })
+      await expect(
+        purchaseOrderCreation.createGroupedFromBom(
+          groupedBomCommand,
+          {
+            userId: procurementA,
+            tenantId: tenantA,
+            role: 'procurement',
+            email: `procurement-a-${suffix}@integration.test`,
+          },
+          'grouped-bom-po-integration-1'
+        )
+      ).resolves.toEqual(groupedResult)
+      const groupedPoId = groupedResult.purchaseOrderIds[0]
+      const [groupedPo] = await transaction
+        .select()
+        .from(purchaseOrders)
+        .where(
+          and(
+            eq(purchaseOrders.tenant_id, tenantA),
+            eq(purchaseOrders.id, groupedPoId)
+          )
+        )
+        .limit(1)
+      const groupedLines = await transaction
+        .select()
+        .from(poLineItems)
+        .where(
+          and(
+            eq(poLineItems.tenant_id, tenantA),
+            eq(poLineItems.po_id, groupedPoId)
+          )
+        )
+      const [lockedGroupedBom] = await transaction
+        .select({ status: boms.status })
+        .from(boms)
+        .where(
+          and(eq(boms.tenant_id, tenantA), eq(boms.id, bomGroupedA))
+        )
+        .limit(1)
+      const groupedRequests = await transaction
+        .select()
+        .from(purchaseOrderCreateRequests)
+        .where(
+          and(
+            eq(purchaseOrderCreateRequests.tenant_id, tenantA),
+            eq(
+              purchaseOrderCreateRequests.idempotency_key,
+              'grouped-bom-po-integration-1'
+            )
+          )
+        )
+      expect(groupedPo).toMatchObject({
+        tenant_id: tenantA,
+        project_id: projectA,
+        vendor_id: vendorA,
+        subtotal_cents: 20_000,
+        vat_cents: 2_400,
+        withholding_tax_cents: 400,
+        total_cents: 22_000,
+        status: 'draft',
+      })
+      expect(groupedLines).toHaveLength(1)
+      expect(groupedLines[0]).toMatchObject({
+        tenant_id: tenantA,
+        bom_line_item_id: lineGroupedA,
+        quantity: 2,
+        unit_cost_cents: 10_000,
+        line_total_cents: 20_000,
+      })
+      expect(lockedGroupedBom?.status).toBe('locked')
+      expect(groupedRequests).toHaveLength(1)
+      expect(groupedRequests[0]?.state).toBe('succeeded')
 
       const command = {
         submissionId,
@@ -292,6 +612,246 @@ suite('Procurement API database integration', () => {
       }
 
       try {
+        const automatic = await procurementService.createFromApprovedBom({
+          schemaVersion: 1,
+          tenantId: tenantA,
+          actorId: procurementA,
+          bomId: bomAutoA,
+          source: 'bom_approved',
+        })
+        expect(automatic).toMatchObject({
+          tenantId: tenantA,
+          projectId: projectA,
+          lineCount: 1,
+          created: true,
+        })
+        if (!automatic.notificationOutboxId) {
+          throw new Error('Automatic RFQ outbox was not created')
+        }
+        await expect(
+          procurementService.createFromApprovedBom({
+            schemaVersion: 1,
+            tenantId: tenantA,
+            actorId: procurementA,
+            bomId: bomAutoA,
+            source: 'bom_approved',
+          })
+        ).resolves.toEqual({
+          ...automatic,
+          created: false,
+        })
+        await expect(
+          procurementService.createFromApprovedBom({
+            schemaVersion: 1,
+            tenantId: tenantB,
+            actorId: procurementA,
+            bomId: bomAutoA,
+            source: 'bom_approved',
+          })
+        ).rejects.toMatchObject({ status: 403 })
+        await expect(
+          procurementService.createFromApprovedBom({
+            schemaVersion: 1,
+            tenantId: tenantA,
+            actorId: commercialA,
+            bomId: bomAutoA,
+            source: 'bom_approved',
+          })
+        ).rejects.toMatchObject({ status: 403 })
+        await expect(
+          procurementService.createFromApprovedBom({
+            schemaVersion: 1,
+            tenantId: tenantA,
+            actorId: procurementA,
+            bomId: bomDraftA,
+            source: 'bom_approved',
+          })
+        ).rejects.toMatchObject({ status: 409 })
+
+        const automaticDeliveries = await transaction
+          .select()
+          .from(notificationDeliveries)
+          .where(
+            and(
+              eq(
+                notificationDeliveries.tenant_id,
+                tenantA
+              ),
+              eq(
+                notificationDeliveries.outbox_id,
+                automatic.notificationOutboxId
+              )
+            )
+          )
+        expect(automaticDeliveries).toHaveLength(2)
+        expect(
+          automaticDeliveries
+            .map((delivery) => delivery.channel)
+            .sort()
+        ).toEqual(['email', 'in_app'])
+        expect(
+          automaticDeliveries.every(
+            (delivery) =>
+              delivery.recipient_user_id === procurementA &&
+              delivery.recipient_email ===
+                `procurement-a-${suffix}@integration.test`
+          )
+        ).toBe(true)
+
+        const sendRfqCreated = vi
+          .fn()
+          .mockResolvedValue('provider-message-1')
+        const notificationDelivery =
+          new NotificationDeliveryService(database, {
+            sendRfqCreated,
+          } as unknown as NotificationEmailService)
+        for (const delivery of automaticDeliveries) {
+          const deliveryJob = {
+            schemaVersion: 1 as const,
+            tenantId: tenantA,
+            outboxId: automatic.notificationOutboxId,
+            deliveryId: delivery.id,
+          }
+          await expect(
+            notificationDelivery.deliver(deliveryJob)
+          ).resolves.toEqual({
+            deliveryId: delivery.id,
+            status: 'delivered',
+          })
+          await expect(
+            notificationDelivery.deliver(deliveryJob)
+          ).resolves.toEqual({
+            deliveryId: delivery.id,
+            status: 'already_delivered',
+          })
+        }
+        expect(sendRfqCreated).toHaveBeenCalledTimes(1)
+
+        const emailDelivery = automaticDeliveries.find(
+          (delivery) => delivery.channel === 'email'
+        )
+        if (!emailDelivery) {
+          throw new Error('Automatic RFQ email delivery is missing')
+        }
+        const emailJob = {
+          schemaVersion: 1 as const,
+          tenantId: tenantA,
+          outboxId: automatic.notificationOutboxId,
+          deliveryId: emailDelivery.id,
+        }
+        await transaction
+          .update(notificationDeliveries)
+          .set({
+            status: 'processing',
+            attempt_count: 1,
+            provider_message_id: null,
+            delivered_at: null,
+            processing_started_at: new Date(),
+            updated_at: new Date(),
+          })
+          .where(
+            and(
+              eq(notificationDeliveries.tenant_id, tenantA),
+              eq(notificationDeliveries.id, emailDelivery.id)
+            )
+          )
+        await expect(
+          notificationDelivery.deliver(emailJob)
+        ).resolves.toEqual({
+          deliveryId: emailDelivery.id,
+          status: 'already_processing',
+        })
+        const staleAt = new Date(Date.now() - 10 * 60_000)
+        await transaction
+          .update(notificationDeliveries)
+          .set({
+            attempt_count: 5,
+            processing_started_at: staleAt,
+            updated_at: staleAt,
+          })
+          .where(
+            and(
+              eq(notificationDeliveries.tenant_id, tenantA),
+              eq(notificationDeliveries.id, emailDelivery.id)
+            )
+          )
+        await expect(
+          notificationDelivery.deliver(emailJob)
+        ).resolves.toEqual({
+          deliveryId: emailDelivery.id,
+          status: 'dead_letter',
+        })
+        expect(sendRfqCreated).toHaveBeenCalledTimes(1)
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs/dispatch')
+          .send({ bomId: bomAutoA })
+          .expect(401)
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs/dispatch')
+          .set('Authorization', 'Bearer commercial-a-token')
+          .send({ bomId: bomAutoA })
+          .expect(403)
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs/dispatch')
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({
+            bomId: bomAutoA,
+            tenantId: tenantA,
+          })
+          .expect(400)
+
+        const dispatch = await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs/dispatch')
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ bomId: bomAutoA })
+          .expect(202)
+        expect(dispatch.body).toEqual({
+          jobId: 'integration-dispatch',
+          enqueued: true,
+        })
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs')
+          .send({ bomId: bomCreateA })
+          .expect(401)
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs')
+          .set('Authorization', 'Bearer commercial-a-token')
+          .send({ bomId: bomCreateA })
+          .expect(403)
+
+        await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs')
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ bomId: bomB })
+          .expect(404)
+
+        const createdRfq = await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs')
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ bomId: bomCreateA })
+          .expect(200)
+        expect(createdRfq.body).toMatchObject({
+          tenantId: tenantA,
+          projectId: projectA,
+          lineCount: 1,
+          created: true,
+        })
+
+        const replayedRfq = await request(app.getHttpServer())
+          .post('/v1/procurement/rfqs')
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ bomId: bomCreateA })
+          .expect(200)
+        expect(replayedRfq.body).toEqual({
+          ...createdRfq.body,
+          created: false,
+        })
+
         await request(app.getHttpServer())
           .post(`/v1/procurement/rfqs/${rfqA}/quotes`)
           .send(command)
@@ -334,7 +894,6 @@ suite('Procurement API database integration', () => {
           quoteId: created.body.quoteId,
           created: false,
           statusChanged: false,
-          priceHistoryId: created.body.priceHistoryId,
         })
 
         await request(app.getHttpServer())
@@ -342,6 +901,43 @@ suite('Procurement API database integration', () => {
           .set('Authorization', 'Bearer procurement-a-token')
           .send({ ...command, unitPriceCents: 1 })
           .expect(409)
+
+        await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqB}/transitions`)
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ command: 'complete' })
+          .expect(404)
+
+        const completed = await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqA}/transitions`)
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ command: 'complete' })
+          .expect(200)
+        expect(completed.body).toEqual({
+          rfqId: rfqA,
+          tenantId: tenantA,
+          transitioned: true,
+        })
+
+        await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqA}/transitions`)
+          .set('Authorization', 'Bearer procurement-a-token')
+          .send({ command: 'complete' })
+          .expect(409)
+
+        const cancelled = await request(app.getHttpServer())
+          .post(`/v1/procurement/rfqs/${rfqB}/transitions`)
+          .set('Authorization', 'Bearer procurement-b-token')
+          .send({
+            command: 'cancel',
+            reason: 'Supplier withdrew',
+          })
+          .expect(200)
+        expect(cancelled.body).toEqual({
+          rfqId: rfqB,
+          tenantId: tenantB,
+          transitioned: true,
+        })
 
         const quotes = await transaction
           .select()
@@ -371,10 +967,141 @@ suite('Procurement API database integration', () => {
               eq(auditLog.actor_id, procurementA)
             )
           )
+        const createdRfqRows = await transaction
+          .select()
+          .from(rfqs)
+          .where(
+            and(
+              eq(rfqs.tenant_id, tenantA),
+              eq(rfqs.bom_id, bomCreateA)
+            )
+          )
+        const automaticRfqRows = await transaction
+          .select()
+          .from(rfqs)
+          .where(
+            and(
+              eq(rfqs.tenant_id, tenantA),
+              eq(rfqs.bom_id, bomAutoA)
+            )
+          )
+        const automaticAudit = await transaction
+          .select()
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantA),
+              eq(auditLog.entity_id, automatic.rfqId)
+            )
+          )
+        const automaticOutboxRows = await transaction
+          .select()
+          .from(notificationOutbox)
+          .where(
+            and(
+              eq(notificationOutbox.tenant_id, tenantA),
+              eq(
+                notificationOutbox.aggregate_id,
+                automatic.rfqId
+              )
+            )
+          )
+        const deliveredNotificationRows = await transaction
+          .select()
+          .from(notifications)
+          .where(
+            and(
+              eq(notifications.tenant_id, tenantA),
+              eq(
+                notifications.recipient_user_id,
+                procurementA
+              )
+            )
+          )
+        const tenantBCancelAudit = await transaction
+          .select()
+          .from(auditLog)
+          .where(
+            and(
+              eq(auditLog.tenant_id, tenantB),
+              eq(auditLog.actor_id, procurementB),
+              eq(auditLog.entity_id, rfqB)
+            )
+          )
+        const [cancelledRfq] = await transaction
+          .select({ status: rfqs.status })
+          .from(rfqs)
+          .where(
+            and(
+              eq(rfqs.tenant_id, tenantB),
+              eq(rfqs.id, rfqB)
+            )
+          )
+          .limit(1)
 
         expect(quotes).toHaveLength(1)
+        expect(createdRfqRows).toHaveLength(1)
+        expect(automaticRfqRows).toHaveLength(1)
+        expect(automaticOutboxRows).toHaveLength(1)
+        expect(automaticOutboxRows[0]?.id).toBe(
+          automatic.notificationOutboxId
+        )
+        expect(deliveredNotificationRows).toHaveLength(1)
+        expect(
+          deliveredNotificationRows[0]?.source_delivery_id
+        ).toBe(
+          automaticDeliveries.find(
+            (delivery) => delivery.channel === 'in_app'
+          )?.id
+        )
+        expect(
+          automaticAudit.filter((entry) => {
+            const diff = entry.diff as {
+              bom_id?: string
+              line_count?: number
+              source?: string
+            }
+            return (
+              entry.action === 'create' &&
+              diff.bom_id === bomAutoA &&
+              diff.line_count === 1 &&
+              diff.source === 'bom_approved'
+            )
+          })
+        ).toHaveLength(1)
+        expect(createdRfqRows[0]?.id).toBe(createdRfq.body.rfqId)
         expect(quotes[0]?.created_by).toBe(procurementA)
-        expect(updatedRfq?.status).toBe('quotes_received')
+        expect(updatedRfq?.status).toBe('completed')
+        expect(cancelledRfq?.status).toBe('cancelled')
+        expect(
+          semanticAudit.filter(
+            (entry) =>
+              entry.entity_type === 'rfq' &&
+              entry.entity_id === createdRfq.body.rfqId &&
+              entry.action === 'create' &&
+              (
+                entry.diff as {
+                  bom_id?: string
+                  line_count?: number
+                  source?: string
+                }
+              ).bom_id === bomCreateA &&
+              (
+                entry.diff as {
+                  bom_id?: string
+                  line_count?: number
+                  source?: string
+                }
+              ).line_count === 1 &&
+              (
+                entry.diff as {
+                  bom_id?: string
+                  line_count?: number
+                  source?: string
+                }
+              ).source === 'manual'
+          )
+        ).toHaveLength(1)
         expect(
           semanticAudit.some(
             (entry) =>
@@ -388,125 +1115,50 @@ suite('Procurement API database integration', () => {
             (entry) =>
               entry.entity_type === 'rfq' &&
               entry.entity_id === rfqA &&
-              entry.action === 'status_change'
+              entry.action === 'status_change' &&
+              (
+                entry.diff as {
+                  from?: string
+                  to?: string
+                }
+              ).from === 'quotes_received' &&
+              (
+                entry.diff as {
+                  from?: string
+                  to?: string
+                }
+              ).to === 'completed'
           )
         ).toBe(true)
-
-        const [quotedHistory] = await transaction
-          .select()
-          .from(priceHistory)
-          .where(
-            and(
-              eq(priceHistory.tenant_id, tenantA),
-              eq(priceHistory.source_rfq_quote_id, created.body.quoteId),
-              eq(priceHistory.source_rfq_id, rfqA),
-            )
+        expect(
+          tenantBCancelAudit.some(
+            (entry) =>
+              entry.entity_type === 'rfq' &&
+              entry.entity_id === rfqB &&
+              entry.action === 'status_change' &&
+              (
+                entry.diff as {
+                  from?: string
+                  to?: string
+                  reason?: string
+                }
+              ).from === 'pending' &&
+              (
+                entry.diff as {
+                  from?: string
+                  to?: string
+                  reason?: string
+                }
+              ).to === 'cancelled' &&
+              (
+                entry.diff as {
+                  from?: string
+                  to?: string
+                  reason?: string
+                }
+              ).reason === 'Supplier withdrew'
           )
-          .limit(1)
-        expect(quotedHistory?.source_type).toBe('quote')
-        expect(quotedHistory?.quoted_rate_centavos).toBe(125050n)
-        expect(quotedHistory?.awarded_rate_centavos).toBeNull()
-
-        const completed = await request(app.getHttpServer())
-          .post(`/v1/procurement/rfqs/${rfqA}/complete`)
-          .set('Authorization', 'Bearer procurement-a-token')
-          .send({})
-          .expect(201)
-        expect(completed.body).toEqual({
-          rfqId: rfqA,
-          tenantId: tenantA,
-          transitioned: true,
-        })
-
-        const awarded = await request(app.getHttpServer())
-          .post(
-            `/v1/procurement/rfqs/${rfqA}/quotes/${created.body.quoteId}/award`
-          )
-          .set('Authorization', 'Bearer procurement-a-token')
-          .send({})
-          .expect(201)
-        expect(awarded.body).toEqual({
-          rfqId: rfqA,
-          quoteId: created.body.quoteId,
-          tenantId: tenantA,
-          priceHistoryId: created.body.priceHistoryId,
-          awarded: true,
-        })
-
-        const awardReplay = await request(app.getHttpServer())
-          .post(
-            `/v1/procurement/rfqs/${rfqA}/quotes/${created.body.quoteId}/award`
-          )
-          .set('Authorization', 'Bearer procurement-a-token')
-          .send({})
-          .expect(201)
-        expect(awardReplay.body).toEqual(awarded.body)
-
-        const [awardedHistory] = await transaction
-          .select()
-          .from(priceHistory)
-          .where(
-            and(
-              eq(priceHistory.tenant_id, tenantA),
-              eq(priceHistory.source_rfq_quote_id, created.body.quoteId),
-            )
-          )
-          .limit(1)
-        const [catalogRate] = await transaction
-          .select()
-          .from(materialCatalog)
-          .where(
-            and(
-              eq(materialCatalog.tenant_id, tenantA),
-              eq(materialCatalog.code, 'MAT-A'),
-            )
-          )
-          .limit(1)
-        expect(awardedHistory?.source_type).toBe('award')
-        expect(awardedHistory?.awarded_rate_centavos).toBe(125050n)
-        expect(catalogRate?.current_rate_centavos).toBe(125050n)
-        expect(catalogRate?.rate_source).toBe('rfq')
-
-        await request(app.getHttpServer())
-          .post(`/v1/procurement/rfqs/${rfqA}/complete`)
-          .set('Authorization', 'Bearer procurement-a-token')
-          .send({})
-          .expect(409)
-
-        await request(app.getHttpServer())
-          .post(`/v1/procurement/rfqs/${rfqB}/cancel`)
-          .set('Authorization', 'Bearer procurement-a-token')
-          .send({ reason: 'Foreign RFQ probe' })
-          .expect(404)
-
-        await request(app.getHttpServer())
-          .post(`/v1/procurement/rfqs/${rfqB}/cancel`)
-          .set('Authorization', 'Bearer procurement-b-token')
-          .send({ reason: 'Supplier withdrew' })
-          .expect(201)
-
-        const [completedRfq] = await transaction
-          .select({ status: rfqs.status })
-          .from(rfqs)
-          .where(
-            and(
-              eq(rfqs.tenant_id, tenantA),
-              eq(rfqs.id, rfqA)
-            )
-          )
-          .limit(1)
-        const [cancelledRfq] = await transaction
-          .select({ status: rfqs.status })
-          .from(rfqs)
-          .where(
-            and(
-              eq(rfqs.tenant_id, tenantB),
-              eq(rfqs.id, rfqB)
-            )
-          )
-          .limit(1)
-        expect(completedRfq?.status).toBe('completed')
-        expect(cancelledRfq?.status).toBe('cancelled')
+        ).toBe(true)
       } finally {
         await app.close()
       }

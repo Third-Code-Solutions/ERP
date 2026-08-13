@@ -111,7 +111,16 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
         <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--color-neutral-900)', margin: '0 0 16px' }}>
           {project.name}
         </h1>
-        <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--color-border)' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '0',
+            minWidth: 0,
+            maxWidth: '100%',
+            overflowX: 'auto',
+            borderBottom: '1px solid var(--color-border)',
+          }}
+        >
           {TABS.map(({ label, href }) => {
             const isActive = href === '/documents'
             return (
@@ -126,6 +135,8 @@ export default async function ProjectDocumentsPage({ params }: { params: Promise
                   textDecoration: 'none',
                   borderBottom: isActive ? '2px solid var(--color-navy-700)' : '2px solid transparent',
                   marginBottom: '-1px',
+                  flex: '0 0 auto',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {label}

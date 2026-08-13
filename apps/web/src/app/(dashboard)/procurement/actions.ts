@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { getUserProfile, requireCapability, can, type AppRole } from '@third-code-erp/auth'
 import { db, type Database } from '@third-code-erp/database'
@@ -36,11 +37,57 @@ import {
   calculatePurchaseOrderTotals,
 } from '@/lib/operations/purchase-order-money'
 import {
+  createPurchaseOrderFromBomThroughCoreApi,
+  createPurchaseOrdersGroupedFromBomThroughCoreApi,
+  purchaseOrderBomGroupedWritesUseCoreApi,
+  purchaseOrderBomWritesUseCoreApi,
+  purchaseOrderWorkflowWritesUseCoreApi,
+  transitionPurchaseOrderThroughCoreApi,
+} from '@/lib/erp-core-client'
+import type { PurchaseOrderWorkflowAction } from '@third-code-erp/shared-types'
+import {
   computeEWT,
   computeRetention,
   computeVAT,
   progressBillingAmount,
 } from '@third-code-erp/shared-types/bom'
+
+type CorePurchaseOrderWorkflowAction = PurchaseOrderWorkflowAction
+
+async function transitionPurchaseOrderThroughCoreIfEnabled(
+  profile: Awaited<ReturnType<typeof getUserProfile>>,
+  poId: string,
+  projectId: string | null,
+  action: CorePurchaseOrderWorkflowAction,
+  idempotencyKey?: string,
+  reason?: string
+): Promise<{ error?: string } | null> {
+  if (!profile || !purchaseOrderWorkflowWritesUseCoreApi(profile.tenantId)) {
+    return null
+  }
+
+  const key =
+    typeof idempotencyKey === 'string' && idempotencyKey.trim().length > 0
+      ? idempotencyKey.trim()
+      : randomUUID()
+  const result = await transitionPurchaseOrderThroughCoreApi(
+    poId,
+    reason ? { action, reason } : { action },
+    key
+  )
+  if (!result.ok || !result.data) {
+    return {
+      error:
+        result.error ??
+        'Purchase Order workflow could not be committed through ERP Core.',
+    }
+  }
+
+  revalidatePath('/purchase-orders')
+  revalidatePath(`/purchase-orders/${poId}`)
+  if (projectId) revalidatePath(`/projects/${projectId}`)
+  return {}
+}
 
 // ── Vendor ────────────────────────────────────────────────────────────────────
 
@@ -116,7 +163,8 @@ export async function createPoFromBom(
   bomId: string,
   projectId: string,
   vendorId: string | null,
-  deliveryDate: string | null
+  deliveryDate: string | null,
+  idempotencyKey?: string
 ): Promise<{ id: string } | { error: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -154,6 +202,42 @@ export async function createPoFromBom(
   if (bom.status === 'draft') return { error: 'BOM must be approved before generating a PO' }
   if (bom.project_id !== input.projectId) {
     return { error: 'BOM does not belong to the selected project' }
+  }
+
+  if (purchaseOrderBomWritesUseCoreApi(profile.tenantId)) {
+    const retryKey = idempotencyKey?.trim()
+    if (!retryKey) {
+      return {
+        error: 'Retry token is required for the BOM Purchase Order command.',
+      }
+    }
+    const parsedDeliveryDate = input.deliveryDate
+      ? new Date(`${input.deliveryDate}T00:00:00.000Z`)
+      : null
+    if (parsedDeliveryDate && Number.isNaN(parsedDeliveryDate.getTime())) {
+      return { error: 'Delivery date is invalid' }
+    }
+    const result = await createPurchaseOrderFromBomThroughCoreApi(
+      {
+        bomId: input.bomId,
+        projectId: input.projectId,
+        vendorId: input.vendorId,
+        deliveryDate: parsedDeliveryDate?.toISOString() ?? null,
+        notes: null,
+      },
+      retryKey
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'BOM Purchase Order could not be created through ERP Core.',
+      }
+    }
+    revalidatePath('/purchase-orders')
+    revalidatePath(`/projects/${input.projectId}`)
+    revalidatePath(`/projects/${input.projectId}/bom`)
+    return { id: result.data.purchaseOrderId }
   }
 
   if (input.vendorId) {
@@ -578,7 +662,7 @@ export async function assignPoLineCostCode(
 
 export async function advancePoStatus(
   poId: string,
-  nextStatus: string
+  nextStatus = 'cancelled'
 ): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -909,7 +993,10 @@ type PoApprovalStatus =
   | 'fully_delivered'
 
 /** Submit a draft PO into the PM approval queue. */
-export async function submitPoForPmApproval(poId: string): Promise<{ error?: string }> {
+export async function submitPoForPmApproval(
+  poId: string,
+  idempotencyKey?: string
+): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
@@ -926,6 +1013,15 @@ export async function submitPoForPmApproval(poId: string): Promise<{ error?: str
 
   if (!po) return { error: 'PO not found' }
   if (po.status !== 'draft') return { error: `Cannot submit a PO in status "${po.status}"` }
+
+  const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
+    profile,
+    poId,
+    po.project_id,
+    'submit_pm_approval',
+    idempotencyKey
+  )
+  if (coreResult) return coreResult
 
   const now = new Date()
   await db
@@ -957,7 +1053,10 @@ export async function submitPoForPmApproval(poId: string): Promise<{ error?: str
 }
 
 /** PM approves → routes to Commercial. */
-export async function pmApprovePo(poId: string): Promise<{ error?: string }> {
+export async function pmApprovePo(
+  poId: string,
+  idempotencyKey?: string
+): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
@@ -974,6 +1073,15 @@ export async function pmApprovePo(poId: string): Promise<{ error?: string }> {
 
   if (!po) return { error: 'PO not found' }
   if (po.status !== 'pending_pm_approval') return { error: `PO not in PM approval state (${po.status})` }
+
+  const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
+    profile,
+    poId,
+    po.project_id,
+    'pm_approve',
+    idempotencyKey
+  )
+  if (coreResult) return coreResult
 
   const now = new Date()
   await db
@@ -1010,7 +1118,10 @@ export async function pmApprovePo(poId: string): Promise<{ error?: string }> {
 }
 
 /** Commercial approves → routes to SCM for issuance. */
-export async function commercialApprovePo(poId: string): Promise<{ error?: string }> {
+export async function commercialApprovePo(
+  poId: string,
+  idempotencyKey?: string
+): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
@@ -1029,6 +1140,15 @@ export async function commercialApprovePo(poId: string): Promise<{ error?: strin
   if (po.status !== 'pending_commercial_approval') {
     return { error: `PO not in Commercial approval state (${po.status})` }
   }
+
+  const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
+    profile,
+    poId,
+    po.project_id,
+    'commercial_approve',
+    idempotencyKey
+  )
+  if (coreResult) return coreResult
 
   const now = new Date()
   await db
@@ -1065,7 +1185,10 @@ export async function commercialApprovePo(poId: string): Promise<{ error?: strin
 }
 
 /** SCM issues the PO → status 'issued', supplier email dispatched. */
-export async function scmIssuePo(poId: string): Promise<{ error?: string }> {
+export async function scmIssuePo(
+  poId: string,
+  idempotencyKey?: string
+): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
@@ -1097,6 +1220,15 @@ export async function scmIssuePo(poId: string): Promise<{ error?: string }> {
   if (po.status !== 'pending_scm_issuance') {
     return { error: `PO not in SCM issuance state (${po.status})` }
   }
+
+  const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
+    profile,
+    poId,
+    po.project_id,
+    'scm_issue',
+    idempotencyKey
+  )
+  if (coreResult) return coreResult
 
   const now = new Date()
   let supplierEmailSent = false
@@ -1189,7 +1321,8 @@ export async function scmIssuePo(poId: string): Promise<{ error?: string }> {
 /** Reject an in-flight approval at any pending step. Returns PO to draft. */
 export async function rejectPoApproval(
   poId: string,
-  reason: string
+  reason: string,
+  idempotencyKey?: string
 ): Promise<{ error?: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -1223,6 +1356,16 @@ export async function rejectPoApproval(
   if (!allowedRoles.includes(profile.role)) {
     return { error: `Forbidden: role "${profile.role}" cannot reject at step "${po.status}"` }
   }
+
+  const coreResult = await transitionPurchaseOrderThroughCoreIfEnabled(
+    profile,
+    poId,
+    po.project_id,
+    'reject',
+    idempotencyKey,
+    trimmed
+  )
+  if (coreResult) return coreResult
 
   const now = new Date()
   await db
@@ -1266,7 +1409,8 @@ export interface GroupedPoResult {
 }
 
 export async function createPosFromBomGrouped(
-  bomId: string
+  bomId: string,
+  idempotencyKey?: string
 ): Promise<GroupedPoResult | { error: string }> {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
@@ -1293,6 +1437,41 @@ export async function createPosFromBomGrouped(
   if (!bom) return { error: 'BOM not found' }
   if (bom.status === 'draft') {
     return { error: 'BOM must be approved before generating POs' }
+  }
+
+  if (purchaseOrderBomGroupedWritesUseCoreApi(profile.tenantId)) {
+    const retryKey = idempotencyKey?.trim()
+    if (!retryKey) {
+      return {
+        error:
+          'Retry token is required for the grouped BOM Purchase Order command.',
+      }
+    }
+    const result = await createPurchaseOrdersGroupedFromBomThroughCoreApi(
+      { bomId: requestBomId },
+      retryKey
+    )
+    if (!result.ok || !result.data) {
+      return {
+        error:
+          result.error ??
+          'Grouped BOM Purchase Orders could not be created through ERP Core.',
+      }
+    }
+    revalidatePath('/purchase-orders')
+    if (bom.project_id) {
+      revalidatePath(`/projects/${bom.project_id}`)
+      revalidatePath(`/projects/${bom.project_id}/bom`)
+    }
+    return {
+      created_po_ids: result.data.purchaseOrderIds,
+      groups: result.data.groups.map((group) => ({
+        vendor_id: group.vendorId,
+        vendor_name: group.vendorName,
+        line_count: group.lineCount,
+        subtotal_cents: group.subtotalCents,
+      })),
+    }
   }
 
   // Pull lines for this BOM (excluding group headers)

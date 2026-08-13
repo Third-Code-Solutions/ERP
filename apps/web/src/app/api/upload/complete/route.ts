@@ -1,14 +1,22 @@
+import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { documents } from '@third-code-erp/database/schema'
-import { eq } from 'drizzle-orm'
 import { inngest } from '@/lib/inngest'
-import { parseAndStoreCad } from '@/lib/cad/parse-and-store'
+import { parseAndStoreCad, parseCadEvidence } from '@/lib/cad/parse-and-store'
+import {
+  cadEvidenceCommitWritesUseCoreApi,
+  commitCadEvidenceThroughCoreApi,
+  completeDocumentUploadThroughCoreCanary,
+  documentIntakeCanarySelectedForUpload,
+  documentProcessingJobsUseCoreApi,
+  enqueueDocumentProcessingThroughCoreApi,
+} from '@/lib/erp-core-client'
 import { getProject } from '@/lib/project-queries'
 import { writeAuditLogInTransaction } from '@/lib/audit'
-import { safeActionError } from '@/lib/safe-action-error'
+import { documentUploadCompleteResultSchema } from '@third-code-erp/shared-types'
 import {
   extractScopeFromVisual,
   type VisualExtractResult,
@@ -33,6 +41,29 @@ type CadFormat = 'dxf' | 'dwg'
 // (xlsx, csv, docx) without touching the live Postgres enum / running a
 // migration. document_type for these is just 'other'.
 type ExtractorKind = 'pdf' | 'image' | 'spreadsheet' | 'csv' | 'docx'
+
+function createUploadIdempotencyKey(input: {
+  storagePath: string
+  projectId: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  description?: string
+}): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        action: 'upload-complete',
+        storagePath: input.storagePath,
+        projectId: input.projectId,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        sizeBytes: input.sizeBytes,
+        description: input.description ?? null,
+      })
+    )
+    .digest('hex')
+}
 
 function classify(
   fileName: string,
@@ -104,6 +135,44 @@ export async function POST(req: NextRequest) {
 
   if (sizeBytes > MAX_SIZE_BYTES) {
     return NextResponse.json({ error: 'File exceeds 100 MB limit' }, { status: 413 })
+  }
+
+  // Select Core before any legacy document insert. The exact tenant gate is
+  // closed by default; extractor formats keep their existing response and
+  // CAD/AI processing path until separate parity evidence exists.
+  if (
+    documentIntakeCanarySelectedForUpload(profile.tenantId, {
+      fileName,
+      mimeType,
+    })
+  ) {
+    const coreResult = await completeDocumentUploadThroughCoreCanary(
+      {
+        storagePath,
+        projectId,
+        fileName,
+        mimeType,
+        sizeBytes,
+        description: description ?? null,
+      },
+      profile.tenantId,
+      `upload-${createUploadIdempotencyKey({
+        storagePath,
+        projectId,
+        fileName,
+        mimeType,
+        sizeBytes,
+        description,
+      })}`
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return NextResponse.json(
+        { error: coreResult.error ?? 'Document was not recorded.' },
+        { status: coreResult.status ?? 503 }
+      )
+    }
+    // Preserve legacy upload HTTP success semantics while Core owns commit.
+    return NextResponse.json(coreResult.data)
   }
 
   const { docType, cadFormat, extractorKind } = classify(fileName, mimeType)
@@ -189,17 +258,174 @@ export async function POST(req: NextRequest) {
         bomGpMarginBps: number
         ragMatches: number
         aiEstimateMatches: number
+        processingJobId?: string | null
       }
     | undefined
 
   if (cadFormat) {
     try {
+      // CAD evidence canary: parse produces immutable evidence only, then the
+      // Nest adapter commits official scope rows. Selected-Core failures are
+      // terminal; this branch never calls the compatibility writer.
+      if (
+        cadEvidenceCommitWritesUseCoreApi(profile.tenantId) &&
+        !(cadFormat === 'dwg' &&
+          documentProcessingJobsUseCoreApi(profile.tenantId))
+      ) {
+        const evidence = await parseCadEvidence({
+          tenantId: profile.tenantId,
+          projectId,
+          documentId: docId,
+          storagePath,
+          fileName,
+          actorId: profile.user.id,
+        })
+        const workerResponse = evidence.workerResponse
+        if (workerResponse) {
+          const coreResult = await commitCadEvidenceThroughCoreApi(
+            docId,
+            { projectId, workerResponse },
+            `cad-evidence-${docId}`,
+            profile.tenantId
+          )
+          if (!coreResult.ok || !coreResult.data) {
+            const error = coreResult.error ?? 'CAD evidence was not committed.'
+            cadParseWarning = error
+            cadResult = {
+              status: 'processing-unavailable',
+              scopeItemsCreated: 0,
+              warnings: [error],
+              layerCount: evidence.layerCount,
+              entityCount: evidence.entityCount,
+              detectedFormat: evidence.detectedFormat,
+              dwgVersion: evidence.dwgVersion,
+              extensionMismatch: evidence.extensionMismatch,
+              message:
+                'CAD parsed. No scope items were committed because ERP Core rejected the evidence.',
+              bomId: null,
+              bomTcvCents: 0,
+              bomCostCents: 0,
+              bomGpMarginBps: 0,
+              ragMatches: 0,
+              aiEstimateMatches: 0,
+            }
+          } else {
+            cadParseQueued = true
+            cadResult = {
+              status: 'extracted',
+              scopeItemsCreated: coreResult.data.scopeItemsCreated,
+              warnings: evidence.warnings,
+              layerCount: evidence.layerCount,
+              entityCount: evidence.entityCount,
+              detectedFormat: evidence.detectedFormat,
+              dwgVersion: evidence.dwgVersion,
+              extensionMismatch: evidence.extensionMismatch,
+              message: `CAD evidence committed by ERP Core - ${coreResult.data.scopeItemsCreated} scope item${coreResult.data.scopeItemsCreated === 1 ? '' : 's'} ready for review.`,
+              bomId: null,
+              bomTcvCents: 0,
+              bomCostCents: 0,
+              bomGpMarginBps: 0,
+              ragMatches: 0,
+              aiEstimateMatches: 0,
+            }
+          }
+        } else {
+          cadParseWarning = evidence.warnings[0]
+          cadResult = {
+            status: evidence.status,
+            scopeItemsCreated: 0,
+            warnings: evidence.warnings,
+            layerCount: evidence.layerCount,
+            entityCount: evidence.entityCount,
+            detectedFormat: evidence.detectedFormat,
+            dwgVersion: evidence.dwgVersion,
+            extensionMismatch: evidence.extensionMismatch,
+            message: evidence.message,
+            bomId: null,
+            bomTcvCents: 0,
+            bomCostCents: 0,
+            bomGpMarginBps: 0,
+            ragMatches: 0,
+            aiEstimateMatches: 0,
+          }
+        }
+      } else {
+      // Binary DWG canary: once explicitly selected, Nest owns the worker
+      // bridge and the official scope-item commit. Never fall back to the
+      // legacy Next-side writer after this gate is selected.
+      if (
+        cadFormat === 'dwg' &&
+        documentProcessingJobsUseCoreApi(profile.tenantId)
+      ) {
+        const coreResult = await enqueueDocumentProcessingThroughCoreApi(
+          docId,
+          {
+            mode: 'cad',
+            requestedFormat: 'dwg',
+            // Draft BOM enablement remains an independent Nest canary.
+            createDraftBom: false,
+          },
+          `cad-processing-${docId}`
+        )
+
+        const data = coreResult.data
+        if (!coreResult.ok || !data) {
+          const error = coreResult.error ?? 'Document processing was not queued.'
+          cadParseWarning = error
+          cadResult = {
+            status: 'processing-unavailable',
+            scopeItemsCreated: 0,
+            warnings: [error],
+            layerCount: 0,
+            entityCount: 0,
+            detectedFormat: 'dwg',
+            dwgVersion: null,
+            extensionMismatch: false,
+            message:
+              'DWG uploaded. No scope items were committed because ERP Core processing was unavailable.',
+            bomId: null,
+            bomTcvCents: 0,
+            bomCostCents: 0,
+            bomGpMarginBps: 0,
+            ragMatches: 0,
+            aiEstimateMatches: 0,
+            processingJobId: null,
+          }
+        } else {
+          cadParseQueued =
+            data.status === 'queued' || data.status === 'processing'
+          const statusData =
+            'scopeItemsCreated' in data ? data : null
+          cadResult = {
+            status: data.status,
+            scopeItemsCreated: statusData?.scopeItemsCreated ?? 0,
+            warnings: statusData?.warnings ?? [],
+            layerCount: 0,
+            entityCount: 0,
+            detectedFormat: 'dwg',
+            dwgVersion: null,
+            extensionMismatch: false,
+            message:
+              statusData?.status === 'succeeded'
+                ? `DWG processed by ERP Core · ${statusData.scopeItemsCreated} scope item${statusData.scopeItemsCreated === 1 ? '' : 's'} committed.`
+                : 'DWG processing queued in ERP Core. Scope items will appear when the job completes.',
+            bomId: statusData?.draftBomId ?? null,
+            bomTcvCents: 0,
+            bomCostCents: 0,
+            bomGpMarginBps: 0,
+            ragMatches: 0,
+            aiEstimateMatches: 0,
+            processingJobId: data.jobId,
+          }
+        }
+      } else {
       const result = await parseAndStoreCad({
         tenantId: profile.tenantId,
         projectId,
         documentId: docId,
         storagePath,
         fileName,
+        actorId: profile.user.id,
       })
       cadParseQueued = result.status === 'extracted'
       cadResult = {
@@ -243,9 +469,12 @@ export async function POST(req: NextRequest) {
           console.warn('[upload/complete] background DWG queue failed:', err)
         }
       }
+      }
+      }
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
       console.error('[upload/complete] inline CAD parse failed:', err)
-      cadParseWarning = `CAD parse failed: ${safeActionError(err, 'The drawing could not be parsed.')}`
+      cadParseWarning = `CAD parse failed: ${message}`
     }
   } else if (extractorKind) {
     try {
@@ -278,12 +507,13 @@ export async function POST(req: NextRequest) {
         aiEstimateMatches: visual.bom?.aiEstimateMatches ?? 0,
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
       console.error('[upload/complete] visual extraction failed:', err)
-      cadParseWarning = `Vision extraction failed: ${safeActionError(err, 'The document could not be analyzed.')}`
+      cadParseWarning = `Vision extraction failed: ${message}`
     }
   }
 
-  return NextResponse.json({
+  const response = documentUploadCompleteResultSchema.parse({
     id: docId,
     storagePath,
     documentType: docType,
@@ -292,4 +522,6 @@ export async function POST(req: NextRequest) {
     ...(cadParseWarning ? { cadParseWarning } : {}),
     ...(cadResult ? { cadResult } : {}),
   })
+
+  return NextResponse.json(response)
 }

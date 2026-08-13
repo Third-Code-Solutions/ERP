@@ -14,6 +14,13 @@ import {
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
+  createStockMovementThroughCoreApi,
+  inventoryStockMovementWorkflowUseCoreApi,
+  postStockMovementThroughCoreApi,
+  reverseStockMovementThroughCoreApi,
+  inventoryStockMovementCreateWritesUseCoreApi,
+} from '@/lib/erp-core-client'
+import {
   quantityToMicros,
   signedQuantityToMicros,
 } from '../quantity'
@@ -32,6 +39,7 @@ const movementTypeSchema = z.enum([
   'consumption',
   'adjustment',
 ])
+const idempotencyKeySchema = z.string().trim().min(1).max(200)
 
 const createMovementSchema = z.object({
   movementType: movementTypeSchema,
@@ -130,7 +138,7 @@ function declaredUnitCostCents(value: string | undefined): number | null {
 }
 
 export async function createStockMovement(
-  input: z.input<typeof createMovementSchema>
+  input: z.input<typeof createMovementSchema> & { idempotencyKey?: string }
 ): Promise<MovementActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -142,6 +150,45 @@ export async function createStockMovement(
         ok: false,
         error: 'Each Item may appear once per Stock Movement.',
       }
+    }
+
+    if (inventoryStockMovementCreateWritesUseCoreApi(profile.tenantId)) {
+      const idempotencyKey = idempotencyKeySchema.safeParse(
+        input.idempotencyKey
+      )
+      if (!idempotencyKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Stock Movement command.',
+        }
+      }
+      const result = await createStockMovementThroughCoreApi(
+        {
+          movementType: parsed.movementType,
+          sourceWarehouseId: parsed.sourceWarehouseId,
+          targetWarehouseId: parsed.targetWarehouseId || null,
+          projectId: parsed.projectId || null,
+          movementDate: parsed.movementDate,
+          reason: parsed.reason,
+          lines: parsed.lines.map((line) => ({
+            materialItemId: line.materialItemId,
+            quantity: line.quantity,
+            costCodeId: line.costCodeId || null,
+            declaredUnitCostPhp: line.declaredUnitCostPhp || null,
+          })),
+        },
+        idempotencyKey.data
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Stock Movement could not be created through ERP Core.',
+        }
+      }
+      refreshMovement(result.data.stockMovementId)
+      return { ok: true, id: result.data.stockMovementId }
     }
 
     const items = await db
@@ -240,12 +287,41 @@ export async function createStockMovement(
 }
 
 export async function postStockMovement(
-  movementId: string
+  movementId: string,
+  idempotencyKey?: string
 ): Promise<MovementActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'inventory.post_movement')
     const id = uuidSchema.parse(movementId)
+    if (inventoryStockMovementWorkflowUseCoreApi(profile.tenantId)) {
+      const retryKey = idempotencyKeySchema.safeParse(idempotencyKey)
+      if (!retryKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Stock Movement command.',
+        }
+      }
+      const result = await postStockMovementThroughCoreApi(
+        id,
+        {},
+        retryKey.data
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Stock Movement could not be posted through ERP Core.',
+        }
+      }
+      refreshMovement(id)
+      return {
+        ok: true,
+        id,
+        number: result.data.movementNumber,
+      }
+    }
     const rows = await db.execute<{
       movement_number: string
     }>(sql`
@@ -266,6 +342,7 @@ export async function reverseStockMovement(input: {
   movementId: string
   reason: string
   reversalDate: string
+  idempotencyKey?: string
 }): Promise<MovementActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -275,8 +352,36 @@ export async function reverseStockMovement(input: {
         movementId: uuidSchema,
         reason: z.string().trim().min(3).max(1_000),
         reversalDate: dateSchema,
+        idempotencyKey: idempotencyKeySchema.optional(),
       })
       .parse(input)
+    if (inventoryStockMovementWorkflowUseCoreApi(profile.tenantId)) {
+      const retryKey = idempotencyKeySchema.safeParse(parsed.idempotencyKey)
+      if (!retryKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Stock Movement command.',
+        }
+      }
+      const result = await reverseStockMovementThroughCoreApi(
+        parsed.movementId,
+        {
+          reason: parsed.reason,
+          reversalDate: parsed.reversalDate,
+        },
+        retryKey.data
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Stock Movement could not be reversed through ERP Core.',
+        }
+      }
+      refreshMovement(parsed.movementId)
+      return { ok: true, id: parsed.movementId }
+    }
     await db.execute(sql`
       select *
       from public.reverse_stock_movement(

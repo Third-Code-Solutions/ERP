@@ -169,6 +169,22 @@ The production worker is `ABI OPS CAD Worker` at
    `dwg_support=true`, and `evidence_only=true`; a valid `/parse` request
    without the bearer secret returns 401.
 
+The incremental NestJS processing bridge is separate from this legacy caller.
+It uses `DXF_PARSER_URL` and `PARSER_SHARED_SECRET`, issues a short-lived
+signed Storage URL from the API, and calls `/parse-evidence`; Python receives
+no database or service-role credential. Keep
+`ERP_DOCUMENT_PROCESSING_JOBS_ENABLED`,
+`ERP_DOCUMENT_PROCESSING_RECOVERY_ENABLED`,
+`ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED`, and
+`ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED`, and
+`ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED` false with empty tenant allowlists
+until the disposable lane, hosted migration planner, audit recovery, duplicate
+PO review, and provider release checks are clear. Do not enable this bridge as
+part of a routine deployment. `document_processing_evidence` stores validated
+attempt payloads; requested draft BOM and derived scope writes share the Nest
+idempotency transaction and must never be enabled without the matching tenant
+allowlist.
+
 ---
 
 ## 5. Guarded production promotion

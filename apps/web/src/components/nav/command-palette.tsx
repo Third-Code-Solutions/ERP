@@ -4,23 +4,33 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import { useRouter } from 'next/navigation'
-import type { SearchHitType } from '@/app/api/search/search-policy'
+import {
+  universalSearchResultSchema,
+  type UniversalSearchHit,
+} from '@third-code-erp/shared-types'
 import { stageCortexDraft } from '@/lib/cortex/draft-handoff'
+import {
+  normalizeCortexPaletteHits,
+  type CortexPaletteHit,
+  type CortexPaletteSearchResponseHit,
+} from '@/lib/cortex/command-palette-search'
 import {
   commandPaletteOptionCount,
   resolveCommandPaletteSelection,
 } from './command-palette-selection'
+import {
+  activeCommandPaletteIndex,
+  nextCommandPaletteIndex,
+} from './command-palette-navigation'
 
-interface SearchHit {
-  type: SearchHitType
-  id: string
-  title: string
-  subtitle?: string
-  href: string
-}
+type SearchHit = UniversalSearchHit
+
+type PaletteHit = SearchHit | CortexPaletteHit
 
 const TYPE_LABEL: Record<SearchHit['type'], string> = {
   account: 'Account',
+  vendor: 'Vendor',
+  material: 'Material',
   project: 'Project',
   opportunity: 'Opportunity',
   bom: 'BOM',
@@ -40,6 +50,8 @@ const TYPE_LABEL: Record<SearchHit['type'], string> = {
 
 const TYPE_TONE: Record<SearchHit['type'], string> = {
   account: 'var(--color-navy-700)',
+  vendor: 'var(--color-teal-700, #0f766e)',
+  material: 'var(--color-success)',
   project: 'var(--color-navy-600)',
   opportunity: 'var(--color-gold-600)',
   bom: 'var(--color-success)',
@@ -71,13 +83,21 @@ export function CommandPalette({ open, onClose }: Props) {
   const [q, setQ] = useState('')
   const [mode, setMode] = useState<CommandMode>('search')
   const [hits, setHits] = useState<SearchHit[]>([])
+  const [cortexHits, setCortexHits] = useState<CortexPaletteHit[]>([])
   const [loading, setLoading] = useState(false)
+  const [cortexLoading, setCortexLoading] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
   const [hint, setHint] = useState<string | null>(null)
+  const [partial, setPartial] = useState(false)
+  const [cortexHint, setCortexHint] = useState<string | null>(null)
   const debounceRef = useRef<number | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const requestSeqRef = useRef(0)
+  const cortexDebounceRef = useRef<number | null>(null)
+  const cortexAbortRef = useRef<AbortController | null>(null)
+  const cortexRequestSeqRef = useRef(0)
   const term = q.trim()
-  const visibleHits = mode === 'search' ? hits : []
+  const visibleHits: PaletteHit[] = mode === 'search' ? hits : cortexHits
   const canAskCortex = mode === 'ask' && term.length >= 2
   const optionCount = commandPaletteOptionCount(
     visibleHits.length,
@@ -123,8 +143,11 @@ export function CommandPalette({ open, onClose }: Props) {
       setQ('')
       setMode('search')
       setHits([])
+      setCortexHits([])
       setActiveIdx(0)
       setHint(null)
+      setPartial(false)
+      setCortexHint(null)
     }
   }, [open])
 
@@ -132,10 +155,12 @@ export function CommandPalette({ open, onClose }: Props) {
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current)
     if (abortRef.current) abortRef.current.abort()
+    const requestSeq = ++requestSeqRef.current
 
     if (!open || mode !== 'search') {
       setHits([])
       setHint(null)
+      setPartial(false)
       setLoading(false)
       return
     }
@@ -143,10 +168,17 @@ export function CommandPalette({ open, onClose }: Props) {
     if (term.length < 2) {
       setHits([])
       setHint(term.length === 0 ? null : 'Type at least 2 characters.')
+      setPartial(false)
       setLoading(false)
       return
     }
 
+    // Do not leave results for the previous term visible while the next
+    // request is waiting on its debounce window.
+    setHits([])
+    setActiveIdx(0)
+    setHint(null)
+    setPartial(false)
     debounceRef.current = window.setTimeout(async () => {
       const ctrl = new AbortController()
       abortRef.current = ctrl
@@ -157,22 +189,41 @@ export function CommandPalette({ open, onClose }: Props) {
           `/api/search?q=${encodeURIComponent(term)}`,
           { signal: ctrl.signal, headers: { Accept: 'application/json' } }
         )
+        if (requestSeq !== requestSeqRef.current) return
         if (!res.ok) {
           setHits([])
+          setPartial(false)
           setHint(`Search failed (${res.status})`)
           return
         }
-        const data = (await res.json()) as { hits: SearchHit[]; hint?: string }
+        const data = universalSearchResultSchema.parse(await res.json())
+        if (requestSeq !== requestSeqRef.current) return
         setHits(data.hits ?? [])
-        setHint(data.hint ?? (data.hits.length === 0 ? 'No matches.' : null))
+        setPartial(data.status === 'partial')
+        setHint(
+          data.hint ??
+            (data.status === 'partial'
+              ? 'Some record types are temporarily unavailable. Results may be incomplete.'
+              : data.hits.length === 0
+                ? 'No matches.'
+                : null)
+        )
         setActiveIdx(0)
       } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
+        if (
+          requestSeq === requestSeqRef.current &&
+          (err as Error).name !== 'AbortError'
+        ) {
           setHits([])
-          setHint('Network error.')
+          setPartial(false)
+          setHint(
+            (err as Error).name === 'ZodError'
+              ? 'Search returned an invalid response.'
+              : 'Network error.'
+          )
         }
       } finally {
-        setLoading(false)
+        if (requestSeq === requestSeqRef.current) setLoading(false)
       }
     }, 180)
 
@@ -181,8 +232,80 @@ export function CommandPalette({ open, onClose }: Props) {
     }
   }, [term, open, mode])
 
+  // Cortex mode searches the derived, source-backed graph only after the
+  // operator explicitly chooses Ask Cortex. This keeps the default palette
+  // request count unchanged while making the AI brain searchable.
+  useEffect(() => {
+    if (cortexDebounceRef.current) window.clearTimeout(cortexDebounceRef.current)
+    if (cortexAbortRef.current) cortexAbortRef.current.abort()
+    const requestSeq = ++cortexRequestSeqRef.current
+
+    if (!open || mode !== 'ask') {
+      setCortexHits([])
+      setCortexHint(null)
+      setCortexLoading(false)
+      return
+    }
+
+    if (term.length < 2) {
+      setCortexHits([])
+      setCortexHint(null)
+      setCortexLoading(false)
+      return
+    }
+
+    setCortexHits([])
+    setCortexHint(null)
+    setActiveIdx(0)
+    cortexDebounceRef.current = window.setTimeout(async () => {
+      const ctrl = new AbortController()
+      cortexAbortRef.current = ctrl
+      setCortexLoading(true)
+      try {
+        const res = await fetch(
+          `/api/cortex/search?q=${encodeURIComponent(term)}`,
+          { signal: ctrl.signal, headers: { Accept: 'application/json' } }
+        )
+        if (requestSeq !== cortexRequestSeqRef.current) return
+        if (!res.ok) {
+          setCortexHits([])
+          setCortexHint(`Cortex search failed (${res.status})`)
+          return
+        }
+        const data = (await res.json()) as {
+          hits?: CortexPaletteSearchResponseHit[]
+          hint?: string
+        }
+        if (requestSeq !== cortexRequestSeqRef.current) return
+        const actionable = normalizeCortexPaletteHits(data.hits ?? [])
+        setCortexHits(actionable)
+        setCortexHint(
+          data.hint ??
+            (actionable.length === 0 ? 'No source records found.' : null)
+        )
+        setActiveIdx(0)
+      } catch (err) {
+        if (
+          requestSeq === cortexRequestSeqRef.current &&
+          (err as Error).name !== 'AbortError'
+        ) {
+          setCortexHits([])
+          setCortexHint('Cortex search is unavailable.')
+        }
+      } finally {
+        if (requestSeq === cortexRequestSeqRef.current) setCortexLoading(false)
+      }
+    }, 180)
+
+    return () => {
+      if (cortexDebounceRef.current) {
+        window.clearTimeout(cortexDebounceRef.current)
+      }
+    }
+  }, [term, open, mode])
+
   const selectHit = useCallback(
-    (hit: SearchHit) => {
+    (hit: PaletteHit) => {
       onClose()
       router.push(hit.href)
     },
@@ -192,7 +315,7 @@ export function CommandPalette({ open, onClose }: Props) {
   const askCortex = useCallback(() => {
     const handoffId = window.crypto.randomUUID()
     if (!stageCortexDraft(window.sessionStorage, handoffId, term)) {
-      setHint('Could not prepare Cortex. Try again.')
+      setCortexHint('Could not prepare Cortex. Try again.')
       return
     }
     onClose()
@@ -214,14 +337,12 @@ export function CommandPalette({ open, onClose }: Props) {
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActiveIdx((i) =>
-        Math.min(Math.max(0, optionCount - 1), i + 1)
-      )
+      setActiveIdx((i) => nextCommandPaletteIndex(i, optionCount, 1))
       return
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setActiveIdx((i) => Math.max(0, i - 1))
+      setActiveIdx((i) => nextCommandPaletteIndex(i, optionCount, -1))
       return
     }
     if (e.key === 'Enter') {
@@ -242,6 +363,14 @@ export function CommandPalette({ open, onClose }: Props) {
   }
 
   if (!open) return null
+
+  const activeOptionIndex = activeCommandPaletteIndex(activeIdx, optionCount)
+  const activeOptionId =
+    activeOptionIndex >= 0
+      ? activeOptionIndex < visibleHits.length
+        ? `cmdpal-option-hit-${activeOptionIndex}`
+        : 'cmdpal-option-cortex'
+      : undefined
 
   return (
     <div
@@ -267,10 +396,6 @@ export function CommandPalette({ open, onClose }: Props) {
     >
       <div
         ref={panelRef}
-        role="combobox"
-        aria-expanded
-        aria-controls="cmdpal-results"
-        aria-haspopup="listbox"
         style={{
           width: '100%',
           maxWidth: 640,
@@ -307,6 +432,12 @@ export function CommandPalette({ open, onClose }: Props) {
                 : 'Ask across records you can access…'
             }
             aria-label={mode === 'search' ? 'Search' : 'Ask Cortex'}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={optionCount > 0}
+            aria-controls="cmdpal-results"
+            aria-haspopup="listbox"
+            aria-activedescendant={activeOptionId}
             autoComplete="off"
             spellCheck={false}
             maxLength={100}
@@ -392,15 +523,46 @@ export function CommandPalette({ open, onClose }: Props) {
         <div
           id="cmdpal-results"
           role="listbox"
+          aria-label={
+            mode === 'search' ? 'Search results' : 'Cortex sources and actions'
+          }
           style={{ maxHeight: '60vh', overflowY: 'auto' }}
         >
           {mode === 'search' && loading && (
-            <div style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}>
+            <div
+              role="status"
+              aria-live="polite"
+              style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}
+            >
               Searching…
             </div>
           )}
-          {mode === 'search' && !loading && hits.length === 0 && hint && (
-            <div style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}>
+          {mode === 'search' && !loading && partial && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                padding: '10px 20px',
+                borderBottom: '1px solid var(--color-border)',
+                background: 'var(--color-warning-soft)',
+                color: 'var(--color-warning)',
+                fontSize: 12,
+              }}
+            >
+              Some record types are temporarily unavailable. Results may be
+              incomplete.
+            </div>
+          )}
+          {mode === 'search' && !loading && hits.length === 0 && hint && !partial && (
+            <div
+              role={
+                hint.startsWith('Search failed') || hint === 'Network error.'
+                  ? 'alert'
+                  : 'status'
+              }
+              aria-live="polite"
+              style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}
+            >
               {hint}
             </div>
           )}
@@ -426,6 +588,32 @@ export function CommandPalette({ open, onClose }: Props) {
                 </p>
               </div>
             )}
+          {mode === 'ask' && cortexLoading && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}
+            >
+              Finding source records...
+            </div>
+          )}
+          {mode === 'ask' &&
+            !cortexLoading &&
+            cortexHits.length === 0 &&
+            cortexHint && (
+              <div
+                role={
+                  cortexHint.startsWith('Cortex search failed') ||
+                  cortexHint === 'Cortex search is unavailable.'
+                    ? 'alert'
+                    : 'status'
+                }
+                aria-live="polite"
+                style={{ padding: 20, fontSize: 13, color: 'var(--color-neutral-500)' }}
+              >
+                {cortexHint}
+              </div>
+            )}
           {mode === 'ask' && term.length < 2 && (
             <div
               style={{
@@ -435,14 +623,15 @@ export function CommandPalette({ open, onClose }: Props) {
                 lineHeight: 1.5,
               }}
             >
-              Ask about records you can access. Opening Cortex drafts your
-              question; nothing is sent until you press Send.
+              Search source-backed records first, then open Cortex with a
+              question. Nothing is sent until you press Ask Cortex.
             </div>
           )}
           {visibleHits.map((hit, i) => (
             <button
               type="button"
               key={`${hit.type}-${hit.id}`}
+              id={`cmdpal-option-hit-${i}`}
               role="option"
               aria-selected={i === activeIdx}
               onMouseEnter={() => setActiveIdx(i)}
@@ -470,12 +659,15 @@ export function CommandPalette({ open, onClose }: Props) {
                   padding: '3px 7px',
                   borderRadius: 4,
                   background: 'var(--color-neutral-100)',
-                  color: TYPE_TONE[hit.type],
+                  color:
+                    hit.type === 'cortex'
+                      ? 'var(--color-navy-700)'
+                      : TYPE_TONE[hit.type],
                   minWidth: 72,
                   textAlign: 'center',
                 }}
               >
-                {TYPE_LABEL[hit.type]}
+                {hit.type === 'cortex' ? 'Cortex source' : TYPE_LABEL[hit.type]}
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
@@ -490,7 +682,7 @@ export function CommandPalette({ open, onClose }: Props) {
                 >
                   {hit.title}
                 </div>
-                {hit.subtitle && (
+                {(hit.type === 'cortex' || hit.subtitle) && (
                   <div
                     style={{
                       fontSize: 11.5,
@@ -501,7 +693,9 @@ export function CommandPalette({ open, onClose }: Props) {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {hit.subtitle}
+                    {hit.type === 'cortex'
+                      ? `${hit.summary ? `${hit.summary} | ` : ''}${hit.freshness}`
+                      : hit.subtitle}
                   </div>
                 )}
               </div>
@@ -515,6 +709,7 @@ export function CommandPalette({ open, onClose }: Props) {
           {canAskCortex && (
             <button
               type="button"
+              id="cmdpal-option-cortex"
               role="option"
               aria-selected={activeIdx === visibleHits.length}
               aria-label={`Ask Cortex: ${term}`}

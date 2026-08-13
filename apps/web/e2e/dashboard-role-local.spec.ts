@@ -197,22 +197,18 @@ test.describe('permission-aware dashboard', () => {
         })
         expect(response?.status()).toBe(200)
         await expect(
-          page.getByRole('heading', { name: 'My work' })
+          page.getByRole('heading', { name: 'Today, Viewer' })
         ).toBeVisible()
-        await expect(page.getByText('Today · Viewer')).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Work queue' })).toBeVisible()
         await expect(page.getByText('Pipeline analytics')).toHaveCount(0)
         await expect(page.getByText('Active Pipeline TCV')).toHaveCount(0)
         await expect(page.getByRole('link', { name: /Due today/ })).toHaveAttribute(
           'href',
           '/tasks'
         )
-        const quickAccess = page.getByRole('region', { name: 'Quick access' })
-        await expect(
-          quickAccess.getByRole('link', { name: 'My Tasks' })
-        ).toBeVisible()
-        await expect(
-          quickAccess.getByRole('link', { name: 'Documents' })
-        ).toBeVisible()
+        await expect(page.getByText('Project context stays private.')).toBeVisible()
+        await expect(page.getByRole('link', { name: 'Open my tasks' })).toBeVisible()
+        await expect(page.getByRole('link', { name: 'Ask Cortex' })).toBeVisible()
         await expect(page.getByRole('link', { name: 'Finance' })).toHaveCount(0)
 
         await page
@@ -277,7 +273,7 @@ test.describe('permission-aware dashboard', () => {
           })
           expect(dashboardResponse?.status()).toBe(200)
           await expect(
-            page.getByRole('heading', { name: 'My work' })
+            page.getByRole('heading', { name: 'Today, Viewer' })
           ).toBeVisible()
         } else {
           await page.keyboard.press('Escape')

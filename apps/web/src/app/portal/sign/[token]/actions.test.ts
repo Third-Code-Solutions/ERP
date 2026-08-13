@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   remove: vi.fn(),
   writeAuditLogInTransaction: vi.fn(),
+  publicSigningWritesUseCoreApi: vi.fn(),
+  signPublicSignatureThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/database', () => ({
@@ -38,6 +40,11 @@ vi.mock('@third-code-erp/auth', () => ({
 
 vi.mock('@/lib/audit', () => ({
   writeAuditLogInTransaction: mocks.writeAuditLogInTransaction,
+}))
+
+vi.mock('@/lib/erp-core-client', () => ({
+  publicSigningWritesUseCoreApi: mocks.publicSigningWritesUseCoreApi,
+  signPublicSignatureThroughCoreApi: mocks.signPublicSignatureThroughCoreApi,
 }))
 
 import { recordCanvasSign } from './actions'
@@ -102,6 +109,7 @@ function collectColumnNames(
 describe('public canvas signing integrity', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.publicSigningWritesUseCoreApi.mockReturnValue(false)
 
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })
@@ -274,6 +282,45 @@ describe('public canvas signing integrity', () => {
     })
     expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
     expect(mocks.upload).not.toHaveBeenCalled()
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('routes an approved tenant through Core without a legacy Storage write', async () => {
+    mocks.publicSigningWritesUseCoreApi.mockReturnValue(true)
+    mocks.signPublicSignatureThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        sessionId: SESSION_ID,
+        tenantId: TENANT_ID,
+        entityType: 'variation_order',
+        entityId: ENTITY_ID,
+        signatureDocumentId: DOCUMENT_ID,
+        signedAt: '2026-08-03T00:00:00.000Z',
+      },
+    })
+
+    await expect(recordCanvasSign(signInput())).resolves.toEqual({ ok: true })
+    expect(mocks.signPublicSignatureThroughCoreApi).toHaveBeenCalledWith(
+      TOKEN,
+      expect.objectContaining({ signerName: 'Ana Reyes' }),
+      expect.stringMatching(/^public-sign-[0-9a-f]{64}$/)
+    )
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('treats a selected Core failure as terminal and never falls back', async () => {
+    mocks.publicSigningWritesUseCoreApi.mockReturnValue(true)
+    mocks.signPublicSignatureThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'Core signing unavailable.',
+    })
+
+    await expect(recordCanvasSign(signInput())).resolves.toEqual({
+      ok: false,
+      error: 'Core signing unavailable.',
+    })
+    expect(mocks.createSupabaseAdminClient).not.toHaveBeenCalled()
     expect(mocks.transaction).not.toHaveBeenCalled()
   })
 })

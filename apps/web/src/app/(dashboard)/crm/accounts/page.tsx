@@ -1,10 +1,7 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { and, desc, eq, sql } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { accounts, opportunities } from '@third-code-erp/database/schema'
 import type { Metadata } from 'next'
+import { getAccountsFiltered } from '@/lib/account-queries'
 
 export const metadata: Metadata = { title: 'Accounts' }
 
@@ -19,23 +16,11 @@ const KYC_BADGE: Record<string, string> = {
 export default async function AccountsListPage() {
   const profile = await requireUserProfile()
 
-  const rows = await db
-    .select({
-      id: accounts.id,
-      name: accounts.name,
-      industry: accounts.industry,
-      kyc_status: accounts.kyc_status,
-      primary_email: accounts.primary_email,
-      primary_phone: accounts.primary_phone,
-      created_at: accounts.created_at,
-      opp_count: sql<number>`COUNT(${opportunities.id})::int`,
-    })
-    .from(accounts)
-    .leftJoin(opportunities, eq(opportunities.account_id, accounts.id))
-    .where(eq(accounts.tenant_id, profile.tenantId))
-    .groupBy(accounts.id)
-    .orderBy(desc(accounts.created_at))
-    .limit(200)
+  const { rows } = await getAccountsFiltered(profile.tenantId, {
+    sort: 'created_at',
+    order: 'desc',
+    limit: 100,
+  })
 
   return (
     <div>

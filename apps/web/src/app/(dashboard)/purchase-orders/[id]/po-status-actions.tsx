@@ -14,7 +14,7 @@
  * action.
  */
 
-import { useTransition } from 'react'
+import { useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   advancePoStatus,
@@ -97,14 +97,23 @@ function buttonStyle(variant: 'primary' | 'danger' | 'secondary', pending: boole
 export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
+  const workflowKeysRef = useRef<Record<string, string>>({})
 
-  function run<T extends { error?: string }>(fn: () => Promise<T>) {
+  function workflowKey(action: string): string {
+    return (workflowKeysRef.current[action] ??= globalThis.crypto.randomUUID())
+  }
+
+  function run<T extends { error?: string }>(
+    fn: () => Promise<T>,
+    action?: string
+  ) {
     startTransition(async () => {
       const result = await fn()
       if (result.error) {
         alert(result.error)
         return
       }
+      if (action) delete workflowKeysRef.current[action]
       router.refresh()
     })
   }
@@ -112,7 +121,7 @@ export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
   function reject() {
     const reason = prompt('Reason for rejection? This returns the PO to draft.')
     if (!reason || !reason.trim()) return
-    run(() => rejectPoApproval(poId, reason))
+    run(() => rejectPoApproval(poId, reason, workflowKey('reject')), 'reject')
   }
 
   // Current flow first.
@@ -122,7 +131,12 @@ export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           disabled={pending}
-          onClick={() => run(() => submitPoForPmApproval(poId))}
+          onClick={() =>
+            run(
+              () => submitPoForPmApproval(poId, workflowKey('submit_pm_approval')),
+              'submit_pm_approval'
+            )
+          }
           style={buttonStyle('primary', pending)}
         >
           {pending ? '…' : 'Submit for PM approval'}
@@ -144,7 +158,12 @@ export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           disabled={pending}
-          onClick={() => run(() => pmApprovePo(poId))}
+          onClick={() =>
+            run(
+              () => pmApprovePo(poId, workflowKey('pm_approve')),
+              'pm_approve'
+            )
+          }
           style={buttonStyle('primary', pending)}
         >
           {pending ? '…' : 'Approve as PM'}
@@ -162,7 +181,13 @@ export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           disabled={pending}
-          onClick={() => run(() => commercialApprovePo(poId))}
+          onClick={() =>
+            run(
+              () =>
+                commercialApprovePo(poId, workflowKey('commercial_approve')),
+              'commercial_approve'
+            )
+          }
           style={buttonStyle('primary', pending)}
         >
           {pending ? '…' : 'Approve as Commercial'}
@@ -180,7 +205,12 @@ export function PoStatusActions({ poId, currentStatus, viewerRole }: Props) {
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           disabled={pending}
-          onClick={() => run(() => scmIssuePo(poId))}
+          onClick={() =>
+            run(
+              () => scmIssuePo(poId, workflowKey('scm_issue')),
+              'scm_issue'
+            )
+          }
           style={buttonStyle('primary', pending)}
         >
           {pending ? '…' : 'Issue PO to supplier'}

@@ -1,53 +1,41 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
-import { getUserProfile } from '@third-code-erp/auth'
+import { getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { boms, bomLineItems, invoices, projects, purchaseOrders } from '@third-code-erp/database/schema'
+import { boms, bomLineItems, invoices, projects, purchaseOrders, users } from '@third-code-erp/database/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { getOpenAI } from '@third-code-erp/ai'
 import { writeAuditLog } from '@/lib/audit'
+import {
+  consumeProviderQuota,
+  providerQuotaBlockedResponse,
+} from '@/lib/provider-quota'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
-const ChatRequestSchema = z.object({
-  messages: z
-    .array(
-      z.object({
-        role: z.enum(['user', 'assistant']),
-        content: z.string().trim().min(1).max(4000),
-      }),
-    )
-    .min(1)
-    .max(50),
-  projectId: z.string().uuid().optional(),
-})
-
 export async function POST(req: NextRequest) {
-  const profile = await getUserProfile()
-  if (!profile) return new Response('Unauthorized', { status: 401 })
+  const user = await getUser()
+  if (!user) return new Response('Unauthorized', { status: 401 })
+
+  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
+  if (!userRow?.tenant_id) return new Response('Forbidden', { status: 403 })
 
   if (!process.env.OPENAI_API_KEY) {
     return new Response(JSON.stringify({ error: 'AI not configured' }), { status: 503, headers: { 'Content-Type': 'application/json' } })
   }
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
+  const quota = await consumeProviderQuota(
+    'provider-chat',
+    userRow.tenant_id
+  )
+  if (!quota.ok) {
+    return providerQuotaBlockedResponse(quota)
   }
-  const parsed = ChatRequestSchema.safeParse(body)
-  if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'Invalid request' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
+
+  const { messages, projectId } = (await req.json()) as {
+    messages: { role: 'user' | 'assistant'; content: string }[]
+    projectId?: string
   }
-  const { messages, projectId } = parsed.data
 
   // Build context from the project's data
   let context = ''
@@ -56,7 +44,7 @@ export async function POST(req: NextRequest) {
     const [project] = await db
       .select()
       .from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
+      .where(and(eq(projects.id, projectId), eq(projects.tenant_id, userRow.tenant_id)))
 
     if (project) {
       context += `PROJECT: ${project.name}\nClient: ${project.client}\nStatus: ${project.status}\nLocation: ${project.location ?? 'N/A'}\nType: ${project.project_type ?? 'N/A'}\n\n`
@@ -65,7 +53,7 @@ export async function POST(req: NextRequest) {
       const [latestBom] = await db
         .select()
         .from(boms)
-        .where(and(eq(boms.project_id, projectId), eq(boms.tenant_id, profile.tenantId)))
+        .where(and(eq(boms.project_id, projectId), eq(boms.tenant_id, userRow.tenant_id)))
         .orderBy(desc(boms.version))
         .limit(1)
 
@@ -78,7 +66,7 @@ export async function POST(req: NextRequest) {
         const lines = await db
           .select()
           .from(bomLineItems)
-          .where(and(eq(bomLineItems.bom_id, latestBom.id), eq(bomLineItems.tenant_id, profile.tenantId)))
+          .where(and(eq(bomLineItems.bom_id, latestBom.id), eq(bomLineItems.tenant_id, userRow.tenant_id)))
 
         if (lines.length > 0) {
           context += 'BOM Line Items:\n'
@@ -94,7 +82,7 @@ export async function POST(req: NextRequest) {
       const invRows = await db
         .select()
         .from(invoices)
-        .where(and(eq(invoices.project_id, projectId), eq(invoices.tenant_id, profile.tenantId)))
+        .where(and(eq(invoices.project_id, projectId), eq(invoices.tenant_id, userRow.tenant_id)))
 
       if (invRows.length > 0) {
         context += `Invoices (${invRows.length}):\n`
@@ -108,7 +96,7 @@ export async function POST(req: NextRequest) {
       const poRows = await db
         .select()
         .from(purchaseOrders)
-        .where(and(eq(purchaseOrders.project_id, projectId), eq(purchaseOrders.tenant_id, profile.tenantId)))
+        .where(and(eq(purchaseOrders.project_id, projectId), eq(purchaseOrders.tenant_id, userRow.tenant_id)))
 
       if (poRows.length > 0) {
         context += `Purchase Orders (${poRows.length}):\n`
@@ -132,10 +120,10 @@ ${context ? `CURRENT PROJECT CONTEXT:\n${context}` : 'No specific project contex
   try {
     const lastUser = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
     await writeAuditLog({
-      tenantId: profile.tenantId,
-      actorId: profile.user.id,
+      tenantId: userRow.tenant_id,
+      actorId: user.id,
       entityType: 'ai_chat',
-      entityId: projectId ?? profile.user.id,
+      entityId: projectId ?? user.id,
       action: 'query',
       diff: {
         project_id: projectId ?? null,

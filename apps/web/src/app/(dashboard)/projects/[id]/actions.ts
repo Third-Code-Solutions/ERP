@@ -1,13 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { projects } from '@third-code-erp/database/schema'
-import { and, eq } from 'drizzle-orm'
-import { writeAuditLog, computeDiff } from '@/lib/audit'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import {
-  projectWritesUseCoreApi,
+  getProjectThroughCoreApi,
   updateProjectThroughCoreApi,
 } from '@/lib/erp-core-client'
 
@@ -18,15 +14,19 @@ export async function updateProject(
   projectId: string,
   formData: FormData
 ): Promise<{ error?: string }> {
-  const profile = await getUserProfile()
-  if (!profile) return { error: 'Unauthorized' }
+  const profile = await requireUserProfile()
+  requireCapability(profile, 'project.update')
 
-  const [existing] = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
-
-  if (!existing) return { error: 'Project not found' }
+  const existing = await getProjectThroughCoreApi(projectId)
+  if (!existing.ok || !existing.data) {
+    return { error: existing.error ?? 'Project was not read.' }
+  }
+  if (
+    existing.data.id !== projectId ||
+    existing.data.tenantId !== profile.tenantId
+  ) {
+    return { error: 'Project read returned an invalid tenant scope.' }
+  }
 
   const name = str(formData.get('name'))
   const client = str(formData.get('client'))
@@ -39,48 +39,17 @@ export async function updateProject(
   const location = str(formData.get('location'))
   const notes = str(formData.get('notes'))
 
-  const updates = {
+  const result = await updateProjectThroughCoreApi(projectId, {
     name,
     client,
-    status: status ?? existing.status,
-    project_type: project_type ?? null,
-    total_sqm: total_sqm ?? null,
+    status: status ?? existing.data.status,
+    projectType: project_type ?? null,
+    totalSqm: total_sqm ?? null,
     location: location ?? null,
     notes: notes ?? null,
-    updated_at: new Date(),
-  }
-
-  if (projectWritesUseCoreApi(profile.tenantId)) {
-    const result = await updateProjectThroughCoreApi(projectId, {
-      name,
-      client,
-      status: updates.status,
-      projectType: updates.project_type,
-      totalSqm: updates.total_sqm,
-      location: updates.location,
-      notes: updates.notes,
-      expectedUpdatedAt: existing.updated_at.toISOString(),
-    })
-    if (!result.ok) {
-      return { error: result.error ?? 'Project update failed' }
-    }
-    refreshProject(projectId)
-    return {}
-  }
-
-  await db
-    .update(projects)
-    .set(updates)
-    .where(and(eq(projects.id, projectId), eq(projects.tenant_id, profile.tenantId)))
-
-  await writeAuditLog({
-    tenantId: profile.tenantId,
-    actorId: profile.user.id,
-    entityType: 'project',
-    entityId: projectId,
-    action: 'update',
-    diff: computeDiff(existing, updates),
+    expectedUpdatedAt: existing.data.updatedAt,
   })
+  if (!result.ok) return { error: result.error ?? 'Project update failed' }
 
   refreshProject(projectId)
   return {}

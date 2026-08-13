@@ -1,20 +1,37 @@
-// CAD parsing pipeline.
+// In-process CAD parsing pipeline.
 //
-// Next.js owns official scope-item and draft-BOM writes. The Python worker is
-// evidence-only: it receives a short-lived exact-object URL and returns
-// bounded extraction evidence without tenant, project, document, or database
-// authority.
+//   1. Download the uploaded file from Supabase Storage
+//   2. Detect actual format (DXF text vs binary DWG) from magic bytes
+//   3. For DXF: parse with the JS extractor (dxf-parser), extract scope items,
+//      run auto-BOM. Runs entirely in the Next.js Node runtime.
+//   4. For binary DWG: try the Python worker via Inngest if configured;
+//      otherwise return a structured "needs converter" result so the UI can
+//      explain the situation to the user.
+//
+// Important: extension is treated as a hint, not truth. Some CAD users save
+// DXF content under a .dwg extension and vice versa — magic-byte detection
+// catches that and routes correctly.
 
-import { createHash, randomUUID } from 'node:crypto'
-import { createSupabaseAdminClient } from '@third-code-erp/auth/server'
 import { db } from '@third-code-erp/database'
-import { scopeItems } from '@third-code-erp/database/schema'
+import { documents, scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { extractFromDxfText } from './dxf-extractor'
 import { calcDraftBomFromScope, type AutoBomResult } from './auto-bom'
 import { detectCadFormat, fileExtensionOf } from './format-detect'
+import {
+  CAD_SCOPE_BATCH_SIZE,
+  cadScopeLineTotalCents,
+  parseWorkerResponse,
+  type WorkerParseResponse,
+  type WorkerScopeItem,
+} from './worker-contract'
+import { writeAuditLogInTransaction } from '@/lib/audit'
+import {
+  createDocumentStorage,
+  type DocumentStorage,
+} from '@/lib/storage/document-storage'
 
 export interface ParseAndStoreInput {
   tenantId: string
@@ -22,14 +39,30 @@ export interface ParseAndStoreInput {
   documentId: string
   storagePath: string
   fileName: string
-  createDraftBom?: boolean
+  actorId?: string | null
 }
 
 export type ParseStatus =
-  | 'extracted'
-  | 'binary-dwg-pending'
-  | 'unknown-format'
+  | 'extracted' // DXF (or DWG-named DXF) parsed in-process
+  | 'binary-dwg-pending' // real DWG, needs converter (no scope yet)
+  | 'unknown-format' // not DXF and not DWG header — bail
   | 'download-failed'
+  | 'parse-failed'
+
+/** Evidence-only CAD result. No database or BOM side effect. */
+export interface CadEvidenceParseResult {
+  status: ParseStatus
+  scopeItemsCreated: 0
+  warnings: string[]
+  layerCount: number
+  entityCount: number
+  detectedFormat: 'dxf' | 'dwg' | 'unknown'
+  dwgVersion: string | null
+  extensionMismatch: boolean
+  bom: null
+  message: string
+  workerResponse: WorkerParseResponse | null
+}
 
 export interface ParseAndStoreResult {
   status: ParseStatus
@@ -44,139 +77,96 @@ export interface ParseAndStoreResult {
   message: string
 }
 
-interface PersistedScopeItem {
-  code: string | null
-  description: string
-  unit: string
-  quantity: number
-  unitCostCents: number
-  notes: string | null
-}
+export async function persistExtractedScopeItems(input: {
+  tenantId: string
+  projectId: string
+  documentId: string
+  actorId?: string | null
+  sourceFormat: 'dxf' | 'dwg'
+  items: WorkerScopeItem[]
+}): Promise<number> {
+  const tenantId = z.string().uuid().parse(input.tenantId)
+  const projectId = z.string().uuid().parse(input.projectId)
+  const documentId = z.string().uuid().parse(input.documentId)
+  const actorId = input.actorId ? z.string().uuid().parse(input.actorId) : null
 
-const SCOPE_BATCH_SIZE = 200
-const WORKER_TIMEOUT_MS = 90_000
+  return db.transaction(async (tx) => {
+    const [document] = await tx
+      .select({ id: documents.id })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.id, documentId),
+          eq(documents.tenant_id, tenantId),
+          eq(documents.project_id, projectId)
+        )
+      )
+      .limit(1)
+    if (!document) throw new Error('CAD document is outside tenant project scope')
 
-const workerItemSchema = z.object({
-  item_key: z.string().regex(/^[0-9a-f]{64}$/),
-  code: z.string().nullable(),
-  description: z.string().min(1).max(500),
-  unit: z.string().min(1).max(64),
-  quantity: z.number().int().positive(),
-  recommended_unit_cost_cents: z.number().int().nonnegative(),
-  notes: z.string().nullable(),
-})
-
-const workerResponseSchema = z.object({
-  schema_version: z.literal(1),
-  job_id: z.string().uuid(),
-  attempt: z.number().int().positive(),
-  source_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  source_format: z.enum(['dxf', 'dwg']),
-  parsed_format: z.literal('dxf'),
-  items: z.array(workerItemSchema).max(5_000),
-  warnings: z.array(z.string().max(500)).max(100),
-})
-
-async function persistScopeItems(
-  tenantId: string,
-  projectId: string,
-  documentId: string,
-  items: PersistedScopeItem[],
-): Promise<number> {
-  await db.transaction(async (tx) => {
     await tx
       .delete(scopeItems)
       .where(
         and(
           eq(scopeItems.tenant_id, tenantId),
           eq(scopeItems.project_id, projectId),
-          like(scopeItems.notes, `%document:${documentId}%`),
-        ),
+          like(scopeItems.notes, `%document:${documentId}%`)
+        )
       )
 
-    const rows = items.map((item, index) => ({
+    const rows = input.items.map((item, index) => ({
       tenant_id: tenantId,
       project_id: projectId,
+      created_by: actorId,
       code: item.code,
       description: item.description,
       unit: item.unit,
       quantity: item.quantity,
-      unit_cost_cents: item.unitCostCents,
-      line_total_cents: item.unitCostCents * item.quantity,
+      unit_cost_cents: item.unit_cost_cents,
+      line_total_cents: cadScopeLineTotalCents(item),
       sort_order: index,
       notes:
         `auto-extracted; document:${documentId}` +
         (item.notes ? `; ${item.notes}` : ''),
     }))
 
-    for (let index = 0; index < rows.length; index += SCOPE_BATCH_SIZE) {
+    for (let i = 0; i < rows.length; i += CAD_SCOPE_BATCH_SIZE) {
       await tx
         .insert(scopeItems)
-        .values(rows.slice(index, index + SCOPE_BATCH_SIZE))
+        .values(rows.slice(i, i + CAD_SCOPE_BATCH_SIZE))
     }
-  })
 
-  return items.length
-}
-
-function toPersistedDxfItems(
-  items: Array<{
-    code: string | null
-    description: string
-    unit: string
-    quantity: number
-    unit_cost_cents: number
-    notes: string | null
-  }>,
-): PersistedScopeItem[] {
-  return items.map((item) => ({
-    code: item.code,
-    description: item.description,
-    unit: item.unit,
-    quantity: item.quantity,
-    unitCostCents: item.unit_cost_cents,
-    notes: item.notes,
-  }))
-}
-
-function toPersistedWorkerItems(
-  items: Array<z.infer<typeof workerItemSchema>>,
-): PersistedScopeItem[] {
-  return items.map((item) => ({
-    code: item.code,
-    description: item.description,
-    unit: item.unit,
-    quantity: item.quantity,
-    unitCostCents: item.recommended_unit_cost_cents,
-    notes: item.notes,
-  }))
-}
-
-export async function parseAndStoreCad(
-  input: ParseAndStoreInput,
-): Promise<ParseAndStoreResult> {
-  const {
-    tenantId,
-    projectId,
-    documentId,
-    storagePath,
-    fileName,
-    createDraftBom = true,
-  } = input
-  const supabase = createSupabaseAdminClient()
-  const { data: blob, error: downloadError } = await supabase.storage
-    .from('documents')
-    .download(storagePath)
-
-  if (downloadError || !blob) {
-    console.error('[parse-and-store] storage download failed', {
-      documentId,
-      error: downloadError?.message,
+    await writeAuditLogInTransaction(tx, {
+      tenantId,
+      actorId,
+      entityType: 'document',
+      entityId: documentId,
+      action: 'update',
+      diff: {
+        scope_items_replaced: rows.length,
+        source: 'cad_parser_worker',
+        source_format: input.sourceFormat,
+      },
     })
+
+    return rows.length
+  })
+}
+
+export async function parseCadEvidence(
+  input: ParseAndStoreInput,
+  storage: DocumentStorage = createDocumentStorage()
+): Promise<CadEvidenceParseResult> {
+  const { tenantId, projectId, documentId, storagePath, fileName } = input
+
+  // 1. Download the file (binary-safe)
+  const { data: blob, error: dlErr } = await storage.download(storagePath)
+
+  if (dlErr || !blob) {
     return {
       status: 'download-failed',
       scopeItemsCreated: 0,
-      warnings: ['Storage download failed.'],
+      warnings: [`Storage download failed: ${dlErr?.message ?? 'unknown error'}`],
       layerCount: 0,
       entityCount: 0,
       detectedFormat: 'unknown',
@@ -184,89 +174,68 @@ export async function parseAndStoreCad(
       extensionMismatch: false,
       bom: null,
       message: 'File could not be retrieved from storage.',
+      workerResponse: null,
     }
   }
 
-  const bytes = new Uint8Array(await blob.arrayBuffer())
-  const extension = fileExtensionOf(fileName)
-  const detection = detectCadFormat(bytes, extension)
+  const arrayBuf = await blob.arrayBuffer()
+  const bytes = new Uint8Array(arrayBuf)
+  const ext = fileExtensionOf(fileName)
+  const detection = detectCadFormat(bytes, ext)
 
+  // 2. Real binary DWG → call the Python worker directly when reachable
   if (detection.format === 'dwg') {
     const parserUrl = process.env.DXF_PARSER_URL
     if (parserUrl) {
       try {
-        const sourceSha256 = createHash('sha256').update(bytes).digest('hex')
-        const { data: signed, error: signedUrlError } = await supabase.storage
-          .from('documents')
-          .createSignedUrl(storagePath, 120)
-        if (signedUrlError || !signed?.signedUrl) {
-          throw new Error('Signed source URL unavailable')
-        }
-
         const workerResult = await callDwgWorker({
           parserUrl,
-          fileName,
-          sourceSha256,
-          sourceUrl: signed.signedUrl,
-        })
-        const scopeItemsCreated = await persistScopeItems(
-          tenantId,
-          projectId,
           documentId,
-          toPersistedWorkerItems(workerResult.items),
-        )
-
-        let bom: AutoBomResult | null = null
-        if (createDraftBom && scopeItemsCreated > 0) {
-          try {
-            bom = await calcDraftBomFromScope({ tenantId, projectId, documentId })
-          } catch (error) {
-            console.error('[parse-and-store] auto-BOM failed', {
-              documentId,
-              error: error instanceof Error ? error.message : 'unknown',
-            })
-            workerResult.warnings.push('Auto-BOM could not be created.')
-          }
-        }
+          projectId,
+          tenantId,
+          storagePath,
+          fileName,
+        })
 
         return {
           status: 'extracted',
-          scopeItemsCreated,
+          scopeItemsCreated: 0,
           warnings: workerResult.warnings,
           layerCount: 0,
           entityCount: 0,
           detectedFormat: 'dwg',
           dwgVersion: detection.dwgVersion,
           extensionMismatch: detection.mismatch,
-          bom,
-          message: `DWG ${detection.dwgVersion ?? ''} converted via worker · ${scopeItemsCreated} scope item${scopeItemsCreated === 1 ? '' : 's'} extracted.`,
+          workerResponse: workerResult,
+          bom: null,
+          message: `DWG ${detection.dwgVersion ?? ''} converted via worker · ${workerResult.count} scope item${workerResult.count === 1 ? '' : 's'} extracted.`,
         }
-      } catch (error) {
-        console.error('[parse-and-store] DWG evidence path failed', {
-          documentId,
-          error: error instanceof Error ? error.message : 'unknown',
-        })
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err)
+        console.error('[parse-and-store] DWG worker call failed:', err)
         return {
           status: 'binary-dwg-pending',
           scopeItemsCreated: 0,
-          warnings: ['DWG evidence extraction is temporarily unavailable.'],
+          warnings: [`DWG worker error: ${errMsg}`],
           layerCount: 0,
           entityCount: 0,
           detectedFormat: 'dwg',
           dwgVersion: detection.dwgVersion,
           extensionMismatch: detection.mismatch,
           bom: null,
-          message:
-            'DWG stored. Evidence extraction is temporarily unavailable; verify the worker or re-export as DXF for instant extraction.',
+          workerResponse: null,
+          message: `DWG stored. Worker at DXF_PARSER_URL is unreachable (${errMsg}). Verify the worker is running, or re-export as DXF for instant extraction.`,
         }
       }
     }
 
+    // No worker configured — fall back to the queued path with a friendly message
     return {
       status: 'binary-dwg-pending',
       scopeItemsCreated: 0,
       warnings: [
-        `Binary DWG detected (${detection.dwgVersion ?? 'unknown version'}). Server-side conversion required for scope extraction.`,
+        `Binary DWG detected (${detection.dwgVersion ?? 'unknown version'}). ` +
+          'Server-side conversion required for scope extraction.',
       ],
       layerCount: 0,
       entityCount: 0,
@@ -274,11 +243,13 @@ export async function parseAndStoreCad(
       dwgVersion: detection.dwgVersion,
       extensionMismatch: detection.mismatch,
       bom: null,
+      workerResponse: null,
       message:
         'DWG stored. To enable automatic DWG extraction, deploy the CAD parser worker and set DXF_PARSER_URL — or re-export as DXF for instant in-browser extraction.',
     }
   }
 
+  // 3. Unknown header → bail with a useful message
   if (detection.format === 'unknown') {
     return {
       status: 'unknown-format',
@@ -290,101 +261,153 @@ export async function parseAndStoreCad(
       dwgVersion: null,
       extensionMismatch: false,
       bom: null,
+      workerResponse: null,
       message:
         'File does not appear to be a valid CAD file. Stored, but no scope extracted.',
     }
   }
 
+  // 4. DXF (whether the extension was .dxf or .dwg, content is text DXF)
   const dxfText = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
   const extraction = extractFromDxfText(dxfText)
-  const scopeItemsCreated = await persistScopeItems(
-    tenantId,
-    projectId,
-    documentId,
-    toPersistedDxfItems(extraction.items),
-  )
 
-  let bom: AutoBomResult | null = null
-  if (createDraftBom && scopeItemsCreated > 0) {
-    try {
-      bom = await calcDraftBomFromScope({ tenantId, projectId, documentId })
-    } catch (error) {
-      console.error('[parse-and-store] auto-BOM failed', {
-        documentId,
-        error: error instanceof Error ? error.message : 'unknown',
-      })
-      extraction.warnings.push('Auto-BOM could not be created.')
+  let workerResponse: WorkerParseResponse
+  try {
+    workerResponse = parseWorkerResponse(
+      {
+        document_id: documentId,
+        scope_items: extraction.items,
+        count: extraction.items.length,
+        warnings: extraction.warnings,
+        parsed_format: 'dxf',
+        source_format: 'dxf',
+      },
+      documentId
+    )
+  } catch (err) {
+    const validationMessage = err instanceof Error ? err.message : String(err)
+    return {
+      status: 'parse-failed',
+      scopeItemsCreated: 0,
+      warnings: [
+        ...extraction.warnings,
+        `CAD evidence validation failed: ${validationMessage}`,
+      ],
+      layerCount: extraction.layerCount,
+      entityCount: extraction.entityCount,
+      detectedFormat: 'dxf',
+      dwgVersion: null,
+      extensionMismatch: detection.mismatch,
+      bom: null,
+      message: 'DXF parsed, but evidence failed validation. No scope was committed.',
+      workerResponse: null,
     }
   }
 
   const message = detection.mismatch
-    ? `File extension was .${extension} but content is DXF — parsed successfully.`
-    : `Parsed ${scopeItemsCreated} scope item${scopeItemsCreated === 1 ? '' : 's'} from ${extraction.entityCount} entities across ${extraction.layerCount} layers.`
+    ? `File extension was .${ext} but content is DXF — parsed successfully.`
+    : `Parsed ${extraction.items.length} scope item${extraction.items.length === 1 ? '' : 's'} from ${extraction.entityCount} entities across ${extraction.layerCount} layers.`
 
   return {
     status: 'extracted',
-    scopeItemsCreated,
+    scopeItemsCreated: 0,
     warnings: extraction.warnings,
     layerCount: extraction.layerCount,
     entityCount: extraction.entityCount,
     detectedFormat: 'dxf',
     dwgVersion: null,
     extensionMismatch: detection.mismatch,
-    bom,
+    bom: null,
     message,
+    workerResponse,
   }
 }
 
-export const parseAndStoreDxf = parseAndStoreCad
+/** Compatibility writer. Selected Core tenants never call this function. */
+export async function parseAndStoreCad(
+  input: ParseAndStoreInput,
+  storage: DocumentStorage = createDocumentStorage()
+): Promise<ParseAndStoreResult> {
+  const evidence = await parseCadEvidence(input, storage)
+  const { workerResponse, ...result } = evidence
+  if (!workerResponse) return result
 
-type DwgWorkerResponse = z.infer<typeof workerResponseSchema>
+  const scopeItemsCreated = await persistExtractedScopeItems({
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    documentId: input.documentId,
+    actorId: input.actorId,
+    sourceFormat: workerResponse.source_format,
+    items: workerResponse.scope_items,
+  })
+
+  // Auto-BOM stays compatibility-only until Core draft-BOM parity is proven.
+  let bom: AutoBomResult | null = null
+  if (scopeItemsCreated > 0) {
+    try {
+      bom = await calcDraftBomFromScope({
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        documentId: input.documentId,
+      })
+    } catch (err) {
+      console.error('[parse-and-store] auto-BOM failed:', err)
+      result.warnings.push(
+        `Auto-BOM failed: ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
+  }
+
+  return { ...result, scopeItemsCreated, bom }
+}
+
+// Backward-compat alias — old name was DXF-specific
+export const parseAndStoreDxf = parseAndStoreCad
 
 interface DwgWorkerCallArgs {
   parserUrl: string
+  documentId: string
+  projectId: string
+  tenantId: string
+  storagePath: string
   fileName: string
-  sourceSha256: string
-  sourceUrl: string
 }
 
-async function callDwgWorker(args: DwgWorkerCallArgs): Promise<DwgWorkerResponse> {
+const WORKER_TIMEOUT_MS = 90_000 // DWG conversion can take a while on big files
+
+async function callDwgWorker(args: DwgWorkerCallArgs): Promise<WorkerParseResponse> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), WORKER_TIMEOUT_MS)
-
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const url = `${args.parserUrl.replace(/\/$/, '')}/parse`
     const sharedSecret = process.env.PARSER_SHARED_SECRET
-    if (!sharedSecret) throw new Error('PARSER_SHARED_SECRET is not configured')
-    headers.Authorization = `Bearer ${sharedSecret}`
-
-    const response = await fetch(`${args.parserUrl.replace(/\/$/, '')}/parse`, {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (sharedSecret) headers.Authorization = `Bearer ${sharedSecret}`
+    const res = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        job_id: randomUUID(),
-        attempt: 1,
-        source_url: args.sourceUrl,
-        source_sha256: args.sourceSha256,
-        source_format: 'dwg',
+        document_id: args.documentId,
+        project_id: args.projectId,
+        tenant_id: args.tenantId,
+        storage_path: args.storagePath,
+        format: 'dwg',
         file_name: args.fileName,
-        max_bytes: 100 * 1024 * 1024,
-        max_items: 5_000,
       }),
       signal: controller.signal,
     })
-    if (!response.ok) {
-      throw new Error(`worker returned ${response.status}`)
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`worker returned ${res.status}: ${text.slice(0, 200)}`)
     }
-
-    const parsed = workerResponseSchema.parse(await response.json())
-    if (parsed.source_sha256 !== args.sourceSha256) {
-      throw new Error('worker source hash mismatch')
-    }
-    return parsed
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
+    return parseWorkerResponse(await res.json(), args.documentId)
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
       throw new Error(`worker timed out after ${WORKER_TIMEOUT_MS / 1000}s`)
     }
-    throw error
+    throw err
   } finally {
     clearTimeout(timer)
   }

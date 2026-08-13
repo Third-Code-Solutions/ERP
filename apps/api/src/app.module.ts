@@ -1,15 +1,8 @@
-import {
-  Inject,
-  Logger,
-  Module,
-  type OnApplicationShutdown,
-} from '@nestjs/common'
+import { Module } from '@nestjs/common'
 import { BullModule } from '@nestjs/bullmq'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { APP_GUARD } from '@nestjs/core'
-import Redis from 'ioredis'
 import {
-  REDIS_CLIENT,
   redisConnectionOptions,
   validateEnvironment,
 } from './config/environment'
@@ -20,18 +13,20 @@ import { DatabaseModule } from './database/database.module'
 import { HealthController } from './health/health.controller'
 import { ProjectsModule } from './projects/projects.module'
 import { ProcurementModule } from './procurement/procurement.module'
-import { ProcessModule } from './process/process.module'
-
-const redisLogger = new Logger('Redis')
-
-class RedisLifecycle implements OnApplicationShutdown {
-  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
-
-  async onApplicationShutdown(): Promise<void> {
-    if (this.redis.status === 'end') return
-    await this.redis.quit().catch(() => this.redis.disconnect())
-  }
-}
+import { InventoryModule } from './inventory/inventory.module'
+import { CadModule } from './cad/cad.module'
+import { CrmModule } from './crm/crm.module'
+import { FinanceModule } from './finance/finance.module'
+import { DocumentsModule } from './documents/documents.module'
+import { AuditModule } from './audit/audit.module'
+import { ProviderQuotaModule } from './observability/provider-quota.module'
+import { RedisModule } from './observability/redis.module'
+import { AssetsModule } from './assets/assets.module'
+import { CortexModule } from './cortex/cortex.module'
+import { AdminModule } from './admin/admin.module'
+import { SearchModule } from './search/search.module'
+import { NotificationsModule } from './notifications/notifications.module'
+import { TodayModule } from './today/today.module'
 
 @Module({
   imports: [
@@ -39,6 +34,7 @@ class RedisLifecycle implements OnApplicationShutdown {
       isGlobal: true,
       validate: validateEnvironment,
     }),
+    RedisModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -57,34 +53,22 @@ class RedisLifecycle implements OnApplicationShutdown {
     AuthModule,
     ProjectsModule,
     ProcurementModule,
-    ProcessModule,
+    InventoryModule,
+    CadModule,
+    CrmModule,
+    FinanceModule,
+    DocumentsModule,
+    AuditModule,
+    ProviderQuotaModule,
+    AssetsModule,
+    CortexModule,
+    SearchModule,
+    AdminModule,
+    NotificationsModule,
+    TodayModule,
   ],
   controllers: [HealthController],
   providers: [
-    {
-      provide: REDIS_CLIENT,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const redis = new Redis(
-          config.getOrThrow<string>('REDIS_URL'),
-          {
-            lazyConnect: true,
-            maxRetriesPerRequest: null,
-          }
-        )
-        let connectionErrorReported = false
-        redis.on('error', (error) => {
-          if (connectionErrorReported) return
-          connectionErrorReported = true
-          redisLogger.warn(`Connection unavailable: ${error.message}`)
-        })
-        redis.on('ready', () => {
-          connectionErrorReported = false
-        })
-        return redis
-      },
-    },
-    RedisLifecycle,
     {
       provide: APP_GUARD,
       useClass: SupabaseJwtGuard,

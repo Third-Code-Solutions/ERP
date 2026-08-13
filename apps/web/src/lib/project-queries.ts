@@ -1,9 +1,49 @@
 import { db } from '@third-code-erp/database'
-import { projects } from '@third-code-erp/database/schema'
-import { eq, desc, asc, and, or, ilike, sql, type SQL } from 'drizzle-orm'
-import type { Project } from '@third-code-erp/database/schema'
+import {
+  dailyTasks,
+  deliverySchedules,
+  documents,
+  projects,
+  purchaseOrders,
+  punchlistItems,
+  progressUpdates,
+  variationOrders,
+} from '@third-code-erp/database/schema'
+import { eq, desc, asc, and, or, ilike, sql, type SQL, count, inArray } from 'drizzle-orm'
+import type { Project, ProgressUpdate } from '@third-code-erp/database/schema'
+import {
+  getProjectThroughCoreApi,
+  getProjectCommandCenterThroughCoreApi,
+  getProjectsThroughCoreApi,
+  projectCommandCenterReadsUseCoreApi,
+  projectReadsUseCoreApi,
+  projectListsUseCoreApi,
+} from './erp-core-client'
 
 export type { Project }
+
+export interface ProjectCommandCenterData {
+  pendingTasks: number
+  overdueTasks: number
+  documents: number
+  pendingDecisions: number
+  openPunchlist: number
+  activeDeliveries: number
+  progressPercent: number | null
+  progressWeekEnding: string | null
+}
+
+function readOverallProgress(value: ProgressUpdate['percent_by_category']): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = (value as Record<string, unknown>).overall_pct
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return null
+  return Math.max(0, Math.min(100, raw))
+}
+
+function numeric(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
 
 export const PROJECT_STATUS_VALUES = ['lead', 'active', 'on_hold', 'completed', 'cancelled'] as const
 export type ProjectStatus = (typeof PROJECT_STATUS_VALUES)[number]
@@ -46,6 +86,24 @@ export async function getProjects(tenantId: string) {
 }
 
 export async function getProject(tenantId: string, projectId: string) {
+  if (projectReadsUseCoreApi(tenantId)) {
+    const result = await getProjectThroughCoreApi(projectId)
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Project data was not read')
+    }
+    if (
+      result.data.id !== projectId ||
+      result.data.tenantId !== tenantId
+    ) {
+      throw new Error('Project read returned an invalid tenant scope')
+    }
+    return projectReadResultToRow(result.data)
+  }
+
+  return getProjectDirect(tenantId, projectId)
+}
+
+async function getProjectDirect(tenantId: string, projectId: string) {
   const [row] = await db
     .select()
     .from(projects)
@@ -60,6 +118,148 @@ export async function getProject(tenantId: string, projectId: string) {
   return row ?? null
 }
 
+export function projectReadResultToRow(
+  result: import('@third-code-erp/shared-types').ProjectReadResult
+): Project {
+  return {
+    id: result.id,
+    tenant_id: result.tenantId,
+    account_id: result.accountId,
+    name: result.name,
+    project_code: null,
+    client: result.client,
+    location: result.location,
+    project_type: result.projectType,
+    status: result.status,
+    total_sqm: result.totalSqm,
+    notes: result.notes,
+    created_by: result.createdBy,
+    created_at: new Date(result.createdAt),
+    updated_at: new Date(result.updatedAt),
+  }
+}
+
+/**
+ * Read-only, project-scoped operating signals for Project Command Center.
+ * Every query repeats tenant and project ownership predicates; no mutation or
+ * Cortex access happens here.
+ */
+export async function getProjectCommandCenter(
+  tenantId: string,
+  projectId: string,
+  now = new Date(),
+): Promise<ProjectCommandCenterData> {
+  if (projectCommandCenterReadsUseCoreApi(tenantId)) {
+    const result = await getProjectCommandCenterThroughCoreApi(projectId)
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Project signals were not read')
+    }
+    if (
+      result.data.tenantId !== tenantId ||
+      result.data.projectId !== projectId
+    ) {
+      throw new Error('Project command center returned an invalid tenant scope')
+    }
+    return {
+      pendingTasks: result.data.pendingTasks,
+      overdueTasks: result.data.overdueTasks,
+      documents: result.data.documents,
+      pendingDecisions: result.data.pendingDecisions,
+      openPunchlist: result.data.openPunchlist,
+      activeDeliveries: result.data.activeDeliveries,
+      progressPercent: result.data.progressPercent,
+      progressWeekEnding: result.data.progressWeekEnding,
+    }
+  }
+
+  const [taskRow, documentRow, decisionRow, punchlistRow, deliveryRow, progressRow] =
+    await Promise.all([
+      db
+        .select({
+          pending: count(),
+          overdue: sql<number>`count(*) filter (where ${dailyTasks.due_date} < ${now.toISOString()})`,
+        })
+        .from(dailyTasks)
+        .where(
+          and(
+            eq(dailyTasks.tenant_id, tenantId),
+            eq(dailyTasks.project_id, projectId),
+            eq(dailyTasks.status, 'pending'),
+          ),
+        ),
+      db
+        .select({ total: count() })
+        .from(documents)
+        .where(and(eq(documents.tenant_id, tenantId), eq(documents.project_id, projectId))),
+      db
+        .select({ total: count() })
+        .from(variationOrders)
+        .where(
+          and(
+            eq(variationOrders.tenant_id, tenantId),
+            eq(variationOrders.project_id, projectId),
+            inArray(variationOrders.status, [
+              'draft',
+              'pending_commercial_pricing',
+              'pending_client_signature',
+            ]),
+          ),
+        ),
+      db
+        .select({ total: count() })
+        .from(punchlistItems)
+        .where(
+          and(
+            eq(punchlistItems.tenant_id, tenantId),
+            eq(punchlistItems.project_id, projectId),
+            inArray(punchlistItems.status, ['open', 'in_progress', 'for_inspection']),
+          ),
+        ),
+      db
+        .select({ total: count() })
+        .from(deliverySchedules)
+        .innerJoin(
+          purchaseOrders,
+          and(
+            eq(purchaseOrders.id, deliverySchedules.purchase_order_id),
+            eq(purchaseOrders.tenant_id, tenantId),
+            eq(purchaseOrders.project_id, projectId),
+          ),
+        )
+        .where(
+          and(
+            eq(deliverySchedules.tenant_id, tenantId),
+            inArray(deliverySchedules.status, [
+              'scheduled',
+              'site_preparing',
+              'site_ready',
+              'in_transit',
+              'received',
+              'inspecting',
+            ]),
+          ),
+        ),
+      db
+        .select({ percentByCategory: progressUpdates.percent_by_category, weekEnding: progressUpdates.week_ending })
+        .from(progressUpdates)
+        .where(and(eq(progressUpdates.tenant_id, tenantId), eq(progressUpdates.project_id, projectId)))
+        .orderBy(desc(progressUpdates.week_ending))
+        .limit(1),
+    ])
+
+  const latestProgress = progressRow[0]
+  return {
+    pendingTasks: numeric(taskRow[0]?.pending),
+    overdueTasks: numeric(taskRow[0]?.overdue),
+    documents: numeric(documentRow[0]?.total),
+    pendingDecisions: numeric(decisionRow[0]?.total),
+    openPunchlist: numeric(punchlistRow[0]?.total),
+    activeDeliveries: numeric(deliveryRow[0]?.total),
+    progressPercent: latestProgress ? readOverallProgress(latestProgress.percentByCategory) : null,
+    progressWeekEnding: latestProgress?.weekEnding?.toISOString() ?? null,
+  }
+}
+
 export async function getProjectsFiltered(
   tenantId: string,
   filters: ProjectFilters
@@ -68,6 +268,36 @@ export async function getProjectsFiltered(
   const order: ProjectOrder = filters.order ?? 'desc'
   const page = Math.max(1, filters.page ?? 1)
   const limit = Math.min(MAX_LIMIT, Math.max(1, filters.limit ?? DEFAULT_LIMIT))
+
+  if (projectListsUseCoreApi(tenantId)) {
+    const result = await getProjectsThroughCoreApi({
+      q: filters.q,
+      status: filters.status,
+      projectType: filters.type,
+      sort,
+      order,
+      page,
+      limit,
+    })
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Project list was not read')
+    }
+    if (
+      result.data.page !== page ||
+      result.data.limit !== limit ||
+      result.data.rows.some((row) => row.tenantId !== tenantId)
+    ) {
+      throw new Error('Project list returned an invalid tenant scope')
+    }
+    return {
+      rows: result.data.rows.map(projectReadResultToRow),
+      total: result.data.total,
+      page: result.data.page,
+      limit: result.data.limit,
+      totalPages: result.data.totalPages,
+    }
+  }
+
   const offset = (page - 1) * limit
 
   const conditions: SQL[] = [eq(projects.tenant_id, tenantId)]

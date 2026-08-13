@@ -11,7 +11,6 @@ const REFS = [
   ["pnpm/action-setup", "refs/tags/v4.4.0"],
   ["actions/setup-node", "refs/tags/v4.4.0"],
   ["actions/upload-artifact", "refs/tags/v4.6.2"],
-  ["gitleaks/gitleaks-action", "refs/tags/v2.3.9"],
 ];
 
 function getStatus(repo, refPath) {

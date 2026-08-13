@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@playwright/test", "node"]
+  },
+  "include": [
+    "../playwright.finance-ledger.config.ts",
+    "./finance-ledger-loopback.spec.ts"
+  ],
+  "exclude": ["node_modules"]
+}

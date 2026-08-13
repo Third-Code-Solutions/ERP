@@ -3,35 +3,33 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 import {
+  consumeRequestRateLimit,
   requestRateLimitKey,
-  shouldRateLimitRequest,
+  requestRateLimitPolicy,
 } from '@/lib/request-rate-limit'
-import { canViewPath, isAppRole } from '@/lib/operations/nav-config'
+import { isProtectedRoute } from '@/lib/protected-route'
+import {
+  isInvalidRefreshTokenError,
+  isSupabaseAuthCookieName,
+} from '@/lib/supabase-session-recovery'
 
 // ---------------------------------------------------------------------------
 // Rate limiting — in-memory sliding window per IP (Edge-compatible)
 // For production, replace with Upstash Redis or Vercel KV.
 // ---------------------------------------------------------------------------
-const RATE_LIMIT_WINDOW_MS = 60_000 // 1 minute
-const RATE_LIMIT_UNAUTH   = 100     // requests per window, unauthenticated
-const RATE_LIMIT_AUTH     = 1_000   // requests per window, authenticated
-
 // Edge-compatible map (resets on cold start; acceptable for MVP rate limiting)
-const requestCounts = new Map<string, { count: number; windowStart: number }>()
+const requestCounts = new Map<
+  string,
+  { count: number; windowStart: number }
+>()
 
-function isRateLimited(key: string, authenticated: boolean): boolean {
-  const limit = authenticated ? RATE_LIMIT_AUTH : RATE_LIMIT_UNAUTH
-  const now = Date.now()
-  const entry = requestCounts.get(key)
-
-  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    requestCounts.set(key, { count: 1, windowStart: now })
-    return false
-  }
-
-  entry.count += 1
-  if (entry.count > limit) return true
-  return false
+function isRateLimited(
+  key: string,
+  policy: ReturnType<typeof requestRateLimitPolicy>
+): boolean {
+  const result = consumeRequestRateLimit(requestCounts.get(key), policy)
+  requestCounts.set(key, result.entry)
+  return result.limited
 }
 
 // ---------------------------------------------------------------------------
@@ -53,6 +51,26 @@ function buildCSP(nonce: string): string {
   const scriptSrc = isDev
     ? `script-src 'self' 'unsafe-eval' 'unsafe-inline' 'nonce-${nonce}'`
     : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: 'unsafe-inline'`
+  let localSupabaseConnectSrc = ''
+  if (isDev) {
+    try {
+      const supabaseUrl = new URL(
+        process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+      )
+      if (
+        supabaseUrl.hostname === '127.0.0.1' ||
+        supabaseUrl.hostname === 'localhost' ||
+        supabaseUrl.hostname === '[::1]'
+      ) {
+        const websocketProtocol =
+          supabaseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+        localSupabaseConnectSrc =
+          ` ${supabaseUrl.origin} ${websocketProtocol}//${supabaseUrl.host}`
+      }
+    } catch {
+      // Invalid/missing local URL: retain the closed production-oriented CSP.
+    }
+  }
 
   return [
     "default-src 'self'",
@@ -63,7 +81,7 @@ function buildCSP(nonce: string): string {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com https://cdn.fontshare.com",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://api.openai.com https://vitals.vercel-insights.com",
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://api.openai.com https://vitals.vercel-insights.com${localSupabaseConnectSrc}`,
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
@@ -73,13 +91,25 @@ function buildCSP(nonce: string): string {
   ].join('; ')
 }
 
-function applyBaseSecurityHeaders(response: NextResponse): NextResponse {
-  response.headers.set('X-Content-Type-Options', 'nosniff')
-  response.headers.set('X-Frame-Options', 'DENY')
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
-  return response
+function buildSupabaseResponse(
+  requestHeaders: Headers
+): NextResponse {
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  })
+}
+
+function redirectToLogin(
+  request: NextRequest,
+  staleAuthCookieNames: readonly string[]
+): NextResponse {
+  const redirect = NextResponse.redirect(
+    new URL('/auth/login', request.url)
+  )
+  for (const name of staleAuthCookieNames) {
+    redirect.cookies.delete(name)
+  }
+  return redirect
 }
 
 // ---------------------------------------------------------------------------
@@ -91,7 +121,7 @@ export async function middleware(request: NextRequest) {
   // Monitoring probes must not depend on Supabase Auth session refresh or the
   // per-instance request limiter. /api/ready performs its own database check.
   if (pathname === '/api/health' || pathname === '/api/ready') {
-    return applyBaseSecurityHeaders(NextResponse.next())
+    return NextResponse.next()
   }
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
@@ -115,9 +145,8 @@ export async function middleware(request: NextRequest) {
   // we return is rebuilt whenever Supabase writes refreshed auth cookies, so
   // we route every NextResponse.next() through this factory to guarantee the
   // modified request headers (including the nonce) survive each rebuild.
-  let supabaseResponse = NextResponse.next({
-    request: { headers: requestHeaders },
-  })
+  let supabaseResponse = buildSupabaseResponse(requestHeaders)
+  let staleAuthCookieNames: string[] = []
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -131,9 +160,7 @@ export async function middleware(request: NextRequest) {
           for (const { name, value } of cookiesToSet) {
             request.cookies.set(name, value)
           }
-          supabaseResponse = NextResponse.next({
-            request: { headers: requestHeaders },
-          })
+          supabaseResponse = buildSupabaseResponse(requestHeaders)
           for (const { name, value, options } of cookiesToSet) {
             supabaseResponse.cookies.set(name, value, options)
           }
@@ -142,96 +169,69 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] =
+    null
+  try {
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  } catch (error) {
+    // A revoked/expired refresh token must not turn every request into a
+    // server exception. Remove only Supabase auth cookies, then continue as
+    // anonymous so protected routes still redirect through the normal gate.
+    if (!isInvalidRefreshTokenError(error)) throw error
+
+    staleAuthCookieNames = request.cookies
+      .getAll()
+      .map(({ name }) => name)
+      .filter(isSupabaseAuthCookieName)
+    for (const name of staleAuthCookieNames) {
+      request.cookies.delete(name)
+    }
+    requestHeaders.set('cookie', request.cookies.toString())
+    supabaseResponse = buildSupabaseResponse(requestHeaders)
+    for (const name of staleAuthCookieNames) {
+      supabaseResponse.cookies.delete(name)
+    }
+  }
 
   // Rate limiting
-  if (
-    shouldRateLimitRequest(pathname, request.method) &&
-    isRateLimited(requestRateLimitKey(ip, user?.id), !!user)
-  ) {
-    return applyBaseSecurityHeaders(new NextResponse('Too Many Requests', {
+  const rateLimitPolicy = requestRateLimitPolicy(pathname, !!user)
+  const rateLimitKey = `${requestRateLimitKey(ip, user?.id)}:${rateLimitPolicy.bucket}`
+  if (isRateLimited(rateLimitKey, rateLimitPolicy)) {
+    return new NextResponse('Too Many Requests', {
       status: 429,
       headers: {
         'Retry-After': '60',
-        'X-RateLimit-Limit': String(user ? RATE_LIMIT_AUTH : RATE_LIMIT_UNAUTH),
+        'X-RateLimit-Limit': String(rateLimitPolicy.limit),
+        'X-RateLimit-Scope': rateLimitPolicy.bucket,
         'Content-Type': 'text/plain',
       },
-    }))
+    })
   }
 
   // Auth redirects
   if (user && pathname.startsWith('/auth')) {
-    return applyBaseSecurityHeaders(NextResponse.redirect(new URL('/dashboard', request.url)))
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   if (!user && pathname.startsWith('/dashboard')) {
-    return applyBaseSecurityHeaders(NextResponse.redirect(new URL('/auth/login', request.url)))
+    return redirectToLogin(request, staleAuthCookieNames)
   }
 
   if (!user && isProtectedRoute(pathname)) {
-    return applyBaseSecurityHeaders(NextResponse.redirect(new URL('/auth/login', request.url)))
-  }
-
-  // Enforce role-scoped dashboard boundaries before Next renders a server
-  // component. Server-component redirects may stream as HTTP 200 plus a
-  // client navigation; middleware keeps direct API/browser requests on a
-  // deterministic 307 contract.
-  if (
-    user &&
-    isProtectedRoute(pathname) &&
-    !canViewPath('viewer', pathname)
-  ) {
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (isAppRole(profile?.role) && !canViewPath(profile.role, pathname)) {
-      return applyBaseSecurityHeaders(
-        NextResponse.redirect(new URL('/dashboard?error=forbidden', request.url))
-      )
-    }
+    return redirectToLogin(request, staleAuthCookieNames)
   }
 
   // Security headers on every rendered response
   supabaseResponse.headers.set('x-nonce', nonce)
   supabaseResponse.headers.set('Content-Security-Policy', csp)
-  applyBaseSecurityHeaders(supabaseResponse)
+  supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff')
+  supabaseResponse.headers.set('X-Frame-Options', 'DENY')
+  supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  supabaseResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  supabaseResponse.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
 
   return supabaseResponse
-}
-
-function isProtectedRoute(pathname: string): boolean {
-  const protectedPrefixes = [
-    '/dashboard',
-    '/projects',
-    '/pipeline',
-    '/bom',
-    '/cortex',
-    '/finance',
-    '/inventory',
-    '/invoices',
-    '/purchase-orders',
-    '/documents',
-    '/reports',
-    '/settings',
-    '/procurement',
-    '/process',
-    // ABI OPS modules added across the refactor
-    '/crm',
-    '/admin',
-    '/tasks',
-    '/permits',
-    '/punchlist',
-    '/warranty',
-    '/claims',
-    '/inspection',
-    '/weekly-report',
-  ]
-  return protectedPrefixes.some((prefix) => pathname.startsWith(prefix))
 }
 
 export const config = {

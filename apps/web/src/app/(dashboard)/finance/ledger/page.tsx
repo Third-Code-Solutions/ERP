@@ -11,6 +11,10 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import { and, desc, eq, gte, lte, type SQL } from 'drizzle-orm'
+import {
+  financeLedgerReadsUseCoreApi,
+  getFinanceLedgerThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 export const metadata: Metadata = { title: 'General ledger' }
 
@@ -31,6 +35,25 @@ function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const parsed = new Date(`${value}T00:00:00Z`)
   return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value
+}
+
+type LedgerDisplayRow = {
+  id: string
+  entry_id: string
+  entry_number: string | null
+  posting_date: string
+  entry_description: string
+  account_code: string
+  account_name: string
+  project_id: string | null
+  project_name: string | null
+  business_account_id: string | null
+  business_account_name: string | null
+  vendor_id: string | null
+  vendor_name: string | null
+  line_description: string | null
+  debit_cents: number
+  credit_cents: number
 }
 
 export default async function LedgerPage({
@@ -68,8 +91,53 @@ export default async function LedgerPage({
     conditions.push(lte(journalEntries.posting_date, filters.to))
   }
 
-  const [ledgerAccountRows, businessAccounts, vendorRows, rows] =
-    await Promise.all([
+  let ledgerAccountRows: Array<{ id: string; code: string; name: string }>
+  let businessAccounts: Array<{ id: string; name: string }>
+  let vendorRows: Array<{ id: string; name: string }>
+  let rows: LedgerDisplayRow[]
+  let totalDebit: number
+  let totalCredit: number
+
+  if (financeLedgerReadsUseCoreApi(profile.tenantId)) {
+    const result = await getFinanceLedgerThroughCoreApi({
+      accountId: filters.account && isUuid(filters.account) ? filters.account : undefined,
+      customerId:
+        filters.customer && isUuid(filters.customer) ? filters.customer : undefined,
+      vendorId: filters.vendor && isUuid(filters.vendor) ? filters.vendor : undefined,
+      projectId: undefined,
+      from: filters.from && isIsoDate(filters.from) ? filters.from : undefined,
+      to: filters.to && isIsoDate(filters.to) ? filters.to : undefined,
+      page: 1,
+      limit: 500,
+    })
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Finance ledger was not read')
+    }
+    ledgerAccountRows = result.data.ledgerAccounts
+    businessAccounts = result.data.businessAccounts
+    vendorRows = result.data.vendors
+    rows = result.data.rows.map((row) => ({
+      id: row.id,
+      entry_id: row.entryId,
+      entry_number: row.entryNumber,
+      posting_date: row.postingDate,
+      entry_description: row.entryDescription,
+      account_code: row.accountCode,
+      account_name: row.accountName,
+      project_id: row.projectId,
+      project_name: row.projectName,
+      business_account_id: row.customerId,
+      business_account_name: row.customerName,
+      vendor_id: row.vendorId,
+      vendor_name: row.vendorName,
+      line_description: row.lineDescription,
+      debit_cents: row.debitCents,
+      credit_cents: row.creditCents,
+    }))
+    totalDebit = result.data.totalDebitCents
+    totalCredit = result.data.totalCreditCents
+  } else {
+    const directResult = await Promise.all([
       db
         .select({
           id: ledgerAccounts.id,
@@ -96,71 +164,75 @@ export default async function LedgerPage({
         .where(eq(vendors.tenant_id, profile.tenantId))
         .orderBy(vendors.name),
       db
-      .select({
-        id: journalLines.id,
-        entry_id: journalEntries.id,
-        entry_number: journalEntries.entry_number,
-        posting_date: journalEntries.posting_date,
-        entry_description: journalEntries.description,
-        account_code: ledgerAccounts.code,
-        account_name: ledgerAccounts.name,
-        project_id: projects.id,
-        project_name: projects.name,
-        business_account_id: accounts.id,
-        business_account_name: accounts.name,
-        vendor_id: vendors.id,
-        vendor_name: vendors.name,
-        line_description: journalLines.description,
-        debit_cents: journalLines.debit_cents,
-        credit_cents: journalLines.credit_cents,
-      })
-      .from(journalLines)
-      .innerJoin(
-        journalEntries,
-        and(
-          eq(journalEntries.id, journalLines.journal_entry_id),
-          eq(journalEntries.tenant_id, journalLines.tenant_id)
+        .select({
+          id: journalLines.id,
+          entry_id: journalEntries.id,
+          entry_number: journalEntries.entry_number,
+          posting_date: journalEntries.posting_date,
+          entry_description: journalEntries.description,
+          account_code: ledgerAccounts.code,
+          account_name: ledgerAccounts.name,
+          project_id: projects.id,
+          project_name: projects.name,
+          business_account_id: accounts.id,
+          business_account_name: accounts.name,
+          vendor_id: vendors.id,
+          vendor_name: vendors.name,
+          line_description: journalLines.description,
+          debit_cents: journalLines.debit_cents,
+          credit_cents: journalLines.credit_cents,
+        })
+        .from(journalLines)
+        .innerJoin(
+          journalEntries,
+          and(
+            eq(journalEntries.id, journalLines.journal_entry_id),
+            eq(journalEntries.tenant_id, journalLines.tenant_id)
+          )
         )
-      )
-      .innerJoin(
-        ledgerAccounts,
-        and(
-          eq(ledgerAccounts.id, journalLines.ledger_account_id),
-          eq(ledgerAccounts.tenant_id, journalLines.tenant_id)
+        .innerJoin(
+          ledgerAccounts,
+          and(
+            eq(ledgerAccounts.id, journalLines.ledger_account_id),
+            eq(ledgerAccounts.tenant_id, journalLines.tenant_id)
+          )
         )
-      )
-      .leftJoin(
-        projects,
-        and(
-          eq(projects.id, journalLines.project_id),
-          eq(projects.tenant_id, journalLines.tenant_id)
+        .leftJoin(
+          projects,
+          and(
+            eq(projects.id, journalLines.project_id),
+            eq(projects.tenant_id, journalLines.tenant_id)
+          )
         )
-      )
-      .leftJoin(
-        accounts,
-        and(
-          eq(accounts.id, journalLines.business_account_id),
-          eq(accounts.tenant_id, journalLines.tenant_id)
+        .leftJoin(
+          accounts,
+          and(
+            eq(accounts.id, journalLines.business_account_id),
+            eq(accounts.tenant_id, journalLines.tenant_id)
+          )
         )
-      )
-      .leftJoin(
-        vendors,
-        and(
-          eq(vendors.id, journalLines.vendor_id),
-          eq(vendors.tenant_id, journalLines.tenant_id)
+        .leftJoin(
+          vendors,
+          and(
+            eq(vendors.id, journalLines.vendor_id),
+            eq(vendors.tenant_id, journalLines.tenant_id)
+          )
         )
-      )
-      .where(and(...conditions))
-      .orderBy(
-        desc(journalEntries.posting_date),
-        desc(journalEntries.entry_number),
-        journalLines.line_number
-      )
-      .limit(500),
+        .where(and(...conditions))
+        .orderBy(
+          desc(journalEntries.posting_date),
+          desc(journalEntries.entry_number),
+          journalLines.line_number
+        )
+        .limit(500),
     ])
-
-  const totalDebit = rows.reduce((sum, row) => sum + row.debit_cents, 0)
-  const totalCredit = rows.reduce((sum, row) => sum + row.credit_cents, 0)
+    ledgerAccountRows = directResult[0]
+    businessAccounts = directResult[1]
+    vendorRows = directResult[2]
+    rows = directResult[3]
+    totalDebit = rows.reduce((sum, row) => sum + row.debit_cents, 0)
+    totalCredit = rows.reduce((sum, row) => sum + row.credit_cents, 0)
+  }
 
   return (
     <div>

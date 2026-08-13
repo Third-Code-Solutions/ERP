@@ -5,13 +5,12 @@ const mocks = vi.hoisted(() => ({
   can: vi.fn(),
   createRfqFromBomRecord: vi.fn(),
   notifyRfqCreated: vi.fn(),
+  rfqCreateWritesUseCoreApi: vi.fn(),
+  createRfqThroughCoreApi: vi.fn(),
   logRfqQuoteRecord: vi.fn(),
-  awardRfqQuoteRecord: vi.fn(),
   rfqQuoteWritesUseCoreApi: vi.fn(),
   logRfqQuoteThroughCoreApi: vi.fn(),
-  rfqAwardWritesUseCoreApi: vi.fn(),
-  awardRfqQuoteThroughCoreApi: vi.fn(),
-  rfqTransitionWritesUseCoreApi: vi.fn(),
+  rfqTerminalWritesUseCoreApi: vi.fn(),
   transitionRfqThroughCoreApi: vi.fn(),
   transitionRfqRecord: vi.fn(),
   notifyRfqCompleted: vi.fn(),
@@ -42,18 +41,17 @@ vi.mock('@/lib/procurement/rfq-service', () => ({
 
 vi.mock('@/lib/procurement/rfq-workflow-service', () => ({
   logRfqQuoteRecord: mocks.logRfqQuoteRecord,
-  awardRfqQuoteRecord: mocks.awardRfqQuoteRecord,
   transitionRfqRecord: mocks.transitionRfqRecord,
   notifyRfqCompleted: mocks.notifyRfqCompleted,
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
+  rfqCreateWritesUseCoreApi: mocks.rfqCreateWritesUseCoreApi,
+  createRfqThroughCoreApi: mocks.createRfqThroughCoreApi,
   rfqQuoteWritesUseCoreApi: mocks.rfqQuoteWritesUseCoreApi,
   logRfqQuoteThroughCoreApi: mocks.logRfqQuoteThroughCoreApi,
-  rfqAwardWritesUseCoreApi: mocks.rfqAwardWritesUseCoreApi,
-  awardRfqQuoteThroughCoreApi: mocks.awardRfqQuoteThroughCoreApi,
-  rfqTransitionWritesUseCoreApi:
-    mocks.rfqTransitionWritesUseCoreApi,
+  rfqTerminalWritesUseCoreApi:
+    mocks.rfqTerminalWritesUseCoreApi,
   transitionRfqThroughCoreApi:
     mocks.transitionRfqThroughCoreApi,
 }))
@@ -63,7 +61,6 @@ vi.mock('next/cache', () => ({
 }))
 
 import {
-  awardRfqQuote,
   cancelRfq,
   completeRfq,
   createRfqFromBom,
@@ -96,14 +93,23 @@ describe('RFQ Server Action authority', () => {
       created: true,
     })
     mocks.notifyRfqCreated.mockResolvedValue(undefined)
+    mocks.rfqCreateWritesUseCoreApi.mockReturnValue(false)
+    mocks.createRfqThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        rfqId: RFQ_ID,
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        lineCount: 1,
+        created: true,
+      },
+    })
     mocks.logRfqQuoteRecord.mockResolvedValue({
       quoteId: '99999999-9999-4999-8999-999999999999',
       created: true,
       statusChanged: true,
     })
     mocks.rfqQuoteWritesUseCoreApi.mockReturnValue(false)
-    mocks.rfqAwardWritesUseCoreApi.mockReturnValue(false)
-    mocks.rfqTransitionWritesUseCoreApi.mockReturnValue(false)
     mocks.logRfqQuoteThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
@@ -112,23 +118,7 @@ describe('RFQ Server Action authority', () => {
         statusChanged: true,
       },
     })
-    mocks.awardRfqQuoteThroughCoreApi.mockResolvedValue({
-      ok: true,
-      data: {
-        rfqId: RFQ_ID,
-        quoteId: '99999999-9999-4999-8999-999999999999',
-        tenantId: TENANT_ID,
-        priceHistoryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-        awarded: true,
-      },
-    })
-    mocks.awardRfqQuoteRecord.mockResolvedValue({
-      rfqId: RFQ_ID,
-      quoteId: '99999999-9999-4999-8999-999999999999',
-      tenantId: TENANT_ID,
-      priceHistoryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      awarded: true,
-    })
+    mocks.rfqTerminalWritesUseCoreApi.mockReturnValue(false)
     mocks.transitionRfqThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
@@ -178,6 +168,43 @@ describe('RFQ Server Action authority', () => {
         'Forbidden: role "procurement" lacks "rfq.dispatch"',
     })
     expect(mocks.createRfqFromBomRecord).not.toHaveBeenCalled()
+  })
+
+  it('uses the independent Nest creation gate without legacy fallback', async () => {
+    mocks.rfqCreateWritesUseCoreApi.mockReturnValue(true)
+
+    await expect(createRfqFromBom(BOM_ID)).resolves.toEqual({
+      rfqId: RFQ_ID,
+    })
+
+    expect(mocks.rfqCreateWritesUseCoreApi).toHaveBeenCalledWith(
+      TENANT_ID
+    )
+    expect(mocks.createRfqThroughCoreApi).toHaveBeenCalledWith({
+      bomId: BOM_ID,
+    })
+    expect(mocks.createRfqFromBomRecord).not.toHaveBeenCalled()
+    expect(mocks.notifyRfqCreated).toHaveBeenCalledWith({
+      rfqId: RFQ_ID,
+      tenantId: TENANT_ID,
+      projectId: PROJECT_ID,
+      lineCount: 1,
+      created: true,
+    })
+  })
+
+  it('fails closed when selected Nest creation is unavailable', async () => {
+    mocks.rfqCreateWritesUseCoreApi.mockReturnValue(true)
+    mocks.createRfqThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No RFQ was created.',
+    })
+
+    await expect(createRfqFromBom(BOM_ID)).resolves.toEqual({
+      error: 'ERP Core API is unavailable. No RFQ was created.',
+    })
+    expect(mocks.createRfqFromBomRecord).not.toHaveBeenCalled()
+    expect(mocks.notifyRfqCreated).not.toHaveBeenCalled()
   })
 
   it('does not duplicate notification when the transaction returns a retry', async () => {
@@ -304,45 +331,6 @@ describe('RFQ Server Action authority', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
-  it('awards through the tenant-scoped legacy transaction service', async () => {
-    const quoteId = '99999999-9999-4999-8999-999999999999'
-
-    await expect(awardRfqQuote(RFQ_ID, quoteId)).resolves.toEqual({})
-
-    expect(mocks.awardRfqQuoteRecord).toHaveBeenCalledWith({
-      tenantId: TENANT_ID,
-      actorId: ACTOR_ID,
-      rfqId: RFQ_ID,
-      quoteId,
-    })
-    expect(mocks.awardRfqQuoteThroughCoreApi).not.toHaveBeenCalled()
-    expect(mocks.revalidatePath).toHaveBeenCalledWith(
-      `/procurement/rfqs/${RFQ_ID}`
-    )
-  })
-
-  it('uses the Nest award command only for an explicitly enabled tenant', async () => {
-    const quoteId = '99999999-9999-4999-8999-999999999999'
-    mocks.rfqAwardWritesUseCoreApi.mockReturnValue(true)
-
-    await expect(awardRfqQuote(RFQ_ID, quoteId)).resolves.toEqual({})
-
-    expect(mocks.awardRfqQuoteThroughCoreApi).toHaveBeenCalledWith(
-      RFQ_ID,
-      quoteId,
-    )
-    expect(mocks.awardRfqQuoteRecord).not.toHaveBeenCalled()
-  })
-
-  it('rejects malformed award identifiers before transaction authority', async () => {
-    await expect(
-      awardRfqQuote('not-a-uuid', 'also-not-a-uuid')
-    ).resolves.toEqual({
-      error: 'RFQ and quote identifiers must be valid UUIDs',
-    })
-    expect(mocks.awardRfqQuoteRecord).not.toHaveBeenCalled()
-  })
-
   it('completes through the transaction service then notifies', async () => {
     await expect(completeRfq(RFQ_ID)).resolves.toEqual({})
 
@@ -373,15 +361,14 @@ describe('RFQ Server Action authority', () => {
     warn.mockRestore()
   })
 
-  it('uses the Nest transition command only for an explicitly enabled tenant', async () => {
-    mocks.rfqTransitionWritesUseCoreApi.mockReturnValue(true)
+  it('completes through Nest only for an explicitly enabled tenant', async () => {
+    mocks.rfqTerminalWritesUseCoreApi.mockReturnValue(true)
 
     await expect(completeRfq(RFQ_ID)).resolves.toEqual({})
 
     expect(mocks.transitionRfqThroughCoreApi).toHaveBeenCalledWith(
       RFQ_ID,
-      { command: 'complete' },
-      'complete'
+      { command: 'complete' }
     )
     expect(mocks.transitionRfqRecord).not.toHaveBeenCalled()
     expect(mocks.notifyRfqCompleted).toHaveBeenCalledWith({
@@ -409,5 +396,23 @@ describe('RFQ Server Action authority', () => {
       error: 'Cancellation reason must be 1000 characters or fewer',
     })
     expect(mocks.transitionRfqRecord).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the enabled Nest cancellation is unavailable', async () => {
+    mocks.rfqTerminalWritesUseCoreApi.mockReturnValue(true)
+    mocks.transitionRfqThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error:
+        'ERP Core API is unavailable. No RFQ transition was committed.',
+    })
+
+    await expect(
+      cancelRfq(RFQ_ID, 'Supplier withdrew')
+    ).resolves.toEqual({
+      error:
+        'ERP Core API is unavailable. No RFQ transition was committed.',
+    })
+    expect(mocks.transitionRfqRecord).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 })

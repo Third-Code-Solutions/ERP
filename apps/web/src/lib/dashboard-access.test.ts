@@ -61,4 +61,41 @@ describe('permission-aware dashboard loading', () => {
     expect(executive).toHaveBeenCalledOnce()
     expect(myWork).not.toHaveBeenCalled()
   })
+
+  it('falls back to the scoped work view when executive data fails', async () => {
+    const executive = vi.fn(async () => {
+      throw new Error('optional analytics table is unavailable')
+    })
+    const myWork = vi.fn(async () => ({ dueToday: 3 }))
+
+    const result = await loadDashboardForRole(
+      'finance',
+      {
+        executive,
+        myWork,
+      },
+      { onExecutiveFailure: myWork }
+    )
+
+    expect(result).toEqual({
+      mode: 'degraded',
+      data: { dueToday: 3 },
+    })
+    expect(executive).toHaveBeenCalledOnce()
+    expect(myWork).toHaveBeenCalledOnce()
+  })
+
+  it('preserves the original executive failure when no fallback is supplied', async () => {
+    const failure = new Error('analytics unavailable')
+    const executive = vi.fn(async () => {
+      throw failure
+    })
+
+    await expect(
+      loadDashboardForRole('admin', {
+        executive,
+        myWork: vi.fn(async () => ({ dueToday: 0 })),
+      })
+    ).rejects.toBe(failure)
+  })
 })

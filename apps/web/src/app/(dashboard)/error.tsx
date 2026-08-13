@@ -3,37 +3,61 @@
 import Link from 'next/link'
 import { useEffect } from 'react'
 
-type RouteError = Error & { digest?: string }
+type DashboardRouteError = Error & { digest?: string }
 
 export default function DashboardError({
   error,
   reset,
 }: {
-  error: RouteError
+  error: DashboardRouteError
   reset: () => void
 }) {
+  const digest = error.digest ?? 'unavailable'
+
   useEffect(() => {
-    console.error('[erp-dashboard-error]', error.digest ?? 'unclassified')
-  }, [error])
+    // Keep browser diagnostics opaque; server logs retain the full failure.
+    console.error('[dashboard] render failed', digest)
+  }, [digest])
 
   return (
-    <main className="route-state route-state-error" role="alert">
-      <p className="page-eyebrow">Workspace interruption</p>
-      <h1 className="page-title">This view could not load</h1>
-      <p className="page-subtitle">
-        Your records were not changed. Retry the view or return to Dashboard.
-      </p>
-      <div className="route-state-actions">
-        <button type="button" className="button button-primary" onClick={reset}>
-          Retry view
-        </button>
-        <Link className="button button-secondary" href="/dashboard">
-          Go to Dashboard
-        </Link>
-      </div>
-      {error.digest ? (
-        <p className="route-state-reference">Reference: {error.digest}</p>
-      ) : null}
-    </main>
+    <div
+      className="dashboard-route-error"
+      role="alert"
+      aria-labelledby="dashboard-route-error-title"
+    >
+      <section className="dashboard-route-error-panel">
+        <div className="dashboard-route-error-copy">
+          <p className="finance-eyebrow">Workspace recovery</p>
+          <h1 id="dashboard-route-error-title">
+            Workspace paused before anything changed.
+          </h1>
+          <p>
+            ABI OPS could not render this view. Your records remain
+            unchanged. Retry the view or return to your dashboard while the
+            incident is investigated.
+          </p>
+          <div className="dashboard-route-error-actions">
+            <button
+              type="button"
+              className="finance-primary-button"
+              onClick={reset}
+            >
+              Retry view
+            </button>
+            <Link href="/dashboard" className="finance-secondary-link">
+              Return to dashboard
+            </Link>
+          </div>
+          <p className="dashboard-route-error-reference">
+            Reference <code>{digest}</code> when contacting support.
+          </p>
+        </div>
+        <div className="dashboard-route-error-signal" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      </section>
+    </div>
   )
 }

@@ -8,13 +8,24 @@ const mocks = vi.hoisted(() => ({
   limit: vi.fn(),
 }))
 
+const coreMocks = vi.hoisted(() => ({
+  getProjectThroughCoreApi: vi.fn(),
+  getProjectCommandCenterThroughCoreApi: vi.fn(),
+  getProjectsThroughCoreApi: vi.fn(),
+  projectCommandCenterReadsUseCoreApi: vi.fn(),
+  projectReadsUseCoreApi: vi.fn(),
+  projectListsUseCoreApi: vi.fn(),
+}))
+
 vi.mock('@third-code-erp/database', () => ({
   db: {
     select: mocks.select,
   },
 }))
 
-import { getProject } from './project-queries'
+vi.mock('./erp-core-client', () => coreMocks)
+
+import { getProject, getProjectsFiltered } from './project-queries'
 
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
@@ -22,6 +33,9 @@ const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 describe('getProject', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    coreMocks.projectReadsUseCoreApi.mockReturnValue(false)
+    coreMocks.projectListsUseCoreApi.mockReturnValue(false)
+    coreMocks.projectCommandCenterReadsUseCoreApi.mockReturnValue(false)
     mocks.select.mockReturnValue({ from: mocks.from })
     mocks.from.mockReturnValue({ where: mocks.where })
     mocks.where.mockReturnValue({ limit: mocks.limit })
@@ -45,5 +59,225 @@ describe('getProject', () => {
     mocks.limit.mockResolvedValue([])
 
     await expect(getProject(TENANT_ID, PROJECT_ID)).resolves.toBeNull()
+  })
+
+  it('uses the tenant-gated Nest read contract when enabled', async () => {
+    coreMocks.projectReadsUseCoreApi.mockReturnValue(true)
+    coreMocks.getProjectThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        id: PROJECT_ID,
+        tenantId: TENANT_ID,
+        name: 'Core Project',
+        client: 'Core Client',
+        status: 'active',
+        projectType: 'mep',
+        totalSqm: 250,
+        location: 'Makati',
+        notes: null,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T01:00:00.000Z',
+        accountId: null,
+        createdBy: null,
+      },
+    })
+
+    await expect(getProject(TENANT_ID, PROJECT_ID)).resolves.toMatchObject({
+      id: PROJECT_ID,
+      tenant_id: TENANT_ID,
+      name: 'Core Project',
+      project_type: 'mep',
+      created_at: new Date('2026-08-04T00:00:00.000Z'),
+      updated_at: new Date('2026-08-04T01:00:00.000Z'),
+    })
+    expect(coreMocks.getProjectThroughCoreApi).toHaveBeenCalledWith(PROJECT_ID)
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the Nest read returns another tenant', async () => {
+    coreMocks.projectReadsUseCoreApi.mockReturnValue(true)
+    coreMocks.getProjectThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        id: PROJECT_ID,
+        tenantId: '99999999-9999-4999-8999-999999999999',
+        name: 'Wrong Tenant',
+        client: 'Hidden Client',
+        status: 'active',
+        projectType: 'mep',
+        totalSqm: null,
+        location: null,
+        notes: null,
+        createdAt: '2026-08-04T00:00:00.000Z',
+        updatedAt: '2026-08-04T00:00:00.000Z',
+        accountId: null,
+        createdBy: null,
+      },
+    })
+
+    await expect(getProject(TENANT_ID, PROJECT_ID)).rejects.toThrow(
+      'invalid tenant scope'
+    )
+  })
+
+  it('uses the tenant-gated Nest list contract when enabled', async () => {
+    coreMocks.projectListsUseCoreApi.mockReturnValue(true)
+    coreMocks.getProjectsThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        rows: [
+          {
+            id: PROJECT_ID,
+            tenantId: TENANT_ID,
+            name: 'Core Project',
+            client: 'Core Client',
+            status: 'active',
+            projectType: 'mep',
+            totalSqm: 250,
+            location: 'Makati',
+            notes: null,
+            createdAt: '2026-08-04T00:00:00.000Z',
+            updatedAt: '2026-08-04T01:00:00.000Z',
+            accountId: null,
+            createdBy: null,
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+      },
+    })
+
+    await expect(
+      getProjectsFiltered(TENANT_ID, {
+        q: 'Core',
+        status: 'active',
+        type: 'mep',
+        sort: 'name',
+        order: 'asc',
+        page: 1,
+        limit: 20,
+      })
+    ).resolves.toMatchObject({
+      total: 1,
+      rows: [
+        expect.objectContaining({
+          id: PROJECT_ID,
+          tenant_id: TENANT_ID,
+          project_type: 'mep',
+        }),
+      ],
+    })
+    expect(coreMocks.getProjectsThroughCoreApi).toHaveBeenCalledWith({
+      q: 'Core',
+      status: 'active',
+      projectType: 'mep',
+      sort: 'name',
+      order: 'asc',
+      page: 1,
+      limit: 20,
+    })
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the Nest list returns another tenant', async () => {
+    coreMocks.projectListsUseCoreApi.mockReturnValue(true)
+    coreMocks.getProjectsThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        rows: [
+          {
+            id: PROJECT_ID,
+            tenantId: '99999999-9999-4999-8999-999999999999',
+            name: 'Wrong Tenant',
+            client: 'Hidden Client',
+            status: 'active',
+            projectType: 'mep',
+            totalSqm: null,
+            location: null,
+            notes: null,
+            createdAt: '2026-08-04T00:00:00.000Z',
+            updatedAt: '2026-08-04T00:00:00.000Z',
+            accountId: null,
+            createdBy: null,
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+      },
+    })
+
+    await expect(
+      getProjectsFiltered(TENANT_ID, { page: 1, limit: 20 })
+    ).rejects.toThrow('invalid tenant scope')
+  })
+})
+
+describe('getProjectCommandCenter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    coreMocks.projectCommandCenterReadsUseCoreApi.mockReturnValue(true)
+  })
+
+  it('uses the tenant-gated Nest command center contract when enabled', async () => {
+    coreMocks.getProjectCommandCenterThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        tenantId: TENANT_ID,
+        projectId: PROJECT_ID,
+        pendingTasks: 2,
+        overdueTasks: 1,
+        documents: 3,
+        pendingDecisions: 1,
+        openPunchlist: 2,
+        activeDeliveries: 1,
+        progressPercent: 42,
+        progressWeekEnding: '2026-08-10T00:00:00.000Z',
+      },
+    })
+
+    const { getProjectCommandCenter } = await import('./project-queries')
+    await expect(
+      getProjectCommandCenter(TENANT_ID, PROJECT_ID)
+    ).resolves.toEqual({
+      pendingTasks: 2,
+      overdueTasks: 1,
+      documents: 3,
+      pendingDecisions: 1,
+      openPunchlist: 2,
+      activeDeliveries: 1,
+      progressPercent: 42,
+      progressWeekEnding: '2026-08-10T00:00:00.000Z',
+    })
+    expect(coreMocks.getProjectCommandCenterThroughCoreApi).toHaveBeenCalledWith(
+      PROJECT_ID
+    )
+    expect(mocks.select).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when Core returns another project scope', async () => {
+    coreMocks.getProjectCommandCenterThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        tenantId: '99999999-9999-4999-8999-999999999999',
+        projectId: PROJECT_ID,
+        pendingTasks: 0,
+        overdueTasks: 0,
+        documents: 0,
+        pendingDecisions: 0,
+        openPunchlist: 0,
+        activeDeliveries: 0,
+        progressPercent: null,
+        progressWeekEnding: null,
+      },
+    })
+
+    const { getProjectCommandCenter } = await import('./project-queries')
+    await expect(
+      getProjectCommandCenter(TENANT_ID, PROJECT_ID)
+    ).rejects.toThrow('invalid tenant scope')
   })
 })

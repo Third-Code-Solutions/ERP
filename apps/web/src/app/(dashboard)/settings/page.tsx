@@ -22,7 +22,14 @@ export default async function SettingsPage() {
         <p className="page-subtitle">Workspace preferences and account management</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', maxWidth: '860px' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
+          gap: '24px',
+          maxWidth: '860px',
+        }}
+      >
         {/* Workspace card */}
         <div
           style={{

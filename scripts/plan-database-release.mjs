@@ -23,6 +23,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   analyzeLedger,
+  analyzeSecurityCatalog,
   releaseGatePassed,
   scanSqlRisk,
   sha256,
@@ -93,6 +94,32 @@ try {
   )
   const applied = appliedRows.map((row) => row.version)
   const ledger = analyzeLedger(versions, applied)
+  const [securityRow] = await sql.unsafe(
+    `select
+       (
+         select count(*)::int
+           from pg_class c
+           join pg_namespace n on n.oid = c.relnamespace
+           cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as privilege
+          where n.nspname = 'public'
+            and c.relkind in ('r', 'p')
+            and has_table_privilege(
+              'anon',
+              format('public.%I', c.relname),
+              privilege
+            )
+       ) as anon_table_privilege_count,
+       (
+         select count(*)::int
+           from pg_policies
+          where schemaname = 'public'
+            and roles @> ARRAY['public']::name[]
+       ) as public_policy_count`
+  )
+  const security = analyzeSecurityCatalog({
+    anonTablePrivilegeCount: securityRow?.anon_table_privilege_count,
+    publicPolicyCount: securityRow?.public_policy_count,
+  })
   const missingSet = new Set(ledger.missing)
   const missingMigrations = migrations.filter((migration) =>
     missingSet.has(migration.version)
@@ -106,6 +133,7 @@ try {
       ),
       appliedCount: applied.length,
       appliedHead: applied.at(-1) ?? null,
+      security,
     },
     repository: {
       migrationCount: migrations.length,
@@ -126,6 +154,7 @@ try {
       Number(server?.server_version_num ?? 0) >= 180000
         ? ['target is not PostgreSQL 17']
         : []),
+      ...security.blockers,
     ],
     wo02: null,
   }
@@ -168,6 +197,9 @@ try {
     )
     console.log(
       `Missing: ${ledger.missing.length}; unexpected: ${ledger.unexpected.length}; applied after first gap: ${ledger.appliedAfterFirstGap.length}`
+    )
+    console.log(
+      `Security: anon table privilege rows: ${security.anonTablePrivilegeCount}; public policies: ${security.publicPolicyCount}`
     )
 
     if (report.blockers.length > 0) {

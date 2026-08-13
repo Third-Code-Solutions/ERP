@@ -38,6 +38,13 @@ const CARDS: AdminCard[] = [
     capability: 'admin.system_config',
   },
   {
+    href: '/admin/data-quality',
+    title: 'Data quality',
+    subtitle:
+      'Read-only review of duplicate identifiers and release blockers before a migration.',
+    capability: 'admin.system_config',
+  },
+  {
     href: '/admin/users',
     title: 'Users',
     subtitle:

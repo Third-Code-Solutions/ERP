@@ -1,0 +1,87 @@
+# Web Database Boundary Review
+
+## M3.217 CAD evidence producer boundary
+
+The selected CAD upload path parses evidence without Web scope/BOM writes, then
+calls Nest Core. Core errors are terminal; compatibility persistence and
+auto-BOM remain reachable only while selector is false. Static inventory still
+lists direct writes intentionally. Parser/route tests, root tests, lint,
+typecheck, build, and guards pass; runtime replay and protected/hosted proof
+remain open.
+
+## M3.216 CAD evidence adapter
+
+The server-only Web client can now call Nest CAD evidence authority for an
+exact tenant, with strict worker-response validation and terminal selected-Core
+errors. It is not connected to `upload/complete`; Web parser/scope/BOM writes
+remain compatibility behavior until parity and rollback evidence exist. The
+static route inventory is unchanged and still intentionally lists the
+temporary direct write path. Root tests, lint, typecheck, production build,
+boundary, migration, workflow-reference, provider-spend, and diff gates pass;
+runtime replay and protected/hosted proof remain open.
+
+## M3.215 DocuSeal webhook authority update
+
+The callback now has a closed exact-tenant Web selector and server-to-server
+Core adapter. When selected, Core owns the portal-token/document/BOM-lock
+transaction and a Core error is terminal; the legacy `insert`/`update` branch
+is not re-entered. Web notification delivery remains an ancillary side effect
+after a successful first Core commit. The direct route remains listed while
+the selector is false so the static guard continues to expose the temporary
+compatibility authority.
+
+## M3.214 notification authority update
+
+The notification route now has a closed exact-tenant Nest selector for list
+and read-state behavior. The legacy `update` remains visible to the static
+guard because it is still the compatibility fallback while the selector is
+false; selected-Core errors never re-enter that direct branch. Core applies
+tenant + recipient predicates and audits read-state changes.
+
+## M3.199 follow-up
+
+The planned Nest document-intake contract now exists, but the legacy
+`upload/complete` allowlist entry remains active because the Web adapter is not
+connected. See `DOCUMENT_INTAKE_REVIEW.md`; migration replay and response
+parity are the next gates.
+
+## M3.198 scope
+
+This packet covers only runtime files under `apps/web/src/app/api`. It is a
+source-only guard, not a deployment or database approval. The Next API remains
+compatible while direct authorities are migrated incrementally into Nest.
+
+## Current inventory
+
+Direct Web writes are explicit and temporary:
+
+| Route | Operations | Migration owner | Boundary note |
+| --- | --- | --- | --- |
+| `apps/web/src/app/api/bom/togal-commit/route.ts` | `insert`, `transaction`, `update` | Nest BOM commit authority | Core canary exists; legacy branch remains while the canary is closed. |
+| `apps/web/src/app/api/notifications/route.ts` | `update` | Nest notification read-state authority | User + tenant predicates; not an ERP posting. |
+| `apps/web/src/app/api/upload/complete/route.ts` | `insert`, `transaction` | Nest document intake authority | Tenant/project path and role checks precede the insert. |
+| `apps/web/src/app/api/webhooks/docuseal/route.ts` | `insert`, `update` | Nest signature webhook authority | Secret-gated callback; token use, document attach, and BOM lock are idempotent legacy work. |
+
+Read-only `db.execute` is separately classified for the similarity query and
+`SELECT 1` readiness probe. Any new direct write or unclassified raw execute
+fails `pnpm verify:web-db-boundary`.
+
+The guard intentionally does not claim that Server Actions and internal Web
+services are migrated. Those remain the broader M3.199+ authority inventory;
+this milestone prevents the Next API surface from growing new direct writes.
+
+## Validation and rollback
+
+- `pnpm test:web-db-boundary` — current inventory and synthetic bypass cases.
+- `pnpm verify:web-db-boundary` — read-only report; expected status `clear`.
+- CI runs the test in both hosted and self-hosted workflows.
+- Rollback is deleting the verifier/workflow/docs commit; no runtime schema,
+  data, environment, provider, or deployment state changes.
+
+## Exact next action
+
+Keep all Core canaries and hosted actions closed under the cost lock. M3.199
+should add a strict Nest document-intake contract, parity tests, idempotency,
+and a disabled-by-default Web adapter before removing
+`upload/complete` from the allowlist. Do not infer production authority from
+this static guard.

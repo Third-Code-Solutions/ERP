@@ -1,36 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getUserProfile: vi.fn(),
-  select: vi.fn(),
-  update: vi.fn(),
-  updateSet: vi.fn(),
-  updateWhere: vi.fn(),
-  writeAuditLog: vi.fn(),
-  computeDiff: vi.fn(),
-  projectWritesUseCoreApi: vi.fn(),
+  requireUserProfile: vi.fn(),
+  requireCapability: vi.fn(),
+  getProjectThroughCoreApi: vi.fn(),
   updateProjectThroughCoreApi: vi.fn(),
   revalidatePath: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
-  getUserProfile: mocks.getUserProfile,
-}))
-
-vi.mock('@third-code-erp/database', () => ({
-  db: {
-    select: mocks.select,
-    update: mocks.update,
-  },
-}))
-
-vi.mock('@/lib/audit', () => ({
-  writeAuditLog: mocks.writeAuditLog,
-  computeDiff: mocks.computeDiff,
+  requireUserProfile: mocks.requireUserProfile,
+  requireCapability: mocks.requireCapability,
 }))
 
 vi.mock('@/lib/erp-core-client', () => ({
-  projectWritesUseCoreApi: mocks.projectWritesUseCoreApi,
+  getProjectThroughCoreApi: mocks.getProjectThroughCoreApi,
   updateProjectThroughCoreApi: mocks.updateProjectThroughCoreApi,
 }))
 
@@ -44,6 +28,13 @@ const USER_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const UPDATED_AT = new Date('2026-07-28T00:00:00.000Z')
+const PROFILE = {
+  user: { id: USER_ID },
+  tenantId: TENANT_ID,
+  role: 'admin',
+  email: 'admin@example.test',
+  fullName: 'Admin',
+}
 
 const EXISTING = {
   id: PROJECT_ID,
@@ -55,13 +46,7 @@ const EXISTING = {
   total_sqm: 100,
   location: null,
   notes: null,
-  updated_at: UPDATED_AT,
-}
-
-function selectQuery(rows: unknown[]) {
-  const where = vi.fn().mockResolvedValue(rows)
-  const from = vi.fn().mockReturnValue({ where })
-  return { from }
+  updatedAt: UPDATED_AT.toISOString(),
 }
 
 function projectForm(): FormData {
@@ -76,26 +61,33 @@ function projectForm(): FormData {
   return form
 }
 
-describe('Project update migration switch', () => {
+describe('Project update Core authority', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getUserProfile.mockResolvedValue({
-      user: { id: USER_ID },
-      tenantId: TENANT_ID,
-      role: 'pm',
-      email: 'pm@example.com',
-      fullName: 'PM User',
+    mocks.requireUserProfile.mockResolvedValue(PROFILE)
+    mocks.requireCapability.mockReturnValue(undefined)
+    mocks.getProjectThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        id: PROJECT_ID,
+        tenantId: TENANT_ID,
+        name: EXISTING.name,
+        client: EXISTING.client,
+        status: EXISTING.status,
+        projectType: EXISTING.project_type,
+        totalSqm: EXISTING.total_sqm,
+        location: EXISTING.location,
+        notes: EXISTING.notes,
+        createdAt: '2026-07-27T00:00:00.000Z',
+        updatedAt: EXISTING.updatedAt,
+        accountId: null,
+        createdBy: USER_ID,
+      },
     })
-    mocks.select.mockReturnValueOnce(selectQuery([EXISTING]))
-    mocks.updateWhere.mockResolvedValue(undefined)
-    mocks.updateSet.mockReturnValue({ where: mocks.updateWhere })
-    mocks.update.mockReturnValue({ set: mocks.updateSet })
-    mocks.computeDiff.mockReturnValue({ name: ['Existing', 'Updated'] })
-    mocks.writeAuditLog.mockResolvedValue(undefined)
     mocks.updateProjectThroughCoreApi.mockResolvedValue({
       ok: true,
       data: {
-        ...EXISTING,
+        id: PROJECT_ID,
         tenantId: TENANT_ID,
         projectType: 'fit_out',
         totalSqm: 125,
@@ -106,29 +98,84 @@ describe('Project update migration switch', () => {
     })
   })
 
-  it('keeps the legacy write and audit path active when flag is false', async () => {
-    mocks.projectWritesUseCoreApi.mockReturnValue(false)
-
+  it('routes Project updates through Core and sends the read concurrency token', async () => {
     await expect(
       updateProject(PROJECT_ID, projectForm())
     ).resolves.toEqual({})
 
-    expect(mocks.update).toHaveBeenCalledOnce()
-    expect(mocks.writeAuditLog).toHaveBeenCalledOnce()
-    expect(mocks.updateProjectThroughCoreApi).not.toHaveBeenCalled()
-    expect(mocks.projectWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+    expect(mocks.getProjectThroughCoreApi).toHaveBeenCalledWith(PROJECT_ID)
+    expect(mocks.updateProjectThroughCoreApi).toHaveBeenCalledWith(
+      PROJECT_ID,
+      expect.objectContaining({
+        status: 'active',
+        expectedUpdatedAt: UPDATED_AT.toISOString(),
+      })
+    )
+    expect(mocks.requireCapability).toHaveBeenCalledWith(PROFILE, 'project.update')
   })
 
-  it('routes only through Nest when flag is true', async () => {
-    mocks.projectWritesUseCoreApi.mockReturnValue(true)
+  it('returns a Core read failure without attempting a write', async () => {
+    mocks.getProjectThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'Project not found.',
+    })
 
     await expect(
       updateProject(PROJECT_ID, projectForm())
-    ).resolves.toEqual({})
+    ).resolves.toEqual({ error: 'Project not found.' })
 
+    expect(mocks.updateProjectThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when Core returns a different tenant or Project', async () => {
+    mocks.getProjectThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        id: '44444444-4444-4444-8444-444444444444',
+        tenantId: '55555555-5555-4555-8555-555555555555',
+        name: EXISTING.name,
+        client: EXISTING.client,
+        status: EXISTING.status,
+        projectType: EXISTING.project_type,
+        totalSqm: EXISTING.total_sqm,
+        location: EXISTING.location,
+        notes: EXISTING.notes,
+        createdAt: '2026-07-27T00:00:00.000Z',
+        updatedAt: EXISTING.updatedAt,
+        accountId: null,
+        createdBy: USER_ID,
+      },
+    })
+
+    await expect(
+      updateProject(PROJECT_ID, projectForm())
+    ).resolves.toEqual({ error: 'Project read returned an invalid tenant scope.' })
+    expect(mocks.updateProjectThroughCoreApi).not.toHaveBeenCalled()
+  })
+
+  it('returns Core terminal-transition rejection without a direct write', async () => {
+    mocks.updateProjectThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'Project status cannot change from completed to active',
+    })
+    const form = projectForm()
+    form.set('status', 'active')
+
+    await expect(updateProject(PROJECT_ID, form)).resolves.toEqual({
+      error: 'Project status cannot change from completed to active',
+    })
     expect(mocks.updateProjectThroughCoreApi).toHaveBeenCalledOnce()
-    expect(mocks.update).not.toHaveBeenCalled()
-    expect(mocks.writeAuditLog).not.toHaveBeenCalled()
-    expect(mocks.projectWritesUseCoreApi).toHaveBeenCalledWith(TENANT_ID)
+  })
+
+  it('requires project.update before reading through Core', async () => {
+    mocks.requireCapability.mockImplementation(() => {
+      throw new Error('Forbidden')
+    })
+
+    await expect(updateProject(PROJECT_ID, projectForm())).rejects.toThrow(
+      'Forbidden'
+    )
+    expect(mocks.getProjectThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.updateProjectThroughCoreApi).not.toHaveBeenCalled()
   })
 })

@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   getCortexGraph: vi.fn(),
   getCortexFocusedGraph: vi.fn(),
   getCortexNodeByRef: vi.fn(),
+  cortexGraphReadsUseCoreApi: vi.fn(),
+  getCortexGraphThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -18,11 +20,23 @@ vi.mock('@third-code-erp/database', () => ({
   getCortexNodeByRef: mocks.getCortexNodeByRef,
 }))
 
+vi.mock('@/lib/erp-core-client', () => ({
+  cortexGraphReadsUseCoreApi: mocks.cortexGraphReadsUseCoreApi,
+  getCortexGraphThroughCoreApi: mocks.getCortexGraphThroughCoreApi,
+}))
+
 import { GET } from './route'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const REF_ID = '22222222-2222-4222-8222-222222222222'
 const NODE_ID = '33333333-3333-4333-8333-333333333333'
+
+function expectPrivate(response: Response) {
+  expect(response.headers.get('cache-control')).toBe(
+    'private, no-store, max-age=0'
+  )
+  expect(response.headers.get('vary')).toBe('Cookie')
+}
 
 function request(query = '') {
   return GET(new NextRequest(`http://localhost/api/cortex/graph${query}`))
@@ -42,9 +56,19 @@ describe('Cortex focused graph authorization', () => {
     })
     mocks.getCortexFocusedGraph.mockResolvedValue({
       focusNodeId: NODE_ID,
-      nodes: [{ id: NODE_ID }],
+      nodes: [
+        {
+          id: NODE_ID,
+          type: 'journal_entry',
+          title: 'Journal 1042',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
       links: [],
     })
+    mocks.cortexGraphReadsUseCoreApi.mockReturnValue(false)
   })
 
   it('requires an authenticated profile', async () => {
@@ -53,6 +77,7 @@ describe('Cortex focused graph authorization', () => {
     const response = await request()
 
     expect(response.status).toBe(401)
+    expectPrivate(response)
     expect(mocks.getCortexGraph).not.toHaveBeenCalled()
     expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
   })
@@ -61,12 +86,54 @@ describe('Cortex focused graph authorization', () => {
     const response = await request()
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(mocks.getCortexGraph).toHaveBeenCalledWith(
       TENANT_ID,
       1500,
       expect.arrayContaining(['journal_entry'])
     )
     expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
+  })
+
+  it('sanitizes malformed whole-graph rows on the compatibility path', async () => {
+    mocks.getCortexGraph.mockResolvedValue({
+      nodes: [
+        {
+          id: NODE_ID,
+          type: 'journal_entry',
+          title: 'Journal 1042',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+        {
+          id: 'not-a-uuid',
+          type: 'journal_entry',
+          title: 'Malformed',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
+      links: [{ source: NODE_ID, target: 'not-a-uuid', type: 'bad' }],
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      nodes: [
+        {
+          id: NODE_ID,
+          type: 'journal_entry',
+          title: 'Journal 1042',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
+      links: [],
+    })
   })
 
   it('rejects partial or malformed focus before database access', async () => {
@@ -77,6 +144,8 @@ describe('Cortex focused graph authorization', () => {
 
     expect(partial.status).toBe(400)
     expect(malformed.status).toBe(400)
+    expectPrivate(partial)
+    expectPrivate(malformed)
     expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
   })
 
@@ -86,6 +155,7 @@ describe('Cortex focused graph authorization', () => {
     )
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(mocks.getCortexNodeByRef).toHaveBeenCalledWith(
       TENANT_ID,
       'journal_entries',
@@ -111,10 +181,35 @@ describe('Cortex focused graph authorization', () => {
     )
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     await expect(response.json()).resolves.toEqual({
       error: 'Focused record not found',
     })
     expect(mocks.getCortexFocusedGraph).not.toHaveBeenCalled()
+  })
+
+  it('conceals a focused graph whose focus row fails sanitization', async () => {
+    mocks.getCortexFocusedGraph.mockResolvedValue({
+      focusNodeId: NODE_ID,
+      nodes: [
+        {
+          id: 'not-a-uuid',
+          type: 'journal_entry',
+          title: 'Malformed focus',
+          refTable: 'journal_entries',
+          refId: REF_ID,
+          projectId: null,
+        },
+      ],
+      links: [],
+    })
+
+    const response = await request(
+      `?refTable=journal_entries&refId=${REF_ID}`
+    )
+
+    expect(response.status).toBe(404)
+    expectPrivate(response)
   })
 
   it('rejects a node type that does not own the requested source', async () => {
@@ -128,6 +223,56 @@ describe('Cortex focused graph authorization', () => {
     )
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     expect(mocks.getCortexFocusedGraph).not.toHaveBeenCalled()
+  })
+
+  it('uses the closed Core adapter for an explicit tenant canary', async () => {
+    mocks.cortexGraphReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexGraphThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        focusNodeId: NODE_ID,
+        nodes: [
+          {
+            id: NODE_ID,
+            type: 'journal_entry',
+            title: 'Journal 1042',
+            refTable: 'journal_entries',
+            refId: REF_ID,
+            projectId: null,
+          },
+        ],
+        links: [],
+      },
+    })
+
+    const response = await request(
+      `?refTable=journal_entries&refId=${REF_ID}`
+    )
+
+    expect(response.status).toBe(200)
+    expectPrivate(response)
+    expect(mocks.getCortexGraphThroughCoreApi).toHaveBeenCalledWith({
+      refTable: 'journal_entries',
+      refId: REF_ID,
+    })
+    expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back when selected Core graph authority is unavailable', async () => {
+    mocks.cortexGraphReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexGraphThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'Cortex graph service is unavailable.',
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(503)
+    expectPrivate(response)
+    expect(mocks.getCortexGraph).not.toHaveBeenCalled()
+    expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
   })
 })

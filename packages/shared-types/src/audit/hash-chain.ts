@@ -11,7 +11,43 @@ export interface AuditEntry {
   created_at: Date
 }
 
-// Compute SHA256 hash for an audit log entry
+/**
+ * Matches public.audit_log_trigger() exactly. PostgreSQL renders a UTC
+ * timestamptz without a trailing zero fraction, so normalize the millisecond
+ * Date representation before hashing. Keep this separate from computeHash,
+ * which remains the generic JSON hash utility.
+ */
+function postgresTimestampText(value: Date): string {
+  const iso = value.toISOString()
+  const [date, timeWithZone] = iso.split('T')
+  if (!date || !timeWithZone) {
+    throw new Error('Invalid audit timestamp')
+  }
+  const time = timeWithZone.replace('Z', '')
+  const [clock, fraction = ''] = time.split('.')
+  const trimmedFraction = fraction.replace(/0+$/, '')
+  return `${date} ${clock}${trimmedFraction ? `.${trimmedFraction}` : ''}+00`
+}
+
+export async function computeDatabaseAuditHash(
+  prevHash: string,
+  row: Pick<AuditEntry, 'entity_type' | 'entity_id' | 'action' | 'created_at'>
+): Promise<string> {
+  const input =
+    prevHash +
+    row.entity_type +
+    row.entity_id +
+    row.action +
+    postgresTimestampText(row.created_at)
+  const encoder = new TextEncoder()
+  const data = encoder.encode(input)
+  const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+// Generic JSON SHA256 helper retained for non-database consumers. Audit-log
+// writers and verification must use computeDatabaseAuditHash below.
 export async function computeHash(
   prevHash: string,
   rowContent: Record<string, unknown>
@@ -55,12 +91,11 @@ export async function verifyHashChain(entries: AuditEntry[]): Promise<ChainVerif
       }
     }
 
-    const expectedHash = await computeHash(prevHash, {
+    const expectedHash = await computeDatabaseAuditHash(prevHash, {
       entity_type: entry.entity_type,
       entity_id: entry.entity_id,
       action: entry.action,
-      diff: entry.diff,
-      created_at: entry.created_at.toISOString(),
+      created_at: entry.created_at,
     })
 
     if (entry.hash !== expectedHash) {

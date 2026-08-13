@@ -548,7 +548,46 @@ runtimeSuite('Stock Movement runtime controls', () => {
     expect(rejected).toBe(true)
   })
 
-  it('can reverse posted evidence, then close the emptied target Warehouse safely', async () => {
+  it('rejects Warehouse deactivation while stock balance is nonzero', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedMovementFixture(tx)
+      const movementId = await createMovement(
+        tx,
+        fixture,
+        'transfer',
+        1_000_000
+      )
+      await tx.unsafe(
+        `select * from post_stock_movement(
+           '${movementId}', '${fixture.financeId}'
+         )`
+      )
+      let rejected = false
+      await tx.unsafe(`savepoint warehouse_deactivation_attempt`)
+      try {
+        await tx.unsafe(
+          `update warehouses
+           set is_active = false
+           where id = '${fixture.sourceWarehouseId}'`
+        )
+      } catch {
+        rejected = true
+        await tx.unsafe(
+          `rollback to savepoint warehouse_deactivation_attempt`
+        )
+      }
+      const warehouse = (await tx.unsafe(
+        `select is_active
+         from warehouses
+         where id = '${fixture.sourceWarehouseId}'`
+      )) as Rows
+      return { rejected, warehouse: warehouse[0] }
+    })
+    expect(result.rejected).toBe(true)
+    expect(result.warehouse?.is_active).toBe(true)
+  })
+
+  it('can reverse legacy posted evidence after a Warehouse closeout', async () => {
     const status = await inRollback(sqlClient, async (tx) => {
       const fixture = await seedMovementFixture(tx)
       const movementId = await createMovement(
@@ -563,6 +602,22 @@ runtimeSuite('Stock Movement runtime controls', () => {
          )`
       )
       await tx.unsafe(
+        `alter table public.warehouses
+         disable trigger guard_warehouse_deactivation_balance`
+      )
+      await tx.unsafe(
+        `update warehouses
+         set is_active = false
+         where id in (
+           '${fixture.sourceWarehouseId}',
+           '${fixture.targetWarehouseId}'
+         )`
+      )
+      await tx.unsafe(
+        `alter table public.warehouses
+         enable trigger guard_warehouse_deactivation_balance`
+      )
+      await tx.unsafe(
         `select * from reverse_stock_movement(
            '${movementId}',
            '${fixture.financeId}',
@@ -570,27 +625,13 @@ runtimeSuite('Stock Movement runtime controls', () => {
            '2026-07-28'
          )`
       )
-      await tx.unsafe(
-        `update warehouses
-         set is_active = false
-         where id = '${fixture.targetWarehouseId}'`
-      )
       return (await tx.unsafe(
-        `select
-           movement.status,
-           source.is_active as source_active,
-           target.is_active as target_active
-         from stock_movements movement
-         join warehouses source
-           on source.id = movement.source_warehouse_id
-         join warehouses target
-           on target.id = movement.target_warehouse_id
-        where movement.id = '${movementId}'`
+        `select status
+         from stock_movements
+         where id = '${movementId}'`
       )) as Rows
     })
     expect(status[0]?.status).toBe('reversed')
-    expect(status[0]?.source_active).toBe(true)
-    expect(status[0]?.target_active).toBe(false)
   })
 
   it('posts and reverses a positive count adjustment', async () => {

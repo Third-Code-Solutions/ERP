@@ -95,16 +95,13 @@ export interface UserProfile {
  * authorization decisions — never trust user_metadata for role.
  */
 export async function getUserProfile(): Promise<UserProfile | null> {
-  // Keep profile hydration on the caller's authenticated client. This makes
-  // the users read obey Supabase RLS instead of turning every page request
-  // into a service-role lookup that bypasses tenant policy.
   const supabase = await createSupabaseServerClient()
   const {
     data: { user },
-    error: userError,
+    error: authError,
   } = await supabase.auth.getUser()
 
-  if (userError || !user) return null
+  if (authError || !user) return null
 
   const { data, error } = await supabase
     .from('users')
@@ -163,15 +160,19 @@ export function hasRole(role: AppRole, minRole: AppRole): boolean {
  * and route guards. Returns true if the role is in the allow-list.
  */
 export type ErpCapability =
+  | 'project.create'
+  | 'project.update'
   | 'account.create'
+  | 'opportunity.read'
   | 'account.kyc_review'
   | 'opportunity.create'
   | 'opportunity.advance_stage'
   | 'opportunity.kyc_track_manage'
   | 'opportunity.kyc_track_approve'
-  | 'pprf.submit'
-  | 'site_inspection.submit'
   | 'project.award'
+  | 'pprf.submit'
+  | 'change_request.create'
+  | 'site_inspection.submit'
   | 'design.upload'
   | 'document.manage'
   | 'bom.generate'
@@ -185,6 +186,7 @@ export type ErpCapability =
   | 'po.create'
   | 'po.approve'
   | 'po.issue'
+  | 'po.receive'
   | 'sd.daily_tasks'
   | 'punchlist.manage'
   | 'warranty.manage'
@@ -198,6 +200,8 @@ export type ErpCapability =
   | 'finance.issue_invoice'
   | 'finance.post_supplier_bill'
   | 'finance.manage_cash'
+  | 'asset.read'
+  | 'asset.maintenance.manage'
   | 'inventory.read'
   | 'inventory.manage'
   | 'inventory.post_receipt'
@@ -206,24 +210,38 @@ export type ErpCapability =
   | 'budget.manage'
   | 'budget.approve_commercial'
   | 'budget.approve_finance'
-  | 'process.health.read'
-  | 'process.step.manage'
-  | 'process.task.manage'
-  | 'process.sla.manage'
-  | 'process.approval.manage'
+  | 'notification.read'
 
 const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
+  'project.create': ['admin', 'owner', 'sales', 'commercial', 'sd_pm_pe', 'pm', 'estimator'],
+  'project.update': ['admin', 'owner', 'sales', 'commercial', 'sd_pm_pe', 'pm'],
   // CRM
   'account.create': ['admin', 'owner', 'sales'],
+  'opportunity.read': [
+    'admin',
+    'owner',
+    'estimator',
+    'pm',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+    'viewer',
+  ],
   'account.kyc_review': ['admin', 'owner', 'finance'],
   'opportunity.create': ['admin', 'owner', 'sales'],
   'opportunity.advance_stage': ['admin', 'owner', 'sales'],
   'opportunity.kyc_track_manage': ['admin', 'owner', 'finance'],
-  'opportunity.kyc_track_approve': ['admin', 'owner'],
+  'opportunity.kyc_track_approve': ['admin', 'owner', 'finance'],
+  'project.award': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm'],
   // Proposal
   'pprf.submit': ['admin', 'owner', 'sales'],
+  'change_request.create': ['admin', 'owner', 'sales'],
   'site_inspection.submit': ['admin', 'owner', 'commercial'],
-  'project.award': ['admin', 'owner', 'commercial', 'finance', 'sd_pm_pe', 'pm'],
   'design.upload': ['admin', 'owner', 'design'],
   'document.manage': [
     'admin',
@@ -248,11 +266,12 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   'kyc.create_ar_code': ['admin', 'owner', 'finance'],
   // Pre-Con
   'precon.manage_checklist': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm'],
-  'precon.manage_permits': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm', 'safety'],
-  'precon.override_mobilization': ['admin', 'owner', 'sd_pm_pe', 'pm'],
+  'precon.manage_permits': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm'],
+  'precon.override_mobilization': ['admin', 'owner', 'commercial', 'pm'],
   'po.create': ['admin', 'owner', 'commercial', 'sd_pm_pe', 'pm', 'procurement'],
   'po.approve': ['admin', 'owner', 'commercial'],
   'po.issue': ['admin', 'owner', 'procurement'],
+  'po.receive': ['admin', 'owner', 'procurement', 'finance'],
   // Construction
   'sd.daily_tasks': ['admin', 'owner', 'sd_pm_pe', 'pm', 'safety'],
   'punchlist.manage': ['admin', 'owner', 'sd_pm_pe', 'pm', 'cx'],
@@ -268,6 +287,27 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   'finance.issue_invoice': ['admin', 'owner', 'finance'],
   'finance.post_supplier_bill': ['admin', 'owner', 'finance'],
   'finance.manage_cash': ['admin', 'owner', 'finance'],
+  'asset.read': [
+    'admin',
+    'owner',
+    'sales',
+    'commercial',
+    'design',
+    'sd_pm_pe',
+    'pm',
+    'finance',
+    'procurement',
+    'safety',
+    'cx',
+    'viewer',
+  ],
+  'asset.maintenance.manage': [
+    'admin',
+    'owner',
+    'pm',
+    'sd_pm_pe',
+    'procurement',
+  ],
   'inventory.read': [
     'admin',
     'owner',
@@ -301,42 +341,20 @@ const CAPABILITY_ROLES: Record<ErpCapability, AppRole[]> = {
   ],
   'budget.approve_commercial': ['admin', 'owner', 'commercial'],
   'budget.approve_finance': ['admin', 'owner', 'finance'],
-  'process.health.read': [
+  'notification.read': [
     'admin',
     'owner',
-    'commercial',
+    'estimator',
+    'pm',
     'sales',
+    'commercial',
     'design',
     'sd_pm_pe',
-    'pm',
-    'estimator',
     'finance',
     'procurement',
     'safety',
     'cx',
     'viewer',
-  ],
-  'process.step.manage': ['admin', 'owner'],
-  'process.task.manage': [
-    'admin',
-    'owner',
-    'commercial',
-    'design',
-    'sd_pm_pe',
-    'pm',
-    'procurement',
-    'safety',
-    'cx',
-  ],
-  'process.sla.manage': ['admin', 'owner', 'sd_pm_pe', 'pm'],
-  'process.approval.manage': [
-    'admin',
-    'owner',
-    'commercial',
-    'finance',
-    'procurement',
-    'sd_pm_pe',
-    'pm',
   ],
 }
 

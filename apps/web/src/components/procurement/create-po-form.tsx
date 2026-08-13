@@ -64,8 +64,14 @@ export function CreatePoForm({
     emptyLine(costCodes[0]?.id ?? ''),
   ])
   const [error, setError] = useState('')
+  const [idempotencyKey, setIdempotencyKey] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+
+  function openForm() {
+    setIdempotencyKey(crypto.randomUUID())
+    setIsOpen(true)
+  }
 
   function addLine() {
     setLines((prev) => [
@@ -120,6 +126,7 @@ export function CreatePoForm({
         setError(result.error)
       } else {
         setIsOpen(false)
+        setIdempotencyKey('')
         setLines([emptyLine(costCodes[0]?.id ?? '')])
         router.push(`/purchase-orders/${result.id}`)
       }
@@ -128,6 +135,7 @@ export function CreatePoForm({
 
   function handleClose() {
     setIsOpen(false)
+    setIdempotencyKey('')
     setError('')
     setLines([emptyLine(costCodes[0]?.id ?? '')])
   }
@@ -135,7 +143,7 @@ export function CreatePoForm({
   if (!isOpen) {
     return (
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={openForm}
         style={{
           background: 'var(--color-navy-700)',
           color: 'white',
@@ -161,6 +169,7 @@ export function CreatePoForm({
         onSubmit={handleSubmit}
         style={{ background: 'white', borderRadius: '10px', padding: '28px', width: '720px', maxWidth: '100%', boxShadow: '0 12px 40px rgba(0,0,0,0.18)', marginBottom: '32px' }}
       >
+        <input type="hidden" name="idempotency_key" value={idempotencyKey} readOnly />
         <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 24px', color: 'var(--color-neutral-900)' }}>
           Create Purchase Order
         </h2>

@@ -27,6 +27,10 @@ import {
   users,
 } from '@third-code-erp/database/schema'
 import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
+import {
+  changeRequestWritesUseCoreApi,
+  createChangeRequestThroughCoreApi,
+} from '@/lib/erp-core-client'
 import { startSlaClock } from '@/lib/operations/sla-clock'
 import { notifyRoles } from '@/lib/operations/notifications'
 import {
@@ -822,15 +826,12 @@ const logCrSchema = z.object({
   description: z.string().trim().min(2).max(5000),
   priority: z.enum(PRIORITY_VALUES).default('minor'),
   affected_design_file_id: z.string().uuid().optional(),
-  idempotency_key: z.string().trim().min(1).max(256),
+  idempotency_key: z.string().trim().min(1).max(256).optional(),
 })
 
 export async function logChangeRequest(formData: FormData): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
-  // Per the matrix, change-request logging is owned by sales. We reuse the
-  // pprf.submit capability since both belong to the sales role; this keeps
-  // the guard set small while behaviour matches the matrix.
-  const forbid = guard(profile.role, 'pprf.submit')
+  const forbid = guard(profile.role, 'change_request.create')
   if (forbid) return { error: forbid }
 
   const affected = formData.get('affected_design_file_id')
@@ -840,13 +841,43 @@ export async function logChangeRequest(formData: FormData): Promise<{ error?: st
     description: formData.get('description'),
     priority: formData.get('priority') || 'minor',
     affected_design_file_id: typeof affected === 'string' && affected.length > 0 ? affected : undefined,
-    idempotency_key: formData.get('idempotency_key'),
+    idempotency_key: formData.get('idempotency_key') ?? undefined,
   })
   if (!parsed.success) {
     const first = parsed.error.errors[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
   const input = parsed.data
+
+  if (changeRequestWritesUseCoreApi(profile.tenantId)) {
+    const requestedIdempotencyKey = input.idempotency_key
+    const idempotencyKey =
+      requestedIdempotencyKey && requestedIdempotencyKey.trim().length > 0
+        ? requestedIdempotencyKey.trim()
+        : randomUUID()
+    const coreResult = await createChangeRequestThroughCoreApi(
+      input.opportunity_id,
+      {
+        requestedByName: input.requested_by_name,
+        description: input.description,
+        priority: input.priority,
+        affectedDesignFileId: input.affected_design_file_id ?? null,
+      },
+      idempotencyKey,
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return {
+        error:
+          coreResult.error ??
+          'Change Request could not be created through ERP Core.',
+      }
+    }
+    revalidatePath(
+      `/crm/opportunities/${input.opportunity_id}/proposal/change-requests`,
+    )
+    revalidatePath(`/crm/opportunities/${input.opportunity_id}/proposal`)
+    return {}
+  }
 
   let result: {
     error?: string
@@ -863,7 +894,7 @@ export async function logChangeRequest(formData: FormData): Promise<{ error?: st
         description: input.description,
         priority: input.priority as ChangeRequestPriority,
         affectedDesignFileId: input.affected_design_file_id ?? null,
-        idempotencyKey: input.idempotency_key,
+        idempotencyKey: input.idempotency_key ?? randomUUID(),
       }),
     )
   } catch (error: unknown) {

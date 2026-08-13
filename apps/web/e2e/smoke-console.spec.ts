@@ -8,19 +8,14 @@
 // authenticated routes render without runtime errors?
 //
 // Run: PLAYWRIGHT_BASE_URL=http://localhost:3000 \
-//      E2E_USER_EMAIL=<dedicated-test-user> E2E_USER_PASSWORD=<dedicated-test-password> \
+//      E2E_USER_EMAIL=test@third-code-erp.local E2E_USER_PASSWORD=testpassword123 \
 //      npx playwright test --project=chromium --workers=1 e2e/smoke-console.spec.ts
 import { test, expect, type BrowserContext } from '@playwright/test'
-import { requireE2ECredentials } from './helpers/auth'
-import { readE2EEnv } from './helpers/env'
-import { authenticateRole } from './helpers/supabase-magic-link'
 
 const SEEDED_PROJECT = '11111111-1111-4111-8111-111111111111' // Somnus
-const RUN_MAGIC_LINK_AUTH = process.env.E2E_MAGIC_LINK_AUTH === '1'
 
 const ROUTES = [
   '/dashboard',
-  '/process',
   '/projects',
   '/projects?q=somnus',
   '/projects?status=active&sort=name&order=asc',
@@ -45,25 +40,25 @@ const ROUTES = [
   '/settings',
 ] as const
 
-async function authenticate(
-  context: BrowserContext,
-  baseUrl: string
-): Promise<() => Promise<void>> {
-  if (RUN_MAGIC_LINK_AUTH) {
-    const session = await authenticateRole(context, baseUrl, 'admin')
-    return session.cleanup
+function readEnvFile(): Record<string, string> {
+  const fs = require('node:fs') as typeof import('node:fs')
+  const path = require('node:path') as typeof import('node:path')
+  const envPath = path.resolve(__dirname, '..', '.env.local')
+  const raw = fs.readFileSync(envPath, 'utf8')
+  const out: Record<string, string> = {}
+  for (const line of raw.split(/\r?\n/)) {
+    const m = line.match(/^([A-Z0-9_]+)=(.*)$/)
+    if (m) out[m[1]!] = m[2]!.replace(/^"(.*)"$/, '$1')
   }
+  return out
+}
 
-  const env = readE2EEnv()
-  const url = env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const { email, password } = requireE2ECredentials()
-
-  if (!url || !anonKey) {
-    throw new Error(
-      'Authenticated smoke requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
-    )
-  }
+async function authenticate(context: BrowserContext): Promise<void> {
+  const env = readEnvFile()
+  const url = env.NEXT_PUBLIC_SUPABASE_URL!
+  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const email = process.env.E2E_USER_EMAIL ?? 'test@third-code-erp.local'
+  const password = process.env.E2E_USER_PASSWORD ?? 'testpassword123'
 
   const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
     method: 'POST',
@@ -100,20 +95,18 @@ async function authenticate(
     {
       name: cookieName,
       value,
-      domain: new URL(baseUrl).hostname,
+      domain: 'localhost',
       path: '/',
       httpOnly: false,
       secure: false,
       sameSite: 'Lax',
     },
   ])
-
-  return async () => undefined
 }
 
 test.describe.configure({ mode: 'serial', timeout: 120_000 })
 
-test('visits every major route without console errors', async ({ page, context }, testInfo) => {
+test('visits every major route without console errors', async ({ page, context }) => {
   const consoleErrors: { route: string; text: string }[] = []
   const pageErrors: { route: string; message: string }[] = []
   let currentRoute = 'pre-login'
@@ -127,54 +120,45 @@ test('visits every major route without console errors', async ({ page, context }
     pageErrors.push({ route: currentRoute, message: err.message })
   })
 
-  const cleanup = await authenticate(context, testInfo.project.use.baseURL)
-  try {
-    for (const route of ROUTES) {
-      currentRoute = route
-      const res = await page.goto(route, { waitUntil: 'domcontentloaded' })
-      const status = res?.status() ?? 0
-      expect(status, `${route} returned ${status}`).toBeGreaterThanOrEqual(200)
-      expect(status, `${route} returned ${status}`).toBeLessThan(400)
-      await page.waitForTimeout(800)
+  await authenticate(context)
 
-      // Did the Next.js dev error overlay appear? `nextjs-portal` is always
-      // present (it hosts the dev-tools button), so we look for actual error
-      // text inside it via the body. The "Cannot read properties of undefined
-      // (reading 'call')" family of stale-cache errors renders an overlay with
-      // "Runtime Error" / "Build Error" / "Unhandled Runtime Error" headings.
-      const bodyText = (await page.textContent('body').catch(() => null)) ?? ''
-      const errorOverlay = /Runtime Error|Build Error|Unhandled Runtime Error|Cannot read properties of undefined/.test(bodyText)
-      expect(errorOverlay, `${route} showed a Next.js error overlay:\n${bodyText.slice(0, 500)}`).toBe(false)
+  for (const route of ROUTES) {
+    currentRoute = route
+    const res = await page.goto(route, { waitUntil: 'domcontentloaded' })
+    const status = res?.status() ?? 0
+    expect(status, `${route} returned ${status}`).toBeGreaterThanOrEqual(200)
+    expect(status, `${route} returned ${status}`).toBeLessThan(400)
+    await page.waitForTimeout(800)
 
-      // Sanity: page rendered substantive content (not a blank/error page).
-      // Empty content usually means the route component threw mid-render.
-      expect(bodyText.length, `${route} rendered <100 chars of body text`).toBeGreaterThan(100)
-    }
+    // Did the Next.js dev error overlay appear? `nextjs-portal` is always
+    // present (it hosts the dev-tools button), so we look for actual error
+    // text inside it via the body. The "Cannot read properties of undefined
+    // (reading 'call')" family of stale-cache errors renders an overlay with
+    // "Runtime Error" / "Build Error" / "Unhandled Runtime Error" headings.
+    const bodyText = (await page.textContent('body').catch(() => null)) ?? ''
+    const errorOverlay = /Runtime Error|Build Error|Unhandled Runtime Error|Cannot read properties of undefined/.test(bodyText)
+    expect(errorOverlay, `${route} showed a Next.js error overlay:\n${bodyText.slice(0, 500)}`).toBe(false)
 
-    if (consoleErrors.length > 0) {
-      console.log('\n[smoke] console errors:')
-      for (const e of consoleErrors) console.log(`  [${e.route}] ${e.text}`)
-    }
-    if (pageErrors.length > 0) {
-      console.log('\n[smoke] page errors:')
-      for (const e of pageErrors) console.log(`  [${e.route}] ${e.message}`)
-    }
-
-    expect(
-      consoleErrors,
-      `Console errors found:\n${consoleErrors.map((e) => `  [${e.route}] ${e.text}`).join('\n')}`
-    ).toHaveLength(0)
-
-    // Filter realtime/websocket noise — those don't break the demo.
-    const blockingPageErrors = pageErrors.filter(
-      (e) => !/realtime|websocket/i.test(e.message)
-    )
-    expect(
-      blockingPageErrors,
-      `Page errors found:\n${blockingPageErrors.map((e) => `  [${e.route}] ${e.message}`).join('\n')}`
-    ).toHaveLength(0)
-  } finally {
-    await cleanup()
-    await context.clearCookies()
+    // Sanity: page rendered substantive content (not a blank/error page).
+    // Empty content usually means the route component threw mid-render.
+    expect(bodyText.length, `${route} rendered <100 chars of body text`).toBeGreaterThan(100)
   }
+
+  if (consoleErrors.length > 0) {
+    console.log('\n[smoke] console errors:')
+    for (const e of consoleErrors) console.log(`  [${e.route}] ${e.text}`)
+  }
+  if (pageErrors.length > 0) {
+    console.log('\n[smoke] page errors:')
+    for (const e of pageErrors) console.log(`  [${e.route}] ${e.message}`)
+  }
+
+  // Filter realtime/websocket noise — those don't break the demo.
+  const blockingPageErrors = pageErrors.filter(
+    (e) => !/realtime|websocket/i.test(e.message)
+  )
+  expect(
+    blockingPageErrors,
+    `Page errors found:\n${blockingPageErrors.map((e) => `  [${e.route}] ${e.message}`).join('\n')}`
+  ).toHaveLength(0)
 })

@@ -3,6 +3,10 @@ import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
+  type UniversalSearchHit,
+  type UniversalSearchResult,
+} from '@third-code-erp/shared-types'
+import {
   accounts,
   projects,
   opportunities,
@@ -18,6 +22,7 @@ import {
   deliverySchedules,
   rfqs,
   vendors,
+  materialItems,
   ledgerAccounts,
   journalEntries,
 } from '@third-code-erp/database/schema'
@@ -27,13 +32,17 @@ import {
   normalizeSearchQuery,
   type SearchHitType,
 } from './search-policy'
+import { universalSearchResultFromSettled } from './search-result'
+import {
+  searchUniversalThroughCoreApi,
+  universalSearchReadsUseCoreApi,
+} from '@/lib/erp-core-client'
 
-interface SearchHit {
+type SearchHit = UniversalSearchHit
+
+interface SearchQuery {
   type: SearchHitType
-  id: string
-  title: string
-  subtitle?: string
-  href: string
+  promise: Promise<SearchHit[]>
 }
 
 const PER_TYPE_LIMIT = 5
@@ -43,7 +52,7 @@ const SEARCH_RESPONSE_HEADERS = {
 } as const
 
 function searchResponse(
-  body: { hits: SearchHit[]; hint?: string },
+  body: UniversalSearchResult,
   status = 200
 ) {
   return NextResponse.json(body, {
@@ -55,7 +64,7 @@ function searchResponse(
 export async function GET(req: NextRequest) {
   const profile = await getUserProfile()
   if (!profile) {
-    return searchResponse({ hits: [] }, 401)
+    return searchResponse({ hits: [], status: 'complete', failedTypes: [] }, 401)
   }
 
   // Bound wildcard-search work before fan-out across record types.
@@ -63,8 +72,26 @@ export async function GET(req: NextRequest) {
   if (q.length < 2) {
     return searchResponse({
       hits: [],
+      status: 'complete',
+      failedTypes: [],
       hint: 'Type at least 2 characters.',
     })
+  }
+
+  if (universalSearchReadsUseCoreApi(profile.tenantId)) {
+    const result = await searchUniversalThroughCoreApi(q)
+    if (!result.ok || !result.data) {
+      return searchResponse(
+        {
+          hits: [],
+          status: 'complete',
+          failedTypes: [],
+          hint: result.error ?? 'Universal search service is unavailable.',
+        },
+        result.status ?? 503
+      )
+    }
+    return searchResponse(result.data)
   }
 
   const like = literalSearchPattern(q)
@@ -72,10 +99,13 @@ export async function GET(req: NextRequest) {
   const tenantId = profile.tenantId
 
   // Build per-type promises so the search is parallel + role-filtered.
-  const queries: Array<Promise<SearchHit[]>> = []
+  const queries: SearchQuery[] = []
+  const addQuery = (type: SearchHitType, promise: Promise<SearchHit[]>) => {
+    queries.push({ type, promise })
+  }
 
   if (canSearchEntity(role, 'account')) {
-    queries.push(
+    addQuery('account',
       db
         .select({
           id: accounts.id,
@@ -97,8 +127,77 @@ export async function GET(req: NextRequest) {
     )
   }
 
+  if (canSearchEntity(role, 'vendor')) {
+    addQuery(
+      'vendor',
+      db
+        .select({
+          id: vendors.id,
+          name: vendors.name,
+          contact_name: vendors.contact_name,
+          address: vendors.address,
+        })
+        .from(vendors)
+        .where(
+          and(
+            eq(vendors.tenant_id, tenantId),
+            or(
+              ilike(vendors.name, like),
+              ilike(vendors.contact_name, like),
+              ilike(vendors.address, like)
+            )
+          )
+        )
+        .limit(PER_TYPE_LIMIT)
+        .then((rows) =>
+          rows.map<SearchHit>((row) => ({
+            type: 'vendor',
+            id: row.id,
+            title: row.name,
+            subtitle: row.contact_name ?? row.address ?? undefined,
+            href: '/purchase-orders',
+          }))
+        )
+    )
+  }
+
+  if (canSearchEntity(role, 'material')) {
+    addQuery(
+      'material',
+      db
+        .select({
+          id: materialItems.id,
+          code: materialItems.code,
+          description: materialItems.description,
+          category: materialItems.category,
+          unit: materialItems.unit,
+        })
+        .from(materialItems)
+        .where(
+          and(
+            eq(materialItems.tenant_id, tenantId),
+            or(
+              ilike(materialItems.code, like),
+              ilike(materialItems.description, like),
+              ilike(materialItems.category, like)
+            )
+          )
+        )
+        .limit(PER_TYPE_LIMIT)
+        .then((rows) =>
+          rows.map<SearchHit>((row) => ({
+            type: 'material',
+            id: row.id,
+            title: row.code,
+            subtitle: `${row.description} / ${row.unit}${row.category ? ` / ${row.category}` : ''}`,
+            href: '/admin/material-items',
+          }))
+        )
+    )
+  }
+
   if (canSearchEntity(role, 'project')) {
-    queries.push(
+    addQuery('project',
       db
         .select({
           id: projects.id,
@@ -125,7 +224,7 @@ export async function GET(req: NextRequest) {
         )
     )
 
-    queries.push(
+    addQuery('opportunity',
       db
         .select({
           id: opportunities.id,
@@ -165,7 +264,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'bom')) {
-    queries.push(
+    addQuery('bom',
       db
         .select({
           id: boms.id,
@@ -203,7 +302,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'po')) {
-    queries.push(
+    addQuery('po',
       db
         .select({
           id: purchaseOrders.id,
@@ -232,7 +331,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'invoice')) {
-    queries.push(
+    addQuery('invoice',
       db
         .select({
           id: invoices.id,
@@ -261,7 +360,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'claim')) {
-    queries.push(
+    addQuery('claim',
       db
         .select({
           id: progressClaims.id,
@@ -290,7 +389,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'ledger_account')) {
-    queries.push(
+    addQuery('ledger_account',
       db
         .select({
           id: ledgerAccounts.id,
@@ -322,7 +421,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'journal_entry')) {
-    queries.push(
+    addQuery('journal_entry',
       db
         .select({
           id: journalEntries.id,
@@ -356,7 +455,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'document')) {
-    queries.push(
+    addQuery('document',
       db
         .select({
           id: documents.id,
@@ -397,7 +496,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'task')) {
-    queries.push(
+    addQuery('task',
       db
         .select({
           id: dailyTasks.id,
@@ -439,7 +538,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'permit')) {
-    queries.push(
+    addQuery('permit',
       db
         .select({
           id: permits.id,
@@ -482,7 +581,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'punchlist')) {
-    queries.push(
+    addQuery('punchlist',
       db
         .select({
           id: punchlistItems.id,
@@ -526,7 +625,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'warranty')) {
-    queries.push(
+    addQuery('warranty',
       db
         .select({
           id: warrantyTickets.id,
@@ -578,7 +677,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'delivery')) {
-    queries.push(
+    addQuery('delivery',
       db
         .select({
           id: deliverySchedules.id,
@@ -628,7 +727,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (canSearchEntity(role, 'rfq')) {
-    queries.push(
+    addQuery('rfq',
       db
         .select({
           id: rfqs.id,
@@ -670,13 +769,14 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const results = await Promise.allSettled(queries)
+  const results = await Promise.allSettled(
+    queries.map(({ promise }) => promise)
+  )
   for (const result of results) {
     if (result.status === 'rejected') {
       console.error('[universal-search] record query failed', result.reason)
     }
   }
-  const hits = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
 
-  return searchResponse({ hits })
+  return searchResponse(universalSearchResultFromSettled(queries, results))
 }

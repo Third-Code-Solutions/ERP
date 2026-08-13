@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
+  financeCashWorkflowWritesUseCoreApi: vi.fn(),
+  postCashTransactionThroughCoreApi: vi.fn(),
+  reverseCashTransactionThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -22,6 +25,15 @@ vi.mock('@third-code-erp/database', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
+}))
+
+vi.mock('../../../../lib/erp-core-client', () => ({
+  financeCashWorkflowWritesUseCoreApi:
+    mocks.financeCashWorkflowWritesUseCoreApi,
+  postCashTransactionThroughCoreApi:
+    mocks.postCashTransactionThroughCoreApi,
+  reverseCashTransactionThroughCoreApi:
+    mocks.reverseCashTransactionThroughCoreApi,
 }))
 
 import {
@@ -44,6 +56,11 @@ describe('cash actions', () => {
     vi.clearAllMocks()
     mocks.requireUserProfile.mockResolvedValue(PROFILE)
     mocks.requireCapability.mockImplementation(() => undefined)
+    mocks.financeCashWorkflowWritesUseCoreApi.mockReturnValue(false)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('checks the cash capability before posting', async () => {
@@ -116,6 +133,85 @@ describe('cash actions', () => {
     })
     expect(mocks.execute).toHaveBeenCalledOnce()
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/finance/ledger')
+  })
+
+  it('routes posting through Core with a stable retry token and never opens a direct DB write', async () => {
+    mocks.financeCashWorkflowWritesUseCoreApi.mockReturnValue(true)
+    mocks.postCashTransactionThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        cashTransactionId: TRANSACTION_ID,
+        tenantId: PROFILE.tenantId,
+        status: 'posted',
+        cashTransactionNumber: 'CT-2026-000001',
+        journalEntryId: '44444444-4444-4444-8444-444444444444',
+        journalEntryNumber: 'JE-2026-000012',
+      },
+    })
+
+    const result = await postCashTransaction(
+      { transactionId: TRANSACTION_ID, postingDate: '2026-07-27' },
+      'cash-post-retry-1'
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      id: TRANSACTION_ID,
+      number: 'CT-2026-000001',
+    })
+    expect(mocks.postCashTransactionThroughCoreApi).toHaveBeenCalledWith(
+      TRANSACTION_ID,
+      { postingDate: '2026-07-27' },
+      'cash-post-retry-1'
+    )
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when Core posting is selected without a retry token', async () => {
+    mocks.financeCashWorkflowWritesUseCoreApi.mockReturnValue(true)
+
+    const result = await postCashTransaction({
+      transactionId: TRANSACTION_ID,
+      postingDate: '2026-07-27',
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Retry token is required for the cash posting command.',
+    })
+    expect(mocks.postCashTransactionThroughCoreApi).not.toHaveBeenCalled()
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('routes reversal through Core and does not fall back after Core failure', async () => {
+    mocks.financeCashWorkflowWritesUseCoreApi.mockReturnValue(true)
+    mocks.reverseCashTransactionThroughCoreApi.mockResolvedValue({
+      ok: false,
+      error: 'ERP Core API is unavailable. No cash transaction was reversed.',
+    })
+
+    const result = await reverseCashTransaction(
+      {
+        transactionId: TRANSACTION_ID,
+        postingDate: '2026-07-28',
+        reason: 'Bank returned the transfer',
+      },
+      'cash-reverse-retry-1'
+    )
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'ERP Core API is unavailable. No cash transaction was reversed.',
+    })
+    expect(mocks.reverseCashTransactionThroughCoreApi).toHaveBeenCalledWith(
+      TRANSACTION_ID,
+      {
+        reason: 'Bank returned the transfer',
+        postingDate: '2026-07-28',
+      },
+      'cash-reverse-retry-1'
+    )
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   it('rejects direction-mismatched allocation before a transaction opens', async () => {

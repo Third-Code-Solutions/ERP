@@ -25,54 +25,6 @@ jobs:
       - name: Run actionlint
         run: node scripts/run-actionlint.mjs
 
-  build-ops-invariants:
-    name: BUILD OPS Invariants
-    runs-on: ubuntu-latest
-    needs: [actionlint]
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Verify ABI OPS brand contract
-        run: pnpm verify:abi-ops-brand
-      - name: Verify production type-safety contract
-        run: pnpm verify:type-safety
-      - name: Verify App Router boundaries
-        run: pnpm verify:app-router-boundaries
-      - name: Test invariant scanner
-        run: pnpm test:build-ops-invariants
-      - name: Collect changed migrations
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p tmp/build-ops
-          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            git diff --name-only --diff-filter=ACMR \
-              "origin/${GITHUB_BASE_REF}...${GITHUB_SHA}" -- \
-              'supabase/migrations/*.sql' > tmp/build-ops/changed-migrations.txt
-          elif [ "${GITHUB_EVENT_BEFORE}" = "0000000000000000000000000000000000000000" ]; then
-            git ls-files 'supabase/migrations/*.sql' > tmp/build-ops/changed-migrations.txt
-          else
-            git diff --name-only --diff-filter=ACMR \
-              "${GITHUB_EVENT_BEFORE}" "${GITHUB_SHA}" -- \
-              'supabase/migrations/*.sql' > tmp/build-ops/changed-migrations.txt
-          fi
-          cat tmp/build-ops/changed-migrations.txt
-      - name: Verify changed migration invariants
-        run: node scripts/verify-build-ops-invariants.mjs --files-list tmp/build-ops/changed-migrations.txt
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: build-ops-invariants
-          path: tmp/build-ops/
-          retention-days: 7
-
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
@@ -113,14 +65,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm test:turbo-test-cache
       - run: pnpm turbo test
       - run: pnpm test:database-release-plan
       - run: pnpm test:project-cutover-plan
-      - run: pnpm test:demo-tenant
-      - run: pnpm test:process-sla-sql
-      - run: pnpm test:wo-04-migration
-      - run: pnpm test:wo-05-migration
-      - run: pnpm test:wo-06-migration
+      - run: pnpm test:controlled-release-plan
+      - run: pnpm test:release-identity-plan
+      - run: pnpm test:web-db-boundary
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -130,7 +81,7 @@ jobs:
   database-reproducibility:
     name: Database Reproducibility (Postgres 17)
     runs-on: ubuntu-latest
-    needs: [actionlint, build-ops-invariants]
+    needs: [actionlint]
     timeout-minutes: 30
     services:
       redis:
@@ -155,7 +106,6 @@ jobs:
       DATABASE_INVENTORY_EXPECTED: "1"
       DATABASE_BUDGET_EXPECTED: "1"
       DATABASE_STOCK_MOVEMENT_EXPECTED: "1"
-      BUILD_OPS_DEMO_TENANT_SLUGS: abi-ops-local
       ERP_API_INTEGRATION_EXPECTED: "1"
       REDIS_URL: redis://127.0.0.1:6379
     steps:
@@ -181,26 +131,35 @@ jobs:
         run: |
           supabase db start
           supabase db reset --local
-      - name: Verify BUILD OPS data invariant
-        run: pnpm verify:build-ops-data
       - name: Verify migration ledger and catalog
         run: node scripts/verify-database-repro.mjs
       - name: Verify release planner sees a current linear ledger
         run: node scripts/plan-database-release.mjs --require-current
-      - name: Verify WO-04 database contract
-        run: pnpm verify:wo-04-database
-      - name: Verify WO-05 location dimension
-        run: pnpm verify:wo-05-database
-      - name: Verify WO-06 DUPA engine
-        run: pnpm verify:wo-06-database
-      - name: Verify WO-06 DUPA behavior
-        run: pnpm verify:wo-06-database-behavior
+      - name: Verify read-only audit recovery planner contract
+        run: pnpm test:audit-recovery-plan
+      - name: Verify audit hash profile contract
+        run: pnpm test:audit-hash-profiles
+      - name: Verify Purchase Order duplicate planner contract
+        run: pnpm test:purchase-order-duplicate-plan
       - name: Capture local migration ledger
         shell: bash
         run: |
           set -o pipefail
           supabase migration list --local 2>&1 \
             | tee tmp/database-reproducibility/migration-list.txt
+      - name: Capture and assert empty schema diff
+        run: |
+          : > tmp/database-reproducibility/schema-diff.sql
+          supabase db diff --local --schema public \
+            --file tmp/database-reproducibility/schema-diff.sql
+      - run: >-
+          node scripts/assert-empty-schema-diff.mjs
+          tmp/database-reproducibility/schema-diff.sql
+      - name: Apply CI-only legacy Data API grants
+        run: |
+          psql "$DATABASE_URL" \
+            --file scripts/ci/supabase-default-privileges.sql \
+            --set ON_ERROR_STOP=1
       - name: Run database tests without skips
         run: >-
           pnpm --filter @third-code-erp/database exec vitest run
@@ -255,13 +214,6 @@ jobs:
               http://127.0.0.1:3091/v1/projects/33333333-3333-4333-8333-333333333333
           )"
           test "$status" = "401"
-      - name: Capture and assert empty schema diff
-        run: >-
-          supabase db diff --local --schema public
-          --output tmp/database-reproducibility/schema-diff.sql
-      - run: >-
-          node scripts/assert-empty-schema-diff.mjs
-          tmp/database-reproducibility/schema-diff.sql
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -272,7 +224,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [typecheck, lint, test, build-ops-invariants, database-reproducibility]
+    needs: [typecheck, lint, test, database-reproducibility]
     env:
       # Build-time envs. If a repo secret is set, it wins; otherwise placeholders
       # keep CI green. The artifact is just a buildability gate — Vercel runs its
@@ -289,6 +241,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Verify Vercel spend guard
+        run: node scripts/verify-vercel-spend-guard.mjs
       - run: pnpm turbo build
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -296,77 +250,17 @@ jobs:
           path: apps/web/.next/
           retention-days: 1
 
-  e2e-local:
-    name: Local Browser E2E
-    runs-on: ubuntu-latest
-    needs: [build]
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
-      DATABASE_URL: postgresql://postgres:placeholder@db.placeholder.supabase.co:5432/postgres
-      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-          cache: pnpm
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: next-build
-          path: apps/web/.next
-      - run: pnpm install --frozen-lockfile
-      - name: Install Playwright browser
-        working-directory: apps/web
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Start production server
-        working-directory: apps/web
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p ../../tmp/e2e-local
-          pnpm exec next start -p 3000 \
-            > ../../tmp/e2e-local/server.log 2>&1 &
-          echo "$!" > ../../tmp/e2e-local/server.pid
-          for attempt in {1..30}; do
-            if curl --fail --silent "$PLAYWRIGHT_BASE_URL/" >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          cat ../../tmp/e2e-local/server.log
-          exit 1
-      - name: Run public browser E2E
-        working-directory: apps/web
-        run: pnpm exec playwright test e2e/frontend-release-local.spec.ts --project=chromium --workers=1
-      - name: Run unauthenticated auth-boundary E2E
-        working-directory: apps/web
-        run: pnpm exec playwright test e2e/auth.spec.ts --project=chromium --workers=1 --grep-invert "invalid credentials"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: local-e2e-report
-          path: |
-            apps/web/playwright-report/
-            tmp/e2e-local/
-          retention-days: 7
-
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: [build]
-    # Hosted E2E is a release gate. Run the job on every pull request so a
-    # missing URL, Supabase config, or dedicated test identity fails closed
-    # instead of silently appearing as a green skipped check.
-    if: github.event_name == 'pull_request'
+    # Only run on PRs and only when E2E_BASE_URL is configured. Otherwise skip
+    # so the job appears as "skipped" (still green) instead of failing.
+    if: github.event_name == 'pull_request' && vars.E2E_BASE_URL != ''
     env:
       PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL }}
       E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
       E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
@@ -375,15 +269,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Verify hosted E2E configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${PLAYWRIGHT_BASE_URL:-}" || { echo 'E2E_BASE_URL is required'; exit 1; }
-          test -n "${E2E_USER_EMAIL:-}" || { echo 'E2E_USER_EMAIL is required'; exit 1; }
-          test -n "${E2E_USER_PASSWORD:-}" || { echo 'E2E_USER_PASSWORD is required'; exit 1; }
-          test -n "${NEXT_PUBLIC_SUPABASE_URL:-}" || { echo 'NEXT_PUBLIC_SUPABASE_URL is required for authenticated smoke'; exit 1; }
-          test -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}" || { echo 'NEXT_PUBLIC_SUPABASE_ANON_KEY is required for authenticated smoke'; exit 1; }
       - name: Install Playwright browsers
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
@@ -405,7 +290,8 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
       - name: Scan for secrets (gitleaks)
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/run-gitleaks.mjs

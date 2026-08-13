@@ -25,11 +25,16 @@ import {
   sum,
   count,
   sql,
+  asc,
   desc,
 } from 'drizzle-orm'
 import { computeProjectCostSnapshot } from '@third-code-erp/shared-types/cost'
 import { manilaBoundaries } from '@/lib/operations/cadence-engine'
 import { getProjectCostControl } from '@/lib/operations/project-cost-control'
+import {
+  getTodayThroughCoreApi,
+  todayReadsUseCoreApi,
+} from '@/lib/erp-core-client'
 
 export interface KpiData {
   activeTcv: number
@@ -44,6 +49,29 @@ export interface MyWorkSummary {
   dueToday: number
   overdue: number
   upcoming: number
+}
+
+export interface TodayTask {
+  id: string
+  title: string
+  projectId: string
+  projectName: string
+  dueDate: Date
+  dueState: 'overdue' | 'today' | 'upcoming'
+}
+
+export interface TodayProject {
+  id: string
+  name: string
+  client: string
+  status: string
+  updatedAt: Date
+}
+
+export interface TodayCommandCenterData {
+  summary: MyWorkSummary
+  tasks: TodayTask[]
+  projects: TodayProject[]
 }
 
 export async function getMyWorkSummary(
@@ -91,6 +119,101 @@ export async function getMyWorkSummary(
     dueToday: Number(todayRows[0]?.value ?? 0),
     overdue: Number(overdueRows[0]?.value ?? 0),
     upcoming: Number(upcomingRows[0]?.value ?? 0),
+  }
+}
+
+export async function getTodayCommandCenter(
+  tenantId: string,
+  userId: string,
+  now = new Date(),
+  includeProjects = false
+): Promise<TodayCommandCenterData> {
+  if (todayReadsUseCoreApi(tenantId)) {
+    const result = await getTodayThroughCoreApi(includeProjects)
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Today data was not read')
+    }
+    return {
+      summary: result.data.summary,
+      tasks: result.data.tasks.map((task) => ({
+        ...task,
+        dueDate: new Date(task.dueDate),
+      })),
+      projects: result.data.projects.map((project) => ({
+        ...project,
+        updatedAt: new Date(project.updatedAt),
+      })),
+    }
+  }
+
+  const todayEnd = manilaBoundaries.endOfDay(now)
+  const weekEnd = new Date(todayEnd.getTime() + 7 * 86_400_000)
+
+  const [summary, taskRows, projectRows] = await Promise.all([
+    getMyWorkSummary(tenantId, userId, now),
+    db
+      .select({
+        id: dailyTasks.id,
+        title: dailyTasks.title,
+        projectId: dailyTasks.project_id,
+        projectName: projects.name,
+        dueDate: dailyTasks.due_date,
+      })
+      .from(dailyTasks)
+      .innerJoin(
+        projects,
+        and(
+          eq(projects.id, dailyTasks.project_id),
+          eq(projects.tenant_id, tenantId)
+        )
+      )
+      .where(
+        and(
+          eq(dailyTasks.tenant_id, tenantId),
+          eq(dailyTasks.assignee_id, userId),
+          eq(dailyTasks.status, 'pending'),
+          lte(dailyTasks.due_date, weekEnd)
+        )
+      )
+      .orderBy(asc(dailyTasks.due_date))
+      .limit(8),
+    includeProjects
+      ? db
+          .select({
+            id: projects.id,
+            name: projects.name,
+            client: projects.client,
+            status: projects.status,
+            updatedAt: projects.updated_at,
+          })
+          .from(projects)
+          .where(
+            and(
+              eq(projects.tenant_id, tenantId),
+              inArray(projects.status, ['lead', 'active', 'on_hold'])
+            )
+          )
+          .orderBy(desc(projects.updated_at))
+          .limit(6)
+      : Promise.resolve([]),
+  ])
+
+  return {
+    summary,
+    tasks: taskRows.map((task) => ({
+      ...task,
+      dueDate: task.dueDate,
+      dueState:
+        task.dueDate < now
+          ? 'overdue'
+          : task.dueDate <= todayEnd
+            ? 'today'
+            : 'upcoming',
+    })),
+    projects: projectRows.map((project) => ({
+      ...project,
+      updatedAt: project.updatedAt,
+    })),
   }
 }
 
