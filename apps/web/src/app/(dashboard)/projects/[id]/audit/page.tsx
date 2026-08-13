@@ -1,10 +1,20 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { auditLog, boms, invoices, projects, scopeItems } from '@third-code-erp/database/schema'
-import { and, desc, eq, inArray, or } from 'drizzle-orm'
+import { auditLog, boms, invoices, projects, scopeItems, users } from '@third-code-erp/database/schema'
+import { and, count, desc, eq, inArray } from 'drizzle-orm'
+import {
+  auditActivityReadsUseCoreApi,
+  getAuditActivityThroughCoreApi,
+} from '@/lib/erp-core-client'
+import {
+  AUDIT_ACTION_OPTIONS,
+  AUDIT_ENTITY_OPTIONS,
+  auditActivityHref,
+  parseAuditActivityViewParams,
+} from '@/lib/audit-activity-view'
 
 export const metadata: Metadata = { title: 'Audit Trail' }
 
@@ -50,25 +60,59 @@ function relativeTime(date: Date): string {
   return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export default async function ProjectAuditPage({ params }: { params: Promise<{ id: string }> }) {
+type AuditEntryView = {
+  id: string | number
+  action: string
+  entity_type: string
+  entity_id: string
+  diff: unknown
+  hash: string
+  created_at: Date
+  redacted: boolean
+}
+
+const AUDIT_CORE_ROLES = new Set(['owner', 'admin', 'pm', 'finance'])
+const AUDIT_PAGE_SIZE = 25
+
+export default async function ProjectAuditPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { id } = await params
-  const profile = await requireUserProfile()
+  const filters = parseAuditActivityViewParams(await searchParams)
+  const user = await getUser()
+  if (!user) return null
+
+  const [userRow] = await db
+    .select({ tenant_id: users.tenant_id, role: users.role })
+    .from(users)
+    .where(eq(users.id, user.id))
+  if (!userRow?.tenant_id) return notFound()
+  if (
+    auditActivityReadsUseCoreApi(userRow.tenant_id) &&
+    !AUDIT_CORE_ROLES.has(userRow.role)
+  ) {
+    return notFound()
+  }
 
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
+    .where(and(eq(projects.id, id), eq(projects.tenant_id, userRow.tenant_id)))
 
   if (!project) return notFound()
 
   // Gather entity IDs for this project
   const [scopeIds, bomIds, invoiceIds] = await Promise.all([
     db.select({ id: scopeItems.id }).from(scopeItems)
-      .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, profile.tenantId))),
+      .where(and(eq(scopeItems.project_id, id), eq(scopeItems.tenant_id, userRow.tenant_id))),
     db.select({ id: boms.id }).from(boms)
-      .where(and(eq(boms.project_id, id), eq(boms.tenant_id, profile.tenantId))),
+      .where(and(eq(boms.project_id, id), eq(boms.tenant_id, userRow.tenant_id))),
     db.select({ id: invoices.id }).from(invoices)
-      .where(and(eq(invoices.project_id, id), eq(invoices.tenant_id, profile.tenantId))),
+      .where(and(eq(invoices.project_id, id), eq(invoices.tenant_id, userRow.tenant_id))),
   ])
 
   const relatedIds = [
@@ -78,25 +122,68 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
     ...invoiceIds.map((r) => r.id),
   ]
 
-  const entries = await db
-    .select({
-      id: auditLog.id,
-      tenant_id: auditLog.tenant_id,
-      actor_id: auditLog.actor_id,
-      entity_type: auditLog.entity_type,
-      entity_id: auditLog.entity_id,
-      action: auditLog.action,
-      diff: auditLog.diff,
-      prev_hash: auditLog.prev_hash,
-      hash: auditLog.hash,
-      ip_address: auditLog.ip_address,
-      user_agent: auditLog.user_agent,
-      created_at: auditLog.created_at,
+  let entries: AuditEntryView[]
+  let total = 0
+  let totalPages = 1
+  if (auditActivityReadsUseCoreApi(userRow.tenant_id)) {
+    if (relatedIds.length > 500) {
+      throw new Error('Project audit scope is too broad for the Core activity boundary.')
+    }
+    const result = await getAuditActivityThroughCoreApi({
+      entityIds: relatedIds,
+      action: filters.action,
+      entityType: filters.entityType,
+      page: filters.page,
+      limit: AUDIT_PAGE_SIZE,
     })
-    .from(auditLog)
-    .where(and(eq(auditLog.tenant_id, profile.tenantId), inArray(auditLog.entity_id, relatedIds)))
-    .orderBy(desc(auditLog.created_at))
-    .limit(200)
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Audit activity was not read')
+    }
+    total = result.data.total
+    totalPages = result.data.totalPages
+    entries = result.data.rows.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      entity_type: entry.entityType,
+      entity_id: entry.entityId,
+      diff: null,
+      hash: entry.hash,
+      created_at: new Date(entry.createdAt),
+      redacted: true,
+    }))
+  } else {
+    const conditions = [
+      eq(auditLog.tenant_id, userRow.tenant_id),
+      inArray(auditLog.entity_id, relatedIds),
+    ]
+    if (filters.action) conditions.push(eq(auditLog.action, filters.action))
+    if (filters.entityType) {
+      conditions.push(eq(auditLog.entity_type, filters.entityType))
+    }
+    const whereClause = and(...conditions)
+    const [directEntries, directCount] = await Promise.all([
+      db
+        .select()
+        .from(auditLog)
+        .where(whereClause)
+        .orderBy(desc(auditLog.created_at))
+        .limit(AUDIT_PAGE_SIZE)
+        .offset((filters.page - 1) * AUDIT_PAGE_SIZE),
+      db.select({ total: count() }).from(auditLog).where(whereClause),
+    ])
+    total = directCount[0]?.total ?? 0
+    totalPages = total === 0 ? 1 : Math.ceil(total / AUDIT_PAGE_SIZE)
+    entries = directEntries.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      entity_type: entry.entity_type,
+      entity_id: entry.entity_id,
+      diff: entry.diff,
+      hash: entry.hash,
+      created_at: entry.created_at,
+      redacted: false,
+    }))
+  }
 
   const baseHref = `/projects/${id}`
 
@@ -144,10 +231,71 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div>
           <p style={{ fontSize: '0.8125rem', color: 'var(--color-neutral-500)', margin: 0 }}>
-            {entries.length} event{entries.length !== 1 ? 's' : ''} — append-only, hash-chained
+            {total} matching event{total !== 1 ? 's' : ''} — append-only, hash-chained
           </p>
         </div>
       </div>
+
+      <form
+        method="get"
+        aria-label="Filter audit activity"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'end',
+          gap: '10px',
+          marginBottom: '16px',
+          padding: '12px',
+          background: 'var(--color-neutral-50)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '8px',
+        }}
+      >
+        <label style={{ display: 'grid', gap: '4px', fontSize: '0.75rem', color: 'var(--color-neutral-600)' }}>
+          Action
+          <select
+            name="action"
+            defaultValue={filters.action ?? ''}
+            style={{ minWidth: '150px', minHeight: '36px', padding: '0 8px', border: '1px solid var(--color-border-strong)', borderRadius: '6px', background: 'white', color: 'var(--color-neutral-800)' }}
+          >
+            <option value="">All actions</option>
+            {AUDIT_ACTION_OPTIONS.map((action) => (
+              <option key={action} value={action}>
+                {ACTION_LABELS[action] ?? action}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: '4px', fontSize: '0.75rem', color: 'var(--color-neutral-600)' }}>
+          Entity
+          <select
+            name="entityType"
+            defaultValue={filters.entityType ?? ''}
+            style={{ minWidth: '170px', minHeight: '36px', padding: '0 8px', border: '1px solid var(--color-border-strong)', borderRadius: '6px', background: 'white', color: 'var(--color-neutral-800)' }}
+          >
+            <option value="">All entities</option>
+            {AUDIT_ENTITY_OPTIONS.map((entityType) => (
+              <option key={entityType} value={entityType}>
+                {ENTITY_LABELS[entityType] ?? entityType}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          style={{ minHeight: '36px', padding: '0 14px', border: 0, borderRadius: '6px', color: 'white', background: 'var(--color-navy-700)', fontWeight: 600, cursor: 'pointer' }}
+        >
+          Apply filters
+        </button>
+        {(filters.action || filters.entityType || filters.page > 1) && (
+          <Link
+            href={baseHref + '/audit'}
+            style={{ minHeight: '36px', display: 'inline-flex', alignItems: 'center', padding: '0 10px', color: 'var(--color-neutral-600)', fontSize: '0.8125rem', textDecoration: 'none' }}
+          >
+            Clear
+          </Link>
+        )}
+      </form>
 
       {entries.length === 0 ? (
         <div
@@ -229,7 +377,9 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
                     {ENTITY_LABELS[entry.entity_type] ?? entry.entity_type}
                   </td>
                   <td style={{ padding: '10px 16px', color: 'var(--color-neutral-600)', fontSize: '0.75rem', fontFamily: 'JetBrains Mono, monospace', maxWidth: '320px' }}>
-                    {entry.diff
+                    {entry.redacted
+                      ? 'Details redacted by the Core authority'
+                      : entry.diff
                       ? Object.entries(entry.diff as Record<string, unknown>)
                           .slice(0, 3)
                           .map(([k, v]) => {
@@ -250,6 +400,37 @@ export default async function ProjectAuditPage({ params }: { params: Promise<{ i
             </tbody>
           </table>
         </div>
+      )}
+
+      {totalPages > 1 && (
+        <nav
+          aria-label="Audit activity pages"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px', fontSize: '0.8125rem' }}
+        >
+          {filters.page > 1 ? (
+            <Link
+              href={auditActivityHref(`${baseHref}/audit`, filters, filters.page - 1)}
+              style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}
+            >
+              Previous
+            </Link>
+          ) : (
+            <span style={{ color: 'var(--color-neutral-300)' }}>Previous</span>
+          )}
+          <span style={{ color: 'var(--color-neutral-500)' }}>
+            Page {Math.min(filters.page, totalPages)} of {totalPages}
+          </span>
+          {filters.page < totalPages ? (
+            <Link
+              href={auditActivityHref(`${baseHref}/audit`, filters, filters.page + 1)}
+              style={{ color: 'var(--color-navy-700)', textDecoration: 'none' }}
+            >
+              Next
+            </Link>
+          ) : (
+            <span style={{ color: 'var(--color-neutral-300)' }}>Next</span>
+          )}
+        </nav>
       )}
     </div>
   )

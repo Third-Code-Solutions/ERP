@@ -1,4 +1,4 @@
-// Phase 10 (Rework-alignment) — Weekly Report orchestrator.
+// Weekly Report orchestrator.
 //
 // Builds a `weekly_reports` row + HTML artifact for a single project/week.
 // Designed to be invoked from a server action ("Generate this week") or

@@ -28,6 +28,6 @@ describe('weekly report ABI OPS lockup', () => {
     expect(html).toContain('ABI OPS')
     expect(html.match(/>A<\/div>/g)).toHaveLength(2)
     expect(html).not.toContain('>TC<\/div>')
-    expect(html).not.toContain('Third Code')
+    expect(html).not.toContain('Actuate Builders legacy')
   })
 })

@@ -1,8 +1,67 @@
 # Hosted Database Release
 
+## Current verified release state (2026-08-10 source refresh; hosted snapshot 2026-08-07)
+
+- Last verified hosted snapshot: target `aqqrtkmtcsfkbyyqxowv` was
+  `ACTIVE_HEALTHY` PostgreSQL 17.6 with 55 migrations applied through
+  `20260729233017`. No hosted state was queried in the source refresh below.
+- Current repository manifest: 115 source migrations through
+  `20260810110000_project_comment_delete_workflow.sql`; 60 ordered pending
+  migrations remain. The managed boundary is still `review_required`.
+- Current Purchase Order planner still reports one tenant duplicate-number
+  group with 12 records. The first missing migration intentionally aborts
+  while that group exists. No owner mapping has been supplied.
+- Release planner reports 213 anonymous table-privilege rows and 209 policies
+  assigned to `PUBLIC`. Current advisors report 14 security and 253
+  performance notices.
+- Default Supabase branch status is `MIGRATIONS_FAILED`; current 24-hour branch
+  and Auth logs are empty, so it is not valid rehearsal or recovery evidence.
+- Export tooling is ready when a separate session/direct URL and the approved
+  portable PostgreSQL 17.10 client are supplied. The application URL remains
+  on transaction-pooler port 6543 and is still rejected for dumps.
+- The prior public-only snapshot has replayed the 48-file suffix locally, but
+  lacks managed Auth, Storage, vector, provider grants, and zero-skip proof.
+- Creating a new Supabase branch currently costs `$0.01344/hour`; none was
+  created or confirmed. Free local replay remains first choice.
+- Exact batches, gates, abort criteria, and cost ceiling are in
+  [`MANAGED_SUPABASE_PARITY_PLAN.md`](../operations/MANAGED_SUPABASE_PARITY_PLAN.md)
+  and its machine-checked JSON manifest.
+- No hosted SQL/data/Storage/branch write, Vercel deployment, Railway deploy,
+  provider-variable change, or feature-flag enablement occurred.
+
+## Export preflight (required)
+
+Before using any backup/export command, run the read-only guard:
+
+```powershell
+# Approved secret manager injects DATABASE_EXPORT_URL.
+# Operator environment injects PG_DUMP_PATH; do not paste database secrets.
+pnpm plan:database-export
+```
+
+The guard must report `status: "ready"`. It rejects the transaction pooler
+(`:6543`) used by the application because supported Supabase logical dumps
+require a session pooler/direct connection on `:5432`. It also rejects missing
+Supabase CLI/Docker or PostgreSQL 17 client tooling. Portable clients must also
+include `pg_dumpall` beside `pg_dump` so roles can be exported. Never print or
+commit the connection string, roles dump, schema dump, or data dump. Current
+Supabase guidance identifies direct or session mode on port 5432 for native
+PostgreSQL tools; transaction mode on 6543 remains application traffic only.
+
+For a restored local clone, run the separate read-only verifier:
+
+```powershell
+$env:DATABASE_URL = 'postgresql://postgres@127.0.0.1:<port>/postgres'
+$env:ERP_PARITY_REPLAY_MAPPING_MODE = 'synthetic_clone_only'
+pnpm verify:managed-supabase-parity-replay
+```
+
+It rejects remote hosts. A passing suffix result does not prove managed Auth,
+Storage, vector, provider grants, owner mapping, or release readiness.
+
 ## Purpose
 
-Safely reconcile and release ABI OPS migrations to a hosted Supabase
+Safely reconcile and release Third Code ERP migrations to a hosted Supabase
 PostgreSQL 17 database. This runbook is required when the target migration
 ledger differs from `supabase/migrations`.
 
@@ -24,49 +83,34 @@ It prints migration versions, file hashes, SQL-risk warnings, unexpected
 history, and later versions applied after the first gap. It never executes SQL
 or repairs migration history.
 
-For the current BUILD OPS release gate, run the stronger read-only preflight as
-well:
+## Historical M3.111 snapshot (2026-08-05)
 
-```powershell
-pnpm plan:database-release:full
-```
+The following block is retained for audit history only. The current state is
+the 2026-08-06 section above:
 
-This requires a linear migration ledger and invokes the WO-02 database verifier
-for audit coverage, audit identity, the tenant holiday table, RLS, policies,
-and append-only audit rules. A current migration ledger alone is not release
-readiness.
+- PostgreSQL 17 (`server_version_num = 170006`).
+- 55 hosted versions are recorded as applied; the source ledger contains 89.
+- The hosted ledger is an exact prefix of source, with 34 ordered source
+  versions pending review. No unexpected or out-of-order versions exist.
+- The source suffix has no `DROP TABLE`, `DELETE FROM`, `TRUNCATE`, or data
+  update statements; it contains 27 `drop-object` risk findings and six
+  explicit transaction-control findings in the planner output.
+- No hosted migration, history row, data, Storage object, or provider setting
+  was changed during this audit. The release is blocked pending the isolated
+  PostgreSQL 17 clone/replay, catalog/data/RLS diff, backup/restore evidence,
+  and zero-skipped integration/recovery gates.
+- The read-only reproducibility verifier also checks the source-only
+  `stock_movement_create_requests` ledger for forced RLS, service-only
+  privileges, and its three indexes. Against the current target, baseline
+  catalog/RLS/security checks pass; expected failures are the 34 missing
+  migration versions plus that pending ledger and indexes.
 
-When Supabase is linked to Git `main`, also run the provider-source planner:
-
-```powershell
-pnpm plan:provider-database-release -- --json
-```
-
-It reads migration SQL from the locally available `origin/main` ref, compares
-that source against the hosted migration ledger, counts pending SQL-risk
-categories, and checks the duplicate Purchase Order precondition. It does not
-apply migrations or alter Git. Use `--require-ready` only as a release gate;
-the current target is expected to fail until its pending suffix and data
-reconciliation are reviewed.
-
-## Current release state
-
-Read-only revalidated 2026-08-12 against Supabase project
-`aqqrtkmtcsfkbyyqxowv`:
-
-- PostgreSQL 17.
-- The hosted ledger has 55 applied versions, while provider-linked
-  `origin/main` contains 124 versions; 69 provider migrations remain pending.
-- The first pending provider migration is blocked by one tenant-scoped
-  duplicate Purchase Order number group.
-- The hosted project reports `MIGRATIONS_FAILED` and the full WO-02 database
-  gate is not passing.
-- Provider/source identity is not release-authoritative: the dirty local
-  workspace differs from provider-linked `origin/main` and its migration set.
-
-This section is current-state evidence, not a release approval. A future target
-must independently pass every phase in this runbook; status is not transferable
-to another project or environment.
+The earlier 44/44 baseline from 2026-07-28 is historical evidence only; it is
+not the current state of this target. Every future target must independently
+pass this runbook; current status is not transferable to another project or
+environment. See
+[`DATABASE_RECONCILIATION_M3.31.md`](../architecture/DATABASE_RECONCILIATION_M3.31.md)
+for the exact suffix, manifest, catalog checks, and blockers.
 
 ## Required people and evidence
 
@@ -96,9 +140,7 @@ recover Storage objects deleted after that backup. See
    ```powershell
    pnpm test:database-release-plan
    pnpm plan:database-release # DATABASE_URL injected by approved secret manager
-   pnpm plan:database-release:full
    node scripts/verify-database-repro.mjs
-   pnpm verify:release-source
    ```
 
 4. Capture output in the change record. Never capture connection strings.
@@ -109,10 +151,6 @@ recover Storage objects deleted after that backup. See
    - the configured project cannot be proven;
    - backup/PITR status is unknown;
    - CI is not green.
-   - the release workspace is dirty, `HEAD` differs from provider-linked
-     `origin/main`, or the two migration sets differ. `verify:release-source`
-     is read-only and must pass before a provider-linked release is considered
-     source-authoritative.
 
 `supabase db push --dry-run` can list what the CLI would apply, but it is not
 proof that non-linear migrations are safe. The pinned CLI exposes this flag;
@@ -141,7 +179,8 @@ restore; replication slots other than Realtime may require manual recreation.
 
 ## Phase 3 — Build a reconciliation migration
 
-Because the target history is non-linear:
+The current target history is a linear 55-migration prefix. Catalog/data drift
+may still require a reconciliation migration after restoring the target:
 
 1. Rebuild the repository from zero in disposable PostgreSQL 17. This is the
    desired catalog.
@@ -169,7 +208,8 @@ would create false evidence.
 ## Phase 4 — Production release
 
 1. Announce a maintenance window and pause background jobs.
-2. Keep `ERP_PROJECT_WRITES_VIA_API=false`.
+2. Keep Project updates on the NestJS Core authority. If Core is unavailable,
+   the Web action must fail closed; do not restore a direct SQL writer.
 3. Record the final PITR/backup restore point and logical-dump hashes.
 4. Re-run the read-only planner. Abort if output differs from rehearsal.
 5. Put write-capable application paths into maintenance mode.
@@ -189,9 +229,9 @@ Abort immediately on migration error, unexpected lock duration, invariant
 failure, cross-tenant visibility, audit attribution failure, row-count drift,
 financial imbalance, or readiness failure.
 
-- Application rollback: keep or restore
-  `ERP_PROJECT_WRITES_VIA_API=false` and promote the last known-good web/API
-  release.
+- Application rollback: promote the last known-good Web/API release. Do not
+  restore the retired `ERP_PROJECT_WRITES_VIA_API` flag or a direct Project
+  writer.
 - Database fix-forward: allowed only for a fully understood additive defect
   with intact data and approved forward migration.
 - Database restore: for destructive or uncertain outcomes, restore the

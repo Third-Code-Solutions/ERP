@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  consumeRequestRateLimit,
   requestRateLimitKey,
-  shouldRateLimitRequest,
+  requestRateLimitPolicy,
 } from './request-rate-limit'
 
 describe('request rate-limit identity', () => {
@@ -23,19 +24,67 @@ describe('request rate-limit identity', () => {
       requestRateLimitKey(ip, 'user-two')
     )
   })
-})
 
-describe('request rate-limit eligibility', () => {
-  it('does not consume the shared bucket for page navigation', () => {
-    expect(shouldRateLimitRequest('/', 'GET')).toBe(false)
-    expect(shouldRateLimitRequest('/tasks', 'GET')).toBe(false)
-    expect(shouldRateLimitRequest('/projects', 'HEAD')).toBe(false)
+  it('keeps provider-backed chat bursts below general authenticated traffic', () => {
+    expect(requestRateLimitPolicy('/api/cortex/chat', true)).toEqual({
+      bucket: 'provider-chat',
+      limit: 20,
+      windowMs: 60_000,
+    })
+    expect(requestRateLimitPolicy('/api/ai/similar-items', true)).toEqual({
+      bucket: 'provider-chat',
+      limit: 20,
+      windowMs: 60_000,
+    })
+    expect(
+      requestRateLimitPolicy(
+        '/api/cortex/chat/jobs/22222222-2222-4222-8222-222222222222',
+        true
+      )
+    ).toEqual({
+      bucket: 'provider-chat',
+      limit: 20,
+      windowMs: 60_000,
+    })
+    expect(requestRateLimitPolicy('/api/search', true)).toEqual({
+      bucket: 'general',
+      limit: 1_000,
+      windowMs: 60_000,
+    })
   })
 
-  it('limits API, auth, and mutating requests', () => {
-    expect(shouldRateLimitRequest('/api/notifications', 'GET')).toBe(true)
-    expect(shouldRateLimitRequest('/auth/login', 'GET')).toBe(true)
-    expect(shouldRateLimitRequest('/projects', 'POST')).toBe(true)
-    expect(shouldRateLimitRequest('/projects', 'DELETE')).toBe(true)
+  it('limits embedding bursts more tightly, including anonymous traffic', () => {
+    expect(requestRateLimitPolicy('/api/cortex/embed', true)).toMatchObject({
+      bucket: 'provider-embedding',
+      limit: 6,
+    })
+    expect(requestRateLimitPolicy('/api/cortex/embed', false)).toMatchObject({
+      bucket: 'provider-embedding',
+      limit: 2,
+    })
+  })
+
+  it('rejects only after policy limit and resets after window expiry', () => {
+    const policy = requestRateLimitPolicy('/api/cortex/chat', true)
+    let entry: { count: number; windowStart: number } | undefined
+
+    for (let attempt = 0; attempt < policy.limit; attempt += 1) {
+      const result = consumeRequestRateLimit(entry, policy, 10_000)
+      expect(result.limited).toBe(false)
+      entry = result.entry
+    }
+
+    const blocked = consumeRequestRateLimit(entry, policy, 10_000)
+    expect(blocked.limited).toBe(true)
+
+    const afterWindow = consumeRequestRateLimit(
+      blocked.entry,
+      policy,
+      10_000 + policy.windowMs + 1
+    )
+    expect(afterWindow).toEqual({
+      entry: { count: 1, windowStart: 10_000 + policy.windowMs + 1 },
+      limited: false,
+    })
   })
 })

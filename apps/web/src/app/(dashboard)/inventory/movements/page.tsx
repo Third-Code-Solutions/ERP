@@ -1,25 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { sql } from 'drizzle-orm'
+import { getStockMovementRegister } from '@/lib/inventory-movement-queries'
 
 export const metadata: Metadata = { title: 'Stock Movement register' }
-
-interface MovementRow {
-  [key: string]: unknown
-  id: string
-  internal_number: string | null
-  movement_type: 'transfer' | 'consumption' | 'adjustment'
-  status: 'draft' | 'posted' | 'reversed'
-  movement_date: string
-  reason: string
-  source_code: string
-  target_code: string | null
-  project_name: string | null
-  line_count: number
-  total_value_cents: number
-}
 
 function money(cents: number): string {
   return new Intl.NumberFormat('en-PH', {
@@ -31,42 +15,7 @@ function money(cents: number): string {
 export default async function StockMovementRegisterPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.read')
-  const rawRows = await db.execute<MovementRow>(sql`
-    select
-      movement.id,
-      movement.internal_number,
-      movement.movement_type,
-      movement.status,
-      movement.movement_date,
-      movement.reason,
-      source.code as source_code,
-      target.code as target_code,
-      project.name as project_name,
-      count(line.id)::integer as line_count,
-      coalesce(sum(line.posted_value_cents), 0)::bigint
-        as total_value_cents
-    from public.stock_movements movement
-    join public.warehouses source
-      on source.id = movement.source_warehouse_id
-     and source.tenant_id = movement.tenant_id
-    left join public.warehouses target
-      on target.id = movement.target_warehouse_id
-     and target.tenant_id = movement.tenant_id
-    left join public.projects project
-      on project.id = movement.project_id
-     and project.tenant_id = movement.tenant_id
-    left join public.stock_movement_lines line
-      on line.stock_movement_id = movement.id
-     and line.tenant_id = movement.tenant_id
-    where movement.tenant_id = ${profile.tenantId}::uuid
-    group by movement.id, source.id, target.id, project.id
-    order by movement.movement_date desc, movement.created_at desc
-  `)
-  const rows = rawRows.map((row) => ({
-    ...row,
-    line_count: Number(row.line_count),
-    total_value_cents: Number(row.total_value_cents),
-  }))
+  const rows = await getStockMovementRegister(profile.tenantId)
 
   return (
     <div>

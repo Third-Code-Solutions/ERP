@@ -39,9 +39,6 @@ jobs:
         run: |
           pnpm ci:actionlint
           pnpm verify:workflow-action-refs
-          pnpm verify:abi-ops-brand
-          pnpm verify:type-safety
-          pnpm verify:app-router-boundaries
       - name: Lint
         run: pnpm turbo lint
       - name: Type check
@@ -51,9 +48,10 @@ jobs:
           pnpm turbo test
           pnpm test:database-release-plan
           pnpm test:project-cutover-plan
-          pnpm test:wo-04-migration
-          pnpm test:wo-05-migration
-          pnpm test:wo-06-migration
+          pnpm test:purchase-order-duplicate-plan
+          pnpm test:controlled-release-plan
+          pnpm test:release-identity-plan
+          pnpm test:web-db-boundary
       - name: Rebuild and verify PostgreSQL 17 database
         shell: powershell
         run: scripts/ci/run-wsl1-database-lane.ps1

@@ -51,7 +51,7 @@ test('validates the consolidated public frontend candidate', async ({
     structuredData['@graph'].map(
       (entry: { '@type': string }) => entry['@type']
     )
-  ).toEqual(['Organization', 'SoftwareApplication', 'FAQPage'])
+  ).toEqual(['Organization', 'WebSite', 'WebPage', 'SoftwareApplication', 'FAQPage'])
 
   const robotsResponse = await page.request.get('/robots.txt')
   expect(robotsResponse.status()).toBe(200)

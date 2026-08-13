@@ -2,6 +2,7 @@ import 'reflect-metadata'
 import { Logger, ValidationPipe } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { NestFactory } from '@nestjs/core'
+import { json } from 'express'
 import helmet from 'helmet'
 import { AppModule } from './app.module'
 import { corsOrigins } from './config/environment'
@@ -9,8 +10,15 @@ import { corsOrigins } from './config/environment'
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
+    // Public signatures and bank-statement CSV imports are bounded payloads.
+    // The import contract caps source bytes at 2 MB (about 2.7 MB base64), so
+    // keep JSON parsing explicitly bounded rather than using an unbounded
+    // body parser.
+    bodyParser: false,
   })
   const config = app.get(ConfigService)
+
+  app.use(json({ limit: '4mb' }))
 
   app.use(helmet())
   app.enableCors({

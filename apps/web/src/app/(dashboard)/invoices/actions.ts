@@ -6,6 +6,14 @@ import { db } from '@third-code-erp/database'
 import { invoices } from '@third-code-erp/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import {
+  financeCustomerInvoiceIssueWritesUseCoreApi,
+  financeCustomerInvoiceReverseWritesUseCoreApi,
+  financeCustomerInvoiceCancelWritesUseCoreApi,
+  issueCustomerInvoiceThroughCoreApi,
+  reverseCustomerInvoiceThroughCoreApi,
+  cancelCustomerInvoiceThroughCoreApi,
+} from '../../../lib/erp-core-client'
 
 export interface InvoiceActionResult {
   ok: boolean
@@ -41,6 +49,13 @@ function safeInvoiceError(error: unknown): string {
     'Invoice reversal reason is required',
     'Only a posted open invoice can be reversed',
     'Customer invoice already has a reversal',
+    'Customer invoice reversal conflicts with its current state',
+    'Customer invoice was not found',
+    'Customer invoice was not reversed',
+    'ERP Core API is unavailable. No customer invoice reversal was committed.',
+    'Customer invoice cancellation conflicts with its current state',
+    'Customer invoice was not cancelled',
+    'ERP Core API is unavailable. No customer invoice cancellation was committed.',
   ]
 
   return (
@@ -71,7 +86,7 @@ function revalidateInvoice(invoiceId: string) {
 export async function issueCustomerInvoice(input: {
   invoiceId: string
   postingDate: string
-}): Promise<InvoiceActionResult> {
+}, idempotencyKey?: string): Promise<InvoiceActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.issue_invoice')
@@ -82,6 +97,34 @@ export async function issueCustomerInvoice(input: {
       profile.tenantId
     )
     if (!invoice) return { ok: false, error: 'Invoice not found' }
+
+    if (financeCustomerInvoiceIssueWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for customer invoice issuance.',
+        }
+      }
+      const coreResult = await issueCustomerInvoiceThroughCoreApi(
+        parsed.invoiceId,
+        { postingDate: parsed.postingDate },
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Customer invoice was not issued. No financial posting was committed.',
+        }
+      }
+      revalidateInvoice(parsed.invoiceId)
+      return {
+        ok: true,
+        journalId: coreResult.data.journalEntryId,
+        journalNumber: coreResult.data.journalEntryNumber,
+      }
+    }
 
     const rows = await db.execute<{
       journal_entry_id: string
@@ -109,7 +152,8 @@ export async function issueCustomerInvoice(input: {
 }
 
 export async function cancelDraftInvoice(
-  invoiceId: string
+  invoiceId: string,
+  idempotencyKey?: string
 ): Promise<InvoiceActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -117,6 +161,30 @@ export async function cancelDraftInvoice(
     const parsedId = z.string().uuid().parse(invoiceId)
     const invoice = await requireTenantInvoice(parsedId, profile.tenantId)
     if (!invoice) return { ok: false, error: 'Invoice not found' }
+
+    if (financeCustomerInvoiceCancelWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for customer invoice cancellation.',
+        }
+      }
+      const coreResult = await cancelCustomerInvoiceThroughCoreApi(
+        parsedId,
+        {},
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Customer invoice was not cancelled. No financial posting was committed.',
+        }
+      }
+      revalidateInvoice(parsedId)
+      return { ok: true }
+    }
 
     await db.execute(sql`
       select public.cancel_customer_invoice(
@@ -136,7 +204,9 @@ export async function reverseCustomerInvoice(input: {
   invoiceId: string
   postingDate: string
   reason: string
-}): Promise<InvoiceActionResult> {
+},
+  idempotencyKey?: string
+): Promise<InvoiceActionResult> {
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.issue_invoice')
@@ -152,6 +222,37 @@ export async function reverseCustomerInvoice(input: {
       profile.tenantId
     )
     if (!invoice) return { ok: false, error: 'Invoice not found' }
+
+    if (financeCustomerInvoiceReverseWritesUseCoreApi(profile.tenantId)) {
+      if (!idempotencyKey?.trim()) {
+        return {
+          ok: false,
+          error: 'Retry token is required for customer invoice reversal.',
+        }
+      }
+      const coreResult = await reverseCustomerInvoiceThroughCoreApi(
+        parsed.invoiceId,
+        {
+          reason: parsed.reason,
+          postingDate: parsed.postingDate,
+        },
+        idempotencyKey.trim()
+      )
+      if (!coreResult.ok || !coreResult.data) {
+        return {
+          ok: false,
+          error:
+            coreResult.error ??
+            'Customer invoice was not reversed. No financial posting was committed.',
+        }
+      }
+      revalidateInvoice(parsed.invoiceId)
+      return {
+        ok: true,
+        journalId: coreResult.data.reversalJournalEntryId,
+        journalNumber: coreResult.data.reversalJournalEntryNumber,
+      }
+    }
 
     const rows = await db.execute<{
       reversal_entry_id: string

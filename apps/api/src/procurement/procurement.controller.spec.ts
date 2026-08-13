@@ -8,9 +8,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 import { ProcurementController } from './procurement.controller'
 import { ProcurementService } from './procurement.service'
+import { RfqDispatchQueue } from './rfq-dispatch.queue'
 
 const RFQ_ID = '33333333-3333-4333-8333-333333333333'
-const QUOTE_ID = '77777777-7777-4777-8777-777777777777'
+const BOM_ID = '88888888-8888-4888-8888-888888888888'
 const COMMAND = {
   submissionId: '66666666-6666-4666-8666-666666666666',
   bomLineItemId: '44444444-4444-4444-8444-444444444444',
@@ -18,7 +19,7 @@ const COMMAND = {
   unitPriceCents: 12_345,
 }
 
-describe('Procurement RFQ quote HTTP contract', () => {
+describe('Procurement RFQ HTTP contract', () => {
   let close: (() => Promise<void>) | undefined
 
   afterEach(async () => {
@@ -28,29 +29,20 @@ describe('Procurement RFQ quote HTTP contract', () => {
 
   async function appFor(
     logQuote: ReturnType<typeof vi.fn>,
-    transitionRfq = vi.fn().mockResolvedValue({
-      rfqId: RFQ_ID,
-      tenantId: '22222222-2222-4222-8222-222222222222',
-      transitioned: true,
-    }),
-    awardRfqQuote = vi.fn().mockResolvedValue({
-      rfqId: RFQ_ID,
-      quoteId: QUOTE_ID,
-      tenantId: '22222222-2222-4222-8222-222222222222',
-      priceHistoryId: '88888888-8888-4888-8888-888888888888',
-      awarded: true,
-    })
+    transition = vi.fn(),
+    create = vi.fn(),
+    enqueue = vi.fn()
   ) {
     const moduleRef = await Test.createTestingModule({
       controllers: [ProcurementController],
       providers: [
         {
           provide: ProcurementService,
-          useValue: {
-            logQuote,
-            transitionRfq,
-            awardQuote: awardRfqQuote,
-          },
+          useValue: { create, logQuote, transition },
+        },
+        {
+          provide: RfqDispatchQueue,
+          useValue: { enqueue },
         },
       ],
     }).compile()
@@ -82,6 +74,103 @@ describe('Procurement RFQ quote HTTP contract', () => {
     return app
   }
 
+  it('preserves the strict RFQ creation result contract', async () => {
+    const create = vi.fn().mockResolvedValue({
+      rfqId: RFQ_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      projectId: '99999999-9999-4999-8999-999999999999',
+      lineCount: 2,
+      created: true,
+    })
+    const app = await appFor(vi.fn(), vi.fn(), create)
+
+    const response = await request(app.getHttpServer())
+      .post('/v1/procurement/rfqs')
+      .send({ bomId: BOM_ID })
+      .expect(200)
+
+    expect(response.body).toEqual({
+      rfqId: RFQ_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      projectId: '99999999-9999-4999-8999-999999999999',
+      lineCount: 2,
+      created: true,
+    })
+    expect(create).toHaveBeenCalledWith(
+      { bomId: BOM_ID },
+      expect.objectContaining({
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+    )
+  })
+
+  it('rejects caller-supplied RFQ creation authority', async () => {
+    const create = vi.fn()
+    const app = await appFor(vi.fn(), vi.fn(), create)
+
+    await request(app.getHttpServer())
+      .post('/v1/procurement/rfqs')
+      .send({
+        bomId: BOM_ID,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+      .expect(400)
+
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('accepts strict approved-BOM dispatch and returns 202', async () => {
+    const enqueue = vi.fn().mockResolvedValue({
+      jobId:
+        'rfq1-22222222-2222-4222-8222-222222222222-88888888-8888-4888-8888-888888888888',
+      enqueued: true,
+    })
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      enqueue
+    )
+
+    const response = await request(app.getHttpServer())
+      .post('/v1/procurement/rfqs/dispatch')
+      .send({ bomId: BOM_ID })
+      .expect(202)
+
+    expect(response.body).toEqual({
+      jobId:
+        'rfq1-22222222-2222-4222-8222-222222222222-88888888-8888-4888-8888-888888888888',
+      enqueued: true,
+    })
+    expect(enqueue).toHaveBeenCalledWith(
+      { bomId: BOM_ID },
+      expect.objectContaining({
+        userId: '11111111-1111-4111-8111-111111111111',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+    )
+  })
+
+  it('rejects caller-supplied dispatch authority', async () => {
+    const enqueue = vi.fn()
+    const app = await appFor(
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      enqueue
+    )
+
+    await request(app.getHttpServer())
+      .post('/v1/procurement/rfqs/dispatch')
+      .send({
+        bomId: BOM_ID,
+        actorId: '11111111-1111-4111-8111-111111111111',
+      })
+      .expect(400)
+
+    expect(enqueue).not.toHaveBeenCalled()
+  })
+
   it(
     'preserves the strict quote result contract',
     async () => {
@@ -89,7 +178,6 @@ describe('Procurement RFQ quote HTTP contract', () => {
         quoteId: '77777777-7777-4777-8777-777777777777',
         created: true,
         statusChanged: true,
-        priceHistoryId: '88888888-8888-4888-8888-888888888888',
       })
       const app = await appFor(logQuote)
 
@@ -122,77 +210,51 @@ describe('Procurement RFQ quote HTTP contract', () => {
     expect(logQuote).not.toHaveBeenCalled()
   })
 
-  it('routes a strict award command and rejects authority injection', async () => {
+  it('preserves the strict terminal-transition result contract', async () => {
     const logQuote = vi.fn()
-    const awardRfqQuote = vi.fn().mockResolvedValue({
-      rfqId: RFQ_ID,
-      quoteId: QUOTE_ID,
-      tenantId: '22222222-2222-4222-8222-222222222222',
-      priceHistoryId: '88888888-8888-4888-8888-888888888888',
-      awarded: true,
-    })
-    const app = await appFor(logQuote, undefined, awardRfqQuote)
-
-    await request(app.getHttpServer())
-      .post(`/v1/procurement/rfqs/${RFQ_ID}/quotes/${QUOTE_ID}/award`)
-      .send({})
-      .expect(201)
-
-    expect(awardRfqQuote).toHaveBeenCalledWith(
-      RFQ_ID,
-      QUOTE_ID,
-      {},
-      expect.objectContaining({
-        tenantId: '22222222-2222-4222-8222-222222222222',
-      }),
-    )
-
-    await request(app.getHttpServer())
-      .post(`/v1/procurement/rfqs/${RFQ_ID}/quotes/${QUOTE_ID}/award`)
-      .send({ tenantId: 'foreign' })
-      .expect(400)
-    expect(awardRfqQuote).toHaveBeenCalledOnce()
-  })
-
-  it('routes strict complete and cancel commands to the tenant service', async () => {
-    const logQuote = vi.fn()
-    const transitionRfq = vi.fn().mockResolvedValue({
+    const transition = vi.fn().mockResolvedValue({
       rfqId: RFQ_ID,
       tenantId: '22222222-2222-4222-8222-222222222222',
       transitioned: true,
     })
-    const app = await appFor(logQuote, transitionRfq)
+    const app = await appFor(logQuote, transition)
 
-    await request(app.getHttpServer())
-      .post(`/v1/procurement/rfqs/${RFQ_ID}/complete`)
-      .send({})
-      .expect(201)
-    await request(app.getHttpServer())
-      .post(`/v1/procurement/rfqs/${RFQ_ID}/cancel`)
-      .send({ reason: 'Supplier withdrew' })
-      .expect(201)
+    const response = await request(app.getHttpServer())
+      .post(`/v1/procurement/rfqs/${RFQ_ID}/transitions`)
+      .send({ command: 'complete' })
+      .expect(200)
 
-    expect(transitionRfq).toHaveBeenNthCalledWith(
-      1,
+    expect(response.body).toEqual({
+      rfqId: RFQ_ID,
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      transitioned: true,
+    })
+    expect(transition).toHaveBeenCalledWith(
       RFQ_ID,
       { command: 'complete' },
       expect.objectContaining({
         tenantId: '22222222-2222-4222-8222-222222222222',
       })
     )
-    expect(transitionRfq).toHaveBeenNthCalledWith(
-      2,
-      RFQ_ID,
-      { command: 'cancel', reason: 'Supplier withdrew' },
-      expect.objectContaining({
-        tenantId: '22222222-2222-4222-8222-222222222222',
-      })
-    )
+  })
+
+  it('rejects invalid terminal commands before service authority', async () => {
+    const logQuote = vi.fn()
+    const transition = vi.fn()
+    const app = await appFor(logQuote, transition)
 
     await request(app.getHttpServer())
-      .post(`/v1/procurement/rfqs/${RFQ_ID}/cancel`)
-      .send({ reason: 'Supplier withdrew', tenantId: 'foreign' })
+      .post(`/v1/procurement/rfqs/${RFQ_ID}/transitions`)
+      .send({
+        command: 'complete',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
       .expect(400)
-    expect(transitionRfq).toHaveBeenCalledTimes(2)
+    await request(app.getHttpServer())
+      .post(`/v1/procurement/rfqs/${RFQ_ID}/transitions`)
+      .send({ command: 'cancel', reason: ' ' })
+      .expect(400)
+
+    expect(transition).not.toHaveBeenCalled()
   })
 })

@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { and, eq, ne, sql } from 'drizzle-orm'
@@ -12,7 +13,10 @@ import {
 import { db } from '@third-code-erp/database'
 import { users as usersTable } from '@third-code-erp/database/schema'
 import { writeAuditLog } from '@/lib/audit'
-import { safeActionError } from '@/lib/safe-action-error'
+import {
+  adminUserRoleAssignmentWritesUseCoreApi,
+  assignUserRoleThroughCoreApi,
+} from '@/lib/erp-core-client'
 import { ASSIGNABLE_ROLES } from './roles'
 
 const createUserSchema = z.object({
@@ -40,7 +44,8 @@ async function safe<T extends { error?: string }>(
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error(`[admin/users:${label}]`, err)
-    return { error: `${label} failed. Please try again.` } as T
+    const msg = err instanceof Error ? err.message : String(err)
+    return { error: `${label} failed: ${msg}` } as T
   }
 }
 
@@ -79,6 +84,9 @@ export async function createUser(
       }
     }
     const input = parsed.data
+    if (input.role === 'owner' && profile.role !== 'owner') {
+      return { error: 'Only an owner can create another owner.' }
+    }
 
     // Reject duplicate emails within this tenant (Supabase Auth rejects
     // globally too, but we want a clean error before hitting the admin API).
@@ -103,11 +111,8 @@ export async function createUser(
       user_metadata: { full_name: input.full_name, tenant_id: profile.tenantId },
     })
     if (authErr || !created?.user) {
-      if (authErr) {
-        console.error('[admin/users:createUser] auth user creation failed', authErr)
-      }
       return {
-        error: safeActionError(authErr, 'Could not create the workspace user.'),
+        error: authErr?.message ?? 'Could not create the Supabase Auth user.',
       }
     }
     const authUserId = created.user.id
@@ -123,9 +128,11 @@ export async function createUser(
       })
     } catch (err) {
       await admin.auth.admin.deleteUser(authUserId).catch(() => {})
-      console.error('[admin/users:createUser] user row insert failed', err)
       return {
-        error: safeActionError(err, 'Could not create the workspace user.'),
+        error:
+          err instanceof Error
+            ? `User row insert failed: ${err.message}`
+            : 'User row insert failed.',
       }
     }
 
@@ -187,6 +194,45 @@ export async function updateUserRole(
     if (!existing) return { error: 'User not found in this workspace.' }
     if (existing.role === role) return {}
 
+    if (
+      user_id === profile.user.id &&
+      existing.role === 'owner' &&
+      role !== 'owner'
+    ) {
+      return { error: 'An owner cannot remove their own owner role.' }
+    }
+
+    if (
+      profile.role !== 'owner' &&
+      (existing.role === 'owner' || role === 'owner')
+    ) {
+      return { error: 'Only an owner can assign or change the owner role.' }
+    }
+
+    if (adminUserRoleAssignmentWritesUseCoreApi(profile.tenantId)) {
+      const result = await assignUserRoleThroughCoreApi(
+        user_id,
+        { expectedRole: existing.role, role },
+        randomUUID()
+      )
+      if (!result.ok || !result.data) {
+        return {
+          error: result.error ?? 'User role assignment was not committed.',
+        }
+      }
+      if (
+        result.data.userId !== user_id ||
+        result.data.tenantId !== profile.tenantId ||
+        result.data.role !== role
+      ) {
+        return { error: 'User role assignment returned an invalid tenant scope.' }
+      }
+
+      revalidatePath('/admin/users')
+      revalidatePath(`/admin/users/${user_id}`)
+      return {}
+    }
+
     await db
       .update(usersTable)
       .set({ role, updated_at: new Date() })
@@ -242,18 +288,22 @@ export async function resetUserPassword(
 
     // Tenant-scope guard.
     const [target] = await db
-      .select({ id: usersTable.id, email: usersTable.email })
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        role: usersTable.role,
+      })
       .from(usersTable)
       .where(and(eq(usersTable.id, user_id), eq(usersTable.tenant_id, profile.tenantId)))
       .limit(1)
     if (!target) return { error: 'User not found in this workspace.' }
+    if (target.role === 'owner' && profile.role !== 'owner') {
+      return { error: 'Only an owner can reset another owner password.' }
+    }
 
     const admin = createSupabaseAdminClient()
     const { error } = await admin.auth.admin.updateUserById(user_id, { password })
-    if (error) {
-      console.error('[admin/users:resetUserPassword] password reset failed', error)
-      return { error: 'Could not reset the user password.' }
-    }
+    if (error) return { error: error.message }
 
     try {
       await writeAuditLog({
@@ -301,6 +351,9 @@ export async function deleteUser(
       .where(and(eq(usersTable.id, userId), eq(usersTable.tenant_id, profile.tenantId)))
       .limit(1)
     if (!target) return { error: 'User not found in this workspace.' }
+    if (target.role === 'owner' && profile.role !== 'owner') {
+      return { error: 'Only an owner can delete another owner.' }
+    }
 
     // Protect the last admin/owner — count the remaining admins/owners
     // in this tenant (excluding the target).
@@ -323,10 +376,7 @@ export async function deleteUser(
 
     const admin = createSupabaseAdminClient()
     const { error: authErr } = await admin.auth.admin.deleteUser(userId)
-    if (authErr) {
-      console.error('[admin/users:deleteUser] auth user deletion failed', authErr)
-      return { error: safeActionError(authErr, 'Could not delete the workspace user.') }
-    }
+    if (authErr) return { error: authErr.message }
 
     // FK from public.users.id → auth.users.id is ON DELETE CASCADE in
     // Supabase by default, so the row often goes with it. We delete

@@ -1,0 +1,618 @@
+import { describe, expect, it } from 'vitest'
+import {
+  configureInventoryItemCommandSchema,
+  createInventoryUomCommandSchema,
+  createInventoryWarehouseCommandSchema,
+  createStockReceiptCommandSchema,
+  inventoryUomCreationResultSchema,
+  inventoryUomUpdateResultSchema,
+  inventoryWarehouseCreationResultSchema,
+  inventoryWarehouseCloseoutResultSchema,
+  inventoryWarehouseUpdateResultSchema,
+  updateInventoryWarehouseCommandSchema,
+  updateInventoryUomCommandSchema,
+  inventoryItemConfigurationResultSchema,
+  inventorySummaryResultSchema,
+  inventoryStockMovementListQuerySchema,
+  inventoryStockMovementListResultSchema,
+  inventoryStockMovementDetailResultSchema,
+  createStockMovementCommandSchema,
+  stockMovementCreationResultSchema,
+  stockMovementPostCommandSchema,
+  stockMovementPostingResultSchema,
+  stockMovementReverseCommandSchema,
+  stockMovementReversalResultSchema,
+  quantityToMicros,
+  signedQuantityToMicros,
+  receiptLineTotal,
+  stockReceiptPostCommandSchema,
+  stockReceiptPostingResultSchema,
+  stockReceiptReverseCommandSchema,
+  stockReceiptReversalResultSchema,
+} from './inventory'
+
+const UUID = '11111111-1111-4111-8111-111111111111'
+
+const INVENTORY_SUMMARY = {
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  uoms: [
+    {
+      id: UUID,
+      code: 'EA',
+      name: 'Each',
+      decimalPlaces: 0,
+      isActive: true,
+    },
+  ],
+  warehouses: [
+    {
+      id: '33333333-3333-4333-8333-333333333333',
+      code: 'MAIN',
+      name: 'Main store',
+      projectId: null,
+      isActive: true,
+    },
+  ],
+  items: [
+    {
+      id: '44444444-4444-4444-8444-444444444444',
+      code: 'CEMENT',
+      description: 'Cement',
+      baseUomId: UUID,
+      inventoryTracked: true,
+      isActive: true,
+    },
+  ],
+  projects: [{ id: '55555555-5555-4555-8555-555555555555', name: 'Site A' }],
+  balances: [
+    {
+      warehouseId: '33333333-3333-4333-8333-333333333333',
+      warehouseCode: 'MAIN',
+      warehouseName: 'Main store',
+      itemId: '44444444-4444-4444-8444-444444444444',
+      itemCode: 'CEMENT',
+      itemDescription: 'Cement',
+      uomCode: 'EA',
+      quantityMicros: '4250000',
+      valueCents: '10001',
+    },
+  ],
+  balancesTruncated: false,
+  receiptCounts: { draftCount: 1, postedCount: 2 },
+} as const
+
+const ITEM_CONFIGURATION = {
+  materialItemId: '44444444-4444-4444-8444-444444444444',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  baseUomId: UUID,
+  inventoryTracked: true,
+  unit: 'EA',
+  updatedAt: '2026-08-05T00:00:00.000Z',
+} as const
+
+const UOM_CREATION = {
+  uomId: '66666666-6666-4666-8666-666666666666',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  code: 'EA',
+  name: 'Each',
+  decimalPlaces: 0,
+  isActive: true,
+  createdAt: '2026-08-05T00:00:00.000Z',
+  updatedAt: '2026-08-05T00:00:00.000Z',
+} as const
+
+const UOM_UPDATE = {
+  ...UOM_CREATION,
+  name: 'Units',
+  isActive: false,
+  updatedAt: '2026-08-05T00:01:00.000Z',
+} as const
+
+const WAREHOUSE_CREATION = {
+  warehouseId: '77777777-7777-4777-8777-777777777777',
+  tenantId: '22222222-2222-4222-8222-222222222222',
+  code: 'MAIN',
+  name: 'Main store',
+  projectId: null,
+  isActive: true,
+  createdAt: '2026-08-05T00:00:00.000Z',
+  updatedAt: '2026-08-05T00:00:00.000Z',
+} as const
+
+const WAREHOUSE_UPDATE = {
+  warehouseId: WAREHOUSE_CREATION.warehouseId,
+  tenantId: WAREHOUSE_CREATION.tenantId,
+  code: WAREHOUSE_CREATION.code,
+  name: 'Closed materials store',
+  projectId: WAREHOUSE_CREATION.projectId,
+  isActive: false,
+  createdAt: WAREHOUSE_CREATION.createdAt,
+  updatedAt: '2026-08-05T00:01:00.000Z',
+} as const
+
+const WAREHOUSE_CLOSEOUT = {
+  warehouseId: WAREHOUSE_CREATION.warehouseId,
+  tenantId: WAREHOUSE_CREATION.tenantId,
+  code: WAREHOUSE_CREATION.code,
+  name: WAREHOUSE_CREATION.name,
+  projectId: WAREHOUSE_CREATION.projectId,
+  isActive: true,
+  quantityMicros: '0',
+  valueCents: '0',
+  canDeactivate: true,
+  disposition: 'ready',
+} as const
+
+describe('Inventory Warehouse creation contract', () => {
+  it('accepts optional project scope and rejects browser identity fields', () => {
+    expect(
+      createInventoryWarehouseCommandSchema.parse({
+        code: ' MAIN ',
+        name: ' Main store ',
+        projectId: null,
+      })
+    ).toEqual({ code: 'MAIN', name: 'Main store', projectId: null })
+    expect(
+      inventoryWarehouseCreationResultSchema.parse(WAREHOUSE_CREATION)
+    ).toEqual(WAREHOUSE_CREATION)
+    expect(() =>
+      createInventoryWarehouseCommandSchema.parse({
+        code: 'MAIN',
+        name: 'Main store',
+        projectId: null,
+        tenantId: WAREHOUSE_CREATION.tenantId,
+      })
+    ).toThrow()
+  })
+})
+
+describe('Inventory Warehouse update contract', () => {
+  it('accepts explicit name/state and rejects immutable identity fields', () => {
+    expect(
+      updateInventoryWarehouseCommandSchema.parse({
+        name: ' Closed materials store ',
+        isActive: false,
+      })
+    ).toEqual({ name: 'Closed materials store', isActive: false })
+    expect(inventoryWarehouseUpdateResultSchema.parse(WAREHOUSE_UPDATE)).toEqual(
+      WAREHOUSE_UPDATE
+    )
+    expect(() =>
+      updateInventoryWarehouseCommandSchema.parse({
+        name: 'Closed materials store',
+        isActive: false,
+        code: 'CLOSED',
+      })
+    ).toThrow()
+  })
+})
+
+describe('Inventory Warehouse closeout contract', () => {
+  it('keeps exact balances and an explicit deactivation disposition', () => {
+    expect(inventoryWarehouseCloseoutResultSchema.parse(WAREHOUSE_CLOSEOUT)).toEqual(
+      WAREHOUSE_CLOSEOUT
+    )
+    expect(() =>
+      inventoryWarehouseCloseoutResultSchema.parse({
+        ...WAREHOUSE_CLOSEOUT,
+        quantityMicros: 0,
+      })
+    ).toThrow()
+  })
+})
+
+describe('Inventory UOM creation contract', () => {
+  it('accepts strict setup data and rejects browser identity fields', () => {
+    expect(
+      createInventoryUomCommandSchema.parse({
+        code: ' EA ',
+        name: ' Each ',
+        decimalPlaces: 0,
+      })
+    ).toEqual({ code: 'EA', name: 'Each', decimalPlaces: 0 })
+    expect(inventoryUomCreationResultSchema.parse(UOM_CREATION)).toEqual(
+      UOM_CREATION
+    )
+    expect(() =>
+      createInventoryUomCommandSchema.parse({
+        code: 'EA',
+        name: 'Each',
+        decimalPlaces: 0,
+        tenantId: UOM_CREATION.tenantId,
+      })
+    ).toThrow()
+  })
+})
+
+describe('Inventory UOM update contract', () => {
+  it('accepts explicit mutable state and rejects identity fields', () => {
+    expect(
+      updateInventoryUomCommandSchema.parse({
+        name: ' Units ',
+        isActive: false,
+      })
+    ).toEqual({ name: 'Units', isActive: false })
+    expect(inventoryUomUpdateResultSchema.parse(UOM_UPDATE)).toEqual(UOM_UPDATE)
+    expect(() =>
+      updateInventoryUomCommandSchema.parse({
+        name: 'Units',
+        isActive: false,
+        code: 'U',
+      })
+    ).toThrow()
+  })
+})
+
+describe('Inventory item configuration contract', () => {
+  it('accepts a strict state-setting command and result', () => {
+    expect(
+      configureInventoryItemCommandSchema.parse({
+        uomId: UUID,
+        tracked: true,
+      })
+    ).toEqual({ uomId: UUID, tracked: true })
+    expect(inventoryItemConfigurationResultSchema.parse(ITEM_CONFIGURATION)).toEqual(
+      ITEM_CONFIGURATION
+    )
+    expect(() =>
+      configureInventoryItemCommandSchema.parse({
+        uomId: UUID,
+        tracked: true,
+        tenantId: '22222222-2222-4222-8222-222222222222',
+      })
+    ).toThrow()
+  })
+})
+
+describe('Inventory summary contract', () => {
+  it('accepts bounded tenant-scoped data with exact integer strings', () => {
+    expect(inventorySummaryResultSchema.parse(INVENTORY_SUMMARY)).toEqual(
+      INVENTORY_SUMMARY
+    )
+  })
+
+  it('rejects numeric money/quantity values and unknown fields', () => {
+    expect(() =>
+      inventorySummaryResultSchema.parse({
+        ...INVENTORY_SUMMARY,
+        balances: [
+          { ...INVENTORY_SUMMARY.balances[0], valueCents: 10001 },
+        ],
+      })
+    ).toThrow()
+    expect(() =>
+      inventorySummaryResultSchema.parse({
+        ...INVENTORY_SUMMARY,
+        unexpected: true,
+      })
+    ).toThrow()
+  })
+})
+
+describe('Stock Movement register contract', () => {
+  it('keeps tenant scope, bounded pagination, and exact value strings', () => {
+    expect(
+      inventoryStockMovementListQuerySchema.parse({
+        movementType: 'transfer',
+        status: 'posted',
+        page: '2',
+        limit: '50',
+      })
+    ).toEqual({
+      movementType: 'transfer',
+      status: 'posted',
+      page: 2,
+      limit: 50,
+    })
+
+    const result = {
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      rows: [
+        {
+          id: '88888888-8888-4888-8888-888888888888',
+          internalNumber: 'SM-2026-000001',
+          movementType: 'transfer' as const,
+          status: 'posted' as const,
+          movementDate: '2026-08-05',
+          reason: 'Move accepted materials',
+          sourceWarehouseCode: 'MAIN',
+          targetWarehouseCode: 'SITE-A',
+          projectName: 'Site A',
+          lineCount: 2,
+          totalValueCents: '125000',
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 500,
+      totalPages: 1,
+    }
+    expect(inventoryStockMovementListResultSchema.parse(result)).toEqual(result)
+    expect(() =>
+      inventoryStockMovementListResultSchema.parse({
+        ...result,
+        rows: [{ ...result.rows[0], totalValueCents: 125000 }],
+      })
+    ).toThrow()
+  })
+
+  it('keeps detail quantities, money, and timestamps exact', () => {
+    const result = {
+      tenantId: '22222222-2222-4222-8222-222222222222',
+      movement: {
+        id: '88888888-8888-4888-8888-888888888888',
+        internalNumber: 'SM-2026-000001',
+        movementType: 'transfer' as const,
+        status: 'posted' as const,
+        movementDate: '2026-08-05',
+        currency: 'PHP',
+        reason: 'Move accepted materials',
+        sourceWarehouseCode: 'MAIN',
+        sourceWarehouseName: 'Main store',
+        targetWarehouseCode: 'SITE-A',
+        targetWarehouseName: 'Site A',
+        projectName: 'Site A project',
+        postingJournalEntryId: UUID,
+        postingJournalNumber: 'JE-0001',
+        reversalJournalEntryId: null,
+        reversalJournalNumber: null,
+        postedAt: '2026-08-05T00:00:00.000Z',
+        reversedAt: null,
+        reversalReason: null,
+      },
+      lines: [
+        {
+          id: '99999999-9999-4999-8999-999999999999',
+          lineNumber: 1,
+          itemCode: 'CEMENT',
+          description: 'Cement',
+          uomCode: 'BAG',
+          costCode: 'MAT-001',
+          quantityMicros: '4250000',
+          declaredUnitCostCents: '12500',
+          postedUnitCostCents: '12500',
+          postedValueCents: '53125',
+        },
+      ],
+      ledger: [
+        {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          eventType: 'transfer_out',
+          occurredOn: '2026-08-05',
+          itemCode: 'CEMENT',
+          warehouseCode: 'MAIN',
+          quantityDeltaMicros: '-4250000',
+          valueDeltaCents: '-53125',
+          reversesStockLedgerEntryId: null,
+        },
+      ],
+    }
+
+    expect(inventoryStockMovementDetailResultSchema.parse(result)).toEqual(
+      result
+    )
+    expect(() =>
+      inventoryStockMovementDetailResultSchema.parse({
+        ...result,
+        lines: [
+          { ...result.lines[0], postedValueCents: 53125 },
+        ],
+      })
+    ).toThrow()
+  })
+})
+
+describe('Stock Receipt command contract', () => {
+  it('accepts bounded decimal quantities and trims text', () => {
+    const command = createStockReceiptCommandSchema.parse({
+      warehouseId: UUID,
+      purchaseOrderId: '22222222-2222-4222-8222-222222222222',
+      supplierDeliveryReference: '  DR-7  ',
+      receivedDate: '2026-08-01',
+      notes: '  accepted  ',
+      lines: [{ poLineItemId: '33333333-3333-4333-8333-333333333333', quantity: ' 4.25 ' }],
+    })
+
+    expect(command.supplierDeliveryReference).toBe('DR-7')
+    expect(command.notes).toBe('accepted')
+    expect(command.lines[0]?.quantity).toBe('4.25')
+  })
+
+  it('keeps duplicate line identity validation at the transaction boundary', () => {
+    expect(() =>
+      createStockReceiptCommandSchema.parse({
+        warehouseId: UUID,
+        purchaseOrderId: '22222222-2222-4222-8222-222222222222',
+        receivedDate: '2026-08-01',
+        lines: [
+          { poLineItemId: '33333333-3333-4333-8333-333333333333', quantity: '1' },
+          { poLineItemId: '33333333-3333-4333-8333-333333333333', quantity: '2' },
+        ],
+      })
+    ).not.toThrow()
+  })
+
+  it('uses exact micro-unit conversion and centavo rounding', () => {
+    expect(quantityToMicros('4.25')).toBe(4_250_000n)
+    expect(quantityToMicros('0.000001')).toBe(1n)
+    expect(receiptLineTotal(1_500_000n, 10_001n)).toBe(15_002n)
+    expect(receiptLineTotal(500_000n, 1n)).toBe(1n)
+  })
+
+  it.each(['0', '-1', '1.0000001', '1.2.3'])('rejects invalid quantity %s', (value) => {
+    expect(() => quantityToMicros(value)).toThrow()
+  })
+
+  it('rejects zero-valued receipt lines', () => {
+    expect(() => receiptLineTotal(1n, 0n)).toThrow(
+      'Receipt line value must be positive'
+    )
+  })
+
+  it('rejects impossible receipt dates before database authority', () => {
+    expect(() =>
+      createStockReceiptCommandSchema.parse({
+        warehouseId: UUID,
+        purchaseOrderId: '22222222-2222-4222-8222-222222222222',
+        receivedDate: '2026-02-30',
+        lines: [
+          {
+            poLineItemId: '33333333-3333-4333-8333-333333333333',
+            quantity: '1',
+          },
+        ],
+      })
+    ).toThrow('Date must be a real calendar date')
+  })
+
+  it('keeps post and reverse workflow contracts strict', () => {
+    expect(
+      stockReceiptPostCommandSchema.parse({ postingDate: '2026-08-02' })
+    ).toEqual({ postingDate: '2026-08-02' })
+    expect(
+      stockReceiptReverseCommandSchema.parse({
+        postingDate: '2026-08-02',
+        reason: 'Supplier correction',
+      })
+    ).toEqual({
+      postingDate: '2026-08-02',
+      reason: 'Supplier correction',
+    })
+    expect(() =>
+      stockReceiptReverseCommandSchema.parse({
+        postingDate: '2026-08-02',
+        reason: 'no',
+      })
+    ).toThrow()
+  })
+
+  it('validates posted and reversed result identities', () => {
+    const resultBase = {
+      stockReceiptId: '33333333-3333-4333-8333-333333333333',
+      tenantId: '22222222-2222-4222-8222-222222222222',
+    }
+    expect(
+      stockReceiptPostingResultSchema.parse({
+        ...resultBase,
+        status: 'posted',
+        receiptNumber: 'SR-2026-000001',
+        journalEntryId: '44444444-4444-4444-8444-444444444444',
+        journalEntryNumber: 'JE-2026-000001',
+      }).status
+    ).toBe('posted')
+    expect(
+      stockReceiptReversalResultSchema.parse({
+        ...resultBase,
+        status: 'reversed',
+        reversalJournalEntryId: '55555555-5555-4555-8555-555555555555',
+        reversalJournalEntryNumber: 'JE-2026-000002',
+      }).status
+    ).toBe('reversed')
+  })
+})
+
+describe('Stock Movement draft command contract', () => {
+  const command = {
+    movementType: 'adjustment' as const,
+    sourceWarehouseId: UUID,
+    targetWarehouseId: null,
+    projectId: null,
+    movementDate: '2026-08-05',
+    reason: '  Physical count correction  ',
+    lines: [
+      {
+        materialItemId: '33333333-3333-4333-8333-333333333333',
+        quantity: ' -1.250000 ',
+        costCodeId: null,
+        declaredUnitCostPhp: null,
+      },
+    ],
+  }
+
+  it('normalizes nullable fields and trims command text', () => {
+    expect(createStockMovementCommandSchema.parse(command)).toEqual({
+      ...command,
+      reason: 'Physical count correction',
+      lines: [{ ...command.lines[0], quantity: '-1.250000' }],
+    })
+  })
+
+  it('keeps idempotency/result contracts tenant-scoped and strict', () => {
+    expect(
+      stockMovementCreationResultSchema.parse({
+        stockMovementId: '44444444-4444-4444-8444-444444444444',
+        tenantId: '55555555-5555-4555-8555-555555555555',
+        status: 'draft',
+        lineCount: 1,
+      })
+    ).toEqual({
+      stockMovementId: '44444444-4444-4444-8444-444444444444',
+      tenantId: '55555555-5555-4555-8555-555555555555',
+      status: 'draft',
+      lineCount: 1,
+    })
+    expect(() =>
+      createStockMovementCommandSchema.parse({ ...command, tenantId: UUID })
+    ).toThrow()
+  })
+
+  it.each(['1.0000001', '1.2.3', '--1'])(
+    'rejects invalid signed quantity %s',
+    (value) => {
+      expect(() => signedQuantityToMicros(value)).toThrow()
+      expect(() =>
+        createStockMovementCommandSchema.parse({
+          ...command,
+          lines: [{ ...command.lines[0], quantity: value }],
+        })
+      ).toThrow()
+    }
+  )
+
+  it('rejects zero signed quantities in exact conversion', () => {
+    expect(() => signedQuantityToMicros('0')).toThrow()
+    expect(() => signedQuantityToMicros('-0')).toThrow()
+  })
+
+  it('converts signed quantities exactly without floating point math', () => {
+    expect(signedQuantityToMicros('4.25')).toBe(4_250_000n)
+    expect(signedQuantityToMicros('-0.000001')).toBe(-1n)
+  })
+
+  it('keeps post/reverse workflow commands and results strict', () => {
+    expect(stockMovementPostCommandSchema.parse({})).toEqual({})
+    expect(() => stockMovementPostCommandSchema.parse({ tenantId: UUID })).toThrow()
+    expect(
+      stockMovementReverseCommandSchema.parse({
+        reason: 'Count sheet corrected',
+        reversalDate: '2026-08-05',
+      })
+    ).toEqual({ reason: 'Count sheet corrected', reversalDate: '2026-08-05' })
+    expect(() =>
+      stockMovementReverseCommandSchema.parse({
+        reason: 'no',
+        reversalDate: '2026-02-30',
+      })
+    ).toThrow()
+
+    expect(
+      stockMovementPostingResultSchema.parse({
+        stockMovementId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        status: 'posted',
+        movementNumber: 'SM-2026-000001',
+        journalEntryId: null,
+        journalEntryNumber: null,
+      }).status
+    ).toBe('posted')
+    expect(
+      stockMovementReversalResultSchema.parse({
+        stockMovementId: '33333333-3333-4333-8333-333333333333',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        status: 'reversed',
+        reversalJournalEntryId: '44444444-4444-4444-8444-444444444444',
+        reversalJournalEntryNumber: 'JE-2026-000002',
+      }).status
+    ).toBe('reversed')
+  })
+})

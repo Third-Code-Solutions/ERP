@@ -2,61 +2,11 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { getStockMovementDetail } from '@/lib/inventory-movement-detail-queries'
 import { StockMovementActions } from '../movement-actions'
 
 export const metadata: Metadata = { title: 'Stock Movement detail' }
-
-interface MovementRow {
-  [key: string]: unknown
-  id: string
-  internal_number: string | null
-  movement_type: 'transfer' | 'consumption' | 'adjustment'
-  status: 'draft' | 'posted' | 'reversed'
-  movement_date: string
-  currency: string
-  reason: string
-  source_code: string
-  source_name: string
-  target_code: string | null
-  target_name: string | null
-  project_name: string | null
-  posting_journal_entry_id: string | null
-  posting_journal_number: string | null
-  reversal_journal_entry_id: string | null
-  reversal_journal_number: string | null
-  posted_at: string | null
-  reversed_at: string | null
-  reversal_reason: string | null
-}
-
-interface MovementLineRow {
-  [key: string]: unknown
-  id: string
-  line_number: number
-  item_code: string
-  description: string
-  uom_code: string
-  cost_code: string | null
-  quantity_micros: number
-  declared_unit_cost_cents: number | null
-  posted_unit_cost_cents: number | null
-  posted_value_cents: number | null
-}
-
-interface LedgerRow {
-  [key: string]: unknown
-  id: string
-  event_type: string
-  occurred_on: string
-  item_code: string
-  warehouse_code: string
-  quantity_delta_micros: number
-  value_delta_cents: number
-  reverses_stock_ledger_entry_id: string | null
-}
 
 function quantity(micros: number): string {
   return new Intl.NumberFormat('en-PH', {
@@ -81,120 +31,9 @@ export default async function StockMovementDetailPage({
   if (!z.string().uuid().safeParse(id).success) notFound()
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.read')
-
-  const [movementRows, rawLines, rawLedger] = await Promise.all([
-    db.execute<MovementRow>(sql`
-      select
-        movement.id,
-        movement.internal_number,
-        movement.movement_type,
-        movement.status,
-        movement.movement_date,
-        movement.currency,
-        movement.reason,
-        movement.posting_journal_entry_id,
-        posted_journal.entry_number as posting_journal_number,
-        movement.reversal_journal_entry_id,
-        reversal_journal.entry_number as reversal_journal_number,
-        movement.posted_at,
-        movement.reversed_at,
-        movement.reversal_reason,
-        source.code as source_code,
-        source.name as source_name,
-        target.code as target_code,
-        target.name as target_name,
-        project.name as project_name
-      from public.stock_movements movement
-      join public.warehouses source
-        on source.id = movement.source_warehouse_id
-       and source.tenant_id = movement.tenant_id
-      left join public.warehouses target
-        on target.id = movement.target_warehouse_id
-       and target.tenant_id = movement.tenant_id
-      left join public.projects project
-        on project.id = movement.project_id
-       and project.tenant_id = movement.tenant_id
-      left join public.journal_entries posted_journal
-        on posted_journal.id = movement.posting_journal_entry_id
-       and posted_journal.tenant_id = movement.tenant_id
-      left join public.journal_entries reversal_journal
-        on reversal_journal.id = movement.reversal_journal_entry_id
-       and reversal_journal.tenant_id = movement.tenant_id
-      where movement.id = ${id}::uuid
-        and movement.tenant_id = ${profile.tenantId}::uuid
-      limit 1
-    `),
-    db.execute<MovementLineRow>(sql`
-      select
-        line.id,
-        line.line_number,
-        item.code as item_code,
-        line.description,
-        uom.code as uom_code,
-        cost_code.code as cost_code,
-        line.quantity_micros,
-        line.declared_unit_cost_cents,
-        line.posted_unit_cost_cents,
-        line.posted_value_cents
-      from public.stock_movement_lines line
-      join public.material_items item
-        on item.id = line.material_item_id
-       and item.tenant_id = line.tenant_id
-      join public.units_of_measure uom
-        on uom.id = line.uom_id
-       and uom.tenant_id = line.tenant_id
-      left join public.cost_codes cost_code
-        on cost_code.id = line.cost_code_id
-       and cost_code.tenant_id = line.tenant_id
-      where line.stock_movement_id = ${id}::uuid
-        and line.tenant_id = ${profile.tenantId}::uuid
-      order by line.line_number
-    `),
-    db.execute<LedgerRow>(sql`
-      select
-        entry.id,
-        entry.event_type,
-        entry.occurred_on,
-        item.code as item_code,
-        warehouse.code as warehouse_code,
-        entry.quantity_delta_micros,
-        entry.value_delta_cents,
-        entry.reverses_stock_ledger_entry_id
-      from public.stock_ledger_entries entry
-      join public.material_items item
-        on item.id = entry.material_item_id
-       and item.tenant_id = entry.tenant_id
-      join public.warehouses warehouse
-        on warehouse.id = entry.warehouse_id
-       and warehouse.tenant_id = entry.tenant_id
-      where entry.stock_movement_id = ${id}::uuid
-        and entry.tenant_id = ${profile.tenantId}::uuid
-      order by entry.created_at, entry.id
-    `),
-  ])
-  const movement = movementRows[0]
-  if (!movement) notFound()
-  const lines = rawLines.map((line) => ({
-    ...line,
-    quantity_micros: Number(line.quantity_micros),
-    declared_unit_cost_cents:
-      line.declared_unit_cost_cents === null
-        ? null
-        : Number(line.declared_unit_cost_cents),
-    posted_unit_cost_cents:
-      line.posted_unit_cost_cents === null
-        ? null
-        : Number(line.posted_unit_cost_cents),
-    posted_value_cents:
-      line.posted_value_cents === null
-        ? null
-        : Number(line.posted_value_cents),
-  }))
-  const ledger = rawLedger.map((entry) => ({
-    ...entry,
-    quantity_delta_micros: Number(entry.quantity_delta_micros),
-    value_delta_cents: Number(entry.value_delta_cents),
-  }))
+  const detail = await getStockMovementDetail(profile.tenantId, id)
+  if (!detail) notFound()
+  const { movement, lines, ledger } = detail
   const totalValue = lines.reduce(
     (total, line) => total + (line.posted_value_cents ?? 0),
     0

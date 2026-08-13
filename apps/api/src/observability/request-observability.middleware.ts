@@ -5,7 +5,6 @@ import {
   type NestMiddleware,
 } from '@nestjs/common'
 import type { NextFunction, Request, Response } from 'express'
-import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 
 export const REQUEST_ID_HEADER = 'x-request-id'
 
@@ -15,7 +14,7 @@ const COMMAND_METHODS = new Set(['DELETE', 'PATCH', 'POST', 'PUT'])
 
 type CommandOutcome = 'aborted' | 'failed' | 'rejected' | 'succeeded'
 
-interface CorrelatedRequest extends AuthenticatedRequest {
+interface CorrelatedRequest extends Request {
   requestId: string
 }
 
@@ -49,12 +48,8 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
       this.logger.log(
         JSON.stringify({
           event: 'erp.command.outcome',
-          trace_id: requestId,
           requestId,
-          action: this.operation(request),
           operation: this.operation(request),
-          tenant_id: (request as CorrelatedRequest).principal?.tenantId ?? null,
-          actor_id: (request as CorrelatedRequest).principal?.userId ?? null,
           method: request.method,
           statusCode: aborted ? null : response.statusCode,
           outcome: aborted
@@ -85,63 +80,173 @@ export class RequestObservabilityMiddleware implements NestMiddleware {
         : ''
     if (
       request.method === 'PATCH' &&
+      routePath.endsWith('/v1/admin/users/:userId/role')
+    ) {
+      return 'admin.user_role_assignment'
+    }
+    if (
+      request.method === 'PATCH' &&
       routePath.endsWith('/v1/projects/:projectId')
     ) {
       return 'project.update'
     }
     if (
       request.method === 'POST' &&
-      routePath.endsWith('/v1/process/steps')
+      routePath.endsWith('/v1/documents/:documentId/cad-evidence')
     ) {
-      return 'process.step.create'
+      return 'document.cad_evidence_commit'
     }
     if (
       request.method === 'POST' &&
-      routePath.endsWith('/v1/process/tasks')
+      routePath.endsWith('/v1/documents/:documentId/processing-jobs')
     ) {
-      return 'process.task.create'
+      return 'document.processing_enqueue'
     }
     if (
-      request.method === 'PATCH' &&
-      routePath.endsWith('/v1/process/tasks/:taskId/assignment')
+      request.method === 'DELETE' &&
+      routePath.endsWith('/v1/documents/:documentId')
     ) {
-      return 'process.task.assign'
-    }
-    if (
-      request.method === 'POST' &&
-      routePath.endsWith('/v1/process/tasks/:taskId/clock')
-    ) {
-      return 'process.sla.start'
-    }
-    if (
-      request.method === 'PATCH' &&
-      routePath.endsWith('/v1/process/sla-clocks/:clockId/observe-mode')
-    ) {
-      return 'process.sla.observe_mode'
+      return 'document.delete'
     }
     if (
       request.method === 'POST' &&
-      routePath.endsWith('/v1/process/sla-clocks/:clockId/evaluate')
+      routePath.endsWith('/v1/public/signatures/:token')
     ) {
-      return 'process.sla.evaluate'
+      return 'public.signature_sign'
     }
     if (
       request.method === 'POST' &&
-      routePath.endsWith('/v1/process/approval-rules')
+      routePath.endsWith('/v1/public/purchase-orders/:token/confirmation')
     ) {
-      return 'process.approval_rule.create'
+      return 'public.vendor_confirmation'
     }
     if (
       request.method === 'POST' &&
-      routePath.endsWith('/v1/process/approvals')
+      routePath.endsWith('/v1/finance/journals/:journalEntryId/post')
     ) {
-      return 'process.approval.create'
+      return 'finance.journal_post'
     }
     if (
-      request.method === 'PATCH' &&
-      routePath.endsWith('/v1/process/approvals/:approvalId/decision')
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/journals/:journalEntryId/reverse')
     ) {
-      return 'process.approval.decide'
+      return 'finance.journal_reverse'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/supplier-bills/:supplierBillId/post')
+    ) {
+      return 'finance.supplier_bill_post'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/supplier-bills/:supplierBillId/reverse')
+    ) {
+      return 'finance.supplier_bill_reverse'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/finance/cash-transactions/:cashTransactionId/post'
+      )
+    ) {
+      return 'finance.cash_transaction_post'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/finance/cash-transactions/:cashTransactionId/reverse'
+      )
+    ) {
+      return 'finance.cash_transaction_reverse'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/cash-transactions/drafts')
+    ) {
+      return 'finance.cash_transaction_draft_save'
+    }
+    if (
+      request.method === 'DELETE' &&
+      routePath.endsWith('/v1/finance/cash-transactions/:cashTransactionId/draft')
+    ) {
+      return 'finance.cash_transaction_draft_delete'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/customer-invoices/:invoiceId/issue')
+    ) {
+      return 'finance.customer_invoice_issue'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/reconciliation/import/storage/sign')
+    ) {
+      return 'finance.bank_statement_storage_sign'
+    }
+    if (
+      request.method === 'DELETE' &&
+      routePath.endsWith('/v1/finance/reconciliation/import/storage')
+    ) {
+      return 'finance.bank_statement_storage_cleanup'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/projects/:projectId/customer-invoices')
+    ) {
+      return 'finance.customer_invoice_draft_create'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/customer-invoices/:invoiceId/reverse')
+    ) {
+      return 'finance.customer_invoice_reverse'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith('/v1/finance/customer-invoices/:invoiceId/cancel')
+    ) {
+      return 'finance.customer_invoice_cancel'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/procurement/deliveries/:deliveryScheduleId/site-preparation/start'
+      )
+    ) {
+      return 'procurement.delivery_site_preparation_start'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/procurement/deliveries/:deliveryScheduleId/site-preparation/complete'
+      )
+    ) {
+      return 'procurement.delivery_site_preparation_complete'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/procurement/deliveries/:deliveryScheduleId/inspection/start'
+      )
+    ) {
+      return 'procurement.delivery_inspection_start'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/procurement/deliveries/:deliveryScheduleId/inspection/complete'
+      )
+    ) {
+      return 'procurement.delivery_inspection_complete'
+    }
+    if (
+      request.method === 'POST' &&
+      routePath.endsWith(
+        '/v1/procurement/deliveries/:deliveryScheduleId/cancel'
+      )
+    ) {
+      return 'procurement.delivery_cancel'
     }
     return 'unknown.command'
   }

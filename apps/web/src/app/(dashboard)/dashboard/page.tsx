@@ -7,8 +7,7 @@ import {
   getAlerts,
   getConversionRates,
   getMonthlyForecast,
-  getMyWorkSummary,
-  getManagementDashboard,
+  getTodayCommandCenter,
 } from '@/lib/dashboard-queries'
 import { KpiCards } from '@/components/dashboard/kpi-cards'
 import { RepScorecardTable } from '@/components/dashboard/rep-scorecard'
@@ -19,10 +18,9 @@ import { ConversionRateTable } from '@/components/dashboard/conversion-rate-tabl
 import { ForecastChart } from '@/components/dashboard/forecast-chart'
 import { ExportCsvButton } from '@/components/dashboard/export-csv-button'
 import { CloseDateFilter } from '@/components/dashboard/close-date-filter'
-import { RoleWorkDashboard } from '@/components/dashboard/role-work-dashboard'
-import { ManagementHealth } from '@/components/dashboard/management-health'
+import { TodayCommandCenter } from '@/components/dashboard/today-command-center'
 import { loadDashboardForRole } from '@/lib/dashboard-access'
-import { roleLabel } from '@/lib/operations/nav-config'
+import { canViewPath, roleLabel } from '@/lib/operations/nav-config'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -64,7 +62,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const dashboard = await loadDashboardForRole(profile.role, {
     executive: async () => {
-      const [kpis, stages, reps, alerts, conversionRates, forecast, managementHealth] =
+      const [kpis, stages, reps, alerts, conversionRates, forecast, today] =
         await Promise.all([
           getDashboardKpis(profile.tenantId),
           getStageDistribution(profile.tenantId),
@@ -72,13 +70,31 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           getAlerts(profile.tenantId),
           getConversionRates(profile.tenantId),
           getMonthlyForecast(profile.tenantId, 6),
-          getManagementDashboard(profile.tenantId),
+          getTodayCommandCenter(
+            profile.tenantId,
+            profile.user.id,
+            renderedAt,
+            canViewPath(profile.role, '/projects')
+          ),
         ])
 
-      return { kpis, stages, reps, alerts, conversionRates, forecast, managementHealth }
+      return { kpis, stages, reps, alerts, conversionRates, forecast, today }
     },
     myWork: () =>
-      getMyWorkSummary(profile.tenantId, profile.user.id, renderedAt),
+      getTodayCommandCenter(
+        profile.tenantId,
+        profile.user.id,
+        renderedAt,
+        canViewPath(profile.role, '/projects')
+      ),
+  }, {
+    onExecutiveFailure: () =>
+      getTodayCommandCenter(
+        profile.tenantId,
+        profile.user.id,
+        renderedAt,
+        canViewPath(profile.role, '/projects')
+      ),
   })
 
   const fmt = new Intl.DateTimeFormat('en-PH', {
@@ -98,9 +114,22 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // dashboard; for now they only flow into ExportCsvButton via the URL.
   void resolvedSearch
 
-  if (dashboard.mode === 'my_work') {
+  if (dashboard.mode === 'my_work' || dashboard.mode === 'degraded') {
     return (
       <>
+        {dashboard.mode === 'degraded' && (
+          <section
+            className="dashboard-data-notice"
+            role="status"
+            aria-label="Dashboard data notice"
+          >
+            <strong>Executive analytics are temporarily unavailable.</strong>
+            <span>
+              Your authorized work queue is still current. Retry later for the
+              full portfolio view; no records were changed.
+            </span>
+          </section>
+        )}
         <div className="page-header">
           <p className="page-eyebrow">Today · {roleLabel(profile.role)}</p>
           <h1 className="page-title">
@@ -112,12 +141,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </p>
         </div>
 
-        <RoleWorkDashboard role={profile.role} summary={dashboard.data} />
+        <TodayCommandCenter role={profile.role} data={dashboard.data} />
       </>
     )
   }
 
-  const { kpis, stages, reps, alerts, conversionRates, forecast, managementHealth } =
+  const { kpis, stages, reps, alerts, conversionRates, forecast, today } =
     dashboard.data
 
   return (
@@ -148,9 +177,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
       </div>
 
-      <KpiCards kpis={kpis} />
+      <TodayCommandCenter role={profile.role} data={today} />
 
-      <ManagementHealth data={managementHealth} />
+      <KpiCards kpis={kpis} />
 
       <div className="section-grid-2">
         <StageDistributionTable rows={stages} />

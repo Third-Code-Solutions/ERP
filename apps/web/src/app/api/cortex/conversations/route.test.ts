@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   listCortexConversations: vi.fn(),
   authorizeCortexRecordContext: vi.fn(),
+  cortexConversationReadsUseCoreApi: vi.fn(),
+  listCortexConversationsThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -19,12 +21,26 @@ vi.mock('@/lib/cortex/record-context', () => ({
   authorizeCortexRecordContext: mocks.authorizeCortexRecordContext,
 }))
 
+vi.mock('@/lib/erp-core-client', () => ({
+  cortexConversationReadsUseCoreApi:
+    mocks.cortexConversationReadsUseCoreApi,
+  listCortexConversationsThroughCoreApi:
+    mocks.listCortexConversationsThroughCoreApi,
+}))
+
 import { GET } from './route'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const USER_ID = '22222222-2222-4222-8222-222222222222'
 const REF_ID = '33333333-3333-4333-8333-333333333333'
 const CREATED_AT = new Date('2026-07-29T00:00:00.000Z')
+
+function expectPrivate(response: Response) {
+  expect(response.headers.get('cache-control')).toBe(
+    'private, no-store, max-age=0'
+  )
+  expect(response.headers.get('vary')).toBe('Cookie')
+}
 
 describe('Cortex conversation history context authorization', () => {
   beforeEach(() => {
@@ -34,6 +50,7 @@ describe('Cortex conversation history context authorization', () => {
       role: 'finance',
       user: { id: USER_ID },
     })
+    mocks.cortexConversationReadsUseCoreApi.mockReturnValue(false)
     mocks.listCortexConversations.mockResolvedValue([
       {
         id: '44444444-4444-4444-8444-444444444444',
@@ -78,6 +95,7 @@ describe('Cortex conversation history context authorization', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(body.conversations).toHaveLength(2)
     expect(body.conversations[0].context).toBeNull()
     expect(body.conversations[1].context).toMatchObject({
@@ -97,6 +115,41 @@ describe('Cortex conversation history context authorization', () => {
     )
 
     expect(response.status).toBe(401)
+    expectPrivate(response)
+    expect(mocks.listCortexConversations).not.toHaveBeenCalled()
+  })
+
+  it('uses Core for a selected tenant without direct database fallback', async () => {
+    mocks.cortexConversationReadsUseCoreApi.mockReturnValue(true)
+    mocks.listCortexConversationsThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: { conversations: [] },
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost/api/cortex/conversations')
+    )
+
+    expect(response.status).toBe(200)
+    expectPrivate(response)
+    await expect(response.json()).resolves.toEqual({ conversations: [] })
+    expect(mocks.listCortexConversations).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when selected Core conversation reads are unavailable', async () => {
+    mocks.cortexConversationReadsUseCoreApi.mockReturnValue(true)
+    mocks.listCortexConversationsThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'Core unavailable',
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost/api/cortex/conversations')
+    )
+
+    expect(response.status).toBe(503)
+    expectPrivate(response)
     expect(mocks.listCortexConversations).not.toHaveBeenCalled()
   })
 })

@@ -1,109 +1,6468 @@
 # Current State
 
-## Latest production promotion - 2026-08-13
+## M3.299 Core Purchase Order from approved BOM browser canary (2026-08-12)
 
-- Railway `ABI OPS CAD Worker` is Online at
-  `https://abi-ops-cad-worker-production.up.railway.app`, deployment
-  `9c864abc-2308-42f3-b47d-d4388e25273a`.
-- The worker builds pinned LibreDWG `0.13.4`, requires a server-only bearer
-  secret, and has no database or tenant authority. Production health and
-  authenticated DXF/DWG evidence probes pass; worker tests are 14/14.
-- Vercel deployment `dpl_8L2HQin9DH2vxYaxm8sbwzdTudq6` is READY and aliases
-  the ABI OPS production URL. Health/readiness, production-surface, branding,
-  real-Chrome authenticated route/role checks, and BOM `Worker online` wiring
-  pass.
-- Current-source web typecheck and 385/389 web unit tests pass; the four
-  skipped tests are explicitly environment-gated. This remains runtime
-  evidence from a dirty worktree, not a committed Git release.
+The disposable authenticated browser now proves the BOM-to-PO path from the
+real project BOM page. An approved BOM creates one draft PO through the Next
+compatibility action and Nest Core, copies the source line with its
+`bom_line_item_id`, calculates exact centavo totals (30,000 subtotal, 3,600
+VAT, 600 withholding, 33,000 total), locks the BOM, records idempotency and
+semantic audits, and replays without a duplicate PO. A foreign-tenant BOM
+command returns 404 with no extra request row or PO.
 
-Supabase fallback Edge Functions are ACTIVE and JWT-protected. The target has
-no pg_cron jobs and no optional Resend/CNPS configuration, so scheduled
-execution and outbound email delivery are not claimed.
+The approved-BOM fixture is opt-in and isolated from the shared canaries.
+Production BOM-PO selectors remain false/empty. No hosted SQL, Storage,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Validation: BOM-PO browser 1/1; PO workflow, PO create,
+notifications, document, Togal, and DocuSeal browsers 1/1 each; API 176/772;
+Web 113/802; Web build/lint/typecheck; provider-spend, managed-parity,
+Web/DB boundary, gitleaks, and diff checks PASS.
 
-## Final provider promotion - 2026-08-13
+Exact next action: keep BOM-PO selectors closed; resolve the hosted PO
+duplicate owner-review gate before any migration, tenant opening, or provider
+build.
 
-- Vercel production deployment dpl_AUme5sfo7WfZqDKgD8319PqTVWkK is Ready
-  and serves the ABI OPS alias. Health/readiness and the production-surface
-  contract pass on revision dpl_AUme5sfo. `/crm/opportunities` redirects to
-  the pipeline board instead of returning 404.
-- Railway production deployment d0873402-3516-4094-ae7a-7dac11b9eef4 is
-  SUCCESS; live health/readiness report API, database, and Redis readiness.
-- Supabase project aqqrtkmtcsfkbyyqxowv is current at 140/140 migrations,
-  headed by 20260813220000_change_request_change_log.sql. The replay and
-  security lane passes, with 170/170 tenant-scoped tables covered by audit
-  triggers.
-- Real Chrome authenticated regression passes smoke, branding, and all 11
-  seeded role boundaries. API and web unit suites pass with four explicit web
-  skips gated by environment.
-- The proposal change-request flow now has tenant-scoped append-only change
-  logs, idempotent create/resolve transactions, audit records, and a hosted
-  protected-page E2E. Disposable-PostgreSQL integration proves create/replay,
-  conflict denial, resolve/replay, and tenant isolation. Hosted production
-  mutation proof passes in the seeded `buildops-e2e` demo tenant only.
-- This is runtime/provider evidence from a dirty worktree, not a committed
-  Git release. Repository-hosted CI credentials, owner governance sign-off,
-  M1 canary/provider drill, and physical/device validation remain open.
+## M3.298 Core Purchase Order approval/issuance browser canary (2026-08-12)
 
-## Latest release-authority check — 2026-08-13
+The disposable authenticated browser now proves the real Purchase Order detail
+flow through the Next Server Actions and Nest Core workflow authority: draft →
+pending PM approval → pending Commercial approval → pending SCM issuance →
+issued. One replay of the first idempotency key returns the stored result with
+no duplicate transition, outbox, or audit side effect. PostgreSQL confirms four
+succeeded workflow requests, four workflow notification outboxes, eight
+role-targeted deliveries, one supplier-issued outbox/delivery, one pending
+vendor confirmation session, four status audits, and exact PO totals.
 
-- The current ABI OPS runtime was explicitly deployed from the local working
-  tree. The worktree remains dirty, so this release is runtime evidence, not a
-  source-authoritative Git release.
-- Vercel `pavi-2e9809a4/thirdcode-erp` is READY on deployment
-  `dpl_DUT3PBLM8gUhkmrLSJfVSPKdeNUy`, with Node.js `22.x`. The canonical
-  alias serves ABI OPS; health/readiness, production-surface verification,
-  public responsive Chrome E2E, and authenticated route E2E pass.
-- Railway API deployment `2c19f8b8-a5cb-462f-9f92-d35e16647056` is Online;
-  `/health` and `/ready` report database and Redis readiness.
-- Supabase target `aqqrtkmtcsfkbyyqxowv` matches the local 139-file migration
-  ledger through `20260813210000`; linked dry-run reports zero pending
-  migrations. Duplicate PO numbers were reconciled additively, and audit
-  coverage is `169/169` tenant-scoped tables.
-- The ABI OPS brand contract passes. Authenticated branding, the 11-role
-  matrix, Cortex, and viewer-safety journeys pass in real Chrome.
-- The current-source self-hosted CI lane passes: 140-migration replay,
-  database reproducibility/security invariants, 264 database tests, WO-04/05/06
-  gates, and standalone web/API smoke. Redis emitted a non-fatal
-  memory-overcommit warning under WSL.
-- Remaining limits are explicit: CI execution with repository-managed E2E
-  secrets, Git commit/push reproducibility, the dedicated M1 canary and
-  provider flag drill, governance sign-off, and physical/device validation.
+The canary found and fixed a Core defect: `scm_issue` changed status but did
+not stamp `scm_issued_at`/`scm_issued_by`; those fields now commit in the same
+transaction as the transition. Workflow-only users/vendor email fixtures are
+flagged so existing canaries keep their original notification contract.
+Production selectors remain false/empty. No hosted SQL, Storage,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Validation: workflow browser 1/1; PO create 1/1; notifications,
+document, Togal, and DocuSeal browsers 1/1 each; API 176/772; Web 113/802;
+Web build/lint/typecheck; provider-spend, managed-parity, Web/DB boundary,
+gitleaks, and diff checks PASS.
 
-Baseline verified from the repository and configured Supabase target on
-2026-07-30. That baseline is historical. Superseding release-authority checks
-are recorded below; application deployments are never inferred from a
-successful build.
+Exact next action: keep PO workflow selectors closed; resolve the hosted PO
+duplicate owner-review gate before any migration, tenant opening, or provider
+build.
 
-> Current-state rule: use the dated `Superseding release-authority check` and
-> `Latest read-only data evidence` sections first. Later sections retain
-> date-bound historical evidence from earlier releases; values such as 54/54
-> or 48/48 do not describe the current provider state.
+## M3.297 Core standalone Purchase Order browser canary (2026-08-12)
 
-## Superseding release-authority check — 2026-08-13
+The disposable authenticated loopback now proves the real `/purchase-orders`
+form through the Next compatibility action and Nest Core authority. One
+same-tenant draft PO is created with `PO-0001`, exact centavo totals (30,000
+subtotal, 3,600 VAT, 600 withholding, 33,000 total), one line, one succeeded
+idempotency request, and one semantic audit. The Core proxy records the
+forwarded bearer, request ID, and idempotency key. A foreign-project command
+returns 404 and creates no row.
 
-- Local worktree is dirty and is not a safe provider-release source.
-- Provider-linked `origin/main` contains 124 migrations; target ledger has 55
-  applied and 69 pending. A duplicate `(tenant_id, po_number)` group blocks
-  the first pending migration.
-- Vercel project `pavi-2e9809a4/thirdcode-erp` currently aliases
-  `dpl_F1Xo2hfhpMrfvrHG1hiPRKeim9mN`. Public health/readiness return HTTP 200,
-  but public identity and branding checks fail: service remains
-  `third-code-erp-web`, manifest remains `ABI OS`, and landing output contains
-  legacy branding.
-- Local ABI OPS source/build checks pass; hosted production is not green.
-- No hosted migration SQL, data mutation, deploy, or alias change was
-  performed during this recheck.
+The harness seeds and cleans vendor/cost-code fixtures and enables PO selectors
+only for its random disposable tenant. Production selectors remain false/
+empty. No hosted SQL, Storage, Vercel/Railway deployment, provider setting,
+credential, or paid action changed. Validation: PO browser 1/1; API 176/772;
+Web typecheck; provider-spend, managed-parity, Web/DB boundary, gitleaks, and
+diff checks PASS. Full Web suite was not rerun in this slice.
 
-## Source-only CAD authority update — 2026-08-13
+Exact next action: keep PO selectors closed; resolve the hosted duplicate PO
+owner-review gate before any migration, tenant opening, or provider build.
 
-- Python CAD worker no longer imports a database client or accepts database,
-  Storage service-role, tenant, project, or document authority. It returns
-  bounded hash-verified evidence only.
-- Next.js creates a short-lived signed object URL, validates worker evidence,
-  and owns scope-item persistence for both inline and queued CAD paths.
-- Worker boundary tests pass 13/13; Web typecheck passes.
-- Hosted runtime remains unchanged. M2 durable jobs/evidence, NestJS processor
-  authority, and canary deployment remain incomplete.
+## M3.296 live landing browser audit (2026-08-12)
+
+Read-only Playwright evidence refreshed the public landing route at 1440,
+768, and 390 CSS pixels. The route renders Third Code ERP branding, three-line
+responsive hero copy, fixed glass navigation, capability/FAQ/priority
+interactions, JSON-LD Organization/SoftwareApplication/FAQPage, and no
+horizontal overflow. Console errors and warnings were zero. Unauthenticated
+`/dashboard` redirected to `/auth/login`.
+
+No UI source, hosted SQL, Storage object/policy, Vercel/Railway deployment,
+provider setting, credential, or paid action changed. The live audit does not
+prove authenticated dashboard health or migration readiness. Exact evidence:
+`docs/research/LIVE_LANDING_AUDIT_20260812.md`.
+
+Exact next action: keep production selectors closed; choose next Core seam
+only after PO duplicate remediation, managed parity, readiness, rollback,
+authenticated smoke, and spend gates.
+
+## M3.295 Core DocuSeal webhook browser canary and lock-query repair (2026-08-12)
+
+The disposable provider-style webhook harness now proves the signed-BOM path
+through Nest Core. A secret-protected `submission.completed` callback marks
+one portal token used, stores one signed contract document, locks one BOM,
+creates one notification and one semantic audit, and replays without any
+second side effect. A same-tenant token pointing at a foreign BOM returns a
+non-handled result and leaves that BOM draft. Core receives only the internal
+server token and request ID; no Resend/API provider traffic is enabled.
+
+The canary exposed and fixed a real Postgres error: `FOR UPDATE` cannot lock
+the nullable side of a `LEFT JOIN`. The required project relation is now an
+`INNER JOIN`, preserving tenant scope while making the transaction executable.
+Selectors remain false/empty in production. No hosted SQL, Storage,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Validation: DocuSeal browser 1/1, Togal/notification/document browser
+1/1 each, API 176/772, Web 113/802, Web typecheck/build, focused route/Core,
+spend guard, boundary audit, gitleaks, diff check, and parity verifier pass.
+
+Exact next action: keep the DocuSeal selector closed; resolve the independent
+hosted Purchase Order duplicate blocker and continue the next Core boundary
+only after hosted parity, readiness, rollback, authenticated smoke, and spend
+gates pass.
+
+## M3.294 Core Togal BOM browser canary (2026-08-12)
+
+The disposable authenticated loopback harness now proves the construction
+Togal BOM commit through the Nest Core authority. A random tenant owns a draft
+BOM; one browser command creates one line and updates exact centavo totals,
+the identical retry replays the stored result, and a BOM owned by another
+tenant is rejected. PostgreSQL shows one line, one succeeded idempotency
+ledger row, and one semantic BOM audit row. Bearer, request ID, and
+`Idempotency-Key` forwarding are recorded; fixture cleanup leaves no rows.
+
+The Core/Web Togal selectors remain false/empty in production configuration.
+No hosted SQL, Storage object/policy, Vercel/Railway deployment, provider
+setting, credential, or paid action changed. Validation: Togal browser 1/1,
+notification browser 1/1, document browser 1/1, Web 113/802, API 176/772,
+focused Togal/Core 180/180, Web typecheck/build, provider-spend, Web/DB
+boundary, gitleaks, diff check, and managed-parity verifier pass.
+
+Exact next action: keep the Togal selector closed; resolve the independent
+hosted Purchase Order duplicate blocker and review the next direct Web write
+boundary only after hosted parity, readiness, rollback, authenticated smoke,
+and spend gates pass.
+
+## M3.293 Hosted migration preflight: Purchase Order duplicate blocker (2026-08-12)
+
+A read-only query against the connected Supabase project found 13 Purchase
+Orders, one duplicate `(tenant_id, po_number)` group, and zero blank PO
+numbers. The first ordered source batch (`20260801090000_purchase_order_create_idempotency.sql`)
+would intentionally raise on that duplicate before creating its unique index.
+
+Hosted apply is therefore blocked. No PO was renamed/deleted, no migration,
+SQL write, feature flag, Storage change, Vercel/Railway deployment, credential,
+provider setting, or paid action changed. The opaque owner-review process must
+choose a documented remediation before the uniqueness/idempotency batch can be
+replanned.
+
+Exact next action: run the approved read-only duplicate planner with
+`DATABASE_URL` to produce the owner-review packet, reconcile the duplicate
+without an automated data choice, then replay the first batch locally. Do not
+apply the 69-migration suffix.
+
+## M3.292 Core document-intake browser/HTTP canary (2026-08-12)
+
+The disposable authenticated loopback harness now proves the non-extractor
+`/api/upload/complete` branch through Nest Core. A tenant/project-scoped
+`notes.txt` command records one canonical `documents` row and one succeeded
+idempotency ledger row across two identical retries; the second response is a
+replay, not a duplicate. A foreign tenant-prefixed path is rejected before a
+Core request. Bearer, request IDs, and `Idempotency-Key` forwarding are
+recorded; semantic document audit is present; cleanup leaves no fixture rows.
+
+Production document selectors remain false/empty. No hosted SQL, Storage
+object/policy, Vercel/Railway deployment, provider setting, credential, or paid
+action changed. Validation: document canary 1/1, notification canary 1/1,
+upload/Core focused tests 187/187, Web typecheck/build, API build,
+provider-spend, Web/DB boundary, gitleaks, and diff checks pass.
+
+Exact next action: keep document intake closed outside disposable proof and
+review extractor/Storage parity separately; do not open CAD/AI formats or
+apply hosted migrations until readiness, rollback, audit, and spend gates pass.
+
+## M3.291 Core notifications browser canary and mobile shell hardening (2026-08-12)
+
+The real authenticated Settings page now has a disposable browser proof for
+the Core notification branch. A request-recording proxy confirms the tenant's
+session bearer and request IDs reach `GET/POST /v1/notifications`; PostgreSQL
+shows both read-state commands committed, semantic audit rows written, and a
+foreign tenant's unread row unchanged. Desktop/mobile rendering, blocked
+external font traffic, no browser errors, and zero fixture cleanup pass.
+
+The canary also fixed two observed responsive defects: the notification
+popover is viewport-constrained and Settings cards auto-fit instead of forcing
+two columns on narrow screens. Production selectors remain false/empty.
+
+No hosted SQL, Storage object/policy, Vercel/Railway deployment, provider
+setting, credential, or paid action changed. Source validation: browser 1/1,
+Web 113/802, focused notification 180/180, Web typecheck/build, API build,
+provider-spend guard, Web/DB boundary, gitleaks, and diff checks pass.
+
+Exact next action: keep the notification Core selector closed; review the next
+direct Web write boundary only after hosted parity, readiness, release identity,
+rollback, authenticated smoke, and spend gates are available.
+
+## M3.290 Managed Supabase read-only parity and security audit (2026-08-12)
+
+The connected project `aqqrtkmtcsfkbyyqxowv` was inspected without SQL or
+provider mutation. Supabase reports `ACTIVE_HEALTHY`, region `ap-northeast-2`,
+PostgreSQL `17.6.1.121`; every listed public table has RLS enabled. Hosted
+history is a linear prefix of source through `20260729233017`: 55/124 applied,
+69 pending in 17 ordered review batches, source head `20260812150000`.
+
+The security advisor returned 14 findings (11 WARN, 3 INFO): three RLS-enabled
+tables without policies, nine exposed SECURITY DEFINER RPC grants, `vector` in
+`public`, and leaked-password protection disabled. Performance returned 253
+findings (one WARN, 252 INFO): 148 unindexed foreign keys, 103 unused indexes,
+one duplicate tenant slug index, and an absolute Auth connection allocation.
+These are review inputs, not authorization to change hosted state.
+
+No hosted SQL, Storage object/policy, Vercel/Railway deployment, provider
+setting, credential, or paid action changed. Snapshot evidence is recorded in
+`docs/operations/managed-supabase-parity-plan.json`.
+
+Exact next action: obtain a read-only `DATABASE_URL` release plan and review
+the pending migrations/security findings in small reversible batches. Keep all
+production selectors closed; do not apply the 69-migration suffix blindly.
+
+## M3.289 Core bank-statement Storage browser canary (2026-08-12)
+
+The existing local bank-import browser now exercises the new Core Storage
+branch, not only the legacy Web handoff. A request-recording Core proxy proves
+typed sign, import, and cleanup calls carry the authenticated bearer and fresh
+request IDs; the real Nest service audits sign/cleanup, rejects a foreign
+tenant path before deletion, and removes the disposable tenant object through
+the server-side Storage boundary. The page still renders the imported detail
+and source evidence.
+
+Browser 1/1, Web typecheck, JavaScript harness syntax, and diff checks pass;
+the prior full Web/API/shared-types suites and local builds remain green.
+Selectors are enabled only inside the disposable harness. No hosted SQL,
+Storage object/policy, Vercel/Railway deployment, provider setting,
+credential, or paid action changed. Source evidence: `10322f0`.
+
+Exact next action: keep production selectors closed; review managed Storage
+RLS/key/readiness parity and release/rollback/smoke/spend gates before any
+tenant canary or provider action.
+
+## M3.288 Core bank-statement Storage authority seam (2026-08-12)
+
+Nest Core now owns the closed-by-default bank-statement Storage sign/cleanup
+authority. `POST /v1/finance/reconciliation/import/storage/sign` and
+`DELETE /v1/finance/reconciliation/import/storage` validate shared contracts,
+recheck `finance.manage_cash`, enforce exact tenant-prefixed paths, use the
+server-only Supabase service role, and write semantic audit rows. Next keeps
+the existing direct Web path as the default and delegates only when the
+separate exact-tenant `*_VIA_API` selector is enabled; Core failures are
+terminal and never fall back to Web Storage writes.
+
+Focused Web 185, API 111, shared-types 4; full Web 113/802, API 176/772,
+shared-types 55/332, typecheck, lint, local Web/API production builds,
+provider-spend, Web/DB boundary, actionlint, gitleaks, and diff checks pass.
+All selectors remain false/empty. No hosted SQL, Storage object/policy,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Source evidence: `42dbfbf`.
+
+Exact next action: add the disposable authenticated browser proof for the
+Core sign/cleanup branch, then review managed Storage RLS/key/readiness parity,
+release identity, rollback, authenticated smoke, and spend controls before a
+tenant canary. Keep production selectors closed.
+
+## M3.278 Protected bank-reconciliation Web/Core browser canary (2026-08-11)
+
+The real Next `/finance/reconciliation` page now has a repeatable local browser
+proof for its closed Core branch. A random authenticated finance tenant signs
+in through loopback Supabase-compatible endpoints; the page renders draft,
+reconciled, and voided statement evidence from the compiled Nest API through a
+request-recording proxy. The proof checks bearer/request-id/query forwarding,
+redirect/RBAC, exact statement references, closing balances, match progress,
+KPI labels, blocked external font traffic, no unexpected contracts,
+console/page errors, desktop/mobile overflow, and cleanup. The harness leaves
+zero matching fixtures.
+
+Reconciliation browser 1/1 by direct config and package script, Web 113/782,
+forced root tests, typecheck, lint, production build, provider-spend, Web/DB
+boundary, workflow, actionlint, gitleaks, database-release, and
+managed-parity-plan gates pass. Selectors remain false/empty outside the
+disposable harness. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed. Source evidence:
+`6092fa5`, fixture-scope hardening `9e498d5`.
+
+Exact next action: keep reconciliation selectors closed and require
+hosted/source parity, readiness, exact release identity, authenticated
+production smoke, rollback, and spend evidence before any tenant canary or
+provider action.
+
+## M3.277 Protected finance-cash Web/Core browser canary (2026-08-11)
+
+The real Next `/finance/cash` page now has a repeatable local browser proof for
+its closed Core branch. A random authenticated tenant signs in through the
+loopback Supabase-compatible endpoints; the page renders posted receipt,
+posted disbursement, draft, and reversed cash evidence from the compiled Nest
+API through a request-recording proxy. The proof checks bearer/request-id/query
+forwarding, redirect/RBAC, exact centavo amounts and KPI labels, row ordering,
+blocked external font traffic, no unexpected contracts, console/page errors,
+desktop/mobile overflow, and cleanup. The harness leaves zero matching
+fixtures.
+
+Cash browser 1/1 (direct and package script), Web 113/782, forced root tests,
+typecheck, lint, production build, provider-spend, Web/DB boundary, workflow,
+actionlint, gitleaks, database-release, and managed-parity-plan gates pass.
+Selectors remain false/empty outside the disposable harness. No hosted SQL,
+Supabase object, Vercel/Railway deployment, provider setting, credential, or
+paid action changed. Source evidence: `afa659b`.
+
+Exact next action: keep the cash selectors closed and require hosted/source
+parity, readiness, exact release identity, authenticated production smoke,
+rollback, and spend evidence before any tenant canary or provider action.
+
+## M3.276 Protected finance-cash Core HTTP canary (2026-08-11)
+
+The Nest `/v1/finance/cash-transactions` read boundary now has a disposable
+protected HTTP proof. Two random tenants seed cash accounts and business
+dimensions with posted, draft, and reversed evidence; the real JWT/capability
+guards, query pipe, service, and tenant-scoped joins prove exact receipt and
+disbursement aggregates, status counts, bounded pagination, direction/date/
+cash-account filters, row ordering, and foreign-tenant isolation. Missing/
+unknown auth, viewer denial, invalid ranges, and the closed selector are
+covered by 401/403/400/503 assertions. The outer transaction rolls back and
+leaves zero matching fixtures.
+
+Cash HTTP 1/1, API 174/760, root tests/typecheck/lint/build,
+provider-spend, Web/DB boundary, workflow, actionlint, gitleaks,
+database-release, and managed-parity-plan gates pass. Production selectors
+remain false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed. Source evidence:
+`e0ebf23`.
+
+Exact next action: keep `ERP_FINANCE_CASH_READS_ENABLED=false` and
+`ERP_FINANCE_CASH_READS_VIA_API=false` with empty tenant lists; add the
+authenticated `/finance/cash` browser proof, then require hosted/source
+parity, readiness, exact release identity, authenticated production smoke,
+rollback, and spend evidence before any tenant canary or provider action.
+
+## M3.275 Protected finance-payables Web/Core browser canary (2026-08-11)
+
+The real Next `/finance/payables` page now has a repeatable local browser proof
+for its closed Core branch. A random authenticated tenant signs in through
+loopback Supabase-compatible endpoints; the page renders two posted supplier
+bills, one draft bill, exact PHP balances, KPI totals, and aging cards from the
+compiled Nest API through a request-recording proxy. The proof checks
+bearer/request-id/query forwarding, redirect/RBAC, bill ordering/statuses,
+blocked external font traffic, no unexpected contracts, console/page errors,
+desktop/mobile overflow, and cleanup. The harness leaves zero matching
+fixtures.
+
+Payables browser 1/1, Web 113/782, forced root tests (4 package tasks),
+typecheck, lint, production build, provider-spend, Web/DB boundary, workflow,
+actionlint, gitleaks, database-release, and managed-parity-plan gates pass.
+Selectors remain false/empty outside the disposable harness. No hosted SQL,
+Supabase object, Vercel/Railway deployment, provider setting, credential, or
+paid action changed. Source evidence: `b515034`.
+
+Exact next action: keep the payables selectors closed and require
+hosted/source parity, readiness, exact release identity, authenticated
+production smoke, rollback, and spend evidence before any tenant canary or
+provider action.
+
+## M3.274 Protected finance-payables Core HTTP canary (2026-08-11)
+
+The Nest `/v1/finance/payables` read boundary now has a disposable protected
+HTTP proof. Two random tenants create supplier purchase orders and bills; the
+posted bills are finalized through `public.post_supplier_bill`, then the real
+JWT/capability guards, query pipe, service, and database joins prove exact
+centavo totals, paid/open balances, overdue and aging buckets, draft/posted
+counts, bounded pagination, status/date/vendor/project filters, and tenant
+isolation. Missing/unknown auth, viewer denial, invalid ranges, and the closed
+selector are covered by 401/403/400/503 assertions. The outer transaction
+rolls back and leaves zero matching fixtures.
+
+Payables HTTP 1/1, API 174/760, root tests/typecheck/lint/build,
+provider-spend, Web/DB boundary, workflow, actionlint, gitleaks,
+database-release, and managed-parity-plan gates pass. Production selectors
+remain false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed. Source evidence:
+`fea91dc`.
+
+Exact next action: keep `ERP_FINANCE_PAYABLES_READS_ENABLED=false` and
+`ERP_FINANCE_PAYABLES_READS_VIA_API=false` with empty tenant lists; add the
+authenticated `/finance/payables` browser proof, then require hosted/source
+parity, readiness, exact release identity, authenticated smoke, rollback, and
+spend evidence before any tenant canary or provider action.
+
+## M3.273 Protected finance-receivables Web/Core browser canary (2026-08-11)
+
+The real Next `/finance/receivables` page now has a repeatable local browser
+proof for its closed Core branch. A random authenticated tenant signs in
+through loopback Supabase-compatible endpoints; the page renders two posted
+invoice rows and exact PHP balances from the compiled Nest API through a
+request-recording proxy. The proof checks bearer/request-id/query forwarding,
+redirect/RBAC, no unexpected contracts, blocked external font traffic,
+console/page errors, and desktop/mobile overflow. Cleanup leaves zero matching
+fixtures, and the existing ledger browser canary still passes 1/1.
+
+Receivables browser 1/1, Web 113/782, forced root tests (4 package tasks),
+typecheck, lint, production build, provider-spend, Web/DB boundary, workflow,
+actionlint, gitleaks, database-release, and managed-parity-plan gates pass.
+Selectors remain false/empty outside the disposable harness. No hosted SQL,
+Supabase object, Vercel/Railway deployment, provider setting, credential, or
+paid action changed. Source evidence: `f89c401`.
+
+Exact next action: keep the Web/Core/API receivables selectors closed and
+require hosted/source parity, readiness, exact release identity, authenticated
+production smoke, rollback, and spend evidence before any tenant canary or
+provider action.
+
+## M3.272 Protected finance-receivables Core HTTP canary (2026-08-11)
+
+The Nest customer-receivables read boundary now has a disposable protected
+HTTP proof. Two random tenants issue invoices through the database-authoritative
+`public.issue_customer_invoice` function; the real JWT/capability guards and
+service prove 401/403/400/503 boundaries, exact centavo totals, overdue
+aggregation, account/project and date filters, bounded pagination, foreign-
+tenant invisibility, and rollback. The canary leaves zero matching fixtures.
+
+The proof also fixed a production-relevant driver defect: raw SQL overdue
+aggregation now binds an ISO timestamp string rather than a JavaScript Date,
+which the postgres wire serializer rejects. Focused HTTP 2/2, API 174/760,
+root typecheck/lint/tests/build, provider-spend, Web/DB boundary, workflow,
+actionlint, gitleaks, database-release, and managed-parity-plan gates pass.
+Production selectors remain false/empty. No hosted SQL, Supabase object,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Source evidence: `b6bda4f`.
+
+Exact next action: keep `ERP_FINANCE_RECEIVABLES_READS_ENABLED=false` and its
+tenant list empty; add the authenticated `/finance/receivables` browser proof,
+then require hosted/source parity, readiness, exact release identity,
+rollback, and spend evidence before any tenant canary or provider action.
+
+## M3.271 Protected finance-ledger Web/Core browser canary (2026-08-11)
+
+The real Next general-ledger page now has a repeatable local browser proof for
+its closed Core branch. A disposable authenticated tenant signs in through a
+loopback Supabase-compatible boundary; the page renders the compiled Nest API
+result through a request-recording Core proxy, shows both posted lines and
+exact PHP totals, then re-renders an account filter. The proof asserts the
+Core bearer contract, query parameters, unauthenticated redirect, no
+unexpected local contracts, no unblocked console errors, blocked external
+font traffic, and desktop/mobile overflow. The harness cleans its random
+tenant through an explicit afterEach endpoint and leaves zero matching
+fixtures.
+
+Browser canary 1/1, Web tests 113 files/782 tests, protected API ledger 1/1,
+forced root tests (4 package tasks), typecheck, lint, production build,
+provider-spend, Web/DB boundary, workflow refs, actionlint, gitleaks,
+database-release, and managed-parity-plan gates pass. The Web and API Core
+selectors are enabled only inside the loopback harness; production selectors
+remain false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed.
+Source evidence: `dc20c17`.
+
+Exact next action: keep both ledger selectors closed and require hosted/source
+parity, readiness, exact release identity, rollback, and spend evidence before
+any tenant canary or provider action.
+
+## M3.270 Protected finance-ledger Core HTTP canary (2026-08-11)
+
+The disposable PostgreSQL canary now starts the real Nest finance-ledger
+controller/service with JWT and capability guards over a transaction-bound
+database. It seeds two tenants, posts each draft journal through the real
+`public.post_journal_entry` function, and proves missing/unknown auth (401),
+viewer denial (403), closed selector (503), exact tenant filtering, account
+filtering, centavo totals, bounded pagination, and foreign-tenant invisibility.
+The outer transaction always rolls back and the seeded tenant is absent after
+the request, so the proof cannot leave ERP data behind.
+
+Focused ledger HTTP canary 1/1, related journal HTTP canary 1/1, forced root
+tests (4 package tasks), API tests (174 files/760 tests), typecheck, lint,
+production build, provider-spend, Web/DB boundary, workflow refs, actionlint,
+gitleaks, database-release, and managed-parity-plan gates pass. The ledger
+integration suite is opt-in and was run only against local disposable
+PostgreSQL with `ERP_API_INTEGRATION_EXPECTED=1`; production selectors remain
+false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed.
+Source evidence: `d5d4277`.
+
+Exact next action: keep the ledger selector closed and require hosted/source
+parity, readiness, exact release identity, rollback, and spend evidence before
+any tenant canary or provider action.
+
+## M3.269 Successful bank-statement Core browser proof (2026-08-11)
+
+The disposable browser canary now starts the compiled Nest API instead of a
+controlled Core stub. An authenticated tenant submits a signed Storage upload;
+the real `POST /v1/finance/reconciliation/import` path re-reads the uploaded
+CSV through a server-only signed URL, validates it, creates the draft statement,
+line, idempotency record, and audit in PostgreSQL, and returns the typed result.
+The browser then renders the tenant-scoped detail page with source provenance
+and validated roll-forward evidence. A second request attempts cleanup for a
+different tenant path and is denied with 403 before Storage deletion; no remove
+request is issued.
+
+The proof also checks auth redirect/RBAC, exact Storage path and service-role
+reader usage, no external provider traffic, no unblocked console/page errors,
+and desktop/mobile overflow. The loopback Storage adapter now extracts the
+actual CSV bytes from Supabase's multipart signed-upload envelope, so the Core
+hash/parser see the uploaded file rather than the transport wrapper. A small
+responsive fix prevents visually-hidden labels and long SHA-256 provenance from
+creating mobile horizontal overflow.
+
+Focused browser proof 1/1, signed-upload route 6/6, Web typecheck, root tests,
+root typecheck, lint, production build, provider-spend, Web/DB boundary,
+workflow refs, actionlint, gitleaks, database release, and managed-parity plan
+gates pass. The API integration lane remains explicitly skipped because its
+required environment gate is unset. All production selectors remain
+false/empty. No hosted SQL, Supabase object, Vercel/Railway deployment,
+provider setting, credential, or paid action changed.
+Source evidence SHA: `e6f9275`.
+
+Exact next action: keep the API/Web/Storage selectors closed and run the
+separate hosted-parity, readiness, exact-release, rollback, and spend gates
+before considering any tenant canary or provider deployment.
+
+## M3.268 Bank-statement browser Storage canary proof (2026-08-11)
+
+Proved the guarded browser path locally against a disposable authenticated
+tenant, loopback Supabase-compatible auth/Storage endpoints, a stubbed Nest
+Core endpoint, and the disposable PostgreSQL database. The browser reached the
+real Next form, requested a tenant-shaped signed URL, uploaded the CSV with a
+real Supabase Storage client, sent only `sourceStoragePath` plus the typed
+import contract to Core with bearer/idempotency headers, mapped the controlled
+503 terminal response, and removed the object through the audited DELETE path.
+The disposable database recorded no bank statement and exactly two
+`bank_statement_upload` audit events; the source path remained tenant-scoped.
+
+The Playwright proof also checks unauthenticated redirect, auth/RBAC, no
+external provider traffic (font CSS is blocked at the browser boundary), no
+unblocked console/page errors, and desktop/mobile horizontal overflow. The
+Core response was intentionally controlled-disabled, so successful Core
+import/detail rendering and a real object read remain unproven. A source bug
+found during the proof was corrected: audit rows now use the upload UUID (or
+tenant UUID for legacy cleanup paths) in the UUID `entity_id` column while
+retaining the full Storage path in `diff`.
+
+Focused signed-upload route 6/6, Web typecheck, and the authenticated local
+browser proof 1/1 pass. All selectors remain false/empty by default. No
+hosted SQL, Supabase object, Vercel/Railway deployment, provider setting,
+credential, or paid action changed.
+Source evidence SHA: `4f68cac`.
+
+Exact next action: add a successful disposable Core response/detail proof and
+cross-tenant cleanup denial, then repeat the full release, hosted-parity,
+readiness, rollback, and spend gates before considering any tenant canary.
+
+## M3.267 Bank-statement browser Storage handoff (2026-08-11)
+
+Added the opt-in browser handoff for the existing guarded bank-statement
+Storage source. The form still defaults to inline base64 for compatibility, but
+an exact tenant must now pass both the existing Web/Core import selector and
+the new `ERP_FINANCE_RECONCILIATION_IMPORT_STORAGE_UPLOADS` selector before it
+can request a signed upload URL. The browser uploads directly to the private
+`documents` bucket, then sends only the tenant-shaped Storage path to Core; it
+does not write ERP tables or fall back to the legacy Web write when the Storage
+path is selected.
+
+The signed-upload route now has an audited, tenant-scoped DELETE cleanup path.
+Upload or terminal Core/action failure attempts cleanup, and cleanup is
+audited before object deletion. The action rejects a Storage source unless the
+exact upload canary is enabled. All new and existing selectors remain
+false/empty by default, and no database migration was added in this milestone.
+
+Focused storage/helper 3/3, signed-upload route 6/6, Web action 6/6, and Core
+selector 165/165 tests pass. Root `pnpm test` exited 0: shared-types 55/55
+files and 331/331 tests, database 69/73 files with 241 passed and 143
+environment-skipped tests, Web 113/113 files and 782/782 tests, and API
+174/174 files and 760/760 tests. Protected API integration passed 55/55 files
+with 69 passed and two intentional Redis-restart skips. Typecheck, lint,
+production build, database release, parity, Web/DB boundary,
+workflow-reference, provider-spend, actionlint, and gitleaks gates PASS.
+Browser E2E against a disposable authenticated tenant was not run; the
+cutover remains closed. Source parity is unchanged at 55/124 hosted/source
+migrations, 69 pending in 17 ordered review batches. No hosted SQL, Storage
+object, Vercel/Railway deployment, provider setting, credential, or paid action
+changed. Source evidence SHA: `20f2b76953688b02a12b6bcca0f53455282421e5`.
+
+Exact next action: keep the API import selector and tenant list, Web/Core
+selector and tenant list, and browser Storage selector and tenant list
+false/empty. Prove the enabled browser path with a disposable authenticated
+tenant, protected Core response parity, object cleanup, rollback, and spend
+controls before any canary or hosted/provider action.
+
+## M3.266 Bank-statement storage source and Web/Core parity seam (2026-08-11)
+
+Added a backward-compatible object-storage source for the guarded Core bank
+statement import. The shared command now accepts exactly one source: the
+existing bounded inline base64 CSV or a tenant-shaped
+`{tenantId}/bank-statements/{file}` path. `source_storage_path` is nullable in
+`bank_statements` with a format check, so existing rows remain valid. Core
+reads the private `documents` bucket through a server-only Supabase signed URL,
+with a 2 MB streaming cap, 60-second signed URL, and 10-second download
+timeout; cross-tenant paths are rejected before the read. Storage failures are
+fail-closed and no statement transaction starts. The signed-upload Web route
+is additive, finance-capability protected, tenant-scoped, audited, and capped
+to CSV/2 MB; the existing form remains on the inline compatibility path until
+a separate browser upload cutover is proven.
+
+The Web server action now has an exact-tenant Core selector and typed import
+adapter. Once selected, Core errors are terminal and the legacy database write
+is not attempted. Both selectors remain false/empty by default. A local
+protected HTTP canary covers inline and storage-path imports, cross-tenant
+rejection, persisted object path, and rollback. No hosted SQL, Storage object,
+Vercel/Railway deployment, provider setting, credential, or paid action
+changed; only the disposable local CI database received the migration.
+
+Root `pnpm test` exited 0: shared-types 55/55 files and 331/331 tests,
+database 69/73 files with 241 passed and 143 environment-skipped tests, Web
+112/112 files and 774/774 tests, and API 174/174 files and 760/760 tests.
+Protected API integration passed 55/55 files with 69 passed and two
+intentional Redis-restart skips. Typecheck, lint, production build, database
+release, parity, Web/DB boundary, workflow-reference, provider-spend, and
+actionlint gates PASS. The migration is source-only: 55/124 hosted/source
+migrations, 69 pending in 17 ordered review batches.
+Source evidence SHA: `2fe1e3a919c66345c70b0466ec07ff479ba1a43e`.
+
+Exact next action: keep
+`ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED=false`,
+`ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_TENANT_IDS` empty, and the Web/Core
+selector false/empty. Do not apply hosted SQL or trigger provider builds.
+Implement and prove the browser upload cutover separately, then reconcile
+hosted parity, readiness, protected browser evidence, rollback, and spend.
+
+## M3.265 Bank-statement import authority (2026-08-11)
+
+Added the source-only Nest Core command
+`POST /v1/finance/reconciliation/import`. It accepts a strict tenant-scoped
+cash-account command with a bounded base64 CSV source, reuses the shared Web
+parser, requires `finance.manage_cash`, re-authorizes the tenant membership,
+locks the active Cash Account, inserts a draft statement and lines in one
+transaction, persists a force-RLS/service-role-only idempotency result, and
+writes a semantic audit event. Replays return the durable result and key reuse
+with a different command conflicts. `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED`
+and its tenant list are false/empty by default; the legacy Web action remains
+unchanged. Raw bytes are not stored; object-storage-backed upload is a future
+boundary. Python/AI remains analysis-only and cannot approve or finalize the
+import.
+
+The API JSON parser is bounded at 4 MB to cover the 2 MB source cap plus
+base64/JSON overhead. Rollback-only local PostgreSQL HTTP canary: 1/1 PASS;
+the focused migration contract: 1/1 PASS. Root `pnpm test` exited 0 with
+shared 55/55 files and 329/329 tests, database 69/73 files with 240 passed and
+143 environment-skipped tests, Web 111/111 files and 768/768 tests, and API
+173/173 files and 757/757 tests. Protected API integration: 55/55 files,
+69 passed and two intentional Redis-restart skips. Typecheck, lint,
+production build, database release, parity, Web/DB boundary,
+workflow-reference, provider-spend, and actionlint gates PASS. Source parity
+is 55/123 hosted/source migrations, 68 pending in sixteen review batches. The
+migration was applied only to the disposable local CI database; no hosted
+SQL/data, Storage, Railway/Vercel deployment, provider setting, credential,
+or paid action changed.
+Source evidence SHA: `1adc7cf3e47791bf09b9eb659e972422da356c73`.
+
+Exact next action: keep `ERP_FINANCE_RECONCILIATION_IMPORT_WRITES_ENABLED=false`
+and its tenant list empty; do not apply hosted SQL or trigger provider builds.
+Next source boundary is storage-backed import and Web/Core response parity,
+followed separately by hosted parity, readiness, protected browser cutover,
+rollback, and spend evidence.
+
+## M3.264 Bank-statement void authority (2026-08-11)
+
+Added the source-only Nest Core command
+`POST /v1/finance/reconciliation/:statementId/void`. It accepts a strict
+reason body (3-500 trimmed characters) and opaque idempotency key, requires
+`finance.manage_cash`, re-authorizes the tenant membership, locks the visible
+statement, calls the trusted PostgreSQL void function, persists a
+tenant-scoped force-RLS request result, and records a semantic audit event in
+one transaction. Replays return the durable result and key reuse for another
+statement conflicts. The selector
+`ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED` and its tenant list are
+false/empty by default; the legacy Web action remains unchanged. Python/AI
+remains analysis-only and cannot void or finalize bank evidence.
+
+Rollback-only local PostgreSQL HTTP canary: 1/1 PASS. Root `pnpm test` exited
+0 with shared 54/54 files and 327/327 tests, database 68/72 files with 239
+passed and 143 environment-skipped tests, Web 111/111 files and 768/768
+tests, and API 173/173 files and 756/756 tests. Protected API integration:
+55/55 files, 69 passed and two intentional Redis-restart skips. Typecheck,
+lint, production build, database contract, provider-spend, parity,
+database-release, Web/DB boundary, workflow-reference, and actionlint gates
+PASS. Source parity is 55/122 hosted/source migrations, 67 pending in 15
+review batches. The migration was applied only to the disposable local CI
+database; no hosted SQL/data, Storage, Railway/Vercel deployment, provider
+setting, credential, or paid action changed.
+Source evidence SHA: `04fdf12fb90ae30b97f0655ca2a37d6a720741f3`.
+
+Exact next action: keep `ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED=false`
+and its tenant list empty; do not apply hosted SQL or trigger provider builds.
+Define the next import authority boundary only after a separate local proof.
+
+## M3.263 Bank-statement reconciliation authority (2026-08-11)
+
+Added the source-only Nest Core command
+`POST /v1/finance/reconciliation/:statementId/reconcile`. It accepts a strict
+empty body and opaque idempotency key, requires `finance.manage_cash`,
+re-authorizes the tenant membership, locks the statement, calls the trusted
+PostgreSQL reconciliation function, persists a tenant-scoped force-RLS request
+result, and records semantic audit in one transaction. Replays return the
+durable result and key reuse for another statement conflicts. The selector
+`ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED` and its tenant list are
+false/empty by default; the legacy Web action remains unchanged and is not
+wired to this route. Python/AI remains analysis-only and cannot reconcile or
+finalize bank evidence.
+
+Rollback-only local PostgreSQL HTTP canary: 1/1 PASS. Root `pnpm test` exited
+0 with shared 54/54 files and 326/326 tests, database 67/71 files with 237
+passed and 143 environment-skipped tests, Web 111/111 files and 768/768
+tests, and API 173/173 files and 755/755 tests. Protected API integration:
+55/55 files, 69 passed and two intentional Redis-restart skips. Typecheck,
+lint, production build, migration contract, provider-spend, parity,
+database-release, Web/DB boundary, workflow-reference, and actionlint gates
+PASS. Source parity is 55/121 hosted/source migrations, 66 pending in 14
+review batches. The migration was applied only to the disposable local CI
+database; no hosted SQL/data, Storage, Railway/Vercel deployment, provider
+setting, credential, or paid action changed. Source evidence SHA:
+`378339aa32e3e836174280341cb514b4b6adeb49`.
+
+## M3.262 Bank-statement line match/unmatch authority (2026-08-11)
+
+Added source-only Nest Core commands at
+`POST /v1/finance/reconciliation/:statementId/lines/:lineId/match` and
+`POST /v1/finance/reconciliation/:statementId/lines/:lineId/unmatch`. Both
+accept strict bodies and an opaque idempotency key, require
+`finance.manage_cash`, re-authorize the tenant membership, lock the visible
+statement and line, call the trusted PostgreSQL match/unmatch functions, and
+persist a tenant-scoped force-RLS/service-role-only request result. A semantic
+audit event records the exact line transition in the same transaction. The
+new source migration also adds the composite tenant/line uniqueness needed for
+the tenant-matched foreign key. The selectors
+`ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED` and its tenant list are
+false/empty by default; the legacy Web manual-match path remains unchanged
+and not wired. Reconcile, void, import, browser cutover, hosted parity, and
+production release remain separate gates.
+
+Focused rollback-only HTTP canary: 1/1 PASS. Root `pnpm test` exited 0 with
+shared 54/54 files and 325/325 tests, database 66/70 files with 235 passed
+and 143 environment-skipped tests, Web 111/111 files and 768/768 tests, and
+API 173/173 files and 754/754 tests. Protected API integration: 55/55 files,
+69 passed and two intentional Redis-restart skips. Typecheck, lint, direct
+Nest/Next production builds, provider-spend, Supabase parity, database-release,
+Web/DB boundary, workflow-reference, and actionlint gates PASS. Source parity
+is 55/120 hosted/source migrations, 65 pending in 13 review batches. No
+hosted SQL/data, Storage, Railway/Vercel deployment, provider setting,
+credential, or paid action changed. Source evidence SHA:
+`271db56c6c973484877e09680eebcc99b70df950`.
+
+## M3.261 Bank-statement auto-match command authority (2026-08-11)
+
+Added a source-only Nest Core command at
+`POST /v1/finance/reconciliation/:statementId/auto-match`. It validates a
+strict empty body and opaque idempotency key, re-authorizes the tenant Finance
+membership, locks the tenant-scoped statement, calls the trusted PostgreSQL
+auto-match function, persists a tenant-scoped request result, and writes a
+semantic audit event in one transaction. The new request ledger is force-RLS
+and service-role-only. The selector
+`ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED` and its tenant list are
+false/empty by default. The legacy Web Server Action remains unchanged and is
+not yet wired to this route; import, manual match, reconcile, void, browser
+cutover, hosted parity, and production release remain separate gates.
+
+Focused shared/database/API contracts and the local PostgreSQL rollback-only
+HTTP canary pass. Root `pnpm test`: 173/173 files and 753/753 tests PASS. API
+integration: 55/55 files and 69 tests PASS with two explicit Redis-restart
+skips. Typecheck, lint, production build, provider-spend, Supabase parity,
+database-release, Web/DB boundary, workflow action-reference, and actionlint
+gates PASS. Source parity is 55/119 hosted/source migrations, 64 pending in
+12 review batches. No hosted SQL/data, Storage, Railway/Vercel deployment,
+provider setting, credential, or paid action changed. Source evidence SHA:
+`ea8957057db8d8a4ba4cb4695b9c560d8624b9e9`.
+
+## M3.260 Repository test baseline repair (2026-08-11)
+
+Repaired the customer-invoice-draft replay unit fixture. The Core service locks
+the tenant-scoped project before claiming idempotency; the spec had omitted
+that project-select result and failed when the request replay path reached the
+third select. The test now models the real lock order without changing product
+behavior.
+
+Focused invoice-draft spec: 3/3 PASS; root `pnpm test`: 173/173 files and
+752/752 tests PASS. API integration remains 54/54 files and 68 tests PASS with
+two explicit Redis-restart skips. Root typecheck, lint, production build,
+provider-spend, Supabase parity, database-release, Web/DB boundary, workflow
+action-reference, and actionlint gates PASS. No hosted SQL/data, Storage,
+Railway/Vercel deployment, provider setting, credential, or paid action
+changed. Source parity remains 55/118 hosted/source migrations, 63 pending in
+11 review batches. Source evidence SHA:
+`4abbf75baa9dbbf019b38b3b0bc5678c933f367f`.
+
+## M3.259 Bank reconciliation read authority (2026-08-11)
+
+Added a protected rollback-only HTTP canary for the existing Nest bank
+reconciliation read projection. It boots the real controller/service with JWT
+identity and capability guards against transaction-bound PostgreSQL and proves
+missing/unknown authentication, Finance-only authorization, strict query
+validation, closed-selector behavior, bounded truncation, exact tenant-scoped
+counts, statement/line aggregates, cross-tenant concealment, and rollback.
+The fixture uses two tenants and keeps the read path write-free; no product
+source fix was required.
+
+Focused HTTP canary: 1/1 PASS; reconciliation API unit contract: 4/4 PASS;
+shared contract: 3/3 PASS; bank-reconciliation database suite: 17/17 PASS;
+API integration: 54/54 files and 68 tests PASS with two explicit Redis-restart
+skips. Root typecheck, lint, production build, provider-spend, Supabase
+parity, database-release, Web/DB boundary, workflow action-reference, and
+actionlint gates PASS. Root `pnpm test` remains FAILED by one pre-existing
+`customer-invoice-draft-create.service.spec.ts` mock (`transactionClient.select`
+undefined): 172/173 API files and 751/752 tests passed, and the focused failure
+reproduces independently. Source parity remains 55/118 hosted/source
+migrations, 63 pending in 11 review batches. No hosted SQL/data, Storage,
+Railway/Vercel deployment, provider setting, credential, or paid action
+changed. Keep reconciliation selectors closed. Source evidence SHA:
+`fff90135bb3a96859a589a65a0860e115588dfea`.
+
+## M3.258 Cash draft delete authority (2026-08-11)
+
+Added a protected rollback-only HTTP canary for cash draft create, update, and
+delete. It boots the real Nest controller/service with JWT identity and
+capability guards against transaction-bound PostgreSQL and proves strict
+body/header handling, finance/viewer authorization, closed-selector behavior,
+tenant-scoped target validation, idempotent replay/key conflict, concealed
+cross-tenant update/delete, allocation replacement, durable delete replay,
+semantic audit, tenant isolation, and rollback.
+
+The canary exposed two real defects. Forward migration
+`20260811180000_cash_draft_delete_trigger_fix.sql` makes the cash transaction
+`BEFORE DELETE` guard return `OLD`; Core now explicitly deletes draft
+allocations before the parent so the allocation guard does not reject an FK
+cascade after the parent disappears.
+
+Focused canary: 1/1 PASS; database migration regression: 3/3 PASS; API
+integration: 53/53 files and 67 tests PASS with two explicit Redis-restart
+skips. API/database typecheck, root lint, production build, provider-spend,
+Supabase parity, database-release, Web/DB boundary, workflow action-reference,
+and actionlint gates PASS. Source parity is now 55/118 hosted/source
+migrations, 63 pending in 11 review batches. No hosted SQL/data, Storage,
+Railway/Vercel deployment, provider setting, credential, or paid action
+changed. Keep cash draft writes disabled and its tenant allowlist empty.
+Source evidence SHA: 2c59e6886214e42b646b4ad32938db5f5440ef10.
+
+## M3.257 Cash transaction workflow authority (2026-08-11)
+
+Added a protected rollback-only HTTP canary for cash transaction post and
+reverse. It boots the real Nest controller/service with JWT identity and
+capability guards against transaction-bound PostgreSQL and proves strict
+body/header handling, finance/viewer authorization, closed-selector behavior,
+concealed cross-tenant access, real supplier-bill allocation, idempotent
+replay/key conflict, balanced post and reversal journals, semantic audit,
+tenant isolation, and rollback. No product ordering fix was required.
+
+Focused canary: 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. API integration:
+52/52 files and 66 tests PASS with two explicit Redis-restart skips under the
+15-second timeout. Typecheck, root lint, production build, provider-spend,
+Supabase parity, database-release, Web/DB boundary, workflow action-reference,
+and actionlint gates PASS. No hosted SQL/data, Storage, Railway/Vercel
+deployment, provider setting, credential, or paid action changed. Keep cash
+workflow writes disabled and its tenant allowlist empty. Source evidence SHA:
+ff7e683ca2ef5baf748646e6cc13a89c43d20d3e.
+
+## M3.256 Journal reversal authority (2026-08-11)
+
+Added the journal-reverse protected HTTP canary. It boots the real Nest
+controller/service with JWT identity and capability guards against
+transaction-bound PostgreSQL and proves strict body/header handling,
+finance/viewer authorization, closed-selector behavior, concealed
+cross-tenant access, invalid reason/state handling, idempotent replay/key
+conflict, balanced reversal journal linkage, semantic audit, tenant
+isolation, and rollback. The existing Core visibility preflight was verified
+before audit and request claim; no product ordering fix was required.
+
+Focused canary: 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. API integration:
+51/51 files and 65 tests PASS with two explicit Redis-restart skips under the
+15-second timeout. Typecheck, root lint, production build, provider-spend,
+Supabase parity, database-release, Web/DB boundary, workflow action-reference,
+and actionlint gates PASS. No hosted SQL/data, Storage, Railway/Vercel
+deployment, provider setting, credential, or paid action changed. Keep
+journal-reversal writes disabled and its tenant allowlist empty. Source
+evidence SHA: 0404076acf70ac557c6f89047855810718181cc0.
+
+## M3.255 Journal posting authority (2026-08-11)
+
+Added the journal-post protected HTTP canary and moved the Core journal
+preflight ahead of audit stamping and idempotency claim. The canary boots the
+real Nest controller/service with JWT identity and capability guards against
+transaction-bound PostgreSQL and proves finance/viewer authorization,
+closed-selector behavior, concealed cross-tenant access, idempotent
+replay/key conflict, posted journal state, balanced lines, semantic audit,
+tenant isolation, and rollback.
+
+Focused canary: 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. API integration:
+50/50 files and 64 tests PASS with two explicit Redis-restart skips under the
+15-second timeout. Typecheck, root lint, production build, provider-spend,
+Supabase parity, database-release, Web/DB boundary, workflow action-reference,
+and actionlint gates PASS. No hosted SQL/data, Storage, Railway/Vercel
+deployment, provider setting, credential, or paid action changed. Keep
+journal-post writes disabled and its tenant allowlist empty. Source evidence
+SHA: 811154adca1258c70fcf7073fd62f7e704247234.
+
+## M3.254 Supplier Bill reversal authority (2026-08-11)
+
+Added the supplier-bill reversal protected HTTP canary. It boots the real
+Nest controller/service with JWT identity and capability guards against
+transaction-bound PostgreSQL and proves strict input/header handling,
+finance/viewer authorization, closed-selector behavior, concealed
+cross-tenant access, idempotent replay/key conflict, posted-to-reversed bill
+state, balanced reversal journal linkage, semantic audit, tenant isolation,
+and rollback.
+
+Focused canary: 1/1 PASS on local PostgreSQL 17/Redis 7.4.9. API integration:
+49/49 files and 63 tests PASS with two explicit Redis-restart skips under the
+15-second timeout. Typecheck, root lint, production build, provider-spend,
+Supabase parity, database-release, Web/DB boundary, workflow action-reference,
+and actionlint gates PASS. No hosted SQL/data, Storage, Railway/Vercel
+deployment, provider setting, credential, or paid action changed. Keep
+supplier-bill reversal writes disabled and its tenant allowlist empty.
+Source evidence SHA: 1463c80.
+
+## M3.253 Supplier Bill posting authority (2026-08-11)
+
+Added `apps/api/integration/supplier-bill-post.http.integration.spec.ts` and
+moved the existing supplier-bill posting service's tenant-scoped bill lookup
+ahead of audit stamping and idempotency-ledger claim. The rollback-only canary
+boots the real Nest controller/service with JWT identity and capability guards
+against transaction-bound PostgreSQL. It proves strict body/header handling,
+finance/viewer authorization, disabled-by-default behavior, concealed
+cross-tenant access, idempotent replay/key conflict, posted supplier-bill and
+balanced journal state, semantic audit, tenant isolation, and outer rollback.
+
+Focused canary passes 1/1 on local PostgreSQL 17/Redis 7.4.9. Full API
+integration passes 48/48 files and 62 tests with two explicit Redis-restart
+skips under `--testTimeout=15000`. API typecheck, root lint, production build,
+provider-spend, Supabase parity, database-release, Web/DB boundary, workflow
+action-reference, and actionlint gates pass. No schema, hosted Supabase
+SQL/data, Storage, Railway/Vercel deployment, provider setting, credential, or
+paid action changed. Keep
+`ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_ENABLED=false` and
+`ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_TENANT_IDS` empty. Source evidence SHA:
+`87dc8247f233e8bfc66ba4f56115c269204a6c66`.
+
+## M3.252 Customer invoice draft-creation authority (2026-08-11)
+
+Added `apps/api/integration/customer-invoice-draft-create.http.integration.spec.ts`
+and hardened `apps/api/src/finance/customer-invoice-draft-create.service.ts`.
+The rollback-only canary boots the real Nest draft-creation controller and
+service with JWT identity/capability guards against transaction-bound
+PostgreSQL. It proves strict command/header handling, finance/viewer
+authorization, disabled-by-default behavior, concealed cross-tenant project
+access, approved/draft BOM rules, exact integer money calculation,
+tenant-scoped idempotent replay/key conflict, invoice/request-ledger linkage,
+semantic audit, and outer rollback.
+
+The canary found a real boundary defect: the service claimed the idempotency
+row before tenant-scoping the project, allowing a cross-tenant composite-FK
+500. Core now locks and preflights the tenant-scoped project before audit or
+request-ledger claim; the boundary is a concealed 404. Focused canary passes
+1/1. Full API integration passes 47/47 files and 61 tests with two explicit
+Redis-restart skips when run with `--testTimeout=15000`; the default 5-second
+parallel attempt had one unrelated Cortex contention timeout, and that suite
+passes isolated. API typecheck, root lint, and production build pass. No
+schema, hosted Supabase SQL/data, Storage, Railway/Vercel deployment,
+provider setting, credential, or paid action changed. Keep
+`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED=false` and
+`ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_TENANT_IDS` empty. Source/
+docs evidence SHA: `47cfe8bb0ea0388b9e2807c4a454198061ea1249`.
+
+## M3.251 Customer invoice draft-cancellation authority (2026-08-11)
+
+## M3.251 Customer invoice draft-cancellation authority (2026-08-11)
+
+Added `apps/api/integration/customer-invoice-cancel.http.integration.spec.ts`.
+The rollback-only canary boots the real Nest draft-invoice cancellation
+controller and service with JWT identity/capability guards against a
+transaction-bound PostgreSQL client. It proves strict empty-body and
+idempotency handling, finance/viewer authorization, disabled-by-default
+behavior, concealed cross-tenant access, draft-to-cancelled state transition,
+replay/key conflict, one semantic audit event, tenant isolation, and outer
+rollback. Core remains the only authority that calls the PostgreSQL
+cancellation function; Python/AI cannot cancel or finalize an invoice.
+
+Focused runtime canary passes 1/1 on local PostgreSQL 17/Redis 7.4.9. Full
+API integration passes 46/46 files and 60 tests, with two explicit
+Redis-restart tests skipped because restart opt-in was not set. API typecheck,
+root lint, and production build pass. No schema, hosted Supabase SQL/data,
+Storage, Railway/Vercel deployment, provider setting, credential, or paid
+action changed. Keep
+`ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_ENABLED=false` and
+`ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_TENANT_IDS` empty. Source/docs
+evidence SHA: `7459cb8d70e50851d82f7562bdc6fb1ac6bd51a5`.
+
+## M3.250 Customer invoice reversal authority (2026-08-11)
+
+Added `apps/api/integration/customer-invoice-reverse.http.integration.spec.ts`.
+The rollback-only canary boots the real Nest customer-invoice reversal
+controller and service with JWT identity/capability guards against a
+transaction-bound PostgreSQL client. It is designed to prove strict command
+and idempotency handling, viewer denial, disabled-by-default behavior,
+cross-tenant concealment, cancellation state, balanced reversal journal,
+semantic audit, replay/conflict, and outer rollback. Core remains the only
+authority that calls the PostgreSQL reversal function; Python/AI cannot
+reverse or finalize an invoice.
+
+Focused runtime canary passes 1/1 on the local PostgreSQL 17/Redis 7.4.9
+lane. Full API integration passes 45/45 files and 59 tests, with two explicit
+Redis-restart tests skipped because restart opt-in was not set. API typecheck,
+root lint, and production build pass. No schema, hosted Supabase SQL/data,
+Storage, Railway/Vercel deployment, provider setting, credential, or paid
+action changed. Keep
+`ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED=false` and
+`ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_TENANT_IDS` empty. Evidence
+update SHA: `d2e8edf352be9feb39562d66a983c49565792c44`.
+
+## M3.249 Customer invoice issuance authority (2026-08-11)
+
+Added `apps/api/integration/customer-invoice-issue.http.integration.spec.ts`.
+The rollback-only canary boots the real Nest invoice issuance controller and
+service with JWT identity/capability guards against disposable PostgreSQL. It
+proves missing/invalid auth, strict command fields, viewer denial, closed
+feature behavior, concealed cross-tenant access, tenant-scoped idempotency
+replay and key mismatch, posted journal balance, invoice state, semantic
+audit, and outer rollback. Core remains the only authority that calls the
+posting function; no browser or Python path was changed.
+
+Focused canary passes 1/1 on local PostgreSQL 17. Full API integration passes
+44/44 files and 58 tests, with two explicit Redis-restart tests skipped because
+the restart opt-in was not set. API typecheck passes. The broad root `pnpm
+test` lane is not green in this runner: the no-database parallel run had nine
+API test timeouts (164/173 files and 743/752 tests passed), while the first
+database run required `DATABASE_BUDGET_EXPECTED=1` for the current budget
+schema; an isolated single-worker rerun exceeded the five-minute runner
+window. This is recorded as a validation limitation, not a change defect.
+
+No migration, hosted Supabase SQL/data, Storage, Railway/Vercel deployment,
+provider setting, credential, or paid action changed. Keep
+`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED=false` and
+`ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_TENANT_IDS` empty. Source/docs were
+pushed under `kurtgav`; the final release SHA is
+`3d8bf10756bdf7fed78dac2898e64eb31637521b`.
+
+## M3.248 Managed Supabase read-only parity/security audit (2026-08-10)
+
+The connected managed project `aqqrtkmtcsfkbyyqxowv` (`ERP`) was inspected
+read-only through the Supabase connector. It is `ACTIVE_HEALTHY` in
+`ap-northeast-2` on PostgreSQL `17.6.1.121`. Hosted migration history is an
+exact 55-migration prefix ending at `20260729233017_notification_outbox_foundation`;
+the repository has 117 migrations through `20260810130000`, leaving 62 ordered
+source migrations pending. The hosted catalog exposes 88 public tables and
+reports RLS enabled on every listed table; this does not prove force-RLS,
+policy correctness, or service-only privileges.
+
+Hosted Supabase advisors returned 14 security findings (11 WARN) and 253
+performance findings (1 WARN). Stop-ship security findings include the public
+`vector` extension, executable public/authenticated `SECURITY DEFINER` auth and
+authorization helpers (including `auth_tenant_id`), and disabled leaked-password
+protection. Informational findings include RLS-enabled tables without policies
+for `financial_sequences`, `notification_deliveries`, and
+`notification_outbox`. The performance WARN reports duplicate tenant slug
+indexes (`idx_tenants_slug` and `tenants_slug_unique`). These findings are
+consistent with the hosted project stopping before the source security and
+workflow suffix; no hosted SQL was executed.
+
+The hosted project contains demo rows, so any future suffix apply requires a
+fresh backup/restore proof, duplicate Purchase Order mapping, audit-recovery
+tenant, ordered batch plan, post-batch catalog/RLS/advisor checks, and a
+reversible rollback. No Supabase mutation, Storage mutation, Vercel/Railway
+deployment, provider setting, credential, or paid action occurred. Keep all
+cutover flags and tenant allowlists closed. Exact next action: obtain explicit
+approval for a spend-bounded backup/reconciliation canary; until then continue
+source-only Core work.
+
+## M3.247 Document-processing command authority (2026-08-10)
+
+Added `apps/api/integration/document-processing.http.integration.spec.ts` and
+hardened the existing Core command at
+`POST /v1/documents/:documentId/processing-jobs` plus
+`GET /v1/document-processing-jobs/:jobId`. The protected canary boots the real
+Nest controller/service with Supabase identity and capability guards against a
+transaction-bound disposable PostgreSQL client. It proves missing/invalid
+auth, strict command and `Idempotency-Key` handling, viewer denial,
+disabled-by-default and draft-BOM gates, concealed cross-tenant document
+access, tenant-scoped durable job state, queue transport containing only the
+opaque job id, idempotent replay/key conflict, semantic audit, and rollback.
+
+The canary found two production-boundary defects: queued idempotent replays
+called BullMQ enqueue again, and a newly-created processing job had no semantic
+audit. Core now enqueues only when the durable job is newly created and writes
+one audited `document_processing_job` create event inside the same transaction;
+replays do neither. Focused HTTP canary passes 1/1, controller contract 6/6,
+and document-processing service/database/processor checks 13/13; the
+full API integration lane passes 43/43 files and 59/59 tests. Root `pnpm test`
+passes API 173/173 files and 752/752 tests, Web 111/111 and 768/768, shared
+54/54 and 323/323; database is 64/68 files and 230/373 tests with 143 expected
+environment skips without `DATABASE_URL`. Typecheck 5/5, lint 2/2, and
+production build pass. The zero-skip PostgreSQL 17/Redis 7.4.9 lane applied
+117 migrations and passed 151/151 suites and 373/373 database tests. No schema
+migration, hosted Supabase SQL/data, Vercel/Railway deployment, provider
+setting, credential, or paid action changed. Keep all document-processing,
+worker-bridge, evidence-commit, and draft-BOM flags/tenant lists closed.
+Source-only implementation SHA: `05b727eacb4b6ade52cde91f111a01d84712386e`.
+Exact next action: reconcile hosted parity and release gates before any
+provider action.
+
+## M3.246 Document intake protected HTTP canary (2026-08-10)
+
+Added `apps/api/integration/document-intake.http.integration.spec.ts` and
+`packages/database/src/__tests__/document-intake-workflow.test.ts`. The
+protected canary boots the real Nest document-intake controller/service with
+Supabase identity/capability guards against transaction-bound disposable
+PostgreSQL. It proves missing/invalid auth, strict command and
+`Idempotency-Key` handling, viewer denial, disabled-tenant fail-closed
+behavior, cross-tenant project concealment, tenant/project storage-path scope,
+canonical document persistence, replay/key conflict, semantic audit, forced
+RLS/service-only intake-request access, and rollback. The migration contract
+test confirms the existing document-intake ledger has composite tenant FKs,
+forced RLS, and browser privileges revoked.
+
+Focused HTTP canary: 1/1 PASS; migration contract: 3/3 PASS. Root `pnpm
+test`: API 173 files/751 tests, Web 111 files/768 tests, shared 54 files/323
+tests PASS; database 64/68 files and 230/373 tests PASS with 143 expected
+environment skips because the root command had no `DATABASE_URL`. Typecheck
+5/5, lint 2/2, and production build PASS. The zero-skip PostgreSQL 17/Redis
+7.4.9 lane ran all 117 migrations and database 373/373 tests; API integration
+ran 42/42 files and 58/58 tests without skips. No schema migration, runtime
+selector, hosted Supabase SQL/data, Vercel/Railway deployment, provider
+setting, credential, or paid action changed. Keep
+`ERP_DOCUMENT_INTAKE_WRITES_ENABLED=false` and
+`ERP_DOCUMENT_INTAKE_WRITES_TENANT_IDS` empty. Source/docs remain source-only;
+exact push SHA is recorded in the changeset. Exact next action: reconcile
+hosted parity and release gates before any provider action.
+
+## M3.245 Stock Receipt post/reverse protected HTTP canary (2026-08-10)
+
+Added `apps/api/integration/stock-receipt-workflow.http.integration.spec.ts`.
+It boots the real Nest Stock Receipt post/reverse controller and workflow
+service with Supabase identity/capability guards against transaction-bound
+disposable PostgreSQL. The canary proves missing/invalid auth, strict command
+and `Idempotency-Key` handling, viewer denial, disabled-tenant fail-closed
+behavior, cross-tenant concealment, post/reverse state transitions,
+idempotent replay/key conflict, journal/ledger/PO quantity side effects,
+semantic audit, forced-RLS/service-only workflow-request access, and rollback.
+
+The first run exposed a real cross-tenant ordering defect: claiming the
+workflow request before a tenant-scoped receipt lookup caused a composite-FK
+500. The service now performs the scoped receipt preflight before claiming the
+request; the same attack is a concealed 404. Focused HTTP/database canaries
+pass 3/3. Root `pnpm test`: API 173 files/751 tests, Web 111 files/768 tests,
+and shared 54 files/323 tests PASS; the database package reported 63/67 files
+and 227/370 tests with 143 expected environment skips because the root command
+had no `DATABASE_URL`. Typecheck 5/5, lint 2/2, and production build PASS.
+The zero-skip PostgreSQL 17/Redis 7.4.9 lane ran all 117 migrations; database
+149/149 suites and 370/370 tests plus API integration 41/41 files and 57/57
+tests PASS without skips. No schema migration, runtime selector, hosted
+Supabase SQL/data, Vercel/Railway deployment, provider setting, credential, or
+paid action changed. Keep post/reverse flags false with empty tenant lists.
+The implementation source/docs commit is pushed under `kurtgav` at
+`a30bdcbb1ebfac97186ee61b3862fde6a15e279d`; this follow-up records the exact
+source SHA. Exact next action: reconcile hosted parity and
+release gates before any canary or provider action.
+
+## M3.244 Stock Receipt protected HTTP canary (2026-08-10)
+
+Added `apps/api/integration/stock-receipt.http.integration.spec.ts`. It boots
+the real Nest Stock Receipt controller and draft-creation service with Supabase
+identity/capability guards against transaction-bound disposable PostgreSQL.
+The canary proves missing/invalid auth, strict body and idempotency-header
+validation, viewer denial, disabled-tenant fail-closed behavior, cross-tenant
+Purchase Order concealment, exact tracked-PO/material/UOM/warehouse scope,
+idempotent replay/key conflict, tenant-scoped receipt/line persistence,
+semantic audit, RLS with browser privileges revoked, and rollback.
+
+Focused Stock Receipt database plus HTTP canaries: 2/2 PASS. Root
+`pnpm test`: API 173 files/751 tests, Web 111 files/768 tests, and shared 54
+files/323 tests PASS; the database package reported 63/67 files and 227/370
+tests with 143 expected environment skips because the root command had no
+`DATABASE_URL`. Typecheck 5/5, lint 2/2, and production build (82/82 pages)
+PASS. The zero-skip PostgreSQL 17/Redis 7.4.9 lane ran all 117 migrations;
+database 149/149 suites and 370/370 tests plus API integration 40/40 files and
+56/56 tests PASS without skips. No schema migration, runtime selector, hosted
+Supabase SQL/data, Vercel/Railway deployment, provider setting, credential, or
+paid action changed. Existing `stock_receipt_create_requests` has RLS enabled and no
+`anon`/`authenticated` table privileges; it is not `FORCE ROW LEVEL SECURITY`
+in the current source migration. Treat any force-RLS hardening as a separate
+reviewed migration. Keep
+`ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED` false and
+`ERP_INVENTORY_RECEIPT_CREATE_WRITES_TENANT_IDS` empty. Source/docs are
+committed and pushed at `09c5b5f0910ebb92afd65fbf5675f42e74c001aa`. Exact next
+action: reconcile hosted parity and release gates before any canary or provider
+action.
+
+## M3.243 Asset maintenance protected HTTP canary (2026-08-10)
+
+Added `apps/api/integration/asset-maintenance.http.integration.spec.ts`.
+It boots the real Nest asset-maintenance controller/service with Supabase
+identity and capability guards against transaction-bound disposable PostgreSQL.
+The canary proves missing/invalid auth, strict body and idempotency-header
+validation, viewer denial, disabled-tenant fail-closed behavior, cross-tenant
+asset concealment, idempotent replay/key conflict, tenant-scoped history reads,
+semantic audit, forced-RLS/service-only table privileges, and rollback.
+
+Focused asset-maintenance database plus HTTP canaries: 2/2 PASS. Root
+`pnpm test`: API 173 files/751 tests and shared 54 files/323 tests PASS;
+typecheck 5/5, lint 2/2, and production build (82/82 pages) PASS. The
+zero-skip PostgreSQL 17/Redis 7.4.9 lane replayed 117 migrations; database
+149/149 suites and 370/370 tests plus API integration 39/39 files and 55/55
+tests PASS. Only expected local Redis overcommit and failure-path dead-letter
+logs appeared. No runtime selector, schema migration, hosted Supabase
+SQL/data, Vercel/Railway deployment, provider setting, credential, or paid
+action changed. Keep
+`ERP_ASSET_MAINTENANCE_READS_ENABLED`,
+`ERP_ASSET_MAINTENANCE_READS_TENANT_IDS`,
+`ERP_ASSET_MAINTENANCE_CREATE_WRITES_ENABLED`, and
+`ERP_ASSET_MAINTENANCE_CREATE_WRITES_TENANT_IDS` false/empty. Exact next
+action: push reviewed source/docs, then reconcile hosted parity and release
+gates before any canary or provider action.
+
+## M3.242 Change Request protected HTTP canary (2026-08-10)
+
+Added `apps/api/integration/change-request.http.integration.spec.ts`. It
+boots the real Nest Change Request controller/service with Supabase identity
+and capability guards against the disposable PostgreSQL runtime. The canary
+proves missing/invalid auth, strict body and idempotency-header validation,
+viewer denial, disabled-tenant fail-closed behavior, cross-tenant concealment,
+affected-design-file scope, idempotent replay/key conflict, exactly one
+tenant-scoped design notification, semantic audit, and rollback.
+
+Focused Change Request database plus HTTP canaries: 2/2 PASS. Root
+`pnpm test`: API 173 files/751 tests and shared 54 files/323 tests PASS;
+typecheck 5/5, lint 2/2, and production build (82/82 pages) PASS. The
+zero-skip PostgreSQL 17/Redis 7.4.9 lane replayed 117 migrations; database
+149/149 suites and 370/370 tests plus API integration 38/38 files and 54/54
+tests PASS. No runtime selector, schema migration, hosted Supabase SQL/data,
+Vercel/Railway deployment, provider setting, credential, or paid action changed.
+Keep
+`ERP_CHANGE_REQUEST_WRITES_ENABLED`, `ERP_CHANGE_REQUEST_WRITES_TENANT_IDS`,
+`ERP_CHANGE_REQUEST_WRITES_VIA_API`, and its UUID allowlist false/empty.
+Exact next action: run root/disposable gates, push reviewed source/docs, then
+reconcile hosted parity and release gates before any canary or provider action.
+
+## M3.241 Opportunity stage-transition authority (2026-08-10)
+
+Added the closed-by-default Nest command
+`POST /v1/crm/opportunities/:opportunityId/stage-transition`. Core now owns
+strict stage commands, tenant and capability rechecks, state-machine
+transitions, KYC gates, SLA clock closure/start, idempotent replay, semantic
+audit, and exact tenant-scoped result persistence. Won and closed-won changes
+invoke the existing Project conversion authority inside the caller's
+transaction, so the stage update and Project/checklist handoff commit or roll
+back together.
+
+The new forced-RLS, service-only
+`opportunity_stage_transition_requests` ledger is source migration
+`20260810130000_opportunity_stage_transition_authority.sql`. The Web pipeline
+action has a fail-closed Core adapter and exact-true plus UUID-allowlist
+selector; all stage API/write selectors and tenant allowlists remain
+false/empty, so existing compatibility behavior is unchanged.
+
+Focused canary: 1/1 PASS. Root `pnpm test`: 173 files / 751 tests PASS;
+typecheck 5/5 tasks, lint 2/2 tasks, and production build PASS. The disposable
+PostgreSQL 17/Redis 7.4.9 lane replayed 117 migrations; database tests passed
+149/149 suites and 370/370 tests without skips, and API integration passed
+37/37 files and 53/53 tests. Direct stage canary and all policy guards PASS.
+No hosted Supabase SQL/data mutation, Vercel/Railway deployment, provider
+setting, credential, or paid action occurred. The managed-Supabase plan now
+records source 117 / hosted applied 55, pending 62, and hostedApplyApproved
+false. Exact next action: reconcile the reviewed hosted suffix and release
+gates before any canary or provider action.
+
+## M3.240 Won-opportunity project conversion protected local HTTP canary (2026-08-10)
+
+Added `apps/api/integration/opportunity-conversion.http.integration.spec.ts`
+for the existing Nest transactional handoff
+`POST /v1/crm/opportunities/:opportunityId/convert-to-project`. The canary
+boots the real controller, conversion service, Supabase identity guard,
+capability guard, audit service, and transaction-bound PostgreSQL client. It
+proves missing-auth and strict-body rejection, capability denial, disabled
+feature fail-closed behavior, cross-tenant 404 concealment, won-stage state
+validation, idempotency replay and key reuse conflict, project creation and
+opportunity backlink, twelve-item checklist generation with dependency clocks,
+tenant-scoped notification delivery, semantic audit rows alongside database
+trigger audit rows, and rollback.
+
+Focused canary: 1/1 PASS. Root `pnpm test` is 173/173 files and 750/750
+tests; typecheck 5/5 tasks, lint 2/2 tasks, and production build PASS. The
+disposable PostgreSQL 17/Redis 7.4.9 lane exited PASS after replaying 116
+migrations: database 149/149 suites and 370/370 tests, and API integration
+72/72 suites and 52/52 tests, all without skips. The canary was rerun directly
+against that local runtime and passed 1/1. No schema migration was required;
+`ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED` and the Web
+`ERP_OPPORTUNITY_CONVERT_WRITES_VIA_API` selector remain fail-closed by default
+with empty tenant allowlists. This remains source-only local evidence: no
+hosted Supabase write, Vercel/Railway deployment, provider setting, credential,
+or paid action occurred. Exact next action: choose the next smallest
+source-only ERP seam.
+
+## M3.239 CRM opportunity detail protected local HTTP canary (2026-08-10)
+
+Added disposable protected HTTP evidence for the existing Nest opportunity
+detail authority `GET /v1/crm/opportunities/:opportunityId`. The canary boots
+the real controller, service, Supabase identity guard, capability guard, and
+transaction-bound PostgreSQL client. It proves missing-auth rejection,
+exact account/project name joins, latest PPRF and inspection selection,
+design approval counts, open change-request counts, cross-tenant 404
+concealment, malformed UUID rejection, and rollback.
+
+Focused canary: 1/1 PASS. Opportunity service/controller checks pass; root
+`pnpm test` is 173/173 files and 750/750 tests; typecheck 5/5 tasks, lint 2/2
+tasks, and production build PASS. The disposable PostgreSQL/Redis lane exited
+PASS after replaying 116 migrations with zero skips; the canary was rerun
+directly against that local runtime and passed 1/1. No Web selector or runtime
+authority changed, and no schema migration was required. This remains
+source-only local evidence: no hosted Supabase write, Vercel/Railway
+deployment, provider setting, credential, or paid action occurred. Exact next
+action: choose the next smallest source-only ERP seam.
+
+## M3.238 CRM accounts protected local HTTP canary (2026-08-10)
+
+Added disposable protected HTTP evidence for the existing Nest CRM account
+read authority: `GET /v1/crm/accounts`, `GET /v1/crm/accounts/:accountId`,
+and `GET /v1/crm/accounts/kyc-queue`. The canary boots the real controller,
+service, Supabase identity guard, capability guard, and transaction-bound
+PostgreSQL client. It proves missing-auth rejection, viewer and finance
+capability boundaries, bounded filters and limits, exact account detail graph
+projection, KYC queue scoping, cross-tenant 404 concealment, and rollback.
+
+Focused canary: 1/1 PASS. Root `pnpm test`: 173/173 files and 750/750 tests;
+typecheck 5/5 tasks, lint 2/2 tasks, and production build PASS. The
+disposable PostgreSQL/Redis lane exited PASS after replaying 116 migrations;
+the new canary was rerun directly against that local runtime and passed 1/1.
+The existing full lane completed with zero skips and unchanged schema hashes;
+the prior baseline remains 149/149 database suites and 370/370 tests, with
+the new API integration file added to the protected suite.
+
+No schema migration was required. Existing account Core selectors remain
+closed by default; no Web behavior changed. This is source-only local
+evidence: no hosted Supabase write, Vercel/Railway deployment, provider
+setting, credential, or paid action occurred. Exact next action: choose the
+next smallest source-only ERP seam; hosted parity, protected browser
+evidence, production cutover, rollback, and spend approval remain blocked.
+
+## M3.237 Project command-center read authority (2026-08-10)
+
+Added the bounded Nest read authority
+`GET /v1/projects/:projectId/command-center`. Core verifies the project belongs
+to the authenticated tenant, repeats tenant/project predicates across the six
+aggregate reads, returns strict pending/overdue task, document, decision,
+punch-list, delivery, and progress fields, and rejects unknown query keys. The
+Web project detail query now has an exact-tenant, fail-closed adapter while the
+existing six-query direct path remains the compatibility fallback.
+
+Focused evidence: shared contract 2/2; Web Core client 3/3 and project-query
+tests 11/11; protected API canary 1/1; root `pnpm test` 173/173 files and
+750/750 tests; typecheck, production build, and lint PASS. The disposable
+PostgreSQL/Redis lane replayed 116 migrations; database tests passed 149/149
+suites and 370/370 tests with zero skips; API integration passed 33/33 files
+and 49/49 tests with zero skips; schema-before/after SHA-256 both remain
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No schema migration was required. `ERP_PROJECT_COMMAND_CENTER_READS_VIA_API`
+remains false with an empty tenant allowlist. This is source-only local
+evidence: no hosted Supabase write, Vercel/Railway deployment, provider
+setting, credential, or paid action occurred. Exact next action: choose the
+next smallest source-only ERP seam; hosted parity, protected browser evidence,
+production cutover, rollback, and spend approval remain blocked.
+
+## M3.236 Project read/list protected local HTTP canary (2026-08-10)
+
+Extended the disposable project API evidence to cover the existing Nest read
+and list authorities. The canary proves missing-auth rejection, viewer reads,
+cross-tenant project concealment, exact tenant list results, bounded limits,
+status/name ordering, search filtering, and tenant-safe list totals. No Web
+selector was opened and no schema or runtime authority changed.
+
+Focused canary: 1/1 PASS. Root `pnpm test`: 173/173 files and 750/750 tests;
+typecheck, production build, and lint PASS. The disposable PostgreSQL/Redis
+lane passed 116 migrations, database 149/149 suites and 370/370 tests, API
+integration 66/66 suites and 49/49 tests, zero pending/skips, and equal
+schema-before/after SHA-256
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This is local evidence only. `ERP_PROJECT_READS_VIA_API` and
+`ERP_PROJECT_LISTS_VIA_API` remain false with empty tenant allowlists. No
+hosted Supabase write, Vercel/Railway deployment, provider setting,
+credential, or paid action occurred. Exact next action: choose the next
+smallest source-only ERP seam; hosted parity, protected browser evidence,
+production cutover, and spend approval remain blocked.
+
+## M3.235 Project-comment read authority (2026-08-10)
+
+Added the bounded Nest read authority `GET /v1/projects/:projectId/comments`.
+The Core service verifies the project belongs to the authenticated tenant,
+repeats tenant/project predicates on the comment and author joins, enforces a
+strict limit, orders deterministically, and returns a shared ISO-timestamp
+contract with `hasMore`. The Web comments page now has a fail-closed,
+exact-tenant Core adapter; the existing direct query remains the compatibility
+path while the selector is disabled.
+
+Evidence: shared read contract 2/2; API controller 6/6 and protected HTTP
+canary 1/1; Web Core client 7/7; root `pnpm test` 173/173 files and 750/750
+tests; root typecheck, production build, and lint passed. The disposable
+PostgreSQL/Redis lane passed 116 migrations, database 149/149 suites and
+370/370 tests, API integration 66/66 suites and 49/49 tests, zero
+pending/skips, and schema-before/after SHA-256
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No schema migration was required. `ERP_PROJECT_COMMENT_READS_VIA_API` remains
+false with an empty tenant allowlist. This is local evidence only: no hosted
+Supabase write, Vercel/Railway deployment, provider setting, credential, or
+paid action occurred. Exact next action: choose the next smallest source-only
+ERP seam; hosted parity, protected browser evidence, production cutover, and
+spend approval remain blocked.
+
+## M3.234 Project-comment protected local HTTP canary (2026-08-10)
+
+Added a disposable protected HTTP canary for the existing project-comment
+create/delete Core authority. The test boots the real Nest controller, both
+idempotent comment services, Supabase identity and capability guards, request
+correlation middleware, audit service, and a transaction-bound PostgreSQL
+client. It proves missing-auth 401, viewer capability denial, required and
+route-matched idempotency keys, tenant/project isolation, mention resolution,
+same-key replay and conflict, audited create/delete, terminal disabled-tenant
+503 responses, and rollback.
+
+The focused canary passed 1/1 tests. With the disposable runtime's complete
+expected environment, API integration passed 66/66 suites and 49/49 tests
+with zero pending/skips. The database lane passed 116 migrations, 149/149
+suites and 370/370 tests with zero pending/skips; schema-before and
+schema-after SHA-256 both remain
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This is local evidence only. Project-comment and all other Core selectors
+remain false/empty. No Supabase SQL/data/Storage change, Vercel/Railway
+deploy, provider setting, credential, or paid action occurred. Exact next
+action: select the next smallest source-only ERP seam; hosted parity,
+protected browser evidence, production cutover, and spend approval remain
+blocked.
+
+## M3.233 Notifications protected local HTTP canary (2026-08-10)
+
+Added a disposable protected HTTP canary for the existing notification
+read-state seam (`GET/POST /v1/notifications`). The test boots the real Nest
+controller, notification service, Supabase identity guard, capability guard,
+request-correlation middleware, audit service, and a transaction-bound
+PostgreSQL client. It proves missing-auth 401, tenant and recipient isolation,
+bounded ordering, request-id propagation, malformed input 400, audited
+`mark_read`/`mark_all_read`, terminal 503 behavior when the feature is disabled,
+and rollback with no notification or audit rows left behind.
+
+The focused canary passed 1/1 tests. With the disposable runtime's complete
+expected environment, API integration passed 64/64 suites and 48/48 tests
+with zero pending/skips. The database lane passed 116 migrations, 149/149
+suites and 370/370 tests with zero pending/skips; schema-before and
+schema-after SHA-256 both remain
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This is local evidence only. All Core selectors remain false/empty. No
+Supabase SQL/data/Storage change, Vercel/Railway deploy, provider setting,
+credential, or paid action occurred. Exact next action: select the next
+smallest source-only ERP seam; hosted parity, protected browser evidence,
+production cutover, and spend approval remain blocked.
+
+## M3.232 Today protected local HTTP canary (2026-08-10)
+
+Added a disposable protected HTTP canary for `GET /v1/today`. The test boots
+the real Nest controller, Today service, Supabase identity guard, capability
+guard, request-correlation middleware, and a transaction-bound PostgreSQL
+client. It proves missing-auth 401, tenant and current-assignee filtering,
+cross-tenant isolation, optional project context, strict browser-time rejection
+(`asOf` 400), request-id propagation, and rollback. A test-only unsupported
+role principal is denied 403 by the real capability guard; persisted roles
+still all receive the current `today.read` capability.
+
+The focused canary passed 2/2 tests. The disposable lane passed 116 migrations,
+database 149/149 suites and 370/370 tests with zero pending/skips, API
+integration 62/62 suites and 47/47 tests with zero pending/skips, and equal
+schema SHA-256 before/after
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This is local evidence only. `ERP_TODAY_READS_VIA_API` remains false with an
+empty allowlist. No Supabase SQL/data/Storage change, Vercel/Railway deploy,
+provider setting, credential, or paid action occurred. Exact next action:
+select the next smallest source-only ERP seam; hosted parity and production
+cutover remain blocked by M3.230 and the spend lock.
+
+## M3.231 Today/Project Command Center Nest read seam (2026-08-10)
+
+Source now exposes a read-only Nest `GET /v1/today` contract for the existing
+Today surface. The shared result is bounded and serializes timestamps; Core
+uses its server clock and Manila UTC+8 boundaries, repeats tenant and current
+assignee predicates for every task/count query, and only returns the optional
+project context when requested and authorized. The Web server can select this
+authority only through `ERP_TODAY_READS_VIA_API=true` plus a strict tenant
+allowlist; unset/false keeps the existing direct query, so no production
+behavior changed.
+
+Focused shared/API/Web tests pass (shared 51 files/317 tests, API Today 5
+files/8 tests, Web Today client 3 tests), API/Web typechecks pass, and the
+sequential root lint and production build pass (Nest webpack, Next 82 pages).
+The standalone API unit lane passes 173 files/749 tests with a single fork and
+15-second timeout; Web passes 110 files/759 tests. The concurrent `pnpm test`
+attempt had 8 unrelated 5-second HTTP-test timeouts while 164 API files/739
+tests passed; this is recorded as a load-sensitive root gate, not hidden.
+The disposable lane remains green: 116 migrations, database 149/149 files and
+370/370 tests with zero skips, API integration 30/30 files and 45/45 tests,
+and equal schema SHA-256
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+No database migration, Supabase SQL/data/Storage change, Vercel/Railway
+deployment, provider setting, or paid action occurred. Exact next action:
+keep the Today canary closed, add protected local route evidence if needed,
+then select the next source-only ERP seam; hosted parity/apply remains blocked
+by M3.230.
+
+## M3.230 Hosted Supabase reconciliation audit (2026-08-10)
+
+Read-only Supabase MCP inventory confirms target project
+`aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY` on PostgreSQL 17.6.1 in
+`ap-northeast-2`. Hosted migration history is an exact 55-row prefix ending at
+`20260729233017_notification_outbox_foundation`; repository source has 116
+migrations ending at `20260810120000_project_comment_delete_fk_tenant_preservation`.
+The ordered suffix therefore has 61 pending migrations.
+
+Hosted catalog has tenant RLS on listed public tables. Current Cortex graph has
+3 vendor nodes and 0 material nodes. Newer authority tables including document
+processing jobs/evidence, project-comment request ledgers, purchase-order
+workflow requests, cost-entry creation, and customer-invoice draft requests
+are absent. Security advisors report 14 findings (11 warnings); performance
+advisors report 253 findings (1 warning). No SQL, migration repair, hosted data,
+Storage object, provider setting, deployment, or paid action changed.
+
+This closes only the read-only reconciliation refresh. Hosted apply remains
+blocked until backup/restore, isolated full-suffix replay, catalog/data/RLS
+diff, security review, rollback, owner approval, and spend-bounded canary
+evidence exist. Exact next action: obtain approved clone/backup authority or
+continue source-only Nest/UI work; never hand-edit migration history.
+
+## M3.229 Multi-business master-data universal search (2026-08-10)
+
+Universal Search now indexes tenant-scoped vendor and material catalog records
+through the shared contract, Nest Core search registry, Web direct fallback,
+and command-palette labels. Procurement, commercial, and sales-delivery/project
+management roles may search these node types; finance and sales remain excluded
+by the existing Cortex role matrix. Vendor results link to Purchase Orders and
+material results link to Material Items. No schema or hosted provider change was
+made.
+
+Focused shared-types/API/Web tests, typechecks, lint, root tests, typecheck,
+lint, and production build passed. The disposable lane then passed 149/149
+database files and 370/370 tests with zero skips, 30/30 API integration files
+and 45/45 tests, and identical schema dumps at SHA-256
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+The live landing audit remains read-only: the current Vercel deployment does
+not expose the source branch's Cortex query-preview controls, so source/live
+parity is stale and not deployed under the spend lock. No Supabase, Vercel,
+Railway, deployment, or paid action occurred.
+
+Exact next action: select the next smallest source-only ERP boundary, preserve
+tenant/RBAC/audit invariants, and repeat focused plus disposable verification.
+Keep provider-spend and hosted deployment locks closed.
+
+## M3.228 Disposable zero-skip PostgreSQL/Redis and API lane (2026-08-10)
+
+The current commit was replayed against the disposable `ThirdCodeERP-Test`
+runtime: PostgreSQL 17.10 at `127.0.0.1:54322`, Redis 7.4.9 at
+`127.0.0.1:6379`, and database `erp_self_hosted_ci`. The lane dropped and
+recreated only that local database, applied all 116 repository migrations,
+then ran 149 database test files / 370 tests with zero skips and zero failures.
+The Nest API integration suite then passed 30 files / 45 tests with one worker.
+
+The schema-only dump before and after the tests is byte-equivalent at
+SHA-256 `4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+Expected failure-path log lines for RFQ, notification, and document queues
+were emitted while their assertions passed; they are not silent failures.
+No hosted database, Supabase, Vercel, Railway, deployment, or paid action was
+used.
+
+This is the authoritative disposable data/API integrity gate for the current
+source tree. The default root test command still skips environment-backed DB
+suites when `DATABASE_URL` is absent; the no-skip lane is the evidence for
+those suites.
+
+Exact next action: select the next smallest source-only ERP boundary, document
+its contract and tenant/authorization invariants, then implement and verify it
+against this disposable lane. Keep provider-spend and hosted deployment locks
+closed.
+
+## M3.227 Controlled upload browser runtime and UX hardening (2026-08-10)
+
+The localhost-only controlled document-upload fixture now runs against the
+disposable `ThirdCodeERP-Test` runtime: PostgreSQL 17.10 at `127.0.0.1:54322`,
+Redis at `127.0.0.1:6379`, a local auth/Web harness, and the seeded local
+verification project. The real login UI, project Documents route, upload
+progress states, terminal Core-unavailable response, and browser error guards
+all executed without hosted credentials or provider writes.
+
+Evidence: Playwright 1/1 passed; sign, signed-object PUT, and completion each
+occurred exactly once; unexpected Storage requests were zero; console/page
+errors were zero; local Realtime was explicitly looped back; ARIA snapshot and
+desktop/tablet/mobile screenshots were attached; responsive overflow was <= 1
+pixel at all three viewports. Fixed the upload hook so preparing/uploading/
+finalizing text renders during async work, and made the Documents subnav
+contain horizontal overflow at tablet widths. No Core or Storage provider was
+contacted: completion and object PUT remained controlled test responses.
+
+This is disposable browser evidence only. It does not certify hosted Auth,
+Supabase Storage, Core deployment, production data, or Vercel/Railway health.
+
+Exact next action: update the milestone docs, run focused/root source gates,
+commit and push only reviewed files as `kurtgav`, and verify the remote SHA.
+Keep provider-spend and hosted deployment locks closed.
+
+## M3.226 E2E typecheck baseline cleanup (2026-08-10)
+
+Fixed strict-header typing in existing Cortex and smoke E2E specs by making
+required local Supabase environment values explicit after their runtime
+configuration checks. Full `apps/web/e2e/tsconfig.json` now typechecks cleanly;
+the controlled upload fixture remains opt-in and still has no disposable local
+authenticated runtime evidence.
+
+Exact next action: run `E2E_CONTROLLED_UPLOAD=1` against disposable local
+auth/Web/Core services and capture browser evidence. Hosted URLs remain
+rejected.
+
+## M3.225 Controlled upload-flow browser fixture (2026-08-10)
+
+Added a gated Playwright fixture for the project document upload UI. It
+intercepts sign, signed-object PUT, and completion responses, rejects any
+unexpected Storage request, asserts preparing/uploading/finalizing progress,
+and verifies terminal Core-unavailable messaging without real provider traffic.
+The fixture refuses non-local base URLs and is disabled unless
+`E2E_CONTROLLED_UPLOAD=1`.
+
+Current evidence is fixture registration only: the default run recorded one
+intentional skip because the local authenticated runtime was not enabled. Full
+E2E TypeScript checking is now clean after M3.226. No production selector,
+credential, provider, deployment, or paid action changed.
+
+Exact next action: run this fixture against a disposable local authenticated
+Web/Core runtime, then capture browser console, network, accessibility, and
+responsive evidence. Keep non-local URLs rejected.
+
+## M3.224 Provider-neutral document Storage contract (2026-08-10)
+
+CAD evidence now consumes a server-only `DocumentStorage` contract rather than
+calling a provider SDK directly. Production default remains
+`SupabaseDocumentStorage`; `HttpDocumentStorage` supports a compatible object
+GET endpoint with binary-safe downloads, structured provider errors, bearer
+headers, and traversal rejection. The parser accepts an injected contract for
+deterministic provider and failure testing.
+
+Evidence: local HTTP-compatible object stub passed binary byte parity, 404
+error mapping, malformed-path rejection, and parser injection without a
+Supabase client. Web tests passed 109/109 files and 756/756 tests; disposable
+PostgreSQL 17/Redis 7.4.9 lane passed 116 migrations, database 370/370 with no
+skips, and API integration 30/30 files (45/45 tests). No hosted Storage,
+Supabase, Vercel, Railway, deployment, or paid action occurred.
+
+Exact next action: add a controlled Playwright upload fixture that intercepts
+signed upload and completion responses, verifies visible progress/error states,
+and keeps real credentials and provider traffic out of the test.
+
+## M3.223 Disposable protected upload-complete runtime (2026-08-10)
+
+The disposable integration harness now calls the real Web
+`/api/upload/complete` route with a real DXF fixture, a bounded Storage/session
+double, and a live protected Nest Core HTTP app backed by disposable
+PostgreSQL. A successful upload records the document, parses DXF evidence,
+and commits tenant-scoped scope rows through Core. When Core is deliberately
+made unavailable, the route keeps the document but returns terminal
+`processing-unavailable` state and creates zero scope rows; the compatibility
+writer is not used.
+
+Evidence: upload route integration passed 1/1 inside the full disposable lane;
+the lane replayed 116 migrations, all 370/370 database tests with no skips,
+and 30/30 API integration files (45/45 tests). Redis emitted only the known
+memory-overcommit warning. The provider and browser boundaries remain
+separate: Storage was a bounded test double and no hosted Supabase Storage,
+Vercel, Railway, deployment, or paid action occurred.
+
+Exact next action: add a provider-neutral Storage contract test with a local
+HTTP-compatible stub, then exercise the protected upload flow in a controlled
+browser fixture. Keep all production Core selectors closed and do not run a
+hosted canary under the spend lock.
+
+## M3.222 Disposable actual Web parser to protected Core HTTP (2026-08-10)
+
+The disposable integration harness now executes the real Web `parseCadEvidence`
+DXF path against `public/samples/mep-sample.dxf`, then sends its strict worker
+response through the real server-only Web adapter to a running Nest controller
+with JWT and capability guards. Core runs against the same transaction-bound
+PostgreSQL connection, so scope replacement, replay, and rollback are real
+database behavior rather than mocks. The storage provider is a bounded test
+double; no hosted Supabase Storage call occurs.
+
+Evidence: unauthenticated HTTP returned 401; authenticated parser-to-Core
+commit passed; idempotent replay returned the same result; cross-tenant access
+returned 404; exact parsed count/totals, manual-row preservation, zero draft
+BOMs, audit actor, and outer rollback passed. The disposable lane replayed 116
+migrations; database tests passed 370/370 with no skips. Redis emitted only the
+known memory-overcommit warning.
+
+No Supabase, provider, deployment, or paid action occurred. All production
+selectors remain closed. This proves parser-to-Core HTTP and disposable
+transaction behavior, not hosted storage, protected Next upload-route, or
+browser evidence.
+
+Exact next action: exercise the protected Web `/api/upload/complete` path in a
+disposable runtime with the same storage/session test doubles and Core HTTP,
+including document recording and terminal Core failure without legacy fallback.
+
+## M3.221 Disposable CAD Core replay integrity (2026-08-10)
+
+Disposable PostgreSQL 17/Redis 7.4.9 replay now asserts CAD Core response
+parity against the strict worker contract: exact document/project/tenant
+result, source format, count, 65,000-cent line-total sum, document-owned scope
+replacement, one idempotency record on replay, zero draft BOMs, cross-tenant
+rejection, and outer-transaction rollback. The lane replayed 116 migrations;
+database tests passed 370/370 with no skips; focused CAD integration passed 1/1;
+schema-before/after SHA-256 remained
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`.
+
+This is disposable Core/worker-contract evidence, not hosted or protected
+Web-parser runtime proof. No Supabase, provider, deployment, or paid action
+occurred.
+
+Exact next action: feed actual Web parser output through the protected Web/Core
+HTTP path in disposable runtime, then capture rollback/readiness evidence.
+
+## M3.220 CAD Web/Core response identity parity (2026-08-10)
+
+The server-only CAD adapter now accepts a successful Core response only when
+document ID, project ID, and verified tenant ID all match the request context.
+A schema-valid but mismatched response is terminal `502`; upload flow cannot
+fall back to the compatibility writer. The upload route forwards the verified
+tenant to this check.
+
+Focused Web CAD/route tests pass 17/17; root tests now report shared 315, API
+740, and Web 752 passing tests. Lint, typecheck, production build (82/82
+routes), provider-spend guard, and diff checks pass. No hosted DB, provider,
+deployment, or paid action occurred.
+
+Exact next action: run disposable parser-to-Core database replay proving direct
+response parity, tenant-scoped replacement, idempotency, no draft BOM, and
+rollback before any canary.
+
+## M3.219 Protected CAD HTTP boundary (2026-08-10)
+
+Added a protected Nest HTTP regression harness for CAD evidence commits. The
+real JWT and capability guards now have coverage for missing bearer tokens,
+verified tenant membership, trimmed idempotency, caller authority-field
+rejection, insufficient roles, and absent ERP membership. Core is never
+invoked when authentication, tenant membership, or capability checks fail.
+
+Focused controller/protected tests pass 7/7; root tests now report shared 315,
+API 740, and Web 749 passing tests. Lint, typecheck, production build
+(82/82 routes), provider-spend guard, and diff checks pass. No hosted DB,
+provider, deployment, or paid action occurred.
+
+Exact next action: prove protected Web-to-Core CAD response parity, scope
+replacement, idempotent replay, draft-BOM separation, and rollback on a
+disposable database before any canary.
+
+## M3.218 Project-comment tenant-preserving delete evidence (2026-08-10)
+
+Disposable PostgreSQL 17/Redis 7.4.9 replay exposed and corrected a composite
+foreign-key defect: `ON DELETE SET NULL` attempted to null the required
+`tenant_id` while retaining project-comment evidence. A forward migration now
+uses PostgreSQL's column-scoped `ON DELETE SET NULL (comment_id)` for both
+create and delete ledgers.
+
+Migration ledger replay passed 116/116; database tests passed 370/370 with no
+skips; API integration passed; schema-before/after SHA-256 matched
+`4FCC37BD3D4BE7B40F108812C7E57D30BC25806E4D7F71D10E8FDE8665C3FDD2`. Focused
+migration contract 2/2, root tests, lint, typecheck, production build
+(82/82 routes), boundary, workflow, and spend guards pass. No hosted DB,
+provider, deployment, or paid action occurred.
+
+Exact next action: keep all canaries false/empty; prove protected Web/Core
+CAD response parity and rollback, then obtain explicit approval before any
+single-tenant hosted canary.
+
+## M3.217 CAD parser-to-Core canary boundary (2026-08-10)
+
+`parseCadEvidence` now produces strict document-bound worker evidence without
+writing scope rows or draft BOMs. The upload route selects this path only for
+an exact tenant UUID allowlist, commits through Nest Core, and never falls
+back to the Web writer after Core selection. Default selector and allowlist
+remain false/empty. `parseAndStoreCad` remains compatibility-authoritative
+and retains auto-BOM for unselected tenants.
+
+Focused parser 2/2, upload route 10/10, adapter 4/4; root tests (shared 315,
+API 736, Web 749), lint, typecheck, production build (82/82 routes), Web
+DB-boundary, migration files-only, workflow-reference, provider-spend, and
+diff checks pass. Disposable PostgreSQL/RLS replay, protected browser proof,
+and hosted/provider checks remain open. No migration, hosted row, provider,
+deployment, or paid action.
+
+Exact next action: prove direct/Core parity, idempotent replay, scope
+replacement, and draft-BOM separation in disposable PostgreSQL.
+
+## M3.216 Web-to-Nest CAD evidence adapter (2026-08-10)
+
+Web now has a server-only, strict adapter for the existing Nest
+`POST /v1/documents/:documentId/cad-evidence` authority. It validates the
+document-bound worker response before network I/O, uses the authenticated
+server session plus idempotency key, validates the Core result, and returns a
+terminal error without a Web fallback. Selection requires an exact tenant UUID
+allowlist and remains false by default. The upload/parser path is unchanged;
+no tenant is routed through this adapter yet.
+
+Focused adapter tests 4/4; root tests (shared 315, API 736, Web 745), lint,
+typecheck, production build (82/82 routes), Web DB-boundary, migration
+files-only, workflow-reference, provider-spend, and diff checks pass. CAD
+parser parity, disposable PostgreSQL/RLS replay, protected browser proof, and
+hosted/provider checks remain open. No migration, hosted row, provider,
+deployment, or paid action.
+
+Exact next action: push once, then document and prove parser/evidence parity;
+keep `ERP_CAD_EVIDENCE_COMMIT_WRITES_VIA_API=false` and its allowlist empty.
+
+## M3.215 Core-owned DocuSeal webhook transaction (2026-08-10)
+
+Nest Core now contains a closed-by-default internal webhook endpoint for the
+DocuSeal completion transaction. It validates the event/document payload,
+authenticates a server-only Web-to-Core token, resolves the portal token to a
+tenant, locks the tenant BOM row, records an optional signed document, and
+writes a hash-chain audit event in one transaction. A used portal token is a
+terminal idempotent replay and never repeats document, lock, or audit effects.
+
+The Web callback selects Core only for an exact tenant UUID and returns a
+terminal error without re-entering the legacy write branch. Existing Web
+notification delivery remains ancillary after a first Core commit; duplicate
+webhooks do not resend it. All selectors and Core flags remain false/empty.
+Focused shared/API/Web suites and typechecks pass. Root `pnpm test`, lint,
+production build (82/82 routes), Web DB-boundary, migration files-only,
+workflow-reference, provider-spend, and diff checks pass. Disposable
+PostgreSQL/RLS replay, protected webhook proof, and hosted/provider checks are
+still open. No migration, hosted row, provider, deployment, or paid action.
+
+Exact next action: push the reviewed source-only release packet once; retain
+both webhook selectors closed until disposable replay proves tenant isolation,
+locking, duplicate delivery, and audit continuity.
+
+## M3.214 Core-owned notification read state (2026-08-10)
+
+Nest Core now owns a closed-by-default `GET/POST /v1/notifications` seam for
+tenant-and-recipient-scoped notification listing and mark-read/mark-all-read
+updates. The route requires the new `notification.read` capability, derives
+tenant/user from the verified principal, audits state changes in the same
+transaction, and returns strict shared contracts. The Web compatibility route
+maps Core responses back to its existing snake_case shape; selected-Core
+errors are terminal and cannot fall back to direct DB writes.
+
+Focused shared/API/Web suites and typechecks pass. Root test, lint, production
+build, migration-ledger, workflow-reference, and provider-spend guards also
+pass. Docker PostgreSQL/Redis replay, RLS parity, protected browser/API proof,
+and hosted/provider checks remain unverified; flags are false/empty and no
+hosted or paid action changed.
+
+Exact next action: push this source/docs slice. Keep notification and all other
+Core selectors closed until disposable replay proves recipient isolation and
+audit parity.
+
+## M3.213 Core-owned bank reconciliation register read (2026-08-10)
+
+Nest Core now exposes a tenant-scoped, bounded bank-reconciliation register
+read with `finance.read` authorization, exact-UUID API gating, strict cents,
+date, status, currency, and count contracts, and same-tenant cash-account/
+statement-line joins. The Web reconciliation page selects it only for an
+exact server-side tenant canary; its existing direct server read remains the
+default. A selected Core error is terminal and cannot silently fall back.
+
+Validation: shared contract 3/3, Core service/controller 4/4, Web Core client
+156/156, root tests (shared 309, API 724, Web 732), API/Web/shared typechecks,
+frozen offline install, root lint/build, Web DB-boundary, migration ledger,
+workflow-reference, and Vercel spend-guard checks passed. Docker PostgreSQL/
+Redis replay, RLS parity, protected browser/API proof, and hosted/provider
+checks remain unverified; no hosted or paid action changed.
+
+Exact next action: confirm Docker health, replay the disposable PostgreSQL 17
+and Redis runtime, compare direct/Core reconciliation rows and aggregate
+counts under protected tenants/roles, then collect release/readiness/rollback
+evidence before any canary or provider deployment.
+
+## M3.212 source-safe Cortex chat retrieval (2026-08-10)
+
+Cortex chat retrieval now enforces one canonical source-table/node-type
+invariant at every prompt-facing path. Shared retrieval items reject mismatched
+sources; Core omits invalid recent/match rows; Web filters direct and semantic
+rows before prompt assembly; and the deterministic database keyword fallback
+filters the same unsafe derived rows before formatting answer text or citations.
+The database package declares the shared contract as a runtime dependency.
+
+Validation: Web chat 17/17, shared retrieval 5/5, database retrieval 1/1,
+Core retrieval/controller 9/9, database typecheck, Web/Core typechecks, frozen
+lockfile install, root lint, and production build passed. Docker PostgreSQL/RLS
+replay and hosted/provider/deployment checks remain unavailable; no paid action
+changed.
+
+Exact next action: restore disposable PostgreSQL/Redis evidence, replay the
+source ledger, and run protected Cortex tenant/role/source and no-fallback
+checks before any canary or provider deployment.
+
+## M3.211 Web Cortex compatibility sanitizer (2026-08-10)
+
+The legacy Web `/api/cortex/graph` route now uses the same shared whole/focused
+graph sanitizers as Nest Core. Direct-path graph reads no longer return raw
+derived rows; malformed nodes, invalid/dangling links, and invalid focused
+records are filtered or concealed as not-found. Core selection remains exact,
+closed-by-default, and terminal on failure.
+
+Validation: Web graph route tests 10/10 cover compatibility sanitization and
+focused concealment; root lint/build passed. No hosted/provider/deployment
+action changed.
+
+## M3.210 resilient Core Cortex graph projection (2026-08-10)
+
+Core whole-graph and focused-graph reads now sanitize database-derived rows
+before the shared response contract. Valid nodes survive; malformed nodes,
+unknown/mismatched sources, invalid links, and dangling endpoints are omitted.
+A focused response becomes not-found when its focus node is invalid or absent.
+This prevents one corrupted derived mirror row from producing an unsafe graph
+or taking down the complete read surface.
+
+Validation: shared graph sanitizer tests 5/5 + typecheck; Core graph/controller
+tests 7/7 + typecheck; root lint/build; static database reproducibility ledger
+check passed. Docker engine readiness still timed out, so full PostgreSQL/RLS
+replay remains unverified. No hosted or paid action changed.
+
+## M3.209 shared Cortex source-contract hardening (2026-08-10)
+
+The shared graph, keyword-search, and citation schemas now require every
+`refTable` to match its canonical `nodeType`. This makes the source identity
+rule enforceable at the contract boundary for Core, Web, and Cortex/AI
+consumers, not only inside the Core search service. Mismatched or unregistered
+graph/search/citation payloads fail validation before navigation or evidence
+rendering.
+
+Validation: shared Cortex graph/search/entity tests 11/11 and shared
+typecheck passed; Core Cortex search/controller tests 7/7 and API typecheck
+passed; Web Cortex routes/client 175/175 and Web typecheck passed. Full
+API-suite timeout and missing disposable PostgreSQL/RLS replay remain open. No
+hosted or paid action changed.
+
+## M3.208 Core Cortex search source validation (2026-08-10)
+
+The Nest Core Cortex keyword-search adapter now validates every graph hit
+against the shared canonical `ref_table`/`node_type` registry before returning
+it. Unknown tables, mismatched node types, malformed UUIDs, and malformed
+freshness/title payloads are omitted. This closes the authority gap where the
+Web compatibility route filtered sources but Core could have serialized a raw
+graph row. Tenant, role, and capability gates remain unchanged and closed by
+default; no provider or database state changed.
+
+Focused Core Cortex search/controller tests passed 7/7, API typecheck/build,
+and root lint passed. A full serial API-suite attempt exceeded the 240-second
+command limit without completing; it is not counted as green. The full
+graph/backfill and RLS suites still require disposable PostgreSQL evidence.
+
+## M3.207 closed Nest Core universal-search adapter (2026-08-10)
+
+The repository now contains a source-only, closed-by-default Nest Core
+universal-search read seam at `GET /v1/search`. Core validates the bounded
+shared query/result contract, requires the existing `cortex.search` capability,
+derives tenant, role, and user scope from the verified principal, and reads
+only the tenant-scoped derived Cortex graph. A canonical shared role/entity
+matrix prevents Web/Core policy drift. Task hits additionally require the
+verified principal to be the graph assignee. Results contain only safe relative
+hrefs and bounded metadata; unknown or malformed graph sources are skipped.
+
+The Web compatibility route has an exact-UUID tenant selector and calls Core
+only when both source and Web flags are enabled. A selected-Core failure is
+terminal (503); Web never falls back to direct database reads after authority
+selection. All four selector flags remain closed by default and no canary is
+enabled. The adapter is a bounded graph-indexed foundation, not complete
+direct-table parity; graph backfill/parity is still required before activation.
+
+Validation: shared universal-search additions 4/4 and full shared suite
+47 files/302 tests passed; API focused search specs 5/5, full API suite
+161 files/716 tests passed, typecheck and build passed; Web search route 14/14,
+Core client 154 tests, and full Web suite 104 files/727 tests passed; root lint
+passed; root production build passed with `NEXT_PRIVATE_BUILD_WORKER=0`.
+Serial Turbo tests passed all packages; the default concurrent `pnpm test`
+had eight pre-existing 5-second HTTP/e2e timeouts, and those eight files
+passed isolated at one worker (35/35). Database integration/RLS tests requiring
+`DATABASE_URL` remain skipped. Boundary, parity, clean-room, spend, and
+release-plan guards passed. No database, hosted row, migration, provider,
+Vercel/Railway deployment, or paid action changed.
+
+Exact next action: restore disposable PostgreSQL/Redis evidence, replay and
+backfill the graph, then run protected tenant/role/assignee/no-fallback browser
+and API checks before considering an exact tenant canary.
+
+## M3.206 universal search partial-result contract (2026-08-10)
+
+Universal search now uses one strict shared result contract for the Web
+compatibility route and the future Nest Core read authority. The contract
+keeps the existing `hits`/`hint` fields, adds `status` (`complete` or
+`partial`) and bounded `failedTypes`, and rejects external navigation or
+database diagnostics. The compatibility route labels each role-authorized
+record query before `Promise.allSettled`; a failed query is logged server-side
+and surfaced only as an incomplete-result warning. The command palette parses
+the response and fails closed on a malformed payload instead of trusting an
+untyped browser cast.
+
+Shared contract tests 2/2, Web search route tests 12/12, root lint, full test
+suite, production build, Web DB-boundary verification, managed-parity
+verification, clean-room tests 7/7, and spend-guard tests 4/4 passed. No
+database, hosted row, migration, Auth/Storage object, provider, queue, Vercel
+deployment, Railway build, or paid action changed. This is a source-only
+compatibility improvement; universal search business reads have not yet moved
+behind Nest Core.
+
+Source commit `19177d9aeea07b4820c913a3a0ccdfc7daafccc0` is pushed to
+`agent-02/third-code-erp-landing` as `kurtgav`; local and origin SHAs match.
+
+Exact next action: design the disabled Nest Core universal-search read adapter
+against this contract, with explicit capability, tenant, assignee, and exact
+tenant-canary checks plus no fallback, after disposable PostgreSQL replay is
+available.
+
+## M3.205 managed Supabase parity manifest refresh (2026-08-10)
+
+The read-only managed-Supabase parity manifest now matches the repository
+source ledger after M3.204: 115 migration files through
+`20260810110000_project_comment_delete_workflow.sql`, with the previously
+verified managed boundary held at 55 migrations through
+`20260729233017`. The exact suffix is 60 ordered pending migrations in nine
+review batches, including project-comment create/delete authority. The
+machine verifier and its four negative/positive tests pass. This refresh
+changes only source planning evidence; it does not query or mutate Supabase,
+repair migration history, create a paid branch, enable flags, or deploy.
+Vercel/Railway spend guard remains green.
+
+## M3.204 Core-authoritative project comment deletion (2026-08-10)
+
+Project-comment deletion now has an original Nest Core command boundary:
+`DELETE /v1/projects/:projectId/comments/:commentId` requires a verified
+tenant membership, `project.update`, a bounded `Idempotency-Key`, and an exact
+closed-by-default tenant canary. Core validates project/comment scope, deletes
+the row in the same PostgreSQL transaction as the semantic audit, and stores a
+strict result in a service-only idempotency ledger. Creation and deletion
+evidence references use `ON DELETE SET NULL`, so hard deletion does not erase
+the immutable command/result evidence. A second ledger read covers a retry that
+waited on a concurrent comment-row lock. Browser DML remains revoked; the Web
+Server Action selects Core only for the exact tenant gate and never falls back
+after selection. The compatibility path remains tenant/project scoped and
+audited while the gate is closed.
+
+Focused API deletion/config/controller suites passed 84/84, shared deletion
+contracts 5/5, and Web comment/Core suites 16/16. Full `pnpm test`, API/Web
+typecheck, lint, production build, Web database-boundary verification, and
+files-only migration verification passed. The files-only verifier now sees
+115 migration files, 32 protected tables, and 13 service-only tables when a
+database runtime is available. Fresh PostgreSQL replay and the real database integration were
+not runnable this turn because WSL virtualization and the Docker daemon are
+unavailable on this machine; the migration is source-only and has not been
+applied to Supabase. No Supabase SQL, Vercel, Railway, provider, browser, or
+paid action occurred. All deletion and creation flags remain false/empty.
+Source commit `00d6a4064c9d6ed99105d02778be508a8b9e7b79` is pushed to
+`agent-02/third-code-erp-landing` as `kurtgav`; local and remote SHAs match.
+
+## M3.203 Core-authoritative project comment creation (2026-08-10)
+
+Added a strict shared project-comment command/result, a Nest
+`POST /v1/projects/:projectId/comments` transaction, tenant-scoped idempotency
+ledger, membership/capability checks, mention resolution, and same-transaction
+semantic audit. Migration `20260810100000_project_comment_create_workflow.sql`
+adds the ledger, composite tenant foreign keys, comment identity index, and
+revokes browser insert/update/delete privileges; all Core/Web flags remain
+false with empty tenant lists.
+
+The project comments Server Action now validates the project UUID and
+`project.update`, selects Core only for an exact tenant canary, and never falls
+back after Core selection. The closed compatibility path remains available but
+is tenant/project scoped and audited. Focused shared/API/Web tests passed;
+full `pnpm test`, typecheck, lint, and production build passed. Disposable
+PostgreSQL replay reached 114/114 migrations; database tests passed 367/367
+without skips and API integration passed 28 files/42 tests, including the new
+real-transaction comment replay/rollback coverage. No hosted SQL, Supabase,
+Vercel, Railway, provider, or paid action occurred. Source commit
+`78fb551611a763b7eef14063d1948516935a78eb` is pushed as `kurtgav`; local HEAD
+and `origin/agent-02/third-code-erp-landing` match and the worktree is clean.
+
+## M3.202 canonical upload command payload (2026-08-10)
+
+The guarded Core upload path now sends an explicit nullable description when
+the legacy upload request omits one. The same normalized value is used by the
+Core command contract and deterministic idempotency hashing, preventing
+undefined-versus-null replay drift. Default tenant/authority flags remain
+closed; no hosted state changed.
+
+Evidence: focused upload route 8/8; full tests, typecheck, lint, and production
+build passed. Source branch HEAD `f36cdc9c8c906abd10a6fcab757624855496f13c`
+matches the remote branch under `kurtgav`; worktree is clean. This is source
+evidence only, not hosted release or canary approval.
+
+## M3.201 guarded upload authority selection (2026-08-10)
+
+Connected `POST /api/upload/complete` to the existing Nest document-intake
+authority through an exact tenant gate plus non-extractor format selector. The
+route chooses Core before any legacy document insert, derives a deterministic
+command idempotency key from the validated upload command, maps Core success to
+the frozen legacy response, and returns a bounded terminal error without
+fallback when Core is selected and unavailable. Default flags remain false;
+CAD, visual, spreadsheet, CSV, and document extractor uploads remain on the
+legacy path.
+
+Route evidence: Core success and Core 503 no-fallback tests pass; legacy
+same-tenant recording and extractor behavior remain covered. No hosted flag,
+database, deployment, provider, or paid action changed.
+
+## M3.200 local database replay and upload parity freeze (2026-08-10)
+
+Replayed the complete source migration ledger from an empty local PostgreSQL
+17 database through `20260810090000_document_intake_workflow.sql`: 113/113
+migrations, 32 protected tables, and 11 service-only tables. The real database
+integration proved scoped create, idempotent replay, same-key conflict,
+foreign-project concealment, storage-prefix denial, audit/ledger cardinality,
+and transaction rollback (1/1). The service now validates project and storage
+scope before claiming idempotency, preventing raw composite-FK failures.
+
+Added a strict shared schema for the legacy `/api/upload/complete` response and
+wrapped route output with it. The server-only Core canary was initially
+unconnected in this milestone; M3.201 now connects it behind an exact gate.
+CAD, visual, spreadsheet, CSV, and document formats remain legacy-authoritative.
+
+Validation: local replay 113/113; database tests 367/367 without skips; API
+integration 26 files passed; focused M3.200 database integration 1/1; database
+reproducibility verifier 113 migrations/11 service-only tables; release planner
+current 113/113; schema-before/after SHA-256 equal
+`F51C083CFF33D3C279261BD57F3BAE4F0465BA6E1423EE8DB09880F7B48FBAAD`; shared
+contract 3/3; Web upload/Core suites 158/158. Local PostgreSQL and Redis were
+stopped after verification. Managed Supabase remains source-only 55/113;
+no hosted SQL, deploy, provider, browser, or paid action occurred.
+
+Exact next safe slice: run full source gates, push reviewed source under the
+`kurtgav` identity, and obtain release/rollback identities before any canary.
+
+## M3.199 Nest document-intake authority seam (2026-08-10)
+
+Added a strict `POST /v1/documents` Nest contract with verified membership
+scope, project/tenant composite predicates, storage-prefix enforcement, exact
+100 MiB size bound, durable tenant-scoped idempotency, and same-transaction
+semantic audit. Added a migration-backed request ledger, config gate, protected
+HTTP harness, service tests, and a server-only Web adapter. The Web upload route
+now has a closed-by-default selector; all intake allowlists stay closed. Review packet:
+`docs/architecture/DOCUMENT_INTAKE_REVIEW.md`.
+
+Reconciled the source-only managed Supabase parity manifest to the current
+113-file ledger: 55 applied boundary, 58 pending, and 8 ordered review batches.
+This is repository evidence only; hosted state was not queried or changed.
+
+Validation: API document/config/protected tests 77/77; Web Core client 148/148;
+shared contract 4/4; typecheck/lint; Nest webpack; Next 82-page build;
+database package 224 passed with 143 environment-dependent skips. No managed
+Supabase, hosted write/deploy, provider, or paid action. Exact next safe slice:
+zero-replay the migration locally, freeze legacy upload response parity, and
+add the Web adapter canary harness without enabling production.
+
+## M3.198 Next API database-boundary guard (2026-08-10)
+
+Added a read-only static verifier for direct Drizzle access in
+`apps/web/src/app/api`. Four existing write routes are explicitly classified
+with migration owners; two `db.execute` routes are classified read-only. A
+synthetic unallowlisted write and an unclassified raw execute both fail the
+policy test. No runtime route, schema, flag, hosted database, provider, or
+deployment changed. The review packet is
+`docs/architecture/WEB_DB_BOUNDARY_REVIEW.md`.
+
+Validation: boundary tests 4/4 and report `clear`. CI and self-hosted CI invoke
+the test. This is a source guard only; Server Actions and internal Web service
+writes remain migration inventory. Exact next safe slice: design a disabled
+Nest document-intake contract and parity harness before changing
+`upload/complete` authority.
+
+## M3.197 Release identity and rollback planner (2026-08-10)
+
+Added read-only `pnpm plan:release-identity` with deterministic identity
+checks. It records candidate SHA/branch/clean state, requires API/Web hosted
+release IDs whose source SHAs match candidate, requires explicit rollback IDs,
+and rechecks Vercel Git/spend guard. Pure planner tests pass 5/5. No provider,
+SQL, flag, or deployment action occurred. Current report is
+`review_required` until external release and rollback identities are supplied.
+Local production browser QA at 1440/768/390 passed with no horizontal
+overflow or console errors; Cortex, accordion, carousel, and FAQ interactions
+were observed.
+
+Exact next safe slice: keep canaries closed; obtain provider identities only
+under explicit budget approval, or continue source-only production hardening.
+
+## M3.196 Conversation owner/context protected auth boundary (2026-08-10)
+
+Added a disposable HTTP harness that composes the real `SupabaseJwtGuard`,
+`CapabilityGuard`, controller metadata, strict query pipe, and context
+resolver seam. Missing bearer and missing tenant membership reject with 401;
+verified membership supplies the only tenant/user/role scope; caller-selected
+tenant input rejects with 400 before resolution. No managed database, token,
+browser, hosted write/deploy, provider, or paid action was used.
+
+Focused validation: protected harness 3/3. Full local lanes: shared-types 286
+tests, API 153 files/682 tests, Web 102 files/697 tests; API/Web/shared
+typechecks; lint; Nest webpack; Next 82-page production build; spend,
+controlled-release, Actionlint, workflow-ref, Gitleaks, and diff guards green.
+Release identity, hosted cross-tenant replay, and rollback remain external
+gates; Core/Web canaries stay false with empty allowlists. Exact next safe
+slice: capture exact API/Web release identities and rollback/readiness evidence
+without enabling a canary.
+
+## M3.195 Conversation owner/context protected HTTP harness (2026-08-09)
+
+Added protected HTTP contract coverage for `GET /v1/cortex/conversation-context`.
+Malformed/incomplete/caller-scope input rejects at 400; service exceptions
+preserve 404/409/503 status and message semantics. Extended selected Web Core
+seam coverage: Core timeout maps to 503, calls Core once, and never retries or
+falls back to direct database authority. Chat route remains unconnected.
+
+Validation: Nest HTTP 7/7; Web seam 4/4; shared-types 286 tests, API 152
+files/679 tests, Web 102 files/697 tests; typechecks/lint green. Existing Nest
+webpack and 82-page Next build remain green; spend/release/security guards
+green. No SQL, hosted write/deploy, provider, browser, or paid action. All
+Core/Web canaries remain false/empty.
+
+Exact next safe slice: disposable protected auth/cross-tenant harness and
+release-identity/rollback evidence; keep all canaries closed.
+
+## M3.194 Conversation owner/context parity fixture (2026-08-09)
+
+Added deterministic legacy/Core parity evidence for the pre-chat owner/context
+branch. Twelve tenant-shaped cases cover unscoped/new chat, owned restore,
+matching focus, foreign ownership, half-bound/revoked context, role-forbidden
+focus, immutable mismatch, unsupported source, and source/type mismatch. Core
+result/status/body matches the frozen observable Web contract 12/12. Added a
+review packet with exact authority, rollback, and unresolved hosted gates.
+
+Validation: parity 12/12; principal-derived tenant/user read assertion; shared
+types 286 tests, API 152 files/675 tests, Web 102 files/696 tests; shared/API/
+Web typechecks; lint; Nest webpack build; Next 82-page production build; spend,
+release, Actionlint, workflow-ref, and Gitleaks guards. No writes, messages,
+retrieval, provider, or browser path. Chat route remains unconnected. Both
+Core/Web owner-context gates remain false/empty; no SQL, hosted write/deploy,
+or paid resource changed.
+
+Exact next safe slice: prove protected auth/cross-tenant behavior in a
+disposable harness; keep all canaries closed.
+
+## M3.193 Conversation owner/context parity seam (2026-08-09)
+
+Added the disabled-by-default Nest `GET /v1/cortex/conversation-context`
+authority plus strict shared query/response contracts. Core derives tenant,
+user, role, and capability; preserves the chat route's owner/context behavior
+(404 for foreign/missing/revoked state, 409 for immutable focus mismatch); and
+returns no messages or retrieval material. Added a server-only Web adapter and
+unconnected seam with JSON focus transport and no direct database fallback
+after exact-tenant Core selection. `apps/web/src/app/api/cortex/chat/route.ts`
+is unchanged.
+
+Focused validation: shared contract 5/5; Nest service 9/9, HTTP 3/3,
+environment 66/66; Web Core client 145/145 and unconnected seam 3/3;
+shared/API/Web typechecks pass. No SQL, hosted write/deploy, provider call, or
+paid resource changed. Both owner/context gates remain false/empty.
+
+Full package lanes after the final transport-parity correction are green:
+shared-types 286 passed, API 663 passed, and Web 696 passed; the database lane
+previously passed 224 tests with 143 environment-dependent tests skipped.
+`pnpm lint` and separate Nest/Web production builds are green, including the
+82-page Next production build. An earlier `vitest --reporter=dot` API attempt
+timed out under runner contention; the exact package script
+`pnpm --filter @third-code-erp/api test` passed all 151 files/663 tests. This
+is source evidence only; database skips remain an external replay/hosted gap.
+
+Exact next safe slice: build a deterministic legacy/Core owner/context parity
+fixture and review packet; keep the chat route and all canaries closed.
+
+## M3.192 Unconnected Web chat retrieval seam (2026-08-09)
+
+Added a server-only `readCortexChatRetrievalThroughCore()` seam plus
+`getCortexChatRetrievalThroughCoreApi()` transport. It accepts only the strict
+bounded query, sends canonical focus as JSON through the Core GET contract,
+uses the exact-tenant Web flag, parses the result, and fails closed without a
+database fallback. The chat route remains unconnected; conversation
+owner/context, writes, generation, semantic retrieval, and provider spend are
+separate boundaries.
+
+Focused validation: Core client 142/142, unconnected seam 3/3, API focus
+transport 3/3, shared contract 4/4, shared/Web typecheck. No SQL, hosted
+write/deploy, provider call, or paid resource changed.
+
+Exact next safe slice: prove conversation ownership/context parity in an
+unconnected seam; do not wire the chat route or enable a tenant canary.
+
+## M3.191 Cortex chat retrieval parity fixture and review packet (2026-08-09)
+
+Added a deterministic equality fixture for the current direct Web retrieval
+shape versus the strict Core projection: stats, recent/match items, focused
+projection, keyword citations, and semantic status. Added
+`docs/operations/CORTEX_CHAT_RETRIEVAL_REVIEW.md` with exact source identity,
+closed API gate, authority contract, parity limits, blockers, and rollback.
+The fixture does not invoke a browser, hosted database, provider, or deployed
+service; the Web chat route and all flags remain unchanged.
+
+Focused parity/service lane: 5/5 chat service tests; shared contract 4/4;
+shared/API typecheck. No SQL, hosted write/deploy, provider call, or paid
+resource changed.
+
+Exact next safe slice: design the server-only Web chat read seam and exact
+tenant Core adapter contract; keep it unconnected and canaries closed until
+protected ownership/context parity is proven.
+
+## M3.190 Cortex chat retrieval contract and Nest authority (2026-08-09)
+
+Added the strict shared `cortexChatRetrieval` query/result projection and a
+fail-closed Nest `GET /v1/cortex/chat-retrieval` authority. The service derives
+tenant and role scope from `CurrentPrincipal`, bounds recent/keyword windows,
+rechecks focused-record ownership and canonical table/type mapping, and
+serializes citations/freshness. Semantic/provider context is explicitly
+`not_migrated`; no embedding or model call is made. The API canary
+`ERP_CORTEX_CHAT_RETRIEVAL_READS_ENABLED` plus its exact tenant allowlist is
+false/empty, and the Web chat route is unchanged.
+
+Focused validation: shared contract 4/4; API chat-retrieval service/controller
+and environment 71/71; shared/API typecheck. No SQL, hosted write/deploy,
+provider call, or paid resource changed.
+
+Exact next safe slice: add a deterministic legacy/Core retrieval parity
+fixture and review packet without wiring `apps/web/src/app/api/cortex/chat` or
+enabling a tenant canary.
+
+Verified from the repository and local replay evidence on 2026-08-09.
+Managed-provider state is refreshed only through explicitly recorded read-only
+checks. Application deployments are reported separately and are never inferred
+from a successful build.
+
+## M3.189 Cortex chat retrieval authority audit (2026-08-09)
+
+Audited `apps/web/src/app/api/cortex/chat/route.ts`: conversation ownership,
+context authorization, graph stats/recent nodes, keyword matches, focused
+entity, semantic search, and deterministic keyword answers remain direct reads.
+Core user/assistant-turn writes and generation jobs are independently canaried
+but do not replace retrieval or prove parity. Conversation list/detail routes
+have Core adapters; chat POST does not use them for ownership/message reads.
+
+Added `docs/architecture/CORTEX_CHAT_READ_AUTHORITY.md` with the observed
+authority table, tenant/RBAC invariants, test evidence, and separate-contract
+requirements. No runtime, SQL, flag, hosted write/deploy/provider call, or
+paid resource changed.
+
+Exact next safe slice: define a bounded chat retrieval contract and Nest
+authority without enabling a tenant canary.
+
+## M3.188 Local release/rollback metadata reconciliation (2026-08-09)
+
+Reconciled the canary packet to application candidate
+`55697564c49cf92a58e7e85016fe4d6ac71f2abe`, recorded the documented retained
+Web rollback target, and kept Railway/API rollback identity explicitly
+unresolved. This is source/documentation evidence only; no live provider check,
+tenant flag, SQL, hosted write/deploy, or paid resource occurred.
+
+Exact next safe slice: stop at the unresolved external gates; do not infer
+Railway/API identity, Supabase parity, or spend approval locally.
+
+## M3.187 Exact-tenant Cortex brief canary gate (2026-08-09)
+
+Closed a locally verifiable review gap: `cortexBriefReadsUseCoreApi()` now
+uses a strict exact-tenant helper that rejects `*`; generic legacy Core seams
+are unchanged. Focused Core client 139/139 plus brief-read 4/4 passed, Web
+typecheck and sequential 82-page build passed. API/Web flags and allowlists
+remain false/empty. No SQL, hosted write/deploy/provider call, or paid
+resource changed.
+
+Exact next safe slice: keep the canary closed and reconcile local release/
+rollback metadata; do not infer hosted identity or parity.
+
+## M3.186 One-tenant Cortex brief canary review packet (2026-08-09)
+
+Added `docs/operations/CORTEX_BRIEF_CANARY_REVIEW.md` as a source-only approval
+packet. It records the exact candidate SHA, both independent API/Web flags,
+session/principal/RBAC authority, bounded request and spend controls, parity
+evidence, rollback, and explicit blockers. Both allowlists remain empty; no
+tenant, deployment identity, hosted parity, provider, or paid activation is
+approved.
+
+The packet explicitly keeps managed Supabase parity, backup/PITR, exact tenant
+identity, live RBAC, deployment identity, rollback artifact, and spend ceiling
+as unresolved gates. No SQL, runtime code, hosted write/deploy/provider call,
+or paid resource changed.
+
+Exact next safe slice: close only the evidence gaps that can be verified
+locally, without enabling a tenant canary or touching managed providers.
+
+## M3.185 Dashboard brief parity fixture (2026-08-09)
+
+Added deterministic parity evidence for the dashboard seam. The same tenant
+fixture is read through the role-scoped legacy path and the selected Core path;
+the normalized Core projection is structurally equal to the legacy projection,
+including dates, stats, freshness, and items. No runtime source, flag, SQL,
+provider, hosted, or deployment behavior changed.
+
+Focused brief-read parity: 4/4. Sequential Web build and typecheck passed;
+M3.184 full suite remains current: API 641/641, shared 277/277, Web 683/683,
+database 224 passed plus 143 credential-gated skips, lint, 82-page build,
+spend/release/Actionlint/pinned-refs/Gitleaks/diff/clean-room gates.
+
+Exact next safe slice: prepare a canary review packet for one tenant while
+keeping all feature flags and allowlists closed.
+
+## M3.184 Dashboard server-component brief adapter seam (2026-08-09)
+
+The Cortex dashboard page now delegates its brief read to a server-only
+`readCortexBrief()` seam. An exact-tenant Core selection calls the Nest-backed
+adapter, normalizes the strict serialized projection, and never imports or
+calls the database helper; Core failure shows a visible notice and suppresses
+brief-derived KPI/graph metrics without a direct fallback. Unselected tenants
+retain the role-scoped database path. Chat, graph retrieval, and other direct
+reads remain separate authority surfaces.
+
+Focused: brief-read 3/3 plus presentation/panel 8/8. Full: API 641/641 across
+147 files; shared 277/277; Web 683/683 across 100 files; database 224 passed
+plus 143 credential-gated skips; typecheck, lint, Nest/Next 82-page build,
+spend/release/Actionlint/pinned-refs/Gitleaks/diff/clean-room gates. No SQL
+changed; no hosted write/deploy/provider/paid resource.
+
+Exact next safe slice: add deterministic dashboard parity fixtures and review
+evidence without enabling a tenant canary.
+
+## M3.183 Cortex brief read contract and Nest authority (2026-08-09)
+
+Added a strict shared Cortex brief query/result contract, a fail-closed NestJS
+`GET /v1/cortex/brief` controller/service/pipe, and an independent exact-tenant
+canary pair: `ERP_CORTEX_BRIEF_READS_ENABLED` plus
+`ERP_CORTEX_BRIEF_READS_TENANT_IDS`. Nest derives tenant and role from the
+authenticated principal and serializes only the ERP projection. The Web brief
+route has a server-only Core adapter; Core errors return 503 with no direct
+fallback. Flags remain false by default; the dashboard server component stays
+direct until its own cutover.
+
+Focused: shared brief 3/3; API brief service/controller plus environment 68/68;
+Web brief route 6/6; Core client 139/139. Full: API 641/641 across 147 files;
+shared 277/277; Web 680/680; database 224 passed plus 143 credential-gated
+skips; typecheck, lint, Nest/Next 82-page build, spend/release/Actionlint/
+pinned-refs/Gitleaks/diff/clean-room gates. No SQL changed; prior DB replay
+remains 112/112 migrations, 367/367 zero-skip tests, 26 API integration files/
+40 tests, equal schema hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+No hosted write/deploy/provider/paid resource.
+
+## M3.182 Cortex direct-read fallback inventory (2026-08-09)
+
+Audited the remaining user-facing Cortex reads before any further Core
+cutover. Search, graph, entity, and saved-conversation list/detail routes have
+explicit Core adapters with exact-tenant canaries and fail-closed behavior;
+legacy direct reads remain the compatibility path when those flags are off.
+The operating brief has no Core parity and still reads the tenant-scoped
+database projection directly from the dashboard page and brief route. Chat
+still bootstraps conversations and retrieves graph context/statistics directly;
+Core user-turn, assistant-turn, and generation-job authority is independent
+and does not replace that read path. Legacy embedding is disabled and remains
+provider/cost gated.
+
+No code, schema, flag, route, provider, hosted write, deployment, or paid
+resource changed. This source audit establishes the next safe slice: define a
+shared brief read contract and Nest authority before changing the dashboard
+page. Chat retrieval requires a separate parity design; it must not be widened
+through a write canary.
+
+## M3.181 User-facing Cortex search consumer boundary (2026-08-09)
+
+Audited the user-facing Cortex search consumers. The Nest controller/service
+requires the `cortex.search` capability and derives tenant and role scope from
+the authenticated principal. The Next route accepts only a bounded query,
+uses the session tenant and role, maps only registered entity sources to safe
+deep links, and never reads the process snapshot. The command palette only
+normalizes actionable links; the Cortex page, graph, brief, and chat consume
+tenant-scoped product data. The Core result schema is strict and rejects
+process-scoped observability fields.
+
+Added regression coverage for the strict result boundary and the Next
+projection. Focused validation passed: shared search 4/4 and Web Cortex search
+route 7/7. Full validation passed: API 636/636; shared 274/274; Web 676/676;
+database 224 passed with 143 credential-gated skips; root typecheck, lint, and
+serial Nest/Next production build with 82 pages; spend/controlled-release
+guards, Actionlint, pinned workflow refs, Gitleaks, diff checks, and clean-room
+scan. No SQL changed, so the preceding disposable replay remains current:
+112/112 migrations, 367/367 zero-skip database tests, 26 API integration
+files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`. No
+process-metric access, route, exporter, hosted write, deployment, provider
+activation, or paid resource was added.
+
+## M3.180 Operational adapter consumer ownership audit (2026-08-09)
+
+Repository search confirms the adapter evaluator has no runtime consumer. The
+policy now records `consumer: none_registered` and permits only a future,
+separately reviewed operational adapter. This is an ownership invariant, not an
+activation mechanism.
+
+Validation passed: API 636/636 across 145 files; shared 273/273; Web full unit
+lane; focused five-test evaluator/policy contract; root typecheck, lint, and
+serial Nest/Next production build with 82 pages; spend/controlled-release
+guards, Actionlint, pinned workflow refs, Gitleaks, diff checks, and clean-room
+scan. No SQL changed, so the preceding disposable replay remains current:
+112/112 migrations, 367/367 zero-skip database tests, 26 API integration
+files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`. No
+route, exporter, database migration, hosted write, deployment, provider
+activation, or paid resource was added; the adapter gate remains closed.
+
+## M3.179 Fail-closed operational adapter trigger conditions (2026-08-09)
+
+The closed snapshot seam now has a pure evidence evaluator requiring nine
+reviews before any future adapter could be considered: caller authorization,
+process-versus-tenant scope, redaction, retention, bounded rate, provider and
+network cost, backend-owner approval, exact Git SHA, and rollback artifact.
+The evaluator is advisory only; no route, exporter, sink, or deployment can be
+enabled by it.
+
+Validation passed: API 636/636 across 145 files; shared 273/273; Web full unit
+lane; focused five-test evaluator/policy contract; root typecheck, lint, and
+serial Nest/Next production build with 82 pages; spend, controlled-release,
+Actionlint, pinned workflow refs, Gitleaks, diff checks, and clean-room scan.
+No SQL changed, so the preceding disposable replay remains current: 112/112
+migrations, 367/367 zero-skip database tests, 26 API integration files/40
+tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`. No
+route, exporter, hosted write, deployment, provider activation, or paid
+resource was added; the adapter gate remains closed.
+
+## M3.178 Operational snapshot ownership and release evidence (2026-08-09)
+
+The closed process snapshot policy now names an abstract ERP backend owner,
+requires an exact Git commit SHA as release identity, and requires rollback to
+the last known-good artifact without a rebuild. These fields are policy metadata
+only; no deployment or operational adapter is enabled.
+
+Validation passed: API 634/634 across 145 files; shared 273/273; Web full unit
+lane; focused policy contract; root typecheck, lint, and serial Nest/Next
+production build with 82 pages; spend, controlled-release, Actionlint, pinned
+workflow refs, Gitleaks, diff checks, and clean-room scan. No SQL changed, so
+the preceding disposable replay remains current: 112/112 migrations, 367/367
+zero-skip database tests, 26 API integration files/40 tests, and equal schema
+hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+No route, exporter, hosted write, deployment, provider activation, or paid
+resource was added; the adapter gate remains closed.
+
+## M3.177 Deployment observability access-policy audit (2026-08-09)
+
+The operational snapshot seam now has an explicit frozen policy record covering
+authorization, backend-only exposure, process scope, no tenant attribution,
+fixed-cardinality redaction, process-lifetime retention, no route rate limit,
+disabled external sink, zero external spend, and separate deployment review.
+The Cortex module-boundary test proves the observability service is a provider,
+not an HTTP controller. Public `/health` and `/ready` remain liveness/readiness
+only; all other routes remain behind JWT identity plus explicit capability
+guards.
+
+Validation passed: API 634/634 across 145 files; shared 273/273; Web full unit
+lane; focused policy/module-boundary contracts included; root typecheck, lint,
+and serial Nest/Next production build with 82 pages; spend,
+controlled-release, Actionlint, pinned workflow refs, Gitleaks, diff checks,
+and clean-room scan. No SQL changed, so the preceding disposable replay remains
+the current database evidence: 112/112 migrations, 367/367 zero-skip database
+tests, 26 API integration files/40 tests, and equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+No route, exporter, hosted write, deployment, provider activation, or paid
+resource was added; the adapter gate remains closed.
+
+## M3.176 Backend-only operational snapshot seam (2026-08-09)
+
+The Cortex circuit-alert observability service now exposes a typed,
+schema-versioned `readOperationalSnapshot()` seam for future reviewed
+operational export. Snapshot scope is explicitly `process`; counters remain
+fixed-cardinality and are returned as frozen values. No controller, browser
+route, tenant identity, event key, alert payload, credential, or raw transport
+error is included. The seam remains unexported and backend-only.
+
+Validation passed: focused Cortex snapshot contract 2/2; API 632/632 across
+144 files; shared 273/273; Web full unit lane; database 367/367 with zero
+skips; 112/112 disposable migrations; 26 API integration files/40 tests;
+equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; root
+typecheck, lint, and serial Nest/Next production build with 82 pages; spend,
+controlled-release, Actionlint, pinned workflow refs, Gitleaks, diff checks,
+and clean-room scan. Disposable PostgreSQL/Redis were stopped and ports
+54322/6379 are closed. No database migration, hosted write, deployment,
+exporter, provider activation, or paid resource was added; all queue, worker,
+recovery, and route gates remain false/empty.
+
+## M3.175 Local post-commit enqueue observability (2026-08-09)
+
+The disabled Cortex circuit-alert handoff now records fixed-cardinality,
+process-local counters for `post_commit` and `recovery_fallback` enqueue
+outcomes: `enqueued`, `skipped`, and `failed`. Each increment emits one
+structured metric log with only the stable metric name, phase, outcome, value,
+and process-local total. No tenant ID, event key, alert payload, credential,
+or raw transport error crosses the observability boundary.
+
+Post-commit transport failures remain swallowed after the ERP transaction has
+committed; recovery enqueue failures still throw so BullMQ recovery retry
+semantics remain intact. The metrics service is an in-process seam only; no
+exporter, endpoint, hosted write, or provider activation was added.
+
+Validation passed: focused Cortex tests 13/13; API 631/631 across 144 files;
+shared 273/273; database 367/367 with zero skips; 112/112 disposable
+migrations; 26 API integration files/40 tests; equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; root
+typecheck, lint, and serial Nest/Next production build with 82 pages; spend,
+release, Actionlint, pinned workflow refs, Gitleaks, diff checks, and clean-room
+scan. Disposable PostgreSQL/Redis were stopped and ports 54322/6379 are closed.
+No hosted Supabase query/write, credential, provider/pager, AI/image call,
+Vercel/Railway build/deployment, paid resource, or Vercel Git change occurred.
+All queue, worker, recovery, and route gates remain false/empty.
+
+## M3.174 Post-commit circuit-alert enqueue wiring (2026-08-09)
+
+Budget and generation-state transaction owners now collect only newly-created
+aggregate alert events while PostgreSQL is open. They enqueue those events
+through the existing closed-by-default BullMQ seam only after the transaction
+returns successfully. The `cortex_assistant_provider_circuit_alerts` ledger is
+the transactional outbox boundary; a Redis/queue failure cannot roll back an
+ERP commit, and the durable recovery scheduler can re-enqueue the same opaque
+`eventKey`.
+
+Opened and recovered observations from settlement, reconciliation, generation
+cancel/retry/fail, claim failure, and generation recovery all use the same
+post-commit helper. No prompt, response, attempt identity, user identity,
+credential, or raw queue error crosses the boundary. Local fakes prove the
+enqueue seam and transport-failure isolation.
+
+Validation passed: shared 273/273 across 39 files; API 628/628 across 143
+files; Web 676/676; full unit lane; API typecheck/lint; serial Nest/Next build
+with 82 pages; disposable PostgreSQL/Redis replay with 112/112 migrations,
+database 367/367 zero-skip, 26 API integration files/40 tests, and equal schema
+hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+Spend/release guards, Actionlint, pinned workflow refs, Gitleaks, diff checks,
+and clean-room source scan passed. No hosted Supabase query/write, credential,
+provider, pager, AI/image call, Vercel/Railway build/deployment, paid resource,
+or Vercel Git change occurred. All queue, worker, recovery, and route gates
+remain false/empty; disposable services are stopped.
+
+## M3.173 Disabled-by-default BullMQ alert delivery seam (2026-08-09)
+
+Nest now exposes a closed-by-default BullMQ transport for durable circuit-alert
+event keys. Jobs carry only `{schemaVersion,eventKey}`; deterministic IDs,
+three bounded attempts, exponential backoff, terminal-job replacement, and a
+60-second exact-scope recovery scheduler prevent duplicate transport or
+unbounded retries. The processor reloads tenant scope from PostgreSQL before
+claiming and routes through the existing protocol-v1 adapter boundary.
+
+Stale processing rows are recoverable within a three-attempt durable ceiling;
+rows that exceed the ceiling become a stable `stale_attempt_limit` failure.
+Route failures remain bounded codes and are retried by the same event key.
+Queue, worker, recovery, and route gates all default false and intersect exact
+tenant allowlists. The production adapter token has no external implementation;
+the fallback is a credential-free local-disabled adapter.
+
+Validation passed: shared 273/273 across 39 files; API 626/626 across 143
+files; Web 676/676; disposable PostgreSQL/Redis replay 112/112 migrations,
+database 367/367 zero-skip, 26 API integration files/40 tests, and equal schema
+hash `2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`;
+lint; typecheck; serial Nest/Next production build with 82 pages.
+
+All rollout gates remain false/empty. No hosted Supabase query/write,
+credential, provider, pager, AI/image call, Vercel/Railway build/deployment,
+paid resource, or Vercel Git change occurred. PostgreSQL/Redis disposable
+services are stopped. M3.173 is transport conformance, not activation approval.
+
+## M3.172 Durable claim-to-route orchestration (2026-08-08)
+
+Durable alert claims now connect directly to the provider-neutral router through
+`deliverPendingThroughRoute`. Claiming remains transactional and tenant/
+policy-scoped; route results become delivered state or stable `last_error`
+codes. Failed claims can retry immediately, stale processing claims are
+recoverable, and one route failure stops the current drain to prevent a hot
+loop. The route adapter still receives only the strict protocol-v1 envelope.
+
+Local PostgreSQL/Redis replay proves a `route_rate_limited` failure is persisted
+without raw error text, then retried by the same event key and committed as
+delivered. Existing generic sink behavior remains compatible. No queue worker,
+external adapter, credential, network call, pager, provider, hosted SQL, or
+deployment was enabled by this milestone.
+
+Validation passed: shared 271/271 across 38 files; API 615/615 across 141
+files; Web 676/676; full unit lane; 26 API integration files and 39 tests;
+112/112 migration replay; database 367/367 zero-skip; equal schema hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`; lint;
+typecheck; serial Nest/Next production build with 82 pages; spend 4/4;
+controlled release 5/5; Actionlint; pinned workflow actions; Gitleaks; and
+diff hygiene.
+
+All rollout gates remain false/empty. Managed Supabase remains last verified at
+55 migrations versus 112 in source. No credential, AI/image/provider call,
+hosted Supabase query or write, Auth/Storage/data mutation, Vercel/Railway
+build or deployment, paid resource, or Vercel Git change occurred.
+
+## M3.171 Provider-neutral circuit alert routing (2026-08-08)
+
+Nest now owns a provider-neutral route boundary for durable circuit events.
+`CortexAssistantProviderCircuitAlertRouter` builds one strict protocol-v1
+envelope from validated aggregate evidence, checks a separate exact-tenant
+routing gate, and passes no credential, URL, prompt, response, or user data to
+an adapter. Adapter failures collapse to stable codes (`route_timeout`,
+`route_rate_limited`, `route_rejected`, and related bounded categories); raw
+messages are never returned or persisted.
+
+The adapter contract requires `eventKey` idempotency. Local fake coverage proves
+duplicate delivery is harmless, tenant allowlists are enforced, route payload
+keys are bounded, URL/credential-shaped adapter identifiers are rejected, and
+unknown errors cannot leak their message. No real adapter, route credential,
+network call, external pager, hosted SQL, provider, or deployment was enabled.
+
+Validation passed: shared 271/271 across 38 files; API 615/615 across 141
+files; Web 676/676; lint; typecheck; serial Nest/Next production build with
+82 generated pages; full unit lane; spend 4/4; controlled release 5/5;
+Actionlint; pinned workflow actions; Gitleaks; and diff hygiene. Database
+schema remains unchanged from M3.170: 112/112 migration and 367/367
+zero-skip replay baseline, hash
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+
+All rollout gates remain false/empty. Managed Supabase remains last verified at
+55 migrations versus 112 in source. No credential, AI/image/provider call,
+hosted Supabase query or write, Auth/Storage/data mutation, Vercel/Railway
+build or deployment, paid resource, or Vercel Git change occurred.
+
+## M3.170 Durable Cortex circuit alerts (2026-08-08)
+
+Nest now records aggregate-only `opened` and `recovered` circuit transitions
+in a tenant/policy-scoped alert ledger. Deterministic transition keys make
+repeated health observations idempotent: one event per open trip and one
+recovery event linked to that opening. The ledger supports pending,
+processing, delivered, and failed states with bounded attempts and stale-claim
+recovery; raw sink errors are never persisted.
+
+Delivery is an injected local sink seam only. A failed sink is retried by
+`eventKey` and stops the current drain after one failure to avoid a hot loop.
+Audit entries contain event type and aggregate scope only. Alert payloads
+exclude prompts, responses, credentials, attempt IDs, and user identities.
+PostgreSQL owns tenant scope, source/recovery uniqueness, status transitions,
+and service-only RLS. No external pager, credential, network call, provider,
+hosted SQL, or deployment was enabled.
+
+Validation passed: shared 268/268; API 610/610; Web 676/676; AI worker 8/8;
+DXF worker 11/11; database 367/367 with zero skips; 112/112 clean migrations;
+26 API integration files and 38 tests; lint/typecheck; Nest/Next production
+build with 82 generated pages; spend 4/4; controlled release 5/5;
+Actionlint; pinned workflow actions; Gitleaks; and diff hygiene. The clean
+replay produced equal before/after schema hashes
+`2FB85C5E4D65132F6474BC9E1ED88719F3EAA0EF3AC285D9AE1591A649A87C37`.
+
+The production provider adapter and external alert integration remain
+unavailable. All rollout gates remain false/empty. Managed Supabase is still
+last verified at 55 migrations versus 112 in source. No credential,
+AI/image/provider call, hosted Supabase query or write, Auth/Storage/data
+mutation, Vercel/Railway build or deployment, paid resource, or Vercel Git
+change occurred.
+
+## M3.169 Cortex provider health and circuit authority (2026-08-08)
+
+Nest now exposes one tenant-derived aggregate provider-health read for owners,
+administrators, and finance users. It reports UTC-day held/consumed/remaining
+micros, attempt outcomes, unknown outcomes, bounded p50/p95/p99 dispatch
+latency, policy state, and circuit state. Strict query and response contracts
+exclude caller-supplied tenant scope, prompts, responses, credentials, attempt
+IDs, and user IDs. The runbook key is stable and maps to a local operator
+runbook.
+
+Each provider policy now owns bounded failure-threshold, failure-window, and
+cooldown configuration. PostgreSQL terminal-attempt evidence determines the
+consecutive failure streak. A threshold burst persists as tripped until a
+successful settled attempt; quiet time alone cannot close it. Nest denies
+reservations during cooldown, permits only one half-open reservation under the
+locked policy row, and permits dispatch only for that exact probe. A successful
+probe closes the circuit; another failure restarts cooldown. Stable failure
+outcomes distinguish timeout, rate limit, rejected/failed request, invalid
+response, and unknown outcome without storing provider payloads.
+
+Validation passed: shared 266/266; API 610/610; Web 676/676; AI worker 8/8;
+DXF worker 11/11; database 365/365 with zero skips; 26 API integration files
+and 37 tests; lint/typecheck; Nest/Next production build with 82 generated
+pages; spend 4/4; controlled release 5/5; Actionlint; pinned workflow actions;
+Gitleaks; and diff hygiene. A clean PostgreSQL 17 + Redis replay applied
+111/111 migrations and produced equal before/after schema hashes
+`0FA5E8A25E45C1869DE792B4B6C9B77653C4604475A01C8E4A9B015FB7191CF6`.
+
+The production provider adapter and external alert integration remain
+unavailable. No credential, provider/AI/image call, hosted Supabase query or
+write, Auth/Storage/data mutation, Vercel/Railway build or deployment, paid
+resource, or Vercel Git change occurred. All rollout gates remain false/empty.
+Managed Supabase remains last verified at 55 migrations versus 111 in source.
+
+## M3.168 Cortex provider request/response protocol (2026-08-08)
+
+Provider execution now has a versioned, provider-neutral protocol without a
+production network adapter. Nest validates a bounded provider/model/cost/
+timeout plan, re-redacts the claimed question and evidence, and constructs the
+only dispatch envelope. The envelope excludes tenant, user, job, request, and
+attempt identifiers; it carries a deterministic SHA-256 dispatch key derived
+from the immutable reservation, a bounded timeout, and at most 12 evidence
+nodes. PostgreSQL records the protocol version, dispatch key, and request
+fingerprint before the adapter can run.
+
+The response boundary accepts only protocol v1, the reserved model, bounded
+content and cost, an opaque provider receipt, and unique citations already in
+the authorized evidence set. Nest stores only SHA-256 receipt/request/response
+fingerprints. The response fingerprint is the exact official completion hash;
+both Nest and a PostgreSQL completion-link trigger reject a forged or changed
+completion. Dispatch identity is immutable after dispatch. Timeout aborts the
+adapter. Any post-dispatch provider ambiguity becomes a terminal attempt at the
+reserved maximum; only a failure to reconcile durable state is retryable.
+
+Validation passed: shared 264/264; API 605/605; Web 676/676; Python 8/8;
+database 362/362 with zero skips; 26 API integration files and 36 tests;
+lint/typecheck; Nest/Next production build with 82 generated pages; spend 4/4;
+controlled release 5/5; Actionlint; pinned workflow actions; Gitleaks; and diff
+hygiene. A clean PostgreSQL 17 + Redis replay applied 110/110 migrations and
+produced equal before/after schema hashes
+`923B227DB420320E184A26D5ECC4EF2BE79AE4F9E5D98C9B5CFA1BE77FCFE498`.
+
+The production provider adapter remains unavailable. No credential, AI/image/
+provider call, hosted Supabase query or write, Auth/Storage/data mutation,
+Vercel/Railway build or deployment, paid resource, or Vercel Git change
+occurred. All rollout gates remain false/empty. Managed Supabase remains last
+verified at 55 migrations versus 110 in source.
+
+## M3.167 Cortex provider-grounded completion authority (2026-08-08)
+
+Official assistant completion can now prove which paid attempt produced it.
+`cortex_assistant_turn_requests` has a nullable, tenant-composite
+`provider_attempt_id`; one provider attempt can back at most one completion.
+The database permits the link only for `provider_grounded` success and keeps
+deterministic completions unlinked. A service-only PostgreSQL trigger validates
+the same tenant, generation job, current attempt number, settled
+`provider_succeeded` outcome, bounded consumed cost, and exact policy model on
+insert or link change. Once linked, completion identity, provenance, hash,
+outcome, and model are immutable.
+
+The provider execution seam returns the exact settled attempt identifier. The
+processor carries it through an internal discriminated completion contract;
+the public result may report `provider_grounded`, but the signed/external
+completion input cannot select that outcome. Before the one official
+transaction commits the assistant message, request, job, and audit, Nest
+relocks and verifies the current claim fence, tenant/job/attempt identity,
+settled state, success outcome, model, cost, RBAC, context, and citations.
+Audit stores only the attempt identifier, never prompts or provider payloads.
+
+Validation passed: shared 261/261; API 599/599; Web 676/676; Python 8/8;
+workspace lint/typecheck; Nest/Next production build with 82 generated pages;
+spend 4/4; controlled release 5/5; Actionlint; pinned workflow actions;
+Gitleaks across 550 commits; and diff hygiene. A clean PostgreSQL 17 + Redis
+lane replayed 109/109 migrations, passed database 358/358 with zero skips and
+the full API integration suite, and produced equal before/after schema hashes
+`00D5475628D1ADB9042FE0CBCEDB914875121B8460B6850F8FBFA92D68D62FE5`.
+
+The production provider adapter remains unavailable. No credential, provider
+network call, public activation endpoint, UI change, hosted Supabase query or
+write, Auth/Storage/data mutation, Vercel/Railway build or deployment, paid
+resource, or Vercel Git change occurred. All rollout gates remain false/empty.
+Managed Supabase remains last verified at 55 migrations versus 109 in source.
+
+## M3.166 Cortex fake-provider orchestration and recovery (2026-08-08)
+
+Nest now contains a provider-neutral execution seam around the M3.165 budget
+authority. The production adapter is deliberately unavailable and performs no
+network work. Tests inject an in-memory fake only. Execution requires the
+generation, provider-execution, and provider-budget global gates plus an exact
+tenant match in all three allowlists. Every new flag defaults false and every
+allowlist defaults empty.
+
+For an eligible claimed job, Nest reconciles older attempts, reserves the
+current attempt, marks it dispatched, validates the bounded completion and
+authorized citation set, settles actual fake cost, and only then asks the
+existing Nest completion authority to commit the official assistant turn. A
+replayed dispatched attempt never invokes the adapter again. Reserved attempts
+are released at zero on cancellation, retry, terminal failure, recovery, or
+pre-dispatch execution failure. Dispatched attempts with an unknown outcome
+are conservatively settled at the reserved maximum. State reconciliation and
+job mutation share the same PostgreSQL transaction.
+
+Recovery has its own closed exact-tenant gate so operators can drain and
+reconcile stale jobs after intake or execution is closed. This does not grant
+provider execution: dispatch still requires all execution gates. No database
+schema, public API, Web UI, Python behavior, credential, provider package, or
+real provider call was added. The current completion contract is still the
+provider-free deterministic contract, so a real provider remains blocked.
+
+Validation passed: shared 260/260; API 599/599; Web 676/676; Python 8/8;
+lint/typecheck; Nest/Next production build with 82 generated pages; spend 4/4;
+controlled release 5/5; Actionlint; pinned workflow actions; Gitleaks across
+549 commits; and diff hygiene. The clean PostgreSQL 17 + Redis 7.4.9 lane
+replayed 108/108 migrations, passed database 354/354 with zero skips and the
+full API integration suite, and retained schema hash
+`ED239E894DF4109848F2EFC991F041217DE955880C4CF6092ECF029CEB966E74`.
+
+No hosted Supabase query/write, Auth/Storage/data mutation, Vercel/Railway
+build or deployment, AI/image/provider call, paid resource, or Vercel Git
+change occurred. Managed Supabase remains last verified at 55/108.
+
+## M3.165 Cortex provider budget authority (2026-08-08)
+
+Nest now owns a source-only provider-attempt budget contract. PostgreSQL stores
+disabled-by-default tenant/provider/model policies plus one immutable,
+idempotent reservation per generation job attempt. Money uses bounded integer
+micros. Request and UTC-day ceilings are enforced while the policy row is
+locked; open reservations count at their maximum and settled attempts count at
+actual cost.
+
+The explicit state machine is `reserved -> dispatched -> settled` or
+`reserved -> released`. Database triggers reject identity changes, same-state
+mutation, and every other transition. Nest rechecks the current processing job
+and attempt before reserve/dispatch, blocks dispatch when the gate or policy is
+closed, supports exact replay, and keeps settlement/release available so an
+already-reserved attempt can be safely terminalized after closure. Every policy
+and supported attempt mutation is audited without storing a prompt or request
+hash in the semantic audit payload.
+
+There is no controller, worker integration, credential, seed policy, provider
+call, or enabled tenant. Validation passed: shared 260/260; API 589/589; Web
+676/676; Python 8/8; lint/typecheck; local Nest/Next production build with 82
+generated pages; spend 4/4; controlled release 5/5; Actionlint; pinned workflow
+actions; Gitleaks across 548 commits; and diff hygiene. The final clean
+PostgreSQL 17 + Redis 7.4.9 lane replayed 108/108 migrations, passed database
+354/354 with zero skips and the full API integration suite, and produced equal
+before/after schema hashes
+`ED239E894DF4109848F2EFC991F041217DE955880C4CF6092ECF029CEB966E74`.
+
+No hosted Supabase query/write, Auth/Storage/data mutation, Vercel/Railway
+build or deployment, AI/image/provider call, paid resource, or Vercel Git
+change occurred. Managed Supabase remains last verified at 55/108.
+
+## M3.164 protected full-stack Cortex browser certification (2026-08-08)
+
+The M3.163 asynchronous handoff is now certified through a local protected
+browser path. A loopback-only harness provisions disposable test identities,
+starts the real Next app, built Nest modular monolith, Redis/BullMQ,
+provider-free Python worker, and PostgreSQL 17 database, and rejects unexpected
+Auth/REST/worker contracts. Child environments remove inherited hosted and AI
+credentials before applying local endpoints. Browser routing blocks foreign
+egress; the existing Fontshare request is fulfilled locally during proof.
+
+The proof found and corrected two product defects. New chats serialized
+`conversationId: null`, which the strict request contract rejects; the client
+now omits the field until an owned UUID exists. Hard document replacement was
+also able to destroy the React cleanup microtask before job cancellation
+started. One shared once-only canceller now serves polling, new-chat, unmount,
+and `pagehide`, so browser teardown starts one keepalive DELETE without a
+duplicate when the polling promise catches the same abort.
+
+Five Playwright cases pass against the real local stack: accepted/pending/final
+handoff; private/no-store headers; grounded text/citations; citation, role, and
+focused-context revocation; foreign-user concealment; exactly-once new-chat and
+unmount cancellation; ten-poll timeout and honest error; desktop/mobile
+overflow and 44-pixel control checks; and zero console/page errors. PostgreSQL
+remained official state and Python remained advisory.
+
+Validation passed: browser 5/5; shared 256/256; API 586/586; Web 676/676;
+Python 8/8; workspace lint/typecheck; local Nest/Next production build with 82
+routes; spend 4/4; controlled release 5/5; Actionlint; pinned actions; Gitleaks
+across 547 commits; and diff hygiene. A clean disposable PostgreSQL 17.10 +
+Redis 7.4.9 lane replayed 107/107 migrations, passed database 349/349 with
+zero skips, and passed the full API integration lane. The only infrastructure
+warning was the known local Redis `vm.overcommit_memory` setting. Disposable
+services and `erp_self_hosted_ci` were stopped and removed after validation.
+
+No schema or public API was changed. All rollout gates remain false/empty.
+No hosted Supabase query/write, Auth/Storage/data mutation, AI/image/provider
+call, Vercel/Railway build or deployment, paid resource, or Vercel Git change
+occurred. Managed Supabase remains last verified at 55/107.
+
+## M3.163 cost-bounded asynchronous Cortex result handoff (2026-08-08)
+
+Selected provider-free Cortex requests no longer keep a Next server invocation
+open while BullMQ/Python work runs. `POST /api/cortex/chat` now starts the
+durable Core job and immediately returns strict `202 Accepted` metadata,
+`Location`, `Retry-After`, and the owned conversation ID. The existing browser
+agent polls only that same-origin opaque job path, at most ten times, and fills
+the same assistant bubble with the final text/citation response. New chat,
+conversation restore, unmount, and timeout abort the request and issue a
+bounded best-effort cancellation. No visual layout, label, keyboard, citation,
+legacy stream, or saved-conversation contract changed.
+
+The private Next job route authenticates every GET/DELETE, requires the exact
+tenant gate, validates UUID identity, preserves private/no-store caching, and
+uses the existing provider-chat burst bucket. Nest now exposes a typed combined
+job/result read. Core rechecks current PostgreSQL membership, capability,
+tenant, owner, conversation context, official user-turn provenance, and graph
+scope before returning content. Citation IDs are hydrated inside the same
+authorization transaction, preserving stored order while discarding anything
+no longer visible. Failed/cancelled jobs return terminal errors; pending jobs
+contain no assistant result.
+
+This bounds selected Web work to one short start invocation plus at most ten
+short polls instead of one four-second server wait. It does not claim to reduce
+cloud build CPU; Vercel Git remains disconnected and repository spend guards
+remain the primary build-cost control. All rollout flags remain false/empty.
+
+Validation passed: shared 256/256; API 586/586; Web 676/676; Python 8/8;
+ordinary database 206 passed / 143 expected skips; workspace lint/typecheck;
+serial cache-bypassed root suite; local Next/Nest production builds with 82
+static pages; spend 4/4; controlled release 5/5; Actionlint; pinned actions;
+Gitleaks across 546 commits; and diff hygiene. Disposable PostgreSQL 17.10 +
+Redis 7.4.9 replayed 107/107 migrations, passed database 349/349 with zero
+skips and the full API integration lane, including rollback-local citation
+hydration and current-role revocation. Schema remained unchanged from M3.162.
+The disposable database/runtime and generated evidence were removed. One root
+run exposed a corrected mock-order fixture; a later concurrency-two run hit
+four unrelated Nest setup timeouts, while the complete serial run passed
+without changing timeouts or unrelated tests.
+
+No hosted Supabase query/write, Auth/Storage/data mutation, AI/image/provider
+call, Vercel/Railway build or deployment, paid resource, or Git integration
+change occurred. Managed Supabase remains last verified at 55/107.
+
+## M3.162 provider-free Cortex generation jobs (2026-08-08)
+
+Cortex can now move one selected assistant response through an original NestJS
+modular-monolith workflow without a provider call. A signed `start_job` command
+creates one tenant/user/request-bound PostgreSQL job; authenticated owners can
+read or cancel it. BullMQ carries only schema version and opaque job ID. Nest
+relocks membership, capability, conversation context, official user-turn
+provenance, and current graph scope before selecting at most 12 records. Common
+email, phone, and tax identifiers are redacted before analysis leaves Core.
+
+The private Python endpoint `POST /v1/cortex/grounded-answer` accepts only a
+bounded redacted question and evidence set. It performs deterministic,
+provider-free analysis and returns advisory text plus citation node IDs. Python
+has no database, tenant, approval, or commit authority. Nest validates the
+response, reauthorizes every citation, fences the claim hash, and atomically
+commits the official assistant message, request/job state, and raw-content-free
+audit. PostgreSQL owns queued/processing/succeeded/failed/cancelled state and
+three-attempt bounds; Redis is replaceable delivery. Cancellation, terminal
+failure, stale-lease recovery, and retry release the correct fenced request
+without disturbing a newer claim.
+
+Next preserves the existing text and citation response for exact selected
+tenants: it starts the job, polls for at most four seconds with bounded backoff,
+cancels on request abort, and replays the Core-owned assistant turn after
+success. It performs no retrieval, embedding, quota, or model call on this
+path. Legacy behavior is unchanged when the flag is false. Intake, worker,
+recovery, and Web selection use separate exact-tenant gates; wildcard Web
+selection is rejected; every gate defaults closed.
+
+Validation passed: shared 33 files / 254 tests; API 135 / 585; Web 97 / 666;
+Python 8/8; ordinary database 206 passed / 143 environment-gated skips;
+workspace lint/typecheck; canonical bounded root tests; local Nest/Next
+production builds with 82 static pages; spend 4/4; controlled release 5/5;
+Actionlint; pinned actions; Gitleaks across 545 commits; and diff hygiene. The
+disposable PostgreSQL 17.10 + Redis 7.4.9 lane applied 107/107 migrations,
+verified 32 protected and 8 service-only tables, passed database 349/349 with
+zero skips and the full Nest integration suite including the new transaction
+test. Before/after schema SHA-256 matched
+`CCB354956CE037BA5D27FF8AD6668E28209ADD62930C8DC7881620FA1748B3D6`.
+Only the known local Redis `vm.overcommit_memory` warning remained.
+
+Managed Supabase was not queried or changed and remains last verified at 55
+migrations versus 107 source migrations. No hosted SQL/Auth/Storage/data
+mutation, AI/image/provider call, Vercel/Railway build or deployment, paid
+resource, or Git integration change occurred.
+
+## M3.161 trusted Cortex assistant-generation authority (2026-08-08)
+
+Official assistant memory now has two original NestJS service-to-service
+commands: `POST /v1/cortex/conversations/assistant-turns/claims` and
+`POST /v1/cortex/conversations/assistant-turns/complete`. Both require the
+authenticated user principal, exact-tenant rollout, idempotency, and a fresh
+HMAC that binds operation, timestamp, tenant, user, key, and command digest.
+The browser cannot mint that signature or select message role `assistant`.
+
+Migration `20260807190000` adds a forced-RLS, service-only PostgreSQL state
+machine. One official M3.160 user message can own one generation. A 60-second
+lease and hashed fencing token prevent concurrent provider work; an expired
+lease can be reclaimed, stale completion conflicts, exact completion replays,
+and changed completion conflicts. Core rechecks current membership,
+`cortex.search`, conversation ownership, immutable context, official user-turn
+provenance, and citation visibility inside the transaction. It hard-codes the
+assistant role, stores citation IDs only, and atomically writes claim/completion
+audits without raw content, keys, or tokens. Replay rehydrates citations with
+the current PostgreSQL-locked role, not stale token claims.
+
+Next keeps the public streaming response. For a selected tenant it first
+persists/replays the official user turn, then claims generation before quota,
+retrieval, embedding, or model work. Active retries return `409` plus
+`Retry-After`; completed retries return stored content and current citations
+without provider spend. Provider-quota denial uses the existing free grounded
+answer and completes the lease. Selected completion never falls back to direct
+database assistant/audit writes. Legacy behavior remains default.
+
+Validation passed: shared 32 files / 251 tests; API 131 / 573; Web 97 / 661;
+ordinary database 59 files / 203 passed / 143 environment-gated skips;
+cache-bypassed bounded root tests; workspace lint/typecheck; spend 4/4;
+controlled release 5/5; Actionlint; pinned actions; and local Nest/Next
+production builds with 82 static pages. The disposable PostgreSQL 17.10 +
+Redis 7.4.9 lane applied 106/106 migrations and passed database 346/346 with
+zero skips. Its first full API run hit one existing semantic-index Redis
+connection-close race; the isolated suite then passed 3/3 and the full lane
+passed 24 files / 33 tests. The new rollback-only authority suite passed 1/1,
+and schema SHA-256 remained
+`03A9CB2032B8ED0F998792D3618E70DDC71AF3BF25BFBC5FE7BAF2CF2B2EF51A`.
+One filtered Web recount transiently reported one unidentified failure; the
+canonical root run and two immediate complete recounts passed 661/661.
+
+All new flags remain closed and the HMAC secret is unset. Managed Supabase was
+not queried or changed and remains last verified at 55 migrations versus 106
+source migrations. No hosted SQL/Auth/Storage/data mutation, AI/image/provider
+call, Vercel/Railway build or deployment, paid resource, or Git integration
+change occurred.
+
+## M3.160 Core Cortex user-turn write authority (2026-08-07)
+
+Authenticated user-turn persistence now has an original typed NestJS command
+at `POST /v1/cortex/conversations/user-turns`. Core accepts only user content,
+optional immutable registered-record context, and an optional owned
+conversation ID. Tenant, actor, current role, capability, and message role are
+server-derived. Current membership and record visibility are rechecked inside
+the transaction; foreign, missing, and revoked context remains concealed.
+
+PostgreSQL migration `20260807170000` adds a forced-RLS, service-only
+idempotency ledger with exact replay, changed-command conflict, and composite
+tenant foreign keys. Conversation/message tenant identity is constrained by
+new composite unique indexes. The command locks its ledger and conversation,
+creates or appends exactly one `user` turn, updates the conversation timestamp,
+and emits a chained semantic audit containing hashes and counts but no raw
+content. The browser cannot submit an assistant turn.
+
+Next preserves the existing chat contract. Independent exact-tenant Core and
+Web flags default false/empty; selected Core failure fails closed. Legacy user
+and assistant persistence remains the default. Only user-turn persistence can
+move in this increment; assistant/provider persistence remains server-side in
+the compatibility path pending a distinct trusted service-to-service command.
+
+Validation passed: shared types 32 files / 247 tests; API 130 / 564; Web 97 /
+650; ordinary database 58 files / 200 passed / 143 environment-gated skips;
+forced bounded root tests; workspace lint/typecheck; provider-spend 4/4;
+controlled-release 5/5; Actionlint; pinned workflow references; and local
+NestJS/Next.js production builds with 82 static pages. A disposable PostgreSQL
+17.10 + Redis 7.4.9 lane applied 105/105 migrations, verified 32 protected and
+8 service-only tables, passed database 343/343 with zero skips, passed the full
+API integration lane, and proved the new real-transaction suite 1/1. Schema
+SHA-256 before/after matched
+`0603D08DB57B281230ED699BC72FE4D7DC946756E129421F40841CF12D400B94`.
+
+All new flags remain closed. Managed Supabase was not queried or changed and
+remains last verified at 55 migrations versus 105 source migrations. No hosted
+SQL/Auth/Storage/data mutation, AI/image/provider call, Vercel/Railway build or
+deployment, paid resource, or Git integration change occurred.
+
+## M3.159 Core Cortex conversation read authority (2026-08-07)
+
+Saved Cortex conversation list and detail reads now have an original typed
+NestJS boundary at `GET /v1/cortex/conversations` and
+`GET /v1/cortex/conversations/:id`. Core derives tenant, user ownership, role,
+and capability from the authenticated principal. A caller cannot submit any of
+that scope. Foreign, missing, malformed, mismatched-context, and currently
+forbidden threads remain concealed. Stored citation metadata is reduced to
+node IDs and rehydrated from the current tenant/role graph projection before it
+can be returned.
+
+The existing Next endpoints preserve their public list/detail shapes. Two
+independent exact-tenant gates can select Core; both default false/empty. Once
+selected, Core unavailability fails closed and never restores direct database
+authority. No schema, migration, chat write, AI behavior, or UI changed.
+
+Validation passed: shared types 32 files / 245 tests; API 129 files / 555 tests,
+including real Nest/Supertest HTTP contracts; Web 97 files / 646 tests;
+ordinary database 198 passed / 143 environment-gated skips; forced bounded
+root tests; workspace lint/typecheck; provider-spend 4/4; controlled-release
+5/5; Actionlint; pinned workflow references; Gitleaks across 542 commits; and
+local NestJS/Next.js production builds with 82 static pages. Existing database
+helpers and migrations were unchanged, so the full PostgreSQL replay was not
+repeated. Exact-tenant legacy/Core comparison and managed canary evidence
+remain unproven.
+
+All new flags remain closed. No hosted Supabase operation, provider call,
+Vercel/Railway build or deployment, paid resource, or Git integration change
+occurred.
+
+## M3.158 loopback-authenticated Cortex route proof (2026-08-07)
+
+The full protected `/cortex` Next.js route now has a zero-hosted-cost browser
+proof. A test-only loopback service implements only the two Supabase contracts
+the route actually consumes: authenticated `GET /auth/v1/user` and the exact
+single-row `GET /rest/v1/users` profile projection. It rejects every other
+Auth/REST request. The Web application reads official Cortex records from the
+disposable `erp_self_hosted_ci` PostgreSQL 17 database after all 104 source
+migrations and the deterministic seed replay successfully.
+
+Installed Chrome proved the unauthenticated redirect and graph `401`, signed
+session-cookie hydration, dashboard layout authorization, complete RSC page,
+31-node/29-edge tenant graph, empty user conversation history, notifications,
+local Realtime handshake, and desktop/mobile rendering. The semantic-index
+control remained visible but disabled, and no semantic-index request occurred.
+One external Fontshare stylesheet was fulfilled locally by the test harness;
+no foreign browser request reached a provider. Console/page errors and
+horizontal overflow were zero.
+
+Visual inspection exposed an initial-load jump: the agent used
+`scrollIntoView`, scrolling the document to the chat. It now scrolls only its
+internal log, and the browser asserts `window.scrollY === 0`. Development CSP
+admits only a configured loopback Supabase HTTP/WebSocket origin; production
+CSP remains unchanged and has explicit negative coverage.
+
+Validation passed: loopback Playwright 1/1; Web 97 files / 639 tests; shared
+31 / 243; API 127 / 546; ordinary database 198 passed with 143 intentional
+environment skips; workspace lint/typecheck; forced root tests with caches
+bypassed; PostgreSQL release verification at 104/104; provider-spend 4/4; and
+NestJS/Next.js production build with 82 static pages. Turbo package-test
+concurrency is capped at two after the unrestricted root run produced six
+resource-contention timeouts; all six passed in isolation and in the forced
+bounded run without increasing the 5-second test timeout.
+
+This proves protected route integration against a strict local contract; it
+does not claim full GoTrue/PostgREST protocol parity or managed production Auth
+readiness. Managed Supabase remains last verified at 55/104. All canary/spend
+flags remain closed. No hosted SQL/Auth/Storage/data mutation, AI call, cloud
+build, Vercel/Railway deployment, or Git integration occurred.
+
+## M3.157 auth-safe Cortex indexing browser proof (2026-08-07)
+
+The provider-spending Cortex control now has a server-owned, testable access
+projection. Non-admin roles never receive the control. Owner/admin users see a
+paused control by default, and it becomes enabled only when the exact tenant
+Web canary is selected; wildcard selection remains closed.
+
+A localhost-only Vite gallery imports the real production
+`CortexIndexButton` and global styles without starting Next.js, Supabase,
+PostgreSQL, Redis, or any provider. Playwright uses installed Chrome and
+intercepts only loopback API requests. Five browser tests passed at 1440 x 1000
+and 390 x 844: closed rollout makes zero requests; Cancel makes zero requests;
+confirmation discloses 64 records and one provider call; approval sends one
+fixed command with one UUID idempotency key; queued, processing, succeeded, and
+terminal failed states render correctly; terminal failure does not resubmit;
+mobile actions are at least 44px; the dialog fits; horizontal overflow is at
+most 1px; and browser console, page errors, and foreign requests are zero.
+
+Focused access/component tests passed 6/6 and the full Web suite passed
+637/637. Workspace lint/typecheck, the local NestJS/Next.js production build
+with 82 static pages, provider-spend 4/4, controlled-release 5/5, Actionlint,
+Gitleaks across 540 commits, pinned workflow references, diff checks, and the
+clean-room runtime scan passed.
+
+This is server access-projection plus real component-browser evidence, not a
+full authenticated `/cortex` route canary. Production Supabase session
+integration was not exercised. All flags and allowlists remain closed; no
+hosted Auth/SQL/Storage mutation, provider call, cloud build, or deployment
+occurred.
+
+## M3.156 disposable Cortex semantic-index runtime proof (2026-08-07)
+
+M3.155 now has zero-cost runtime evidence against the isolated
+`erp_self_hosted_ci` PostgreSQL 17.10 database and local Redis 7.4.9. All 104
+source migrations replayed in order. The database suite passed 341/341 with
+zero skips, and the complete API integration lane passed 31/31 tests across
+44 suites with zero failures or pending tests. The resulting schema SHA-256
+was `4DDF4B3D24906CA2328790342E6406636080BE5475AA0138DF8E7431D615E9F6`.
+Final local gates also passed: API 546/546, ordinary no-database tests 198
+passed with 143 expected environment-gated skips, workspace lint/typecheck,
+NestJS and Next.js production build with 82 static pages, provider-spend 4/4,
+controlled-release 5/5, Actionlint, Gitleaks across 539 commits, pinned workflow
+references, diff checks, and the clean-room runtime scan.
+
+Runtime coverage proves that an authenticated browser role cannot read or
+insert semantic-index jobs directly; owner/admin creation is tenant-scoped;
+current-role revocation fails closed; idempotent replay does not duplicate
+work; one tenant has at most one active job; a batch processes at most 64
+nodes with one reserved worker call; an empty backlog makes zero calls; Redis
+loss before reservation can be recovered; uncertainty after reservation is
+terminal; vector and terminal job updates commit atomically; cross-tenant
+status is concealed; and create/terminal audit records retain hash linkage.
+The embedding worker was deterministic and local, so no AI-provider request or
+spend occurred.
+
+Protected desktop/mobile browser proof was not run because the existing E2E
+authentication helper mutates hosted Supabase Auth. Feature flags and tenant
+allowlists remain closed. Managed Supabase remains last verified at 55/104;
+no hosted SQL, Auth row, Storage object, provider configuration, Vercel or
+Railway build, deployment, or paid resource changed.
+
+## M3.155 cost-bounded Cortex semantic indexing jobs (2026-08-07)
+
+The browser no longer owns an automatic 80-request semantic-index loop. An
+admin/owner can now request one original durable job only after a confirmation
+that names the hard ceiling: 64 records and one external embedding-provider
+call. The Web path delegates to authenticated NestJS Core, polls one opaque job
+identity, and never writes graph or job tables directly. The legacy direct
+embedding endpoint returns `410` unless a separate exact-tenant compatibility
+gate is explicitly opened.
+
+PostgreSQL owns the `queued -> processing -> succeeded|failed` state machine,
+idempotency, one-active-job-per-tenant invariant, attempts, and provider-call
+reservation. BullMQ carries only `{schemaVersion, jobId}` and can reconstruct
+missing transport from database state. Recovery requeues a stale claim only
+when no provider call was reserved; a stale reserved call becomes terminal
+`provider_call_outcome_unknown` so retries cannot create uncertain duplicate
+spend. Nest revalidates the requester's current tenant membership and new
+`cortex.index.manage` capability. Python receives bounded text only and can
+return vectors, but cannot authorize or commit an ERP transaction.
+
+All Core, worker, recovery, Web, and legacy flags default false with empty UUID
+allowlists; Web rejects wildcard selection. The new migration is source-only,
+making the repository ledger 104 migrations through `20260807160000`; managed
+Supabase remains last verified at 55, so the gap is 49. Docker is stopped, so
+the new migration has static schema/SQL proof but no fresh disposable runtime
+replay or RLS proof. No hosted SQL, tenant data, provider request, environment
+variable, Vercel/Railway build, or deployment changed.
+
+Focused behavior suites passed. Full local suites passed: shared 243/243, API
+source 531/531 plus API e2e 14/14, Web 631/631, and database 198 passed with
+142 environment-gated skips. Workspace lint/typecheck and one local production
+build passed; the build generated 82 static pages and both new dynamic Web API
+routes. Final additive queue 3/3 and static UI disclosure 2/2 tests passed,
+followed by API/Web typecheck and final Nest/Next builds; no provider call was
+made.
+
+## M3.154 Core Cortex entity-context read authority (2026-08-07)
+
+The citation-backed Cortex entity panel now has an original, typed NestJS read
+boundary without changing the active application path. A shared contract owns
+the 45 registered source references and the bounded public response: summary,
+13 citations, 12 relationships, and six redacted evidence events. Nest derives
+tenant and role scope from the authenticated principal, verifies source/type
+ownership, conceals absent or forbidden records, and exposes no provenance
+hashes, actor IDs, tenant IDs, or origin references.
+
+The existing Next.js/database route remains the default. Independent Core and
+Web flags must both select an exact tenant. After selection, Core errors are
+terminal and never fall back to direct database access; a Core 404 preserves
+the existing non-enumerating Web response. All four new settings are false or
+empty by default. No React, landing-page, schema, migration, or hosted state
+changed.
+
+Read-only live inspection found the current production Cortex at 384 records,
+454 connections, 14 populated record types, and zero desktop/mobile console
+errors; no index build or AI chat was triggered. Focused tests passed 199/199.
+Full API, Web, and shared-type package suites passed single-worker; shared
+reported 240/240 and API is 529/529 by the prior 523 baseline plus six new
+tests. Workspace lint/typecheck, Gitleaks across 537 commits, Actionlint,
+pinned actions, release 5/5, spend 4/4, and one 81-route Nest/Next production
+build passed. This is local source proof, not a deployment.
+
+## M3.153 Core Cortex graph read authority (2026-08-07)
+
+Interactive Cortex graph retrieval now has a typed, tenant-scoped NestJS read
+boundary without changing the active production path. Shared contracts bind 45
+registered source tables to their canonical graph node types, reject partial or
+caller-scoped focus input, and bound whole/focused graph payloads. Nest derives
+tenant and role scope from the verified principal, conceals unauthorized or
+inconsistent focus records as not found, and remains closed behind independent
+Core and Web tenant allowlists.
+
+The existing Next route remains the default. An explicitly selected tenant can
+use the authenticated Core adapter; Core failure is terminal for that canary
+and never restores direct database authority. UI registry and Core source maps
+are now contract-tested for exact equality. Both graph flags are false and both
+allowlists are empty by default.
+
+Focused suites passed 203 assertions before the final shape check and 141 Web
+assertions after it. The full API suite passed 523/523 in a single-worker lane;
+three unrelated controller tests that timed out only under cross-package CPU
+contention passed 6/6 alone. Workspace lint, typecheck, one local Nest/Next
+production build (81 routes), Actionlint, Gitleaks, pinned workflow references,
+controlled-release 5/5, provider-spend 4/4, and clean-room runtime tests passed.
+No SQL, migration, tenant data, provider variable, canary, hosted build, or
+deployment changed. Managed parity remains 55/103 and M3.152 owner approval is
+still required.
+
+## M3.152 Purchase Order owner-review proposal (2026-08-07)
+
+The managed duplicate blocker now has a deterministic recommendation artifact
+without granting repair authority. A new planner reads one repeatable-read,
+read-only snapshot, recommends the earliest-created row (then lexical UUID) as
+the canonical record, and suggests collision-free `-Rnn` replacements within
+the 50-character database limit. It writes only to an explicit path outside
+Git, uses atomic no-overwrite creation, prints counts and hash only, and never
+issues SQL writes.
+
+Current managed evidence remains one tenant-number group with 12 records. The
+external 4,220-byte proposal contains one keep and 11 renumber recommendations,
+has SHA-256
+`803a25ec80b501ff86154e42777af0ea7ca2ed90d4e21bde4dcf2b749db99510`,
+and remains `ownerApproval.status: pending`. Runtime checks proved unique
+records, unique target numbers, and valid target lengths. Existing-file
+overwrite was refused without hash change, and the version-1 mapping validator
+rejected the proposal by design.
+
+Fresh focused tests passed 11/11 across proposal, mapping, and template suites.
+Workspace tests, lint, typecheck, and the single local Nest/Next production
+build also passed; unchanged package work was served from local Turbo cache.
+Actionlint, pinned workflow references, controlled-release 5/5, provider-spend
+4/4, the 103-file migration verifier, and clean-room runtime scan passed.
+No hosted SQL, migration, Purchase Order update, branch, flag, variable,
+Vercel/Railway build, or deployment occurred. Managed parity remains 55/103;
+the proposal is not approval and does not clear release.
+
+## M3.151 free local managed-suffix replay (2026-08-07)
+
+The supported export-tool blocker is cleared without a paid provider branch.
+An explicit Supavisor session endpoint on port 5432 and portable PostgreSQL
+17.10 `pg_dump`/`pg_dumpall` tools make the read-only export preflight report
+`ready`. The application keeps its transaction-pooler URL; the export path is
+supplied separately and never printed or committed.
+
+The hash-valid 2026-08-06 public-schema snapshot was reused instead of creating
+another managed dump. Its isolated PostgreSQL 17 clone already contained the
+first 39 pending migrations with synthetic duplicate-number cleanup. A local
+rollback dump was captured, then the remaining nine migrations were applied.
+The new localhost-only verifier proves one exact 55-to-103 ledger, all 48
+source-suffix versions in order, latest authority tables present, tenant-table
+RLS enabled, zero duplicate Purchase Order groups in the synthetic clone, and
+anonymous `auth_tenant_id()` execution revoked.
+
+This is suffix evidence, not managed parity. `auth.users`, `storage.objects`,
+and pgvector are absent from the public-only snapshot. The injected database
+suite therefore recorded 52 passing/4 failing files and 218 passing/11
+failing/108 skipped tests; failures include missing managed schemas/vector,
+role/search-path catalog differences, and one legacy Cost Entry fixture that
+violates the current Cost Code invariant. The verifier always reports
+`releaseReady: false`, `ownerMappingApproved: false`, and these missing
+surfaces. Standard workspace tests, lint, typecheck, and the local Nest/Next
+production build passed. No hosted SQL, dump, branch, deployment, provider
+variable, feature flag, or tenant record changed.
+
+## M3.150 managed Supabase parity plan (read-only, 2026-08-07)
+
+Managed project `aqqrtkmtcsfkbyyqxowv` was refreshed through read-only
+provider metadata, ledger, branch, table, log, advisor, and cost calls plus
+the repository's read-only PostgreSQL planners. It is `ACTIVE_HEALTHY` on
+PostgreSQL 17.6. The managed ledger is an exact 55-migration prefix through
+`20260729233017`; source contains 103 through `20260807150000`. All 48 missing
+versions form one ordered suffix, with zero unexpected versions and zero
+versions applied after the gap.
+
+Release remains blocked. The first missing migration refuses to enforce
+tenant Purchase Order number uniqueness while the current one-group/12-row
+duplicate exists. The hosted release planner also reports 213 anonymous
+table-privilege rows and 209 `PUBLIC` policies. Current advisors report 14
+security and 253 performance notices. The default Supabase branch reports
+`MIGRATIONS_FAILED`, while 24-hour branch/Auth logs are empty. Export preflight
+is blocked by the transaction pooler on port 6543 and absence of a supported
+dump tool. A new managed branch currently costs `$0.01344/hour`; none was
+created or confirmed.
+
+Added a six-batch machine manifest and verifier covering every pending file
+exactly once in source order. Batches are review checkpoints, not independent
+production deployments. Focused manifest, database-release, and duplicate-plan
+tests passed. Full workspace tests, lint, typecheck, Nest/Next production
+build, Actionlint, Gitleaks, workflow-action verification, controlled-release
+5/5, provider-spend 4/4, 103-file migration verification, and diff checks also
+passed. No SQL, branch, migration history, tenant data, Storage object,
+provider variable, feature flag, Vercel deployment, or Railway deployment was
+changed.
+
+## M3.149 Core user-role assignment authority (2026-08-07)
+
+User-role assignment now has a typed, closed-by-default NestJS command at
+`PATCH /v1/admin/users/:userId/role`. Core re-derives tenant and actor from
+the authenticated principal, requires `admin.users`, locks actor membership
+and the target user, enforces owner/admin hierarchy and self-demotion rules,
+checks the expected prior role, commits the role plus bounded semantic audit
+in one transaction, and returns exact idempotent replay data. A separate
+service-only tenant/idempotency ledger preserves retry evidence.
+
+Migration `20260807150000_user_role_assignment_authority.sql` removes
+authenticated INSERT/UPDATE/DELETE access and legacy write policies from
+`public.users` while preserving tenant-scoped reads. The existing admin
+Server Action remains caller-compatible: exact-`true` plus UUID allowlisting
+selects Core, selected failures fail closed, and the legacy server-only path
+remains available for unselected tenants. Adjacent create, password-reset,
+and delete actions now reject admin attempts against owners. All four role
+assignment flags remain false/empty.
+
+Fresh disposable PostgreSQL 17/Redis 7.4.9 replay applied 103/103 migrations;
+database tests passed 337/337 without skips; API integration passed 21/21
+files including the real role-assignment transaction. Workspace tests passed
+(shared 28 files/234 tests, API 118/516, Web 93/610), plus typecheck, lint,
+Nest/Next production build (81/81 routes), Actionlint, Gitleaks,
+controlled-release 5/5, provider-spend 4/4, and schema stability. Local
+production browser proof showed `/admin/users` redirecting `307` to the
+`200` sign-in page with zero console warnings/errors and no failed requests.
+No credentials or hosted writes were used.
+
+Managed Supabase was not refreshed: its last verified ledger remains 55
+migrations, so the 103-file source ledger implies a 48-migration gap. No
+Supabase SQL, tenant-data mutation, provider-variable change, Vercel deploy,
+or Railway deploy occurred.
+
+## M3.148 anonymous tenant-identity RPC hardening (2026-08-07)
+
+Source now revokes `anon` and implicit `public` execution of
+`public.auth_tenant_id()` while preserving execution for `authenticated` and
+`service_role`. The helper remains in `public` because current tenant RLS
+policies depend on it; this closes the unnecessary anonymous RPC surface
+without changing policy semantics or the server-mediated public portal
+boundary. Static and runtime tests plus the reproducibility verifier enforce
+the privilege contract.
+
+Fresh disposable PostgreSQL 17/Redis 7.4.9 replay applied 102/102 migrations;
+database tests passed 334/334 without skips; API integration passed 20 files
+and 27 tests; Redis restart/reconnect and pending recovery passed; schema
+hashes before/after matched
+`278B8F024CED178A943B9E22FB14B9CD3BC7AEC3E339269E9DD20969B4B20843`.
+Workspace serial tests, typecheck, lint, production build (81/81 routes),
+Actionlint, Gitleaks, controlled-release 5/5, and provider-spend 4/4 passed.
+Source checkpoint `9c2b64b81b64b91de013d470e3147c3817dab27b` is pushed to
+`origin/agent-02/third-code-erp-landing`.
+
+The existing landing page was also exercised locally at 1440x1000 and
+390x844: responsive layout, Cortex query state, capability accordion, image
+loading, and auth-route prefetch passed with zero console errors and no failed
+dynamic requests. No UI source changed. Managed Supabase remains at the
+M3.147 read-only snapshot: 55 migrations versus 102 in source, now a
+47-migration gap. Vercel, Railway, Supabase SQL, provider variables, and
+tenant data remain unchanged.
+
+## M3.147 managed Supabase parity audit (read-only, 2026-08-07)
+
+The connected project `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY`, PostgreSQL
+17.6.1.121, region `ap-northeast-2`, under the PAVI Pro organization. The
+managed ledger contains 55 migrations through
+`20260729233017_notification_outbox_foundation`; the repository contains 101
+migrations. The 46 later local migrations are not applied remotely, including
+`20260807130000_customer_invoice_draft_create_workflow.sql`. The managed
+catalog has 88 public tables, but no
+`customer_invoice_draft_create_requests`; `invoices` (4 rows) and
+`cost_entries` (0 rows) have RLS enabled.
+
+Read-only advisors returned 14 security notices: three RLS-enabled tables
+without policies, the `vector` extension in `public`, one anon-executable and
+eight authenticated-executable `SECURITY DEFINER` authorization functions,
+and leaked-password protection disabled. Performance advisors returned 253
+notices: 148 unindexed foreign keys, 103 unused indexes, one duplicate tenant
+slug index, and an absolute Auth connection setting. A sample of 53 Postgres
+logs contained eight error rows, including five duplicate Purchase Order
+uniqueness failures, two `objacl` column errors, and one missing FROM-clause
+error; the sampled API log rows were healthy. No SQL, provider variable,
+deployment, or tenant data was changed. The gap blocks any hosted canary.
+
+## M3.146 Core-only customer invoice draft creation (2026-08-07)
+
+Customer invoice draft creation is now a single typed NestJS Core command:
+`POST /v1/projects/:projectId/customer-invoices`. Existing Billing and
+Procurement Server Actions remain caller-compatible but no longer calculate
+money, allocate invoice numbers, insert `invoices`, or write duplicate Web
+audit events. Core owns tenant membership, `finance.issue_invoice`, BOM
+selection, exact-cent money, retention/VAT/EWT calculation, invoice-number
+allocation, idempotency, transaction commit, and bounded audit evidence.
+
+Migration `20260807130000_customer_invoice_draft_create_workflow.sql` adds a
+tenant-scoped service-only replay ledger, removes authenticated invoice
+INSERT/UPDATE/DELETE privileges and legacy write policies, and keeps invoice
+reads tenant-scoped. API and Web canary flags remain false/unscoped. Static
+database coverage, Core controller/service coverage, Web action coverage,
+environment validation, observability mapping, and the migration verifier
+were updated.
+
+Disposable PostgreSQL 17/Redis 7.4.9 replay applied 101/101 migrations;
+database no-skip evidence passed 54/54 files and 332/332 tests; API
+integration passed 20/20 files and 27/27 tests; Redis restart/reconnect and
+pending recovery passed; schema hashes before/after matched
+`278B8F024CED178A943B9E22FB14B9CD3BC7AEC3E339269E9DD20969B4B20843`.
+Workspace serial tests, typecheck, lint, production build (81/81 routes),
+Actionlint, Gitleaks, controlled-release, and provider-spend gates passed.
+Source checkpoint `473eaf1d6a9ec468165520685e2718eeefea5124` is pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree were
+verified. Managed Supabase, Vercel, Railway, provider variables, and tenant
+data remain unchanged; hosted parity, recovery, identity, audit, and spend
+evidence are still open.
+
+## M3.145 disposable replay hardening (2026-08-07)
+
+The first fresh replay of M3.144 exposed a stale reproducibility invariant:
+the verifier still required authenticated Cost Entry INSERT/UPDATE/DELETE
+grants even though the M3.142 Core-only migration revokes them. The verifier
+now removes those obsolete requirements and explicitly asserts that
+`authenticated` cannot mutate `cost_entries`; the runtime hardening test now
+proves a permitted business role is also denied direct writes. No migration
+or provider state changed.
+
+The corrected disposable lane applied all 100 migrations on PostgreSQL 17,
+passed the no-skip database suite (53/53 files, 329/329 tests), passed Nest
+API integration (20/20 files, 27/27 tests), passed Redis restart/reconnect
+and pending-recovery checks, and produced identical schema hashes before and
+after: `18D2840CE47084F159BDF5037F74AE51BD24418EF8F63943096F996509BB6FFC`.
+Workspace serial tests, typecheck/lint, production build (81/81 routes),
+migration verifier, Actionlint, Gitleaks, controlled-release, and
+provider-spend gates also pass. Source checkpoint:
+`3ca2060332fbda01f56b3044a8cde9e0201af71a`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified. Hosted Supabase, Vercel, Railway, provider variables, and tenant
+data remain unchanged.
+
+## M3.144 Core Cost Entry restore boundary (2026-08-07)
+
+Core now exposes a separate, closed-by-default
+`POST /v1/projects/:projectId/cost-entries/:costEntryId/restore` command.
+NestJS locks membership and the target entry in one transaction, requires
+`cost.record`, accepts manual entries only, validates the prior void snapshot,
+clears void metadata, writes bounded audit evidence, and records an exact
+tenant-scoped idempotency result. A separate service-only restore replay
+ledger prevents key reuse and keeps recovery semantics distinct from voids.
+The restore result is terminal (`restored`, `restorable: false`); no Web UI
+surface or hosted provider state changed. Both restore flags are false with
+empty allowlists.
+
+Local validation is green: shared 27/231; database 49/53 files with 188
+passed/141 skipped; API 114/496; Web 92/600; serial Turbo workspace tests;
+production build 81/81 routes; typecheck/lint; migration verifier (100
+files); Actionlint; Gitleaks; controlled-release 5/5; and provider-spend
+4/4. Database skips require `DATABASE_URL`; disposable PostgreSQL/Redis
+replay remains required before any canary. No hosted Supabase SQL, Vercel
+build, Railway deploy, provider variable, or tenant data changed. Source
+checkpoint: `963ae464ac35f9bc388605bcb641b2f42442ac19`, pushed to
+`origin/agent-02/third-code-erp-landing`; remote SHA and clean worktree
+verified.
+
+## M3.143 Core-only Cost Entry deletion action (2026-08-07)
+
+The Project cost Server Action now delegates deletion to the typed NestJS
+Core DELETE boundary. It keeps the existing `(entryId, projectId)` caller
+contract, supplies a bounded default correction reason and generated
+idempotency key, and accepts explicit reason/key values for future command
+surfaces. The action verifies the returned tenant, Project, entry, manual
+source, and `voided` state before revalidation. Core errors, invalid payloads,
+and unavailable sessions fail closed; there is no direct `cost_entries`
+delete or duplicate Web audit fallback. The existing Cost Table UI was not
+changed. The server-side delete gate remains false with an empty tenant
+allowlist; the void migration is source-only and hosted state is unchanged.
+
+Local validation is green: focused Web deletion action/client 14/14; Web 92
+files/600 tests; shared 27/230; database 48/52 files with 186 passed/141
+skipped; API 114/489; serial Turbo workspace tests; production build 81/81
+routes; typecheck/lint, migration verifier (99 files), Actionlint, Gitleaks,
+controlled-release 5/5, and provider-spend 4/4. Database skips require
+`DATABASE_URL`; the disposable replay remains the no-skip path. No hosted
+Supabase SQL, Vercel build, Railway deploy, provider variable, or tenant data
+changed. Source checkpoint: `ad1d8d2f5e902148cf3805d97232f8273afdc88b`,
+pushed to `origin/agent-02/third-code-erp-landing`; remote SHA and clean
+worktree verified.
+
+## M3.140 Core-only Project creation (2026-08-07)
+
+The `/projects/new` Server Action now requires the local `project.create`
+capability and delegates every official Project creation to the NestJS Core
+POST boundary. The browser no longer queries `users` or inserts `projects`;
+Core owns tenant membership recheck, idempotency, transaction commit, and
+audit. The action verifies the returned tenant before redirecting and fails
+closed on Core errors or an unavailable Core session. The obsolete frontend
+Project-create selector and allowlist were removed from source and env
+examples. The API-side Core gate remains closed by default pending protected
+canary approval. No migration, hosted provider state, Vercel build, Railway
+deploy, or tenant data changed.
+
+Local validation is green: Web 90 files/587 tests, shared 27/229, database
+47/51 files with 183 passed/141 skipped, API 112/480, production build
+81/81 routes, typecheck/lint, migration verifier, Actionlint, Gitleaks,
+controlled-release 5/5, and provider-spend 4/4. The skipped database suites
+require `DATABASE_URL` and remain covered by the prior disposable replay.
+Source checkpoint: `c702bd9edec41cb3a9efd8b490ae5e82a3a04ceb`, pushed to
+`origin/agent-02/third-code-erp-landing` with the `kurtgav` identity.
+
+## M3.141 Core-only manual Cost Entry creation (2026-08-07)
+
+The Project cost Server Action now requires `cost.record` and delegates every
+manual Cost Entry creation to NestJS `POST /v1/projects/:projectId/cost-entries`.
+The browser no longer validates/inserts `cost_entries` or writes a duplicate
+create audit. The action preserves or generates an idempotency key, sends
+integer cents, verifies Core-returned tenant and Project scope, and fails
+closed on Core errors. The frontend create selector/allowlist was removed.
+Cost Entry deletion remains a separate legacy path until Core has a
+transactional, idempotent delete contract. No migration or hosted state
+changed.
+
+Local validation is green: Web 91 files/591 tests, shared 27/229, database
+47/51 files with 183 passed/141 skipped, API 112/480, production build
+81/81 routes, typecheck/lint, migration verifier, Actionlint, Gitleaks,
+controlled-release 5/5, and provider-spend 4/4. Database skips require
+`DATABASE_URL`; prior disposable replay supplies no-skip evidence. Source
+checkpoint: `f9770a015e0c8769010cf08cb4f31f7c26b6f656`, pushed to
+`origin/agent-02/third-code-erp-landing` with the `kurtgav` identity; worktree
+is clean.
+
+## M3.142 Core Cost Entry void boundary (2026-08-07)
+
+Physical Cost Entry deletion is unsafe because Core-created entries are
+referenced by the create-idempotency ledger. Source now models a reversible
+void: `voided_at`, tenant-scoped `voided_by`, and a bounded `void_reason`, plus
+the service-only `cost_entry_delete_requests` replay/snapshot ledger. NestJS
+`DELETE /v1/projects/:projectId/cost-entries/:costEntryId` locks membership,
+requires `cost.record`, checks tenant/project scope and manual-only source,
+voids inside a transaction, audits bounded evidence, and replays by
+idempotency key. The API gate is disabled and unscoped by default. Web cost
+reads exclude voided rows; the legacy Web delete writer remains separate and
+is not cut over. Migration `20260807110000_cost_entry_delete_workflow.sql` is
+source-only; no hosted state changed.
+
+Local validation is green: Web 91 files/591 tests, shared 27/230, database
+48/52 files with 186 passed/141 skipped, API 114/489, production build
+81/81 routes, typecheck/lint, migration verifier (99 files), Actionlint,
+Gitleaks, controlled-release 5/5, and provider-spend 4/4. Database skips
+require `DATABASE_URL`; the disposable replay remains the no-skip path.
+Source checkpoint: `476903d934c3c1b65bf50b6075497707b8841248`, pushed to
+`origin/agent-02/third-code-erp-landing` with the `kurtgav` identity; worktree
+is clean.
+
+## M3.139 self-hosted Core authority evidence (2026-08-07)
+
+The disposable WSL lane replayed 98 migrations on PostgreSQL 17 with Redis
+7.4.9, passed the database no-skip and Nest API integration gates, and kept
+schema-before/schema-after SHA256 identical at
+`6E1CA120B357614D2A9C4CF06F1E306E08210CFB7B11F340A5E2A286D42D1B71`.
+The lane was cleaned up. This is local evidence only; managed provider
+parity, backup/rollback, identity, audit recovery, and spend gates remain
+open. No hosted state changed.
+
+## M3.138 retire Project update flag surface (2026-08-07)
+
+The obsolete Project update selector and env-example entries are removed.
+Current source has one Project write authority: the authenticated Core
+read/PATCH boundary. The former cutover runbook is replaced with a
+fail-closed Core validation runbook. This is source/documentation cleanup only;
+hosted Supabase, Vercel, Railway, flags, and tenant data were not touched.
+Source commit: `a978b4f`.
+
+## M3.137 Project update Core cutover (2026-08-07)
+
+Project edits from the Web now use a Core read followed by the NestJS PATCH
+authority. The action performs no direct `projects` write and emits no
+duplicate Web audit. It checks the Core response's Project and tenant identity,
+passes `updatedAt` for optimistic concurrency, and returns Core conflict or
+availability errors without retrying through another writer. Core owns the
+membership lock, capability recheck, state machine, mutation, and audit
+transaction. No migration or provider state changed. Source commit:
+`927a2c3`.
+
+## M3.136 legacy Project update fallback guard (2026-08-07)
+
+The Web Project update action now fails closed through `requireUserProfile` and
+the `project.update` capability before the target read. It uses the profile's
+tenant for every compatibility-path predicate and applies the shared Project
+status-transition table before Core or direct-database mutation. Core remains
+the authoritative path for selected canary tenants; the non-canary fallback
+still performs a direct write and audit during migration. No schema, flag,
+provider, or hosted data changed. Source commit: `5a44ce8`.
+
+## M3.135 project status state machine (2026-08-07)
+
+The Core Project update authority now applies a shared transition table after
+locking the tenant membership and Project row. It permits forward operational
+movement and controlled hold/resume, preserves same-state metadata edits, and
+rejects reopening `completed` or `cancelled` Projects with a bounded 409.
+Regression coverage exercises allowed transitions and terminal rejection. No
+migration or hosted/provider action occurred. The legacy Web fallback remains
+outside this Core state-machine boundary until its canary migration. Source
+commit: `97c41f8`.
+
+## M3.134 project-update authority hardening (2026-08-07)
+
+The Core `PATCH /v1/projects/:projectId` authority now locks the caller's
+tenant membership inside its transaction, rechecks `project.update` against
+the stored role, and derives a fresh authorized principal before locking the
+Project row. Tenant predicates, actor context, and semantic audit use that
+principal. The regression suite proves a forged admin-shaped principal cannot
+update through a locked viewer membership. No migration or hosted/provider
+action occurred. Source commit: `5534046`.
+
+## M3.133 project-create authority hardening (2026-08-07)
+
+The Core `POST /v1/projects` authority now locks the caller's tenant
+membership row inside the transaction, rechecks `project.create` against the
+database-backed role, and derives a fresh authorized principal before
+claiming idempotency or inserting the project. Actor context, tenant scope,
+and semantic audit all use that rechecked principal. The new regression test
+proves a forged admin principal cannot create through a locked viewer
+membership. The existing closed-by-default Core feature gate and non-canary
+legacy fallback remain unchanged. No migration or hosted/provider action
+occurred. Source commit: `6276d10`.
+
+## M3.132 asset maintenance due projection (2026-08-07)
+
+The asset maintenance authority now exposes `GET /v1/assets/maintenance/due`.
+It returns a tenant-scoped, paginated view of assets whose latest service
+record has a next due date on or before `asOf + daysAhead`, with overdue/due
+soon state, days remaining, project/location context, and a window total.
+The latest-record-first lateral query prevents an old due record from leaking
+through after a newer service event. The route is capability-protected and
+closed by the existing maintenance-read flag/tenant allowlist. Web calls it
+through the Core client and renders a non-blocking service-watch panel; no
+direct browser table access or new migration was added.
+
+Source commit `be760ed`; local source gates passed. No hosted Supabase SQL,
+Vercel build, Railway deploy, or ERP feature flag changed.
+
+## M3.131 asset maintenance history (2026-08-07)
+
+Added `asset_maintenance_records` as an append-only, tenant-scoped service
+history table with exact cent cost, date/order checks, same-tenant asset and
+actor FKs, audit trigger, forced RLS, and service-role-only grants. Added a
+tenant/idempotency ledger for create replay. NestJS owns closed-by-default
+GET/POST maintenance routes with membership/capability recheck, asset locking,
+idempotent replay/hash conflict handling, and semantic audit. Web adds linked
+asset detail, maintenance timeline, and a form that can only call Core through
+exact tenant/flag gates. Local WSL replay now proves 98/98 migrations,
+verifier, 20 integration files/27 tests, and zero-skip database tests. No
+hosted SQL, Vercel, Railway, feature flag, or tenant data changed.
+
+## M3.130 dashboard fault isolation (2026-08-07)
+
+Executive dashboard loading now has a fail-closed degraded path. If the
+portfolio analytics bundle fails during an incremental schema rollout, the
+page renders the existing tenant- and assignee-scoped Today view with an
+explicit notice instead of showing invented zero KPIs or blanking the whole
+Server Component. The fallback is covered by dashboard-access tests and does
+not change any write or authorization path. Serial build/typecheck validation
+passed; no hosted/provider state changed.
+
+## M3.129 self-hosted free database lane (2026-08-07)
+
+The approved WSL self-hosted lane completed against PostgreSQL 17.10 and Redis
+7.4.9: all 97 ordered migrations, deterministic seed, verifier, 51/51 database
+test files (324/324 tests, zero skips), Nest transaction integration, and the
+schema-before/schema-after hash check. Artifacts are retained under
+`tmp/self-hosted-ci/` for this local run. The pinned Supabase CLI `2.109.1`
+diff was also retried but still requires the unavailable Docker Desktop Linux
+engine to provision its shadow database. No hosted or provider state changed.
+
+## M3.128 cache-safe runtime test gate (2026-08-06)
+
+Turbo's root `test` task now includes the database, Redis, and integration
+expectation environment inputs in its cache key. This closes a verified
+release-integrity gap where a cached no-database test log could hide skipped
+runtime suites. `scripts/verify-turbo-test-cache.mjs` and its two-test contract
+pass; the filtered Turbo database task cache-misses with the disposable DB and
+passes 51/51 files, 324/324 tests, zero skips. No hosted/provider state changed.
+
+## M3.127 pinned CLI diff boundary (2026-08-06)
+
+Pinned Supabase CLI `2.109.1` read-only schema-diff attempts against the clean
+replay failed before inspection because the Docker Desktop Linux engine pipe is
+unavailable. This does not invalidate the direct PostgreSQL verifier or the
+zero-skip database tests, but it leaves the CLI/CI schema-diff artifact open.
+No local schema, hosted database, provider, or deployment state changed.
+
+## M3.126 clean disposable PostgreSQL replay (2026-08-06)
+
+Created disposable database `erp_clean_head_20260806_m3125` on PostgreSQL
+17.10 in the local `ThirdCodeERP-Test` lane. Applied the Supabase system
+bootstrap, all 97 ordered repository migrations from zero, and `supabase/seed.sql`.
+The catalog contains 119 public tables, 303 public policies, and RLS on all
+119 tables. `scripts/verify-database-repro.mjs` passes every invariant, and
+database Vitest passes 51/51 files and 324/324 tests with zero skips after
+enabling each database runtime expectation flag. This is clean source replay
+evidence, not hosted Supabase parity or a provider release; the migration
+ledger was recorded after the ordered SQL apply and a pinned Supabase CLI
+schema-diff artifact remains a separate gate. No hosted or provider state
+changed.
+
+## M3.125 capability matrix and release-boundary refresh (2026-08-06)
+
+The capability matrix now points at source SHA
+`86db0e4935ff7f655e6443d19834fe3e1e9bc013` and records the current source
+boundary: 97 ordered migrations, closed-by-default NestJS authority slices,
+exact Web tenant/flag selection, and advisory-only Python/Cortex behavior. The
+read-only hosted planner remains blocked at 55/97 migrations with 213 direct
+`anon` privilege rows, 209 policies containing `public`, one duplicate
+Purchase Order number group, and missing audit recovery input. This was a
+documentation-only refresh; no hosted SQL, provider build, deployment,
+feature flag, or tenant-data write occurred.
+
+## M3.124 bounded landing carousel and image priority (2026-08-06)
+
+The public landing team-priority carousel now clamps state at its first and
+last item, exposes native disabled states, and keeps the existing 44px controls
+and visual contract. The above-fold hero image is marked as a priority asset.
+Source browser proof at 1440/768/390 confirms three-line H1, no horizontal
+overflow, disabled controls at both bounds, and zero console errors. A single
+Next development LCP warning remains for the duplicated decorative hero asset;
+production build evidence is still required. No hosted or provider state
+changed.
+
+## M3.123 read-only security release planner (2026-08-06)
+
+The database release planner now queries the target catalog for direct
+`anon` privileges on public ERP tables and any policy containing the `public`
+role. These findings are surfaced as release blockers and included in JSON and
+human-readable evidence. The live read-only planner reports 213 direct anon
+privilege rows and 209 public-role policies; this confirms that hosted Supabase
+must not receive the source hardening migration yet. Full Turbo tests (4/4),
+typecheck, TS-only lint, production build (2/2), migration verifier,
+Actionlint, Gitleaks, controlled-release tests (5/5), spend-guard tests (4/4),
+and focused planner tests (9/9) pass. No hosted SQL, data, provider setting,
+build, or deployment changed.
+
+## M3.122 source anonymous-grant and policy hardening (2026-08-06)
+
+Added source migration `20260806160000_security_role_baseline.sql`. It
+revokes direct `anon` table and sequence privileges, sets matching default
+privileges for future public objects, and changes legacy tenant policies whose
+only role was `public` to `authenticated`. Policies already scoped to
+`authenticated` or `service_role` are left unchanged. Public-portal flows
+remain server-mediated; no anonymous table authority was added.
+
+The repository verifier now requires the migration and checks the source
+contract statically plus the disposable catalog. On the running disposable
+PostgreSQL 17.10 lane, the 97-migration ledger, RLS/policy catalog, service
+ledgers, and new zero-anon/zero-public-policy checks pass. Database tests pass
+51 files/324 tests with zero skips. Full Turbo tests/build, typecheck,
+TS-only lint, Gitleaks, Actionlint, and migration-file checks pass. Hosted
+Supabase remains unchanged at 55/97; no Vercel/Railway build, deployment,
+Storage, SQL, or tenant-data write occurred.
+
+## M3.121 hosted Supabase security and parity refresh (2026-08-06)
+
+Read-only Supabase MCP and catalog queries confirm project
+`aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY` on PostgreSQL 17.6.1 in
+`ap-northeast-2`. The hosted migration ledger remains 55 applied versus 96
+repository migrations, so 41 ordered migrations are still pending. The public
+catalog has 88 tables and all 88 have RLS enabled, but the role catalog is not
+production-safe: `anon` has 375 direct table-grant rows, including write
+privileges on 54 tables (321 write-grant rows). Fifty-six tables also expose
+tenant policies to the `public` role; their current helper derives tenant
+scope from `auth.uid()`, but direct anonymous grants remain an unnecessary
+authority surface and must be removed or explicitly justified.
+
+The current Supabase advisor MCP calls returned no records; that is not a
+clean security release signal because the direct catalog check found the
+anonymous grants. Railway and Vercel readiness remain HTTP 200, the provider
+spend guard is clear, Vercel Git deployment remains disabled, and no SQL,
+Storage, provider, build, deploy, or tenant-data write occurred. The controlled
+release plan remains `review_required` for migration drift, the one
+tenant-scoped 12-record duplicate Purchase Order group, and missing
+`AUDIT_RECOVERY_TENANT_ID`; the anonymous-grant catalog is now an explicit
+security blocker for any hosted promotion.
+
+## M3.120 dashboard incident revalidation (2026-08-06)
+
+The reported Server Components digest was rechecked without credentials or
+provider mutation. The public `/dashboard` probe redirects to `/auth/login` as
+designed; current Vercel runtime-error evidence contains zero `/dashboard`
+clusters; and the active production deployment is `READY` with build logs
+ending in `Build Completed`. Existing incident evidence attributes digest
+`862076041` to the historical missing `partial_delivered` Purchase Order enum
+label, already repaired by forward migration
+`20260728005112_fix_purchase_order_status_catalog.sql`. No additional source
+fix or deployment is justified by current evidence.
+
+## M3.119 public favicon identity (2026-08-06)
+
+Read-only live inspection found product-facing copy and HTML free of forbidden
+vendor/provenance markers at desktop and mobile widths, but the source favicon
+still rendered a single `B` mark while the authenticated shell used `TC`.
+The favicon now carries the original Third Code `TC` mark and an explicit
+accessible label. A runtime branding regression test covers both shell and
+favicon identity. No hosted/provider state changed.
+
+## M3.118 Won-to-Project authority seam (2026-08-06)
+
+The remaining high-impact `won` handoff now has an original NestJS command
+boundary at `POST /v1/crm/opportunities/:opportunityId/convert-to-project`.
+The source-only migration adds a tenant-scoped, forced-RLS idempotency ledger;
+the transaction will own project creation/back-linking, signed-contract
+checks, checklist creation, in-app notification intent, and semantic audit.
+The Web action selects Core only for the exact flag plus UUID tenant allowlist;
+legacy conversion remains the compatibility default and no Core failure falls
+back to a browser write after a selected canary. All new flags are false/empty.
+Hosted Supabase, Storage, Vercel, Railway, and tenant data remain unchanged;
+the source migration ledger is now 96 files while the hosted ledger remains
+55. Focused shared/API/database/Web tests pass; full serial Turbo tests,
+typecheck, TS-only lint, production build, Gitleaks, Actionlint, and
+migration-file verification pass. The controlled release plan remains
+review-required for the three hosted blockers below. No hosted/provider write
+occurred.
+
+## M3.117 Purchase Order mapping-template preflight (2026-08-06)
+
+The duplicate Purchase Order gate now has a read-only owner-review template
+generator. It captures one repeatable-read snapshot into a new file only when
+the caller supplies an explicit path outside the repository and known
+build/public-output directories. Existing files are never overwritten, every
+replacement number is blank until the database owner approves it, and no SQL,
+provider, migration-history, or Purchase Order state is changed. Focused
+template and validator tests pass; hosted release gates remain unchanged.
+
+## M3.116 Togal BOM commit authority seam (2026-08-06)
+
+The Togal import commit now has an original NestJS command boundary at
+`POST /v1/procurement/boms/togal-commit`. It is fail-closed by default behind
+`ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED` plus a tenant UUID allowlist. The command
+rechecks membership/capability, locks the tenant BOM, validates optional
+material/vendor identities, computes exact-cent totals, writes BOM lines and
+totals atomically, records a service-only idempotency result, and audits inside
+the transaction. The existing Next route preserves its response shape and
+uses the Core path only for an explicit tenant canary; compatibility fallback
+remains default. Full Turbo tests, typecheck, production build, gitleaks,
+actionlint, and the repository migration-ledger verifier pass; no hosted DB,
+provider, Storage, flag, or tenant-data mutation occurred. The read-only
+controlled release plan remains review-required for hosted migration drift,
+duplicate Purchase Orders, and missing audit-recovery tenant input.
+
+## M3.115 provider spend gate (2026-08-06)
+
+The read-only controlled release planner now requires the repository provider
+spend guard in addition to database, duplicate, audit, and readiness gates.
+The guard keeps Vercel Git deployment disabled and rejects Vercel or Railway
+deploy commands in workspace manifests and workflows. Current checks are
+clear; no build, deploy, provider setting, database, Storage, or tenant-data
+mutation occurred. Hosted release remains review-required for the existing
+database, duplicate Purchase Order, and audit gates.
+
+## M3.114 Purchase Order mapping preflight (2026-08-06)
+
+The repository now has a read-only mapping validator and runbook for the
+hosted duplicate Purchase Order gate. Mapping files stay outside Git; the
+validator checks exact UUIDs, tenant ownership, current-number freshness,
+complete duplicate coverage, and replacement collisions inside one
+repeatable-read transaction. Output is redacted to counts, SHA-256, and opaque
+conflict references. No mapping file was supplied and no hosted state changed.
+
+## M3.113 historical secret-scan findings closed (2026-08-06)
+
+The six historical Gitleaks findings were confirmed as deterministic delivery
+idempotency values in unit tests, not credentials. A path- and value-scoped
+allowlist in `.gitleaks.toml` records that provenance. The pinned scan passes
+with 474 commits scanned and no leaks found. No production code, database,
+Storage object, provider setting, build, or deployment changed.
+
+## M3.112 recoverable export and disposable suffix replay (2026-08-06)
+
+The session pooler on port 5432 was independently verified read-only. A free
+PostgreSQL 17.10 client was extracted only into the OS temp directory. A
+four-part supplemental safety export (roles without passwords, public
+pre-data, public data, and public post-data) was created outside Git and
+hashed in a temp manifest; it is not a substitute for the Supabase-managed
+auth/storage/roles logical export. The exact hosted snapshot restored into an
+isolated PostgreSQL 17.10 clone after a local-only vector-column adapter.
+
+The exact first pending migration, `20260801090000`, failed as designed on the
+hosted duplicate Purchase Order group (one tenant, 12 records). No duplicate
+was changed in Supabase. For replay evidence only, duplicate numbers were
+synthetically renamed inside the disposable clone; all 39 pending migrations
+then applied 39/39 with exit code 0. The 29 migration-created tables exist and
+all 29 have RLS enabled; delivery workflow enum expansion is present. The
+full repository verifier is intentionally not called green because the local
+clone lacks Supabase-managed auth trigger, vector HNSW, and provider grants.
+No hosted SQL/data/Storage/branch write or Vercel/Railway build occurred.
+
+## M3.111 read-only Supabase export preflight (2026-08-06)
+
+The new export planner is fail-closed and never opens a database connection or
+changes provider state. Repository `DATABASE_URL` is valid and independently
+readable as PostgreSQL 17.6, but it uses the Supavisor transaction pooler on
+port 6543; supported Supabase logical dumps require a session pooler/direct
+connection on port 5432. The current machine has no Supabase CLI, `pg_dump`, or
+Docker. A direct read-only metadata query reports a 25 MB database, 88 public
+tables, and 55 applied migrations through `20260729233017`. Export status is
+review-required; no dump or hosted mutation exists. Export planner tests are
+4/4; serial API/Web/shared/database suites are 452/452, 570/570, 219/219, and
+177/177 respectively, with 141 expected database integration skips; lint,
+typecheck, and the 81-route Web build pass.
+The repository-wide gitleaks scan remains review-required for six historical
+`REDACTED` idempotency-test literals outside this slice; the new export files
+were not reported.
+
+## M3.110 public landing UX and SEO smoke audit (2026-08-06)
+
+Read-only Playwright checks against the public alias confirmed the current
+landing page title, canonical URL, description, OG image, JSON-LD presence, and
+Third Code ERP H1. Desktop at 1440px and mobile at 390px produced no console
+errors; mobile document width was 375px, so no horizontal overflow was
+observed. This is hosted-page evidence only: it does not mean feature-branch
+dashboard recovery code is deployed. No provider, database, or Storage write
+occurred.
+
+## M3.109 dashboard render recovery boundary (2026-08-06)
+
+The protected dashboard route group now has a branded Next error boundary for
+uncaught render failures. It preserves the non-leaking digest reference,
+explains that records were not changed, offers retry and dashboard navigation,
+and responds at mobile widths without changing ERP transaction behavior. A
+static contract test prevents rendering `error.message` into the browser.
+Web full tests are 88/570, production routes 81/81, and typecheck/lint pass.
+Source commit `6eb0b0a0388d0e9cc00981173c5a40f2ce458116` is pushed to the
+feature branch; no provider build, hosted SQL, or tenant-data mutation
+occurred.
+
+## M3.108 hosted Supabase parity refresh (2026-08-06)
+
+Read-only Supabase MCP and repository planner evidence still agree: PostgreSQL
+17.6, hosted migration ledger 55/94 through `20260729233017`, 88 public tables
+with RLS enabled, 22 forced-RLS tables, and 303 policies. The snapshot contains
+2 tenants, 13 users, 13 Purchase Orders, 4 invoices, 662 audit rows, 385
+Cortex nodes, and 454 Cortex edges. Source-only `public.assets` and
+`delivery_schedule_create_requests` are absent. The duplicate planner remains
+review-required for one tenant-scoped 12-record Purchase Order group; security
+advisors remain 14 notices/11 warnings. No hosted SQL/data/Storage/branch
+write occurred. Vercel runtime-error and production 500-log checks for
+`/dashboard` are empty, the spend guard is clear, and Railway `/ready`/`/health`
+remain 200; no provider build was triggered.
+
+## M3.107 inventory UOM maintenance authority (2026-08-06)
+
+Inventory now exposes authenticated UOM name and active-state maintenance. The
+Nest `PATCH /v1/inventory/uoms/:uomId` authority is fail-closed behind an exact
+feature flag and tenant allowlist, rechecks tenant membership/capability,
+locks the tenant and UOM rows, updates only mutable fields, and writes a
+semantic audit record. The compatibility Web action and Core selector are
+default-off; UOM code and decimal precision remain immutable, while inactive
+UOMs are unavailable for new assignments. No migration, hosted SQL, provider
+build, or tenant-data change occurred. Evidence: shared focused 29/29, API
+105 files with 452 passed and 26 skipped tests, Web 87/569, Next routes 81/81,
+and repository lint/type checks. Source commit
+`ead54aac876ed6a52f1b693c7fe6fec8f2026f8b` is pushed to the feature branch by
+`kurtgav`; `origin/main` remains unchanged.
+
+## M3.106 inventory item policy control surface (2026-08-06)
+
+Inventory now exposes per-item policy editing for active catalog items. The
+surface reuses the authenticated `configureInventoryItem` action and guarded
+Core seam to change base UOM/tracking while preserving item identity guidance;
+inactive UOM choices cannot be newly selected. No schema/provider/tenant-data
+change occurred. Web focused tests are 125/125, full Web 87/567, and Next
+production routes 81/81. Source commit `7570cda` is pushed to the feature
+branch; `origin/main` remains unchanged.
+
+## M3.105 inventory warehouse control surface (2026-08-06)
+
+Inventory now exposes an authenticated edit/deactivation form for each
+Warehouse. It reuses the existing Web server action and guarded Core selector;
+warehouse code and project scope remain immutable, while Nest enforces the
+zero-net-stock rule before deactivation. No schema/provider/tenant-data change
+occurred. Web typecheck, focused inventory/Core tests 125/125, full Web 87/567,
+and Next production routes 81/81 are green. Source is pushed on the feature
+branch at `e9ee5adb44e3bc2da5cab54af2828065f117f343`; `origin/main` is
+unchanged. Railway readiness remains green, while Vercel has no deployment for
+this SHA.
+
+## M3.104 provider spend guard audit (2026-08-06)
+
+The repository spend guard now scans every workspace package manifest and GitHub
+workflow YAML for Vercel deploy commands; it passes 3/3 tests and reports
+`clear`. Vercel Git remains disabled, and the current feature SHA created no
+new deployment. Railway `/ready` and `/health` remain 200 on the prior
+deployment. Supabase read-only parity remains 55 hosted migrations; the new
+delivery-schedule ledger and Asset Register table are absent. No provider,
+database, Storage, branch, or tenant-data mutation occurred.
+
+## M3.103 closed Nest delivery schedule creation (2026-08-06)
+
+Added the smallest next delivery authority slice: scheduling a delivery for an
+issued Purchase Order. The strict shared command/result, server-only
+`delivery_schedule_create_requests` replay ledger, tenant-scoped composite
+foreign keys, forced RLS/service-role grants, Nest `POST
+/v1/procurement/deliveries`, membership/capability recheck, issued-PO lock,
+atomic schedule/notification/audit commit, and exact feature flag plus tenant
+allowlist are implemented. The Web form creates one retry key per submission,
+selects Core only for the exact enabled flag plus UUID allowlist, and never
+falls back to a direct database write after a selected Core error. All new
+selectors remain false/empty.
+
+Validation: delivery shared contracts 16/16; focused API controller/service
+47/47; focused Web delivery actions 22/22; new rollback-only PostgreSQL 17
+integration 1/1; disposable migration/catalog/RLS/privilege verifier 94/94
+migrations, 32 protected tables, and 4 service-only tables; database suite
+49/318 with zero skips; serial API 104/449; Web 87/567; shared/database/API/
+Web typechecks and TS-only lint pass; and isolated Turbo production build
+passes Nest webpack plus Next 81/81 routes. The first full local queue lane
+hit one known document-processing Redis timing flake; the complete API
+integration lane was rerun and passed 19 files/24 tests with 2 existing
+conditional skips, and the new schedule integration passed independently.
+Source SHA `b3b3bdd935f50ff229d9f2fc8ed8447df6f8cba9` is pushed to the
+`origin/agent-02/third-code-erp-landing` feature branch; `origin/main` remains
+at the previously promoted source. Hosted Supabase remains read-only at
+55/94 migrations; no Supabase,
+Storage, Vercel, Railway, or tenant-canary mutation occurred for this slice.
+Promotion remains blocked by hosted suffix reconciliation, supported
+backup/catalog/data/audit export, duplicate-PO mapping, security review,
+protected canary, rollback, and spend approval.
+
+## M3.102 closed Nest delivery in-transit transition (2026-08-06)
+
+Added the smallest next delivery authority slice: `site_ready -> in_transit`.
+The strict shared command/result, Nest `POST /v1/procurement/deliveries/:id/in-transit`
+route, `delivery.receive` recheck, tenant allowlist, durable replay ledger,
+optimistic status guard, and semantic audit event are all server-owned. The
+existing Web action is a compatibility adapter: it selects Core only for the
+exact boolean plus UUID tenant allowlist and never falls back after a selected
+Core failure. All new selectors remain false/empty.
+
+Validation: shared delivery contract 14/14; focused API controller/service
+43/43; focused Web adapter/delivery actions 2 files/131 tests; rollback-only
+PostgreSQL 17 integration 2 files/2 tests; full database reproducibility
+verification 93/93 migrations, 32 protected tables, and 3 service-only tables;
+shared/database/API/Web typechecks pass; Web 87 files/565 tests pass; broad API
+104 files/445 tests pass; and the isolated Turbo production build passes Nest
+webpack plus Next 81/81 routes. The only source adjustment in this gate was a
+15-second timeout budget for the inventory UOM HTTP contract's test-app startup;
+runtime behavior is unchanged. Source SHA `dcf7b04c5dcbf870f0f58b6ba63b3a29b8091bef`
+is pushed to GitHub `main` and `agent-02/third-code-erp-landing`. Railway's
+Git integration performed one automatic backend deployment
+`27591050-3977-4755-92ae-941a6894ac77` (`SUCCESS`, commit `dcf7b04c`, image
+`sha256:1d4068…`); `/ready` and `/health` are 200 and unauthenticated `/v1/assets`
+is 401. Hosted Supabase remains read-only at 55/93 migrations; no Supabase,
+Storage, Vercel, or tenant-canary mutation occurred. Frontend/database
+promotion remains blocked by hosted suffix reconciliation, backup/catalog/
+data/audit export, duplicate-PO mapping, security review, protected canary,
+and spend approval.
+
+## M3.101 hosted Supabase Asset Register parity snapshot (2026-08-06)
+
+Read-only MCP inspection of project `aqqrtkmtcsfkbyyqxowv` confirms the
+project is `ACTIVE_HEALTHY` on PostgreSQL 17.6.1 in `ap-northeast-2`. Hosted
+migrations stop at `20260729233017` (55 migrations); the source asset
+`20260806110000_asset_register_foundation` migration is absent. `public.assets`
+is absent, with no hosted asset RLS metadata, policies, grants, trigger, or
+rows. The hosted public catalog remains 88 RLS-enabled tables with the prior
+demo-data snapshot. Security advisors still report 14 notices (11 warnings),
+including public/security-definer execution and leaked-password protection
+disabled.
+
+This is a parity blocker, not permission to apply SQL. No Supabase SQL,
+Storage, branch, data, migration, Vercel, or Railway write occurred.
+
+## M3.100 disposable Asset Register replay parity (2026-08-06)
+
+Added rollback-only `apps/api/integration/assets-read.database.integration.spec.ts`.
+On the disposable `ThirdCodeERP-Test` PostgreSQL 17 replay, it seeds two
+tenants, a same-tenant assigned Project, active/maintenance/retired assets,
+and an unrelated tenant asset. The proof compares direct rows with the Nest
+projection across tenant scope, project-name joins, ascending pagination,
+search filtering, and retired-date serialization. It also verifies three audit
+rows, forced RLS, and that `anon`/`authenticated` have no direct SELECT.
+
+Replay evidence: schema before/after SHA256 is
+`36AC6C9CFB138589031C4BE6FF328748CA80AD45B07DAB40BAEE10C05E2F0B0B`; API
+integration is 17 files/24 tests and the database suite is 49 files/318 tests,
+both with zero skips. `verify-database-repro.mjs` now requires the asset
+migration, service-only table, indexes, and audit trigger; it passes 92/92
+migrations, 32 protected tables, and 3 service-only tables. Source SHA
+`8586beb9e53d5fafd2289451eda576ea5b1a1726` is pushed to both GitHub refs.
+No hosted Supabase, Vercel, Railway, Storage, or tenant-canary mutation.
+
+## M3.99 closed Web Asset Register read surface (2026-08-06)
+
+Added the original Next.js Asset Register route and Core-only read adapter for
+the existing tenant-safe `GET /v1/assets` contract. The route requires
+`asset.read`, uses the existing Operations navigation and finance visual
+tokens, and supports bounded search, kind/status filters, pagination, and
+read-only custody context. It never imports the database client: disabled or
+unlisted tenants render a staged state, while enabled tenants fail closed on
+Core timeout, error, or invalid response with no direct database fallback.
+
+`ERP_ASSET_READS_VIA_API=false` and its tenant allowlist are false/empty in
+both environment examples. Web validation: 87 test files/561 tests, focused
+adapter/navigation 2 files/122 tests, typecheck, TS-only lint, production
+build 81/81 routes, Vercel spend guard, and diff check pass. Component
+specification: `docs/research/components/asset-register-page.spec.md`.
+Source SHA `b7f274ad078965239a9138545a96bd6468b4dcda` is pushed to GitHub
+`main` and `agent-02/third-code-erp-landing`. This is source-only: no Vercel
+build/deploy, Railway build, Supabase SQL/Storage/branch write, or hosted
+tenant canary occurred.
+
+## M3.98 authenticated shell rebrand correction (2026-08-06)
+
+Replaced the authenticated dashboard sidebar's leftover single-letter `A`
+mark with an accessible `TC` Third Code ERP mark and tuned its compact
+typography. Added a clean-room test that locks the shell identity. Web gates:
+87 test files/559 tests, typecheck, TS-only lint, production build 80/80, and
+diff check pass. Source SHA
+`a719d2321410c09658faca30c20c6c374f502360` is pushed to both GitHub refs.
+This is source-only: Vercel Git remains disconnected, no Vercel build or
+release was started, and Railway was not touched. Live Vercel still requires
+an explicitly approved, spend-bounded manual release to display this fix.
+
+## M3.97 hosted Supabase read-only parity snapshot (2026-08-06)
+
+Read-only inspection of project `aqqrtkmtcsfkbyyqxowv` confirms PostgreSQL
+17.6, 55 hosted migrations through `20260729233017` versus 92 in source (37
+source migrations pending), 88 public tables with RLS reported enabled, and
+303 public policies. Snapshot counts: 2 tenants, 13 users, 13 purchase
+orders, 4 invoices, 662 audit rows, 385 Cortex nodes, 454 Cortex edges, and
+zero cash accounts, cash transactions, or supplier bills. One tenant-scoped
+Purchase Order duplicate group contains 12 records.
+
+Supabase security advisors report 14 notices (11 warnings), including public
+execution of security-definer authorization helpers and disabled leaked
+password protection; performance advisors report 253 notices, including one
+duplicate tenant index. These are review gates, not authorization to apply the
+37 migrations. No SQL write, migration, branch, backup, Storage write, Vercel
+build, or Railway build occurred for this snapshot.
+
+## M3.96 replay parity evidence (2026-08-06)
+
+Added `apps/api/integration/finance-cash-read.database.integration.spec.ts`.
+On an isolated PostgreSQL 17/Redis 7.4.9 replay, the test seeds two tenants,
+posted/draft/reversed receipts and disbursements, then compares the direct
+tenant-scoped register rows and aggregates with the Nest projection. It proves
+exact-cent receipt/disbursement totals, date/direction filters, same-tenant
+counterparty joins, and no other-tenant row leakage. Every probe runs inside
+an unconditional rollback; no hosted data is touched.
+
+Replay evidence: 92/92 migrations, 112 database suites/318 tests with zero
+skips, unchanged schema dump hash
+`36AC6C9CFB138589031C4BE6FF328748CA80AD45B07DAB40BAEE10C05E2F0B0B`, and 32
+API integration suites/23 tests with zero skips. Repository gates remain
+green: shared 25 files/214 tests, API 104 files/440 tests, Web 87 files/558
+tests, typecheck, serial lint, production build 80/80 routes, Vercel spend
+guard, and diff check. Source SHA
+`91ed37570ea57fa456b569d247802cfd996cb9c6` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`133e14b7-c879-4090-8ce1-26d9b42d93ca` is `SUCCESS` with running instance
+`109f0661-238c-4a53-b631-09ede636775c`, Dockerfile `apps/api/Dockerfile`,
+`/ready`, `node apps/api/dist/main.js`, and image digest
+`sha256:9a4a8c982ea4e872254a4258a24b2982212bd5581f0888426561d2b007e19fdf`.
+Live `/ready` and `/health` are 200 and unauthenticated
+`/v1/finance/cash-transactions` is 401. Supabase remains read-only at
+PostgreSQL 17 with 55/92 migrations applied, 37 missing, and one duplicate
+Purchase Order group of 12 records. Vercel Git remains disconnected; no
+Vercel build or deploy was started.
+
+## M3.96 Closed cash transaction register read projection (2026-08-06)
+
+Added an original shared Finance Cash query/result contract and NestJS
+`GET /v1/finance/cash-transactions` projection. The API requires `finance.read`,
+derives tenant scope from the verified principal, joins only same-tenant cash
+accounts and optional business/vendor context, and returns bounded rows plus
+posted receipt/disbursement and workflow aggregates in exact cents. Next keeps
+the existing Cash page and direct-read path by default; the Core adapter is
+selected only by exact boolean plus UUID tenant allowlist and fails closed on
+Core error or an over-limit result. No UI redesign, browser write, Python
+transaction authority, hosted SQL, or data mutation was added.
+
+Validation: shared 25 files/214 tests; API 104 files/440 tests; Web 87 files/558
+tests; database 45 files/177 active tests with 4 files/141 integration/RLS
+tests skipped because local `DATABASE_URL` is unavailable; package-serial test
+run; typecheck; serial lint; production build 80/80 routes; Vercel spend guard;
+and diff check. Source SHA
+`ddadd2fa3f7c2451dcfc97f53529ba9edba1f3ee` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`fbfc7eb0-4820-4359-a42f-74b3c0351558` is `SUCCESS` with running instance
+`60e8b204-0920-4523-bc2d-aaaac70a1e55`, Dockerfile `apps/api/Dockerfile`,
+`/ready`, `node apps/api/dist/main.js`, and image digest
+`sha256:cd7e1770c08ddf3c5e458ed6299467fa96e59ea2a2701f021630599f25c26e88`.
+Live `/ready` and `/health` are 200 and unauthenticated
+`/v1/finance/cash-transactions` is 401. Supabase remains read-only at
+PostgreSQL 17 with 55/92 migrations applied, 37 missing, and one duplicate
+Purchase Order group of 12 records. Vercel Git remains disconnected; no
+Vercel build or deploy was started.
+
+## M3.95 Closed supplier payables read projection (2026-08-06)
+
+Added an original shared Finance Payables query/result contract and NestJS
+`GET /v1/finance/payables` projection. The API requires `finance.read`, derives
+tenant scope from the verified principal, restricts status/vendor/project/date
+filters, joins same-tenant Supplier Bill, Vendor, Purchase Order, and Project
+context, and computes posted disbursement allocations, exact-cent open
+balances, and aging totals server-side. Next keeps the existing Payables page
+and direct-read path by default; the Core adapter is selected only by exact
+boolean plus UUID tenant allowlist and fails closed on Core error or an
+over-limit result. No UI redesign, browser write, Python transaction
+authority, hosted SQL, or data mutation was added.
+
+Validation: shared 24 files/211 tests; API 102 files/435 tests; Web 87 files/556
+tests; database 45 files/177 active tests with 4 files/141 integration/RLS
+tests skipped because local `DATABASE_URL` is unavailable; package-serial test
+run; typecheck; serial lint; production build 80/80 routes; Vercel spend guard;
+and diff check. Source SHA
+`de0b7e1909ec127ec94ec044202f78f44ab8bd4a` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`dcb4579e-5bb5-4661-9896-fc1fd607bd92` is `SUCCESS`/`RUNNING` from
+`/railway.toml` with `apps/api/Dockerfile`, `/ready`, and
+`node apps/api/dist/main.js`; image digest is
+`sha256:117bcbcd52099412e319b8c6aa345daec0a2d6d0ba047c65c4e4987e200105d0`.
+Live `/ready` and `/health` are 200 and unauthenticated
+`/v1/finance/payables` is 401. Supabase remains read-only at PostgreSQL 17
+with 55/92 migrations applied, 37 missing, and one duplicate Purchase Order
+group of 12 records. Vercel Git remains disconnected, the spend guard is
+clear, and no Vercel build or deploy was started.
+
+## M3.94 Closed customer receivables read projection (2026-08-06)
+
+Added an original shared Finance Receivables query/result contract and NestJS
+`GET /v1/finance/receivables` projection. The API requires `finance.read`,
+derives tenant scope from the verified principal, restricts the default view to
+issued/partial/overdue invoices with issuance evidence, joins same-tenant
+Project and Business Account context, and computes posted receipt allocations,
+retention, exact-cent balances, and aging totals server-side. Next keeps the
+existing Receivables page and direct-read path by default; the Core adapter is
+selected only by exact boolean plus UUID tenant allowlist and fails closed on
+Core error or an over-limit result. No UI redesign, browser write, Python
+transaction authority, hosted SQL, or data mutation was added.
+
+Validation: shared 23 files/208 tests; API 100 files/430 tests; Web 87 files/554
+tests; database 45 files/177 active tests with 4 files/141 integration/RLS
+tests skipped because local `DATABASE_URL` is unavailable; package-serial test
+run; typecheck; serial lint; production build 80/80 routes; Vercel spend guard;
+and diff check. Source SHA
+`f298b61a215ea43753f627010444c488f0c46518` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`bfec3369-dee7-4ed9-9cb7-37f1e71fe9ab` is `SUCCESS`/`RUNNING` from
+`/railway.toml` with `apps/api/Dockerfile`, `/ready`, and
+`node apps/api/dist/main.js`; image digest is
+`sha256:e5aed31b20eebf7511208a23f90eacaabeca7d572c6c0c12ff3b1ff396b785a9`.
+Live `/ready` and `/health` are 200 and unauthenticated
+`/v1/finance/receivables` is 401. Supabase remains read-only at PostgreSQL 17
+with 55/92 migrations applied, 37 missing, and one duplicate Purchase Order
+group of 12 records. Vercel Git remains disconnected, the spend guard is
+clear, and no Vercel build or deploy was started.
+
+## M3.93 Closed Finance general-ledger read projection (2026-08-06)
+
+Added an original shared Finance Ledger query/result contract and NestJS
+`GET /v1/finance/ledger` read projection. The API requires `finance.read`,
+derives tenant scope and posted-entry visibility from the verified principal,
+keeps money as integer cents, bounds filters/pagination, and returns only
+same-tenant journal, account, project, customer, and vendor context. Next has a
+separate typed adapter, but the existing direct-read page remains the default;
+the Core path is selected only by an exact boolean plus UUID tenant allowlist
+and fails closed. No UI redesign, browser write, Python transaction authority,
+hosted SQL, or data mutation was added.
+
+Validation: shared 22 files/206 tests; API 98 files/425 tests; Web 87 files/552
+tests; package-serial test run; typecheck; serial lint; production build
+80/80 routes; Vercel spend guard; and diff check. Database package validation
+had 45 active files/177 active tests and 4 files/141 skipped integration/RLS
+tests because local `DATABASE_URL` is unavailable. Source SHA
+`c279f61555ba772579fb4091dd3d5884b48af273` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Final Railway deployment
+`ac9f3fee-0a54-4bf7-91db-2b6815a3638e` is `SUCCESS` and `RUNNING` from
+`/railway.toml` with `apps/api/Dockerfile`, `/ready`, and
+`node apps/api/dist/main.js`; image digest is
+`sha256:ea7036fbe9a11187434735df3662e6f6a84b21fb4d572720605319b747643fd5`.
+Live `/ready` and `/health` are 200 and unauthenticated
+`/v1/finance/ledger` is 401. Supabase remains read-only at PostgreSQL 17 with
+55/92 migrations applied, 37 missing, and one duplicate Purchase Order group
+of 12 records. Vercel Git remains disconnected, the spend guard is clear, and
+no Vercel build or deploy was started.
+
+## M3.92 Closed Cortex keyword read projection (2026-08-06)
+
+Added an original shared Cortex search contract and NestJS
+`GET /v1/cortex/search` projection. The API accepts only a bounded query and
+limit, derives tenant and role scope from the verified Supabase principal,
+requires `cortex.search`, filters the derived graph through a server-owned
+role scope, and validates a source-cited result. Both API and Next selectors
+are disabled by default with empty tenant allowlists. The Next route remains
+the compatibility path for unselected tenants; an enabled canary fails closed
+instead of falling back if Core is unavailable. No UI rewrite, browser table
+write, Python transaction authority, hosted SQL, or provider/AI spend was
+added.
+
+Validation: shared 21 files/203 tests; API 96 files/419 tests; Web 87 files/550
+tests; package-serial test run; typecheck; serial lint; production build
+80/80 routes; and diff check. Root `pnpm test` was also attempted in parallel
+and hit five existing HTTP-test timeouts from cross-package contention; the
+package-serial run passed. Source SHA
+`cd94e274a6a5cb19f715c73fa96fc717879644cc` is pushed to GitHub `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`e9e90045-f907-4f6c-ae49-5fa3dcff3cd9` reports `SUCCESS` with the API
+Dockerfile, `/ready` healthcheck, and `node apps/api/dist/main.js`; live
+`/ready` and `/health` are 200 and unauthenticated `/v1/cortex/search` is 401.
+Supabase remains read-only at PostgreSQL 17 with 55/92 migrations applied,
+37 missing, and one duplicate Purchase Order group of 12 records. Vercel
+Git remains disconnected, the spend guard is clear, and no Vercel build or
+deploy was started.
+
+## M3.91 Closed operational asset read projection (2026-08-06)
+
+Added an original NestJS `GET /v1/assets` read projection over the source
+operational asset register. The shared contract strictly bounds search, kind,
+status, sort, order, page, and limit; the service derives tenant scope from
+the verified principal, joins only the same-tenant Project context, applies
+`asset.read`, and validates the response before returning it. Reads are
+fail-closed behind `ERP_ASSET_READS_ENABLED=true` plus an exact tenant UUID
+allowlist. No browser adapter, direct table access, write command, hosted SQL,
+or UI change was added; defaults remain disabled/empty.
+
+Validation: focused API asset/config/auth suite 60/60; shared asset contract
+2/2; root `pnpm test` (API 93 files/410 tests; shared 20 files/200 tests);
+root typecheck; serial lint; production build 80/80 routes; and diff check.
+Source SHA `f11b1467b5d3def986b73411a54a6f501339c803` is pushed to GitHub
+`main` and `agent-02/third-code-erp-landing`. Railway deployment
+`f0358fdd-f927-465c-b930-ec68b0baf240` reports `SUCCESS` with
+`apps/api/Dockerfile` and `/ready`; live `/ready` and `/health` are 200 and
+unauthenticated `/v1/assets` is 401. The earlier Git-triggered Railway
+deployment was replaced by this controlled release. Vercel spend guard remains
+clear, Git deployment remains disabled, and no Vercel build/deploy was started.
+
+## M3.90 Operational asset register foundation (2026-08-06)
+
+Defined and implemented the first operational asset-register slice. The new
+tenant-scoped `assets` table has controlled kind/status values, tag and serial
+uniqueness, composite Project/creator foreign keys, date/state checks, the
+existing audit trigger, forced RLS, and service-role-only privileges. It is
+deliberately separate from the `asset` Ledger Account and does not authorize
+capitalization, depreciation, disposal, maintenance work orders, or browser
+writes. Added the domain glossary, boundary document, Drizzle exports, source
+migration, and a four-test migration contract. No API route, feature flag, UI,
+hosted SQL, or data mutation was added.
+
+Validation: focused migration contract 4/4; root `pnpm test`; root typecheck;
+serial lint; production build 80/80 routes; and `git diff --check`. The
+read-only Supabase planner reports PostgreSQL 17, 55/92 migrations applied,
+37 missing, and one duplicate Purchase Order group with 12 records; no hosted
+SQL was executed. Source SHA `5541840b1fe3ea24fdfef09ffac98b236af5aab5`
+is pushed to GitHub `main` and `agent-02/third-code-erp-landing`. Railway
+deployment `1a072ca0-9267-4a16-aad6-fdc2c7ba83ff` reports `SUCCESS` using
+`apps/api/Dockerfile`; live `/ready` and `/health` are 200 and unauthenticated
+PO creation remains 401. Vercel spend guard is clear, Git deployment remains
+disabled, and the retained production revision is unchanged.
+
+## M3.89 Purchase Order uniqueness-conflict guard (2026-08-06)
+
+Hardened the existing Nest Purchase Order command at the database boundary.
+Direct and grouped header inserts now translate only PostgreSQL `23505` errors
+for `ux_purchase_orders_tenant_po_number` into a fixed `409 ConflictException`;
+all other database failures still propagate unchanged. The response does not
+expose PO numbers, tenant identifiers, or raw database text. Added a focused
+service proof for the direct command; runtime flags and schema are unchanged.
+
+Validation: focused PO service 11/11; full API 90 files/402 tests; root
+`pnpm test`; root typecheck; serial lint; production build 80/80 routes; and
+`git diff --check`.
+Source SHA `354401d434f3556d39bed2600748822b755c6c69` is pushed to both GitHub
+refs. Railway deployment `b6149479-1856-4ba7-baac-3e8df22bd262` reports
+`SUCCESS` for Kurt Gavin's production service, using `apps/api/Dockerfile` and
+the `/ready` healthcheck; live `/ready` and `/health` are 200 and unauthenticated
+PO creation remains 401. The read-only Supabase duplicate planner still finds
+one tenant-scoped group with 12 records, so no hosted migration/data write was
+attempted. Vercel remains on `31c04942a93d` with no new build.
+
+## M3.88 Purchase Order creation boundary proof (2026-08-06)
+
+Expanded tests around existing Nest Purchase Order creation authority without
+changing runtime code, schema, flags, or UI. Coverage now proves capability and
+tenant denial before idempotency, exact centavo subtotal/VAT/withholding/total
+calculation, tenant-scoped line creation, bounded audit evidence, and exact
+replay without a second ERP insert or audit row.
+
+Validation: focused Purchase Order service 10/10; full API 90 files/401 tests;
+root typecheck; serial lint; production build 80/80 routes; and
+`git diff --check`. Source SHA `e4db66a8eb4eed15a68ced1b76d9cf26f7ce6462`
+is pushed to both GitHub refs. Railway deployment
+`a7fb39dc-94c9-4cf0-8ad4-b0c3b7f32aa3` reports `SUCCESS` with the API Dockerfile
+and `/ready` healthcheck; live readiness/health are 200 and unauthenticated
+Purchase Order creation is 401. No Supabase write occurred. Vercel remains on
+`31c04942a93d` with no new build.
+
+## M3.87 Protected cost-entry boundary proof (2026-08-06)
+
+Expanded the cost-entry authority test matrix without changing runtime code,
+database schema, flags, or visible UI. Tests now prove fail-closed behavior,
+role denial before idempotency, no membership cross-tenant denial, exact
+idempotent replay without a second audit row, and bounded audit diff fields
+with a one-way idempotency hash.
+
+Validation: focused cost-entry service 5/5; full API 90 files/397 tests; root
+typecheck; serial lint; production build 80/80 routes; and `git diff --check`.
+Source SHA `8be86304cf892fe645a3e3722d60275cdb01192a` is pushed to both GitHub
+refs. Controlled Railway deployment `61680ed6-7a13-4dc1-9bfb-d3c9c8b29352`
+reports `SUCCESS` with the API Dockerfile and `/ready` healthcheck; live
+readiness/health are 200 and unauthenticated cost-entry remains 401. No
+Supabase write occurred. Vercel remains on `31c04942a93d` with no new build.
+
+## M3.86 Project cost-entry creation authority (2026-08-06)
+
+Added the next incremental NestJS authority seam for manual project cost
+entries. `POST /v1/projects/:projectId/cost-entries` derives tenant and actor
+from the verified principal, requires `cost.record`, rechecks membership,
+locks the project and active Cost Code, commits exact integer centavos, writes
+semantic audit evidence, and stores/replays a tenant-scoped idempotency result
+inside one transaction. The browser action and form select this route only
+behind exact `ERP_COST_ENTRY_CREATE_WRITES_VIA_API=true` plus tenant allowlist;
+the direct compatibility path remains the default and no UI copy/layout was
+rewritten.
+
+Source migration `20260806100000_cost_entry_create_idempotency.sql` is source
+only.
+The hosted Supabase planner is read-only at PostgreSQL 17, 55 applied versus
+91 source migrations, 36 pending, status `review_required`. No hosted SQL,
+data, Storage, or Supabase provider write occurred. Source SHA `bcee984` and
+the reviewed docs are pushed to both GitHub refs. Controlled Railway deployment
+`76c27b43-47cd-4912-bca0-19a597190318` reports `SUCCESS` for SHA
+`f2457fd13bc7d7d1911e9f3bbb231cddb4de571b`; live `/ready` and `/health` are
+200, and the unauthenticated cost-entry command is 401. Vercel remains on
+retained revision `31c04942a93d`; no Vercel build or deployment occurred.
+
+Validation: API 90 files/393 tests; database 44 files/173 active tests with
+141 environment-guarded skips; shared-types 19 files/198 tests; Web 87
+files/546 tests; root typecheck; serial lint; production build 80/80 routes;
+Actionlint 1.7.12; Vercel spend guard 3/3; and `git diff --check`.
+
+## M3.85 Vercel spend guard (2026-08-06)
+
+Added a read-only repository guard that requires
+`apps/web/vercel.json.git.deploymentEnabled=false` and rejects Vercel deploy
+commands in package scripts or GitHub automation. CI runs the guard before its
+build job. This protects the billing boundary without calling Vercel or
+changing provider settings.
+
+Validation: spend-guard 3/3; actionlint 1.7.12; Web 87 files/545 tests; root
+typecheck; serial lint; production build 80/80 routes; and diff check. Source
+commit `9cfee695f75e66375c2578235d0f1544a987e3ab` is local pending push. No
+Railway build, Supabase write, or Vercel build occurred.
+
+## M3.84 Audit summary count polish (2026-08-06)
+
+The project Audit header now reports the authoritative filtered total rather
+than the current page length. The duplicate total/page helper line was removed,
+so empty, filtered, and paginated states have one consistent count surface.
+No authority, query, tenant predicate, migration, or provider setting changed.
+
+Validation: focused audit helper 3/3; full Web 87 files/545 tests; root
+typecheck; serial lint; production build 80/80 routes; and `git diff --check`.
+Source commit `5b1cc83ae387deeb83ca98c2ae96782d471dc46c` is local pending push.
+No Railway build, Supabase write, or Vercel build occurred.
+
+## M3.83 Clean-room runtime branding hardening (2026-08-05)
+
+Removed legacy comparison/provenance labels from shipped web/API/package
+source comments and replaced the E2E fallback identity with a Third Code
+identity. Expanded the recursive branding guard to reject `Rework` and
+`BuildOps` variants alongside ERPNext/Frappe/ABI Ops markers. The immutable
+timestamped Supabase migration filename remains internal migration provenance;
+it is outside runtime roots and was not renamed because migration identity is
+source-of-truth metadata.
+
+Validation: focused clean-room guard 1/1; full Web 87 files/545 tests; root
+typecheck; serial lint; production build 80/80 routes; diff check; and a
+runtime-source scan with zero matches outside the historical migration path.
+Source commit `1c5b8de1ef9b709278487acbf145797adb1f745e` is pushed to both
+target refs. Railway deployment `2e4c80f9-e243-46c3-acfa-6af417a448ee` is
+`SUCCESS` for the exact SHA, active with the API Dockerfile manifest. Live
+`/ready` and `/health` are 200; unauthenticated audit activity is 401. No
+Supabase write occurred. Vercel remains on retained revision `31c04942a93d`
+with no new build.
+
+## M3.82 Project audit filters and pagination (2026-08-05)
+
+The project Audit view now supports bounded action/entity filters and
+URL-addressable pagination. The same filter contract is applied to the legacy
+tenant-scoped read and to the closed Core adapter; Core remains selected only
+by its existing exact flag and tenant allowlist. Page size is 25, filters are
+allowlisted in the view, and the Core response supplies authoritative totals.
+No official mutation, migration, RLS policy, or default authority boundary
+changed.
+
+Validation: audit view helper 3/3; full Web suite 87 files/545 tests; root
+typecheck; serial lint; production build 80/80 routes; and `git diff --check`
+pass. Source commit `e98a03b` is pushed to `main` and
+`agent-02/third-code-erp-landing` as `kurtgav`.
+
+No Railway API build was needed because the change is outside watched API
+paths. No Supabase write occurred. Vercel Git/build activity remains disabled;
+read-only probes of the retained production revision `31c04942a93d` returned
+200 for `/`, `/dashboard`, `/robots.txt`, `/sitemap.xml`, `/api/health`, and
+`/api/ready`. The new source is not claimed live on Vercel.
+
+## M3.81 Core-gated project audit read adapter (2026-08-05)
+
+The existing project Audit page now has a closed-by-default adapter to the
+Nest `GET /v1/audit/activity` authority seam. When
+`ERP_AUDIT_ACTIVITY_READS_VIA_API=true` and the tenant is in the exact
+`ERP_AUDIT_ACTIVITY_READS_VIA_API_TENANT_IDS` allowlist, the page requires an
+`audit.read` role, sends bounded related entity IDs, and renders the API's
+redacted activity rows. Otherwise the legacy direct read remains unchanged;
+there is no silent fallback after Core selection. The API filter accepts one
+or many entity IDs with a maximum of 500 and returns at most 200 rows.
+
+Validation: focused shared audit contracts 3/3; focused API guard/activity
+14/14; web Core client 96/96; full web suite 86 files/542 tests; root
+typecheck; serial lint; production build with 80/80 routes; and `git diff
+--check` pass. Source commit `e8d993d5d23e34b1690781f083b7a0c1c5a0603a`
+is pushed to `main` and `agent-02/third-code-erp-landing` as `kurtgav`.
+
+Railway deployment `5a562db0-d682-4d99-adba-0adb20436bc8` is `SUCCESS` for
+that exact SHA. Live `/ready` and `/health` return 200 with PostgreSQL/Redis
+healthy; unauthenticated `/v1/audit/activity` returns 401. The file manifest
+uses `apps/api/Dockerfile` and `node apps/api/dist/main.js`; provider metadata
+still contains a stale `@buildops/web` build-command string. No provider
+setting was changed. No database migration or hosted write occurred;
+Supabase remains read-only at 55/90 with 35 source migrations pending.
+Vercel Git/build activity remains disabled for spend control.
+
+## M3.80 Tenant-scoped audit activity read (2026-08-05)
+
+Added an original NestJS read seam at `GET /v1/audit/activity` over the
+existing append-only `audit_log`. The endpoint uses the verified principal's
+tenant, bounded page/limit plus entity/action filters, strict shared Zod
+contracts, and the explicit `audit.read` capability (`owner`, `admin`, `pm`,
+`finance`). It returns entity/actor IDs and hash-chain metadata only; raw
+`diff` JSON never crosses the API boundary. No migration or browser write path
+changed.
+
+Validation: shared-types 18 files/195 tests; API 88 files/388 passed with 22
+environment-skipped integration tests in a single worker; focused guard/activity
+coverage 14/14; root typecheck; serial lint; Nest and Next production build;
+static migration verification; and `git diff --check` all pass. Source commit
+`1170b55d73b87ac3c932a3c85f267201564cd7bc` is pushed to `main` and
+`agent-02/third-code-erp-landing` under `kurtgav`.
+
+Railway deployment `e62e25b9-7e26-4b59-bb32-35ba524c6ae2` is `SUCCESS` for
+that exact SHA. Live `/ready` and `/health` return 200 with PostgreSQL/Redis
+healthy; unauthenticated `/v1/audit/activity` returns 401. The deployment's
+file manifest used `apps/api/Dockerfile` and `node apps/api/dist/main.js`, but
+provider metadata also reports a stale `pnpm --filter @buildops/web build`
+string. This is recorded for read-only provider follow-up; no provider setting
+was changed. Supabase remains read-only at 55/90 with 35 source migrations
+pending. Vercel Git/build activity remains disabled for spend control.
+
+## M3.79 Read-only clone reconciliation evidence (2026-08-05)
+
+Added `scripts/reconcile-database-clones.mjs`, a fail-closed comparison of a
+clean replay and a hosted target. Each connection runs one PostgreSQL
+`READ ONLY` transaction. It compares the migration ledger, public relations
+and RLS flags, policies, indexes, triggers, functions, table/routine grants,
+tenant row counts, financial totals, and audit-chain endpoints. It never
+executes migration, repair, or data-write SQL. Three pure helper tests pass.
+Source commit `cc0e1f7e14ef999cc550894e39c05938d7b0e326` contains the tool.
+
+Against the disposable replay and Supabase, both targets are PostgreSQL 17.
+The report is correctly `reconcile_required`: hosted is missing 35 migration
+versions, 26 relations, 114 indexes, two triggers, and source-side grants;
+financial totals differ in five measures and row/audit counts require owner
+mapping. These are evidence of drift, not permission to repair automatically.
+No Supabase, Storage, or Vercel state changed. Railway recorded one
+`SKIPPED` deployment `8812b0dd-a1bd-4040-925d-c83389447dc6` for docs commit
+`8d708193cae3454c7ee6c508ba000839f6115337`; no build or runtime mutation ran.
+
+## M3.78 Disposable PostgreSQL 17 + Redis replay gate (2026-08-05)
+
+The repository's self-hosted WSL lane now replays all 90 source migrations
+from an empty disposable database and runs the no-skips database plus API
+integration suites. PostgreSQL 17 and Redis 7.4.9 were verified; 108 database
+suites and 311 tests passed. Schema dumps before and after the suite are
+identical at SHA-256
+`0EFDA48EFE75700E980145569ABC2BF73CB2C58DA81F7F6124A14D2C1511AFD9`, and
+the replay ledger is exactly 90/90. Redis emitted only its documented
+memory-overcommit warning; no test or integrity check failed.
+
+The runtime fixture was corrected to assert the new Warehouse invariant:
+nonzero balances reject deactivation, while legacy inactive Warehouse
+evidence can still be reversed through the explicit reversal allowlist. This
+is test evidence only; no hosted migration or data was changed. Source commit
+`a13b2e21cb8c37b099b3c057764a132d8b8f8cc2` contains the test correction.
+The GitHub push at docs commit `303f2667044bb11537c16cc54f7280297c2d2913`
+caused exactly one Railway auto-deployment because `packages/database/**` is
+watched: `a7371ef0-0b16-45c6-b4fd-323f33ddf634` is `SUCCESS` for that exact
+SHA. Live `/ready` and `/health` are 200 with PostgreSQL/Redis healthy; no
+manual redeploy occurred.
+
+Hosted Supabase remains read-only at 55/90. The read-only verifier still
+reports the expected 35-migration ledger gap, two source-only command ledgers,
+and six source-only indexes. The clean replay therefore proves source
+reproducibility but does not authorize hosted apply, tenant canary, or
+rollback completion. Vercel remains untouched for spend control.
+
+## M3.77 Stock Movement posting/reversal authority (2026-08-05)
+
+Added a disabled-by-default Nest command boundary for Stock Movement posting
+and reversal: `POST /v1/inventory/stock-movements/:id/post` and
+`POST /v1/inventory/stock-movements/:id/reverse`. The API derives tenant and
+actor from the verified principal, requires the narrow
+`inventory.post_movement` capability (owner/admin/finance), locks membership
+and the tenant movement, claims a tenant-scoped request-hash idempotency key,
+calls the existing database posting/reversal functions inside one transaction,
+completes a forced-RLS service-only ledger, and writes semantic status-change
+audit evidence. Shared result contracts are strict and money/journal IDs stay
+exact. The Next Server Actions retain the legacy direct SQL path by default;
+the Core adapter and one-key-per-operation client retry behavior are selected
+only by exact opt-in flags. Visible layout and copy are unchanged.
+
+Validation: shared 17 files/193 tests; database 43 files/170 active tests and
+140 environment-skipped tests; changed API/inventory/auth coverage 26 tests;
+Web Core/action coverage 100 tests; root typecheck; serial TS-only lint; Nest
+and Web production builds; static migration verification; and read-only hosted
+release planning. The aggregate API suite still has one existing HTTP-contract
+bootstrap timeout under parallel resource contention, while the affected
+existing test passes standalone. Source commit
+`7f19315b967f81e120fa64bebc95ed338c4ad2cb` is pushed to both target refs under
+`kurtgav`. Railway deployment `5320235d-c242-4b3c-8b24-c8de9e1cd8cd` is
+`SUCCESS` for that exact SHA; live `/ready` and `/health` are 200 with
+PostgreSQL/Redis healthy, and both new unauthenticated workflow routes are
+401. Supabase remains read-only at 55/90 with 35 source migrations pending;
+the new workflow ledger/indexes are intentionally absent from hosted state.
+Vercel remains untouched for spend control.
+
+## M3.75 Stock Movement draft creation authority (2026-08-05)
+
+Moved draft Stock Movement creation behind a Nest command at
+`POST /v1/inventory/stock-movements`. The shared contract keeps signed
+micro-unit quantities and cent values exact; Nest rechecks tenant membership
+and `inventory.manage`, validates the same Warehouse/Project/Item/Cost Code
+invariants as the database, claims a tenant-scoped idempotency key, inserts
+the draft and lines in one transaction, and writes semantic audit evidence.
+Posting, reversal, and deletion remain the existing database-backed workflows.
+Next has a stable retry token and Core adapter, but both API and Next write
+flags remain disabled/empty; the legacy Server Action remains the default.
+Visible layout and copy are unchanged.
+
+Validation: shared 17/192; API 85 files/378 tests in an isolated single-worker
+run; Web 86 files/537 tests; database 42 files with 169 active tests and 140
+environment-skipped tests; root typecheck; serial TS-only lint; local Nest/Web
+production builds; focused command/transaction/client/migration tests; and
+`git diff --check`. Source commit
+`3b920185fdc438dfc5dd5972f738ea9e0a1d7e30` is pushed to both target refs under
+`kurtgav`. Railway deployment `e231fe1f-bd37-4e68-bef9-a2d26e0c1061` is
+`SUCCESS` for that exact SHA using `apps/api/Dockerfile`, `/ready`, and
+`node apps/api/dist/main.js`; live `/ready` and `/health` are 200 with
+PostgreSQL/Redis healthy and unauthenticated draft creation is 401.
+Supabase remains read-only at 55/89 with 34 source migrations pending;
+`20260805110000_stock_movement_create_idempotency.sql` is source-only and no
+SQL/data/Storage/provider setting changed. Vercel remains untouched for spend
+control.
+
+## M3.76 Hosted catalog verifier hardening (2026-08-05)
+
+Extended `scripts/verify-database-repro.mjs` to verify the new server-only
+`stock_movement_create_requests` ledger, forced RLS, absent anon/authenticated
+privileges, service-role authority, and all three idempotency indexes. Static
+source verification passes for all 89 migrations. The Supabase read-only run
+proves PostgreSQL 17 and all prior protected catalog, RLS-policy, index,
+trigger, and grant checks; only the expected 55/89 ledger gap plus the
+source-only ledger/indexes fail. Docker has no reachable local daemon, so no
+disposable replay or hosted SQL was attempted.
+
+Source commit `7c3f6c8e204f208cea43de2e1630c6f653005df8` is pushed to both
+target refs. The scripts-only change is outside Railway watch patterns;
+Vercel remains untouched.
+
+## M3.74 Stock Movement detail read authority (2026-08-05)
+
+Moved the Stock Movement detail page’s header, line, and immutable ledger
+reads into Nest at `GET /v1/inventory/stock-movements/:movementId`. The route
+requires `inventory.read`, repeats tenant predicates on every join, bounds
+lines/ledger evidence, normalizes timestamps to UTC ISO strings, and preserves
+all micro-unit quantities and cent values as exact strings. The Next detail
+page now uses an independently gated Core adapter while preserving the legacy
+tenant-scoped read and existing posting/reversal actions. Visible layout/copy
+is unchanged; no schema migration or hosted data write was made.
+
+Validation: shared 17/185; API 83 files/370 tests in an isolated single-worker
+run; Web 85 files/532 tests; database 41 files with 168 active tests and 140
+environment-skipped tests; root typecheck; serial TS-only lint; local Nest/Web
+production build; focused detail contract/service/controller/client tests; and
+`git diff --check`. Source commit
+`a693e15fafc4b4b5d2df4f3fd6bef6f72015d702` is pushed to both target refs under
+`kurtgav`. Railway deployment `a62a237e-2a82-4a40-88ca-2354011d3c9d` is
+`SUCCESS` for that exact SHA with the settled API Dockerfile, `/ready`
+healthcheck, and `node apps/api/dist/main.js`. Live `/ready` and `/health` are
+200 with PostgreSQL/Redis healthy; unauthenticated detail/list routes are 401.
+Supabase remains read-only at 55/88 with 33 source migrations pending; Vercel
+remains untouched for spend control. The detail read flag and tenant allowlist
+remain disabled/empty.
+
+## M3.73 Inventory Stock Movement register read (2026-08-05)
+
+Added a strict shared contract and Nest read authority for
+`GET /v1/inventory/stock-movements`. The verified principal supplies tenant
+scope; `inventory.read` is required; filters are explicit; page size is capped
+at 500; line counts are bounded; and posted value remains an exact bigint
+string in the API envelope. The Next Stock Movement register now uses a
+disabled-by-default Core adapter with an exact tenant allowlist and preserves
+the existing tenant-scoped server-side read as its compatibility path. Visible
+layout and copy are unchanged.
+
+Validation: shared 17/184; API 81 files/366 tests in an isolated single-worker
+run; Web 84 files/527 tests; database 41 files with 168 active tests and 140
+environment-skipped tests; root typecheck; serial TS-only lint; local
+production build (Nest plus Web); focused contract/service/controller/client
+tests; and `git diff --check`. A concurrent aggregate test invocation had
+three setup timeouts in existing HTTP contract files under resource
+contention; the isolated API run passed all 366 tests and is the release
+evidence.
+
+Source commit `9d3cf5ed179f24c0382ecd7b53b9b94f87812578` is pushed to both
+target refs under `kurtgav`. Railway deployment
+`4cbaefcf-82a4-4549-83f4-2bfa094fcebb` is `SUCCESS` for that exact SHA with
+the settled `apps/api/Dockerfile` manifest, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` is 200 with PostgreSQL and Redis
+healthy, `/health` is 200, and the unauthenticated Stock Movement route is
+401. Supabase remains read-only at 55/88 with 33 source migrations pending;
+the read-only planner found a linear prefix and no SQL was executed. Vercel
+remains untouched for spend control. The Stock Movement read flag and tenant
+allowlist remain disabled/empty.
+
+## M3.72 Inventory Warehouse deactivation integrity boundary (2026-08-05)
+
+The Nest Warehouse update command now rejects active-to-inactive transitions
+when the tenant-scoped stock ledger has a nonzero net quantity or value. The
+conflict is raised before the update or semantic audit, preserving the existing
+compatibility path while making the API boundary explicit. A forward-only
+Supabase migration adds the matching database trigger and serializes ledger
+writes against Warehouse state; reversal events remain allowed after closeout.
+The migration is source-only and has not been applied to the hosted project.
+No UI layout/copy change was made.
+
+Validation: shared 17/183; API 79 files/362 tests; Web 83 files/523 tests;
+database 41 files with 168 active tests and 140 skipped without an explicit
+`DATABASE_URL`; focused update/controller/migration-contract tests; all
+typechecks; serial root lint; Nest build; Web 80-route production build; and
+`git diff --check`. Source commit
+`f391f49d0aa002101649afa79dfc75872120df72` is pushed to both target refs
+under `kurtgav`. Railway deployment
+`48cc2b18-1c5d-45eb-b59d-b54571fe673c` is `SUCCESS` for that exact SHA with
+the settled `apps/api/Dockerfile` manifest, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` are 200 with
+PostgreSQL and Redis healthy; unauthenticated update and closeout requests are
+401. Supabase remains read-only at 55/88 with 33 source migrations pending;
+Vercel remains untouched for spend control. Warehouse update/read gates and
+all write flags remain disabled.
+
+## M3.71 Inventory Warehouse closeout/readiness read (2026-08-05)
+
+Added a strict `GET /v1/inventory/warehouses/:warehouseId/closeout` Nest read
+that reports tenant-scoped net quantity/value from the stock ledger and an
+explicit `ready`, `already_inactive`, or `nonzero_balance` disposition. The
+transaction rechecks membership and `inventory.manage`, locks the tenant
+membership and Warehouse rows for share, applies repeated tenant and
+Warehouse predicates to the ledger aggregate, and never mutates ERP state.
+The web adapter and exact tenant gate exist but remain disabled by default.
+No schema migration, hosted data write, or UI layout/copy change was made.
+
+Validation: shared 17 files/183 tests; API 79 files/360 tests; Web 83
+files/523 tests; focused closeout contract, service, controller, and client
+tests; shared/API/Web typecheck; serial root lint; Nest build; Web 80-route
+production build; and `git diff --check`. Source commit
+`425c66a757ffa66cd4dfefca2079ebfd61fb3bbf` is pushed to both target refs
+under `kurtgav`. Railway deployment
+`1ee3706a-5ef3-4004-9708-ac3efcad5483` is `SUCCESS` for that exact SHA with
+the settled `apps/api/Dockerfile` manifest, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` are 200 with
+PostgreSQL and Redis healthy; unauthenticated closeout GET returns 401.
+Supabase remains read-only at 55/87; Vercel remains untouched for spend
+control. The closeout read gate and all Warehouse write/canary flags remain
+disabled.
+
+## M3.70 Inventory Warehouse update/deactivation command boundary (2026-08-05)
+
+Added a strict `PATCH /v1/inventory/warehouses/:warehouseId` Nest command for
+tenant-owned Warehouse name and active-state changes. Code and project scope
+are intentionally excluded from the command because the existing database
+guards make Warehouse identity immutable after stock receipt or movement
+evidence. The transaction rechecks membership and `inventory.manage`, locks
+the tenant Warehouse, performs an idempotent state update, and writes a
+semantic before/after audit record. The Next Server Action and adapter use the
+same exact-flag plus tenant-allowlist gate; direct server-side compatibility
+behavior remains available by default. No schema migration or UI layout/copy
+change was made.
+
+Validation: shared 17 files/182 tests; API 77 files/355 tests; Web 82
+files/521 tests; focused Warehouse create/update contract, service,
+controller, client, and action tests; shared/API/Web typecheck; serial root
+lint; Nest build; Web 80-route production build; and `git diff --check`.
+Source commit `4737fec37f97360f8c3ffe6bc98f0bdc78a4cdf5` is pushed to both
+target refs under `kurtgav`. Railway deployment
+`382d281a-b022-4296-8b9d-ee84a07c80b1` is `SUCCESS` for that exact SHA with
+the settled `apps/api/Dockerfile` manifest, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` are 200 with
+PostgreSQL and Redis healthy; unauthenticated Warehouse POST and PATCH both
+return 401. Supabase remains read-only at 55/87; Vercel remains untouched for
+spend control. The Warehouse update canary and all new write flags remain
+disabled.
+
+## M3.69 Inventory Warehouse creation command boundary (2026-08-05)
+
+Added a strict `POST /v1/inventory/warehouses` Nest command for tenant-owned
+Warehouse setup. The transaction rechecks membership and `inventory.manage`,
+locks the actor membership, verifies an optional project belongs to the same
+tenant, enforces tenant/code uniqueness, inserts only validated fields, and
+writes a semantic audit record. The Next inventory Server Action delegates
+only when `ERP_INVENTORY_WAREHOUSE_CREATE_VIA_API=true` and its exact tenant
+allowlist matches; direct database insertion remains the default compatibility
+path. No schema migration or UI layout/copy change was made.
+
+Validation: shared 17 files/181 tests; API 75 files/351 tests; Web 81
+files/518 tests; focused Warehouse contract/service/controller/client/action
+tests; shared/API/Web typecheck; serial root lint; Nest build; Web 80-route
+production build; and `git diff --check`. Source commit
+`7b0ccf1d9dda19a61d8f2c26ead42b562b6f2534` is pushed to both target refs under
+`kurtgav`. Railway deployment `fbbda042-9b51-4c21-a518-a6e4c2fb2752` is
+`SUCCESS` for that exact SHA with the settled `apps/api/Dockerfile` manifest,
+`/ready` healthcheck, and `node apps/api/dist/main.js`. Live `/ready` and
+`/health` are 200 with PostgreSQL and Redis healthy; unauthenticated `POST
+/v1/inventory/warehouses` returns 401. Supabase remains read-only at 55/87;
+Vercel remains untouched for spend control. The Warehouse canary and all new
+write flags remain disabled.
+
+## M3.68 Inventory UOM creation command boundary (2026-08-05)
+
+Added a strict `POST /v1/inventory/uoms` Nest command for tenant-owned Unit of
+Measure setup. The transaction rechecks membership and `inventory.manage`,
+locks the actor membership, enforces tenant/code uniqueness, inserts only
+validated code/name/decimal-place fields, and writes a semantic audit record.
+The result carries tenant identity and database timestamps. The Next inventory
+Server Action delegates only when `ERP_INVENTORY_UOM_CREATE_VIA_API=true` and
+its exact tenant allowlist matches; direct database insertion remains default.
+No schema migration or UI layout/copy change was made.
+
+Validation: shared 17 files/180 tests; API 73 files/346 tests; Web 80
+files/515 tests; focused UOM contract/service/controller/client/action tests;
+shared/API/Web typecheck; serial root lint; Nest build; Web 80-route
+production build; and `git diff --check`. Source commit
+`ae6d7992ebdfcb0439f181ecdcd72b9cb8673c2b` is pushed to both target refs
+under `kurtgav`. Railway deployment
+`5ffd0087-7951-4111-92b6-72293cadef14` is `SUCCESS` for that exact SHA with
+the settled `apps/api/Dockerfile` manifest, `/ready` healthcheck, and
+`node apps/api/dist/main.js`. Live `/ready` and `/health` are 200 with
+PostgreSQL and Redis healthy; unauthenticated `POST /v1/inventory/uoms`
+returns 401. Supabase remains read-only at 55/87; Vercel remains untouched
+for spend control. The UOM canary and all new write flags remain disabled.
+
+## M3.67 Inventory item policy command boundary (2026-08-05)
+
+Added the smallest inventory setup write seam: Nest
+`PATCH /v1/inventory/items/:materialItemId/configuration` accepts only a base
+UOM and tracked flag. The transaction rechecks tenant membership and
+`inventory.manage`, locks the tenant-scoped active UOM and material item,
+preserves the database stock-identity trigger, and writes a semantic audit
+diff. Repeating the same state is a no-op, so the command is idempotent as a
+state setter without adding a new request ledger table.
+
+The Next server action delegates only when
+`ERP_INVENTORY_ITEM_CONFIG_VIA_API=true` and its exact tenant allowlist
+matches; the existing direct database path remains default. New API/client
+contracts, route/service/pipe tests, action/client tests, and fail-closed
+environment flags are in source. UI copy/layout and hosted schema are
+unchanged.
+
+Validation: shared 17 files/179 tests; API 71 files/341 tests; Web 79
+files/512 tests; focused command/client/action tests; shared/API/Web
+typecheck; serial root lint; Nest build; Web 80-route production build; and
+`git diff --check`. No Supabase SQL/data repair, Vercel build/deploy, or
+provider setting changed. Source commit
+`8a0c059826aabf3b0711277c68f1b182db46aa25` is pushed to both
+`origin/main` and `origin/agent-02/third-code-erp-landing` under `kurtgav`.
+Railway deployment `19b808c7-f07c-40f3-a268-df35aaf86071` is `SUCCESS` for
+that exact SHA with the effective `apps/api/Dockerfile` manifest, healthcheck
+`/ready`, and `node apps/api/dist/main.js`. Live `/ready` and `/health` are
+200 with PostgreSQL and Redis healthy; unauthenticated
+`/v1/inventory/summary` is 401; startup logs map
+`PATCH /v1/inventory/items/:materialItemId/configuration`. Supabase remains
+read-only at 55/87 and Vercel remains untouched for spend control.
+
+The item-policy canary and all new write flags remain disabled; source and
+basic production readiness are not protected tenant browser, rollback, or
+hosted-ledger proof.
+
+## M3.66 Inventory summary authority seam and Supabase ledger refresh (2026-08-05)
+
+The database release planner was rerun against Supabase project
+`aqqrtkmtcsfkbyyqxowv`. PostgreSQL 17 reports 55 hosted migration rows versus
+87 ordered repository migrations: an exact prefix, 32 pending suffix versions,
+no unexpected or out-of-order versions, and no data-rewrite finding. The
+suffix contains 26 `DROP CONSTRAINT IF EXISTS` findings and six explicit
+transaction-control findings. No SQL, hosted migration, data, Storage object,
+provider setting, or Vercel build/deploy changed. The ledger remains blocked
+pending supported recovery/export and disposable replay evidence.
+
+Implemented `GET /v1/inventory/summary` in the Nest modular monolith with
+`inventory.read`, verified-principal tenant scope, repeated tenant predicates,
+bounded setup/balance collections, and exact bigint quantity/value strings. The
+Next inventory page now consumes a server-only adapter only when
+`ERP_INVENTORY_SUMMARY_READS_VIA_API=true` and its exact tenant allowlist
+matches; the direct database path remains default. The adapter rejects tenant
+drift, truncation, and unsafe display numbers. UI copy/layout were preserved.
+
+Validation: shared 17 files/178 tests; API 69 files/336 tests in the serial
+run; Web 78 files/509 tests; focused API 15/15 and Web 90/90; shared/API/Web
+typecheck; serial root lint; Nest build; Web 80/80 production build; and
+`git diff --check`. No Supabase SQL/data repair, hosted migration, Vercel
+build/deploy, or provider setting changed.
+
+Source commit `4da9772516f80255a2cb4adbe376d4ca733513e4` is pushed to both
+`origin/main` and `origin/agent-02/third-code-erp-landing` under `kurtgav`.
+Railway deployment `6ba50aba-0f58-4f02-b7b4-655b3e71a70f` is `SUCCESS` for
+that exact SHA using `apps/api/Dockerfile`; live `/ready` and `/health` are
+200, unauthenticated `/v1/inventory/summary` is 401, and startup logs map the
+route. The docs-only follow-up is outside the API watch patterns and must not
+trigger a paid backend rebuild. Verified Railway deployment
+`a36389c9-a03d-4ee0-95fd-f15c6878f086` for the docs commit is `SKIPPED` with
+reason `No changes to watched files`; Vercel and Supabase remain untouched.
+
+Next action: keep the inventory canary disabled, preserve the Vercel spend
+guard, and obtain protected browser/rollback evidence before any tenant
+cutover. The 55/87 migration ledger remains read-only.
+
+## M3.65 Nest CRM opportunity detail read handoff (source + Railway verified, 2026-08-05)
+
+Added a bounded `GET /v1/crm/opportunities/:opportunityId` contract for the
+opportunity detail graph. Nest requires the explicit `opportunity.read`
+capability, derives tenant scope from the verified principal, repeats tenant
+predicates on account/project joins and every progress aggregate, and returns
+strict opportunity plus progress data (latest PPRF, latest inspection, design
+counts, and open change-request count). The opportunity detail page can adopt
+the adapter only when `ERP_OPPORTUNITY_READS_VIA_API=true` and its exact tenant
+UUID allowlist matches; the existing direct server-side path remains the
+default and is now tenant-scoped at every join/child query. UI copy and layout
+were preserved.
+
+Changed files: shared opportunity schemas/tests and export; Nest CRM
+capability, controller, service, service tests, and e2e contract; Next core
+client, opportunity adapter/tests, opportunity query tests, detail page handoff,
+and environment examples. Validation: shared 17 files/176 tests; API 67
+files/332 tests in the serial bounded run (the initial concurrent run had two
+unrelated 5-second timeouts); Web 77 files/504 tests; focused Web adapter/query
+89/89; database 41 files with 166 passed and 140 expected integration/RLS/Cortex
+skips; workspace typecheck/lint; API build; Web 80/80 production build; and
+`git diff --check`. No Supabase SQL/data repair, hosted migration, Vercel
+build/deploy, or provider setting changed.
+
+Commit `3eb9e69e` is pushed to `main` and
+`agent-02/third-code-erp-landing` under `kurtgav`. Railway deployment
+`e51c6641-5b68-443a-ac16-81bf3912531d` for that exact SHA is `SUCCESS` with
+`apps/api/Dockerfile`, `/ready`, and `node apps/api/dist/main.js`; live
+`/ready` is 200 with PostgreSQL and Redis, `/health` is 200, and unauthenticated
+opportunity detail access is 401. Startup logs map the new route. Supabase
+`aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY`, read-only at 55 hosted versus 87
+source migrations; all inspected public tables have RLS enabled. Vercel remains
+Git-disabled with zero deployments in the spend-audit window.
+
+Next action: keep `ERP_OPPORTUNITY_READS_VIA_API=false` and its tenant allowlist
+empty. Reconcile the 32-migration hosted/source ledger only through a supported
+backup/export, dependency and audit export, owner-approved mapping, disposable
+PostgreSQL 17 replay, and an explicit spend cap before any hosted data action or
+protected opportunity canary.
+
+## M3.64 Nest CRM KYC queue read handoff (source + Railway verified, 2026-08-04)
+
+Added a bounded `GET /v1/crm/accounts/kyc-queue` contract for pending KYC
+accounts. Nest requires the explicit `account.kyc_review` capability, derives
+tenant scope from the verified principal, repeats the tenant predicate on the
+account and artifact join, caps rows at 200, returns a deterministic order,
+and reports a separate tenant-scoped total. The KYC queue page now reads
+through a strict adapter only when `ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API=true`
+and its exact tenant UUID allowlist matches; direct server-side behavior
+remains the default. Wrong-tenant API rows fail closed.
+
+Changed files: shared KYC queue schemas/tests; Nest CRM capability,
+controller, service, service tests, and e2e contract; Next core client,
+account query adapter/tests, KYC queue page, and environment examples.
+Validation: shared 16/174; API 65/328 (serial bounded Vitest run); Web 76/497;
+focused Web adapter/query 89/89; database 41 files with 166 passed and 140
+expected integration/RLS/Cortex skips; workspace typecheck/lint; API build;
+Web 80/80 production build; `git diff --check`. No hosted migration/data
+repair, Supabase mutation, Vercel build/deploy, or provider setting changed.
+
+Commit `5a5a35a3` is pushed to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`fbf64a41-e2df-4ec6-8fd5-e8e3060edf28` for that exact SHA is `SUCCESS` using
+`apps/api/Dockerfile`; live `/ready` is 200 with PostgreSQL and Redis,
+`/health` is 200, and unauthenticated KYC queue access is 401. GitHub's
+exact API status is `success`. Supabase `aqqrtkmtcsfkbyyqxowv` remains
+`ACTIVE_HEALTHY`, read-only at 55 hosted migrations versus 87 source
+migrations. Vercel project `prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` remains at zero
+deployments in the spend-audit window.
+
+Next action: keep `ERP_ACCOUNT_KYC_QUEUE_READS_VIA_API=false` and its tenant
+allowlist empty. Obtain the supported Supabase backup/export,
+dependent/audit export, owner-approved duplicate-PO mapping, disposable
+PostgreSQL 17 replay, protected browser evidence, and explicit spend cap
+before any protected KYC canary or hosted data action.
+
+## M3.63 Nest CRM account detail read handoff (source + Railway verified, 2026-08-04)
+
+Added a bounded `GET /v1/crm/accounts/:accountId` detail graph with explicit
+`account.read` authorization, verified-principal tenant scope, and repeated
+tenant predicates across contacts, KYC artifacts/documents, opportunities, and
+projects. Child collections are capped at 200 rows; opportunity totals use a
+separate tenant-scoped count. The account detail page can adopt the contract
+only through the existing `ERP_ACCOUNT_READS_VIA_API=true` flag plus its exact
+tenant UUID allowlist; direct server-side queries remain the default. The Next
+adapter validates every nested tenant/account identity and fails closed.
+
+Changed files: shared account detail schemas/tests; Nest CRM controller,
+service, service tests, and e2e contract; Next core client, account query
+adapter/tests, and account detail page handoff. Validation: shared types
+16/172; API 65/326 (serial bounded Vitest run); Web 76/492; workspace
+typecheck/lint; API build; Web 80/80 production build; `git diff --check`.
+The first concurrent full-suite run hit one unrelated 5-second RFQ controller
+timeout; serial API rerun passed all 326 tests. No hosted migration/data
+repair, Supabase mutation, Vercel build/deploy, or provider setting changed.
+
+Commit `c4fb282f` is pushed to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`abedf9fd-1785-4b8f-b4f7-00436466b708` for that exact SHA is `SUCCESS` using
+`apps/api/Dockerfile`; deployment logs show the detail route, live `/ready` is
+200 with PostgreSQL and Redis, `/health` is 200, and unauthenticated
+collection/detail reads are 401. GitHub's exact API status is `success`.
+Supabase `aqqrtkmtcsfkbyyqxowv` remains `ACTIVE_HEALTHY` at 55 hosted
+migrations versus 87 source migrations. Vercel project
+`prj_5yZX5MTJdXZYWRIeS50jVhmjqzdb` has zero deployments in the spend-audit
+window.
+
+Next action: keep `ERP_ACCOUNT_READS_VIA_API=false` and its tenant allowlist
+empty. Obtain the supported Supabase backup/export, dependent/audit export,
+owner-approved duplicate-PO mapping, and disposable PostgreSQL 17 replay
+before any protected account-read canary or hosted data action.
+
+## M3.62 Nest CRM account collection read handoff (source + Railway verified, 2026-08-04)
+
+Added a bounded `GET /v1/crm/accounts` read contract with explicit
+`account.read` authorization, verified-principal tenant scope, search,
+industry/KYC filters, allowlisted sort/order, deterministic pagination, and
+opportunity counts. The Accounts page can adopt it only when
+`ERP_ACCOUNT_READS_VIA_API=true` and the tenant UUID is allowlisted; the
+existing direct server-side query remains the default. The Next adapter rejects
+wrong-tenant rows and pagination drift instead of silently falling back.
+
+Changed files: shared account list schemas/tests, Nest CRM pipe/controller/
+service/tests, capability map, Next core client/account query adapter/tests,
+Accounts page handoff, environment examples/docs. Validation: shared types
+16/170; API 65/323; Web 76/488; workspace lint/typecheck; API build; Web
+80/80 production build; `git diff --check`. No hosted migration, Supabase
+mutation, Vercel build/deploy, or provider setting changed.
+
+Commit `eae78a4e` is pushed to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`6ead24ac-47d0-4b16-bb6f-0732d4ef2c56` for that exact SHA is `SUCCESS` using
+`apps/api/Dockerfile`; startup logs show `CrmModule` and
+`GET /v1/crm/accounts`, live `/ready` is 200 with PostgreSQL and Redis, live
+`/health` is 200, and unauthenticated account/project reads are 401. GitHub's
+exact API status is `success`.
+
+Next action: keep `ERP_ACCOUNT_READS_VIA_API=false` and its tenant allowlist
+empty. Obtain the supported Supabase backup/export, dependent/audit export,
+owner-approved duplicate-PO mapping, and disposable PostgreSQL 17 replay
+before any protected account-read canary or hosted data action.
+
+## M3.61 Nest project update audit hardening (source + Railway verified, 2026-08-04)
+
+The existing canary-gated `PATCH /v1/projects/:projectId` path now records a
+semantic, tenant-scoped before/after audit entry inside the same PostgreSQL
+transaction as the optimistic-concurrency update. Its shared update result is
+also parsed at runtime before returning to the transport. The default Next
+direct-write path and all canary flags remain unchanged.
+
+Validation: focused project service 12/12; isolated previously timing-sensitive
+controller specs 3/3 and 8/8; full API 62/318; workspace lint/typecheck; Nest
+production build; `git diff --check`. Commit `7332902e` is pushed to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`21832e50-5f29-4471-979d-28bf90afbb48` for that exact SHA is `SUCCESS`; startup
+logs show the API initialized, `/ready` and `/health` are 200, and unauthenticated
+GET project read/update boundaries are 401. GitHub's exact API status is
+`success`. Supabase remains read-only at 55/87; Vercel has zero deployments in
+the spend-audit window and no build was triggered.
+
+Next action: keep `ERP_PROJECT_WRITES_VIA_API=false` and its tenant allowlist
+empty until the protected canary and supported Supabase duplicate-PO replay
+gates clear.
+
+## M3.60 Nest project collection read contract (source + Railway verified, 2026-08-04)
+
+Added a bounded `GET /v1/projects` contract with explicit `project.read`
+authorization, verified-principal tenant scope, search/status/type filters,
+stable sorting, and capped page/limit pagination. The Projects page can use
+it only when `ERP_PROJECT_LISTS_VIA_API=true` and its tenant is allowlisted;
+the default direct query remains unchanged. The Next adapter rejects wrong
+tenant rows or page/limit drift instead of falling back silently.
+
+Changed files: shared project list schemas/tests, Nest list pipe/controller/
+service/tests, Next core client/project query adapter/tests, environment
+examples/documentation. Validation: API 62 files/318 tests, shared types
+15/167, Web 75/484, API/Web typecheck, API build, Web 80/80 production build,
+root lint, and `git diff --check`. Commit `78ad5f63` is pushed to `main` and
+`agent-02/third-code-erp-landing`. Railway deployment
+`0e553e93-cb82-448f-8290-06956e89767d` for that exact SHA is `SUCCESS`; startup
+logs show the list route, `/ready` and `/health` are 200, and unauthenticated
+`GET /v1/projects` is 401. GitHub's exact API status is `success`. Supabase is
+read-only at 55 applied migrations (source 87); Vercel has zero deployments
+since the spend-audit timestamp and no build was triggered.
+
+Next action: keep `ERP_PROJECT_LISTS_VIA_API=false` and its tenant allowlist
+empty. Obtain the supported Supabase backup/export, dependent/audit export,
+owner-approved duplicate-PO mapping, and disposable PostgreSQL 17 replay
+before any protected tenant canary or hosted migration/data action.
+
+## M3.59 Railway Nest Redis module wiring (source fix, 2026-08-04)
+
+The first M3.58 Railway deployment built successfully but failed its `/ready`
+health check because `ProviderQuotaService` lived in a child module while the
+Redis token was declared only in `AppModule`. Redis is now one global,
+explicitly exported Nest module imported by both the root application and the
+provider-quota module. This preserves one client/lifecycle and makes the
+quota/health dependency resolvable at runtime.
+
+Changed files: `apps/api/src/observability/redis.module.ts`, its wiring test,
+`provider-quota.module.ts`, and `app.module.ts`. Focused Redis/quota tests pass
+5/5; full API passes 61 files/313 tests; root lint, API typecheck, and Nest
+build pass. Corrective source `d7f62faf` is pushed to both target branches;
+Railway deployment `5f3e4a02` is `SUCCESS`, startup logs show both modules
+initialized, GitHub's exact API check is `success`, and live `/ready` plus
+`/health` return 200. No database, Railway setting, Supabase migration, or
+Vercel build/deploy changed.
+
+Next action: keep the Nest read canary and provider quota flags false/empty;
+obtain the supported Supabase backup/export and duplicate-PO mapping before a
+disposable replay or any hosted migration/data action.
+
+## M3.58 Nest project detail read contract (source-only, 2026-08-04)
+
+Added a tenant- and role-authorized `GET /v1/projects/:id` contract to the Nest
+modular monolith. The response is a shared, camelCase read model with explicit
+tenant, account, creator, and timestamp fields. The project detail page can use
+the contract only when `ERP_PROJECT_READS_VIA_API=true` and its tenant UUID is
+allowlisted; the default path remains the existing server-side tenant-scoped
+read. The adapter rejects a mismatched project or tenant instead of falling
+back across the authority boundary.
+
+Changed files: Nest project controller/service/capability map and tests,
+shared project read schema, Next core client/project query adapter/detail page,
+environment examples, and environment documentation. Validation: focused API
+26/26, shared types 4/4, Web core/project reads 77/77, full Web 75/479,
+shared types 15/164, API typecheck/build, Web typecheck/build, workspace lint,
+and `git diff --check`. A concurrent full API run had one existing procurement
+controller timeout (311/312); isolated rerun passed 8/8. No hosted SQL/data,
+Storage, provider setting, Railway setting, or Vercel build changed.
+
+Next action: keep the read flag false/empty. Obtain the supported Supabase
+backup/export and owner-approved duplicate-PO mapping, then run the disposable
+PostgreSQL 17 replay before any hosted migration or tenant canary.
+
+## M3.57 Stale Supabase refresh-token recovery (source-only, 2026-08-04)
+
+Vercel read-only runtime errors showed two /middleware failures with
+refresh_token_not_found. The Next middleware now recognizes only that
+recoverable Supabase auth error, removes chunked sb-*-auth-token cookies,
+continues the request as anonymous, and preserves the normal protected-route
+redirect. Unrelated provider/runtime errors still throw; no protected route is
+made public.
+
+Changed files: apps/web/src/middleware.ts,
+apps/web/src/lib/supabase-session-recovery.ts and tests, plus middleware
+regression tests. Validation: Web 75 files/476 tests, focused recovery 5/5,
+Web typecheck, git diff --check, and 80/80-route production build pass. No
+Vercel build, Supabase SQL/data, Storage, provider setting, or Railway setting
+changed.
+
+Next action remains supported duplicate-PO backup/export, owner mapping, and
+disposable PostgreSQL 17 replay. Keep Vercel spend protection closed.
+
+## M3.54 Cortex sources in the command palette (source-only, 2026-08-04)
+
+The authenticated command palette now has an explicit Ask Cortex mode that
+searches the existing tenant- and role-scoped Cortex graph after two or more
+characters. Actionable source rows open canonical ERP links; the separate Ask
+Cortex row only stages a draft handoff after an explicit click or Enter. The
+default Search records mode keeps its existing request path and cost profile.
+
+Changed files: `apps/web/src/components/nav/command-palette.tsx`,
+`apps/web/src/lib/cortex/command-palette-search.ts`, its test, and the
+interaction contract at
+`docs/research/components/command-palette-cortex-sources.spec.md`.
+
+Validation: focused Cortex/palette tests pass 14/14; full Web passes 72
+files/465 tests; workspace lint/typecheck and the 80/80-route production build
+pass. Source search is debounced, abortable, registry-safe, read-only, and
+provider-free. Authenticated browser proof remains deferred without a real
+tenant credential; the unauthenticated boundary still fails closed.
+
+Source `6c975261122c635668a4b80795549cb06fb63843` is pushed to both target
+branches as `kurtgav`. GitHub's exact `ERP - Third Code ERP API` check is
+`success`; Railway `/ready` and `/health` are healthy. Vercel Git deployment
+remains disabled and the read-only inventory has zero deployments since
+`1785840000000`; Supabase remains `ACTIVE_HEALTHY` at 55 applied migrations.
+No Vercel build, hosted SQL/data, Storage, or Railway setting changed.
+
+Next action remains the supported duplicate-PO backup/export and owner-
+approved canonical mapping before any hosted migration or spend-approved
+frontend release.
+
+## M3.55 Provider-backed burst cost guard (source-only, 2026-08-04)
+
+Added route-specific edge burst policies without changing API payloads or
+provider configuration. General traffic keeps its existing 1,000/minute
+authenticated and 100/minute anonymous policy. Cortex chat, AI chat, and
+similar-item retrieval share a 20/minute authenticated provider bucket (10
+anonymous); Cortex embedding uses 6 authenticated (2 anonymous). The helper
+proves allow/block/window-reset behavior. Limits are per edge instance, not a
+global quota; Redis-backed accounting remains a backend migration item.
+
+Changed files: `apps/web/src/middleware.ts`,
+`apps/web/src/lib/request-rate-limit.ts`, and its test. Validation: focused
+rate-limit tests 5/5; full Web passes 72 files/468 tests; workspace lint,
+typecheck, `git diff --check`, and 80/80-route production build pass. No UI,
+DB schema, hosted data, API payload, or provider setting changed.
+
+Source `4d190dfdf01c753812f7d5924f8c269c8a9de8bd` is pushed to both target
+branches as `kurtgav`. Vercel Git deployment remains disabled; no deployment
+was triggered. Supabase remains `ACTIVE_HEALTHY` at 55 applied migrations and
+Railway remains readiness/health green.
+
+Next action remains supported duplicate-PO backup/export plus owner-approved
+mapping and disposable replay. Replace per-instance burst guard with shared
+Redis accounting only as a separately tested Nest/backend milestone.
+
+## M3.56 Shared Redis provider quota gateway (source-only, 2026-08-04)
+
+Added an authenticated NestJS `POST /v1/provider-quotas/consume` seam. Nest
+derives tenant and user scope from the verified Supabase principal, applies
+fixed chat (20/minute) or embedding (6/minute) policy, and atomically accounts
+short bursts with a Redis Lua script. Redis keys hash tenant/user identity and
+carry no business payload. The new capability grants no ERP write authority.
+
+Next provider routes call the gateway only when the exact
+`ERP_PROVIDER_QUOTA_VIA_API=true` flag and tenant UUID allowlist match. A
+failed enabled gateway fails closed before external model/embedding work;
+default flag/allowlist remain disabled, preserving current API payloads and
+local edge protection for every other tenant.
+
+Changed files: Nest provider-quota module/controller/service/tests, capability
+map and AppModule; Next core client/provider-quota helper/tests; four provider
+route handlers; environment and migration documentation; and the live landing
+behavior/spec artifacts. Validation: API 60 files/308 tests, Web 73 files/471
+tests, focused quota tests 7/7 API and 3/3 Web, workspace lint/typecheck,
+`git diff --check`, API build, and Web 80/80-route production build pass.
+No Vercel build, hosted DB/schema/data, Storage, provider setting, or Next
+quota canary changed.
+
+Next action remains supported duplicate-PO backup/export, owner mapping, and
+disposable PostgreSQL 17 replay. Activate shared quota only through a separate
+approved tenant canary after Railway deployment identity and Redis behavior
+are verified.
+
+## M3.53 Clean-room runtime branding audit (source-only, 2026-08-04)
+
+Widened the branding regression boundary from the Next web tree to the
+product-facing web source/public assets, Nest source, and package text assets.
+The test rejects ERPNext, Frappe, ABI Ops variants, `frappe/erpnext`, and
+`rework.com` markers while reporting exact offending files. Research notes and
+immutable migration provenance remain classified separately and are not
+shipped UI or metadata.
+
+Validation: focused clean-room/landing tests pass 6/6; full Web suite passes
+71 files/463 tests; workspace lint/typecheck and 80/80-route production build
+pass. Live landing inspection at 1440/768/390 found the Third Code title/H1,
+canonical URL, one JSON-LD graph, no forbidden marker in HTML/text, no
+horizontal overflow, and no console errors. Vercel was read-only; no new
+deployment or hosted data change occurred.
+
+Source `0c911f8` is pushed to both target branches. GitHub's exact
+`ERP - Third Code ERP API` check is `success`; live Railway `/ready` reports
+database/Redis `ok` and `/health` reports `ok`. Vercel's post-push inventory
+returned zero deployments, and Supabase remains `ACTIVE_HEALTHY` at 55 applied
+migrations. The next action remains the supported duplicate-PO backup/export
+and owner-approved mapping, not a frontend deploy.
+
+## M3.52 Cortex operational brief presentation (source-only, 2026-08-04)
+
+Added the authenticated Cortex presentation layer over the existing bounded
+brief. The server page now performs one tenant/role-scoped brief read and
+passes a registry-filtered view model into a responsive, read-only evidence
+panel. It shows recent source records, freshness, provenance, connections, and
+canonical links; it cannot mutate ERP state, call an LLM, or approve a
+transaction. GSAP entrance motion is bounded and skipped for reduced-motion
+users.
+
+Changed files: `apps/web/src/app/(dashboard)/cortex/page.tsx`,
+`apps/web/src/components/cortex/cortex-brief-panel.tsx`, its CSS module and
+test, `apps/web/src/lib/cortex/brief-presentation.ts` and test, and the
+component specification at `docs/research/components/cortex-operational-brief.spec.md`.
+
+Source validation: focused Cortex tests pass 9/9; the full Web suite passes
+71 files/463 tests; workspace lint and typecheck pass; production build passes
+with 80/80 routes. Local production browser checks pass at 1440, 768, and 390
+CSS pixels with no horizontal overflow or console errors on the public landing.
+The protected `/cortex` route redirects to `/auth/login` without a session;
+authenticated data rendering remains intentionally untested without using a
+real tenant credential.
+
+Spend and data boundary: no Supabase SQL/data, Storage, Railway setting, or
+Vercel deployment changed. Vercel Git deployment remains disabled and the
+post-push inventory returned zero new deployments. Supabase remains healthy at
+55 applied migrations; the ordered suffix and duplicate-PO gate are unchanged.
+
+Post-push evidence for source `1e5aa4dd5df0ec4d9ba85c300a3bf5ff1c05d2f5`:
+both target branches point to the source, GitHub's `ERP - Third Code ERP API`
+check is `success`, and live Railway `/ready` reports database/Redis `ok` while
+`/health` reports `ok`. This is source availability evidence, not a Vercel
+frontend production release.
+
+## M3.51 Cortex operational brief (source-only, 2026-08-04)
+
+Added a bounded read path for the Cortex AI Brain: the database package now
+builds a tenant- and role-scoped operational brief from current graph nodes,
+freshness counts, and existing graph statistics. The Next API exposes
+`GET /api/cortex/brief` with a 1-24 item limit, private response headers, safe
+entity-registry filtering, and deep links. It performs no ERP mutation, schema
+write, LLM call, Python call, or provider spend.
+
+The brief is an evidence surface, not an approval surface. Canonical ERP rows
+remain authoritative, unknown graph types are omitted before serialization,
+and tenant/role scope is supplied by the authenticated session. No Supabase
+migration or hosted data changed, and Vercel remains closed by default.
+
+Source validation: workspace lint and typecheck pass; production build passes
+with 80/80 routes, including `/api/cortex/brief`. The Turbo-parallel test run
+had one known API resource-contention timeout in the stock-receipt controller;
+the API rerun passed 58 files/300 tests, Web passed 69 files/458 tests,
+Database passed 41 files/166 tests, and Shared Types passed 15 files/163 tests.
+Database integration suites that require `DATABASE_URL` remain skipped.
+
+Post-push evidence for source `cfffa7a756609c49fa84b293ec71611c892182dd`:
+`main` and `agent-02/third-code-erp-landing` both point to the SHA and the
+GitHub `ERP - Third Code ERP API` check is `success`. The live Railway API
+reports `/ready` HTTP 200 with database/Redis `ok` and `/health` HTTP 200 with
+`ok`. Vercel remains `live:false`; its read-only deployment query returned
+zero new artifacts after the push. Supabase project status is
+`ACTIVE_HEALTHY`, with the same 55 applied migrations and no hosted mutation.
+
+## M3.50 Cost-capped provider and migration audit (read-only, 2026-08-04)
+
+The reviewed application source checkpoint remains `386fd2a`; subsequent
+docs-only audit commits are present on both target branches. The GitHub
+connector is authenticated as `kurtgav`; the exact-SHA Railway check is
+`success`. The API source deployment remains the healthy Railway release;
+these docs-only checkpoints did not require another API build.
+
+The Supabase target `aqqrtkmtcsfkbyyqxowv` is `ACTIVE_HEALTHY`, PostgreSQL 17,
+and remains unchanged at 55 applied migrations versus 87 source migrations.
+The read-only database planner confirms a linear 55-migration prefix with 32
+pending migrations. The separate duplicate planner found one tenant-scoped
+Purchase Order group with 12 records. It prints only opaque references and
+requires owner review; no row, migration history, or schema object changed.
+The ordered replay gate therefore remains closed. Supabase security advisors
+also report 14 notices (11 WARN) and performance advisors report 282 notices
+(1 WARN); these are follow-up hardening work, not permission to apply an
+out-of-order migration.
+
+Vercel project `thirdcode-erp` remains `live:false`, Git deployment is disabled
+in `apps/web/vercel.json`, and the post-push deployment query returned zero
+new artifacts. No preview, production build, or paid frontend action ran. No
+Supabase SQL/data, Storage object, Railway setting, or provider flag changed.
+
+## M3.49 Supplier confirmation review portal (source-gated, 2026-08-04)
+
+Added the bounded supplier review surface for US-014. Nest now exposes a
+token-scoped `GET /v1/public/purchase-orders/:token/confirmation` read seam
+that joins only tenant-matched session, Purchase Order, vendor, project, and
+line-item rows. The response is a strict least-privilege model with integer
+centavo amounts, ordered lines, state, and expiry; it omits tenant/user IDs,
+token hashes, workflow data, and audit payloads. The existing Nest POST
+command remains the sole authority for recording a decision.
+
+The Next portal route renders an editorial order summary and an explicit
+Accept / Request changes / Decline form. Server actions call the Nest client
+and carry an idempotency key; the browser never writes ERP tables. Read and
+write controls remain closed by default, with an explicit read tenant
+allowlist. The route has noindex metadata and maps unavailable/invalid/
+expired/already-answered states to safe user copy.
+
+Validation: API 58 files/300 tests, Web 68 files/454 tests, shared types 15
+files/163 tests; workspace lint and typecheck pass; production build passes
+with 79/79 routes, including the new portal route. A local production request
+returned HTTP 200 with the closed-gate support state and did not require
+Supabase supplier tables. No hosted SQL/data, Storage, Vercel deployment, or
+provider setting changed. Source remains gated until the ordered hosted schema
+suffix, duplicate-PO repair, token threat-model, rollback, and spend gates
+clear.
+
+Post-push evidence for source `386fd2a1cf38e4f973e6cf5f9c10e80332c20d7c`:
+`main` and `agent-02/third-code-erp-landing` both point to the SHA. GitHub's
+exact-SHA `ERP - Third Code ERP API` check is `success`; Railway deployment
+`430e835a-c2bc-4dfb-8994-a5b7e5a0e1ce` is `SUCCESS` for `kurtgav`, and live
+`/ready` reports database/Redis `ok` while `/health` reports `ok`. The valid
+format public read probe returns `503` with the read gate closed. Vercel's
+read-only deployment query returns zero deployments after the push, so no paid
+frontend build ran. Supabase remains read-only at 55 migrations; the project
+is `ACTIVE_HEALTHY`, the branch API was transiently `CREATING_PROJECT`, and
+the latest branch-action log still fails
+`20260801090000_purchase_order_create_idempotency.sql` with `SQLSTATE P0001`
+for duplicate tenant `PO-0002` rows. No hosted SQL/data or provider setting
+was changed.
+
+## M3.48 Landing GEO structured data (source complete, 2026-08-04)
+
+The public landing route now emits one linked Schema.org graph for the Third
+Code Solutions organization, website, landing page, software product, and
+published FAQ content. `WebSite`/`WebPage`/`SoftwareApplication` IDs are rooted
+at the canonical origin; the graph is en-PH, names the Philippines service
+area, and carries product features for construction and project-driven
+businesses. `SearchAction` is intentionally absent because search is
+authenticated and has no public query endpoint.
+
+Changed source: `apps/web/src/app/page.tsx`,
+`apps/web/src/lib/landing-structured-data.ts`, and its test. Focused tests pass
+5/5; Web passes 67 files/451 tests; workspace lint/typecheck, diff check, and
+the 79/79-route production build pass. A local production request returned
+HTTP 200 with expected brand/`WebSite`/`FAQPage` markers and no ABI Ops,
+ERPNext, or Frappe identifiers. No hosted SQL/data, Storage, Railway setting,
+or Vercel deployment changed. Supabase remains `MIGRATIONS_FAILED` at the
+duplicate-PO preflight and Vercel remains disconnected/spend-protected.
+Post-push evidence for source `ce1ae6ecfdd79cc07322ed88a6459bde4f541448`:
+both target branches contain the SHA; GitHub's exact-SHA Railway check is
+`success`, and Railway deployment `c0103db6-da9a-415c-9fe3-4ca96f5a56f2` is
+`SKIPPED` because no watched API files changed. The existing API remains
+Online with `/ready` and `/health` 200. Vercel's read-only project is
+`live:false`; the post-push deployment query returned zero, and the public
+site is HTTP 200 from an older deployment that has `FAQPage` but not the new
+`WebSite` graph. No frontend production rollout is claimed. Supabase remains
+at 55 applied migrations with `MIGRATIONS_FAILED`; the latest branch-action
+log repeats `20260801090000_purchase_order_create_idempotency.sql` failing
+with `SQLSTATE P0001` on duplicate tenant `PO-0002` rows. No hosted SQL/data
+was applied.
+
+## M3.47 Proposal read tenant scope (source complete, 2026-08-04)
+
+Source checkpoint: `9270919` (`fix(web): enforce proposal tenant-scoped reads`).
+The proposal overview and client change-request log now repeat the authenticated
+tenant predicate on account, PPRF, inspection, design, and change-request
+reads; the optional design join is tenant-constrained too. US-009 is corrected
+to Live with its actual tables. Focused proposal actions pass 2/2; Web passes
+66 files/450 tests; workspace lint/typecheck, diff check, and the 79/79-route
+production build pass. No hosted SQL/data, Storage, Railway setting, or Vercel
+deployment changed. Authenticated browser proof remains provider-runtime
+gated when local Supabase DNS cannot resolve.
+Post-push evidence: source/docs `5a5e525` are on both target branches;
+GitHub's exact-SHA Railway check is `success`. Railway recorded `SKIPPED` for
+the commit because no watched API files changed; live `/ready` and `/health`
+remain 200. Vercel reports zero deployments after the push. Supabase remains
+`ACTIVE_HEALTHY` at 55 migrations; its branch API currently reports
+`MIGRATIONS_FAILED`; the last successful branch-action log read still fails the
+first pending migration with `P0001` because duplicate tenant `PO-0002` rows
+exist. A subsequent logs read returned `INVALID_ARGUMENT`, so no newer log
+state is inferred.
+
+## M3.46 Command palette accessibility (source complete, 2026-08-04)
+
+The universal Search/Ask Cortex palette now has a pure wrapped-navigation
+helper, stable combobox/listbox relationships, announced loading/empty/error
+states, and a request-sequence guard that rejects late responses from an older
+query. Source checkpoint: `e3dc6d6` (`feat(web): harden command palette
+navigation`). Focused navigation/selection tests pass 7/7; the Web suite
+passes 66 files/450 tests. Workspace lint/typecheck, `git diff --check`, and
+the 79/79-route production build pass. Authenticated browser proof remains a
+provider-runtime gate when local Supabase DNS is unavailable. No hosted SQL,
+data, Storage, Railway setting, or Vercel build changed; the Supabase 55/87
+migration gate and Vercel spend gate remain closed.
+The source/docs checkpoint `0a085b7` is pushed to both target branches as
+`kurtgav`; GitHub's exact-SHA Railway check is `success`. Railway correctly
+skipped this frontend/docs-only commit because no watched API files changed;
+the existing service remains Online with live `/ready` and `/health` 200. The
+Vercel deployment query returns zero deployments after the push, so no paid
+build was triggered. Supabase remains unchanged at 55/87 with the protected
+duplicate-PO failure.
+
+## M3.45 Cortex search accessibility (source complete, 2026-08-04)
+
+Source checkpoint: `71c5cba` (`feat(web): harden cortex search navigation`).
+The Cortex graph search now supports keyboard-first selection: arrow keys wrap
+through actionable results, unavailable destinations are skipped, and Enter
+opens the highlighted result or the first actionable result. Loading, empty,
+and failed retrieval states are explicit and announced; stale results clear at
+the start of a new debounce cycle. ARIA relationships expose the result list,
+active descendant, and selected option state.
+
+Changed files are the Cortex graph client, pure navigation helper/tests, and
+shared Cortex search styling. Focused helper tests pass 3/3; the Web suite is
+65 files/447 tests; workspace lint, typecheck, diff check, and 79/79-route
+production build pass. Unauthenticated browser verification redirects
+`/cortex` to `/auth/login` with no console errors. Authenticated Cortex
+rendering was attempted but the local Next Edge runtime could not resolve the
+configured Supabase host (`ETIMEDOUT`/`ENOTFOUND`); no authenticated browser
+pass is claimed. No database, Storage, Railway setting, or Vercel deployment
+changed. Source and evidence are pushed to both `main` and
+`agent-02/third-code-erp-landing` as `kurtgav` at `e6fe073`. GitHub reports the
+Railway API check as `success`; the linked Railway service remains online with
+`/ready` and `/health` 200. Supabase remains unchanged at 55/87 migrations and
+its protected branch still fails at the duplicate Purchase Order preflight.
+Vercel reports zero deployments after this push; its Git/deployment spend gate
+remains closed. Exact next action: repeat authenticated desktop/mobile proof
+from a runtime with working Supabase DNS, then return to the supported backup
+and owner-approved duplicate Purchase Order repair gate.
+
+## M3.44 Admin data-quality review (source complete, 2026-08-04)
+
+Source checkpoint: `63bbf22` (`feat(web): add admin data quality review`). The
+admin workspace now includes a server-rendered, read-only review of duplicate
+Purchase Order numbers. The route requires `admin.system_config`, repeats the
+authenticated `tenant_id` predicate on group and detail reads, caps the review
+set, and offers only links to existing authorized records. It cannot rename,
+delete, canonicalize, approve, or finalize an ERP transaction.
+
+The configured demo tenant renders one `PO-0002` group with 12 records and
+the four live status buckets. Pure report-shaping tests cover deterministic
+status counts and the 100-record cap. No schema, hosted row, Storage object,
+Railway setting, or Vercel deployment changed. The route spec is recorded at
+[`docs/research/components/admin-data-quality.spec.md`](../research/components/admin-data-quality.spec.md).
+
+Validation: focused 2/2; Web 64 files/444 tests; full workspace API 294,
+shared-types 162, and database 166 executed with 140 environment-gated skips;
+lint, typecheck, diff check, and 79/79-route production build passed. Authenticated
+browser proof at 1440px and 390px showed no horizontal overflow, no repair
+controls, and no new console errors. Source and evidence are now pushed to
+both `main` and `agent-02/third-code-erp-landing` as `kurtgav`; the evidence
+checkpoint is `eab1719`. GitHub reports the Railway API check as `success`.
+Railway project `a21fd382-80b2-4218-8025-11f420a062e3`, production service
+`c45b3d01-036a-4663-a524-0713d782fce3`, and live `/ready`/`/health` are online.
+Supabase remains unchanged at 55/87 migrations with the same duplicate
+preflight failure; Vercel has no deployment for this SHA. Exact next action:
+supported backup, owner-approved duplicate repair, then ordered migration
+replay.
+
+## M3.43 Supabase reconciliation gate (read-only, 2026-08-04)
+
+The configured Supabase target was rechecked without mutation. Hosted state is
+healthy at the service level but remains a 55-migration prefix against 87
+source migrations. Its protected `main` branch is `MIGRATIONS_FAILED`; branch
+logs identify `20260801090000_purchase_order_create_idempotency.sql` as the
+first pending failure because one tenant has 12 duplicate `PO-0002` records.
+All 88 public tables have RLS enabled, while `financial_sequences`,
+`notification_outbox`, and `notification_deliveries` have no policies. The
+private `documents` bucket has 37 objects. Advisors report security and
+performance review items; no production fix was guessed or applied.
+
+Added the evidence record at
+[`docs/research/supabase-reconciliation-20260804.md`](../research/supabase-reconciliation-20260804.md).
+Exact next action: obtain a supported recoverable backup, approve a canonical
+duplicate-data repair, then resume the ordered migration suffix. Keep all
+mutation flags closed, Vercel disconnected, and no raw migration-history
+bypass.
+
+## M3.42 Project Command Center (source complete, 2026-08-04)
+
+Source checkpoint: `a225340` (`feat(web): add project command center`). The
+project overview now opens with an original, read-only command center for
+work, decisions, evidence, deliveries, and the latest progress report. Every
+signal query repeats the authenticated tenant and project predicates; the UI
+only navigates to existing authorized records and Cortex context. Progress
+dates cross the server/UI boundary as ISO strings, and the overdue cutoff is
+bound as an ISO value so the page cannot reproduce the server `Date` encoding
+failure found during browser verification.
+
+Changed files: `apps/web/src/lib/project-queries.ts`, the project detail page
+and responsive page CSS, `apps/web/src/components/projects/project-command-
+center.tsx` plus its CSS/test, `apps/web/src/components/projects/project-
+tabs.tsx`, and `docs/research/components/project-command-center.spec.md`.
+No migration, schema, RLS, Storage, Nest API, Railway variable, or Vercel
+setting changed.
+
+Validation: focused command-center/query tests 4/4; full workspace test
+suite green (shared 162/162, database 166 executed with 140 environment-skips,
+API 294/294, Web 63 files / 442 tests); `pnpm lint`, `pnpm typecheck`,
+`git diff --check`, and Next production build 78/78 routes passed. Clean
+browser MCP proof on the authenticated demo project rendered the command
+center at 390px and 1440px, showed four signal cards, reported zero horizontal
+overflow, and recorded zero console errors after cache-disabled reload. The
+first build retry collided with the local dev server and was discarded; the
+clean rerun passed.
+
+Hosted state remains unchanged: Supabase is still the read-only 55-row
+prefix with the existing connector `INVALID_ARGUMENT`/`MIGRATIONS_FAILED`
+blockers; Railway and Vercel were not mutated. Exact next action: push this
+source and the milestone documentation once, verify the exact Railway SHA and
+live readiness, and keep Supabase SQL and Vercel builds paused.
+
+## M3.41 Today Command Center (source complete, 2026-08-04)
+
+Source checkpoint: `ab905091ada2f7db927e6cf4c2de687ee2010194`. Added a
+read-only Today/Project Command Center to the existing dashboard. The query
+layer is tenant-scoped, assignee-scoped for tasks, and only loads project
+context when the existing `/projects` route policy permits it. The UI gives
+users one due/attention/next queue, authorized project links, and an explicit
+Cortex handoff without moving mutation authority into React or Python.
+
+Changed files: `apps/web/src/lib/dashboard-queries.ts`,
+`apps/web/src/components/dashboard/today-command-center.tsx`, its CSS module
+and tests, `apps/web/src/app/(dashboard)/dashboard/page.tsx`, and the viewer
+role E2E contract. No migration, schema, RLS, Storage, API, Railway variable,
+or Vercel setting changed; all project-create flags remain closed.
+
+Validation: focused Today tests 2/2; full Web suite 62 files / 440 tests;
+lint, typecheck, `git diff --check`, and Next production build 78/78 routes
+passed. Authenticated browser evidence on the fresh local build proved viewer
+desktop and mobile rendering, zero horizontal overflow (375/375 at 390px and
+1440/1440 at desktop), executive surfaces absent, Cortex handoff, and zero
+console errors. Playwright CLI E2E remains skipped because the configured
+Chromium executable is not installed; browser MCP supplied the manual role /
+viewport evidence.
+
+Hosted state remains unchanged: Supabase is the read-only 55-row prefix with
+the existing connector `INVALID_ARGUMENT`/`MIGRATIONS_FAILED` blockers;
+Railway readiness remains the prior verified signal; Vercel Git stays
+disconnected and spend-protected. Exact next action: push this source plus
+the milestone documentation once, then verify the exact Railway release and
+live readiness without applying hosted SQL or creating a Vercel build.
+
+## M3.40 governing BuildOps product contract (2026-08-04)
+
+Added [`docs/BuildOps_PRD_v1.md`](../BuildOps_PRD_v1.md) as the active,
+Third-Code-authored product contract. It records the construction-first
+outcome, multi-business expansion boundary, clean-room provenance rules,
+Today/Project Command Center/Ask information architecture, authority split,
+state and integrity invariants, landing/accessibility/SEO requirements, and
+the release definition of done. This is a documentation-only milestone; no
+runtime code, database schema, hosted data, Storage object, Railway variable,
+or Vercel deployment changed.
+
+The documentation checkpoint is `a66b43bd9c1694f19de69ad3f0a49808fc41b8fd`,
+pushed to both target branches under `kurtgav`. GitHub reports the Railway
+API check successful; live `/ready` and `/health` remain HTTP 200. The
+Supabase read-only recheck confirms 55 applied migrations with head
+`20260729233017`, no `project_create_requests` table, and the existing
+`MIGRATIONS_FAILED` branch status. Vercel remains unchanged.
+
+The executable baseline remains M3.39: source has 87 migrations, the
+disposable PostgreSQL 17 + Redis lane is green, Railway readiness is green,
+Supabase is the exact 55-row prefix, and Vercel remains disconnected and
+spend-protected. The next implementation gate is the supported Supabase
+reconciliation path; the first product slice after that gate is a read-only
+Today/Project Command Center surface backed by existing authorized reads.
+
+## M3.39 durable project-create idempotency (2026-08-04)
+
+Source checkpoint: `b77227df402082d494538b92d706f7f092fa1fe5`. Added the
+forward-only `20260804090000_project_create_idempotency.sql` migration and
+matching Drizzle schema for a tenant-scoped, server-only replay ledger. The
+Nest `POST /v1/projects` boundary now requires a bounded `Idempotency-Key`,
+hashes the normalized command, claims the request inside the same PostgreSQL
+transaction as project creation, replays a stored success, and rejects the
+same key with a different payload. Completion stores the typed result and
+semantic audit evidence; failed transactions roll back both the project and
+ledger row. The Next form/adapter now carries a stable key.
+
+Both project-create flags remain false/empty, so the legacy Server Action is
+still the production path. There was no net hosted schema, business-data,
+Storage, or migration-history change; two temporary no-op provider probes were
+created and removed, then verified absent. Railway variables were unchanged;
+no Vercel build or promotion was performed. The
+disposable PostgreSQL 17 + Redis lane applied 87/87 migrations, executed
+database tests 306/306 with zero skips, and passed API integration 15 files /
+22 tests. Focused API tests passed 13/13, web core-client tests 72/72, the
+workspace serial test suite passed shared 162/162, database 166/166 executed
+with ordinary environment skips, web 438/438, and API 294/294; lint,
+typecheck, `git diff --check`, and the 78-page production build passed. Redis
+emitted only its local memory-overcommit warning.
+
+The hosted target remains a read-only 55-row migration prefix while source is
+87 migrations. The Supabase apply connector rejected the first real source
+migration with `INVALID_ARGUMENT`, and the project reports a pre-existing
+`MIGRATIONS_FAILED` branch state. No hand-written history repair or blind DDL
+bypass was attempted. The next gate is a reviewed backup/catalog/data/RLS
+reconciliation and a supported ordered-apply path, with both flags still off.
+
+## M3.38 guarded project-create Nest authority seam (2026-08-04)
+
+Source checkpoint: `7f3a9fc feat(projects): add guarded Nest creation seam`.
+Added a strict shared `POST /v1/projects` contract, Nest boundary validation,
+tenant/role capability `project.create`, transactional creation with actor
+stamping and audit context, and a typed Next core-client adapter. The existing
+Next Server Action remains the default path when the adapter flag is false, so
+current API behavior is preserved. The core path has no fallback once selected
+and fails closed until its server-side tenant gate is explicitly enabled.
+
+Both project-create flags remain false/empty by default:
+`ERP_PROJECT_CREATE_WRITES_ENABLED=false` plus an explicit tenant UUID
+allowlist, and `ERP_PROJECT_CREATE_WRITES_VIA_API=false` plus its frontend
+allowlist. A durable idempotency ledger/replay contract, two-tenant database
+and Redis evidence, rollback/recovery proof, and provider approval are still
+required before a canary. Supabase hosted SQL, migration history, Storage,
+business data, and Railway variables were unchanged. The GitHub-connected
+Railway main-branch check automatically deployed the API as
+`36530493-b9a9-4c1e-9c7a-dd0671a198ed` and reported success; live `/ready` and
+`/health` remained HTTP 200. No Vercel build, promotion, or domain change was
+performed.
+
+Evidence: shared 162/162; API serial 57 files / 291 tests; web 438/438;
+lint/typecheck passed; production build generated 78/78 pages. A parallel
+`pnpm test` run had two unrelated 5-second API resource-contention timeouts;
+the deterministic serial Turbo run passed. Ordinary database tests still show
+the documented environment skips; the M3.37 disposable lane remains the
+zero-skip 86/86 migration, database 300/300, API integration 15/22 evidence.
+
+## M3.37 read-only live-provider incident and catalog reconciliation (2026-08-04)
+
+Rechecked the exact live provider identities after the M3.36 source release.
+GitHub `main` and `agent-02/third-code-erp-landing` both point to
+`318b7e0d9efdc115624d70a43384f086d10a73b2` under `kurtgav`.
+The Railway API remains healthy at `/ready` and `/health` (HTTP 200; database
+and Redis both report `ok`).
+
+Vercel project `thirdcode-erp` is still Git-disconnected and `live:false`.
+Its production domain is serving an older artifact; the connector's grouped
+runtime evidence attributes the reported digest `862076041` to the historical
+`purchase_order_status = "partial_delivered"` enum failure on deployment
+`dpl_2WnStFHAqLchG71rjWKjvyEBY3WK` (source SHA `2112728`). The current hosted
+enum already contains `partial_delivered`, and an unauthenticated live probe
+returns the expected `307 /auth/login`. No new Vercel build or promotion was
+performed because the owner requested spend protection after the on-demand
+limit was reached.
+
+The read-only Supabase planner still reports a linear 55/86 ledger prefix:
+hosted head `20260729233017`, source head
+`20260803170000_purchase_order_supplier_session_payload`. The hosted catalog
+has 88 public tables, 303 policies, and every public table has RLS enabled;
+the fresh 86-migration clone has 111 tables, so the 23 expected source-suffix
+table objects are absent from the target. Security/performance advisor
+findings remain open. No hosted SQL, migration-history row, Storage object,
+business data, or provider setting changed.
+
+The fresh disposable PostgreSQL 17 + Redis replay was rerun after this audit:
+all 86 migrations applied, the schema hash remained
+`DDBBB7421C09146F9F34B816679135F6D33EBCB19BF10996C5F187B87606C91D`, database
+tests passed 300/300 with zero skips, and API integration passed 15 files /
+22 tests. The only runtime notice was Redis's local
+`vm.overcommit_memory` warning; the disposable Redis process was stopped.
+
+## M3.36 supplier issuance outbox contract replay (2026-08-04)
+
+The first disposable PostgreSQL 17 + Redis replay exposed a real source defect:
+SCM issuance emitted the optional `vendor_confirmation_session_id`, while the
+supplier-issued outbox check allowed only the required schema and Purchase
+Order keys. Added the forward-only
+`20260803170000_purchase_order_supplier_session_payload.sql` migration. It
+keeps the payload exact, permits the optional field only when absent, JSON null,
+or a UUID, and rejects unknown keys. No applied migration was edited.
+
+The corrected replay applied all 86 source migrations, verified the migration
+ledger and protected schema, ran database tests 300/300 with zero skips, and
+ran API database/Redis integration 15 files / 22 tests with zero failures.
+Root `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` also pass;
+the ordinary database test lane still reports its documented 137 skips when
+`DATABASE_URL` is absent. Redis emitted only the local memory-overcommit
+warning. The disposable database and Redis processes were stopped.
+
+Source commit `11c8168248edc02eed93aff9be0204c12559152b` is pushed to
+`main` and `agent-02/third-code-erp-landing` under `kurtgav`. Railway
+auto-deployed it as `52dca77c-5bec-442f-85cd-f1cd81bde478`; `/ready` and
+`/health` are 200 with PostgreSQL/Redis healthy. Hosted Supabase remains
+read-only at 55 migrations; no SQL, data, Storage, or Railway setting changed.
+Vercel Git remains disconnected: the project is `live:false`, its latest
+connector-listed deployment still points to the older `ca9ff6…` SHA, and no
+new Vercel build was triggered. Hosted migration and frontend promotion remain
+gated on ordered suffix reconciliation, backup/restore, catalog/data/RLS diff,
+owner approval, and spend-bounded release.
+
+## M3.35 authenticated Cortex browser proof (2026-08-04)
+
+Fresh local Next.js runtime proved browser/API boundary against configured demo
+Supabase tenant: `/cortex`, `/finance`, and `/inventory` return `307
+/auth/login` without session; `/api/cortex/search` returns `401` JSON with
+`private, no-store, max-age=0` and `Vary: Cookie` instead of login HTML. The
+authenticated Cortex graph/deep-link suite passed 1/1 after creating and
+revoking one-time demo auth session; it verified authorized graph scope,
+focused-record navigation, conversation search/deep links, and zero overflow
+at 1440px, 768px, and 390px. Viewer-role browser QA passed 1/1 and kept
+executive pipeline/finance data hidden while preserving tenant search privacy.
+
+This is authenticated demo-tenant evidence, not isolated disposable
+PostgreSQL/Supabase clone. No business-table write or provider deployment
+occurred; isolated two-tenant cross-tenant/citation replay remains release
+gate. Test now permanently covers unauthenticated route/API contract.
+
+## M3.34 authenticated browser route boundary (2026-08-04)
+
+Moved dashboard route matching into the shared
+`apps/web/src/lib/protected-route.ts` contract and added `/cortex`, `/finance`,
+and `/inventory` to the session-required browser surface. Matching now accepts
+only an exact route segment (`/cortex` or `/cortex/...`), avoiding accidental
+matches such as `/cortexology`. `/api/cortex/*` remains outside middleware
+redirects so its handlers return 401/403 JSON/text responses and preserve
+tenant/RBAC authorization.
+
+Before this slice, unauthenticated local navigation to `/cortex` rendered the
+workspace-provisioning screen. After the change, Playwright observed a redirect
+to `/auth/login` with the Third Code ERP sign-in form. Web tests pass 436/436;
+root lint/typecheck and the 78-page production build pass. No database,
+provider setting, Railway deployment, Vercel deployment, or hosted data
+changed. Authenticated disposable-tenant permission/citation browser proof is
+still open.
+
+## M3.33 Cortex authenticated transport privacy (2026-08-04)
+
+All authenticated Cortex API handlers now share one response boundary:
+`Cache-Control: private, no-store, max-age=0` and `Vary: Cookie`. The contract
+covers successful reads, authorization failures, validation failures, and
+server errors for chat, search, graph, entity, conversations, and embedding
+routes. The prior graph `max-age=15` behavior is removed. Next.js may append
+its own router `Vary` values, but `Cookie` remains present.
+
+The change is transport-only: request shapes, stream framing, citations,
+tenant/RBAC checks, database queries, and mutation authority are unchanged.
+Focused Cortex route tests (31/31), full workspace tests (API 287, shared
+types 159, web 434, database 162 passed with 137 environment-skipped), root
+lint/typecheck, and the 78-page production build passed. Commit `36a37e9` is
+published on both target GitHub branches under `kurtgav` and verified through
+the GitHub connector. Railway `/ready` and `/health` remain green; no manual
+Railway deployment, Supabase mutation, or Vercel deployment was triggered.
+The next gate is an authenticated browser permission/citation audit against
+disposable tenant fixtures.
+
+## M3.32 landing Cortex preview and live UI reconnaissance (2026-08-04)
+
+The public landing now includes a read-only Cortex preview inside the existing
+platform bento. Three sample questions switch answer text and source chips via
+local React state only; no browser fetch, API route, ERP approval, or database
+write was added. The slice preserves existing Satoshi typography, editorial
+split hero, dense bento math, GSAP media/stack behavior, auth links, and SEO
+metadata.
+
+Playwright reconnaissance captured 1440px and 390px references plus exact
+responsive and interaction evidence in `docs/research/`. Local QA verified
+the preview states, zero horizontal overflow, and zero browser console errors.
+The Next.js development server reports one existing LCP priority warning for
+the above-fold hero image. No Supabase SQL, hosted data, provider setting,
+Railway variable, Railway deployment, or Vercel deployment changed.
+
+## M3.31 read-only Supabase reconciliation audit (2026-08-04)
+
+The authorized target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17
+(`server_version_num = 170006`) with 55 applied migration rows. Source has 85
+files; the hosted ledger is the exact prefix and lacks the ordered 30-file
+suffix through `20260803160000_vendor_confirmation_session_minting`. A
+read-only risk scan found no `DROP TABLE`, `DELETE`, `TRUNCATE`, or data update;
+24 constraint replacements and six explicit transaction blocks still require
+clone/replay review. A catalog probe found zero of 23 expected pending table
+objects. Supabase security/performance advisor findings remain unfixed.
+
+Status is `BLOCKED_FOR_HOSTED_APPLY`: no SQL, migration-history row, hosted
+data, Storage object, provider setting, Railway variable, or Vercel deployment
+changed. Backup/PITR, isolated clone replay, catalog/data/RLS diff,
+zero-skipped integration and recovery evidence, owner approvals, and a
+spend-bounded canary remain required. See
+[`DATABASE_RECONCILIATION_M3.31.md`](./DATABASE_RECONCILIATION_M3.31.md).
+
+## M3.30 source update (2026-08-04)
+
+Local source now reconstructs a supplier confirmation URL only inside the
+existing supplier-email delivery transaction. Link delivery requires its own
+tenant allowlist plus the public-confirmation write gate for the same tenant;
+the service verifies the session is tenant/PO-scoped, pending, and unexpired
+before deriving the HMAC token in memory. The raw URL token is passed only to
+the provider request and never enters PostgreSQL, audit metadata, or outbox
+JSON. Existing supplier email behavior is unchanged when the link controls are
+closed.
+
+`ERP_PUBLIC_VENDOR_CONFIRMATION_LINK_DELIVERY_ENABLED` and its tenant
+allowlist remain false/empty, the HTTPS API base URL is unset, and no hosted
+SQL, provider setting, Vercel deployment, or hosted data changed in this
+source slice. Source remains at 85 migrations versus 55 hosted Supabase
+migrations. Railway auto-deployed source commit `fcc2434969679159d6e7f5fa0212d490e50cac1f`
+as `7d2a078d-605f-49e9-a299-12c9667a153b`; `/ready` returned 200 with
+database/Redis healthy, and a valid-format public confirmation probe returned
+503 because the public-write gate remains closed. No Vercel deployment for
+this commit exists.
+
+## M3.29 source update (2026-08-03)
+
+Local source adds a protected SCM-issuance session-minting seam. When its
+separate tenant flag is enabled, Nest derives a 64-hex public token from a
+random session id, tenant id, and server-only HMAC secret; PostgreSQL stores
+only the SHA-256 token hash plus the source `purchase_order_workflow_requests`
+id. A pending-PO partial unique index prevents duplicate active sessions, and
+the supplier-issued outbox carries only the session UUID. No raw token is
+stored in PostgreSQL, audit metadata, or outbox JSON. Existing supplier email
+copy, retry, and delivery behavior remain unchanged; public link delivery is
+not part of this slice.
+
+The source migration is
+`20260803160000_vendor_confirmation_session_minting.sql`; source now has 85
+migrations against 55 hosted Supabase migrations. Session-minting flags remain
+false/empty and the token secret is unset. Commit `e81087e` is published to
+both target branches under `kurtgav`; Railway deployment
+`dacccb49-9bca-4754-8a48-17feded185bf` is `SUCCESS` at that SHA, `/ready`
+reports database and Redis `ok`, and the valid-format public-command probe
+returned `503` as expected with the controls closed. No hosted SQL, runtime
+provider setting, Vercel deployment, or hosted data changed.
+
+## M3.28 source update (2026-08-03)
+
+Local reviewed source adds a closed-by-default NestJS public supplier response
+authority at `POST /v1/public/purchase-orders/:token/confirmation`. The strict
+body allows `accepted`, `declined`, or `changes_requested` (with a note for the
+latter two), derives tenant/Purchase Order/vendor scope from a hashed session,
+locks an issued Purchase Order and the session, claims a durable tenant-scoped
+replay key, commits response metadata and nullable-actor semantic audit in one
+transaction, and never changes delivery, inventory, receipt, or payment state.
+Session minting and email-link delivery remain a separate follow-on slice.
+
+The source migration is
+`20260803150000_vendor_confirmation_workflow.sql`; Supabase remains at 55
+applied migrations against 84 source migrations. Commit `850eee5` is published
+to both GitHub target branches and Railway deployment
+`3227b3a3-79e9-472f-9770-78f96faf636f` is `SUCCESS` at that SHA. Live `/ready`
+reported database and Redis `ok`; a valid-format confirmation probe returned
+`503` as expected because both supplier-confirmation controls remain
+false/empty. No hosted SQL, email link, Vercel deployment, or hosted data
+changed. Focused shared/database/API contracts and typechecks, the full Web
+suite (431/431) and typecheck, the Nest build, release-plan suites, and
+`git diff --check` passed. The serialized full API runner remains unclaimed
+because its prior run exceeded the execution ceiling before returning a
+result.
+
+## Capability baseline checkpoint (2026-08-03)
+
+`docs/architecture/CAPABILITY_MATRIX.md` now records the verified construction
+spine, multi-business expansion gaps, and the bounded M3.28 supplier-confirmation
+scope. This is a source-planning milestone only: no application code,
+Supabase migration, feature flag, email link, hosted data, or provider setting
+changed. The current landing page remains protected by the existing responsive
+and behavior evidence; no visual rewrite is part of this checkpoint. The
+checkpoint is published as source commit `5e61b28` to both target branches.
+
+## M3.27 source update (2026-08-03)
+
+Local reviewed source now adds a closed-by-default NestJS authority for
+token-authorized client signatures at `POST /v1/public/signatures/:token`.
+The route accepts a strict signing body and required idempotency key, derives
+tenant/entity scope from the hashed signing session, validates bounded PNG
+data, uploads through the service-role Storage adapter, locks and revalidates
+the session, creates the signature document, stamps the tenant-owned BOM,
+contract, variation order, or certificate of completion, persists a durable
+replay result, and writes nullable-actor semantic audit in one transaction.
+Concurrent cleanup never removes an object while a matching replay request is
+processing or succeeded. Next.js remains a compatibility adapter and selects
+Core only for an exact flag plus UUID tenant allowlist; a selected Core error
+never falls back to a direct browser-side mutation. Existing UI and copy are
+unchanged.
+
+The local migration is
+`20260803140000_public_signing_workflow.sql`; it is not applied to hosted
+Supabase. Source now has 83 migrations versus 55 hosted (28 pending). Both
+public-signing controls remain false/empty. No Supabase SQL, provider setting,
+feature flag, Vercel deployment, or hosted data changed.
+
+Validation: shared full suite 155/155, database full suite 158/158 with 137
+guarded tests skipped without `DATABASE_URL`, focused API public-signing/
+config/observability contracts 59/59, Web full suite 431/431, package
+typechecks/lint, Nest production build, Next production build with 78/78
+routes, and `git diff --check` passed. The serialized full API runner exceeded
+the 360-second execution ceiling before returning a result; no new assertion
+failure was reported, so the full API suite is not claimed green.
+
+The source checkpoint `af8690d` is published to both target branches under
+verified `kurtgav <kurtgavin.design@gmail.com>` credentials. Railway
+deployment `d4afe970-6958-4f38-a17a-fa8c01ca13d4` is `SUCCESS` at that exact
+SHA; its Docker build passed and `/ready` returned `200` with PostgreSQL and
+Redis ready. A no-write public-signing probe returned `503`, confirming the
+new authority is closed by default. Vercel Git remains disconnected: no
+deployment for `af8690d` exists, production `/api/ready` remains `200` on the
+older revision `31c04942a93d`, and no paid Vercel build was triggered.
+Hosted migration parity, protected-flow, rollback, duplicate-data,
+audit-chain, owner-input, and spend gates remain open.
+
+## M3.26 source update (2026-08-03)
+
+Local reviewed source now adds a closed-by-default NestJS document deletion
+authority at `DELETE /v1/documents/:documentId`. The route accepts a strict
+empty body, requires `document.manage`, rechecks the locked tenant membership,
+claims a tenant-scoped durable idempotency record, blocks deletion when
+document-processing history exists, removes document-derived scope rows and
+the document in one PostgreSQL transaction, and writes semantic audit. The
+replay result retains the deleted document UUID, project, and Storage path so a
+retry never performs a second delete. Next.js remains a compatibility adapter
+with a stable browser retry key; a selected Core failure never falls back to a
+direct database mutation. Storage cleanup remains best-effort after commit.
+
+The local migration is
+`20260803130000_document_delete_workflow.sql`; it is not applied to hosted
+Supabase. Source now has 82 migrations versus 55 hosted (27 pending). Both
+document-delete API controls remain false/empty. No Supabase SQL, provider
+setting, Railway release, Vercel deployment, or hosted data changed.
+
+Source checkpoint `5ad72ec` is fast-forwarded to
+`Third-Code-Solutions/ERP` branches `main` and
+`agent-02/third-code-erp-landing` under verified `kurtgav
+<kurtgavin.design@gmail.com>` credentials. Railway is linked to project `ERP`
+in production and service `Third Code ERP API`; deployment
+`d7b8b2d4-db7b-4f15-a429-7d903d353794` is `SUCCESS` at source `5ad72ec`, and
+`/ready` returned `200` with PostgreSQL and Redis ready. This does not clear
+migration-parity, protected-flow, rollback, or spend gates. Vercel Git
+deployment remains disabled, so no paid build was triggered; production
+`/api/ready` is still on revision `31c04942a93d`.
+
+Validation: shared full suite 152/152, database full suite 156/156 with 137
+guarded tests skipped without `DATABASE_URL`, focused API document/config/
+observability contracts 56/56, Web full suite 425/425, package typechecks and
+lint, Nest build, Next production build with 78/78 generated routes, and
+`git diff --check` passed. A serialized full API runner exceeded the 240-second
+execution ceiling before returning a result; no new assertion failure was
+reported, so the full API suite is not claimed green for this milestone.
+Audit-hash verification remains blocked without `DATABASE_URL` and the
+owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+
+## M3.25 source update (2026-08-03)
+
+Local reviewed source now adds a closed-by-default NestJS authority for cash
+draft create, update, and delete. `POST
+/v1/finance/cash-transactions/drafts` and `DELETE
+/v1/finance/cash-transactions/:cashTransactionId/draft` validate strict
+tenant-free commands, recheck the locked tenant membership and
+`finance.manage_cash`, validate tenant-owned Cash Account and open allocation
+targets, commit draft rows and allocations in one transaction, persist a
+tenant-scoped idempotency result, and write semantic audit. Deleted draft
+target UUIDs remain in the service-only replay ledger. Next.js keeps its
+existing Server Actions and visible UI/copy contract, selects Core only for an
+exact flag plus UUID tenant allowlist, uses stable retry keys, and never falls
+back after a selected Core failure.
+
+The reviewed implementation is commit `8404d20`. The source publication
+checkpoint is `46035fa`; both `main` and `agent-02/third-code-erp-landing`
+include that fast-forward source.
+
+The source migration is
+`20260803120000_cash_transaction_draft_workflow.sql`; it is not applied to
+hosted Supabase. All cash-draft controls remain false/empty. Source now has 81
+migrations versus 55 hosted (26 pending). No Supabase SQL, provider setting,
+feature flag, Railway release, Vercel deployment, or hosted data changed.
+
+Validation: shared full suite 149/149, database full suite 154/154 with 137
+guarded tests skipped without `DATABASE_URL`, API full suite 251/251 with an
+explicit 30-second Vitest timeout, Web full suite 421/421, package
+typechecks/lint, Nest build, release-plan checks, workflow-reference checks,
+and diff checks passed. The default parallel API command still had three
+unrelated 5-second test timeouts (248/251); the bounded 30-second run passed.
+An initial Next production-build runner attempt timed out before returning,
+but an isolated retry with `NEXT_TELEMETRY_DISABLED=1` and `CI=1` passed with
+78/78 generated routes. This is local evidence only; no hosted build or
+deployment occurred. Audit-hash verification remains blocked without the
+`DATABASE_URL` and owner-approved `AUDIT_RECOVERY_TENANT_ID`.
+
+## M3.24 source update (2026-08-03)
+
+Local reviewed source now adds closed-by-default NestJS authority for draft
+customer-invoice cancellation. `POST /v1/finance/customer-invoices/:invoiceId/cancel`
+strictly validates an empty command body, rechecks tenant membership and
+`finance.issue_invoice`, locks the invoice, claims a tenant-scoped idempotency
+record, reuses the existing `cancel_customer_invoice` PostgreSQL function for
+the official state transition, persists a strict replay result, and writes
+semantic audit in one transaction. Next.js keeps the existing Server Action
+and visible UI/copy contract, selects Core only for an exact flag plus UUID
+tenant allowlist, uses one stable cancellation retry key, and never falls back
+after a selected Core failure.
+
+The reviewed implementation is commit `c71fbd4` on the local working branch;
+source publication is a separate fast-forward action.
+
+The source migration is
+`20260803110000_customer_invoice_cancel_workflow.sql`; it is not applied to
+hosted Supabase. All customer-invoice cancellation controls remain
+false/empty. Source now has 80 migrations versus 55 hosted (25 pending). No
+Supabase SQL, provider setting, feature flag, Railway release, Vercel
+deployment, or hosted data changed.
+
+Validation: shared-types full suite 147/147, database full suite 152/152
+(137 guarded tests skipped without `DATABASE_URL`), API source suite 240/240,
+Web full suite 418/418, all package typechecks and lint, API build, Next
+production build with 78/78 routes, release-plan checks, workflow reference
+checks, and diff checks passed. Guarded PostgreSQL/Redis integration remains
+skipped without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
+
+## M3.23 source update (2026-08-03)
+
+Local reviewed source now adds closed-by-default NestJS authority for customer
+invoice reversal. `POST /v1/finance/customer-invoices/:invoiceId/reverse`
+strictly validates the correction reason and posting date, rechecks the
+tenant membership and `finance.issue_invoice` capability, locks the invoice,
+claims a tenant-scoped idempotency record, reuses the existing
+`reverse_customer_invoice` PostgreSQL function for the official reversal
+journal and invoice state, persists a strict replay result, and writes
+semantic audit in one transaction. Next.js keeps the existing Server Action
+and visible UI/copy contract, selects Core only for an exact flag plus UUID
+tenant allowlist, uses one stable reversal retry key, and never falls back after
+a selected Core failure.
+
+The reviewed implementation is commit `8c7159c` on the local working branch;
+source publication is a separate fast-forward action.
+
+The source migration is
+`20260803100000_customer_invoice_reverse_workflow.sql`; it is not applied to
+hosted Supabase. All customer-invoice reversal controls remain false/empty.
+Source now has 79 migrations versus 55 hosted (24 pending). No Supabase SQL,
+provider setting, feature flag, Railway release, Vercel deployment, or hosted
+data changed.
+
+Validation: shared-types full suite 146/146, database full suite 150/150
+(137 guarded tests skipped without `DATABASE_URL`), API source suite 234/234,
+Web full suite 414/414, all package typechecks, Nest build, Next production
+build with 78/78 routes, and diff checks passed. Guarded PostgreSQL/Redis
+integration remains skipped without `DATABASE_URL` and
+`ERP_API_INTEGRATION_EXPECTED=1`.
+
+## M3.22 source update (2026-08-03)
+
+Local reviewed source now adds closed-by-default NestJS authority for customer
+invoice issuance. `POST /v1/finance/customer-invoices/:invoiceId/issue`
+rechecks tenant membership and `finance.issue_invoice`, locks the invoice,
+claims a tenant-scoped idempotency record, reuses the existing
+`issue_customer_invoice` PostgreSQL function for the official journal and
+invoice state, persists a strict replay result, and writes semantic audit in
+one transaction. Next.js keeps the existing Server Action and UI contract,
+selects Core only for an exact flag plus UUID tenant allowlist, and never
+falls back after a selected Core failure. Cancel and reversal remain legacy in
+this slice; visible UI/copy is unchanged.
+
+The source migration is
+`20260803090000_customer_invoice_issue_workflow.sql`; it is not applied to
+hosted Supabase. All invoice controls remain false/empty. Source now has 78
+migrations versus 55 hosted. No Supabase SQL, provider setting, feature flag,
+Railway release, Vercel deployment, or hosted data changed.
+
+Validation: shared finance contracts 10/10, database migration contracts 3/3,
+API focused contracts 47/47, Web client/invoice actions 63/63, shared/
+database/API/Web typechecks, Nest build, Next production build with 78/78
+routes, and diff checks passed. Guarded PostgreSQL/Redis integration remains
+skipped without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
+
+## 2026-08-03 source publication checkpoint
+
+Remote `main` and `agent-02/third-code-erp-landing` contain the M3.22
+implementation `33089abe` plus the publication checkpoint docs, published
+under `kurtgav <kurtgavin.design@gmail.com>` by fast-forward pushes. This
+checkpoint changed GitHub source only; Supabase, Railway, Vercel, feature flags,
+and hosted data remain unchanged.
+
+## M3.21 source update (2026-08-03)
+
+Local reviewed source commit `44e678e` adds closed-by-default NestJS authority
+for cash posting and reversal. It exposes
+`POST /v1/finance/cash-transactions/:cashTransactionId/post` and `/reverse`,
+derives tenant and actor from locked membership, requires
+`finance.manage_cash`, reuses the existing database accounting functions,
+stores a strict tenant-scoped idempotency result, and writes semantic audit in
+the same transaction. Next.js keeps its existing action/UI contract, sends a
+stable retry key through a guarded Core adapter, and never falls back to a
+second write after a selected Core failure.
+
+The source migration is
+`20260802230000_cash_transaction_workflow_idempotency.sql`; it creates a
+forced-RLS, service-only workflow ledger with tenant-composite foreign keys.
+All cash workflow controls remain false/empty. No hosted SQL, provider
+setting, feature flag, or deployment changed. GitHub publication is blocked
+because the connected `kurtgav` account has no access to
+`Third-Code-Solutions/ERP` (GitHub API returns 404); no alternate repository
+was used.
+
+Validation: shared finance contracts 9/9, cash database contracts 2/2, cash
+API contracts 4/4, web cash/client contracts 62/62, shared/database/API/web
+typechecks, Nest build, Next production build with 78/78 routes, controlled
+release plan 4/4, database release plan 7/7, and diff checks passed. The full
+serial Nest run produced 40/40 files and 226/226 passing tests but the Windows
+runner did not terminate before its process ceiling; this is recorded as an
+exit-handle timeout, not a green command exit. Guarded PostgreSQL integration
+remains skipped without `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1`.
+
+Source now has 78 migrations versus 55 hosted; the ordered 23-migration
+suffix remains unapplied.
+
+## 2026-08-03 hosted release recheck
+
+Read-only verification was repeated after the prior source publication. Supabase project
+`aqqrtkmtcsfkbyyqxowv` still reports 55 applied migrations against 78
+repository migrations. The duplicate evidence remains one tenant- and
+project-scoped Purchase Order-number group with 12 demo records (4 draft, 1
+pending PM approval, 1 pending SCM issuance, 6 issued). The audit table has
+661 rows for the populated demo tenant and 1 row for the fixture tenant; no
+owner-approved `AUDIT_RECOVERY_TENANT_ID` was supplied, so audit integrity was
+not treated as cleared.
+
+Railway `/health` and `/ready` returned 200 with database and Redis ready, but
+the local Railway CLI is unauthorized and still resolves to the wrong
+`joeseffdy` account; no Railway release was attempted. Vercel production
+`/api/ready` and the landing page returned 200; the live revision remains
+`31c04942a93d`, and the Vercel runtime-error report showed no errors in the
+last 24 hours. `apps/web/vercel.json` keeps Git deployment disabled. No
+Supabase SQL, feature flag, provider setting, or deployment changed. The new
+source head now contains 78 migrations; hosted parity remains 55.
+
+## M3.20 source update (2026-08-03)
+
+Source commit `806860e` is the reviewed supplier-bill reversal authority
+slice, published to both GitHub refs under `kurtgav`. NestJS now owns the
+closed-by-default `POST /v1/finance/supplier-bills/:supplierBillId/reverse`
+command when its exact API and tenant controls are selected. It validates the
+strict reason and posting date, rechecks `finance.post`, locks membership and
+the bill, reuses the existing `reverse_supplier_bill` database function,
+stores a strict tenant-scoped idempotency result, and writes semantic audit in
+one transaction. Next.js keeps its action contract, uses one stable reversal
+retry key, and fails closed after a selected Core API error; unselected
+tenants retain the legacy path.
+
+The source migration is
+`20260802220000_supplier_bill_reverse_workflow.sql`; it creates a forced-RLS,
+service-only reversal request ledger with tenant-composite foreign keys. No
+hosted SQL, feature flag, provider setting, or deployment changed.
+
+Validation: focused shared finance contracts 7/7, database reversal contracts
+2/2, focused API/observability contracts 18/18, web adapter/action contracts
+63/63, API/web typechecks, Nest build, controlled-release and database-plan
+checks passed. The guarded PostgreSQL integration was invoked and skipped
+because `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` were absent. A
+broad concurrent API invocation reached 216/218 tests but had two known
+resource/concurrency timeouts in unrelated pre-existing suites; the bounded
+serial API suite then completed cleanly at 38 files/219 tests. No full-suite
+green claim relies on the concurrent run.
+
+## M3.19 source update (2026-08-03)
+
+Source commit `f50c8bc5c540b97134764b56a297c41e8578f9f2` is the reviewed
+supplier-bill posting authority slice. NestJS now owns the closed-by-default
+`POST /v1/finance/supplier-bills/:supplierBillId/post` transaction when its
+exact API and tenant controls are selected. It rechecks `finance.post`, locks
+the tenant membership and draft bill, calls the existing database payable
+function, records a durable tenant-scoped idempotency result, and writes
+semantic audit in the same transaction. Next.js preserves its action contract,
+uses one stable retry key, and fails closed after a selected Core API error;
+reversal remains a separate legacy authority slice.
+
+The source migration is
+`20260802210000_supplier_bill_post_workflow.sql`; it creates a service-only,
+forced-RLS idempotency ledger with tenant-composite foreign keys. No hosted
+SQL, feature flag, provider setting, or deployment changed. Source now has 75
+migrations versus 55 hosted.
+
+Validation: shared types 141/141, database 141 passed with 137 guarded tests
+skipped, web 59 files/397 passed, API serial suite 36 files/213 passed,
+focused API contracts 40/40 passed, API/web/shared/database typechecks passed,
+Nest build passed, and the Next production build compiled and generated
+78/78 routes. Release-plan, controlled-release, workflow-reference,
+Actionlint, Gitleaks, and diff checks passed. The guarded supplier-bill
+PostgreSQL integration compiled and was invoked; it skipped because
+`DATABASE_URL` and the explicit integration gate were absent. The root Turbo
+test was also attempted; concurrent API harness timeouts caused five failures,
+while the same API suite passed serially with one worker.
+
+## M3.18 source update (2026-08-03)
+
+Source commit `140f4e8cb518445ab0903d7d885b68cebc7ce8f0` is the reviewed
+source candidate for this slice.
+
+The next delivery transition, `site_preparing -> site_ready`, now has a
+closed-by-default NestJS authority. The strict command accepts only bounded
+preparation notes; NestJS derives tenant and actor, locks membership and the
+schedule, claims the shared idempotency ledger, records preparation evidence,
+commits the status and audit event atomically, and returns a strict replayable
+result. Next.js keeps the existing `markSiteReady` contract and selects the
+new route only for an exact server-side flag plus UUID allowlist.
+
+The source migration is
+`20260802200000_delivery_site_preparation_complete_workflow.sql`; no hosted
+SQL, feature flag, provider setting, or deployment changed. Source now has 74
+migrations versus 55 hosted.
+
+Validation: shared types 139/139, database 138 passed with 137 guarded tests
+skipped, web 59 files/393 passed, focused API contracts 72/72 passed, API/web/
+shared/database typechecks passed, Nest build passed, and the Next production
+build compiled and generated 78/78 routes. Release-plan, controlled-release,
+Actionlint, Gitleaks, and diff checks passed. The guarded PostgreSQL/Redis
+integration compiled and was skipped because `DATABASE_URL` and the explicit
+integration gate were absent.
+
+## M3.17 source update (2026-08-02)
+
+The reviewed source commit `0b7cb532b0b3a32f687f58437f2756259ba68c27` adds the
+closed-by-default NestJS authority for the `scheduled -> site_preparing`
+delivery transition. The strict shared command/result, tenant-scoped
+transaction, durable idempotency replay, capability check, transactional
+audit event, API route, Next compatibility adapter, and stable browser retry
+key are source-complete. The migration is
+`20260802190000_delivery_site_preparation_start_workflow.sql`; no hosted SQL,
+feature flag, provider setting, or deployment changed.
+
+Local evidence: shared types 137/137, database 137 passed with 137 guarded
+tests skipped, web 59 files/388 passed, focused API contracts 64/64 passed
+with a 30-second test timeout, API and web typechecks passed, Nest build
+passed, release-plan/actionlint/gitleaks checks passed, and the guarded
+database integration was invoked and skipped without `DATABASE_URL`. Next
+production generation reached all 78 routes, but the Windows build worker did
+not return a definitive exit code within the bounded 15-minute run; this is
+not treated as a green deploy gate. API full-suite execution likewise exceeded
+the local 10-minute ceiling and was stopped.
+
+GitHub CI run `30755868510` failed before executable steps because the
+authenticated account payment/spending-limit gate remains active; all jobs
+were skipped. The source branch was pushed under `kurtgav` and remains ahead
+of hosted provider artifacts.
 
 ## Runtime topology
 
@@ -111,11 +6470,11 @@ successful build.
 |---|---|
 | Frontend | `apps/web`: Next.js 15.5.18 App Router, React 19.2.6, TypeScript 5.9.3 |
 | Existing application backend | 47 Next.js Server Action files, 24 Route Handler files, SQL functions/triggers, and Supabase clients |
-| New core ERP boundary | `apps/api`: NestJS 11 modular-monolith foundation. Project update is the first feature-flagged transaction slice and is off by default |
-| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 54 SQL migrations and 45 Drizzle schema files |
+| New core ERP boundary | `apps/api`: NestJS 11 modular monolith. Project and procurement adapters are disabled by default; approved-BOM RFQ dispatch now has an inert BullMQ producer/consumer path |
+| Database | PostgreSQL 17 through Supabase; Drizzle 0.40.1; 75 SQL migrations and 47 Drizzle schema files |
 | Authentication | Supabase Auth. Tenant membership and role come from PostgreSQL, not client claims |
 | Authorization | RLS plus mixed application checks in the legacy path. The Nest slice has deny-by-default capability metadata and tenant-scoped queries |
-| Async work | Inngest is the active legacy job system. Redis 5/BullMQ 5 are wired into the Nest foundation but have no migrated business jobs yet |
+| Async work | Inngest remains authoritative. Redis 5/BullMQ 5 now carry one disabled approved-BOM RFQ job contract with bounded retry and explicit dead-letter handling |
 | Python | `apps/workers`: FastAPI document/DXF processing service. A legacy path can write `scope_items` directly and must be removed |
 | Files | Supabase Storage |
 | Deployment | Next.js is live on Vercel. NestJS is live on Railway with managed Redis and healthy database/queue readiness. Both current production releases are attributed to `kurtgav` |
@@ -131,12 +6490,21 @@ successful build.
   `pnpm-lock.yaml`; its SHA-256 remained
   `A95947EAAF1B9D3801A27D5F551EF29239E1CF930BBD1FF8AAD0DF925E41A2C3`.
 
-## Configured database release status (historical 2026-07-30 snapshot)
+## Configured database release status
 
 The authorized Supabase target `aqqrtkmtcsfkbyyqxowv` is PostgreSQL 17 and
 matches the repository migration contract:
 
-- Migration ledger: 54 of 54 applied; no missing or unexpected versions.
+The historical 54/54 baseline below is retained as the last fully reconciled
+hosted baseline. The current source branch has 75 ordered migrations through
+`20260802210000_supplier_bill_post_workflow.sql`; the Supabase connector
+read-only ledger still reports 55 applied, with a 20-migration
+suffix pending and no hosted SQL applied. The hosted release remains blocked
+until the duplicate Purchase Order-number group and audit-recovery tenant are
+resolved by the owner.
+
+- Historical migration ledger: 54 of 54 applied; no missing or unexpected
+  versions at that prior release baseline.
 - Catalog: 86 public tables and 315 RLS policies.
 - Verifier: all 30 protected-table groups, constraints, triggers, privileges,
   tenant controls, and finance/inventory authority checks pass.
@@ -181,8 +6549,9 @@ matches the repository migration contract:
   audit support.
 - Inngest/Edge Functions: scheduled and event-driven legacy jobs.
 - Python: parsing and analysis, plus one prohibited direct-write legacy path.
-- NestJS: Project update authorization and atomic transaction authority only,
-  behind `ERP_PROJECT_WRITES_VIA_API=false`.
+- NestJS: Project and RFQ command authorization, atomic transaction authority,
+  and one approved-BOM BullMQ worker. All production cutover gates remain
+  disabled.
 
 ## Milestone 1 implementation
 
@@ -200,7 +6569,7 @@ matches the repository migration contract:
   plus an explicit database-derived tenant allowlist.
 - Safe rollback to the legacy write path when either gate does not match.
 
-## Hosted release status (historical evidence; superseded by 2026-08-13 check)
+## Hosted release status
 
 - GitHub source is published to `Third-Code-Solutions/ERP`; the reviewed
   deployment milestone is present on `main`.
@@ -208,7 +6577,7 @@ matches the repository migration contract:
   runners because the organization account has a billing/spending-limit
   block; the failure occurs before any workflow step executes.
 - Railway project `a21fd382-80b2-4218-8025-11f420a062e3` runs the NestJS
-  service `ABI OPS API` and a managed Redis service.
+  service `Third Code ERP API` and a managed Redis service.
 - `https://third-code-erp-api-production.up.railway.app/health` returns
   `status=ok`; `/ready` returns `database=ok` and `redis=ok`.
 - The current Railway deployment is
@@ -238,8 +6607,8 @@ matches the repository migration contract:
 
 | Classification | Evidence |
 |---|---|
-| Implemented | Broad construction ERP UI, Supabase schema/RLS, server actions, route handlers, audit infrastructure, Inngest jobs, first Nest transaction slice |
-| Incomplete | Nest migration, Redis/BullMQ business jobs, uniform capability checks, uniform transactional audit, Python write removal, production-write activation evidence, clean CI, and provider-level rollback |
+| Implemented | Broad construction ERP UI, Supabase schema/RLS, server actions, route handlers, audit infrastructure, Inngest jobs, incremental Nest transaction adapters, and one disabled BullMQ RFQ job |
+| Incomplete | Remaining Nest migration, notification/outbox parity for RFQ BullMQ cutover, uniform capability checks, uniform transactional audit, Python write removal, production-write activation evidence, clean hosted CI, and provider-level rollback |
 | Mock/demo | Repository and live application contain demo-oriented data and optional-provider fallbacks |
 | Duplicated | Business rules and authorization are split across server actions, handlers, SQL, and worker code |
 | Broken/risky | Python direct database write; optional Python shared secret; process-local rate limiting; elevated server credentials can bypass RLS; several audit writes are not in the same transaction as the mutation |
@@ -441,10 +6810,9 @@ matches the repository migration contract:
   validation, lint, typecheck, unit tests, 48 migrations, 212/212 database
   tests, Nest integration, production build, native smoke, Gitleaks, and
   cleanup all passed in 5m33s without dependency-cache or artifact upload.
-- GitHub runner registration and runner-process counts are zero. All retained
-  Windows runner directories are credential-free; Windows still holds their
-  non-secret work files open, so physical directory deletion remains an
-  operator cleanup item.
+- GitHub runner registration and runner-process counts are zero. Transient
+  runner work directories and credential-free remnants were removed after
+  the verified run.
 - The connected Supabase ERP project is `ACTIVE_HEALTHY` on PostgreSQL 17.6.
   A read-only M1 candidate scan found no existing tenant that satisfies every
   Project-cutover entry gate. The primary demo tenant has an authorized Admin
@@ -1056,6 +7424,33 @@ matches the repository migration contract:
 - Complete/cancel commands remain in the existing Next.js transaction service.
 - No database migration or provider environment change was required.
 
+## 2026-07-30 RFQ terminal NestJS adapter
+
+- NestJS now exposes the original terminal command boundary
+  `POST /v1/procurement/rfqs/:rfqId/transitions` for complete and cancel.
+- Strict shared contracts reject unknown authority fields, trim and bound
+  cancellation reasons, and require a durable tenant-scoped success result.
+- The authenticated principal supplies tenant and actor. The controller
+  requires `rfq.dispatch`; the service locks the tenant RFQ, enforces its
+  explicit state machine, rechecks full quote coverage for completion, uses a
+  guarded status update, and commits semantic audit evidence in the same
+  transaction.
+- Next.js preserves the current Server Action response and notification
+  behavior. Routing remains on the compatibility service unless
+  `ERP_RFQ_TERMINAL_WRITES_VIA_API` is exactly `true` and the authenticated
+  tenant matches a separate strict UUID allowlist. An enabled API failure
+  never falls back to a second writer.
+- The adapter is source-complete but disabled in every provider environment.
+  No UI, schema, migration, data, Python, Storage, queue, or provider setting
+  changed.
+- Full validation passes: lint, typecheck, 397 application tests, production
+  build with 77/77 generated pages, Actionlint, pinned-action verification,
+  both release planners, Gitleaks, and product-path ERPNext/Frappe scan.
+- The disposable PostgreSQL 17 and Redis 7.4.9 lane passes all 54 migrations,
+  236/236 database tests with zero skips, and 2/2 Nest database integration
+  tests including real tenant denial, quote completion, repeated-transition
+  conflict, cancellation reason audit, and transaction rollback cleanup.
+
 ## 2026-07-30 RFQ adapter provider verification
 
 - Railway deployment `f51c7aba-d5d9-4ccd-9cbe-46fa508117af` is SUCCESS and
@@ -1079,7 +7474,7 @@ matches the repository migration contract:
 - Public metadata, structured-data identifiers, `robots.txt`, and
   `sitemap.xml` now resolve from one validated public origin.
 - Resolution order is `NEXT_PUBLIC_SITE_URL`, server-only `SITE_URL`, Vercel's
-  production hostname, then the retained legacy Vercel origin for
+  production hostname, then the retained Third Code Vercel origin for
   compatibility.
 - Configured origins must be absolute HTTP(S) origins without credentials,
   paths, queries, or fragments. Invalid configuration fails the build instead
@@ -1109,6 +7504,13 @@ matches the repository migration contract:
   unprivileged pnpm-symlink tracing failure.
 - Standalone source build and runtime proof pass: 77/77 generated pages,
   process health, SSR landing, nonce CSP, robots, sitemap, and manifest.
+- First transient self-hosted run `30484376284` passed checkout, locked install,
+  workflow validation, lint, typecheck, unit tests, the clean PostgreSQL
+  17/Redis lane, and the production build. Its standalone step built 77/77
+  pages, then failed only while removing a deep Windows runner path.
+- The standalone smoke now isolates work at the repository drive root and
+  retries verified cleanup. Local rerun passes every runtime assertion, removes
+  its worktree, and leaves no process listening on port 3090.
 - Root lint/typecheck, 381 application tests, default production build,
   77/77 generated pages, the 1440/768/390 frontend release browser test,
   gitleaks, actionlint, workflow action-reference validation, and both release
@@ -1120,19 +7522,1465 @@ matches the repository migration contract:
   standalone Node artifact and runtime are verified independently.
 - No frontend hostname, Supabase redirect setting, traffic, database, Railway
   service, Vercel setting, or Vercel deployment changed.
+# 2026-07-30 manual BOM-to-RFQ NestJS adapter
 
-## 2026-08-13 RFQ terminal-transition adapter
+- NestJS now exposes authenticated `POST /v1/procurement/rfqs` for manual
+  BOM-to-RFQ creation.
+- Request accepts only `bomId`. Tenant, actor, role, and source come from the
+  verified principal and capability guard.
+- Transaction locks the tenant-scoped BOM, returns exact tenant/BOM replay,
+  filters contracted-rate lines, inserts one pending RFQ, and writes one
+  actor-attributed semantic audit before commit.
+- Next.js preserves the existing `createRfqFromBom(bomId)` Server Action
+  contract through independent fail-closed gates:
+  `ERP_RFQ_CREATE_WRITES_VIA_API` and
+  `ERP_RFQ_CREATE_WRITES_VIA_API_TENANT_IDS`.
+- Both creation gates remain unset. Manual production writes therefore remain
+  on the existing server-only compatibility service until a controlled tenant
+  cutover is approved.
+- Automatic BOM-approval dispatch remains on the existing server-only Inngest
+  path. Moving that background authority to NestJS/BullMQ is the next backend
+  migration slice.
+- No UI, database schema, hosted data, Python, queue, Storage, or Vercel
+  deployment changed in this source milestone.
+- Validation passes: root lint and typecheck; 412 application tests; ordinary
+  database lane 99 pass with 137 expected skips; Nest and Next production
+  builds with 77/77 Next static steps; disposable PostgreSQL 17/Redis 7.4.9
+  replay of 54/54 migrations; 236/236 zero-skip database assertions; and 2/2
+  Nest database integration tests.
+- Source commit `b8d1e518e63d0fcf9802efe30b2f1569ad6c6de4` is live on Railway
+  as deployment `5ebaca8a-e1cb-4d25-afb3-a98930046ebc`; health, database, and
+  Redis readiness pass, and the protected create endpoint rejects anonymous
+  access.
+- Free self-hosted GitHub Actions run `30495135107` passed the exact source
+  SHA. The hosted run executed zero steps because of the account billing
+  restriction.
+- Vercel Git is disconnected and no frontend deployment was created. Frontend
+  release remains a single explicitly approved, consolidated deployment.
 
-- NestJS now exposes strict authenticated completion and cancellation routes:
-  `POST /v1/procurement/rfqs/:rfqId/complete` and
-  `POST /v1/procurement/rfqs/:rfqId/cancel`.
-- The adapter derives actor and tenant from Supabase JWT membership, requires
-  `rfq.dispatch`, locks the RFQ, validates completion coverage, updates status
-  with tenant/previous-status predicates, and writes the semantic audit in the
-  same transaction.
-- Next.js remains the default writer. The adapter requires the exact
-  `ERP_RFQ_TRANSITION_WRITES_VIA_API=true` flag plus an explicit UUID tenant
-  allowlist. No hosted environment, migration, deployment, or provider data
-  changed.
-- Shared, API, web, and disposable PostgreSQL/Redis verification passes are
-  recorded in `docs/research/components/rfq-transition-nest-adapter.spec.md`.
+## 2026-07-30 approved-BOM RFQ BullMQ dispatch
+
+- NestJS now exposes protected
+  `POST /v1/procurement/rfqs/dispatch`. The request accepts only `bomId`;
+  tenant, actor, source, retry policy, queue, and deterministic job ID are
+  server-derived.
+- Queue `procurement-rfq-dispatch` runs
+  `create-from-approved-bom` with five bounded attempts, exponential backoff,
+  retained failures, and one deterministic dead-letter record after the final
+  failure.
+- The worker parses the job again, reloads the actor by tenant, rechecks the
+  current `rfq.dispatch` capability, locks the approved tenant BOM, and reuses
+  the existing atomic RFQ transaction. Replay returns the existing RFQ without
+  a second semantic audit.
+- Next.js selects this producer only when exact
+  `ERP_RFQ_AUTO_DISPATCH_VIA_API=true` and a strict tenant allowlist match.
+  Disabled or unmatched tenants keep the current Inngest producer. After Nest
+  selection, failure never falls back to Inngest.
+- Both automatic-dispatch variables remain unset. Inngest remains production
+  authority because its notification side effect has not yet moved to an
+  idempotent NestJS outbox/delivery path.
+- No React/UI, schema, migration, hosted data, Python, Storage, provider
+  environment, or Vercel deployment changed.
+- Validation passes: 60/60 focused tests; root lint, typecheck, 430 application
+  tests, and production build with 77/77 generated pages; Actionlint, pinned
+  action references, both release planners, Gitleaks, and zero prohibited
+  external-ERP runtime matches.
+- The disposable PostgreSQL 17/Redis 7.4.9 lane passes all 54 migrations,
+  236/236 database assertions with zero skips, and 5/5 Nest integration tests.
+  It proves duplicate suppression, bounded retry, one dead letter, Redis
+  restart/reconnect, tenant and role denial, approved-state enforcement, one
+  RFQ, one semantic audit, rollback cleanup, and stable schema fingerprint
+  `36B8999F16B825D89D8F782CBF28180D074AD677A9E8B2C16B713C79BB931BB6`.
+- Source commit `dffb6052dde794a80abd8bbb24acc59adcd6fd10` is published on
+  both GitHub refs under `kurtgav` and is live on Railway as successful
+  deployment `5e717900-d78a-4472-846f-df5784167354`, image
+  `sha256:13a83447269e7588cf4141ca02491122e0a5101b24678d1657e69034d4717864`.
+- Live `/health` and `/ready` return 200; readiness reports PostgreSQL and Redis
+  `ok`. Anonymous dispatch returns 401, and the deployment error-log query is
+  empty.
+- Railway has zero `ERP_RFQ_AUTO_DISPATCH*` variables. Vercel reports zero
+  deployments after retained baseline timestamp `1785295180454`; Git remains
+  disconnected.
+- Hosted GitHub Actions run `30498025937` executed zero steps because its first
+  hosted job could not start; dependent jobs were skipped. No self-hosted
+  runner remains registered. Local and disposable evidence is authoritative
+  for this release.
+
+## 2026-07-30 RFQ notification outbox and BullMQ delivery
+
+- Automatic NestJS RFQ creation now commits one immutable
+  `notification_outbox` intent and same-tenant procurement-recipient delivery
+  snapshots in the same PostgreSQL transaction as the RFQ and semantic audit.
+- Exact replay returns the existing outbox. Database uniqueness prevents a
+  second intent, recipient/channel delivery, or in-app notification.
+- BullMQ carries only tenant, outbox, and delivery UUIDs. PostgreSQL remains
+  the delivery authority with explicit `pending`, `processing`, `delivered`,
+  and `dead_letter` states, a five-attempt database ceiling, and stale-claim
+  recovery.
+- In-app delivery revalidates the current procurement role and commits its
+  notification and delivered state together. Email delivery rebuilds content
+  from PostgreSQL and uses a stable Resend idempotency key.
+- Browser roles have no access to outbox/delivery tables and can no longer
+  directly insert, update, or delete notifications. Existing authorized
+  notification reads remain unchanged.
+- Recovery polling is opt-in through exact
+  `ERP_NOTIFICATION_SWEEP_ENABLED=true`; its default is false. The disabled
+  production path therefore creates no scheduled Redis or email-provider
+  work.
+- Hosted Supabase project `aqqrtkmtcsfkbyyqxowv` is healthy on PostgreSQL 17.
+  Migration `20260729233017_notification_outbox_foundation.sql` is applied;
+  ledger is 55/55, both new tables have zero rows, all three composite
+  constraints are validated, and browser privileges are closed.
+- Supabase advisors add only expected informational findings for the two
+  intentionally policy-free/server-only empty tables and their unused new
+  indexes. Existing unrelated warnings remain tracked.
+- Production automatic dispatch, tenant allowlist, and notification recovery
+  flags remain disabled. Existing Inngest behavior remains authoritative.
+- Source commit `a93da5f5025677444ca14407c98a189673c952dc` is published on
+  both GitHub refs under `kurtgav` and is live on Railway as successful
+  deployment `50fad0aa-8506-457a-a405-152dc31d2340`, image
+  `sha256:50d598e279aa8d6b3681a0f2a230ed46d682bdc80e0802ff9bd81023dbd11a55`.
+- Live `/health` and `/ready` return 200; readiness reports PostgreSQL and
+  Redis `ok`. Anonymous dispatch returns 401. Deployment error logs and recent
+  HTTP 5xx logs are empty.
+- GitHub Actions run `30499929834` executed zero steps because the hosted
+  Actionlint job could not start; all dependent jobs were skipped. Local and
+  disposable evidence remains authoritative.
+- No React/UI, Python, Storage, or Vercel deployment changed. Vercel Git
+  remains disconnected; Vercel reports zero deployments after retained
+  baseline timestamp `1785295180454`.
+
+## 2026-07-30 controlled production release
+
+- Hosted Supabase project `aqqrtkmtcsfkbyyqxowv` remains the PostgreSQL source
+  of truth on PostgreSQL 17.6. Its migration ledger exactly matches the
+  repository at 55/55 through
+  `20260729233017_notification_outbox_foundation.sql`; no SQL was pending or
+  applied during this release. The notification outbox remains empty.
+- Vercel production deployment
+  `dpl_Htv5nb1A8oHbtowQpmrToYQgxDDL` is `READY` on exact source
+  `31c04942a93dce78f165880fb02bdf38d25eb506`, created by `kurtgav`, and owns
+  `https://thirdcode-erp.vercel.app`.
+- Vercel required one protected preview build
+  (`dpl_92JBFVyZjGozKPg2vcu5Hv4wNx9c`) and one production-environment rebuild.
+  No retries or additional deployments were created.
+- Live web `/`, `/api/health`, `/api/ready`, `robots.txt`, `sitemap.xml`, and
+  `manifest.webmanifest` return 200. Health and readiness report revision
+  `31c04942a93d`; readiness reports the database `up`. The authenticated
+  dashboard renders without the previous Server Components exception.
+- Vercel reports no runtime-error cluster and no HTTP 5xx for the production
+  deployment. The previous production deployment
+  `dpl_GTDC2eis2Epkrty6USXyAPMNbsGt` is the rollback reference.
+- Vercel Git was disconnected after promotion. Future GitHub pushes cannot
+  trigger automatic Vercel builds.
+- Railway remains online without an unnecessary rebuild. Deployment
+  `50fad0aa-8506-457a-a405-152dc31d2340` is `SUCCESS` on application source
+  `a93da5f5025677444ca14407c98a189673c952dc`; the repository delta to
+  `31c04942a93dce78f165880fb02bdf38d25eb506` is documentation-only.
+- Railway `/health` and `/ready` return 200; readiness reports PostgreSQL and
+  Redis `ok`. Anonymous RFQ dispatch returns 401, and the last-hour HTTP 5xx
+  query is empty.
+
+## 2026-08-01 purchase-order authority audit and bounded adapter
+
+- Purchase-order reads and writes remain in Next.js Server Actions. The main
+  write surface is `apps/web/src/app/(dashboard)/procurement/actions.ts`:
+  standalone/BOM/grouped creation, cost-code edits, state transitions,
+  approvals, issuance, and receiving.
+- Existing actions derive tenant and actor from the authenticated server
+  profile, but prior creation, legacy transition, and receiving entry points
+  did not consistently enforce capability checks. This milestone closes those
+  gaps with `po.create` and new `po.receive` checks. Project and vendor IDs are
+  now verified against the caller tenant before PO creation.
+- PO money is stored as PostgreSQL integer centavos (`bigint` mapped to
+  numbers). Standalone line input now rejects non-integer quantities/prices;
+  the existing BOM path still needs a transaction-authority rewrite.
+- NestJS now exposes original contract boundary
+  `POST /v1/procurement/purchase-orders`, guarded by `po.create`, strict Zod
+  command validation, and required `Idempotency-Key` header. Service is
+  deliberately fail-closed and performs no database mutation until durable
+  idempotency and full transaction parity exist.
+- `ERP_PO_CREATE_WRITES_ENABLED` defaults to `false`; even `true` cannot enable
+  provisional service. No browser action calls this endpoint yet. No SQL,
+  Supabase, Vercel, Railway, Python, Storage, or UI design change occurred.
+- Focused and full gates pass: 453 application tests (91 shared, 70 API,
+  292 web), plus 103 database tests with 137 environment-gated skips; root
+  lint, root typecheck, `git diff --check`, and production build (Nest compile
+  plus 77/77 Next pages). Disposable database/Redis release lane was not
+  rerun because this slice changes no schema or migration.
+- Remaining authority risks: BOM/grouped PO creation and legacy PO-number
+  allocation are not one transaction, receiving and state updates are not yet
+  atomic with semantic audit, and direct Server Action writes remain
+  authoritative until a tenant-scoped cutover. Standalone create has a
+  disabled candidate transaction seam documented below.
+
+## 2026-08-01 standalone purchase-order transaction seam
+
+- Candidate migration 20260801090000 adds tenant-scoped purchase-order
+  idempotency requests, a processing/succeeded state check, composite
+  tenant-to-purchase-order and tenant-to-user foreign keys, RLS, service-only
+  grants, and a tenant-composite unique PO-number index. It deliberately
+  preflights duplicate existing numbers and fails closed. Repository head now
+  contains 56 migrations; hosted Supabase remains at 55/55 and was not changed.
+- The Nest service now performs the official standalone create inside one
+  PostgreSQL transaction: rechecks tenant membership and po.create capability,
+  locks and replays an idempotency request, rejects a conflicting request hash,
+  validates same-tenant project/vendor/cost-code references, takes a tenant
+  advisory number lock, calculates integer centavos with bounded bigint
+  arithmetic, inserts the PO and lines, writes semantic audit, and commits the
+  replay result atomically.
+- API writes require the exact ERP_PO_CREATE_WRITES_ENABLED flag plus an explicit
+  UUID tenant allowlist. The Next client requires its own exact flag and
+  allowlist, supplies a stable idempotency key, and fails closed on API errors;
+  the legacy Server Action path remains the default until a canary is approved.
+- Static schema, database, API, shared-contract, and focused web tests pass;
+  the full web suite is 295 passed. Root lint, typecheck, test, and production
+  build also pass.
+- Read-only release planning against Supabase confirms PostgreSQL 17,
+  55 applied migrations through 20260729233017, and one linear missing suffix:
+  20260801090000. The planner flags its defensive drop-constraint statements
+  for explicit review; no SQL was executed.
+  Disposable PostgreSQL 17/Redis integration was initially blocked because
+  Docker is unavailable on this workstation. A later owned Alpine WSL1 lane
+  completed the proof without hosted SQL or provider mutation.
+
+## 2026-08-01 live landing regression audit
+
+- The accepted public Third Code ERP landing surface remains the existing
+  Next.js implementation in `apps/web/src/components/marketing`: three-line
+  hero, dense 12-column bento, progressive-disclosure accordion, workflow
+  stack, testimonial carousel, FAQ, CTA, and structured metadata.
+- Live browser evidence at `https://thirdcode-erp.vercel.app/` confirms no
+  horizontal overflow at 1440px or 390px, three hero lines at both widths,
+  accessible accordion/carousel/FAQ state changes, and zero console errors.
+- Source regression coverage now protects the visual contract in
+  `third-code-landing.test.ts`; the full web suite is 298 passed. This is a
+  source-only evidence milestone: no Vercel deployment, Railway release, or
+  hosted Supabase mutation was performed.
+
+## 2026-08-01 disposable database and queue proof
+
+- `scripts/ci/run-wsl1-database-lane.ps1 -Distribution ThirdCodeERP-Test`
+  rebuilt the disposable PostgreSQL 17 database from zero, applied all 56
+  repository migrations, seeded it, and verified an exact migration ledger and
+  schema hash `427DEBE7531E969D9142C618180FB896FFE12C55C654655256DF1BA7647F2384`.
+- Database suite executed 243/243 tests with zero environment skips. Nest
+  integration executed 7/7 tests covering tenant/auth boundaries, idempotency,
+  rollback, audit, and BullMQ Redis restart/data-loss recovery.
+- Redis 7.4.9 was built and run in the disposable WSL1 distro. WSL reported
+  only the known memory-overcommit warning; no hosted SQL, Vercel deployment,
+  or Railway deployment occurred.
+
+## 2026-08-01 PO approval workflow authority slice
+
+- Added candidate migration `20260801100000_purchase_order_workflow_idempotency.sql`;
+  repository head is now 57 migrations. It creates a tenant-scoped,
+  service-only request ledger for `submit_pm_approval`, `pm_approve`,
+  `commercial_approve`, and `reject`.
+- NestJS now exposes the disabled route
+  `POST /v1/procurement/purchase-orders/:purchaseOrderId/workflow`. The service
+  rechecks tenant membership and action capability, locks the PO and request,
+  enforces the explicit state machine, stamps approvers, writes semantic audit,
+  and replays the original result atomically. SCM issuance, supplier email,
+  receiving, and browser delegation remain outside this slice.
+- `ERP_PO_WORKFLOW_WRITES_ENABLED` and
+  `ERP_PO_WORKFLOW_WRITES_TENANT_IDS` default false/empty. Existing Next Server
+  Actions remain authoritative; no tenant is selected for cutover.
+- Disposable WSL1 proof reran all 57 migrations: database tests 243/243 with
+  zero skips and Nest/Redis integration 8/8, including real workflow commit,
+  replay, state/capability, audit, rollback, and tenant isolation assertions.
+- Hosted Supabase was not changed. Vercel and Railway were not deployed;
+  provider sessions still require the correct `kurtgav` identity.
+- Fresh read-only hosted reconciliation reports PostgreSQL 17, 55 applied
+  migrations through `20260729233017`, repository 57/57, and exactly two
+  linear missing candidates (`20260801090000`, `20260801100000`). No SQL was
+  executed; both candidates require explicit defensive-constraint review.
+- The Next server-only core client now has a strict, separately gated PO
+  workflow request seam and validates the Nest result. No current Server Action
+  delegates to it because notification parity and canary evidence are not yet
+  complete.
+
+## 2026-08-01 PO workflow notification parity slice
+
+- Added candidate migration `20260801110000_purchase_order_workflow_notifications.sql`.
+  It constrains the tenant-scoped notification outbox payload for the four
+  approval transitions; hosted Supabase remains unchanged.
+- Nest workflow commits now require a separate exact notification flag and
+  tenant allowlist. Each committed transition inserts one outbox intent and
+  role-routed in-app/email delivery rows in the same PostgreSQL transaction;
+  retries replay without duplicating either state or notification intent.
+- BullMQ delivery now validates the payload, tenant aggregate, current role,
+  channel, and idempotent delivery state for Purchase Orders. In-app notices
+  link to the existing Purchase Order route; email uses the existing Resend
+  boundary. No UI or Server Action cutover occurred.
+- Local proof: 58/58 migrations, database 244/244 with zero skips, Nest/Redis
+  integration 8/8, full tests shared 94/API 79/web 300/database 107 plus the
+  normal 137 environment-gated database skips, root typecheck/lint, and 77/77
+  Next production pages all pass. Hosted planner is 55/58 read-only; no SQL
+  or provider deployment was performed.
+
+## 2026-08-01 read-only project canary audit
+
+- The existing demo tenant/project/actor target was inspected in a repeatable
+  read-only transaction on PostgreSQL 17. Auth identity, project audit trigger,
+  hardened audit function, and non-public audit function permissions are all
+  present.
+- Canary status is blocked: the tenant audit chain has 2 predecessor-link
+  mismatches and 151 hash mismatches; the selected actor also lacks the
+  `project.update` capability.
+- No business data, audit rows, permissions, flags, hosted migration, or
+  provider deployment was changed. These findings require a separate audit
+  recovery review before any canary or write authority decision.
+
+## 2026-08-01 audit hash parity hardening
+
+- The read-only forensic query confirmed that the database trigger hashes
+  `prev_hash + entity_type + entity_id + action + PostgreSQL timestamptz text`,
+  while the API and Next server writers had been using a JSON payload hash.
+- Added one shared database-compatible hash helper and switched both server
+  writers plus chain verification to it. This affects only future audit rows;
+  existing hosted rows were not rewritten.
+- Focused hash tests (17/17), serial full tests (shared 95, database 107 with
+  137 normal skips, web 300, API 79), disposable PostgreSQL/Redis (58/58
+  migrations, 244/244 DB assertions, 8/8 integration), typecheck, lint, and
+  build (77/77 pages) passed. Hosted data and provider state remain unchanged.
+
+## 2026-08-01 read-only audit recovery planner
+
+- Added `scripts/plan-audit-recovery.mjs` with opaque tenant references,
+  repeatable-read/read-only transactions, system-label/day mismatch buckets,
+  control checks, and a `--require-clear` release gate. It never prints entity
+  IDs or business values and never writes `audit_log`.
+- Hosted execution reproduced PostgreSQL 17/UTC, 661 audit rows, 2 link
+  mismatches, and 151 hash mismatches. The report is `review_required`; no
+  repair, permission change, migration, or deployment was attempted.
+
+## 2026-08-01 audit hash profile verification
+
+- `scripts/verify-audit-hash-profiles.mjs` compares historical rows only with
+  the current PostgreSQL trigger formula and the legacy JSON writer formula.
+- Hosted read-only result: 510 rows match the database profile, 40 match the
+  legacy JSON profile, 111 match neither reviewed profile, and 2 chain links
+  are broken. `--require-current` remains non-zero; this is evidence for
+  recovery review, not permission to rewrite immutable history.
+
+## 2026-08-01 controlled release gate
+
+- Branch `agent-02/third-code-erp-landing` is pushed under the requested
+  `kurtgav` GitHub identity at commit `ca9ff6d`. One Vercel preview for that
+  SHA reached `Ready`; Preview Protection redirected anonymous health checks,
+  so preview runtime health was not overstated. Vercel production remains on
+  revision `31c04942a93d`.
+- Railway production remains on the active RFQ-notification deployment
+  `50fad0aa-8506-457a-a405-152dc31d2340`; `/health` and `/ready` returned 200,
+  with database and Redis ready. No production redeploy was triggered.
+- The reviewed 55-to-58 Supabase suffix was attempted as one transaction. The
+  first migration intentionally stopped on one duplicate tenant/PO-number
+  group containing 12 demo records. PostgreSQL rolled back the transaction;
+  the hosted ledger remains 55/58 and no schema, business data, audit rows,
+  permissions, or flags were changed.
+- Do not rename/delete those records or weaken the uniqueness guard without an
+  explicit data-remediation decision. The duplicate and historical audit
+  integrity blockers keep PO authority and production promotion disabled.
+
+## 2026-08-01 read-only Purchase Order duplicate planner
+
+- Added `scripts/plan-purchase-order-duplicates.mjs` and its pure contract
+  helpers/tests. The planner uses a repeatable-read/read-only transaction,
+  stable opaque tenant/group/record references, bounded output, timestamps,
+  statuses, and deterministic review order.
+- Hosted execution confirms one duplicate tenant/PO-number group containing 12
+  records. The report prints no PO number, UUID, money, note, or other business
+  value; it returns `review_required` and never writes.
+- Added CI contract coverage in both GitHub workflows. No hosted schema,
+  business data, audit history, provider setting, feature flag, or deployment
+  changed in this milestone.
+
+## 2026-08-01 clean-room runtime branding guard
+
+- Runtime source/public text was scanned for ABI Ops, ERPNext, and Frappe
+  markers; none were found. Rework references remain limited to internal
+  clean-room provenance comments and migration names.
+- Added `apps/web/src/lib/branding-clean-room.test.ts` to prevent those legacy
+  markers from entering production runtime text. No visible UI copy changed.
+
+## 2026-08-01 controlled release gate aggregator
+
+- Added `scripts/plan-controlled-release.mjs` and its pure contract helper to
+  combine the existing migration, Purchase Order duplicate, audit, and
+  Railway/Vercel readiness evidence into one read-only decision.
+- The command is fail-closed: `--require-clear` exits non-zero unless every
+  component is clear. It never applies SQL, enables feature flags, changes
+  provider settings, or creates a deployment.
+- Hosted execution reports `review_required` with 55/58 migrations, one
+  duplicate group containing 12 demo records, and a missing explicit audit
+  tenant selector in the current shell. Both live readiness endpoints return
+  HTTP 200. No hosted state changed.
+
+## 2026-08-01 Stock Receipt draft authority slice
+
+- Added candidate migration `20260801120000_stock_receipt_create_idempotency.sql`.
+  The repository now contains 59 ordered migrations; the hosted Supabase
+  ledger remains unchanged at 55/59 and the four missing migrations are still
+  a release blocker.
+- Added disabled NestJS `POST /v1/inventory/stock-receipts` authority with
+  `inventory.manage` capability checks, database-derived tenant membership,
+  exact micro-unit quantity and centavo valuation, same-tenant PO/Warehouse/
+  Delivery validation, durable idempotency, semantic audit, and one database
+  transaction. Posting and reversal remain the existing database workflows.
+- Added the server-only `stock_receipt_create_requests` table with tenant
+  composite foreign keys, state-payload checks, RLS, and browser privilege
+  revocation. `ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED` defaults false and
+  its tenant allowlist defaults empty. Existing Inventory Server Actions remain
+  authoritative and unchanged; no frontend cutover occurred.
+- Validation for this source milestone: shared-types 104/104, database
+  110/110 with normal environment-gated skips, API 85/85, web 301/301;
+  production build generated 77/77 pages; TypeScript checks, serial lint,
+  Actionlint, Gitleaks, migration replay, and the disposable Nest inventory
+  integration passed. No hosted database, provider setting, flag, or
+  deployment changed.
+- Validation: controlled-gate contract 4/4, all existing planner contracts,
+  typecheck, lint, actionlint, gitleaks, full package tests, and production
+  build 77/77 pages passed. The first parallel verification attempt was
+  discarded because build/typecheck raced on `.next/types`; the ordered rerun
+  is the authoritative result.
+
+## 2026-08-01 CAD parser write-authority removal
+
+- Removed the Python worker's PostgreSQL dependency and direct `scope_items`
+  write path. The worker now reads source files from Supabase Storage, performs
+  document extraction, and returns bounded evidence only.
+- Added a shared response contract that checks document identity, item count,
+  formats, warning limits, quantity/cost bounds, and a maximum of 5,000 items.
+- The Next application validates the source document inside the tenant/project
+  scope, replaces only that document's derived rows, computes exact integer
+  line totals, and writes semantic audit evidence in one transaction. Uploads
+  pass the authenticated actor; queued Inngest parsing uses an explicit
+  system-attributed null actor rather than accepting worker authority.
+- Existing upload/API behavior and UI remain unchanged. No hosted database,
+  feature flag, Railway service, Vercel project, or deployment changed.
+- Validation: web contract 4/4, web suite 50 files/305 tests, web typecheck,
+  ordered lint, production build generated 77/77 pages, and Python source
+  bytecode compilation passed. Python pytest was not runnable in this checkout
+  because `pytest` is not installed.
+
+## 2026-08-01 NestJS CAD evidence-commit adapter
+
+- Added shared CAD evidence contracts and exact integer line-total helpers in
+  `packages/shared-types/src/erp-api/cad.ts`; the web compatibility contract
+  now re-exports the same parser limits and arithmetic.
+- Added candidate migration `20260801130000_cad_evidence_commit_idempotency.sql`
+  and the matching Drizzle table. It is tenant-scoped, composite-FK protected,
+  RLS-enabled, server-only, and records processing/succeeded idempotency state.
+- Added disabled NestJS `POST /v1/documents/:documentId/cad-evidence` authority.
+  It derives membership from PostgreSQL, requires `document.manage`, validates
+  document/project tenancy, replaces only document-derived scope rows, commits
+  exact totals plus semantic audit in one transaction, and replays/conflict
+  checks idempotency keys. `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED` defaults
+  false and its tenant allowlist defaults empty. Existing Next parsing remains
+  the compatibility path; no UI cutover occurred.
+- Python remains evidence-only. No hosted Supabase SQL, flag, Railway service,
+  Vercel project, or deployment changed.
+- Validation: shared 108/108, database 113 passing with 137 normal skips, API
+  92/92, web 301/301; disposable PostgreSQL 17/Redis 7.4.9 lane replayed all
+  60 migrations, ran 250/250 database assertions without skips, and ran 10/10
+  Nest/Redis integration assertions. Root typecheck, serial lint, production
+  build (77/77 pages), Actionlint, Gitleaks, and diff checks passed.
+
+## 2026-08-01 NestJS CAD processing-job intake
+
+- Added strict shared request, opaque queue identity, accepted response, and
+  bounded status contracts. BullMQ carries only schema version and durable job
+  UUID; it never carries tenant, actor, storage path, or source content.
+- Added candidate migration `20260801140000_document_processing_jobs.sql` and
+  Drizzle schema. Jobs are tenant-scoped, idempotent by tenant/key,
+  composite-FK protected, state/timestamp/warning checked, RLS-enabled, and
+  browser-privilege revoked.
+- Added disabled NestJS POST intake and tenant-scoped status read. PostgreSQL
+  membership and `document.process`/`document.processing.read` are rechecked;
+  the transaction derives document project/actor and the server-only queue
+  producer deduplicates opaque transport IDs. No worker processor or Next
+  cutover is enabled.
+- Added clean-room live landing behavior/topology/component artifacts and
+  desktop/mobile captures; no visible UI code or copy changed.
+- Disposable PostgreSQL 17/Redis 7.4.9 replay passed 61 migrations, 253/253
+  database assertions without skips, and 11/11 API integration assertions.
+Hosted Supabase remains at its prior ledger; no provider flag or deployment
+changed.
+
+## 2026-08-01 NestJS-to-Python CAD evidence bridge
+
+- Added a private `/parse-evidence` worker contract. NestJS signs the exact
+  request body with a shared HMAC, sends no tenant/project/actor authority, and
+  grants Python only a 120-second exact-object Storage URL. The worker returns
+  bounded, hash-linked evidence with deterministic item keys and no ERP write
+  capability.
+- Added server-only API storage URL issuance, response validation, document
+  identity/attempt checks, timeout and response-size bounds, PostgreSQL-backed
+  queued/processing/succeeded/failed transitions, duplicate delivery handling,
+  retry/dead-letter handling, and the disabled BullMQ processor. Scope commits
+  reuse the existing Nest transaction authority; draft-BOM requests fail
+  closed until a separate idempotent Nest BOM command exists.
+- The legacy `/parse` path remains compatibility-only. Its service-role key is
+  optional at worker startup and is required only when that legacy path is
+  called; the new evidence path never receives or logs it.
+- `ERP_DOCUMENT_PROCESSING_JOBS_ENABLED`,
+  `ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED`,
+  `ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED`, and all tenant allowlists remain
+  false/empty by default. No Next routing, UI, hosted SQL, provider setting,
+  or deployment changed.
+- Focused shared/API tests passed; TypeScript typecheck and Python source
+  compilation passed. In an isolated temporary venv, the worker suite passes
+  11/11, including private endpoint signature and evidence tests.
+
+## 2026-08-01 Durable CAD evidence and draft BOM source slice
+
+- Added candidate migration `20260801150000_document_processing_evidence.sql`
+  and tenant-scoped Drizzle schema. Each processing attempt stores validated
+  source hash, producer, formats, warnings, bounded worker payload, and
+  document/project/job composite-FK context. RLS remains enabled and browser
+  privileges remain revoked.
+- Added Nest evidence persistence with attempt replay mismatch detection.
+  The processor persists evidence before scope commit, then creates an
+  idempotent draft BOM in one Nest transaction when requested. BOM and line
+  totals use integer centavos; job `draft_bom_id` is durable and duplicate
+  delivery returns the existing BOM.
+- Added independent closed-by-default
+  `ERP_DOCUMENT_PROCESSING_DRAFT_BOM_ENABLED` flag and tenant allowlist. A
+  request asking for a BOM is rejected at intake when that gate is closed.
+- Disposable PostgreSQL 17/Redis 7.4.9 replay passed 62 migrations, 253/253
+  database assertions without skips, and 11/11 API integration assertions.
+- Full workspace verification passed: shared 114/114, API 113/113, web
+  301/301, database 116 passing with 137 environment-gated local skips,
+  workspace typecheck, serial lint, Nest/Next production build (77/77 pages),
+  Actionlint, Gitleaks, diff checks, and isolated Python worker pytest 11/11.
+  Hosted Supabase, provider flags, and deployments remain unchanged.
+
+## 2026-08-01 Controlled release handoff after CI repair
+
+- Branch `agent-02/third-code-erp-landing` is pushed at
+  `69801292e35499645c38991422b66716d25b5476` under `kurtgav`; draft PR #1
+  targets `main`.
+- GitHub CI run `30707238189` passed Actionlint, secret scan, typecheck, lint,
+  unit tests, Postgres 17/Redis reproducibility, Nest container smoke, and
+  production build. E2E is explicitly skipped because hosted E2E credentials
+  are absent.
+- CI-only legacy role grants run after the migration-only schema diff; no
+  application migration or hosted privilege changed.
+- Read-only hosted planner remains `review_required`: Supabase 55/62, one
+  tenant-scoped 12-record Purchase Order duplicate group, and no approved
+  `AUDIT_RECOVERY_TENANT_ID`. Railway/Vercel readiness are HTTP 200.
+
+## 2026-08-02 M2.5 processor canary proof
+
+- Added a rollback-only API integration canary that creates a real processing
+  job, calls the signed worker-client boundary, persists immutable evidence,
+  commits through Nest authority, ignores duplicate delivery, verifies scope
+  replacement/audit evidence, and rolls back the fixture.
+- CI run `30708078211` passed the PostgreSQL 17/Redis 7.4.9 lane, database and
+  API integration, container smoke, workspace checks, and production build.
+  E2E remains skipped by explicit credential gating.
+- All processing flags and tenant allowlists remain closed. Hosted Supabase,
+  Railway, Vercel, and business data remain unchanged.
+
+## 2026-08-02 M2.5 Redis delivery proof
+
+- Added a real BullMQ/Redis integration test for the document-processing queue.
+  It publishes only the opaque job UUID, validates the queue payload, and
+  proves duplicate enqueue/delivery produces one worker execution.
+- CI run `30708445023` passed the Redis proof together with the PostgreSQL
+  processor canary, database/API integration, container smoke, and build.
+  E2E remains skipped by explicit credential gating.
+- Queue, processing, and all tenant allowlist flags remain closed; no hosted
+  SQL, provider setting, deployment, or business data changed.
+
+## 2026-08-02 Document-processing recovery source slice
+
+- Added a PostgreSQL-owned recovery path that resets stale `processing` claims
+  to `queued`, returns at most 100 opaque job UUIDs, and lets the production
+  queue rebuild missing BullMQ transport jobs through its idempotent key.
+- CI run `30709595007` passed stale-claim recovery, bounded retry and terminal
+  failure, Redis-loss re-enqueue, the processor canary, database/API
+  integration, container smoke, workspace checks, Actionlint, secret scan, and
+  production build. E2E remains skipped by explicit credential gating.
+- The recovery entry point is dormant: no periodic scheduler, production
+  enqueue, hosted SQL, provider setting, deployment, or business data changed.
+
+## 2026-08-02 Final branch push and release audit
+
+- Reviewed source and memory docs are pushed at `39f6a62c2bf0463ac0fdcf4fe2788cb876f65510`
+  on `agent-02/third-code-erp-landing` under `kurtgav`; draft PR #1 remains
+  clean against `main`.
+- CI run `30710003798` passed Actionlint, secret scan, typecheck, lint, unit
+  tests, Postgres 17/Redis reproducibility, production build, and container
+  smoke; E2E remains skipped by explicit credential gating.
+- The read-only planner remains `review_required`: Supabase is 55/62 with
+  seven pending migrations, one tenant-scoped 12-record Purchase Order
+  duplicate group remains, and `AUDIT_RECOVERY_TENANT_ID` is not approved.
+  Railway `/ready` and Vercel `/api/ready` returned HTTP 200.
+- No Supabase SQL, Railway deploy, Vercel deploy, provider setting, flag, or
+  business-data mutation was performed.
+
+## 2026-08-02 M2.6 tenant-scoped recovery scheduler source slice
+
+- Added a BullMQ scheduler for document-processing recovery. It is created only
+  when recovery, intake, worker-bridge, and Nest commit gates are enabled and
+  the recovery tenant allowlist intersects both processing and commit
+  allowlists.
+- Scheduler payloads contain only `{ schemaVersion: 1 }`. The Nest processor
+  calls the PostgreSQL-owned, bounded recovery query and logs the number of
+  transport jobs rebuilt; no recovery path finalizes ERP state.
+- Local validation passed API 120/120, shared contracts, typecheck, serial
+  lint, production build, and diff checks. The new database/Redis integration
+  cases were skipped locally by the explicit credential gate. All hosted flags,
+  SQL, providers, deployments, and business data remain unchanged.
+
+## 2026-08-02 M2.6 CI and release-gate evidence
+
+- Pushed M2.6 at `0ff4ece8449c882436f90c0dcb45edfc67765da4` under `kurtgav`.
+  CI run `30711326355` passed Actionlint, secret scan, typecheck, lint, unit
+  tests, Postgres 17/Redis reproducibility (including cross-tenant recovery),
+  production build, and container smoke. E2E remains skipped by explicit
+  hosted-credential gating.
+- The read-only planner remains `review_required`: hosted Supabase is 55/62
+  with seven pending migrations, one tenant-scoped 12-record Purchase Order
+  duplicate group, and no approved `AUDIT_RECOVERY_TENANT_ID`. Railway and
+  Vercel readiness are HTTP 200; no hosted SQL, flag, provider setting,
+  deployment, or business-data mutation was performed.
+
+## 2026-08-02 Cortex source-grounded search slice
+
+- Added `GET /api/cortex/search`, a tenant-session-bound keyword retrieval
+  surface over current Cortex nodes. The role-derived node-type scope is passed
+  to the database query; request input cannot select a tenant or widen access.
+- Results include source node identity, registry label, freshness, summary, and
+  a validated Cortex deep link. Nodes whose type/ref-table pair is not in the
+  registry are omitted rather than exposed as generic records.
+- Added a debounced graph-toolbar search dropdown. It searches titles and
+  summaries through the server without embedding or LLM calls while typing,
+  limiting provider spend and Vercel function work.
+- Escaped PostgreSQL ILIKE wildcard characters in shared Cortex keyword
+  retrieval. Focused Cortex/search/graph tests pass 22/22; full Web tests pass 306/306;
+  database tests pass 116 with 137 explicit environment-gated skips;
+  workspace typecheck, serial lint, and Next production build pass.
+- Commit `6d55248110e630ed01c16f903972c8d52ff70af2` is pushed under `kurtgav`.
+  CI run `30712546507` passed Actionlint, secret scan, typecheck, lint, unit
+  tests, Postgres 17/Redis reproducibility, and production build; E2E is
+  skipped by explicit hosted-credential gating.
+- Hosted Supabase, Railway, Vercel, flags, provider settings, and business data
+  remain unchanged pending the controlled release planner blockers.
+
+## 2026-08-02 M2.8 RAG suggestion boundary
+
+- Hardened `POST /api/ai/similar-items`: profile-derived tenant and BOM-view
+  authorization, safe JSON/Zod bounds (5–300 characters), private no-store
+  responses, finite score filtering, and fail-closed provider/database errors.
+- Suggestions identify `approved_bom_history`; the endpoint is read-only and
+  cannot approve, price-commit, or otherwise mutate an ERP transaction.
+- Added six route tests covering authentication, role denial, malformed input,
+  provider absence, tenant-scoped result shaping, audit attempt, and outage
+  behavior. Updated the story index to point at the real Inngest refresh path.
+- No hosted SQL, Storage, queue, provider setting, deployment, or business-data
+  mutation occurred.
+
+CI evidence (2026-08-02): commit `fa283f94376aacd8f7febd9324b162697571efa1`
+passed GitHub Actions run `30713863937` under `kurtgav`. Actionlint, secret
+scan, lint, typecheck, unit tests, Postgres 17 reproducibility, migration and
+schema-diff checks, database tests without skips, Nest transaction-boundary
+integration, production container smoke, and workspace production build all
+passed. No hosted provider or business-data mutation occurred.
+
+## 2026-08-02 M2.9 Python AI advisory boundary
+
+- Added `apps/workers/ai`, a private FastAPI embeddings worker with strict
+  bearer authentication, bounded batches/text, provider response validation,
+  generic validation errors, and public liveness only.
+- Worker has no PostgreSQL, Supabase, Storage, tenant, approval, or ERP
+  transaction authority. It returns model-derived evidence only.
+- Added worker-first selection to `packages/ai`; when `AI_WORKER_URL` is set,
+  TypeScript embedding calls require the shared secret and use Python. When
+  URL is absent, existing TypeScript OpenAI behavior remains the compatibility
+  fallback. RAG route, auto-BOM, and embedding refresh now use one provider
+  readiness check.
+- Python tests pass 6/6; Web AI boundary tests pass 10/10; full workspace
+  tests pass Web 316/316, API 120/120, shared-types 115/115, database 116
+  passing with 137 explicit local integration skips. Typecheck, serial lint,
+  production build (78/78 routes), gitleaks, actionlint, workflow-ref checks,
+  and diff checks pass. Docker worker smoke was not runnable because local
+  Docker Desktop returned HTTP 500 before build.
+- No hosted SQL, worker deployment, provider setting, flag, or business-data
+  mutation occurred. Controlled planner blockers remain unchanged.
+
+CI evidence (2026-08-02): commit `56bb76eb2dc7f4f7f00fbe4690e06323696b0618`
+passed GitHub Actions run `30715179369` under `kurtgav`. Actionlint, secret
+scan, typecheck, lint, unit tests, Postgres 17 reproducibility, database tests
+without skips, Nest transaction-boundary integration, production container
+smoke, and workspace production build all passed. E2E remained skipped by the
+explicit hosted-credential gate. No Supabase, Railway, Vercel, worker,
+provider, flag, queue, or business-data mutation occurred.
+
+## 2026-08-02 M3.0 Change Request command boundary
+
+- Added a closed-by-default NestJS command at
+  `POST /v1/crm/opportunities/:opportunityId/change-requests`.
+- The path supplies opportunity authority; the body accepts only bounded
+  requester, description, priority, and optional same-opportunity design-file
+  fields. Membership, tenant, capability, idempotency hash, transaction,
+  notification, and audit checks run in Nest/PostgreSQL.
+- Added tenant-scoped `change_request_create_requests` idempotency state,
+  composite parent protection, RLS/browser privilege revocation, and an
+  explicit `change_request.create` capability for owner/admin/sales.
+- The Next client has a compatibility seam, but the existing Server Action is
+  still authoritative because both core feature flags and tenant allowlists
+  default closed. No UI cutover occurred.
+- Focused evidence: shared contract 3/3, database schema/migration 3/3, Nest
+  command/controller 5/5, Web client 20/20, environment 11/11, workspace
+  typecheck, lint, build 78/78 routes, secret scan, actionlint, workflow refs,
+  and diff checks pass. Serial API validation is 27 files/125 tests; the
+  parallel local lane had one unrelated existing 5-second controller timeout,
+  while CI passed the complete unit lane.
+- Source commit `765285a57d37885980f01774bffdb27676a203e0` passed GitHub Actions
+  run `30717165544`: Postgres 17 zero-to-current replay, schema diff,
+  database tests without skips, Nest transaction integration, production
+  container smoke, and production build all passed. E2E remains skipped by
+  explicit hosted-credential gating.
+- The new migration is local-only. Hosted Supabase remains 55/63 with eight
+  pending forward-only migrations, the duplicate Purchase Order group and
+  missing approved recovery tenant remain;
+  no hosted SQL, deployment, flag, queue, or business-data mutation occurred.
+
+## 2026-08-02 M3.0 database-backed evidence
+
+- Added `apps/api/integration/change-request.database.integration.spec.ts`.
+  Against disposable PostgreSQL, the test creates two tenants and proves the
+  Change Request command's tenant scope, role denial, idempotent replay and
+  hash conflict, design-recipient notification intent, semantic audit row, and
+  rollback boundary. The suite is explicitly credential-gated and skipped
+  locally because no disposable `DATABASE_URL` was present.
+- API validation now passes 27 files / 126 tests with one explicit integration
+  skip; API typecheck passes. No UI, hosted SQL, provider setting, flag, queue,
+  deployment, or business-data mutation occurred.
+
+## 2026-08-02 M3.0 disposable CI evidence
+
+- Commit `77b6e04206a48ff47ffeee5567b56bf3e3195e65` passed GitHub Actions run
+  `30718464238`. The Postgres 17 lane rebuilt the database from zero, ran
+  database tests without skips (256/256), executed the new Change Request
+  integration, completed Nest container smoke, and passed the workspace build.
+- Hosted Supabase remains 55/63 and the controlled planner remains
+  `review_required`; no hosted SQL, deployment, flag, queue, provider setting,
+  or business-data mutation occurred.
+
+## 2026-08-02 M3.1 web compatibility cutover seam
+
+- Commit `d5ee498` adds a closed-by-default web seam for Change Request writes.
+  The existing Server Action now authorizes `change_request.create` (same
+  current role set as `pprf.submit`) and routes only tenant IDs allowed by the
+  existing core-client flag to Nest. The legacy direct write remains the
+  compatibility path when the flag is false.
+- The browser form carries one stable UUID retry token per submission and
+  clears it only after success. The core path therefore preserves idempotency
+  across retries without changing visible copy, layout, or navigation.
+- Added focused action tests for the gated command, supplied token, and UUID
+  fallback. Web validation: 53 files / 320 tests, workspace lint, production
+  build 78/78 routes, actionlint, gitleaks, workflow-reference checks, and
+  diff checks pass. No hosted SQL, deployment, flag, queue, provider setting,
+  or business-data mutation occurred.
+
+## 2026-08-02 M3.1 CI evidence
+
+- GitHub Actions run `30732430851` passed on SHA
+  `1b3bff1efac5901e34859263f43b1be94835eced` under `kurtgav`.
+- All executable jobs passed: Actionlint, lint, secret scan, unit tests,
+  typecheck, Postgres 17 zero-to-current replay/schema diff with database tests
+  without skips (256/256), Nest transaction/container smoke, and production
+  build. E2E stayed skipped by the hosted-credential gate.
+- Read-only hosted verification remains `review_required`: Supabase is 55/63
+  migrations with eight pending, one tenant Purchase Order duplicate group has
+  12 records, and `AUDIT_RECOVERY_TENANT_ID` is unset. Railway `/ready` and
+  Vercel `/api/ready` remain HTTP 200; no hosted mutation occurred.
+
+## 2026-08-02 M3.2 Purchase Order workflow seam
+
+- Commit `fa3c20a` routes draft submission, PM approval, and Commercial
+  approval through the existing Nest Purchase Order workflow only when the
+  existing tenant allowlist flag is true. Legacy direct Server Action writes
+  remain unchanged when false.
+- The server action keeps tenant/status validation before invoking Nest. The
+  browser carries one stable retry UUID per workflow action; failed requests
+  reuse it, successful requests clear it. SCM issuance and rejection remain
+  legacy because current Nest command parity does not cover those states.
+- Added `actions.workflow.test.ts`: five tests cover all three routed actions,
+  retry-key fallback, and fail-closed core outage behavior. Web validation now
+  passes 54 files / 325 tests, typecheck, lint, production build 78/78 routes,
+  actionlint, gitleaks, workflow-reference checks, and diff checks. No hosted
+  SQL, deployment, flag, queue, provider setting, or business-data mutation.
+
+## 2026-08-02 M3.2 CI and hosted gate evidence
+
+- GitHub Actions run `30733168171` passed on final branch SHA
+  `1bc232e55fa2f122aea5182b5ca442d536e916d4`. Executable jobs passed:
+  Actionlint, lint, secret scan, unit tests, typecheck, Postgres 17 replay and
+  no-skip database tests (256/256), Nest integration/container smoke, and
+  production build. E2E remains credential-gated.
+- Read-only planner remains `review_required`: Supabase 55/63 with eight
+  pending migrations, one duplicate Purchase Order group with 12 records, and
+  missing `AUDIT_RECOVERY_TENANT_ID`. Railway and Vercel readiness remain HTTP
+  200; no hosted state changed.
+
+## 2026-08-02 M3.3 Purchase Order rejection authority seam
+
+- Commit `16904f0` completes Nest command parity for rejection from every
+  pending approval state, including `pending_scm_issuance`. Rejection returns
+  the Purchase Order to `draft`; role checks, tenant scope, PostgreSQL
+  idempotency, transactional notification intent, and semantic audit remain in
+  one core transaction.
+- Added forward-only migration
+  `20260802100000_purchase_order_workflow_scm_rejection.sql` to extend the
+  outbox payload constraint for SCM-step rejection. SCM issuance remains
+  legacy because supplier email delivery is not yet a server-owned outbox
+  contract.
+- The Next.js compatibility action keeps current record/role validation and
+  routes only explicitly allowlisted tenants to Nest. The browser now carries
+  a stable rejection retry key; no visible UI copy, layout, or design changed.
+- Local evidence: Web 54 files / 326 tests, API 27 files / 127 tests,
+  database 20 files / 120 tests with 137 explicit local integration skips;
+  workspace typecheck, lint, production build (78/78 routes), actionlint,
+  gitleaks, workflow-reference checks, migration files-only verification, and
+  diff checks passed.
+- GitHub Actions run `30733959058` passed on SHA
+  `16904f086e19a6d6ce6d57b0c1c444a5f49a3436`: Postgres 17 replay/schema diff,
+  no-skip database tests, Nest transaction integration/container smoke, unit,
+  typecheck, lint, secret scan, and production build. E2E remains credential-
+  gated.
+- Read-only hosted planner remains `review_required`: Supabase is 55/64 with
+  nine pending migrations, one duplicate Purchase Order group with 12
+  records, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and Vercel
+  readiness remain HTTP 200; no hosted SQL, deployment, flag, queue, provider,
+  or business-data mutation occurred.
+
+## 2026-08-02 M3.4 SCM issuance and supplier delivery authority
+
+- Source commits `21a152d` and `52b6288` add `scm_issue` to the Nest Purchase
+  Order state machine (`pending_scm_issuance -> issued`) with exact capability
+  checks (`po.issue`), tenant-scoped idempotency, transactional audit, and a
+  closed-by-default Next compatibility seam. The visible SCM button, copy,
+  layout, and design are unchanged; it only carries a stable retry key.
+- Migration `20260802110000_purchase_order_supplier_issuance.sql` adds the
+  server-owned supplier-issued outbox child and tenant-scoped delivery table.
+  The delivery snapshots recipient, supplier, PO, project, and integer cents;
+  browser roles have no privileges. BullMQ uses a separate deterministic job
+  namespace with bounded retry/dead-letter handling. Resend receives the same
+  idempotency key on retry; success stamps `supplier_email_sent_at` and an
+  append-only audit evidence row. Missing/invalid vendor email commits the
+  status but records `supplier_email_queued=false` without sending mail.
+- CI run `30735228348` passed all executable jobs on SHA `52b6288`: Actionlint,
+  secret scan, lint, typecheck, unit tests, Postgres 17 zero-to-current replay,
+  empty schema diff, no-skip database tests, Nest transaction integration,
+  container smoke, and production build. E2E remains credential-gated. The
+  first run `30735062767` correctly failed on PostgreSQL's nullable-side
+  `FOR UPDATE` rule; the follow-up split the PO/project lock from the vendor
+  share lock and passed.
+- Local focused evidence: API 27 files / 129 tests, Web 54 / 326, database 20
+  / 121 with 137 explicit credential-gated skips, shared contracts 9 / 119;
+  workspace lint, typecheck, and production build (78/78 routes) passed. The
+  default parallel workspace test had one unrelated 5-second stock-receipt
+  timeout; the isolated API suite passed with a 15-second timeout.
+- Read-only hosted planner remains `review_required`: Supabase is 55/65 with
+  ten pending migrations, one duplicate Purchase Order group with 12 records,
+  and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and Vercel readiness remain
+  HTTP 200; no hosted SQL, deployment, flag, queue, provider, or business-data
+  mutation occurred.
+
+## 2026-08-02 M3.5 Finance journal posting authority
+
+- Commit `97106ba` adds the closed-by-default Nest finance journal-post
+  command at `POST /v1/finance/journals/:journalEntryId/post`. The command
+  rechecks the tenant membership/role under lock, requires `finance.post`,
+  binds a tenant-scoped idempotency key to a strict command hash, calls the
+  existing database posting function inside the same transaction, persists a
+  replay result, and writes semantic audit evidence. The database function
+  remains the numbering, balance, fiscal-period, and posted-state authority.
+- Migration `20260802120000_finance_journal_post_idempotency.sql` and the
+  matching Drizzle schema add the service-owned idempotency record with
+  tenant composite foreign keys, state/payload checks, forced RLS, and no
+  browser privileges. Core API writes are disabled by default and require an
+  explicit tenant allowlist; the Next Server Action remains a compatibility
+  fallback and routes only opted-in tenants through core.
+- The journal detail action now carries one opaque retry key per click while
+  preserving the existing `Post journal` copy, layout, and design. Python,
+  Cortex, and browser code do not approve or finalize postings.
+- GitHub Actions run `30736271967` passed Actionlint, secret scan, lint,
+  typecheck, unit tests, zero-to-current Postgres 17 replay, empty schema
+  diff, no-skip database tests, Nest transaction integration/container smoke,
+  and production build. E2E remains credential-gated. Local serial suites
+  passed: API 29 files / 135 tests, shared contracts 10 / 121, database 21 /
+  123 plus 137 explicit environment-gated skips, and Web 54 / 328; workspace
+  lint, typecheck, build (78/78 routes), actionlint, gitleaks, and diff checks
+  passed.
+- Read-only hosted planner remains `review_required`: Supabase is 55/66 with
+  eleven pending migrations (including `20260802120000`), one duplicate
+  Purchase Order group with 12 records, zero audit rows, and missing
+  `AUDIT_RECOVERY_TENANT_ID`. Railway readiness is HTTP 200 with no revision;
+  Vercel readiness is HTTP 200 at stale revision `31c04942a93d`. No hosted
+  SQL, deployment, flag, queue, provider, or business-data mutation occurred.
+
+## 2026-08-02 M3.6 Cortex external-model privacy boundary
+
+- Commit `08f1315` adds a deterministic Cortex redaction module for common
+  direct identifiers (email, Philippine TIN formats, and Philippine mobile
+  numbers). The redaction is applied to graph titles/summaries in model
+  context, the semantic embedding query, and every user/assistant prompt turn
+  sent to the external chat model.
+- Cortex audit evidence now records a started and completed query phase with
+  model/fallback outcome, prompt and response hashes, character/citation
+  counts, and redacted previews. The prior raw `last_user_message` audit field
+  is removed. Conversation titles are redacted at creation; tenant chat
+  history and deterministic in-product answers remain available to the
+  authorized user.
+- No landing UI, copy, layout, or public metadata changed. The existing
+  clean-room branding and GPT-taste landing contract remain protected.
+- Focused redaction/route tests pass (10 tests). Full Web validation passes:
+  55 files / 332 tests and typecheck. No database migration, hosted SQL,
+  provider deployment, feature flag, queue, or business-data mutation occurred.
+- The last read-only hosted planner remains `review_required`: Supabase 55/66
+  with eleven pending migrations, one 12-record duplicate Purchase Order
+  group, zero audit rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway and
+  Vercel readiness remain HTTP 200; live revision remains unchanged.
+- GitHub Actions run `30736912185` passed all executable jobs for the docs-
+  backed source candidate: Actionlint, typecheck, unit tests, lint, secret
+  scan, Postgres 17/Redis reproducibility, Nest transaction/container smoke,
+  and production build. E2E remains skipped by the explicit hosted-credential
+  gate. This CI result does not authorize a hosted cutover.
+
+## 2026-08-02 M3.7 CAD processing authority handoff
+
+- Commit `0cfb72a` adds the closed-by-default frontend selector
+  `ERP_DOCUMENT_PROCESSING_VIA_API` plus strict UUID allowlist
+  `ERP_DOCUMENT_PROCESSING_TENANT_IDS`. Only binary DWG uploads for an
+  explicitly listed tenant use the Nest document-processing command; all
+  other formats and tenants retain the existing compatibility path.
+- The canary creates the document through the existing server boundary, then
+  delegates processing to `POST /v1/documents/:documentId/processing-jobs`.
+  Next has no legacy-writer fallback when the core command is selected. A
+  tenant-scoped status proxy at `/api/document-processing/:jobId` polls the
+  Nest/BullMQ result so evidence, scope-item commits, and optional draft BOM
+  stay under the core transaction boundary.
+- No schema migration, hosted SQL, provider deployment, feature flag, queue,
+  or business-data mutation occurred. The frontend selector and all API-side
+  processing/evidence/draft gates remain false/empty by default. Python stays
+  signed, read-only evidence input; it does not approve or finalize ERP data.
+- Local focused evidence: 4 files / 36 tests; full Web 57 files / 342 tests;
+  lint, typecheck, and production build (78/78 routes) passed. GitHub Actions
+  run `30738075103` is the source candidate gate; E2E remains credential-gated.
+- Hosted planner remains `review_required`: Supabase 55/66 migrations,
+  eleven pending, one 12-record duplicate Purchase Order group, zero audit
+  rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Railway/Vercel readiness are
+  still HTTP 200 and the live revision is unchanged.
+
+## 2026-08-02 M3.8 Stock Receipt creation authority
+
+- The Next inventory Server Action now has a closed-by-default selector for
+  `POST /v1/inventory/stock-receipts`. An explicitly allowlisted tenant sends
+  a strict shared command to Nest; the selected path has no direct-write
+  fallback. All other tenants preserve the existing transaction path.
+- The Nest service remains the official transaction authority: tenant/RBAC
+  checks, PO/warehouse/delivery binding, exact micros/cents, idempotency, and
+  audit are committed in PostgreSQL. The browser keeps one opaque retry key
+  across a transient failure and resets it only after a successful result.
+- No migration, hosted SQL, provider deployment, flag, queue, or business-data
+  mutation occurred. `ERP_INVENTORY_RECEIPT_CREATE_VIA_API` and its tenant
+  allowlist remain false/empty by default.
+- Local evidence: focused 31/31 tests, full Web 58 files / 348 tests,
+  workspace lint, Web typecheck, and production build 78/78 routes passed.
+  GitHub Actions run `30739156350` passed all executable jobs on exact SHA
+  `3f4bca7d6a1416f751599ba268f4c0fad565a73f`; E2E remains credential-gated.
+- Hosted planner remains `review_required` at Supabase 55/66 migrations with
+  eleven pending, one 12-record duplicate Purchase Order group, zero audit
+  rows, and missing `AUDIT_RECOVERY_TENANT_ID`. Live readiness/revision is
+  unchanged.
+
+## 2026-08-02 M3.9 Stock Receipt post/reversal authority
+
+- Added Nest `POST /v1/inventory/stock-receipts/:receiptId/post` and
+  `/reverse` commands. Each rechecks same-tenant membership and
+  `inventory.post_receipt`, locks the receipt, calls the existing PostgreSQL
+  posting/reversal function, persists a tenant-scoped idempotency result, and
+  writes semantic audit evidence in one transaction.
+- Added forward-only migration
+  `20260802130000_stock_receipt_workflow_idempotency.sql`, matching Drizzle
+  schema, composite tenant foreign keys, forced RLS, and service-only table
+  privileges. Added strict shared commands/results and independent
+  closed-by-default Next selectors for post and reverse. Selected core paths
+  never fall back to direct RPCs.
+- Existing inventory buttons, copy, layout, and design are unchanged. Browser
+  retry refs reset only when command inputs change or a command succeeds.
+- Local source evidence: API 30 files / 140 tests, Web 58 files / 353 tests,
+  shared 10 files / 123 tests, database contract suites passed; workspace
+  lint/typecheck, production build (78/78 routes), Actionlint, Gitleaks, and
+  diff checks passed. Disposable WSL1 replay passed 67/67 migrations,
+  260/260 database assertions without skips, and 18/18 Nest/Redis integration
+  assertions after one unrelated BullMQ data-loss test retry.
+- Hosted read-only evidence: Supabase project is PostgreSQL 17.6 with 55
+  applied migrations versus 67 in source; no SQL was applied. Aggregate
+  duplicate-PO report remains 1 group / 12 records; `AUDIT_RECOVERY_TENANT_ID`
+  is still owner-required. Railway health/readiness are HTTP 200 with
+  database/Redis `ok`; Vercel `/api/ready` is HTTP 200 at revision
+  `31c04942a93d`, and the landing root is HTTP 200. No feature flag, queue,
+  provider setting, business row, or deployment changed.
+
+Source/CI evidence: commit `6121740ea2a3db189e7cc1c5e83f970db73f6b74` is
+pushed to `origin/agent-02/third-code-erp-landing` under `kurtgav`. CI run
+`30740581304` passed every executable job, including the 67-migration
+PostgreSQL 17/Redis reproducibility lane and production build; E2E remains
+credential-gated. This is source-ready, not a hosted release.
+
+## 2026-08-02 M3.10 BOM-to-Purchase Order authority
+
+- Added strict shared BOM-to-PO command/result contracts and the Nest route
+  `POST /v1/procurement/purchase-orders/from-bom`. Nest now owns the selected
+  transaction: membership/capability recheck, tenant-scoped BOM/project/vendor
+  and line locks, approved-budget cost-code lookup, exact cent calculations,
+  PO number allocation, line copy, BOM locking, idempotent replay, and semantic
+  audit evidence.
+- The existing `purchase_order_create_requests` table is reused for the new
+  command. The Next Server Action remains a compatibility adapter and routes
+  only an exact-`true` plus UUID-allowlisted tenant through Nest; selected
+  failures never fall back to a second writer. The BOM builder retains one
+  opaque retry key across transient failure without visible UI/copy changes.
+- No schema migration, hosted SQL, provider deployment, queue, business-data
+  mutation, or feature-flag change occurred. Both BOM-to-PO selectors and API
+  write gates remain false/empty by default. Grouped-by-supplier PO creation
+  remains a separate legacy path for a later slice.
+- Local evidence: API 30 files / 145 tests, Web 58 files / 357 tests, shared
+  10 files / 124 tests, workspace lint/typecheck, Actionlint, Gitleaks, release
+  planner tests, API/Web production builds, and diff checks passed. The local
+  database integration is environment-gated; CI executed it against the full
+  disposable PostgreSQL 17/Redis lane.
+- GitHub Actions run `30741816314` passed Actionlint, unit tests, secret scan,
+  typecheck, lint, 67/67 migration reproducibility, 260/260 database
+  assertions, Nest integration, and production build. E2E remains skipped by
+  the explicit hosted-credential gate.
+- Fresh hosted read-only checks: Supabase is ACTIVE_HEALTHY PostgreSQL 17.6
+  with 55 applied migrations versus 67 source; the previously recorded
+  duplicate-PO/audit-recovery blockers remain unresolved. Railway `/health`
+  and `/ready` are HTTP 200 with database/Redis `ok`; Vercel root, `/api/health`,
+  and `/api/ready` are HTTP 200 at revision `31c04942a93d`. No provider build
+  or production release was triggered.
+
+## 2026-08-02 M3.11 grouped BOM-to-Purchase Order authority
+
+- Added strict grouped-BOM contracts and `POST
+  /v1/procurement/purchase-orders/from-bom/grouped`. Nest now owns tenant
+  membership/capability checks, approved-BOM and line locks, active
+  rate-card/vendor matching, approved budget cost-code mapping, exact cent
+  totals, deterministic tenant PO numbering, multi-PO/line inserts, BOM
+  locking, idempotent replay, and semantic audit in one transaction.
+- The existing group-by-supplier Server Action is now only a compatibility
+  adapter. Independent API and Next selectors are exact-`true` plus
+  UUID-allowlisted, false/empty by default; selected failures never fall back
+  to the legacy writer. The wizard keeps its visible design/copy and holds one
+  opaque retry key across transient failures.
+- No schema migration is required: the existing tenant-scoped PO-create
+  request table stores the full grouped result JSON and a representative PO
+  foreign key for compatibility.
+- Local evidence: shared focused 21/21; API focused/full 150/150; Web focused
+  44 and full 361/361; lint/typecheck, Next 78-route build, Nest build,
+  Actionlint, Gitleaks, and diff checks passed. Local DB integration was
+  environment-gated; CI executed the grouped transaction against the full
+  Postgres 17/Redis lane.
+- GitHub Actions run `30742910106` passed every executable job, including
+  67/67 migration replay, 260/260 database assertions, Nest integration,
+  container smoke, and production build. E2E remains credential-gated.
+- Hosted state was not mutated. Supabase remains 55 applied migrations versus
+  67 in source with the recorded duplicate-PO and audit-recovery blockers;
+  Railway and Vercel readiness remain the prior HTTP-200 snapshot. Vercel Git
+  remains disconnected and no provider build was triggered.
+
+## 2026-08-02 M3.12 delivery receipt authority
+
+- Added strict delivery-receipt contracts and the forward-only migration
+  `20260802140000_delivery_receipt_workflow_idempotency.sql`. The new request
+  ledger is tenant-composite, forced-RLS, service-only, and stores one exact
+  replay result per tenant/idempotency key.
+- Added the Nest route
+  `POST /v1/procurement/deliveries/:deliveryScheduleId/receipt`. The service
+  rechecks membership and `delivery.receive`, locks the delivery schedule,
+  allows only `scheduled`/`in_transit`, stamps receipt fields, and commits
+  status, idempotency, and semantic audit together.
+- The existing `recordReceipt` Server Action is now a closed-by-default
+  compatibility adapter. An exact-`true` plus UUID allowlist routes through
+  Nest and never falls back after a core failure. The site-prep panel retains
+  its current copy/layout/design and only holds one opaque browser retry key.
+- Local source evidence: shared 127/127, API 32 files / 157 tests, Web 59
+  files / 366 tests, database 129 assertions with the new migration contract,
+  workspace lint/typecheck, Nest/Web production builds, Actionlint, Gitleaks,
+  release-plan tests, and diff checks passed. The delivery database integration
+  is explicit-gate skipped locally because no `DATABASE_URL`/integration flag
+  was present; CI is required to execute it in the disposable Postgres 17
+  lane.
+- No hosted SQL, business-data mutation, flag enablement, queue setting, or
+  provider deployment occurred. Hosted evidence remains Supabase 55/68
+  migrations with the recorded duplicate-PO and audit-recovery blockers;
+  Railway/Vercel readiness is unchanged and Vercel Git remains disconnected.
+
+## 2026-08-02 M3.12 correction and release-gate recheck
+
+- CI first exposed a tenant-safe not-found defect in run `30744214638`: the
+  delivery idempotency ledger composite foreign key could fire before the
+  service returned `Delivery not found`. Commit `29c59b5` preflights the
+  same-tenant schedule inside the transaction and fixes the other-tenant
+  disposable fixture. Corrected run `30744414270` passed Actionlint, secret
+  scan, lint, typecheck, unit tests, the full Postgres 17/Redis database
+  reproducibility lane (including delivery integration), and Nest container
+  smoke. Its Build job was not started because GitHub reported failed account
+  payments/spending-limit state; E2E was consequently skipped. This is an
+  external CI billing gate, not a source-test failure.
+- Source HEAD is `29c59b5cf08db3a5004856c60c295f528a936509`, pushed to
+  `origin/agent-02/third-code-erp-landing` under `kurtgav`. Source has 68
+  migrations. Hosted Supabase remains ACTIVE_HEALTHY PostgreSQL 17.6 with 55
+  applied migrations; `delivery_workflow_requests` and its two new enum types
+  are absent. Read-only counts are 13 Purchase Orders, one duplicate
+  tenant/PO-number group containing 12 records, 662 audit rows, four delivery
+  schedules, two tenants, and 13 users. No owner-approved
+  `AUDIT_RECOVERY_TENANT_ID` was supplied.
+- Railway `/health` and `/ready` remain HTTP 200 with database/Redis `ok`.
+  Vercel production alias `/`, `/api/health`, and `/api/ready` remain HTTP 200
+  at revision `31c04942a93d`; the last 24-hour production runtime-error query
+  returned no entries. The Vercel project’s latest deployment is a READY
+  non-production preview, not this source HEAD. No Supabase SQL, Railway
+  deployment, Vercel deployment, provider setting, or feature flag changed.
+
+## 2026-08-02 M3.13 finance journal reversal authority
+
+- Added strict shared journal reversal body/command/result contracts and the
+  tenant-composite `journal_reverse_requests` ledger through migration
+  `20260802150000_finance_journal_reverse_idempotency.sql`. The ledger is
+  forced-RLS, service-only, unique per tenant/idempotency key, and stores the
+  complete replay result.
+- Added Nest `POST /v1/finance/journals/:journalEntryId/reverse`. The service
+  rechecks tenant membership and the existing `finance.post` capability,
+  preflights same-tenant journal visibility before claiming the ledger,
+  locks the journal, calls the existing PostgreSQL reversal authority, commits
+  the idempotency result and semantic audit together, and maps known domain
+  failures to stable HTTP outcomes.
+- The finance Server Action remains the compatibility adapter. An exact
+  `true` plus UUID allowlist selects the Nest command, holds one opaque retry
+  key in the existing journal action component, and never falls back after a
+  selected core failure. Visible copy, layout, labels, and styling are
+  unchanged.
+- Source flags
+  `ERP_FINANCE_JOURNAL_REVERSE_WRITES_ENABLED`,
+  `ERP_FINANCE_JOURNAL_REVERSE_WRITES_TENANT_IDS`,
+  `ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API`, and
+  `ERP_FINANCE_JOURNAL_REVERSE_WRITES_VIA_API_TENANT_IDS` remain false/empty.
+- Local evidence: shared 11 files / 129 tests; database 24 passed files / 131
+  executable assertions with 3 environment-skipped suites; API 34 files / 165
+  tests; Web 59 files / 368 tests; typecheck, lint, Nest build, Next 78-route
+  build, release-plan tests, Actionlint, Gitleaks, and diff checks passed.
+  The new database integration is explicit-gate skipped locally because no
+  `DATABASE_URL` and `ERP_API_INTEGRATION_EXPECTED=1` are present.
+- Source commit `441ec74c0c776022c2a41485ff45ae2907dbb3ef` is pushed under
+  `kurtgav`. CI run `30745515593` failed before any job step because GitHub
+  blocked the account for failed payments/spending-limit state; all other
+  jobs were skipped. This is an external CI billing blocker, not executable
+  source evidence.
+- Hosted state remains unchanged: Supabase is 55 applied / 69 source
+  migrations and does not contain the new ledger or enum; Railway and Vercel
+  readiness remain the prior HTTP-200 snapshot; no hosted SQL, business data,
+  provider setting, or deployment was performed.
+
+## 2026-08-02 M3.14 delivery inspection-start authority
+
+- Added the strict empty-body inspection-start contract and migration
+  `20260802160000_delivery_inspection_start_workflow.sql`. It extends the
+  existing tenant-scoped `delivery_workflow_action` enum with
+  `start_inspection`; no new ledger or privilege surface is introduced.
+- Added Nest `POST /v1/procurement/deliveries/:deliveryScheduleId/inspection/start`.
+  The service is closed by default, rechecks same-tenant membership and
+  `delivery.receive`, claims the existing idempotency key, locks a `received`
+  schedule, inserts the pending inspection, changes the schedule to
+  `inspecting`, stores the exact replay result, and writes semantic audit in
+  one PostgreSQL transaction.
+- The existing delivery panel remains the compatibility adapter. An exact
+  `true` plus UUID allowlist is required to select Nest; selected failures
+  fail closed. The panel holds one opaque retry key; visible copy, layout,
+  route topology, and design tokens are unchanged.
+- Local evidence: shared 11 files / 131 tests; database 25 files / 133
+  executable assertions with 3 environment-gated suites skipped; API 34
+  files / 173 serial tests; Web 59 files / 373 tests; focused delivery,
+  typecheck, lint, Nest/Web production builds, release-plan tests, Actionlint,
+  Gitleaks, and diff checks passed. The delivery database integration was
+  explicitly run and skipped because no `DATABASE_URL` plus
+  `ERP_API_INTEGRATION_EXPECTED=1` was supplied.
+- Source commit `08567b8b4b529f43126925ff67df132e15f71818` is pushed under
+  `kurtgav`. GitHub run `30746647147` failed before any job step and skipped
+  every other job; it is not executable source evidence and the external
+  account payment/spending-limit gate remains unresolved.
+- Hosted state remains unchanged: Supabase is ACTIVE_HEALTHY PostgreSQL 17.6
+  with 55 applied / 70 source migrations and does not contain the new enum
+  value. No hosted SQL, business-data repair, feature-flag enablement,
+  Railway deployment, Vercel deployment, or provider-setting change occurred.
+
+## 2026-08-02 M3.15 delivery inspection-completion authority
+
+- Added strict completion command/result contracts and migration
+  `20260802170000_delivery_inspection_complete_workflow.sql`. The migration
+  extends the existing tenant-scoped `delivery_workflow_action` enum with
+  `complete_inspection`; no new ledger or privilege surface is introduced.
+- Added Nest `POST /v1/procurement/deliveries/:deliveryScheduleId/inspection/complete`.
+  The closed command rechecks same-tenant membership and `delivery.receive`,
+  claims the existing idempotency key, locks the `inspecting` schedule and
+  pending inspection, records `pass`/`partial_pass`/`fail`, transitions to
+  `accepted` or `rejected`, stores exact replay data, and writes semantic audit
+  in one PostgreSQL transaction. Failed inspections require defect notes.
+- The existing inspection panel remains the compatibility adapter. Exact
+  `true` plus UUID allowlist selects Nest; selected failures fail closed. One
+  opaque completion retry key was added; visible copy, layout, route topology,
+  and design tokens remain unchanged.
+- Local evidence: shared 11 files / 133 tests; database 26 files / 135
+  executable tests with 3 environment-gated suites and 137 tests skipped; API
+  34 files / 182 serial tests; Web 59 files / 378 tests; typecheck, lint,
+  Nest build, Next 78-route production build, release-plan tests, Actionlint,
+  Gitleaks, and diff checks passed. The guarded delivery database integration
+  was explicitly invoked and skipped because no `DATABASE_URL` plus
+  `ERP_API_INTEGRATION_EXPECTED=1` was supplied.
+- Source commit `67beedab53680238f785e0947d90588eedd71e3e` is pushed under
+  `kurtgav`. GitHub run `30748096044` failed before any job step and skipped
+  every other job; it is not executable source evidence and the external
+  account payment/spending-limit gate remains unresolved.
+- Hosted state remains unchanged: Supabase is ACTIVE_HEALTHY PostgreSQL 17.6
+  with 55 applied / 71 source migrations; the new enum value and no new
+  ledger are absent. No hosted SQL, business-data repair, feature-flag
+  enablement, Railway deployment, Vercel deployment, or provider-setting
+  change occurred.
+
+## 2026-08-02 M3.16 delivery cancellation authority
+
+- Added the strict cancellation command/result contract and migration
+  `20260802180000_delivery_cancel_workflow.sql`. The existing tenant-scoped
+  `delivery_workflow_action` enum now includes `cancel_delivery`; delivery
+  schedules gain nullable cancellation timestamp, actor, and bounded reason
+  evidence with a composite tenant foreign key.
+- Added Nest `POST
+  /v1/procurement/deliveries/:deliveryScheduleId/cancel`. The closed command
+  rechecks same-tenant membership and the existing `delivery.receive`
+  capability, claims the existing idempotency ledger, locks a cancellable
+  schedule, transitions it to `cancelled`, stores exact replay data, and
+  writes semantic audit in one PostgreSQL transaction. Selected core failures
+  never fall back to the direct writer.
+- The existing delivery action remains the compatibility adapter. Exact
+  `true` plus UUID allowlists select Nest; all cancellation flags remain
+  false/empty. Visible delivery UI and design are unchanged.
+- Local evidence: shared 11 files / 135 tests; database 27 files / 136
+  passed with 137 environment-gated assertions skipped; API 34 files / 191
+  serial tests; Web 59 files / 383 tests. Typecheck, lint, Nest/Web builds,
+  release-plan tests, Actionlint, Gitleaks, and diff checks passed. The guarded
+  delivery database integration was explicitly invoked and skipped without
+  `DATABASE_URL` plus `ERP_API_INTEGRATION_EXPECTED=1`.
+- Source commit `e8d4a6c181358756879435a76e8bd5a9317cc751` is pushed under
+  `kurtgav`. GitHub CI run `30749461755` failed before executable steps because
+  recent account payments failed or the spending limit must be increased; all
+  other jobs were skipped. It is not executable source evidence.
+- Hosted state remains unchanged: Supabase is ACTIVE_HEALTHY PostgreSQL 17.6
+  with 55 applied / 72 source migrations; cancellation columns and enum value
+  are not hosted. No hosted SQL, demo-data repair, feature-flag enablement,
+  Railway deployment, Vercel deployment, or provider-setting change occurred.
+
+## 2026-08-11 M3.279 reconciliation detail read boundary
+
+- Added strict shared contracts for tenant-scoped bank-statement detail,
+  statement lines, and exact-match candidates.
+- Added protected Nest `GET /v1/finance/reconciliation/:statementId`. The
+  service derives tenant scope from the authenticated principal, bounds detail
+  rows to 500, formats timestamps deterministically, and returns concealed
+  404s for another tenant. Draft candidates use the same account/currency,
+  posted, unmatched, amount, and direction constraints as the compatibility
+  page.
+- Added the Web Core detail adapter and selected-tenant compatibility branch.
+  The default flag remains closed; legacy direct SQL remains available for
+  unselected tenants. Selected Core failures do not fall back silently.
+- Local evidence: shared contract suite 4/4, Web Core client suite 166/166,
+  API reconciliation unit/controller suite 8/8, API detail HTTP canary 1/1,
+  API and Web typecheck passed. Production builds and full workspace gates
+  passed before the source push; browser detail proof completed in M3.280.
+- Hosted state remains unchanged. No Supabase SQL/data, feature flag,
+  Railway deployment, Vercel deployment, or provider setting was changed.
+
+## 2026-08-11 M3.280 reconciliation browser detail canary
+
+- Extended the disposable local browser harness to assert the protected detail
+  request, authenticated bearer, UUID request ID, statement evidence, line
+  descriptions, and matched-count rendering.
+- Browser proof passed 1/1 on local PostgreSQL 17/API/Nest/Next with desktop
+  and mobile overflow checks, zero page console errors, and external requests
+  blocked. The test uses direct authenticated detail navigation to avoid a
+  Next prefetch/fixture-cleanup race; the production route is unchanged.
+- No hosted DB, feature flag, Railway, Vercel, or provider setting changed.
+
+## 2026-08-12 M3.281 reconciliation auto-match Core write boundary
+
+- Added the closed-by-default Web selector and server-only Core adapter for
+  `POST /v1/finance/reconciliation/:statementId/auto-match`. The existing Nest
+  workflow remains authoritative for capability, tenant membership, row lock,
+  idempotency, exact counts, and audit; selected failures never invoke the
+  legacy Web database function.
+- The detail action panel now carries one opaque `auto-match-<uuid>` retry key
+  across a failed request and resets it only after success, so a lost response
+  can replay safely without silently re-running a different command.
+- Local evidence: focused Web tests 176/176, full workspace tests (shared
+  332, API 764, Web 787; database package passed), API/Web typecheck and
+  lint, API/Web production build, disposable PostgreSQL/Nest HTTP canary 1/1,
+  and authenticated loopback browser canary 1/1 passed. The browser canary
+  proved the strict `{}` POST, bearer, idempotency key, UUID request ID,
+  rendered counts, desktop/mobile overflow, zero console errors, and blocked
+  external requests. Policy/planner tests, Actionlint, Gitleaks,
+  provider-spend guard, and `git diff --check` also passed.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
+
+Source commit `293ad6f963524d0c47bd9ff44e0505a509a2ae34` is pushed under
+`kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+match. No production deployment was triggered.
+
+## 2026-08-12 M3.285 reconciliation statement import browser canary
+
+- Extended the disposable authenticated browser proof for the existing Core
+  import adapter. The random canary tenant now submits a real CSV through the
+  Web form and follows the created draft; import selectors are not changed for
+  hosted tenants.
+- The browser proved strict integer-cent balances, base64 CSV transport,
+  authenticated Core import, UUID request ID, deterministic
+  `bank-import-<sha256>` idempotency, responsive rendering, zero console
+  errors, and blocked external requests.
+- Full source gates passed: `pnpm test` reported shared-types 332, database
+  241 passed/143 skipped, API 764, and Web 797; `pnpm typecheck`, `pnpm lint`,
+  and `pnpm build` passed (83 Next pages). Migration/release/policy/parity,
+  web-database boundary, Actionlint, Gitleaks, provider-spend, and
+  `git diff --check` also passed. No hosted promotion is implied.
+- Source commit `d127523bf99fac74ac9dffbe6c0527e0af2dbe33` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment was triggered.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
+
+## 2026-08-12 M3.286 reconciliation statement Storage browser canary
+
+- Extended only the disposable loopback fixture and authenticated browser proof;
+  no application schema or hosted data changed. The fixture models signed
+  upload, private signed read, bounded CSV bytes, and cleanup without calling
+  hosted Supabase Storage.
+- The browser proved service-role signing, bearer-authorized tenant upload,
+  Core's server-only signed read, exact `sourceStoragePath` transport, and
+  90-byte source integrity before the draft was rendered. Hosted API and Web
+  Storage selectors remain false/empty.
+- Full source gates passed: `pnpm test` reported shared-types 332, database
+  241 passed/143 skipped, API 764, and Web 797; the focused authenticated
+  browser canary passed 1/1; `pnpm typecheck`, `pnpm lint`, and `pnpm build`
+  passed (83 Next pages). Migration/release/policy/parity, web-database
+  boundary, Actionlint, Gitleaks, provider-spend, and `git diff --check` also
+  passed. No hosted promotion is implied.
+- Source commit `412e90119a2df7a42d97832675aef696e1aaaf24` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment was triggered.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
+
+## 2026-08-12 M3.287 public landing local browser contract
+
+- Added a dedicated local-only Playwright configuration and package command for
+  the existing public landing contract. It starts one disposable Next dev
+  server on loopback, uses the installed Chrome executable when supplied, and
+  blocks service-worker traffic; it does not call Vercel, Railway, Supabase,
+  or an external analytics provider.
+- Corrected the browser contract to require the current five JSON-LD graph
+  types: `Organization`, `WebSite`, `WebPage`, `SoftwareApplication`, and
+  `FAQPage`. The proof covers canonical/robots/sitemap/manifest, interaction
+  state, CTA targets, 1440/768/390 layout bounds, mobile target sizes, and
+  zero console/page errors.
+- Focused landing browser proof passed 1/1. Web unit tests passed 797/797;
+  Web typecheck, lint, production build (83 routes), and `git diff --check`
+  passed. This is source-only evidence; no hosted promotion is implied.
+- Source commit `76986fb0543ca898ab81f341c1f14b979df8c963` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment was triggered.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
+
+## 2026-08-12 M3.284 reconciliation statement void Core write boundary
+
+- Added the closed-by-default Web selector and server-only adapter for
+  `POST /v1/finance/reconciliation/:statementId/void`. The existing Nest
+  workflow remains authoritative for capability, tenant membership, locking,
+  idempotency, trusted PostgreSQL transition, exact result schema, and
+  semantic audit.
+- The detail action panel now keeps one opaque void retry key across a failed
+  request and clears it only after success. Selected Core failures are
+  terminal and never invoke the legacy Web database function.
+- Local evidence: focused Web tests 186/186, API build, Web typecheck/lint,
+  API HTTP canary 1/1, and authenticated loopback browser canary 1/1 passed.
+  The browser proved reason transport, confirmation-protected voiding,
+  immutable voided rendering, desktop/mobile overflow, zero console errors,
+  and blocked external requests.
+- Full source gates passed: `pnpm test` reported shared-types 332, database
+  241 passed/143 skipped, API 764, and Web 797; `pnpm typecheck`, `pnpm lint`,
+  and `pnpm build` passed (83 Next pages). Migration/release/policy/parity,
+  web-database boundary, Actionlint, Gitleaks, provider-spend, and
+  `git diff --check` also passed. No hosted promotion is implied.
+- Source commit `c4d618545495dd0c174c4ddd9d43655cc8cdcd38` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment was triggered.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
+
+## 2026-08-12 M3.283 reconciliation statement reconcile Core write boundary
+
+- Added the closed-by-default Web selector and server-only adapter for
+  `POST /v1/finance/reconciliation/:statementId/reconcile`. The existing Nest
+  workflow remains authoritative for capability, tenant membership, statement
+  locking, idempotency, trusted PostgreSQL transition, exact result schema, and
+  semantic audit.
+- The detail action panel now keeps one opaque reconcile retry key across a
+  failed request and clears it only after success. Selected Core failures are
+  terminal and never invoke the legacy Web database function.
+- Local evidence: focused Web tests 183/183, API build, Web typecheck/lint,
+  API HTTP canary 1/1, and authenticated loopback browser canary 1/1 passed.
+  The browser proved both line matches, confirmation-protected reconcile,
+  exact request boundaries, rendered reconciled state, desktop/mobile overflow,
+  zero console errors, and blocked external requests.
+- Full source gates passed: `pnpm test` reported shared-types 332, database
+  241 passed/143 skipped, API 764, and Web 794; `pnpm typecheck`, `pnpm lint`,
+  and `pnpm build` passed (83 Next pages). Migration/release/policy/parity,
+  web-database boundary, Actionlint, Gitleaks, provider-spend, and
+  `git diff --check` also passed. No hosted promotion is implied.
+- Source/docs commit `2e6ca43972b0b5900e471b0d847c0608491d8ac9` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment was triggered.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.
+
+## 2026-08-12 M3.282 reconciliation line match/unmatch Core write boundary
+
+- Added the closed-by-default Web selector and server-only adapters for
+  `POST /v1/finance/reconciliation/:statementId/lines/:lineId/match` and
+  `/unmatch`. The existing Nest workflow remains authoritative for capability,
+  tenant membership, statement/line locks, idempotency, trusted PostgreSQL
+  transitions, exact result schemas, and semantic audit.
+- The detail action panel now keeps one opaque retry key per line/action across
+  a failed request and resets it only after success. Selected Core failures
+  never invoke the legacy Web database functions.
+- Local evidence: focused Web tests 180/180, API build, Web typecheck/lint,
+  API HTTP canary 1/1, and authenticated loopback browser canary 1/1 passed.
+  The browser proved successful match and unmatch, exact request boundaries,
+  rendered counts, desktop/mobile overflow, zero console errors, and blocked
+  external requests.
+- Full source gates passed: `pnpm test` reported shared-types 332, database
+  241 passed/143 skipped, API 764, and Web 791; `pnpm typecheck`, `pnpm lint`,
+  and `pnpm build` passed (83 Next pages). Migration/release/policy/parity,
+  web-database boundary, Actionlint, Gitleaks, provider-spend, and
+  `git diff --check` also passed.
+- Source/docs commit `831fc43fe993aaead9f4dda4b571180e50698797` is pushed under
+  `kurtgav` to `origin/agent-02/third-code-erp-landing`; local and remote SHAs
+  match. No production deployment or hosted promotion is implied.
+- Hosted Supabase, Storage, Railway, Vercel, feature flags, provider settings,
+  credentials, and billing state remain unchanged.

@@ -4,7 +4,7 @@
 // receiving team only ever sees the one next step. Once delivery is
 // received the panel locks down (the inspection panel takes over).
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   markSitePreparing,
@@ -42,14 +42,27 @@ export function SitePrepPanel({
   const [receiptNotes, setReceiptNotes] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const sitePreparationStartKeyRef = useRef<string | null>(null)
+  const sitePreparationCompleteKeyRef = useRef<string | null>(null)
+  const receiptKeyRef = useRef<string | null>(null)
 
-  function run(fn: () => Promise<{ error?: string }>) {
+  function run(
+    fn: () => Promise<{ error?: string }>,
+    onSuccess?: () => void
+  ) {
     setError('')
     startTransition(async () => {
       const res = await fn()
       if (res?.error) setError(res.error)
-      else router.refresh()
+      else {
+        onSuccess?.()
+        router.refresh()
+      }
     })
+  }
+
+  function receiptKey(): string {
+    return (receiptKeyRef.current ??= globalThis.crypto.randomUUID())
   }
 
   return (
@@ -80,7 +93,18 @@ export function SitePrepPanel({
               Kick off site preparation once the receiving team has been briefed.
             </p>
             <PrimaryButton
-              onClick={() => run(() => markSitePreparing(scheduleId))}
+              onClick={() =>
+                run(
+                  () =>
+                    markSitePreparing(
+                      scheduleId,
+                      (sitePreparationStartKeyRef.current ??= globalThis.crypto.randomUUID())
+                    ),
+                  () => {
+                    sitePreparationStartKeyRef.current = null
+                  }
+                )
+              }
               disabled={isPending}
               label="Mark site preparing"
             />
@@ -99,7 +123,18 @@ export function SitePrepPanel({
             />
             <PrimaryButton
               onClick={() =>
-                run(() => markSiteReady(scheduleId, prepNotes || undefined))
+                run(
+                  () =>
+                    markSiteReady(
+                      scheduleId,
+                      prepNotes || undefined,
+                      (sitePreparationCompleteKeyRef.current ??=
+                        globalThis.crypto.randomUUID())
+                    ),
+                  () => {
+                    sitePreparationCompleteKeyRef.current = null
+                  }
+                )
               }
               disabled={isPending}
               label="Mark site ready"
@@ -133,7 +168,17 @@ export function SitePrepPanel({
             />
             <PrimaryButton
               onClick={() =>
-                run(() => recordReceipt(scheduleId, receiptNotes || undefined))
+                run(
+                  () =>
+                    recordReceipt(
+                      scheduleId,
+                      receiptNotes || undefined,
+                      receiptKey()
+                    ),
+                  () => {
+                    receiptKeyRef.current = null
+                  }
+                )
               }
               disabled={isPending}
               label="Record receipt"

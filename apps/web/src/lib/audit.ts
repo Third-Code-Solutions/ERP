@@ -1,6 +1,9 @@
 import { db, type Database } from '@third-code-erp/database'
 import { auditLog } from '@third-code-erp/database/schema'
-import { computeHash, computeDiff } from '@third-code-erp/shared-types'
+import {
+  computeDatabaseAuditHash,
+  computeDiff,
+} from '@third-code-erp/shared-types'
 import { desc, eq, sql } from 'drizzle-orm'
 
 export type AuditAction =
@@ -55,12 +58,11 @@ export async function writeAuditLogInTransaction(
 
   const prevHash = lastEntry?.hash ?? 'genesis'
   const now = new Date()
-  const hash = await computeHash(prevHash, {
+  const hash = await computeDatabaseAuditHash(prevHash, {
     entity_type: entityType,
     entity_id: entityId,
     action,
-    diff,
-    created_at: now.toISOString(),
+    created_at: now,
   })
 
   await tx.insert(auditLog).values({

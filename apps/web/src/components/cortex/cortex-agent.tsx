@@ -23,6 +23,11 @@ import {
   type CortexAgentContext,
 } from '@/lib/cortex/agent-context'
 import { consumeCortexDraft } from '@/lib/cortex/draft-handoff'
+import {
+  createCortexJobCanceller,
+  resolveCortexChatResponse,
+  type CortexJobCanceller,
+} from '@/lib/cortex/chat-job-polling'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -35,6 +40,11 @@ interface Conversation {
   created_at: string
   updated_at: string
   context: CortexAgentContext | null
+}
+interface ActiveChat {
+  controller: AbortController
+  jobPath: string | null
+  cancel: CortexJobCanceller
 }
 
 const COMPANY_SUGGESTIONS = [
@@ -87,12 +97,22 @@ export function CortexAgent({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyQuery, setHistoryQuery] = useState('')
   const [isRestoring, setIsRestoring] = useState(false)
-  const endRef = useRef<HTMLDivElement>(null)
+  const logRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const historySearchRef = useRef<HTMLInputElement>(null)
   const initialRestoreRef = useRef<string | null>(null)
   const initialDraftRef = useRef<string | null>(null)
   const restoreRequestRef = useRef(0)
+  const chatRequestRef = useRef(0)
+  const activeChatRef = useRef<ActiveChat | null>(null)
+
+  const cancelActiveChat = useCallback(() => {
+    const activeChat = activeChatRef.current
+    if (!activeChat) return
+    activeChatRef.current = null
+    activeChat.controller.abort()
+    if (activeChat.jobPath) void activeChat.cancel(activeChat.jobPath)
+  }, [])
 
   const syncConversationUrl = useCallback(
     (id: string | null) => {
@@ -119,7 +139,9 @@ export function CortexAgent({
   }, [loadHistory])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const log = logRef.current
+    if (!log) return
+    log.scrollTo({ top: log.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
   useEffect(() => {
@@ -127,6 +149,9 @@ export function CortexAgent({
   }, [historyOpen])
 
   const restoreConversation = useCallback(async (id: string) => {
+    chatRequestRef.current += 1
+    cancelActiveChat()
+    setIsStreaming(false)
     const requestId = ++restoreRequestRef.current
     setError('')
     setIsRestoring(true)
@@ -164,7 +189,7 @@ export function CortexAgent({
     } finally {
       if (requestId === restoreRequestRef.current) setIsRestoring(false)
     }
-  }, [initialContext, syncConversationUrl])
+  }, [cancelActiveChat, initialContext, syncConversationUrl])
 
   function loadConversation(conversation: Conversation) {
     setError('')
@@ -200,8 +225,11 @@ export function CortexAgent({
   }, [contextUnavailable, initialDraftId])
 
   function newChat() {
+    chatRequestRef.current += 1
+    cancelActiveChat()
     restoreRequestRef.current += 1
     setIsRestoring(false)
+    setIsStreaming(false)
     setMessages([])
     setConversationId(null)
     syncConversationUrl(null)
@@ -218,14 +246,25 @@ export function CortexAgent({
     setInput('')
     setError('')
     setIsStreaming(true)
+    const requestId = ++chatRequestRef.current
+    const controller = new AbortController()
+    const activeChat: ActiveChat = {
+      controller,
+      jobPath: null,
+      cancel: createCortexJobCanceller(),
+    }
+    activeChatRef.current = activeChat
 
     try {
-      const res = await fetch('/api/cortex/chat', {
+      const initialResponse = await fetch('/api/cortex/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
+        },
         body: JSON.stringify({
           messages: next,
-          conversationId,
+          ...(conversationId ? { conversationId } : {}),
           context: initialContext
             ? {
                 refTable: initialContext.refTable,
@@ -233,7 +272,16 @@ export function CortexAgent({
               }
             : undefined,
         }),
+        signal: controller.signal,
       })
+      const res = await resolveCortexChatResponse(initialResponse, {
+        signal: controller.signal,
+        canceller: activeChat.cancel,
+        onAccepted: (jobPath) => {
+          activeChat.jobPath = jobPath
+        },
+      })
+      if (requestId !== chatRequestRef.current) return
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string }
         throw new Error(data.error ?? `Request failed (${res.status})`)
@@ -253,6 +301,7 @@ export function CortexAgent({
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
+        if (requestId !== chatRequestRef.current) return
         acc += decoder.decode(value, { stream: true })
         setMessages([
           ...next,
@@ -261,12 +310,27 @@ export function CortexAgent({
       }
       void loadHistory()
     } catch (err) {
+      if (controller.signal.aborted || requestId !== chatRequestRef.current) {
+        return
+      }
       setError(err instanceof Error ? err.message : 'Failed to reach Cortex')
       setMessages(next)
     } finally {
-      setIsStreaming(false)
+      if (requestId === chatRequestRef.current) {
+        if (activeChatRef.current === activeChat) activeChatRef.current = null
+        setIsStreaming(false)
+      }
     }
   }
+
+  useEffect(() => {
+    window.addEventListener('pagehide', cancelActiveChat)
+    return () => {
+      window.removeEventListener('pagehide', cancelActiveChat)
+      chatRequestRef.current += 1
+      cancelActiveChat()
+    }
+  }, [cancelActiveChat])
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -426,7 +490,12 @@ export function CortexAgent({
           </ul>
         </div>
       ) : (
-        <div className="cortex-agent__log" role="log" aria-live="polite">
+        <div
+          ref={logRef}
+          className="cortex-agent__log"
+          role="log"
+          aria-live="polite"
+        >
           {messages.length === 0 && (
             <div className="cortex-agent__empty">
               <p>
@@ -479,7 +548,6 @@ export function CortexAgent({
               {error}
             </p>
           )}
-          <div ref={endRef} />
         </div>
       )}
 

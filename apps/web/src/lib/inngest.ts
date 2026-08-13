@@ -1,5 +1,9 @@
 import { Inngest } from 'inngest'
-import { parseAndStoreCad } from '@/lib/cad/parse-and-store'
+
+import {
+  parseWorkerResponse,
+  type WorkerParseResponse,
+} from '@/lib/cad/worker-contract'
 
 export const inngest = new Inngest({ id: 'third-code-erp' })
 
@@ -9,10 +13,12 @@ export const inngest = new Inngest({ id: 'third-code-erp' })
 //
 // Flow:
 //   1. /api/upload accepts a .dxf or .dwg file → emits `document/cad.uploaded`
-//   2. parseCadDrawing fn owns official scope writes; Python only converts and
-//      returns bounded evidence through the same adapter.
-//   3. On success, the parser fn emits `cad/parsed` with the extracted count.
-//   4. calcDraftBomFromScope fn loads the new scope items, runs pgvector
+//   2. parseCadDrawing fn calls the Python worker; worker converts DWG→DXF if
+//      needed, runs ezdxf extraction, and returns evidence.
+//   3. The application boundary validates that evidence and commits scope_items
+//      in a tenant-scoped transaction.
+//   4. On success, the parser fn emits `cad/parsed` with the extracted count.
+//   5. calcDraftBomFromScope fn loads the new scope items, runs pgvector
 //      similarity search against historical embedded BOM line items, and
 //      writes a draft BOM with calculated unit costs and totals.
 // =============================================================================
@@ -56,22 +62,48 @@ export const parseCadDrawing = inngest.createFunction(
     const { documentId, projectId, tenantId, storagePath, format, fileName } = event.data
     const cadFormat = format ?? 'dxf'
 
-    if (!process.env.DXF_PARSER_URL) {
+    const parserUrl = process.env.DXF_PARSER_URL
+    if (!parserUrl) {
       return { skipped: true, reason: 'DXF_PARSER_URL not configured', format: cadFormat }
     }
 
     const result = await step.run('call-cad-parser', async () => {
-      return parseAndStoreCad({
-        documentId,
-        projectId,
-        tenantId,
-        storagePath,
-        fileName: fileName ?? `${cadFormat}-upload.${cadFormat}`,
-        createDraftBom: false,
+      const sharedSecret = process.env.PARSER_SHARED_SECRET
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (sharedSecret) headers.Authorization = `Bearer ${sharedSecret}`
+      const res = await fetch(`${parserUrl}/parse`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          document_id: documentId,
+          project_id: projectId,
+          tenant_id: tenantId,
+          storage_path: storagePath,
+          format: cadFormat,
+          file_name: fileName,
+        }),
       })
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '')
+        throw new Error(`CAD parser returned ${res.status}: ${detail}`)
+      }
+      return parseWorkerResponse(await res.json(), documentId)
     })
 
-    const scopeItemsCreated = result.scopeItemsCreated
+    const parsedResult: WorkerParseResponse = result
+    const scopeItemsCreated = await step.run('persist-cad-scope-items', async () => {
+      const { persistExtractedScopeItems } = await import('@/lib/cad/parse-and-store')
+      return persistExtractedScopeItems({
+        tenantId,
+        projectId,
+        documentId,
+        actorId: null,
+        sourceFormat: parsedResult.source_format,
+        items: parsedResult.scope_items,
+      })
+    })
 
     if (scopeItemsCreated > 0) {
       await step.run('emit-cad-parsed', async () => {
@@ -82,13 +114,13 @@ export const parseCadDrawing = inngest.createFunction(
             projectId,
             tenantId,
             scopeItemsCreated,
-            sourceFormat: cadFormat,
+            sourceFormat: parsedResult.source_format,
           },
         })
       })
     }
 
-    return { parsed: result.status === 'extracted', scopeItemsCreated, format: cadFormat }
+    return { parsed: true, scopeItemsCreated, format: cadFormat }
   }
 )
 
@@ -145,9 +177,9 @@ export const embedBomLineItems = inngest.createFunction(
   }) => {
     const { bomId, tenantId } = event.data
 
-    const apiKey = process.env.OPENAI_API_KEY
-    if (!apiKey) {
-      return { skipped: true, reason: 'OPENAI_API_KEY not configured' }
+    const { isEmbeddingProviderConfigured } = await import('@third-code-erp/ai')
+    if (!isEmbeddingProviderConfigured()) {
+      return { skipped: true, reason: 'AI embedding provider not configured' }
     }
 
     const count = await step.run('embed-line-items', async () => {

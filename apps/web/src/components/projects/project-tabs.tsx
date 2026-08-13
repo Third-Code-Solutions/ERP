@@ -40,7 +40,8 @@ export function ProjectTabs({ projectId }: ProjectTabsProps) {
   const base = `/projects/${projectId}`
 
   return (
-    <nav className="project-tabs" aria-label="Project sections">
+    <div className="project-tabs-frame">
+      <nav className="project-tabs" aria-label="Project sections">
       {ITEMS.map((item) => {
         const href = item.slug ? `${base}/${item.slug}` : base
         const active = item.slug
@@ -55,11 +56,21 @@ export function ProjectTabs({ projectId }: ProjectTabsProps) {
             {item.label}
           </Link>
         )
-      })}
+        })}
+      </nav>
 
       <style>{`
+        .project-tabs-frame {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          overflow: hidden;
+        }
         .project-tabs {
           display: flex;
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
           gap: 4px;
           border-bottom: 1px solid var(--color-border);
           margin-bottom: 20px;
@@ -86,6 +97,6 @@ export function ProjectTabs({ projectId }: ProjectTabsProps) {
           font-weight: 600;
         }
       `}</style>
-    </nav>
+    </div>
   )
 }

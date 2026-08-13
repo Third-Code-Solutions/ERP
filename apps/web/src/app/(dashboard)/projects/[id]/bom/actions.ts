@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getUserProfile, requireUserProfile, can } from '@third-code-erp/auth'
+import { getUser, getUserProfile, requireUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
   boms,
@@ -15,12 +15,17 @@ import {
   dupaMaterialLines,
   priceHistory,
   opportunities,
+  users,
   takeoffUnresolvedItems,
 } from '@third-code-erp/database/schema'
 import { eq, and, max, or, desc, asc, isNotNull, inArray } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { writeAuditLog } from '@/lib/audit'
 import { inngest } from '@/lib/inngest'
+import {
+  dispatchApprovedBomRfqThroughCoreApi,
+  rfqAutoDispatchUsesCoreApi,
+} from '@/lib/erp-core-client'
 import { selectCanonicalSupplierOptions } from '@/lib/operations/bom-supplier-matching'
 import {
   bomGrainReviewResolutionSchema,
@@ -244,11 +249,15 @@ export async function deleteBomLineItem(
 }
 
 export async function approveBom(bomId: string, projectId: string): Promise<{ error?: string }> {
-  const profile = await getUserProfile()
-  if (!profile) return { error: 'Unauthorized' }
-  if (!can(profile.role, 'bom.approve_internal')) {
-    return { error: `Forbidden: role "${profile.role}" lacks "bom.approve_internal"` }
-  }
+  const user = await getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const [userRow] = await db
+    .select({ tenant_id: users.tenant_id })
+    .from(users)
+    .where(eq(users.id, user.id))
+  if (!userRow?.tenant_id) return { error: 'No tenant' }
+  const profile = { tenantId: userRow.tenant_id, user } as const
 
   const [bom] = await db
     .select({ id: boms.id })
@@ -357,18 +366,30 @@ export async function approveBom(bomId: string, projectId: string): Promise<{ er
 
   // Best-effort: trigger async embedding for RAG. Missing INNGEST keys must
   // not roll back the approval — the BOM is already saved.
-  try {
-    await inngest.send({
-      name: 'bom/approved',
-      data: {
-        bomId,
-        projectId,
-        tenantId: profile.tenantId,
-        actorId: profile.user.id,
-      },
-    })
-  } catch (err) {
-    console.warn('[approveBom] inngest.send failed (approval still persisted):', err)
+  if (rfqAutoDispatchUsesCoreApi(profile.tenantId)) {
+    const dispatch = await dispatchApprovedBomRfqThroughCoreApi({ bomId })
+    if (!dispatch.ok) {
+      console.warn(
+        `[approveBom] Nest RFQ dispatch failed (approval still persisted): ${dispatch.error ?? 'unknown error'}`,
+      )
+    }
+  } else {
+    try {
+      await inngest.send({
+        name: 'bom/approved',
+        data: {
+          bomId,
+          projectId,
+          tenantId: profile.tenantId,
+          actorId: profile.user.id,
+        },
+      })
+    } catch (error) {
+      console.warn(
+        '[approveBom] inngest.send failed (approval still persisted):',
+        error,
+      )
+    }
   }
 
   revalidatePath(`/projects/${projectId}/bom`)

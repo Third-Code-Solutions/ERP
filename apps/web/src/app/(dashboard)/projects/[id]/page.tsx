@@ -1,15 +1,18 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { getUser } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { boms, invoices, opportunities, projects, purchaseOrders } from '@third-code-erp/database/schema'
+import { boms, invoices, opportunities, purchaseOrders, users } from '@third-code-erp/database/schema'
 import { and, desc, eq, inArray, sum } from 'drizzle-orm'
 import { OpportunityPanel } from '@/components/opportunities/opportunity-panel'
 import { ProjectChat } from '@/components/ai/project-chat'
 import { CortexEntityPanel } from '@/components/cortex/cortex-entity-panel'
 import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 import { EditProjectForm } from '@/components/projects/edit-project-form'
+import { ProjectCommandCenter } from '@/components/projects/project-command-center'
+import { getProject, getProjectCommandCenter } from '@/lib/project-queries'
+import styles from './project-page.module.css'
 import {
   IconLayers,
   IconBom,
@@ -49,14 +52,17 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const profile = await requireUserProfile()
+  const user = await getUser()
+  if (!user) return null
 
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.id, id), eq(projects.tenant_id, profile.tenantId)))
+  const [userRow] = await db.select({ tenant_id: users.tenant_id }).from(users).where(eq(users.id, user.id))
+  if (!userRow?.tenant_id) return notFound()
+
+  const project = await getProject(userRow.tenant_id, id)
 
   if (!project) return notFound()
+
+  const commandCenter = await getProjectCommandCenter(userRow.tenant_id, id)
 
   const opps = await db
     .select({
@@ -71,12 +77,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       opportunity_type: opportunities.opportunity_type,
     })
     .from(opportunities)
-    .where(and(eq(opportunities.project_id, id), eq(opportunities.tenant_id, profile.tenantId)))
+    .where(and(eq(opportunities.project_id, id), eq(opportunities.tenant_id, userRow.tenant_id)))
 
   const [latestBom] = await db
     .select({ total_cost_cents: boms.total_cost_cents, tcv_cents: boms.tcv_cents, gp_cents: boms.gp_cents, status: boms.status })
     .from(boms)
-    .where(and(eq(boms.project_id, id), eq(boms.tenant_id, profile.tenantId), inArray(boms.status, ['approved', 'locked'])))
+    .where(and(eq(boms.project_id, id), eq(boms.tenant_id, userRow.tenant_id), inArray(boms.status, ['approved', 'locked'])))
     .orderBy(desc(boms.version))
     .limit(1)
 
@@ -86,7 +92,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     .where(
       and(
         eq(purchaseOrders.project_id, id),
-        eq(purchaseOrders.tenant_id, profile.tenantId),
+        eq(purchaseOrders.tenant_id, userRow.tenant_id),
         inArray(purchaseOrders.status, [...COMMITTED_PO_STATUSES])
       )
     )
@@ -97,7 +103,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     .where(
       and(
         eq(invoices.project_id, id),
-        eq(invoices.tenant_id, profile.tenantId),
+        eq(invoices.tenant_id, userRow.tenant_id),
         inArray(invoices.status, ['issued', 'partial_payment', 'paid'])
       )
     )
@@ -108,9 +114,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const budgetVariance = bomBudget > 0 ? bomBudget - poSpend : null
 
   return (
-    <div>
+    <div className={styles.page}>
       {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
+      <div className={styles.projectHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
           <Link href="/projects" style={{ color: 'var(--color-neutral-400)', fontSize: '0.875rem', textDecoration: 'none' }}>
             Projects
@@ -118,19 +124,19 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <span style={{ color: 'var(--color-neutral-300)' }}>/</span>
           <span style={{ fontSize: '0.875rem', color: 'var(--color-neutral-600)' }}>{project.name}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
+        <div className={styles.projectHeaderRow}>
+          <div className={styles.projectHeaderMain}>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 4px 0', color: 'var(--color-neutral-900)' }}>
               {project.name}
             </h1>
-            <div style={{ display: 'flex', gap: '16px', fontSize: '0.875rem', color: 'var(--color-neutral-500)' }}>
+            <div className={styles.projectFacts}>
               <span>{project.client}</span>
               {project.location && <span>{project.location}</span>}
               {project.project_type && <span>{TYPE_LABELS[project.project_type] ?? project.project_type}</span>}
               {project.total_sqm && <span>{project.total_sqm.toLocaleString()} sqm</span>}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className={styles.projectActions}>
             <span
               style={{
                 padding: '4px 12px',
@@ -149,10 +155,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
+      <ProjectCommandCenter projectId={id} data={commandCenter} />
+
       {/* Tab navigation is provided by /projects/[id]/layout.tsx */}
 
       {/* Overview content */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px' }}>
+      <div className={styles.overviewGrid}>
         <div>
           {/* Notes */}
           {project.notes && (
@@ -175,14 +183,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           )}
 
           {/* Quick links to tabs */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 12,
-              marginBottom: 24,
-            }}
-          >
+          <div className={styles.quickLinks}>
             {[
               {
                 label: 'Scope',
@@ -242,7 +243,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <h3 style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-neutral-500)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 16px' }}>
                 Financial Health
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+              <div className={styles.financialGrid}>
                 {[
                   {
                     label: 'BOM Budget',

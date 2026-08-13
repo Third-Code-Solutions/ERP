@@ -1,4 +1,4 @@
-// Phase 10 (Rework-alignment) — Weekly Report HTML builder.
+// Weekly Report HTML builder.
 //
 // Mirrors the print-friendly idiom used in
 // `apps/web/src/lib/pdf/site-inspection-report.ts`. We emit a complete

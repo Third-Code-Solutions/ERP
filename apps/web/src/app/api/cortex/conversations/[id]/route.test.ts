@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   getCortexConversationMessages: vi.fn(),
   getCortexCitationsByNodeIds: vi.fn(),
   authorizeCortexRecordContext: vi.fn(),
+  cortexConversationReadsUseCoreApi: vi.fn(),
+  getCortexConversationThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -23,6 +25,13 @@ vi.mock('@/lib/cortex/record-context', () => ({
   authorizeCortexRecordContext: mocks.authorizeCortexRecordContext,
 }))
 
+vi.mock('@/lib/erp-core-client', () => ({
+  cortexConversationReadsUseCoreApi:
+    mocks.cortexConversationReadsUseCoreApi,
+  getCortexConversationThroughCoreApi:
+    mocks.getCortexConversationThroughCoreApi,
+}))
+
 import { GET } from './route'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
@@ -31,6 +40,13 @@ const CONVERSATION_ID = '33333333-3333-4333-8333-333333333333'
 const VISIBLE_NODE_ID = '44444444-4444-4444-8444-444444444444'
 const FORBIDDEN_NODE_ID = '55555555-5555-4555-8555-555555555555'
 const REF_ID = '66666666-6666-4666-8666-666666666666'
+
+function expectPrivate(response: Response) {
+  expect(response.headers.get('cache-control')).toBe(
+    'private, no-store, max-age=0'
+  )
+  expect(response.headers.get('vary')).toBe('Cookie')
+}
 
 function request() {
   return GET(
@@ -49,6 +65,7 @@ describe('Cortex conversation citation reauthorization', () => {
       role: 'finance',
       user: { id: USER_ID },
     })
+    mocks.cortexConversationReadsUseCoreApi.mockReturnValue(false)
     mocks.getCortexConversation.mockResolvedValue({
       id: CONVERSATION_ID,
       title: 'Finance thread',
@@ -87,6 +104,7 @@ describe('Cortex conversation citation reauthorization', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(mocks.getCortexConversationMessages).toHaveBeenCalledWith(
       TENANT_ID,
       USER_ID,
@@ -115,6 +133,7 @@ describe('Cortex conversation citation reauthorization', () => {
     const response = await request()
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     expect(mocks.getCortexConversationMessages).not.toHaveBeenCalled()
     expect(mocks.getCortexCitationsByNodeIds).not.toHaveBeenCalled()
   })
@@ -141,6 +160,7 @@ describe('Cortex conversation citation reauthorization', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(body.context).toEqual(context)
     expect(mocks.authorizeCortexRecordContext).toHaveBeenCalledWith(
       TENANT_ID,
@@ -163,6 +183,7 @@ describe('Cortex conversation citation reauthorization', () => {
     const response = await request()
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     expect(mocks.getCortexConversationMessages).not.toHaveBeenCalled()
     expect(mocks.getCortexCitationsByNodeIds).not.toHaveBeenCalled()
   })
@@ -173,7 +194,42 @@ describe('Cortex conversation citation reauthorization', () => {
     const response = await request()
 
     expect(response.status).toBe(401)
+    expectPrivate(response)
     expect(mocks.getCortexConversation).not.toHaveBeenCalled()
     expect(mocks.getCortexConversationMessages).not.toHaveBeenCalled()
+  })
+
+  it('uses Core for a selected tenant without direct database fallback', async () => {
+    mocks.cortexConversationReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexConversationThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: { context: null, messages: [] },
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(200)
+    expectPrivate(response)
+    await expect(response.json()).resolves.toEqual({
+      context: null,
+      messages: [],
+    })
+    expect(mocks.getCortexConversation).not.toHaveBeenCalled()
+  })
+
+  it('preserves a concealed 404 when selected Core rejects the thread', async () => {
+    mocks.cortexConversationReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexConversationThroughCoreApi.mockResolvedValue({
+      ok: false,
+      status: 404,
+      error: 'Cortex conversation not found.',
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(404)
+    expectPrivate(response)
+    await expect(response.json()).resolves.toEqual({ error: 'Not found' })
+    expect(mocks.getCortexConversation).not.toHaveBeenCalled()
   })
 })

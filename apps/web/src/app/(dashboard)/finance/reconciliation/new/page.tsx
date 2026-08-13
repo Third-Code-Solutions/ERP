@@ -8,6 +8,7 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { BankStatementImportForm } from '../statement-import-form'
+import { financeReconciliationStorageUploadsUseCoreApi } from '@/lib/erp-core-client'
 
 export const metadata: Metadata = { title: 'Import bank statement' }
 
@@ -80,6 +81,9 @@ export default async function NewBankStatementPage() {
           }))}
           defaultStart={monthStart}
           defaultEnd={today}
+          storageUploadsEnabled={financeReconciliationStorageUploadsUseCoreApi(
+            profile.tenantId
+          )}
         />
       )}
     </div>

@@ -5,23 +5,66 @@ export function requestRateLimitKey(
   return userId ? `user:${userId}` : `ip:${ip}`
 }
 
+export interface RequestRateLimitPolicy {
+  bucket: 'general' | 'provider-chat' | 'provider-embedding'
+  limit: number
+  windowMs: number
+}
+
+export interface RequestRateLimitEntry {
+  count: number
+  windowStart: number
+}
+
+const WINDOW_MS = 60_000
+
 /**
- * Keep navigation cheap while retaining a limiter on API and auth surfaces.
- * A rendered page can fan out into several server requests and is already
- * protected by the route/auth boundary; counting every GET made the shared
- * Edge bucket reject legitimate sequential navigation as HTTP 429.
+ * Keep expensive provider-backed endpoints on smaller per-instance bursts.
+ * This is a spend-safety guard, not a global quota: Redis-backed accounting
+ * remains a backend migration concern.
  */
-export function shouldRateLimitRequest(pathname: string, method: string): boolean {
-  const normalizedPathname = pathname.startsWith('/') ? pathname : `/${pathname}`
-  const normalizedMethod = method.toUpperCase()
+export function requestRateLimitPolicy(
+  pathname: string,
+  authenticated: boolean
+): RequestRateLimitPolicy {
+  const limit = authenticated ? 1_000 : 100
 
   if (
-    normalizedPathname.startsWith('/api/') ||
-    normalizedPathname === '/api' ||
-    normalizedPathname.startsWith('/auth')
+    (pathname === '/api/cortex/chat' ||
+      pathname.startsWith('/api/cortex/chat/jobs/')) ||
+    pathname === '/api/ai/chat' ||
+    pathname === '/api/ai/similar-items'
   ) {
-    return true
+    return {
+      bucket: 'provider-chat',
+      limit: authenticated ? 20 : 10,
+      windowMs: WINDOW_MS,
+    }
   }
 
-  return normalizedMethod !== 'GET' && normalizedMethod !== 'HEAD'
+  if (pathname === '/api/cortex/embed') {
+    return {
+      bucket: 'provider-embedding',
+      limit: authenticated ? 6 : 2,
+      windowMs: WINDOW_MS,
+    }
+  }
+
+  return { bucket: 'general', limit, windowMs: WINDOW_MS }
+}
+
+export function consumeRequestRateLimit(
+  entry: RequestRateLimitEntry | undefined,
+  policy: RequestRateLimitPolicy,
+  now = Date.now()
+): { entry: RequestRateLimitEntry; limited: boolean } {
+  if (!entry || now - entry.windowStart > policy.windowMs) {
+    return {
+      entry: { count: 1, windowStart: now },
+      limited: false,
+    }
+  }
+
+  const nextEntry = { ...entry, count: entry.count + 1 }
+  return { entry: nextEntry, limited: nextEntry.count > policy.limit }
 }

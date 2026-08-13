@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { can, getUserProfile } from '@third-code-erp/auth'
@@ -8,6 +9,10 @@ import { db } from '@third-code-erp/database'
 import { documents, scopeItems } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
 import { writeAuditLogInTransaction } from '@/lib/audit'
+import {
+  deleteDocumentThroughCoreApi,
+  documentDeleteWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 
 export interface DeleteResult {
   ok: boolean
@@ -17,6 +22,7 @@ export interface DeleteResult {
 const DeleteDocumentSchema = z.object({
   documentId: z.string().uuid(),
   projectId: z.string().uuid(),
+  idempotencyKey: z.string().trim().min(1).max(256).optional(),
 })
 
 class DocumentNotFoundError extends Error {}
@@ -25,6 +31,7 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
   const parsed = DeleteDocumentSchema.safeParse({
     documentId: formData.get('document_id'),
     projectId: formData.get('project_id'),
+    idempotencyKey: formData.get('idempotency_key') ?? undefined,
   })
   if (!parsed.success) {
     return { ok: false, error: 'Invalid document request' }
@@ -35,6 +42,32 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
   if (!profile) return { ok: false, error: 'Unauthorized' }
   if (!can(profile.role, 'document.manage')) {
     return { ok: false, error: 'Forbidden' }
+  }
+
+  if (documentDeleteWritesUseCoreApi(profile.tenantId)) {
+    const coreResult = await deleteDocumentThroughCoreApi(
+      documentId,
+      parsed.data.idempotencyKey ?? randomUUID(),
+    )
+    if (!coreResult.ok || !coreResult.data) {
+      return {
+        ok: false,
+        error: coreResult.error ?? 'Document was not deleted.',
+      }
+    }
+    if (
+      coreResult.data.documentId !== documentId ||
+      coreResult.data.tenantId !== profile.tenantId ||
+      coreResult.data.projectId !== projectId
+    ) {
+      return {
+        ok: false,
+        error: 'ERP Core API returned an invalid document deletion result.',
+      }
+    }
+    await cleanupDocumentStorage(coreResult.data.storagePath)
+    refreshDocumentPaths(coreResult.data.projectId)
+    return { ok: true }
   }
 
   let deletedDocument: {
@@ -119,21 +152,31 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
 
   // Object Storage cannot join the PostgreSQL transaction. Run cleanup only
   // after the official record, derived rows, and audit entry commit together.
+  await cleanupDocumentStorage(deletedDocument.storage_path)
+  refreshDocumentPaths(deletedDocument.project_id)
+  return { ok: true }
+}
+
+async function cleanupDocumentStorage(storagePath: string): Promise<void> {
   try {
     const supabase = createSupabaseAdminClient()
     const { error: storageErr } = await supabase.storage
       .from('documents')
-      .remove([deletedDocument.storage_path])
+      .remove([storagePath])
     if (storageErr) {
-      console.warn('[documents/delete] storage remove warning:', storageErr.message)
+      console.warn(
+        '[documents/delete] storage remove warning:',
+        storageErr.message,
+      )
     }
-  } catch (err) {
-    console.warn('[documents/delete] storage remove failed:', err)
+  } catch (error) {
+    console.warn('[documents/delete] storage remove failed:', error)
   }
+}
 
-  revalidatePath(`/projects/${deletedDocument.project_id}/documents`)
-  revalidatePath(`/projects/${deletedDocument.project_id}/scope`)
-  revalidatePath(`/projects/${deletedDocument.project_id}/bom`)
-  revalidatePath(`/projects/${deletedDocument.project_id}`)
-  return { ok: true }
+function refreshDocumentPaths(projectId: string): void {
+  revalidatePath(`/projects/${projectId}/documents`)
+  revalidatePath(`/projects/${projectId}/scope`)
+  revalidatePath(`/projects/${projectId}/bom`)
+  revalidatePath(`/projects/${projectId}`)
 }

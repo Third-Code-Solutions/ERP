@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sum } from 'drizzle-orm'
 import { getUserProfile, can } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -10,6 +10,7 @@ import {
   costEntries,
   projectBudgets,
   projects,
+  purchaseOrders,
 } from '@third-code-erp/database/schema'
 import {
   computeProjectCostSnapshot,
@@ -19,9 +20,8 @@ import {
 } from '@third-code-erp/shared-types/cost'
 import { GpErosionBadge } from '@/components/cost/gp-erosion-badge'
 import { CostEntryForm } from '@/components/cost/cost-entry-form'
-import { CostControlTable } from '@/components/cost/cost-control-table'
 import { CostTable, type CostRow } from '@/components/cost/cost-table'
-import { getProjectCostControl } from '@/lib/operations/project-cost-control'
+import { COMMITTED_PO_STATUSES } from '@/lib/po-status'
 
 export const metadata: Metadata = { title: 'Cost Tracking' }
 
@@ -65,7 +65,6 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
     .select({
       total_budget_cents: projectBudgets.total_budget_cents,
       revision: projectBudgets.revision,
-      original_gp_margin_bps: projectBudgets.original_gp_margin_bps,
     })
     .from(projectBudgets)
     .where(
@@ -76,6 +75,17 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
       )
     )
     .limit(1)
+
+  const [poSum] = await db
+    .select({ total: sum(purchaseOrders.total_cents) })
+    .from(purchaseOrders)
+    .where(
+      and(
+        eq(purchaseOrders.project_id, id),
+        eq(purchaseOrders.tenant_id, profile.tenantId),
+        inArray(purchaseOrders.status, [...COMMITTED_PO_STATUSES])
+      )
+    )
 
   const entries = await db
     .select({
@@ -88,7 +98,13 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
       incurred_at: costEntries.incurred_at,
     })
     .from(costEntries)
-    .where(and(eq(costEntries.project_id, id), eq(costEntries.tenant_id, profile.tenantId)))
+    .where(
+      and(
+        eq(costEntries.project_id, id),
+        eq(costEntries.tenant_id, profile.tenantId),
+        isNull(costEntries.voided_at)
+      )
+    )
     .orderBy(desc(costEntries.incurred_at))
 
   const activeCostCodes = await db
@@ -107,28 +123,18 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
     )
     .orderBy(costCodes.code)
 
-  const costControl = await getProjectCostControl({
-    tenantId: profile.tenantId,
-    projectId: id,
-  })
-  const actualCents = costControl.totals.actualCents
+  const actualCents = entries.reduce((acc, e) => acc + e.amount_cents, 0)
   const snapshot = computeProjectCostSnapshot({
     budgetCents:
       approvedBudget?.total_budget_cents ?? latestBom?.total_cost_cents ?? 0,
-    committedCents: costControl.totals.committedCents,
+    committedCents: Number(poSum?.total ?? 0),
     actualCents,
     bomTcvCents: latestBom?.tcv_cents ?? 0,
     bomGpCents: latestBom?.gp_cents ?? 0,
-    originalGpMarginBps: approvedBudget?.original_gp_margin_bps,
   })
 
   const byCategory = computeCategoryRollup(
-    costControl.rows
-      .filter((row) => COST_CATEGORIES.includes(row.category as CostCategory))
-      .map((row) => ({
-        cost_category: row.category as CostCategory,
-        amount_cents: row.actualCents,
-      }))
+    entries.map((e) => ({ cost_category: e.cost_category as CostCategory, amount_cents: e.amount_cents }))
   )
   const canRecord = can(profile.role, 'cost.record')
 
@@ -142,7 +148,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
     incurred_at: e.incurred_at.toISOString(),
   }))
 
-  const remainingPositive = costControl.totals.remainingCents >= 0
+  const variancePositive = snapshot.budgetVarianceCents >= 0
 
   const kpis = [
     {
@@ -154,17 +160,12 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
         : 'No approved Project Budget',
     },
     { label: 'PO Committed', value: php(snapshot.committedCents), tone: 'plain' as const },
+    { label: 'Actual Cost', value: php(snapshot.actualCents), tone: 'plain' as const },
     {
-      label: 'Posted Actual',
-      value: php(snapshot.actualCents),
-      tone: 'plain' as const,
-      note: 'Posted supplier-bill lines',
-    },
-    {
-      label: 'Forecast Remaining',
-      value: php(costControl.totals.remainingCents),
-      tone: remainingPositive ? ('good' as const) : ('bad' as const),
-      note: 'Budget less higher of PO or actual',
+      label: 'Budget Variance',
+      value: php(Math.abs(snapshot.budgetVarianceCents)),
+      tone: variancePositive ? ('good' as const) : ('bad' as const),
+      note: latestBom ? (variancePositive ? 'Under budget' : 'Over budget') : 'No approved BOM',
     },
   ]
 
@@ -216,28 +217,6 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ id
             {(snapshot.projectedGpMarginBps / 100).toFixed(1)}% margin · was{' '}
             {(snapshot.originalGpMarginBps / 100).toFixed(1)}%
           </span>
-        </div>
-      </div>
-
-      <div className="cost-grid">
-        <div className="card cost-control-card">
-          <div className="card-header">
-            <div>
-              <h3 className="card-title">Live cost control</h3>
-              <p className="cost-control-caption">
-                Budget → PO committed → posted actual. Each row stays tied to a
-                Cost Code and BOM line; invoiced POs are not double-counted.
-              </p>
-            </div>
-          </div>
-          <CostControlTable rows={costControl.rows} />
-          {costControl.totals.unreconciledCents > 0 && (
-            <p className="cost-control-warning" role="status">
-              {php(costControl.totals.unreconciledCents)} in manual or legacy
-              cost entries is shown in the log but excluded from posted-invoice
-              actuals. Reconcile those entries before commercial sign-off.
-            </p>
-          )}
         </div>
       </div>
 

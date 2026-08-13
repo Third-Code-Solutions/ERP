@@ -1,51 +1,77 @@
+import { randomUUID } from 'node:crypto'
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common'
 import {
-  materialCatalog,
+  bomLineItems,
+  boms,
   materialItems,
-  priceHistory,
+  notificationDeliveries,
+  notificationOutbox,
+  rateCards,
   rfqQuotes,
   rfqs,
+  users,
   vendors,
 } from '@third-code-erp/database/schema'
 import type {
-  AwardRfqQuoteCommand,
-  CancelRfqCommand,
-  CompleteRfqCommand,
+  CreateRfqCommand,
   LogRfqQuoteCommand,
-  RfqAwardResult,
+  RfqCreationResult,
+  RfqDispatchJob,
   RfqTransitionResult,
   RfqQuoteResult,
+  TransitionRfqCommand,
 } from '@third-code-erp/shared-types'
-import { and, eq, sql } from 'drizzle-orm'
-import type { ErpPrincipal } from '../auth/current-principal.decorator'
-import { AuditService } from '../audit/audit.service'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import {
-  DatabaseService,
-  type DatabaseTransaction,
-} from '../database/database.service'
+  roleHasCapability,
+} from '../auth/capability.guard'
+import type {
+  ErpPrincipal,
+  ErpRole,
+} from '../auth/current-principal.decorator'
+import { AuditService } from '../audit/audit.service'
+import { DatabaseService } from '../database/database.service'
 
 interface RfqLineItemJson {
   bom_line_item_id?: string
   material_item_id?: string | null
   code?: string | null
   description: string
-  unit?: string | null
 }
 
-type RfqTransitionCommand =
-  | ({ command: 'complete' } & CompleteRfqCommand)
-  | ({ command: 'cancel' } & CancelRfqCommand)
-
-type RfqPriceLine = {
-  code: string
+interface CreatedRfqLineItemJson {
+  bom_line_item_id: string
+  material_item_id: string | null
+  code: string | null
   description: string
-  unit: string
+  qty: number
+  unit: string | null
+}
+
+interface CreateRfqOptions {
+  source: 'manual' | 'bom_approved'
+  requireApprovedBom: boolean
+  revalidateActor: boolean
+  createNotificationOutbox: boolean
+}
+
+export interface AutomaticRfqCreationResult
+  extends RfqCreationResult {
+  notificationOutboxId: string | null
+}
+
+interface RfqCreationRecordResult extends RfqCreationResult {
+  notificationOutboxId: string | null
+}
+
+function existingLineCount(lineItems: unknown): number {
+  return Array.isArray(lineItems) ? lineItems.length : 0
 }
 
 function parseLineItems(value: unknown): RfqLineItemJson[] {
@@ -56,6 +82,16 @@ function parseLineItems(value: unknown): RfqLineItemJson[] {
       line !== null &&
       typeof (line as { description?: unknown }).description ===
         'string'
+  )
+}
+
+function sameDate(
+  left: Date | null,
+  right: string | undefined
+): boolean {
+  return (
+    (left?.getTime() ?? null) ===
+    (right ? new Date(right).getTime() : null)
   )
 }
 
@@ -91,16 +127,6 @@ function lineIsCovered(
   )
 }
 
-function sameDate(
-  left: Date | null,
-  right: string | undefined
-): boolean {
-  return (
-    (left?.getTime() ?? null) ===
-    (right ? new Date(right).getTime() : null)
-  )
-}
-
 @Injectable()
 export class ProcurementService {
   constructor(
@@ -110,218 +136,347 @@ export class ProcurementService {
     private readonly audit: AuditService
   ) {}
 
-  private async resolvePriceLine(
-    transaction: DatabaseTransaction,
-    line: RfqLineItemJson,
+  async create(
+    command: CreateRfqCommand,
     principal: ErpPrincipal
-  ): Promise<RfqPriceLine> {
-    let code = line.code?.trim() ?? ''
-    let description = line.description.trim()
-    let unit = line.unit?.trim() ?? ''
+  ): Promise<RfqCreationResult> {
+    const result = await this.createRecord(command, principal, {
+      source: 'manual',
+      requireApprovedBom: false,
+      revalidateActor: false,
+      createNotificationOutbox: false,
+    })
+    const { notificationOutboxId: _, ...publicResult } = result
+    return publicResult
+  }
 
-    if (line.material_item_id) {
-      const [material] = await transaction
+  async createFromApprovedBom(
+    job: RfqDispatchJob
+  ): Promise<AutomaticRfqCreationResult> {
+    return this.createRecord(
+      { bomId: job.bomId },
+      {
+        userId: job.actorId,
+        tenantId: job.tenantId,
+        role: 'viewer',
+        email: '',
+      },
+      {
+        source: job.source,
+        requireApprovedBom: true,
+        revalidateActor: true,
+        createNotificationOutbox: true,
+      }
+    )
+  }
+
+  private async createRecord(
+    command: CreateRfqCommand,
+    principal: ErpPrincipal,
+    options: CreateRfqOptions
+  ): Promise<RfqCreationRecordResult> {
+    return this.database.client.transaction(async (transaction) => {
+      let authorizedPrincipal = principal
+      if (options.revalidateActor) {
+        const [membership] = await transaction
+          .select({
+            tenantId: users.tenant_id,
+            role: users.role,
+            email: users.email,
+          })
+          .from(users)
+          .where(
+            and(
+              eq(users.id, principal.userId),
+              eq(users.tenant_id, principal.tenantId)
+            )
+          )
+          .limit(1)
+          .for('share')
+
+        const role = membership?.role as ErpRole | undefined
+        if (
+          !membership ||
+          !role ||
+          !roleHasCapability(role, 'rfq.dispatch')
+        ) {
+          throw new ForbiddenException()
+        }
+        authorizedPrincipal = {
+          userId: principal.userId,
+          tenantId: membership.tenantId,
+          role,
+          email: membership.email,
+        }
+      }
+
+      await this.audit.stampActor(
+        transaction,
+        authorizedPrincipal
+      )
+
+      const [bom] = await transaction
         .select({
-          code: materialItems.code,
-          description: materialItems.description,
-          unit: materialItems.unit,
+          id: boms.id,
+          project_id: boms.project_id,
+          status: boms.status,
         })
-        .from(materialItems)
+        .from(boms)
         .where(
           and(
-            eq(materialItems.id, line.material_item_id),
-            eq(materialItems.tenant_id, principal.tenantId)
+            eq(boms.id, command.bomId),
+            eq(boms.tenant_id, principal.tenantId)
+          )
+        )
+        .limit(1)
+        .for('update')
+
+      if (!bom) throw new NotFoundException('BOM not found')
+      if (
+        options.requireApprovedBom &&
+        bom.status !== 'approved'
+      ) {
+        throw new ConflictException(
+          'BOM must be approved before automatic RFQ dispatch'
+        )
+      }
+
+      const [existing] = await transaction
+        .select({
+          id: rfqs.id,
+          line_items: rfqs.line_items,
+        })
+        .from(rfqs)
+        .where(
+          and(
+            eq(rfqs.bom_id, command.bomId),
+            eq(rfqs.tenant_id, principal.tenantId)
           )
         )
         .limit(1)
 
-      if (!material) throw new NotFoundException('Material item not found')
-      code ||= material.code.trim()
-      description ||= material.description.trim()
-      unit ||= material.unit.trim()
-    }
+      if (existing) {
+        const [outbox] = options.createNotificationOutbox
+          ? await transaction
+              .select({ id: notificationOutbox.id })
+              .from(notificationOutbox)
+              .where(
+                and(
+                  eq(
+                    notificationOutbox.tenant_id,
+                    authorizedPrincipal.tenantId
+                  ),
+                  eq(
+                    notificationOutbox.event_type,
+                    'rfq.created'
+                  ),
+                  eq(
+                    notificationOutbox.aggregate_type,
+                    'rfq'
+                  ),
+                  eq(
+                    notificationOutbox.aggregate_id,
+                    existing.id
+                  )
+                )
+              )
+              .limit(1)
+          : []
+        return {
+          rfqId: existing.id,
+          tenantId: authorizedPrincipal.tenantId,
+          projectId: bom.project_id,
+          lineCount: existingLineCount(existing.line_items),
+          created: false,
+          notificationOutboxId: outbox?.id ?? null,
+        }
+      }
 
-    if (!code) {
-      throw new ConflictException(
-        'Selected RFQ line needs a material code before price history can be recorded'
-      )
-    }
-    if (!description || !unit) {
-      throw new ConflictException(
-        'Selected RFQ line is missing catalog description or unit'
-      )
-    }
-
-    return { code, description, unit }
-  }
-
-  private async ensureQuotePriceHistory(
-    transaction: DatabaseTransaction,
-    principal: ErpPrincipal,
-    input: {
-      rfqId: string
-      quoteId: string
-      vendorId: string
-      unitPriceCents: number
-      line: RfqLineItemJson
-    }
-  ): Promise<string> {
-    const [existingHistory] = await transaction
-      .select({ id: priceHistory.id })
-      .from(priceHistory)
-      .where(
-        and(
-          eq(priceHistory.tenant_id, principal.tenantId),
-          eq(priceHistory.source_rfq_quote_id, input.quoteId)
+      const lines = await transaction
+        .select({
+          id: bomLineItems.id,
+          code: bomLineItems.code,
+          description: bomLineItems.description,
+          unit: bomLineItems.unit,
+          quantity: bomLineItems.quantity,
+          is_group: bomLineItems.is_group,
+        })
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.bom_id, command.bomId),
+            eq(bomLineItems.tenant_id, principal.tenantId)
+          )
         )
-      )
-      .limit(1)
 
-    if (existingHistory) return existingHistory.id
+      const itemLines = lines.filter((line) => line.is_group === 0)
+      if (itemLines.length === 0) {
+        throw new ConflictException('BOM has no line items to RFQ')
+      }
 
-    const priceLine = await this.resolvePriceLine(
-      transaction,
-      input.line,
-      principal
-    )
-    const today = new Date().toISOString().slice(0, 10)
+      const itemCodes = [
+        ...new Set(
+          itemLines
+            .map((line) => line.code)
+            .filter((code): code is string => Boolean(code))
+        ),
+      ]
+      const catalog =
+        itemCodes.length === 0
+          ? []
+          : await transaction
+              .select({
+                code: materialItems.code,
+                material_item_id: materialItems.id,
+                rate_card_id: rateCards.id,
+              })
+              .from(materialItems)
+              .leftJoin(
+                rateCards,
+                and(
+                  eq(
+                    rateCards.material_item_id,
+                    materialItems.id
+                  ),
+                  eq(
+                    rateCards.tenant_id,
+                    principal.tenantId
+                  )
+                )
+              )
+              .where(
+                and(
+                  eq(
+                    materialItems.tenant_id,
+                    principal.tenantId
+                  ),
+                  inArray(materialItems.code, itemCodes)
+                )
+              )
 
-    const [catalog] = await transaction
-      .select({
-        id: materialCatalog.id,
-        currentRateCentavos: materialCatalog.current_rate_centavos,
-      })
-      .from(materialCatalog)
-      .where(
-        and(
-          eq(materialCatalog.tenant_id, principal.tenantId),
-          eq(materialCatalog.code, priceLine.code)
+      const contractedCodes = new Set<string>()
+      const materialItemIdByCode = new Map<string, string>()
+      for (const item of catalog) {
+        if (!item.code) continue
+        materialItemIdByCode.set(
+          item.code,
+          item.material_item_id
         )
-      )
-      .limit(1)
-      .for('update')
+        if (item.rate_card_id) contractedCodes.add(item.code)
+      }
 
-    let catalogId = catalog?.id
-    const catalogAction = catalogId ? 'update' : 'create'
-    if (!catalogId) {
-      const [createdCatalog] = await transaction
-        .insert(materialCatalog)
+      const rfqLines: CreatedRfqLineItemJson[] = itemLines
+        .filter(
+          (line) =>
+            !(line.code && contractedCodes.has(line.code))
+        )
+        .map((line) => ({
+          bom_line_item_id: line.id,
+          material_item_id: line.code
+            ? materialItemIdByCode.get(line.code) ?? null
+            : null,
+          code: line.code ?? null,
+          description: line.description,
+          qty: line.quantity,
+          unit: line.unit ?? null,
+        }))
+
+      if (rfqLines.length === 0) {
+        throw new ConflictException(
+          'All BOM lines already have contracted rates — no RFQ needed'
+        )
+      }
+
+      const [created] = await transaction
+        .insert(rfqs)
         .values({
           tenant_id: principal.tenantId,
-          code: priceLine.code,
-          description: priceLine.description,
-          base_uom: priceLine.unit,
-          current_rate_centavos: BigInt(input.unitPriceCents),
-          rate_source: 'rfq',
-          last_updated_at: new Date(),
-          created_by: principal.userId,
-          updated_by: principal.userId,
+          bom_id: command.bomId,
+          status: 'pending',
+          line_items: rfqLines,
         })
-        .onConflictDoNothing({
-          target: [materialCatalog.tenant_id, materialCatalog.code],
-        })
-        .returning({ id: materialCatalog.id })
+        .returning({ id: rfqs.id })
+      if (!created) {
+        throw new Error('RFQ insert returned no record')
+      }
 
-      catalogId = createdCatalog?.id
-      if (!catalogId) {
-        const [racedCatalog] = await transaction
-          .select({ id: materialCatalog.id })
-          .from(materialCatalog)
+      await this.audit.writeSemantic(transaction, {
+        tenantId: authorizedPrincipal.tenantId,
+        actorId: authorizedPrincipal.userId,
+        entityType: 'rfq',
+        entityId: created.id,
+        action: 'create',
+        diff: {
+          bom_id: command.bomId,
+          line_count: rfqLines.length,
+          source: options.source,
+        },
+      })
+
+      let notificationOutboxId: string | null = null
+      if (options.createNotificationOutbox) {
+        notificationOutboxId = randomUUID()
+        const recipients = await transaction
+          .select({
+            id: users.id,
+            email: users.email,
+          })
+          .from(users)
           .where(
             and(
-              eq(materialCatalog.tenant_id, principal.tenantId),
-              eq(materialCatalog.code, priceLine.code)
+              eq(
+                users.tenant_id,
+                authorizedPrincipal.tenantId
+              ),
+              eq(users.role, 'procurement')
             )
           )
-          .limit(1)
-          .for('update')
-        catalogId = racedCatalog?.id
-      }
-    }
+          .for('share')
 
-    if (!catalogId) {
-      throw new InternalServerErrorException(
-        'Material catalog identity was not created'
-      )
-    }
+        await transaction.insert(notificationOutbox).values({
+          id: notificationOutboxId,
+          tenant_id: authorizedPrincipal.tenantId,
+          event_key: `rfq.created/${created.id}`,
+          event_type: 'rfq.created',
+          aggregate_type: 'rfq',
+          aggregate_id: created.id,
+          payload: {
+            schemaVersion: 1,
+            project_id: bom.project_id,
+            line_count: rfqLines.length,
+          },
+        })
 
-    const [updatedCatalog] = await transaction
-      .update(materialCatalog)
-      .set({
-        current_rate_centavos: BigInt(input.unitPriceCents),
-        rate_source: 'rfq',
-        last_updated_at: new Date(),
-        updated_by: principal.userId,
-        updated_at: new Date(),
-      })
-      .where(
-        and(
-          eq(materialCatalog.id, catalogId),
-          eq(materialCatalog.tenant_id, principal.tenantId)
+        const deliveries = recipients.flatMap((recipient) =>
+          (['in_app', 'email'] as const).map((channel) => {
+            const deliveryId = randomUUID()
+            return {
+              id: deliveryId,
+              tenant_id: authorizedPrincipal.tenantId,
+              outbox_id: notificationOutboxId!,
+              recipient_user_id: recipient.id,
+              recipient_email: recipient.email,
+              channel,
+              idempotency_key: `rfq-created/${deliveryId}`,
+            }
+          })
         )
-      )
-      .returning({ id: materialCatalog.id })
+        if (deliveries.length > 0) {
+          await transaction
+            .insert(notificationDeliveries)
+            .values(deliveries)
+        }
+      }
 
-    if (!updatedCatalog) {
-      throw new InternalServerErrorException('Material catalog update failed')
-    }
-
-    await this.audit.writeSemantic(transaction, {
-      tenantId: principal.tenantId,
-      actorId: principal.userId,
-      entityType: 'material_catalog',
-      entityId: catalogId,
-      action: catalogAction,
-      diff: {
-        code: priceLine.code,
-        source_type: 'rfq',
-        source_rfq_id: input.rfqId,
-        source_rfq_quote_id: input.quoteId,
-        current_rate_centavos: input.unitPriceCents,
-      },
+      return {
+        rfqId: created.id,
+        tenantId: authorizedPrincipal.tenantId,
+        projectId: bom.project_id,
+        lineCount: rfqLines.length,
+        created: true,
+        notificationOutboxId,
+      }
     })
-
-    const [history] = await transaction
-      .insert(priceHistory)
-      .values({
-        tenant_id: principal.tenantId,
-        catalog_item_id: catalogId,
-        vendor_id: input.vendorId,
-        quoted_rate_centavos: BigInt(input.unitPriceCents),
-        source_type: 'quote',
-        source_document: `rfq:${input.rfqId}`,
-        source_rfq_id: input.rfqId,
-        source_rfq_quote_id: input.quoteId,
-        occurred_at: today,
-        created_by: principal.userId,
-        updated_by: principal.userId,
-      })
-      .returning({ id: priceHistory.id })
-
-    if (!history) {
-      throw new InternalServerErrorException(
-        'RFQ quote price history was not created'
-      )
-    }
-
-    await this.audit.writeSemantic(transaction, {
-      tenantId: principal.tenantId,
-      actorId: principal.userId,
-      entityType: 'price_history',
-      entityId: history.id,
-      action: 'create',
-      diff: {
-        source_type: 'quote',
-        source_rfq_id: input.rfqId,
-        source_rfq_quote_id: input.quoteId,
-        catalog_item_id: catalogId,
-        vendor_id: input.vendorId,
-        quoted_rate_centavos: input.unitPriceCents,
-        occurred_at: today,
-      },
-    })
-
-    return history.id
   }
 
   async logQuote(
@@ -408,22 +563,10 @@ export class ProcurementService {
         if (!exact) {
           throw new ConflictException('Quote submission conflict')
         }
-        const priceHistoryId = await this.ensureQuotePriceHistory(
-          transaction,
-          principal,
-          {
-            rfqId,
-            quoteId: existing.id,
-            vendorId: existing.vendor_id,
-            unitPriceCents: existing.unit_price_cents,
-            line,
-          }
-        )
         return {
           quoteId: existing.id,
           created: false,
           statusChanged: false,
-          priceHistoryId,
         }
       }
 
@@ -448,7 +591,24 @@ export class ProcurementService {
         .limit(1)
       if (!vendor) throw new NotFoundException('Vendor not found')
 
-      await this.resolvePriceLine(transaction, line, principal)
+      if (materialItemId) {
+        const [material] = await transaction
+          .select({ id: materialItems.id })
+          .from(materialItems)
+          .where(
+            and(
+              eq(materialItems.id, materialItemId),
+              eq(
+                materialItems.tenant_id,
+                principal.tenantId
+              )
+            )
+          )
+          .limit(1)
+        if (!material) {
+          throw new NotFoundException('Material item not found')
+        }
+      }
 
       const validUntil = command.validUntil
         ? new Date(command.validUntil)
@@ -471,9 +631,7 @@ export class ProcurementService {
         .returning({ id: rfqQuotes.id })
 
       if (!created) {
-        throw new InternalServerErrorException(
-          'RFQ quote insert returned no record'
-        )
+        throw new Error('RFQ quote insert returned no record')
       }
 
       const statusChanged = rfq.status === 'pending'
@@ -493,9 +651,7 @@ export class ProcurementService {
           )
           .returning({ id: rfqs.id })
         if (!updated) {
-          throw new InternalServerErrorException(
-            'RFQ status update lost its row lock'
-          )
+          throw new Error('RFQ status update lost its row lock')
         }
       }
 
@@ -529,258 +685,17 @@ export class ProcurementService {
         })
       }
 
-      const priceHistoryId = await this.ensureQuotePriceHistory(
-        transaction,
-        principal,
-        {
-          rfqId,
-          quoteId: created.id,
-          vendorId: command.vendorId,
-          unitPriceCents: command.unitPriceCents,
-          line,
-        }
-      )
-
       return {
         quoteId: created.id,
         created: true,
         statusChanged,
-        priceHistoryId,
       }
     })
   }
 
-  async awardQuote(
+  async transition(
     rfqId: string,
-    quoteId: string,
-    _command: AwardRfqQuoteCommand,
-    principal: ErpPrincipal
-  ): Promise<RfqAwardResult> {
-    return this.database.client.transaction(async (transaction) => {
-      await this.audit.stampActor(transaction, principal)
-
-      const [rfq] = await transaction
-        .select({
-          id: rfqs.id,
-          status: rfqs.status,
-          line_items: rfqs.line_items,
-        })
-        .from(rfqs)
-        .where(
-          and(
-            eq(rfqs.id, rfqId),
-            eq(rfqs.tenant_id, principal.tenantId)
-          )
-        )
-        .limit(1)
-        .for('update')
-
-      if (!rfq) throw new NotFoundException('RFQ not found')
-      if (rfq.status === 'cancelled') {
-        throw new ConflictException('Cannot award a cancelled RFQ')
-      }
-      if (rfq.status !== 'completed') {
-        throw new ConflictException(
-          'RFQ must be completed before a quote can be awarded'
-        )
-      }
-
-      const [quote] = await transaction
-        .select({
-          id: rfqQuotes.id,
-          rfq_id: rfqQuotes.rfq_id,
-          bom_line_item_id: rfqQuotes.bom_line_item_id,
-          vendor_id: rfqQuotes.vendor_id,
-          material_item_id: rfqQuotes.material_item_id,
-          unit_price_cents: rfqQuotes.unit_price_cents,
-        })
-        .from(rfqQuotes)
-        .where(
-          and(
-            eq(rfqQuotes.id, quoteId),
-            eq(rfqQuotes.rfq_id, rfqId),
-            eq(rfqQuotes.tenant_id, principal.tenantId)
-          )
-        )
-        .limit(1)
-        .for('update')
-
-      if (!quote) throw new NotFoundException('RFQ quote not found')
-
-      const line = parseLineItems(rfq.line_items).find(
-        (item) => item.bom_line_item_id === quote.bom_line_item_id
-      )
-      if (!line) {
-        throw new NotFoundException('Selected RFQ line is unavailable')
-      }
-
-      const [existingHistory] = await transaction
-        .select({
-          id: priceHistory.id,
-          awardedRateCentavos: priceHistory.awarded_rate_centavos,
-        })
-        .from(priceHistory)
-        .where(
-          and(
-            eq(priceHistory.tenant_id, principal.tenantId),
-            eq(priceHistory.source_rfq_quote_id, quote.id)
-          )
-        )
-        .limit(1)
-        .for('update')
-
-      if (existingHistory?.awardedRateCentavos != null) {
-        return {
-          rfqId,
-          quoteId,
-          tenantId: principal.tenantId,
-          priceHistoryId: existingHistory.id,
-          awarded: true,
-        }
-      }
-
-      const [otherAward] = quote.bom_line_item_id
-        ? await transaction
-            .select({ id: priceHistory.id })
-            .from(priceHistory)
-            .innerJoin(
-              rfqQuotes,
-              and(
-                eq(
-                  priceHistory.source_rfq_quote_id,
-                  rfqQuotes.id
-                ),
-                eq(rfqQuotes.tenant_id, principal.tenantId)
-              )
-            )
-            .where(
-              and(
-                eq(priceHistory.tenant_id, principal.tenantId),
-                eq(priceHistory.source_rfq_id, rfqId),
-                eq(priceHistory.source_type, 'award'),
-                eq(rfqQuotes.bom_line_item_id, quote.bom_line_item_id)
-              )
-            )
-            .limit(1)
-        : []
-
-      if (otherAward) {
-        throw new ConflictException(
-          'A quote is already awarded for this RFQ line'
-        )
-      }
-
-      const priceHistoryId = existingHistory?.id ??
-        await this.ensureQuotePriceHistory(
-          transaction,
-          principal,
-          {
-            rfqId,
-            quoteId: quote.id,
-            vendorId: quote.vendor_id,
-            unitPriceCents: quote.unit_price_cents,
-            line,
-          }
-        )
-
-      const [updatedHistory] = await transaction
-        .update(priceHistory)
-        .set({
-          awarded_rate_centavos: BigInt(quote.unit_price_cents),
-          source_type: 'award',
-          updated_by: principal.userId,
-          updated_at: new Date(),
-        })
-        .where(
-          and(
-            eq(priceHistory.id, priceHistoryId),
-            eq(priceHistory.tenant_id, principal.tenantId)
-          )
-        )
-        .returning({ id: priceHistory.id })
-
-      if (!updatedHistory) {
-        throw new InternalServerErrorException(
-          'RFQ award price history update failed'
-        )
-      }
-
-      const [catalog] = await transaction
-        .select({ id: priceHistory.catalog_item_id })
-        .from(priceHistory)
-        .where(
-          and(
-            eq(priceHistory.id, priceHistoryId),
-            eq(priceHistory.tenant_id, principal.tenantId)
-          )
-        )
-        .limit(1)
-
-      if (!catalog) {
-        throw new InternalServerErrorException('Award catalog identity is missing')
-      }
-
-      const [updatedCatalog] = await transaction
-        .update(materialCatalog)
-        .set({
-          current_rate_centavos: BigInt(quote.unit_price_cents),
-          rate_source: 'rfq',
-          last_updated_at: new Date(),
-          updated_by: principal.userId,
-          updated_at: new Date(),
-        })
-        .where(
-          and(
-            eq(materialCatalog.id, catalog.id),
-            eq(materialCatalog.tenant_id, principal.tenantId)
-          )
-        )
-        .returning({ id: materialCatalog.id })
-
-      if (!updatedCatalog) {
-        throw new InternalServerErrorException('Award catalog update failed')
-      }
-
-      await this.audit.writeSemantic(transaction, {
-        tenantId: principal.tenantId,
-        actorId: principal.userId,
-        entityType: 'price_history',
-        entityId: priceHistoryId,
-        action: 'update',
-        diff: {
-          source_type: 'award',
-          source_rfq_id: rfqId,
-          source_rfq_quote_id: quoteId,
-          awarded_rate_centavos: quote.unit_price_cents,
-        },
-      })
-      await this.audit.writeSemantic(transaction, {
-        tenantId: principal.tenantId,
-        actorId: principal.userId,
-        entityType: 'material_catalog',
-        entityId: catalog.id,
-        action: 'update',
-        diff: {
-          source_type: 'award',
-          source_rfq_id: rfqId,
-          source_rfq_quote_id: quoteId,
-          current_rate_centavos: quote.unit_price_cents,
-        },
-      })
-
-      return {
-        rfqId,
-        quoteId,
-        tenantId: principal.tenantId,
-        priceHistoryId,
-        awarded: true,
-      }
-    })
-  }
-
-  async transitionRfq(
-    rfqId: string,
-    command: RfqTransitionCommand,
+    command: TransitionRfqCommand,
     principal: ErpPrincipal
   ): Promise<RfqTransitionResult> {
     return this.database.client.transaction(async (transaction) => {
@@ -830,10 +745,7 @@ export class ProcurementService {
           .leftJoin(
             materialItems,
             and(
-              eq(
-                materialItems.id,
-                rfqQuotes.material_item_id
-              ),
+              eq(materialItems.id, rfqQuotes.material_item_id),
               eq(
                 materialItems.tenant_id,
                 principal.tenantId
@@ -843,7 +755,10 @@ export class ProcurementService {
           .where(
             and(
               eq(rfqQuotes.rfq_id, rfqId),
-              eq(rfqQuotes.tenant_id, principal.tenantId)
+              eq(
+                rfqQuotes.tenant_id,
+                principal.tenantId
+              )
             )
           )
 
@@ -891,11 +806,8 @@ export class ProcurementService {
           )
         )
         .returning({ id: rfqs.id })
-
       if (!updated) {
-        throw new ConflictException(
-          'RFQ transition lost its row lock'
-        )
+        throw new Error('RFQ transition lost its row lock')
       }
 
       await this.audit.writeSemantic(transaction, {

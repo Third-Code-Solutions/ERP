@@ -46,6 +46,13 @@ const billPostingSql = readFileSync(
   ),
   'utf8'
 ).toLowerCase()
+const warehouseDeactivationGuardSql = readFileSync(
+  resolve(
+    __dirname,
+    '../../../../supabase/migrations/20260805100000_inventory_warehouse_deactivation_guard.sql'
+  ),
+  'utf8'
+).toLowerCase()
 
 describe('inventory stock ledger migration contract', () => {
   it('creates typed UOM, Warehouse, receipt, and stock evidence', () => {
@@ -164,6 +171,42 @@ describe('inventory stock ledger migration contract', () => {
     ]) {
       expect(schemaSql).toContain(`add value if not exists '${nodeType}'`)
     }
+  })
+})
+
+describe('Warehouse deactivation integrity migration contract', () => {
+  it('blocks nonzero Warehouse balances before deactivation', () => {
+    expect(warehouseDeactivationGuardSql).toContain(
+      'create or replace function public.guard_warehouse_deactivation_balance()'
+    )
+    expect(warehouseDeactivationGuardSql).toMatch(
+      /old\.is_active[\s\S]*?and not new\.is_active/
+    )
+    expect(warehouseDeactivationGuardSql).toContain(
+      'sum(entry.quantity_delta_micros)'
+    )
+    expect(warehouseDeactivationGuardSql).toContain(
+      'sum(entry.value_delta_cents)'
+    )
+    expect(warehouseDeactivationGuardSql).toContain(
+      'warehouse cannot be deactivated while stock balance is nonzero'
+    )
+    expect(warehouseDeactivationGuardSql).toContain(
+      'guard_warehouse_deactivation_balance'
+    )
+  })
+
+  it('serializes ledger writes and preserves reversal after closeout', () => {
+    expect(warehouseDeactivationGuardSql).toContain(
+      'create or replace function public.guard_stock_ledger_warehouse_state()'
+    )
+    expect(warehouseDeactivationGuardSql).toContain('for share')
+    expect(warehouseDeactivationGuardSql).toMatch(
+      /not in \(\s*'receipt_reversal',\s*'movement_reversal'\s*\)/
+    )
+    expect(warehouseDeactivationGuardSql).toContain(
+      'guard_stock_ledger_warehouse_state'
+    )
   })
 })
 

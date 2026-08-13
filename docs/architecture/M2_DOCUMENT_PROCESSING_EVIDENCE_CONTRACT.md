@@ -1,10 +1,10 @@
 # M2 Document Processing Evidence Contract
 
-Status: design complete. Source-only M2.2 evidence-boundary slice implemented
-2026-08-13; durable M2.1 job/evidence storage and NestJS authority remain
-unimplemented and un-deployed.
+Status: M2.1 intake and M2.3 signed bridge source candidates implemented;
+evidence persistence, idempotent draft-BOM authority, compatibility cutover,
+and production activation remain pending. No hosted state changed.
 
-This is an original ABI OPS contract derived from repository and hosted
+This is an original Third Code ERP contract derived from repository and hosted
 catalog evidence. It defines the smallest safe migration from direct worker
 writes to NestJS transaction authority. It does not authorize a database,
 provider, queue, Auth, Storage, or deployment change.
@@ -26,27 +26,6 @@ M2 migrates CAD document processing first.
 PDF, image, spreadsheet, CSV, and DOCX extraction use the same target contract,
 but their current Next.js write path is a later M2 slice. Moving the Python CAD
 path does not falsely claim that all document authority has moved.
-
-## Source-only M2.2 boundary evidence (2026-08-13)
-
-- Python `/parse` now accepts only `job_id`, attempt, a short-lived exact-object
-  source URL, source hash, source format, sanitized file name, and bounded
-  limits.
-- Python has no database URL, Postgres client, Supabase Storage service-role
-  key, tenant/project/document identifiers, or official `scope_items` write
-  path. It verifies downloaded source hash before extraction and returns
-  bounded deterministic evidence item keys.
-- Next.js creates the short-lived object URL, validates the response contract,
-  persists tenant/project/document-scoped scope rows in one transaction, then
-  runs existing draft-BOM logic. Inngest uses the same adapter, so queued and
-  inline paths do not reintroduce worker database writes.
-- Worker authentication fails closed unless a secret is configured; local
-  unauthenticated mode requires an explicit local-only setting.
-- Worker tests pass 13/13 and Web typecheck passes. No Railway, Vercel,
-  Supabase migration, hosted environment, or production flag changed.
-- This slice does not claim M2 completion: durable processing jobs, retries,
-  evidence persistence, NestJS processor authority, and canary rollout remain
-  required before hosted activation.
 
 ## Verified current call graph
 
@@ -457,9 +436,11 @@ transaction:
 11. Record result count and accepted evidence.
 12. Transition to `committed`.
 
-Draft BOM generation is a separate idempotent Nest command keyed by processing
-job. It may run after scope commit and update the job with one durable draft
-BOM ID. A retry must return the same draft, never allocate another version.
+Draft BOM generation is an idempotent Nest operation keyed by processing job.
+For a request that asks for a BOM, it runs inside the same transaction as
+derived scope replacement and idempotency completion, then updates the job
+with one durable draft BOM ID. A retry must return the same draft, never
+allocate another version.
 
 ## Compatibility behavior
 
@@ -502,8 +483,8 @@ a visual redesign.
 - Duplicate queue delivery: return durable existing job/commit result.
 - Database unavailable: retry without asking Python to approve anything.
 - Audit failure: transaction rolls back.
-- Draft-BOM failure: scope commit remains durable; job exposes a sanitized
-  follow-up warning and the BOM command can retry idempotently.
+- Draft-BOM failure: the derived scope/BOM/idempotency transaction rolls back;
+  immutable evidence remains and a retry can replay the attempt safely.
 - Cross-tenant lookup: return 404 and write no business row.
 - Lost Redis: readiness fails; PostgreSQL state remains authoritative.
 - Storage deletion after queueing: fail safely; do not reuse old evidence
@@ -686,3 +667,52 @@ Rollback never requires reconnecting Vercel Git or creating a paid build.
 - Legacy routing remains independently selectable until canary rollback passes.
 - Full validation includes real PostgreSQL, Redis, Python, API, compatibility,
   audit, and browser evidence.
+
+## M2.1 intake implementation note (2026-08-01)
+
+The first additive slice is present under `apps/api/src/cad` without
+re-routing the existing Next upload. `document_processing_jobs` stores the
+tenant/document/project/actor relationship, strict command fields,
+idempotency hash, bounded warnings, and explicit state timestamps. Nest
+creates/replays that row and exposes a tenant-filtered status read.
+`DocumentProcessingJobQueue` publishes only `{schemaVersion: 1, jobId}` with
+attempts/backoff and transport deduplication.
+
+The processing feature flag and tenant allowlist both default closed. At the
+M2.1 boundary no processor was registered; the later M2.3 source candidate is
+documented below and remains separately gated. The disposable lane proved 61
+migration replays, 253 zero-skip database assertions, and 11 API integration
+assertions. The existing Next compatibility path and worker evidence-only
+boundary remain unchanged.
+
+## M2.3 signed bridge implementation note (2026-08-01)
+
+The private NestJS processor now claims the durable job in PostgreSQL, derives
+tenant/project/document/actor context, issues a 120-second exact-object
+Storage URL, and sends a timestamp/job-bound HMAC request to Python's
+`/parse-evidence` endpoint. The queue remains `{schemaVersion, jobId}` only.
+Python returns bounded source-hashed evidence with deterministic item keys and
+does not receive database credentials, tenant/project authority, or ERP state.
+
+Nest validates the response and reuses the existing CAD evidence commit
+transaction for derived scope rows. BullMQ retries transient failures;
+PostgreSQL marks terminal failure only after the final attempt, and duplicate
+delivery of a terminal job is a no-op. Draft-BOM requests fail closed until
+the independent draft-BOM gate and tenant allowlist are opened. The processor
+is registered in source, but every activation gate remains false/empty.
+
+## M2.4 durable evidence and draft BOM implementation note (2026-08-01)
+
+`document_processing_evidence` now records each validated worker attempt before
+derived scope commit. Persistence is idempotent per tenant/job/attempt and
+rejects a replay whose hash, producer, format, or payload differs. The raw
+strict response is retained without signed URLs or credentials.
+
+When `createDraftBom=true`, the processor requires the independent draft-BOM
+flag and tenant allowlist, then passes a context to the existing Nest commit
+transaction. That transaction locks the job, rechecks the tenant
+actor/document relationship, replaces scope rows, creates one draft BOM and
+line set with exact integer-centavo totals, attaches `draft_bom_id`, and writes
+semantic audit evidence. A failure rolls back all derived writes while the
+immutable evidence row remains. A retry replays the existing idempotency/BOM
+record; no partial success is returned. The gates remain closed.

@@ -1,42 +1,13 @@
 import type { AppRole } from '@third-code-erp/auth'
-import { canViewPath } from '@/lib/operations/nav-config'
+import {
+  canUniversalSearchEntity,
+  universalSearchHitTypes,
+  type UniversalSearchHitType,
+} from '@third-code-erp/shared-types'
 
-export type SearchHitType =
-  | 'account'
-  | 'project'
-  | 'opportunity'
-  | 'bom'
-  | 'po'
-  | 'invoice'
-  | 'claim'
-  | 'document'
-  | 'task'
-  | 'permit'
-  | 'punchlist'
-  | 'warranty'
-  | 'delivery'
-  | 'rfq'
-  | 'ledger_account'
-  | 'journal_entry'
+export type SearchHitType = UniversalSearchHitType
 
-const SEARCH_PATH_BY_TYPE: Record<SearchHitType, string> = {
-  account: '/crm/accounts',
-  project: '/projects',
-  opportunity: '/pipeline/board',
-  bom: '/bom',
-  po: '/purchase-orders',
-  invoice: '/invoices',
-  claim: '/claims',
-  document: '/documents',
-  task: '/tasks',
-  permit: '/permits',
-  punchlist: '/punchlist',
-  warranty: '/warranty',
-  delivery: '/procurement/deliveries',
-  rfq: '/procurement/rfqs',
-  ledger_account: '/finance',
-  journal_entry: '/finance',
-}
+export { universalSearchHitTypes }
 
 export const MAX_SEARCH_QUERY_LENGTH = 100
 
@@ -53,7 +24,7 @@ export function literalSearchPattern(query: string): string {
   return `%${query.replace(/[\\%_]/g, '\\$&')}%`
 }
 
-/** Keep search visibility aligned with the dashboard route policy. */
+/** Shared policy keeps Web compatibility and Core authority aligned. */
 export function canSearchEntity(role: AppRole, type: SearchHitType): boolean {
-  return canViewPath(role, SEARCH_PATH_BY_TYPE[type])
+  return canUniversalSearchEntity(role, type)
 }

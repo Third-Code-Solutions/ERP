@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   getCortexNodeByRef: vi.fn(),
   getCortexContextPack: vi.fn(),
   describeContextPack: vi.fn(),
+  cortexEntityReadsUseCoreApi: vi.fn(),
+  getCortexEntityThroughCoreApi: vi.fn(),
 }))
 
 vi.mock('@third-code-erp/auth', () => ({
@@ -18,10 +20,22 @@ vi.mock('@third-code-erp/database', () => ({
   describeContextPack: mocks.describeContextPack,
 }))
 
+vi.mock('@/lib/erp-core-client', () => ({
+  cortexEntityReadsUseCoreApi: mocks.cortexEntityReadsUseCoreApi,
+  getCortexEntityThroughCoreApi: mocks.getCortexEntityThroughCoreApi,
+}))
+
 import { GET } from './route'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const REF_ID = '22222222-2222-4222-8222-222222222222'
+
+function expectPrivate(response: Response) {
+  expect(response.headers.get('cache-control')).toBe(
+    'private, no-store, max-age=0'
+  )
+  expect(response.headers.get('vary')).toBe('Cookie')
+}
 
 function request(refTable: string, refId = REF_ID) {
   return GET(
@@ -49,6 +63,7 @@ describe('Cortex entity lookup registry boundary', () => {
       citations: [],
     })
     mocks.describeContextPack.mockReturnValue('Journal entry context')
+    mocks.cortexEntityReadsUseCoreApi.mockReturnValue(false)
   })
 
   it('supports registered finance sources and applies the role scope', async () => {
@@ -56,6 +71,7 @@ describe('Cortex entity lookup registry boundary', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
+    expectPrivate(response)
     expect(body.summary).toBe('Journal entry context')
     expect(mocks.getCortexNodeByRef).toHaveBeenCalledWith(
       TENANT_ID,
@@ -83,6 +99,7 @@ describe('Cortex entity lookup registry boundary', () => {
     const response = await request('unregistered_records')
 
     expect(response.status).toBe(400)
+    expectPrivate(response)
     expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
     expect(mocks.getCortexContextPack).not.toHaveBeenCalled()
   })
@@ -96,6 +113,7 @@ describe('Cortex entity lookup registry boundary', () => {
     const response = await request('journal_entries')
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     await expect(response.json()).resolves.toEqual({
       found: false,
       summary: '',
@@ -112,6 +130,61 @@ describe('Cortex entity lookup registry boundary', () => {
     const response = await request('journal_entries')
 
     expect(response.status).toBe(404)
+    expectPrivate(response)
     expect(mocks.getCortexContextPack).not.toHaveBeenCalled()
+  })
+
+  it('uses the authenticated Core path for an enabled tenant', async () => {
+    mocks.cortexEntityReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexEntityThroughCoreApi.mockResolvedValue({
+      ok: true,
+      data: {
+        found: true,
+        summary: 'Core journal context',
+        citations: [],
+        relationships: [],
+        evidence: [],
+      },
+    })
+
+    const response = await request('journal_entries')
+
+    expect(response.status).toBe(200)
+    expectPrivate(response)
+    await expect(response.json()).resolves.toMatchObject({
+      found: true,
+      summary: 'Core journal context',
+    })
+    expect(mocks.getCortexEntityThroughCoreApi).toHaveBeenCalledWith({
+      refTable: 'journal_entries',
+      refId: REF_ID,
+    })
+    expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
+  })
+
+  it('fails closed and preserves the non-enumerating Core 404', async () => {
+    mocks.cortexEntityReadsUseCoreApi.mockReturnValue(true)
+    mocks.getCortexEntityThroughCoreApi.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: 'Cortex entity service is unavailable.',
+    })
+
+    const unavailable = await request('journal_entries')
+    expect(unavailable.status).toBe(503)
+    expect(mocks.getCortexNodeByRef).not.toHaveBeenCalled()
+
+    mocks.getCortexEntityThroughCoreApi.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      error: 'Cortex entity not found.',
+    })
+    const missing = await request('journal_entries')
+    expect(missing.status).toBe(404)
+    await expect(missing.json()).resolves.toEqual({
+      found: false,
+      summary: '',
+      citations: [],
+    })
   })
 })

@@ -1,6 +1,6 @@
 'use server'
 
-// Phase 10 (Rework-alignment) — Weekly Report server actions.
+// Weekly Report server actions.
 //
 // Two entry points:
 //   - generateThisWeekReport(projectId): used by the "Generate this week"

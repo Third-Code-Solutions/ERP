@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@playwright/test", "node"]
+  },
+  "include": [
+    "../playwright.finance-cash.config.ts",
+    "./finance-cash-loopback.spec.ts"
+  ],
+  "exclude": ["node_modules"]
+}

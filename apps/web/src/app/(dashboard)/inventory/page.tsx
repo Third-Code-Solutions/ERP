@@ -1,35 +1,17 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { can, requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import {
-  materialItems,
-  projects,
-  unitsOfMeasure,
-  warehouses,
-} from '@third-code-erp/database/schema'
-import { asc, eq, sql } from 'drizzle-orm'
+import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import {
   ConfigureItemForm,
   CreateUomForm,
   CreateWarehouseForm,
+  EditInventoryItemPolicyForm,
+  EditUomForm,
+  EditWarehouseForm,
 } from './setup-controls'
+import { getInventorySummary } from '@/lib/inventory-queries'
 
 export const metadata: Metadata = { title: 'Inventory control center' }
-
-interface BalanceRow {
-  [key: string]: unknown
-  warehouse_id: string
-  warehouse_code: string
-  warehouse_name: string
-  item_id: string
-  item_code: string
-  item_description: string
-  uom_code: string
-  quantity_micros: number
-  value_cents: number
-}
 
 function formatQuantity(micros: number): string {
   return new Intl.NumberFormat('en-PH', {
@@ -46,90 +28,24 @@ function formatMoney(cents: number): string {
 
 export default async function InventoryPage() {
   const profile = await requireUserProfile()
-  if (!can(profile.role, 'inventory.read')) {
-    redirect('/dashboard?error=forbidden')
-  }
+  requireCapability(profile, 'inventory.read')
   const canManage = can(profile.role, 'inventory.manage')
 
-  const [uoms, warehouseRows, items, projectRows, balances, counts] =
-    await Promise.all([
-      db
-        .select()
-        .from(unitsOfMeasure)
-        .where(eq(unitsOfMeasure.tenant_id, profile.tenantId))
-        .orderBy(asc(unitsOfMeasure.code)),
-      db
-        .select()
-        .from(warehouses)
-        .where(eq(warehouses.tenant_id, profile.tenantId))
-        .orderBy(asc(warehouses.code)),
-      db
-        .select({
-          id: materialItems.id,
-          code: materialItems.code,
-          description: materialItems.description,
-          base_uom_id: materialItems.base_uom_id,
-          inventory_tracked: materialItems.inventory_tracked,
-          is_active: materialItems.is_active,
-        })
-        .from(materialItems)
-        .where(eq(materialItems.tenant_id, profile.tenantId))
-        .orderBy(asc(materialItems.code)),
-      db
-        .select({
-          id: projects.id,
-          code: projects.name,
-          name: projects.name,
-        })
-        .from(projects)
-        .where(eq(projects.tenant_id, profile.tenantId))
-        .orderBy(asc(projects.name)),
-      db.execute<BalanceRow>(sql`
-        select
-          warehouse.id as warehouse_id,
-          warehouse.code as warehouse_code,
-          warehouse.name as warehouse_name,
-          item.id as item_id,
-          item.code as item_code,
-          item.description as item_description,
-          uom.code as uom_code,
-          sum(stock.quantity_delta_micros)::bigint as quantity_micros,
-          sum(stock.value_delta_cents)::bigint as value_cents
-        from public.stock_ledger_entries stock
-        join public.warehouses warehouse
-          on warehouse.id = stock.warehouse_id
-         and warehouse.tenant_id = stock.tenant_id
-        join public.material_items item
-          on item.id = stock.material_item_id
-         and item.tenant_id = stock.tenant_id
-        join public.units_of_measure uom
-          on uom.id = stock.uom_id
-         and uom.tenant_id = stock.tenant_id
-        where stock.tenant_id = ${profile.tenantId}::uuid
-        group by warehouse.id, item.id, uom.code
-        having sum(stock.quantity_delta_micros) <> 0
-        order by warehouse.code, item.code
-      `),
-      db.execute<{
-        [key: string]: unknown
-        draft_count: number
-        posted_count: number
-      }>(sql`
-        select
-          count(*) filter (where status = 'draft')::integer as draft_count,
-          count(*) filter (where status = 'posted')::integer as posted_count
-        from public.stock_receipts
-        where tenant_id = ${profile.tenantId}::uuid
-      `),
-    ])
+  const {
+    uoms,
+    warehouseRows,
+    items,
+    projectRows,
+    balances,
+    receiptCounts,
+  } = await getInventorySummary(profile.tenantId)
 
   const trackedItems = items.filter((item) => item.inventory_tracked)
+  const activeItems = items.filter((item) => item.is_active)
   const inventoryValue = balances.reduce(
     (sum, row) => sum + Number(row.value_cents),
     0
   )
-  const receiptCounts = counts[0] ?? { draft_count: 0, posted_count: 0 }
-
   return (
     <div>
       <div className="page-header finance-page-header">
@@ -271,13 +187,24 @@ export default async function InventoryPage() {
                       {uom.name} / {uom.decimal_places} decimal places
                     </span>
                   </div>
-                  <span
-                    className={`finance-status finance-status-${
-                      uom.is_active ? 'open' : 'closed'
-                    }`}
-                  >
-                    {uom.is_active ? 'active' : 'inactive'}
-                  </span>
+                  <div className="finance-record-action">
+                    <span
+                      className={`finance-status finance-status-${
+                        uom.is_active ? 'open' : 'closed'
+                      }`}
+                    >
+                      {uom.is_active ? 'active' : 'inactive'}
+                    </span>
+                    <EditUomForm
+                      uom={{
+                        id: uom.id,
+                        code: uom.code,
+                        name: uom.name,
+                        decimalPlaces: uom.decimal_places,
+                        isActive: uom.is_active,
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -307,13 +234,23 @@ export default async function InventoryPage() {
                         : 'Shared Warehouse'}
                     </span>
                   </div>
-                  <span
-                    className={`finance-status finance-status-${
-                      warehouse.is_active ? 'open' : 'closed'
-                    }`}
-                  >
-                    {warehouse.is_active ? 'active' : 'inactive'}
-                  </span>
+                  <div className="finance-record-action">
+                    <span
+                      className={`finance-status finance-status-${
+                        warehouse.is_active ? 'open' : 'closed'
+                      }`}
+                    >
+                      {warehouse.is_active ? 'active' : 'inactive'}
+                    </span>
+                    <EditWarehouseForm
+                      warehouse={{
+                        id: warehouse.id,
+                        code: warehouse.code,
+                        name: warehouse.name,
+                        isActive: warehouse.is_active,
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -344,7 +281,7 @@ export default async function InventoryPage() {
                 }))}
             />
             <div className="finance-record-list">
-              {trackedItems.map((item) => (
+              {activeItems.map((item) => (
                 <div className="finance-record" key={item.id}>
                   <div>
                     <strong>
@@ -356,9 +293,30 @@ export default async function InventoryPage() {
                         'unmapped'}
                     </span>
                   </div>
-                  <span className="finance-status finance-status-open">
-                    tracked
-                  </span>
+                  <div className="finance-record-action">
+                    <span
+                      className={`finance-status finance-status-${
+                        item.inventory_tracked ? 'open' : 'closed'
+                      }`}
+                    >
+                      {item.inventory_tracked ? 'tracked' : 'not tracked'}
+                    </span>
+                    <EditInventoryItemPolicyForm
+                      item={{
+                        id: item.id,
+                        code: item.code,
+                        description: item.description,
+                        baseUomId: item.base_uom_id,
+                        inventoryTracked: item.inventory_tracked,
+                      }}
+                      uoms={uoms.map((uom) => ({
+                        id: uom.id,
+                        code: uom.code,
+                        name: uom.name,
+                        isActive: uom.is_active,
+                      }))}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

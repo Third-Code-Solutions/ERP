@@ -2,6 +2,15 @@
 
 ## Current verified state
 
+Source/hosted boundary refresh (2026-08-10): repository source ledger contains
+115 migrations through `20260810110000_project_comment_delete_workflow.sql`.
+Last independently verified managed boundary remains 55 migrations through
+`20260729233017`; source-only suffix has 60 ordered files in nine review
+batches. No hosted SQL, migration-history repair, paid branch, Vercel/Railway
+deploy, provider change, or feature-flag enablement occurred. Use
+`docs/operations/managed-supabase-parity-plan.json` as release source of truth;
+older counts below are capability-history notes, not current release identity.
+
 - Public brand, landing page, metadata, search surfaces, and product UI use
   ABI OPS.
 - Construction spine covers CRM, projects, documents, BOM, procurement,

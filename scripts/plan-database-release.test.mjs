@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   analyzeLedger,
+  analyzeSecurityCatalog,
   releaseGatePassed,
   scanSqlRisk,
   sha256,
@@ -75,5 +76,36 @@ test('requires both a current ledger and zero release blockers', () => {
   assert.equal(
     releaseGatePassed('blocked_non_linear_history', []),
     false
+  )
+})
+
+test('blocks anonymous table authority and public-role policies', () => {
+  assert.deepEqual(
+    analyzeSecurityCatalog({
+      anonTablePrivilegeCount: '3',
+      publicPolicyCount: '2',
+    }),
+    {
+      anonTablePrivilegeCount: 3,
+      publicPolicyCount: 2,
+      blockers: [
+        'target grants direct table privileges to anon (3 privilege rows)',
+        'target assigns public ERP policies to PUBLIC (2 policies)',
+      ],
+    }
+  )
+})
+
+test('returns a green security catalog when client authority is closed', () => {
+  assert.deepEqual(
+    analyzeSecurityCatalog({
+      anonTablePrivilegeCount: 0,
+      publicPolicyCount: 0,
+    }),
+    {
+      anonTablePrivilegeCount: 0,
+      publicPolicyCount: 0,
+      blockers: [],
+    }
   )
 })

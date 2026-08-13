@@ -29,7 +29,13 @@ export default async function ProposalOverviewPage({ params }: PageProps) {
       account_name: accounts.name,
     })
     .from(opportunities)
-    .leftJoin(accounts, eq(opportunities.account_id, accounts.id))
+    .leftJoin(
+      accounts,
+      and(
+        eq(opportunities.account_id, accounts.id),
+        eq(accounts.tenant_id, profile.tenantId),
+      ),
+    )
     .where(and(eq(opportunities.id, id), eq(opportunities.tenant_id, profile.tenantId)))
     .limit(1)
   if (!opp) notFound()
@@ -41,7 +47,12 @@ export default async function ProposalOverviewPage({ params }: PageProps) {
         submitted_at: pprfSubmissions.submitted_at,
       })
       .from(pprfSubmissions)
-      .where(eq(pprfSubmissions.opportunity_id, id))
+      .where(
+        and(
+          eq(pprfSubmissions.opportunity_id, id),
+          eq(pprfSubmissions.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(desc(pprfSubmissions.version)),
     db
       .select({
@@ -50,7 +61,12 @@ export default async function ProposalOverviewPage({ params }: PageProps) {
         submitted_at: siteInspections.submitted_at,
       })
       .from(siteInspections)
-      .where(eq(siteInspections.opportunity_id, id))
+      .where(
+        and(
+          eq(siteInspections.opportunity_id, id),
+          eq(siteInspections.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(desc(siteInspections.created_at)),
     db
       .select({
@@ -61,12 +77,22 @@ export default async function ProposalOverviewPage({ params }: PageProps) {
         is_client_approved: designFiles.is_client_approved,
       })
       .from(designFiles)
-      .where(eq(designFiles.opportunity_id, id))
+      .where(
+        and(
+          eq(designFiles.opportunity_id, id),
+          eq(designFiles.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(desc(designFiles.created_at)),
     db
       .select({ id: changeRequests.id, resolved_at: changeRequests.resolved_at, priority: changeRequests.priority })
       .from(changeRequests)
-      .where(eq(changeRequests.opportunity_id, id))
+      .where(
+        and(
+          eq(changeRequests.opportunity_id, id),
+          eq(changeRequests.tenant_id, profile.tenantId),
+        ),
+      )
       .orderBy(desc(changeRequests.created_at)),
   ])
 

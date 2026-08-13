@@ -2,7 +2,6 @@ import { EventEmitter } from 'node:events'
 import { Logger } from '@nestjs/common'
 import type { NextFunction, Request, Response } from 'express'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AuthenticatedRequest } from '../auth/current-principal.decorator'
 import {
   REQUEST_ID_HEADER,
   RequestObservabilityMiddleware,
@@ -17,7 +16,7 @@ class ResponseHarness extends EventEmitter {
 }
 
 function requestHarness(
-  overrides: Partial<AuthenticatedRequest> = {}
+  overrides: Partial<Request> = {}
 ): Request {
   return {
     method: 'PATCH',
@@ -80,6 +79,29 @@ describe('RequestObservabilityMiddleware', () => {
     expect(serialized).not.toContain(PROJECT_ID)
   })
 
+  it('labels user role assignments without logging user identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        route: { path: '/v1/admin/users/:userId/role' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'admin.user_role_assignment',
+      method: 'PATCH',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
   it('replaces an unsafe correlation value and classifies rejection', () => {
     const log = vi
       .spyOn(Logger.prototype, 'log')
@@ -130,7 +152,7 @@ describe('RequestObservabilityMiddleware', () => {
     expect(log).not.toHaveBeenCalled()
   })
 
-  it('includes trace, tenant, actor, and action fields for process commands', () => {
+  it('labels CAD evidence commits without logging document identifiers', () => {
     const log = vi
       .spyOn(Logger.prototype, 'log')
       .mockImplementation(() => undefined)
@@ -140,13 +162,7 @@ describe('RequestObservabilityMiddleware', () => {
     middleware.use(
       requestHarness({
         method: 'POST',
-        route: { path: '/v1/process/steps' },
-        principal: {
-          userId: '11111111-1111-4111-8111-111111111111',
-          tenantId: '22222222-2222-4222-8222-222222222222',
-          role: 'admin',
-          email: 'admin@example.test',
-        },
+        route: { path: '/v1/documents/:documentId/cad-evidence' },
       }),
       response as unknown as Response,
       vi.fn() as NextFunction
@@ -154,15 +170,13 @@ describe('RequestObservabilityMiddleware', () => {
     response.emit('finish')
 
     expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
-      event: 'erp.command.outcome',
-      trace_id: REQUEST_ID,
-      action: 'process.step.create',
-      tenant_id: '22222222-2222-4222-8222-222222222222',
-      actor_id: '11111111-1111-4111-8111-111111111111',
+      operation: 'document.cad_evidence_commit',
+      method: 'POST',
     })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
   })
 
-  it('names process approval mutations in structured outcomes', () => {
+  it('labels processing enqueue commands without logging document identifiers', () => {
     const log = vi
       .spyOn(Logger.prototype, 'log')
       .mockImplementation(() => undefined)
@@ -171,9 +185,81 @@ describe('RequestObservabilityMiddleware', () => {
 
     middleware.use(
       requestHarness({
-        method: 'PATCH',
+        method: 'POST',
+        route: { path: '/v1/documents/:documentId/processing-jobs' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'document.processing_enqueue',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels document deletions without logging document identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'DELETE',
+        route: { path: '/v1/documents/:documentId' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'document.delete',
+      method: 'DELETE',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels public signature signing without logging token identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/public/signatures/:token' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'public.signature_sign',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels supplier confirmation without logging token identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
         route: {
-          path: '/v1/process/approvals/:approvalId/decision',
+          path: '/v1/public/purchase-orders/:token/confirmation',
         },
       }),
       response as unknown as Response,
@@ -182,8 +268,485 @@ describe('RequestObservabilityMiddleware', () => {
     response.emit('finish')
 
     expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
-      action: 'process.approval.decide',
-      operation: 'process.approval.decide',
+      operation: 'public.vendor_confirmation',
+      method: 'POST',
     })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels finance journal posts without logging journal identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/journals/:journalEntryId/post' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.journal_post',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels finance journal reversals without logging journal identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/journals/:journalEntryId/reverse' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.journal_reverse',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels Supplier Bill posting without logging bill identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/supplier-bills/:supplierBillId/post' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.supplier_bill_post',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels Supplier Bill reversal without logging bill identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/supplier-bills/:supplierBillId/reverse' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.supplier_bill_reverse',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels cash transaction posting without logging transaction identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: {
+          path: '/v1/finance/cash-transactions/:cashTransactionId/post',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.cash_transaction_post',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels cash transaction reversal without logging transaction identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: {
+          path: '/v1/finance/cash-transactions/:cashTransactionId/reverse',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.cash_transaction_reverse',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels cash draft save without logging transaction identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/cash-transactions/drafts' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.cash_transaction_draft_save',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels cash draft deletion without logging transaction identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'DELETE',
+        route: {
+          path: '/v1/finance/cash-transactions/:cashTransactionId/draft',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.cash_transaction_draft_delete',
+      method: 'DELETE',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels customer invoice issuance without logging invoice identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/customer-invoices/:invoiceId/issue' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.customer_invoice_issue',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels bank statement Storage signing without logging source paths', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: {
+          path: '/v1/finance/reconciliation/import/storage/sign',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.bank_statement_storage_sign',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels bank statement Storage cleanup without logging source paths', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'DELETE',
+        route: {
+          path: '/v1/finance/reconciliation/import/storage',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.bank_statement_storage_cleanup',
+      method: 'DELETE',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels customer invoice draft creation without logging project identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/projects/:projectId/customer-invoices' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.customer_invoice_draft_create',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels customer invoice reversal without logging invoice identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/customer-invoices/:invoiceId/reverse' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.customer_invoice_reverse',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels customer invoice cancellation without logging invoice identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: { path: '/v1/finance/customer-invoices/:invoiceId/cancel' },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'finance.customer_invoice_cancel',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels delivery site-preparation starts without logging schedule identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: {
+          path: '/v1/procurement/deliveries/:deliveryScheduleId/site-preparation/start',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'procurement.delivery_site_preparation_start',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels delivery inspection starts without logging schedule identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: {
+          path: '/v1/procurement/deliveries/:deliveryScheduleId/inspection/start',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'procurement.delivery_inspection_start',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels site-preparation completions without logging schedule identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: {
+          path: '/v1/procurement/deliveries/:deliveryScheduleId/site-preparation/complete',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'procurement.delivery_site_preparation_complete',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels delivery inspection completions without logging schedule identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: {
+          path: '/v1/procurement/deliveries/:deliveryScheduleId/inspection/complete',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'procurement.delivery_inspection_complete',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
+  })
+
+  it('labels delivery cancellations without logging schedule identifiers', () => {
+    const log = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined)
+    const response = new ResponseHarness()
+    const middleware = new RequestObservabilityMiddleware()
+
+    middleware.use(
+      requestHarness({
+        method: 'POST',
+        route: {
+          path: '/v1/procurement/deliveries/:deliveryScheduleId/cancel',
+        },
+      }),
+      response as unknown as Response,
+      vi.fn() as NextFunction
+    )
+    response.emit('finish')
+
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      operation: 'procurement.delivery_cancel',
+      method: 'POST',
+    })
+    expect(String(log.mock.calls[0]?.[0])).not.toContain(PROJECT_ID)
   })
 })

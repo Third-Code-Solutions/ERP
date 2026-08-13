@@ -13,6 +13,24 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import {
+  configureInventoryItemThroughCoreApi,
+  createInventoryUomThroughCoreApi,
+  createInventoryWarehouseThroughCoreApi,
+  createStockReceiptThroughCoreApi,
+  inventoryUomCreateWritesUseCoreApi,
+  inventoryUomUpdateWritesUseCoreApi,
+  updateInventoryUomThroughCoreApi,
+  inventoryWarehouseCreateWritesUseCoreApi,
+  inventoryWarehouseUpdateWritesUseCoreApi,
+  updateInventoryWarehouseThroughCoreApi,
+  inventoryItemConfigurationWritesUseCoreApi,
+  postStockReceiptThroughCoreApi,
+  reverseStockReceiptThroughCoreApi,
+  stockReceiptCreateWritesUseCoreApi,
+  stockReceiptPostWritesUseCoreApi,
+  stockReceiptReverseWritesUseCoreApi,
+} from '@/lib/erp-core-client'
 import { quantityToMicros, receiptLineTotal } from './quantity'
 
 export interface InventoryActionResult {
@@ -24,6 +42,7 @@ export interface InventoryActionResult {
 
 const uuidSchema = z.string().uuid()
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+const idempotencyKeySchema = z.string().trim().min(1).max(200)
 
 const createReceiptSchema = z.object({
   warehouseId: uuidSchema,
@@ -67,6 +86,17 @@ function safeInventoryError(error: unknown): string {
     'Used UOM identity is immutable',
     'Used Warehouse identity is immutable',
     'Item stock identity is immutable after posting',
+    'Active UOM not found',
+    'UOM not found',
+    'Item not found',
+    'UOM code already exists',
+    'Inventory UOM was not created',
+    'Inventory UOM was not updated',
+    'Warehouse code already exists',
+    'Project not found',
+    'Inventory Warehouse was not created',
+    'Warehouse not found',
+    'Inventory Warehouse was not updated',
   ]
   if (message.includes('ux_units_of_measure_tenant_code')) {
     return 'That UOM code already exists.'
@@ -111,6 +141,20 @@ export async function createUnitOfMeasure(
         decimalPlaces: formData.get('decimalPlaces') ?? 0,
       })
 
+    if (inventoryUomCreateWritesUseCoreApi(profile.tenantId)) {
+      const result = await createInventoryUomThroughCoreApi(input)
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Inventory UOM could not be created through ERP Core.',
+        }
+      }
+      revalidateInventory()
+      return { ok: true, id: result.data.uomId }
+    }
+
     await db.insert(unitsOfMeasure).values({
       tenant_id: profile.tenantId,
       code: input.code,
@@ -120,6 +164,60 @@ export async function createUnitOfMeasure(
     })
     revalidateInventory()
     return { ok: true }
+  } catch (error) {
+    return { ok: false, error: safeInventoryError(error) }
+  }
+}
+
+export async function updateUnitOfMeasure(
+  uomId: string,
+  formData: FormData
+): Promise<InventoryActionResult> {
+  try {
+    const profile = await requireUserProfile()
+    requireCapability(profile, 'inventory.manage')
+    const parsedUomId = uuidSchema.parse(uomId)
+    const input = z
+      .object({
+        name: z.string().trim().min(1).max(120),
+        isActive: z.boolean(),
+      })
+      .parse({
+        name: formData.get('name'),
+        isActive: formData.get('isActive') === 'on',
+      })
+
+    if (inventoryUomUpdateWritesUseCoreApi(profile.tenantId)) {
+      const result = await updateInventoryUomThroughCoreApi(parsedUomId, input)
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ?? 'Inventory UOM could not be updated through ERP Core.',
+        }
+      }
+      revalidateInventory()
+      return { ok: true, id: result.data.uomId }
+    }
+
+    const [updated] = await db
+      .update(unitsOfMeasure)
+      .set({
+        name: input.name,
+        is_active: input.isActive,
+        updated_at: new Date(),
+      })
+      .where(
+        and(
+          eq(unitsOfMeasure.id, parsedUomId),
+          eq(unitsOfMeasure.tenant_id, profile.tenantId)
+        )
+      )
+      .returning({ id: unitsOfMeasure.id })
+    if (!updated) throw new Error('UOM not found')
+
+    revalidateInventory()
+    return { ok: true, id: updated.id }
   } catch (error) {
     return { ok: false, error: safeInventoryError(error) }
   }
@@ -143,6 +241,24 @@ export async function createWarehouse(
         projectId: formData.get('projectId') ?? '',
       })
 
+    if (inventoryWarehouseCreateWritesUseCoreApi(profile.tenantId)) {
+      const result = await createInventoryWarehouseThroughCoreApi({
+        code: input.code,
+        name: input.name,
+        projectId: input.projectId || null,
+      })
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Inventory Warehouse could not be created through ERP Core.',
+        }
+      }
+      revalidateInventory()
+      return { ok: true, id: result.data.warehouseId }
+    }
+
     await db.insert(warehouses).values({
       tenant_id: profile.tenantId,
       code: input.code,
@@ -152,6 +268,64 @@ export async function createWarehouse(
     })
     revalidateInventory()
     return { ok: true }
+  } catch (error) {
+    return { ok: false, error: safeInventoryError(error) }
+  }
+}
+
+export async function updateWarehouse(
+  warehouseId: string,
+  formData: FormData
+): Promise<InventoryActionResult> {
+  try {
+    const profile = await requireUserProfile()
+    requireCapability(profile, 'inventory.manage')
+    const parsedWarehouseId = uuidSchema.parse(warehouseId)
+    const input = z
+      .object({
+        name: z.string().trim().min(1).max(160),
+        isActive: z.boolean(),
+      })
+      .parse({
+        name: formData.get('name'),
+        isActive: formData.get('isActive') === 'on',
+      })
+
+    if (inventoryWarehouseUpdateWritesUseCoreApi(profile.tenantId)) {
+      const result = await updateInventoryWarehouseThroughCoreApi(
+        parsedWarehouseId,
+        input
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Inventory Warehouse could not be updated through ERP Core.',
+        }
+      }
+      revalidateInventory()
+      return { ok: true, id: result.data.warehouseId }
+    }
+
+    const [updated] = await db
+      .update(warehouses)
+      .set({
+        name: input.name,
+        is_active: input.isActive,
+        updated_at: new Date(),
+      })
+      .where(
+        and(
+          eq(warehouses.id, parsedWarehouseId),
+          eq(warehouses.tenant_id, profile.tenantId)
+        )
+      )
+      .returning({ id: warehouses.id })
+    if (!updated) throw new Error('Warehouse not found')
+
+    revalidateInventory()
+    return { ok: true, id: updated.id }
   } catch (error) {
     return { ok: false, error: safeInventoryError(error) }
   }
@@ -174,6 +348,23 @@ export async function configureInventoryItem(
         uomId: formData.get('uomId'),
         tracked: formData.get('tracked') === 'on',
       })
+
+    if (inventoryItemConfigurationWritesUseCoreApi(profile.tenantId)) {
+      const result = await configureInventoryItemThroughCoreApi(
+        input.materialItemId,
+        { uomId: input.uomId, tracked: input.tracked }
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Inventory item configuration could not be committed through ERP Core.',
+        }
+      }
+      revalidateInventory()
+      return { ok: true, id: result.data.materialItemId }
+    }
 
     const [uom] = await db
       .select({ code: unitsOfMeasure.code })
@@ -213,7 +404,7 @@ export async function configureInventoryItem(
 }
 
 export async function createStockReceipt(
-  input: z.input<typeof createReceiptSchema>
+  input: z.input<typeof createReceiptSchema> & { idempotencyKey?: string }
 ): Promise<InventoryActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -222,6 +413,38 @@ export async function createStockReceipt(
     const lineIds = parsed.lines.map((line) => line.poLineItemId)
     if (new Set(lineIds).size !== lineIds.length) {
       throw new Error('Each Purchase Order line may appear once per Stock Receipt.')
+    }
+
+    if (stockReceiptCreateWritesUseCoreApi(profile.tenantId)) {
+      const idempotencyKey = idempotencyKeySchema.safeParse(input.idempotencyKey)
+      if (!idempotencyKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Stock Receipt command.',
+        }
+      }
+      const result = await createStockReceiptThroughCoreApi(
+        {
+          warehouseId: parsed.warehouseId,
+          purchaseOrderId: parsed.purchaseOrderId,
+          deliveryScheduleId: parsed.deliveryScheduleId || null,
+          supplierDeliveryReference: parsed.supplierDeliveryReference || null,
+          receivedDate: parsed.receivedDate,
+          notes: parsed.notes || null,
+          lines: parsed.lines,
+        },
+        idempotencyKey.data
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Stock Receipt could not be created through ERP Core.',
+        }
+      }
+      revalidateInventory(result.data.stockReceiptId)
+      return { ok: true, id: result.data.stockReceiptId }
     }
 
     const sourceLines = await db
@@ -351,6 +574,7 @@ export async function deleteStockReceiptDraft(
 export async function postStockReceipt(input: {
   receiptId: string
   postingDate: string
+  idempotencyKey?: string
 }): Promise<InventoryActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -358,6 +582,36 @@ export async function postStockReceipt(input: {
     const parsed = z
       .object({ receiptId: uuidSchema, postingDate: dateSchema })
       .parse(input)
+    if (stockReceiptPostWritesUseCoreApi(profile.tenantId)) {
+      const idempotencyKey = idempotencyKeySchema.safeParse(input.idempotencyKey)
+      if (!idempotencyKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Stock Receipt command.',
+        }
+      }
+      const result = await postStockReceiptThroughCoreApi(
+        parsed.receiptId,
+        { postingDate: parsed.postingDate },
+        idempotencyKey.data
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Stock Receipt could not be posted through ERP Core.',
+        }
+      }
+      revalidateInventory(parsed.receiptId)
+      revalidatePath('/finance')
+      revalidatePath('/finance/ledger')
+      return {
+        ok: true,
+        id: result.data.stockReceiptId,
+        number: result.data.receiptNumber,
+      }
+    }
     const rows = await db.execute<{
       stock_receipt_id: string
       receipt_number: string
@@ -388,6 +642,7 @@ export async function reverseStockReceipt(input: {
   receiptId: string
   postingDate: string
   reason: string
+  idempotencyKey?: string
 }): Promise<InventoryActionResult> {
   try {
     const profile = await requireUserProfile()
@@ -399,6 +654,35 @@ export async function reverseStockReceipt(input: {
         reason: z.string().trim().min(3).max(500),
       })
       .parse(input)
+    if (stockReceiptReverseWritesUseCoreApi(profile.tenantId)) {
+      const idempotencyKey = idempotencyKeySchema.safeParse(input.idempotencyKey)
+      if (!idempotencyKey.success) {
+        return {
+          ok: false,
+          error: 'Retry token is required for the Stock Receipt command.',
+        }
+      }
+      const result = await reverseStockReceiptThroughCoreApi(
+        parsed.receiptId,
+        {
+          postingDate: parsed.postingDate,
+          reason: parsed.reason,
+        },
+        idempotencyKey.data
+      )
+      if (!result.ok || !result.data) {
+        return {
+          ok: false,
+          error:
+            result.error ??
+            'Stock Receipt could not be reversed through ERP Core.',
+        }
+      }
+      revalidateInventory(parsed.receiptId)
+      revalidatePath('/finance')
+      revalidatePath('/finance/ledger')
+      return { ok: true, id: result.data.stockReceiptId }
+    }
     await db.execute(sql`
       select *
       from public.reverse_stock_receipt(

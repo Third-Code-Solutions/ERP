@@ -1,18 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { and, eq, desc } from 'drizzle-orm'
 import { requireUserProfile, can } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import {
-  accounts,
-  contacts,
-  accountKycArtifacts,
-  opportunities,
-  projects,
-  documents,
-} from '@third-code-erp/database/schema'
 import { KycReviewForm } from '@/components/accounts/kyc-review-form'
 import { AddKycArtifactForm } from '@/components/accounts/add-kyc-artifact-form'
+import { getAccountDetail } from '@/lib/account-queries'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -41,44 +32,9 @@ export default async function AccountDetailPage({ params }: PageProps) {
   const { id } = await params
   const profile = await requireUserProfile()
 
-  const [account] = await db
-    .select()
-    .from(accounts)
-    .where(and(eq(accounts.id, id), eq(accounts.tenant_id, profile.tenantId)))
-    .limit(1)
-
-  if (!account) notFound()
-
-  const [contactRows, kycRows, oppRows, projectRows] = await Promise.all([
-    db
-      .select()
-      .from(contacts)
-      .where(eq(contacts.account_id, id))
-      .orderBy(desc(contacts.is_primary), contacts.full_name),
-    db
-      .select({
-        id: accountKycArtifacts.id,
-        artifact_type: accountKycArtifacts.artifact_type,
-        notes: accountKycArtifacts.notes,
-        uploaded_at: accountKycArtifacts.uploaded_at,
-        document_id: accountKycArtifacts.document_id,
-        file_name: documents.file_name,
-      })
-      .from(accountKycArtifacts)
-      .leftJoin(documents, eq(documents.id, accountKycArtifacts.document_id))
-      .where(eq(accountKycArtifacts.account_id, id))
-      .orderBy(desc(accountKycArtifacts.uploaded_at)),
-    db
-      .select({ id: opportunities.id, stage: opportunities.stage, tcv_cents: opportunities.tcv_cents })
-      .from(opportunities)
-      .where(eq(opportunities.account_id, id))
-      .orderBy(desc(opportunities.created_at)),
-    db
-      .select({ id: projects.id, name: projects.name, status: projects.status })
-      .from(projects)
-      .where(eq(projects.account_id, id))
-      .orderBy(desc(projects.created_at)),
-  ])
+  const detail = await getAccountDetail(profile.tenantId, id)
+  if (!detail) notFound()
+  const { account, contactRows, kycRows, oppRows, projectRows } = detail
 
   const isFinance = can(profile.role, 'account.kyc_review')
 

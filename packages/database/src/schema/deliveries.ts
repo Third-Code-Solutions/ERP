@@ -1,11 +1,21 @@
-import { pgTable, uuid, varchar, text, timestamp, index, uniqueIndex, pgEnum } from 'drizzle-orm/pg-core'
+import {
+  foreignKey,
+  pgTable,
+  uuid,
+  varchar,
+  text,
+  timestamp,
+  index,
+  uniqueIndex,
+  pgEnum,
+} from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { purchaseOrders } from './purchase-orders'
 import { users } from './users'
 
-// REFACTOR.md M4 + Rework alignment — delivery scheduling, site preparation,
-// receipt, inspection, and acceptance. One delivery_schedule per PO line
-// batch (we allow one PO to have multiple deliveries when shipments split).
+// Delivery scheduling, site preparation, receipt, inspection, and acceptance.
+// One delivery_schedule per PO line batch; one PO may have multiple deliveries
+// when shipments split.
 
 export const deliveryStatusEnum = pgEnum('delivery_status', [
   'scheduled',
@@ -45,6 +55,11 @@ export const deliverySchedules = pgTable(
     received_notes: text('received_notes'),
     rejected_at: timestamp('rejected_at', { withTimezone: true }),
     rejected_reason: text('rejected_reason'),
+    cancelled_at: timestamp('cancelled_at', { withTimezone: true }),
+    cancelled_by: uuid('cancelled_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    cancellation_reason: text('cancellation_reason'),
     accepted_at: timestamp('accepted_at', { withTimezone: true }),
     accepted_by: uuid('accepted_by').references(() => users.id, { onDelete: 'set null' }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -59,6 +74,11 @@ export const deliverySchedules = pgTable(
     poIdx: index('idx_delivery_schedules_po').on(table.purchase_order_id),
     tenantStatusIdx: index('idx_delivery_schedules_tenant_status').on(table.tenant_id, table.status),
     scheduledIdx: index('idx_delivery_schedules_scheduled').on(table.scheduled_date),
+    cancelledByTenantFk: foreignKey({
+      name: 'delivery_schedules_cancelled_by_tenant_fk',
+      columns: [table.tenant_id, table.cancelled_by],
+      foreignColumns: [users.tenant_id, users.id],
+    }).onDelete('set null'),
   })
 )
 

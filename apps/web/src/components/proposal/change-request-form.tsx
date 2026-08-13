@@ -11,27 +11,34 @@ interface DesignOption {
 interface ChangeRequestFormProps {
   opportunityId: string
   designOptions: DesignOption[]
-  idempotencyKey: string
 }
 
-export function ChangeRequestForm({ opportunityId, designOptions, idempotencyKey }: ChangeRequestFormProps) {
+export function ChangeRequestForm({ opportunityId, designOptions }: ChangeRequestFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
-  const [currentIdempotencyKey, setCurrentIdempotencyKey] = useState(idempotencyKey)
   const formRef = useRef<HTMLFormElement>(null)
+  const idempotencyKeyRef = useRef<string | null>(null)
+
+  function idempotencyKey(): string {
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = globalThis.crypto.randomUUID()
+    }
+    return idempotencyKeyRef.current
+  }
 
   function onSubmit(formData: FormData) {
     setError(null)
     setSuccess(null)
+    formData.set('idempotency_key', idempotencyKey())
     startTransition(async () => {
-      const result = await logChangeRequest(formData)
-      if (result.error) {
-        setError(result.error)
+      const res = await logChangeRequest(formData)
+      if (res?.error) {
+        setError(res.error)
       } else {
         setSuccess('Change request logged. Design has been notified.')
         formRef.current?.reset()
-        setCurrentIdempotencyKey(crypto.randomUUID())
+        idempotencyKeyRef.current = null
       }
     })
   }
@@ -39,24 +46,15 @@ export function ChangeRequestForm({ opportunityId, designOptions, idempotencyKey
   return (
     <form action={onSubmit} ref={formRef} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <input type="hidden" name="opportunity_id" value={opportunityId} />
-      <input type="hidden" name="idempotency_key" value={currentIdempotencyKey} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 8 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label className="lbl" htmlFor="change-request-requested-by">
-            Requested by (client name) *
-          </label>
-          <input
-            id="change-request-requested-by"
-            name="requested_by_name"
-            required
-            className="inp"
-            placeholder="Client company - contact name"
-          />
+          <label className="lbl">Requested by (client name) *</label>
+          <input name="requested_by_name" required className="inp" placeholder="Acme Corp · Ana Reyes" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label className="lbl" htmlFor="change-request-priority">Priority</label>
-          <select id="change-request-priority" name="priority" defaultValue="minor" className="inp">
+          <label className="lbl">Priority</label>
+          <select name="priority" defaultValue="minor" className="inp">
             <option value="minor">Minor</option>
             <option value="major">Major</option>
           </select>
@@ -64,19 +62,18 @@ export function ChangeRequestForm({ opportunityId, designOptions, idempotencyKey
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label className="lbl" htmlFor="change-request-design-file">Affected design file</label>
-        <select id="change-request-design-file" name="affected_design_file_id" defaultValue="" className="inp">
-          <option value="">- None / general feedback -</option>
-          {designOptions.map((design) => (
-            <option key={design.id} value={design.id}>{design.name}</option>
+        <label className="lbl">Affected design file</label>
+        <select name="affected_design_file_id" defaultValue="" className="inp">
+          <option value="">— None / general feedback —</option>
+          {designOptions.map((d) => (
+            <option key={d.id} value={d.id}>{d.name}</option>
           ))}
         </select>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label className="lbl" htmlFor="change-request-description">Description *</label>
+        <label className="lbl">Description *</label>
         <textarea
-          id="change-request-description"
           name="description"
           required
           rows={4}
@@ -100,7 +97,7 @@ export function ChangeRequestForm({ opportunityId, designOptions, idempotencyKey
           borderColor: 'var(--color-navy-700)',
         }}
       >
-        {pending ? 'Logging...' : 'Log change request'}
+        {pending ? 'Logging…' : 'Log change request'}
       </button>
 
       <style>{`

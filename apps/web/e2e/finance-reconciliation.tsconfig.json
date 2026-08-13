@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@playwright/test", "node"]
+  },
+  "include": [
+    "../playwright.finance-reconciliation.config.ts",
+    "./finance-reconciliation-loopback.spec.ts"
+  ],
+  "exclude": ["node_modules"]
+}

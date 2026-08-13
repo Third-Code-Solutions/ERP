@@ -1,10 +1,10 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { redirect } from 'next/navigation'
-import { requireUserProfile } from '@third-code-erp/auth'
-import { db } from '@third-code-erp/database'
-import { projects } from '@third-code-erp/database/schema'
+import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { z } from 'zod'
+import { createProjectThroughCoreApi } from '@/lib/erp-core-client'
 
 const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
@@ -13,10 +13,12 @@ const createProjectSchema = z.object({
   project_type: z.enum(['mep', 'fit_out', 'interior', 'mixed']).optional(),
   total_sqm: z.coerce.number().int().positive().optional(),
   notes: z.string().max(2000).optional(),
+  idempotency_key: z.string().min(1).max(256).optional(),
 })
 
 export async function createProject(formData: FormData) {
   const profile = await requireUserProfile()
+  requireCapability(profile, 'project.create')
 
   const input = createProjectSchema.parse({
     name: formData.get('name'),
@@ -25,16 +27,26 @@ export async function createProject(formData: FormData) {
     project_type: formData.get('project_type') || undefined,
     total_sqm: formData.get('total_sqm') || undefined,
     notes: formData.get('notes') || undefined,
+    idempotency_key: formData.get('idempotency_key') || undefined,
   })
 
-  const [inserted] = await db
-    .insert(projects)
-    .values({
-      tenant_id: profile.tenantId,
-      created_by: profile.user.id,
-      ...input,
-    })
-    .returning({ id: projects.id })
-
-  redirect(`/projects/${inserted?.id}`)
+  const result = await createProjectThroughCoreApi(
+    {
+      name: input.name,
+      client: input.client,
+      status: 'lead',
+      projectType: input.project_type ?? null,
+      totalSqm: input.total_sqm ?? null,
+      location: input.location ?? null,
+      notes: input.notes ?? null,
+    },
+    input.idempotency_key ?? randomUUID()
+  )
+  if (!result.ok || !result.data) {
+    throw new Error(result.error ?? 'Project was not created')
+  }
+  if (result.data.tenantId !== profile.tenantId) {
+    throw new Error('Project creation returned an invalid tenant scope.')
+  }
+  redirect(`/projects/${result.data.id}`)
 }

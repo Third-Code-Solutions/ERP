@@ -17,11 +17,44 @@ import { Public, SupabaseJwtGuard } from './supabase-jwt.guard'
 import type { SupabaseIdentityService } from './supabase-identity.service'
 
 class GuardFixtureController {
+  @RequireCapabilities('admin.users')
+  userAdmin(): void {}
+
+  @RequireCapabilities('asset.read')
+  assetRead(): void {}
+
+  @RequireCapabilities('cortex.search')
+  cortexSearch(): void {}
+
+  @RequireCapabilities('cortex.index.manage')
+  cortexIndex(): void {}
+
+  @RequireCapabilities('cortex.provider.health.read')
+  cortexProviderHealth(): void {}
+
+  @RequireCapabilities('finance.read')
+  financeLedgerRead(): void {}
+
+  @RequireCapabilities('project.read')
+  projectRead(): void {}
+
+  @RequireCapabilities('opportunity.read')
+  opportunityRead(): void {}
+
+  @RequireCapabilities('inventory.read')
+  inventoryRead(): void {}
+
+  @RequireCapabilities('audit.read')
+  auditActivity(): void {}
+
   @RequireCapabilities('project.update')
   update(): void {}
 
   @RequireCapabilities('rfq.dispatch')
   dispatch(): void {}
+
+  @RequireCapabilities('provider.quota.consume')
+  quota(): void {}
 
   @Public()
   open(): void {}
@@ -149,6 +182,33 @@ describe('CapabilityGuard', () => {
     ).toBe(true)
   })
 
+  it('limits user administration to owners and admins', () => {
+    expect(
+      guard.canActivate(
+        contextFor('userAdmin', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'owner',
+            email: 'owner@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+    expect(() =>
+      guard.canActivate(
+        contextFor('userAdmin', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'pm',
+            email: 'pm@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
+  })
+
   it('rejects an authenticated role without the capability', () => {
     expect(() =>
       guard.canActivate(
@@ -186,6 +246,219 @@ describe('CapabilityGuard', () => {
             tenantId: '22222222-2222-4222-8222-222222222222',
             role: 'commercial',
             email: 'commercial@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
+  })
+
+  it('allows every authenticated ERP role to consume bounded provider quota', () => {
+    expect(
+      guard.canActivate(
+        contextFor('quota', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('allows read-only Project access for a viewer', () => {
+    expect(
+      guard.canActivate(
+        contextFor('projectRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('allows read-only Asset access for a viewer', () => {
+    expect(
+      guard.canActivate(
+        contextFor('assetRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('allows read-only Cortex search for a viewer', () => {
+    expect(
+      guard.canActivate(
+        contextFor('cortexSearch', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('limits provider health and spend evidence to operational roles', () => {
+    expect(
+      guard.canActivate(
+        contextFor('cortexProviderHealth', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'finance',
+            email: 'finance@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+    expect(() =>
+      guard.canActivate(
+        contextFor('cortexProviderHealth', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
+  })
+
+  it('limits provider-spending Cortex indexing to owners and admins', () => {
+    expect(
+      guard.canActivate(
+        contextFor('cortexIndex', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'admin',
+            email: 'admin@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+    expect(() =>
+      guard.canActivate(
+        contextFor('cortexIndex', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
+  })
+
+  it('allows ledger reads only for finance-authorized roles', () => {
+    expect(
+      guard.canActivate(
+        contextFor('financeLedgerRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'finance',
+            email: 'finance@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+
+    expect(() =>
+      guard.canActivate(
+        contextFor('financeLedgerRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
+  })
+
+  it('allows read-only Opportunity access for a viewer', () => {
+    expect(
+      guard.canActivate(
+        contextFor('opportunityRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('keeps audit activity restricted to operational administrators', () => {
+    expect(
+      guard.canActivate(
+        contextFor('auditActivity', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'admin',
+            email: 'admin@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+
+    expect(() =>
+      guard.canActivate(
+        contextFor('auditActivity', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
+          },
+        })
+      )
+    ).toThrow(ForbiddenException)
+  })
+
+  it('allows inventory reads only for operationally authorized roles', () => {
+    expect(
+      guard.canActivate(
+        contextFor('inventoryRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'procurement',
+            email: 'procurement@example.test',
+          },
+        })
+      )
+    ).toBe(true)
+
+    expect(() =>
+      guard.canActivate(
+        contextFor('inventoryRead', {
+          principal: {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tenantId: '22222222-2222-4222-8222-222222222222',
+            role: 'viewer',
+            email: 'viewer@example.test',
           },
         })
       )

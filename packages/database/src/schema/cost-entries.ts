@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, bigint, integer, timestamp, index, foreignKey } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, bigint, integer, timestamp, index, foreignKey, uniqueIndex, check } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { costCategoryEnum, costSourceEnum } from './enums'
 import { tenants } from './tenants'
 import { projects } from './projects'
@@ -22,6 +23,9 @@ export const costEntries = pgTable(
     po_line_item_id: uuid('po_line_item_id'),
     cost_code_id: uuid('cost_code_id'),
     created_by: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    voided_at: timestamp('voided_at', { withTimezone: true }),
+    voided_by: uuid('voided_by'),
+    void_reason: text('void_reason'),
     cost_category: costCategoryEnum('cost_category').notNull(),
     cost_source: costSourceEnum('cost_source').notNull().default('manual'),
     description: text('description').notNull(),
@@ -36,6 +40,10 @@ export const costEntries = pgTable(
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex('ux_cost_entries_tenant_id_id').on(
+      table.tenant_id,
+      table.id
+    ),
     tenantIdx: index('idx_cost_entries_tenant_id').on(table.tenant_id),
     projectIdx: index('idx_cost_entries_project_id').on(table.project_id),
     bomLineItemIdx: index('idx_cost_entries_bom_line_item_id').on(
@@ -63,8 +71,26 @@ export const costEntries = pgTable(
       foreignColumns: [costCodes.tenant_id, costCodes.id],
       name: 'cost_entries_cost_code_tenant_fk',
     }).onDelete('restrict'),
+    voidedByTenantFk: foreignKey({
+      columns: [table.tenant_id, table.voided_by],
+      foreignColumns: [users.tenant_id, users.id],
+      name: 'cost_entries_voided_by_tenant_fk',
+    }).onDelete('restrict'),
+    voidStateCheck: check(
+      'cost_entries_void_state',
+      sql`(
+        (${table.voided_at} is null and ${table.voided_by} is null and ${table.void_reason} is null)
+        or
+        (${table.voided_at} is not null and ${table.voided_by} is not null and ${table.void_reason} is not null and length(btrim(${table.void_reason})) between 1 and 500)
+      )`
+    ),
     tenantCategoryIdx: index('idx_cost_entries_tenant_category').on(table.tenant_id, table.cost_category),
     incurredIdx: index('idx_cost_entries_incurred').on(table.tenant_id, table.incurred_at),
+    activeProjectIdx: index('idx_cost_entries_active_project').on(
+      table.tenant_id,
+      table.project_id,
+      table.voided_at
+    ),
   })
 )
 

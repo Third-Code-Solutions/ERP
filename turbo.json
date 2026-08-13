@@ -16,7 +16,24 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "env": [
+        "DATABASE_URL",
+        "DATABASE_HARDENING_EXPECTED",
+        "DATABASE_ACCOUNTING_EXPECTED",
+        "DATABASE_RECEIVABLES_EXPECTED",
+        "DATABASE_PAYABLES_EXPECTED",
+        "DATABASE_CASH_EXPECTED",
+        "DATABASE_RECONCILIATION_EXPECTED",
+        "DATABASE_INVENTORY_EXPECTED",
+        "DATABASE_BUDGET_EXPECTED",
+        "DATABASE_STOCK_MOVEMENT_EXPECTED",
+        "ERP_API_INTEGRATION_EXPECTED",
+        "REDIS_URL",
+        "ERP_REDIS_RESTART_EXPECTED",
+        "ERP_REDIS_TEST_DISTRIBUTION"
+      ]
     },
     "test:e2e": {
       "cache": false,

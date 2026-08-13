@@ -82,7 +82,11 @@ export function Sidebar({ user, role, fullName }: SidebarProps) {
   return (
     <nav className="sidebar" aria-label="Main navigation">
       <div className="sidebar-brand">
-        <div className="sidebar-brand-mark" aria-hidden>
+        <div
+          className="sidebar-brand-mark"
+          aria-label="ABI OPS"
+          role="img"
+        >
           A
         </div>
         <div className="sidebar-brand-text">

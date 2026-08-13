@@ -19,6 +19,9 @@ create table if not exists cost_entries (
   bom_line_item_id uuid,
   po_line_item_id  uuid,
   created_by       uuid references users(id) on delete set null,
+  voided_at       timestamptz,
+  voided_by       uuid,
+  void_reason     text,
   cost_category    cost_category not null,
   cost_source      cost_source not null default 'manual',
   description      text not null,
@@ -29,12 +32,30 @@ create table if not exists cost_entries (
   reference_number varchar(100),
   notes            text,
   created_at       timestamptz not null default now(),
-  updated_at       timestamptz not null default now()
+  updated_at       timestamptz not null default now(),
+  constraint cost_entries_void_state check (
+    (
+      voided_at is null
+      and voided_by is null
+      and void_reason is null
+    )
+    or (
+      voided_at is not null
+      and voided_by is not null
+      and void_reason is not null
+      and length(btrim(void_reason)) between 1 and 500
+    )
+  ),
+  constraint cost_entries_voided_by_tenant_fk
+    foreign key (tenant_id, voided_by) references users(tenant_id, id)
+    on delete restrict
 );
 create index if not exists idx_cost_entries_tenant_id on cost_entries(tenant_id);
 create index if not exists idx_cost_entries_project_id on cost_entries(project_id);
 create index if not exists idx_cost_entries_tenant_category on cost_entries(tenant_id, cost_category);
 create index if not exists idx_cost_entries_incurred on cost_entries(tenant_id, incurred_at);
+create index if not exists idx_cost_entries_active_project
+  on cost_entries(tenant_id, project_id, voided_at);
 
 -- RLS (tenant isolation; direct tenant_id check like purchase_orders).
 alter table cost_entries enable row level security;

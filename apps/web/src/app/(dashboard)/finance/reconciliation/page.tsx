@@ -3,6 +3,10 @@ import Link from 'next/link'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { sql } from 'drizzle-orm'
+import {
+  financeReconciliationReadsUseCoreApi,
+  getFinanceReconciliationThroughCoreApi,
+} from '@/lib/erp-core-client'
 
 export const metadata: Metadata = { title: 'Bank reconciliation' }
 
@@ -33,31 +37,59 @@ export default async function BankReconciliationPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.manage')
 
-  const statements = await db.execute<StatementRegisterRow>(sql`
-    select
-      statement.id,
-      statement.reference_number,
-      statement.source_file_name,
-      statement.status,
-      statement.statement_start,
-      statement.statement_end,
-      statement.currency,
-      statement.closing_balance_cents,
-      cash_account.id as cash_account_id,
-      cash_account.name as cash_account_name,
-      count(line.id)::integer as line_count,
-      count(line.matched_cash_transaction_id)::integer as matched_count
-    from public.bank_statements statement
-    join public.cash_accounts cash_account
-      on cash_account.id = statement.cash_account_id
-     and cash_account.tenant_id = statement.tenant_id
-    left join public.bank_statement_lines line
-      on line.bank_statement_id = statement.id
-     and line.tenant_id = statement.tenant_id
-    where statement.tenant_id = ${profile.tenantId}::uuid
-    group by statement.id, cash_account.id, cash_account.name
-    order by statement.statement_end desc, statement.created_at desc
-  `)
+  let statements: StatementRegisterRow[]
+
+  if (financeReconciliationReadsUseCoreApi(profile.tenantId)) {
+    const result = await getFinanceReconciliationThroughCoreApi(500)
+    if (!result.ok || !result.data) {
+      throw new Error(result.error ?? 'Core reconciliation register unavailable')
+    }
+    if (result.data.truncated) {
+      throw new Error(
+        'Bank reconciliation exceeds the closed projection page limit.'
+      )
+    }
+    statements = result.data.rows.map((row) => ({
+      id: row.id,
+      reference_number: row.referenceNumber,
+      source_file_name: row.sourceFileName,
+      status: row.status,
+      statement_start: row.statementStart,
+      statement_end: row.statementEnd,
+      currency: row.currency,
+      closing_balance_cents: row.closingBalanceCents,
+      cash_account_id: row.cashAccountId,
+      cash_account_name: row.cashAccountName,
+      line_count: row.lineCount,
+      matched_count: row.matchedCount,
+    }))
+  } else {
+    statements = await db.execute<StatementRegisterRow>(sql`
+      select
+        statement.id,
+        statement.reference_number,
+        statement.source_file_name,
+        statement.status,
+        statement.statement_start,
+        statement.statement_end,
+        statement.currency,
+        statement.closing_balance_cents,
+        cash_account.id as cash_account_id,
+        cash_account.name as cash_account_name,
+        count(line.id)::integer as line_count,
+        count(line.matched_cash_transaction_id)::integer as matched_count
+      from public.bank_statements statement
+      join public.cash_accounts cash_account
+        on cash_account.id = statement.cash_account_id
+       and cash_account.tenant_id = statement.tenant_id
+      left join public.bank_statement_lines line
+        on line.bank_statement_id = statement.id
+       and line.tenant_id = statement.tenant_id
+      where statement.tenant_id = ${profile.tenantId}::uuid
+      group by statement.id, cash_account.id, cash_account.name
+      order by statement.statement_end desc, statement.created_at desc
+    `)
+  }
 
   const draftCount = statements.filter(
     (statement) => statement.status === 'draft'

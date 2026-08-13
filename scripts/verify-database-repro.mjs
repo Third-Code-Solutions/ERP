@@ -54,8 +54,17 @@ const requiredMigrations = [
   '20260727194757_fix_cash_posting_alias_resolution.sql',
   '20260727194805_fix_finance_workflow_guards.sql',
   '20260728005112_fix_purchase_order_status_catalog.sql',
-  '20260812155000_wo_02_audit_business_calendar.sql',
-  '20260812160000_process_sla_engine_foundation.sql',
+  '20260729233017_notification_outbox_foundation.sql',
+  '20260806110000_asset_register_foundation.sql',
+  '20260806120000_delivery_in_transit_workflow.sql',
+  '20260806130000_delivery_schedule_create_idempotency.sql',
+  '20260806140000_togal_bom_commit_idempotency.sql',
+  '20260806150000_opportunity_project_conversion_idempotency.sql',
+  '20260806160000_security_role_baseline.sql',
+  '20260807130000_customer_invoice_draft_create_workflow.sql',
+  '20260807140000_revoke_anon_tenant_identity_rpc.sql',
+  '20260807150000_user_role_assignment_authority.sql',
+  '20260808100000_cortex_assistant_provider_budget.sql',
 ]
 
 const requiredTables = [
@@ -89,12 +98,28 @@ const requiredTables = [
   'project_budget_lines',
   'stock_movements',
   'stock_movement_lines',
-  'business_calendar_holidays',
-  'process_steps',
-  'task_instances',
-  'sla_clocks',
-  'approval_rules',
-  'approvals',
+  'notification_outbox',
+  'notification_deliveries',
+]
+
+// Service-only command ledgers and the operational asset register are
+// intentionally excluded from the authenticated tenant policy set above.
+// They still require forced RLS and explicit service-role authority in every
+// clean replay and hosted clone.
+const requiredServerOnlyTables = [
+  'stock_movement_create_requests',
+  'stock_movement_workflow_requests',
+  'delivery_schedule_create_requests',
+  'togal_bom_commit_requests',
+  'opportunity_project_conversion_requests',
+  'assets',
+  'customer_invoice_draft_create_requests',
+  'user_role_assignment_requests',
+  'cortex_assistant_provider_policies',
+  'cortex_assistant_provider_attempts',
+  'document_intake_requests',
+  'project_comment_create_requests',
+  'project_comment_delete_requests',
 ]
 
 const requiredPolicies = [
@@ -190,27 +215,14 @@ const requiredPolicies = [
   ['stock_movement_lines', 'stock_movement_lines_inventory_insert'],
   ['stock_movement_lines', 'stock_movement_lines_inventory_update'],
   ['stock_movement_lines', 'stock_movement_lines_inventory_delete'],
-  ['business_calendar_holidays', 'business_calendar_holidays_tenant_read'],
-  ['business_calendar_holidays', 'business_calendar_holidays_tenant_insert'],
-  ['business_calendar_holidays', 'business_calendar_holidays_tenant_update'],
-  ['business_calendar_holidays', 'business_calendar_holidays_tenant_delete'],
-  ['process_steps', 'process_steps_tenant_read'],
-  ['process_steps', 'process_steps_tenant_insert'],
-  ['process_steps', 'process_steps_tenant_update'],
-  ['task_instances', 'task_instances_tenant_read'],
-  ['task_instances', 'task_instances_tenant_insert'],
-  ['task_instances', 'task_instances_tenant_update'],
-  ['sla_clocks', 'sla_clocks_tenant_read'],
-  ['approval_rules', 'approval_rules_tenant_read'],
-  ['approval_rules', 'approval_rules_tenant_insert'],
-  ['approval_rules', 'approval_rules_tenant_update'],
-  ['approvals', 'approvals_tenant_read'],
-  ['approvals', 'approvals_tenant_insert'],
-  ['approvals', 'approvals_tenant_update'],
 ]
 
 const requiredIndexes = [
   'ux_cortex_nodes_current',
+  'ux_notification_outbox_tenant_event',
+  'ux_notification_deliveries_recipient_channel',
+  'ux_notification_deliveries_tenant_idempotency',
+  'ux_notifications_tenant_source_delivery',
   'ux_cortex_edges_current',
   'idx_cortex_nodes_embedding',
   'idx_cortex_conversations_tenant_user',
@@ -296,28 +308,44 @@ const requiredIndexes = [
   'ux_stock_ledger_entries_tenant_id_id',
   'ux_stock_ledger_movement_line_event_warehouse',
   'ux_stock_ledger_movement_reversal',
-  'business_calendar_holidays_tenant_date_unique',
-  'ux_business_calendar_holidays_tenant_id_id',
-  'idx_business_calendar_holidays_tenant_date',
-  'ux_process_steps_tenant_id_id',
-  'ux_process_steps_tenant_code',
-  'idx_process_steps_tenant_stage',
-  'idx_process_steps_tenant_predecessor',
-  'ux_task_instances_tenant_id_id',
-  'ux_task_instances_tenant_instance_key',
-  'idx_task_instances_tenant_subject',
-  'idx_task_instances_tenant_status',
-  'idx_task_instances_tenant_process_step',
-  'ux_sla_clocks_tenant_id_id',
-  'ux_sla_clocks_active_task',
-  'idx_sla_clocks_tenant_due_status',
-  'idx_sla_clocks_tenant_scope_status',
-  'ux_approval_rules_tenant_id_id',
-  'idx_approval_rules_tenant_lookup',
-  'idx_approval_rules_tenant_active',
-  'ux_approvals_tenant_id_id',
-  'ux_approvals_tenant_object_sequence',
-  'idx_approvals_tenant_status',
+  'ux_assets_tenant_id_id',
+  'ux_assets_tenant_tag',
+  'ux_assets_tenant_serial',
+  'idx_assets_tenant_status',
+  'idx_assets_tenant_project',
+  'ux_opportunities_tenant_id_id',
+  'ux_pre_con_checklists_tenant_id_id',
+  'ux_project_comments_tenant_id_id',
+]
+
+const requiredServerOnlyIndexes = [
+  'ux_stock_movement_create_requests_tenant_id_id',
+  'ux_stock_movement_create_requests_tenant_key',
+  'idx_stock_movement_create_requests_tenant_state',
+  'ux_stock_movement_workflow_requests_tenant_id_id',
+  'ux_stock_movement_workflow_requests_tenant_key',
+  'idx_stock_movement_workflow_requests_tenant_state',
+  'ux_delivery_schedule_create_requests_tenant_id_id',
+  'ux_delivery_schedule_create_requests_tenant_key',
+  'idx_delivery_schedule_create_requests_tenant_state',
+  'ux_togal_bom_commit_requests_tenant_id_id',
+  'ux_togal_bom_commit_requests_tenant_key',
+  'idx_togal_bom_commit_requests_tenant_state',
+  'ux_opportunity_project_conversion_requests_tenant_id_id',
+  'ux_opportunity_project_conversion_requests_tenant_key',
+  'idx_opportunity_project_conversion_requests_tenant_state',
+  'ux_customer_invoice_draft_create_requests_tenant_id_id',
+  'ux_customer_invoice_draft_create_requests_tenant_key',
+  'idx_customer_invoice_draft_create_requests_tenant_state',
+  'ux_document_intake_requests_tenant_id_id',
+  'ux_document_intake_requests_tenant_key',
+  'idx_document_intake_requests_tenant_state',
+  'ux_project_comment_create_requests_tenant_id_id',
+  'ux_project_comment_create_requests_tenant_key',
+  'idx_project_comment_create_requests_tenant_state',
+  'ux_project_comment_delete_requests_tenant_id_id',
+  'ux_project_comment_delete_requests_tenant_key',
+  'idx_project_comment_delete_requests_tenant_state',
 ]
 
 const requiredExpandedNodeTypes = [
@@ -478,19 +506,7 @@ const requiredTriggers = [
   ['public.stock_movements', 'audit_stock_movements'],
   ['public.stock_movement_lines', 'audit_stock_movement_lines'],
   ['public.stock_movements', 'cortex_mirror_stock_movement'],
-  ['public.business_calendar_holidays', 'audit_business_calendar_holidays'],
-  ['public.business_calendar_holidays', 'business_calendar_holidays_set_actor'],
-  ['public.tenants', 'seed_business_calendar_holidays_for_tenant'],
-  ['public.process_steps', 'process_steps_set_updated_at'],
-  ['public.task_instances', 'task_instances_set_updated_at'],
-  ['public.sla_clocks', 'sla_clocks_set_updated_at'],
-  ['public.approval_rules', 'approval_rules_set_updated_at'],
-  ['public.approvals', 'approvals_set_updated_at'],
-  ['public.process_steps', 'audit_process_steps'],
-  ['public.task_instances', 'audit_task_instances'],
-  ['public.sla_clocks', 'audit_sla_clocks'],
-  ['public.approval_rules', 'audit_approval_rules'],
-  ['public.approvals', 'audit_approvals'],
+  ['public.assets', 'audit_assets'],
 ]
 
 const requiredSecurityDefinerFunctions = [
@@ -651,6 +667,81 @@ for (const migration of requiredMigrations) {
   )
 }
 
+const securityBaselineMigration = join(
+  migrationDirectory,
+  '20260806160000_security_role_baseline.sql'
+)
+if (existsSync(securityBaselineMigration)) {
+  const securityBaseline = readFileSync(securityBaselineMigration, 'utf8')
+  assert(
+    'security baseline revokes anonymous table privileges',
+    /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+FROM\s+anon/i.test(
+      securityBaseline
+    )
+  )
+  assert(
+    'security baseline revokes anonymous sequence privileges',
+    /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+ALL\s+SEQUENCES\s+IN\s+SCHEMA\s+public\s+FROM\s+anon/i.test(
+      securityBaseline
+    )
+  )
+  assert(
+    'security baseline normalizes public policies',
+    /ALTER\s+POLICY\s+%I\s+ON\s+%I\.%I\s+TO\s+authenticated/i.test(
+      securityBaseline
+    )
+  )
+}
+
+const tenantIdentityHardeningMigration = join(
+  migrationDirectory,
+  '20260807140000_revoke_anon_tenant_identity_rpc.sql'
+)
+if (existsSync(tenantIdentityHardeningMigration)) {
+  const tenantIdentityHardening = readFileSync(
+    tenantIdentityHardeningMigration,
+    'utf8'
+  )
+  assert(
+    'tenant identity helper rejects anonymous RPC execution',
+    /REVOKE\s+EXECUTE\s+ON\s+FUNCTION\s+public\.auth_tenant_id\(\)\s+FROM\s+public,\s*anon/i.test(
+      tenantIdentityHardening
+    )
+  )
+  assert(
+    'tenant identity helper preserves authenticated and service execution',
+    /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+public\.auth_tenant_id\(\)\s+TO\s+authenticated,\s*service_role/i.test(
+      tenantIdentityHardening
+    )
+  )
+}
+
+const userRoleAuthorityMigration = join(
+  migrationDirectory,
+  '20260807150000_user_role_assignment_authority.sql'
+)
+if (existsSync(userRoleAuthorityMigration)) {
+  const userRoleAuthority = readFileSync(userRoleAuthorityMigration, 'utf8')
+  assert(
+    'user role authority removes browser user DML policies',
+    /DROP\s+POLICY\s+IF\s+EXISTS\s+users_tenant_write\s+ON\s+public\.users[\s\S]*DROP\s+POLICY\s+IF\s+EXISTS\s+users_tenant_update\s+ON\s+public\.users/i.test(
+      userRoleAuthority
+    )
+  )
+  assert(
+    'user role authority revokes browser user DML privileges',
+    /REVOKE\s+INSERT,\s*UPDATE,\s*DELETE\s+ON\s+TABLE\s+public\.users\s+FROM\s+public,\s*anon,\s*authenticated/i.test(
+      userRoleAuthority
+    )
+  )
+  assert(
+    'user role assignment ledger is service-only',
+    /ALTER\s+TABLE\s+public\.user_role_assignment_requests\s+FORCE\s+ROW\s+LEVEL\s+SECURITY[\s\S]*REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE\s+public\.user_role_assignment_requests\s+FROM\s+public,\s*anon,\s*authenticated[\s\S]*GRANT\s+ALL\s+PRIVILEGES\s+ON\s+TABLE\s+public\.user_role_assignment_requests\s+TO\s+service_role/i.test(
+      userRoleAuthority
+    )
+  )
+}
+
 assert('supabase/seed.sql exists', existsSync(seedPath))
 if (existsSync(seedPath)) {
   const seed = readFileSync(seedPath, 'utf8')
@@ -751,6 +842,47 @@ try {
   )
 
   await query(
+    'service-only operational tables are forced-RLS and service-role-only',
+    `select c.relname,
+            c.relrowsecurity,
+            c.relforcerowsecurity,
+            has_table_privilege(
+              'anon',
+              format('public.%I', c.relname),
+              'select,insert,update,delete'
+            ) as anon_privileges,
+            has_table_privilege(
+              'authenticated',
+              format('public.%I', c.relname),
+              'select,insert,update,delete'
+            ) as authenticated_privileges,
+            has_table_privilege(
+              'service_role',
+              format('public.%I', c.relname),
+              'select,insert,update,delete'
+            ) as service_role_privileges
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relkind in ('r', 'p')
+        and c.relname in (${requiredServerOnlyTables.map((name) => `'${name}'`).join(', ')})`,
+    (rows) =>
+      rows.length === requiredServerOnlyTables.length
+      && rows.every(
+        (row) =>
+          row.relrowsecurity === true
+          && row.relforcerowsecurity === true
+          && row.anon_privileges === false
+          && row.authenticated_privileges === false
+          && row.service_role_privileges === true
+      ),
+    (rows) =>
+      rows.length === 0
+        ? `missing=[${requiredServerOnlyTables.join(',')}]`
+        : JSON.stringify(rows)
+  )
+
+  await query(
     'required final RLS policy set is authenticated and tenant-scoped',
     `select tablename,
             policyname,
@@ -806,6 +938,38 @@ try {
   )
 
   await query(
+    'notification outbox and delivery authority is server-only',
+    `select
+       has_table_privilege(
+         'authenticated',
+         'public.notification_outbox',
+         'select,insert,update,delete'
+       ) as authenticated_outbox,
+       has_table_privilege(
+         'authenticated',
+         'public.notification_deliveries',
+         'select,insert,update,delete'
+       ) as authenticated_deliveries,
+       has_table_privilege(
+         'authenticated',
+         'public.notifications',
+         'insert,update,delete'
+       ) as authenticated_notification_write,
+       has_table_privilege(
+         'authenticated',
+         'public.notifications',
+         'select'
+       ) as authenticated_notification_read`,
+    (rows) =>
+      rows.length === 1
+      && rows[0].authenticated_outbox === false
+      && rows[0].authenticated_deliveries === false
+      && rows[0].authenticated_notification_write === false
+      && rows[0].authenticated_notification_read === true,
+    (rows) => JSON.stringify(rows[0] ?? {})
+  )
+
+  await query(
     'Cortex conversations have durable paired record context',
     `select issue
        from (
@@ -858,6 +1022,27 @@ try {
     (rows) => {
       const byName = new Map(rows.map((row) => [row.relname, row.indisvalid]))
       return requiredIndexes
+        .filter((name) => byName.get(name) !== true)
+        .map((name) => `${name}:${byName.has(name) ? 'INVALID' : 'MISSING'}`)
+        .join(', ')
+    }
+  )
+
+  await query(
+    'server-only idempotency indexes exist and are valid',
+    `select c.relname, i.indisvalid
+       from pg_class c
+       join pg_index i on i.indexrelid = c.oid
+       join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname in (${requiredServerOnlyIndexes.map((name) => `'${name}'`).join(', ')})`,
+    (rows) => {
+      const byName = new Map(rows.map((row) => [row.relname, row.indisvalid]))
+      return requiredServerOnlyIndexes.every((name) => byName.get(name) === true)
+    },
+    (rows) => {
+      const byName = new Map(rows.map((row) => [row.relname, row.indisvalid]))
+      return requiredServerOnlyIndexes
         .filter((name) => byName.get(name) !== true)
         .map((name) => `${name}:${byName.has(name) ? 'INVALID' : 'MISSING'}`)
         .join(', ')
@@ -1167,7 +1352,7 @@ try {
   )
 
   await query(
-    'client roles have the intended tenant identity helper privileges',
+    'tenant identity helper is authenticated-only for client roles',
     `select
        has_function_privilege(
          'authenticated',
@@ -1469,6 +1654,33 @@ try {
   )
 
   await query(
+    'anon has no direct privileges on public ERP tables',
+    `select c.relname as table_name, privilege
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as privilege
+      where n.nspname = 'public'
+        and c.relkind in ('r', 'p')
+        and has_table_privilege(
+          'anon',
+          format('public.%I', c.relname),
+          privilege
+        )`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => `${row.table_name}:${row.privilege}`).join(', ')
+  )
+
+  await query(
+    'public ERP policies are not assigned to PUBLIC',
+    `select tablename, policyname
+       from pg_policies
+      where schemaname = 'public'
+        and roles @> ARRAY['public']::name[]`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => `${row.tablename}:${row.policyname}`).join(', ')
+  )
+
+  await query(
     'authenticated cannot directly mutate trigger-owned graph tables',
     `select table_name, privilege
        from unnest(array['cortex_nodes', 'cortex_edges', 'cortex_provenance']) as table_name
@@ -1495,8 +1707,52 @@ try {
     (rows) => rows.map((row) => row.privilege).join(', ')
   )
 
+  await query(
+    'authenticated can read but cannot mutate tenant user rows',
+    `select privilege,
+            has_table_privilege(
+              'authenticated',
+              'public.users',
+              privilege
+            ) as allowed
+       from unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as privilege`,
+    (rows) => {
+      const grants = new Map(rows.map((row) => [row.privilege, row.allowed]))
+      return grants.get('SELECT') === true
+        && grants.get('INSERT') === false
+        && grants.get('UPDATE') === false
+        && grants.get('DELETE') === false
+    },
+    (rows) => JSON.stringify(rows)
+  )
+
+  await query(
+    'authenticated has no user-column mutation grants',
+    `select a.attname as column_name, privilege
+       from pg_attribute a
+       join pg_class c on c.oid = a.attrelid
+       join pg_namespace n on n.oid = c.relnamespace
+       cross join unnest(array['INSERT', 'UPDATE']) as privilege
+      where n.nspname = 'public'
+        and c.relname = 'users'
+        and a.attnum > 0
+        and not a.attisdropped
+        and has_column_privilege(
+          'authenticated',
+          c.oid,
+          a.attnum,
+          privilege
+        )`,
+    (rows) => rows.length === 0,
+    (rows) =>
+      rows.map((row) => `${row.column_name}:${row.privilege}`).join(', ')
+  )
+
   const authenticatedReadableTables = requiredTables.filter(
-    (table) => table !== 'financial_sequences'
+    (table) =>
+      table !== 'financial_sequences' &&
+      table !== 'notification_outbox' &&
+      table !== 'notification_deliveries'
   )
 
   const minimumAuthenticatedTableGrants = [
@@ -1534,6 +1790,19 @@ try {
       )`,
     (rows) => rows.length === 0,
     (rows) => rows.map((row) => `${row.table_name}:${row.privilege}`).join(', ')
+  )
+
+  await query(
+    'authenticated cannot mutate Core-owned cost entries',
+    `select privilege
+       from unnest(array['INSERT', 'UPDATE', 'DELETE']) as privilege
+      where has_table_privilege(
+        'authenticated',
+        'public.cost_entries',
+        privilege
+      )`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => `cost_entries:${row.privilege}`).join(', ')
   )
 
   const minimumAuthenticatedColumnGrants = [
@@ -1887,6 +2156,19 @@ try {
   )
 
   await query(
+    'authenticated cannot mutate Core-owned customer invoices',
+    `select privilege
+       from unnest(array['INSERT', 'UPDATE', 'DELETE']) as privilege
+      where has_table_privilege(
+        'authenticated',
+        'public.invoices',
+        privilege
+      )`,
+    (rows) => rows.length === 0,
+    (rows) => rows.map((row) => `invoices:${row.privilege}`).join(', ')
+  )
+
+  await query(
     'authenticated cannot mutate finance authority columns',
     `select table_name, column_name, privilege
        from (values
@@ -2135,5 +2417,5 @@ if (failures > 0) {
 }
 
 console.log(
-  `PASS database reproducibility verification (${migrationFiles.length} migrations, ${requiredTables.length} protected tables)`
+  `PASS database reproducibility verification (${migrationFiles.length} migrations, ${requiredTables.length} protected tables, ${requiredServerOnlyTables.length} service-only tables)`
 )

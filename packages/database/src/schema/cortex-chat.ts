@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
@@ -44,6 +45,9 @@ export const cortexConversations = pgTable(
     updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex(
+      'ux_cortex_conversations_tenant_id_id'
+    ).on(table.tenant_id, table.id),
     tenantUserIdx: index('idx_cortex_conversations_tenant_user').on(
       table.tenant_id,
       table.user_id,
@@ -74,6 +78,9 @@ export const cortexMessages = pgTable(
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
+    tenantIdUniqueIdx: uniqueIndex(
+      'ux_cortex_messages_tenant_id_id'
+    ).on(table.tenant_id, table.id),
     convoIdx: index('idx_cortex_messages_conversation').on(
       table.conversation_id,
       table.created_at
